@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Criar Usuário{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'list_users' %}" class="btn btn-back">← Voltar para Lista</a>
+</div>
+
+<div class="form-container">
+    <div class="card">
+        <h1 class="form-title">Criar Novo Usuário</h1>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="username" class="form-label">Username *</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" id="email" name="email" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Senha *</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="first_name" class="form-label">Nome</label>
+                <input type="text" id="first_name" name="first_name" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="last_name" class="form-label">Sobrenome</label>
+                <input type="text" id="last_name" name="last_name" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="foto_perfil" class="form-label">Foto de Perfil</label>
+                <input type="file" id="foto_perfil" name="foto_perfil" accept="image/*" class="form-control">
+                <small class="form-text">Envie uma foto de perfil (opcional). Formatos aceitos: JPG, PNG, GIF.</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="grupo" class="form-label">Grupo</label>
+                <select id="grupo" name="grupo" class="form-control">
+                    <option value="">Selecione um grupo</option>
+                    {% for grupo in grupos %}
+                        <option value="{{ grupo.name }}">{{ grupo.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-text">Selecione o grupo (Solicitante, Aprovador, Responsavel Empresa ou Administrador)</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Empresas Vinculadas</label>
+                <div class="form-help">Selecione as empresas às quais este usuário está vinculado (opcional):</div>
+                {% if empresas %}
+                    {% for empresa in empresas %}
+                        <div class="form-check">
+                            <input type="checkbox" id="empresa_{{ empresa.id }}" name="empresas" value="{{ empresa.id }}" 
+                                   class="form-check-input">
+                            <label for="empresa_{{ empresa.id }}" class="form-check-label">
+                                {{ empresa.codigo }} - {{ empresa.nome }}
+                            </label>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">Nenhuma empresa cadastrada ou disponível.</p>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn">Criar Usuário</button>
+                <a href="{% url 'list_users' %}" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

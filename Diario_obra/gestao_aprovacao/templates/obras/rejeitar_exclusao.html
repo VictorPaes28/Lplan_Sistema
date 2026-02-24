@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Rejeitar Exclusão: {{ workorder.codigo }}{% endblock %}
+
+{% block page_title %}Rejeitar Exclusão{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/approval_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="approval-container">
+    <div class="card">
+        <h1 class="approval-title">
+            Rejeitar Solicitação de Exclusão
+        </h1>
+        
+        <div class="approval-info-box">
+            <p><strong>Código:</strong> {{ workorder.codigo }}</p>
+            <p><strong>Obra:</strong> {{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
+            <p><strong>Credor:</strong> {{ workorder.nome_credor }}</p>
+            <p><strong>Solicitado por:</strong> {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }}</p>
+            <p><strong>Solicitado em:</strong> {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}</p>
+            {% if workorder.motivo_exclusao %}
+                <div style="margin-top: 1rem; padding: 1rem; background-color: #f8f9fa; border-radius: 4px; border-left: 4px solid #ffc107;">
+                    <strong style="display: block; margin-bottom: 0.5rem; color: #856404;">Motivo da Exclusão:</strong>
+                    <p style="margin: 0; color: #555; white-space: pre-wrap;">{{ workorder.motivo_exclusao }}</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="approval-alert reprovar">
+            <strong>⚠ Atenção!</strong>
+            <p>
+                Você está prestes a rejeitar a solicitação de exclusão deste pedido. 
+                O pedido continuará pendente para aprovação normalmente.
+                É recomendado informar um motivo para o solicitante.
+            </p>
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="approval-form-group">
+                <label for="motivo" class="approval-label">
+                    Motivo da Rejeição (opcional):
+                </label>
+                <textarea 
+                    id="motivo" 
+                    name="motivo" 
+                    rows="5"
+                    placeholder="Informe o motivo da rejeição da exclusão (opcional)..."
+                    class="approval-textarea"
+                ></textarea>
+            </div>
+            
+            <div class="approval-actions">
+                <button 
+                    type="submit" 
+                    class="btn approval-submit reprovar"
+                >
+                    ✗ Confirmar Rejeição
+                </button>
+                <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-secondary approval-cancel">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

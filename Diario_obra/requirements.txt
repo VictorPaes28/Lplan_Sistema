@@ -1,0 +1,77 @@
+# ============================================
+# Sistema LPLAN Central - Dependências Unificadas
+# ============================================
+# Este arquivo combina as dependências dos 3 sistemas:
+# - Diario_obra
+# - Gestao_aprovacao
+# - Mapa_Controle
+# ============================================
+
+# Core Django
+Django>=5.0,<6.0
+djangorestframework>=3.15.0
+
+# Database
+psycopg2-binary>=2.9.0
+mysqlclient>=2.2.0,<3.0.0  # Para MySQL (se necessário)
+pymysql>=1.1.0,<2.0.0  # Para MySQL no cPanel (se necessário)
+
+# Tree structure (EAP - Diario_obra)
+django-treebeard>=4.7
+
+# PDF Generation
+WeasyPrint>=60.0
+xhtml2pdf>=0.2.11
+reportlab>=4.0.7,<5.0.0
+html5lib>=1.1
+PypDF2>=3.0.0
+
+# Image processing
+Pillow>=10.0.0,<11.0.0
+
+# Task queue (Celery - Diario_obra)
+celery>=5.3.0
+kombu>=5.3.0
+billiard>=4.2.0
+vine>=5.1.0
+
+# Cache/Queue backend
+redis>=5.0.0
+
+# Utilities
+python-dateutil>=2.8.2,<3.0.0
+django-filter>=24.0
+python-dotenv>=1.0.0,<2.0.0
+
+# Excel export
+openpyxl>=3.1.0,<4.0.0
+
+# Data Processing (Mapa_Controle)
+pandas>=2.0.0,<3.0.0
+
+# HTTP Requests (Mapa_Controle)
+requests>=2.31.0,<3.0.0
+
+# Configuration & Environment (Mapa_Controle)
+python-decouple>=3.8,<4.0.0
+dj-database-url>=2.1.0,<3.0.0
+
+# Static Files (produção)
+whitenoise>=6.6.0,<7.0.0
+
+# WeasyPrint dependencies (opcional - melhor compatibilidade)
+# Nota: WeasyPrint requer dependências nativas no Linux/Mac
+# No Windows, use xhtml2pdf como fallback
+cffi>=1.15.0
+cairocffi>=1.4.0
+cssselect2>=0.7.0
+tinycss2>=1.2.0
+pyphen>=0.14.0
+
+# Production Server (opcional)
+# gunicorn>=21.2.0,<22.0.0  # Descomente se usar em produção
+
+# Testing (opcional - apenas para desenvolvimento)
+# pytest>=7.4.0,<8.0.0
+# pytest-django>=4.7.0,<5.0.0
+# model-bakery>=1.12.0,<2.0.0

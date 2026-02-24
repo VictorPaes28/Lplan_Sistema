@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gerenciar Permissões: {{ obra.codigo }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'detail_obra' obra.pk %}" class="btn btn-back">← Voltar para Obra</a>
+</div>
+
+<div class="list-header">
+    <h1 class="list-title">Gerenciar Permissões - {{ obra.codigo }}</h1>
+</div>
+
+<div class="card">
+    <h2>Adicionar Nova Permissão</h2>
+    
+    <form method="post" style="margin-bottom: 2rem;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        
+        <div class="form-group" style="display: flex; gap: 1rem; align-items: end;">
+            <div style="flex: 1;">
+                <label for="usuario" class="filter-label">Usuário:</label>
+                <select id="usuario" name="usuario" class="filter-select" required>
+                    <option value="">Selecione um usuário</option>
+                    <optgroup label="Solicitantes">
+                        {% for usuario in usuarios_solicitantes %}
+                            <option value="{{ usuario.pk }}">{{ usuario.get_full_name|default:usuario.username }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Aprovadores">
+                        {% for usuario in usuarios_aprovadores %}
+                            <option value="{{ usuario.pk }}">{{ usuario.get_full_name|default:usuario.username }}</option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+            
+            <div style="flex: 1;">
+                <label for="tipo_permissao" class="filter-label">Tipo de Permissão:</label>
+                <select id="tipo_permissao" name="tipo_permissao" class="filter-select" required>
+                    <option value="">Selecione...</option>
+                    <option value="solicitante">Solicitante</option>
+                    <option value="aprovador">Aprovador</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn">Adicionar</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Permissões Existentes</h2>
+    
+    {% if permissoes %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Usuário</th>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for perm in permissoes %}
+                    <tr>
+                        <td>{{ perm.usuario.get_full_name|default:perm.usuario.username }}</td>
+                        <td>
+                            {% if perm.tipo_permissao == 'solicitante' %}
+                                <span class="badge" style="background-color: #17a2b8;">Solicitante</span>
+                            {% else %}
+                                <span class="badge" style="background-color: #28a745;">Aprovador</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if perm.ativo %}
+                                <span class="badge badge-success">Ativa</span>
+                            {% else %}
+                                <span class="badge" style="background-color: #dc3545; color: white;">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle">
+                                <input type="hidden" name="permission_id" value="{{ perm.pk }}">
+                                <button type="submit" class="btn btn-sm">
+                                    {% if perm.ativo %}Desativar{% else %}Ativar{% endif %}
+                                </button>
+                            </form>
+                            <form method="post" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja remover esta permissão?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="remove">
+                                <input type="hidden" name="permission_id" value="{{ perm.pk }}">
+                                <button type="submit" class="btn btn-sm" style="background-color: #dc3545;">Remover</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="empty-message">Nenhuma permissão cadastrada para esta obra.</p>
+    {% endif %}
+</div>
+
+<div class="card" style="background-color: #fff3cd; border-left: 4px solid #ffc107;">
+    <h3 style="margin-top: 0;">⚠️ Importante</h3>
+    <p>Para adicionar permissões, o usuário deve estar:</p>
+    <ul>
+        <li><strong>Vinculado à empresa</strong> da obra (gerenciar em "Gerenciar Usuários")</li>
+        <li><strong>No grupo correto</strong> (Solicitante ou Aprovador)</li>
+    </ul>
+</div>
+{% endblock %}
+

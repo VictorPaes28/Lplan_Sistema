@@ -1,0 +1,164 @@
+/* Dropdowns e Interações - JavaScript Vanilla */
+/* Este arquivo garante estilos para dropdowns e elementos interativos */
+
+/* Garantir que TODOS os botões são clicáveis */
+button,
+button[type="button"] {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+
+.relative button,
+nav button {
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* Fix específico para filtro de busca */
+nav .mb-2 {
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+nav .mb-2 button {
+    position: relative !important;
+    z-index: 11 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+#filter-search-dropdown {
+    position: relative !important;
+    z-index: 10 !important;
+    pointer-events: auto !important;
+}
+
+/* Fix específico para user dropdown */
+.top-bar-container > div > div.relative,
+.top-bar-container .relative,
+#user-menu-container {
+    position: relative !important;
+    z-index: 1000 !important;
+}
+
+.top-bar-container .relative button,
+#user-menu-button {
+    position: relative !important;
+    z-index: 1001 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Consolidar regras duplicadas */
+#user-menu-container {
+    overflow: visible !important;
+}
+
+/* User dropdown - posicionamento correto */
+#user-menu-dropdown {
+    position: absolute !important;
+    right: 0 !important;
+    top: 100% !important;
+    margin-top: 0.5rem !important;
+    z-index: 1050 !important; /* Maior que o botão para aparecer acima */
+}
+
+/* Garantir que chevron rotacione corretamente */
+i.fa-chevron-down.rotate-180,
+#filter-chevron.rotate-180 {
+    transform: rotate(180deg) !important;
+    display: inline-block !important;
+}
+
+/* Garantir que nav não bloqueie cliques */
+nav {
+    pointer-events: auto !important;
+}
+
+nav * {
+    pointer-events: auto !important;
+}
+
+/* Sidebar - transição suave (estado controlado por base.css e JavaScript) */
+#sidebar {
+    transition: transform 0.3s ease-in-out !important;
+    will-change: transform;
+}
+
+/* Overflow para evitar cortes */
+#filter-search-container {
+    overflow: visible !important;
+}
+
+/* Filtro de busca - estilo escuro para combinar com sidebar */
+#filter-search-button {
+    background-color: #1e293b !important; /* slate-800 */
+    color: #cbd5e1 !important; /* gray-300 */
+    border: 1px solid #334155 !important; /* slate-700 */
+}
+
+#filter-search-button:hover {
+    background-color: #334155 !important; /* slate-700 */
+    color: #ffffff !important;
+    border-color: #475569 !important; /* slate-600 */
+}
+
+#filter-search-button i.fa-filter {
+    color: #60a5fa !important; /* blue-400 */
+}
+
+/* Garantir que o ícone do usuário não seja cortado - apenas o necessário */
+#user-menu-button {
+    overflow: visible !important;
+}
+
+#user-menu-button span {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+}
+
+/* Garantir que o ícone circular não corte o texto */
+#user-menu-button > div {
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#user-menu-button > div span {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    display: block !important;
+    line-height: 1 !important;
+}
+
+/* Melhorias visuais para o botão do usuário */
+#user-menu-button:hover #user-menu-chevron {
+    transform: translateY(1px);
+}
+
+#user-menu-button:active {
+    transform: scale(0.98);
+}
+
+/* Melhorar o dropdown */
+#user-menu-dropdown {
+    animation: fadeInDown 0.2s ease-out;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Painel do sistema{% endblock %}
+{% block page_subtitle %}Obras e usuários em um só lugar{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">Cadastre obras e usuários aqui. As mesmas obras e vínculos valem para o Diário de Obra, o sistema de Pedidos e o Mapa.</p>
+
+    <div class="central-help-card mb-8">
+        <p class="central-help-title">Algo deu errado ou alguém reclamou de um problema?</p>
+        <p class="central-help-desc">Use a página de Ajuda: lá tem passo a passo em linguagem simples e botões que levam direto ao lugar certo para resolver.</p>
+        <a href="{% url 'central_ajuda' %}" class="central-help-btn">
+            <i class="fas fa-question-circle" aria-hidden="true"></i>
+            Ajuda — Quando algo der errado
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <a href="{% url 'central_project_list' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#eff6ff;color:#2563eb;">
+                <i class="fas fa-building" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Obras</h2>
+            <p class="central-action-desc">Criar e editar obras. As mesmas obras aparecem no Diário de Obra, no sistema de Pedidos e no Mapa.</p>
+            <span class="central-action-link">Ver obras <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+        <a href="{% url 'central_list_users' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#f0fdf4;color:#059669;">
+                <i class="fas fa-users" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Usuários</h2>
+            <p class="central-action-desc">Criar usuários e vincular às obras. O vínculo vale para o Diário de Obra e o sistema de Pedidos.</p>
+            <span class="central-action-link">Ver usuários <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+        <a href="{% url 'central_manutencao' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#fef3c7;color:#d97706;">
+                <i class="fas fa-sync-alt" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Atualizar listas de obras</h2>
+            <p class="central-action-desc">Use quando uma obra nova não aparecer no sistema de Pedidos ou no Mapa. Um clique atualiza as listas.</p>
+            <span class="central-action-link">Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+    </div>
+
+    <div class="mt-8 pt-6 border-t border-slate-100">
+        <a href="{% url 'accounts:admin_central' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao Painel</a>
+    </div>
+</div>
+{% endblock %}

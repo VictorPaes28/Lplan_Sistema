@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+
+{% block title %}Administração Central - SupplyMap{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2>🔧 Administração Central</h2>
+        <p class="text-muted">Gerencie usuários, obras e configurações do sistema</p>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ stats.total_usuarios }}</h3>
+                <p class="mb-0">Usuários</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ stats.total_obras }}</h3>
+                <p class="mb-0">Obras</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ stats.total_insumos }}</h3>
+                <p class="mb-0">Insumos</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ stats.total_itens_mapa }}</h3>
+                <p class="mb-0">Itens no Mapa</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Menu Principal -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">👥 Usuários</h5>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'criar_usuario' %}" class="btn btn-primary mb-2 w-100">
+                    ➕ Criar Novo Usuário
+                </a>
+                <a href="{% url 'gerenciar_usuarios' %}" class="btn btn-outline-primary w-100">
+                    📋 Gerenciar Usuários
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">🏗️ Obras</h5>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'criar_obra' %}" class="btn btn-success mb-2 w-100">
+                    ➕ Criar Nova Obra
+                </a>
+                <a href="{% url 'gerenciar_obras' %}" class="btn btn-outline-success w-100">
+                    📋 Gerenciar Obras
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Usuários por Grupo -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Usuários por Grupo</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for grupo in stats.usuarios_por_grupo %}
+                    <div class="col-md-3 mb-2">
+                        <div class="badge bg-secondary p-2 w-100 text-start">
+                            <strong>{{ grupo.name }}</strong>: {{ grupo.count }} usuário(s)
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">Nenhum grupo com usuários ainda.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Últimos Usuários -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Últimos Usuários Cadastrados</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Grupos</th>
+                            <th>Data Cadastro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in ultimos_usuarios %}
+                        <tr>
+                            <td><strong>{{ usuario.username }}</strong></td>
+                            <td>{{ usuario.get_full_name|default:"-" }}</td>
+                            <td>{{ usuario.email|default:"-" }}</td>
+                            <td>
+                                {% for grupo in usuario.groups.all %}
+                                    <span class="badge bg-secondary">{{ grupo.name }}</span>
+                                {% empty %}
+                                    <span class="text-muted">Sem grupo</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ usuario.date_joined|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">Nenhum usuário cadastrado ainda.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

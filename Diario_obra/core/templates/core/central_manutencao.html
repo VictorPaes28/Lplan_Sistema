@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Atualizar listas de obras{% endblock %}
+{% block page_subtitle %}Fazer as obras aparecerem no sistema de Pedidos e no Mapa{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <p class="manutencao-intro">Quando você cadastra uma obra nova no Central, ela precisa ser repassada para o sistema de Pedidos e para o Mapa. Use o botão abaixo quando uma obra não aparecer nesses outros sistemas.</p>
+
+    <div class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-chart-pie text-slate-500"></i> Quantidade de obras hoje</h2>
+        <div class="manutencao-stats-grid">
+            <div class="manutencao-stat-card">
+                <div class="manutencao-stat-number">{{ projects_count }}</div>
+                <div class="manutencao-stat-label">Central</div>
+                <div class="manutencao-stat-label" style="font-size:0.7rem;margin-top:2px;">cadastradas aqui</div>
+            </div>
+            <div class="manutencao-stat-card">
+                <div class="manutencao-stat-number">{{ gestao_com_project }} <span style="font-size:0.6em;font-weight:600;color:#64748b;">/ {{ gestao_total }}</span></div>
+                <div class="manutencao-stat-label">Sistema de Pedidos</div>
+                <div class="manutencao-stat-label" style="font-size:0.7rem;margin-top:2px;">com vínculo ao Central</div>
+            </div>
+            <div class="manutencao-stat-card">
+                <div class="manutencao-stat-number">{{ mapa_count }}</div>
+                <div class="manutencao-stat-label">Mapa</div>
+                <div class="manutencao-stat-label" style="font-size:0.7rem;margin-top:2px;">obras no Mapa</div>
+            </div>
+        </div>
+        {% if sync_ok %}
+        <div class="text-center">
+            <span class="manutencao-sync-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> Tudo sincronizado</span>
+        </div>
+        {% else %}
+        <p class="text-slate-500 text-sm mt-2 text-center">Se os números forem diferentes, use o botão abaixo para atualizar.</p>
+        {% endif %}
+    </div>
+
+    <div class="manutencao-cta-card">
+        <h2 class="manutencao-cta-title"><i class="fas fa-sync-alt" aria-hidden="true"></i> Atualizar listas de obras</h2>
+        <p class="manutencao-cta-desc">Todas as obras cadastradas aqui passam a aparecer também no sistema de Pedidos e no Mapa. Use depois de criar uma obra nova ou quando alguém disser que a obra não aparece nesses sistemas.</p>
+        <form method="post" action="{% url 'central_manutencao' %}" onsubmit="return confirm('Atualizar agora? As listas do sistema de Pedidos e do Mapa serão atualizadas.');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="sync_all" />
+            <button type="submit" class="manutencao-cta-btn">
+                <i class="fas fa-sync-alt" aria-hidden="true"></i> Atualizar listas de obras
+            </button>
+        </form>
+    </div>
+
+    <div class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-external-link-alt text-slate-500"></i> Outras telas úteis</h2>
+        <div class="manutencao-links-grid">
+            <a href="{% url 'gestao:list_email_logs' %}" class="manutencao-link-item">
+                <i class="fas fa-envelope" aria-hidden="true"></i>
+                <span>
+                    Ver e-mails enviados
+                    <span class="manutencao-link-desc">pedidos e aprovações · reenviar</span>
+                </span>
+            </a>
+            <a href="{% url 'central_ajuda' %}" class="manutencao-link-item">
+                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                <span>
+                    Ajuda
+                    <span class="manutencao-link-desc">quando algo der errado</span>
+                </span>
+            </a>
+            <a href="{% url 'accounts:admin_central' %}" class="manutencao-link-item">
+                <i class="fas fa-home" aria-hidden="true"></i>
+                <span>Voltar ao Painel</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="mt-6 pt-4 border-t border-slate-100">
+        <a href="{% url 'accounts:admin_central' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao Painel</a>
+    </div>
+</div>
+{% endblock %}

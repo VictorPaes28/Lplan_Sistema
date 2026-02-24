@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Importar Sienge - SupplyMap{% endblock %}
+
+{% block content %}
+<div class="container-fluid lplan-page">
+    <!-- HERO / INTEGRAÇÃO -->
+    <div class="lplan-hero">
+        <div>
+            <h2 class="lplan-hero-title">Importação de Dados do ERP Sienge</h2>
+            <div class="lplan-hero-sub">
+                Fluxo semi-automático: lançou no Sienge → exportou (CSV/XLSX) → upload aqui.
+                {% if obra_contexto %}
+                <span class="ms-2 badge-mini neutral"><i class="bi bi-building"></i> Obra atual: {{ obra_contexto.nome }} ({{ obra_contexto.codigo_sienge }})</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'engenharia:mapa' %}" class="btn btn-sm btn-outline-light">
+                <i class="bi bi-table"></i> Mapa
+            </a>
+            <a href="{% url 'engenharia:dashboard_2' %}" class="btn btn-sm btn-outline-light">
+                <i class="bi bi-speedometer"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- CARD DE INTEGRAÇÃO (UPLOAD) -->
+    <div class="lplan-card">
+        <div class="lplan-card-header">
+            <div class="lplan-card-title">
+                <i class="bi bi-link-45deg"></i>
+                Importação de Dados do ERP Sienge
+            </div>
+            <div class="text-muted small">
+                Drag & Drop + Idempotente
+            </div>
+        </div>
+        <div class="lplan-card-body">
+            <form method="post" enctype="multipart/form-data" id="siengeImportForm">
+                {% csrf_token %}
+                
+                <input type="file" name="arquivo" id="siengeFileInput" accept=".csv,.xlsx,.xls" style="display:none;" required>
+                
+                <div class="lplan-dropzone" id="siengeDropzone">
+                    <div class="lplan-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <p class="lplan-dropzone-hint">Arraste e solte seu arquivo <strong>.XLSX</strong> ou <strong>.CSV</strong> aqui</p>
+                    <div class="lplan-dropzone-subhint">
+                        ou clique para selecionar. Para <strong>.xlsx</strong>, o servidor precisa ter <strong>openpyxl</strong> instalado.
+                    </div>
+                    {% if form.arquivo.errors %}
+                        <div class="text-danger small mt-2">{{ form.arquivo.errors.0 }}</div>
+                    {% endif %}
+                    <div id="siengeFilePill" class="lplan-filepill" style="display:none;">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span id="siengeFileName"></span>
+                        <span class="text-muted">•</span>
+                        <span id="siengeFileMeta" class="text-muted"></span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                    <div class="text-muted small">
+                        - Detecta automaticamente o cabeçalho e a coluna <strong>Cód. Obra</strong> (quando existir).<br>
+                        - Evita duplicações mesmo com exportações por período (1 dia, 1 semana, 6 meses...).
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btnImportarAgora">
+                        <i class="bi bi-cloud-arrow-up"></i> Importar agora
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if log_output %}
+    <div class="lplan-card mt-3">
+        <div class="lplan-card-header" style="background: #0b1220; color: #fff; border-bottom-color: rgba(148,163,184,0.18);">
+            <div class="lplan-card-title" style="color:#fff;">
+                <i class="bi bi-terminal"></i> Log da Importação
+            </div>
+            <div class="small" style="color: rgba(226,232,240,0.75);">Execução mais recente</div>
+        </div>
+        <div style="padding: 0;">
+            <pre style="margin:0; padding: 14px 16px; background: #0b1220; color: #e2e8f0; max-height: 420px; overflow:auto; font-size: 12px; line-height: 1.4;">{{ log_output }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- HISTÓRICO DE IMPORTAÇÃO -->
+    <div class="lplan-card mt-3">
+        <div class="lplan-card-header">
+            <div class="lplan-card-title">
+                <i class="bi bi-clock-history"></i> Histórico de Importações
+            </div>
+            <div class="text-muted small">Últimas 25 execuções</div>
+        </div>
+        <div style="padding: 0; overflow:auto;">
+            <table class="lplan-grid">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Obra</th>
+                        <th>Usuário</th>
+                        <th>Arquivo / Detalhe</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in import_history %}
+                    <tr>
+                        <td style="font-variant-numeric: tabular-nums;">{{ h.data_hora|date:"d/m/Y H:i" }}</td>
+                        <td>{{ h.obra.nome }}</td>
+                        <td>{{ h.usuario.first_name|default:h.usuario.username }}</td>
+                        <td style="max-width: 520px; overflow:hidden; text-overflow: ellipsis;">
+                            {% if h.campo_alterado == 'ERRO' %}
+                                <strong>{{ h.descricao }}</strong><br>
+                                <span class="text-muted small">{{ h.valor_novo }}</span>
+                            {% else %}
+                                {{ h.valor_novo|default:h.descricao }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if h.campo_alterado == 'ERRO' %}
+                                <span class="badge-mini error"><i class="bi bi-x-circle"></i> Erro</span>
+                            {% else %}
+                                <span class="badge-mini success"><i class="bi bi-check-circle"></i> Sucesso</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted" style="padding: 18px;">
+                            Nenhuma importação registrada ainda.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="alert alert-info mt-3">
+        <strong>Operação recomendada:</strong> após lançar no Sienge, exporte e faça upload aqui.
+        No Mapa, itens sem SC ficam em <strong>1) Levantamento</strong>; ao digitar a SC, o vínculo acontece na próxima importação.
+    </div>
+</div>
+
+<script>
+(() => {
+    const dz = document.getElementById('siengeDropzone');
+    const input = document.getElementById('siengeFileInput');
+    const pill = document.getElementById('siengeFilePill');
+    const nameEl = document.getElementById('siengeFileName');
+    const metaEl = document.getElementById('siengeFileMeta');
+    const btn = document.getElementById('btnImportarAgora');
+    const form = document.getElementById('siengeImportForm');
+
+    if (!dz || !input) return;
+
+    const formatBytes = (bytes) => {
+        if (!bytes && bytes !== 0) return '';
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
+        const val = (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1);
+        return `${val} ${sizes[i]}`;
+    };
+
+    const updatePill = (file) => {
+        if (!file) {
+            pill.style.display = 'none';
+            return;
+        }
+        nameEl.textContent = file.name;
+        metaEl.textContent = `${(file.name.split('.').pop() || '').toUpperCase()} • ${formatBytes(file.size)}`;
+        pill.style.display = 'inline-flex';
+    };
+
+    dz.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => updatePill(input.files && input.files[0]));
+
+    ['dragenter', 'dragover'].forEach(evt => {
+        dz.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dz.classList.add('is-dragover');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(evt => {
+        dz.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dz.classList.remove('is-dragover');
+        });
+    });
+
+    dz.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (!files || !files.length) return;
+        input.files = files;
+        updatePill(files[0]);
+    });
+
+    if (form && btn) {
+        form.addEventListener('submit', () => {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Importando...';
+        });
+    }
+})();
+</script>
+{% endblock %}
+
+

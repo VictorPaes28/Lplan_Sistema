@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GestControll{% endblock %}</title>
+    {% load static %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <style>
+        /* Trocar Sistema: primeiro e em destaque no header */
+        .header-switch-system {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.4rem 0.6rem;
+            margin-right: 0.5rem;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(96, 165, 250, 0.5);
+            border-left: 4px solid #3b82f6;
+            border-radius: 6px;
+            color: #1e40af;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-decoration: none;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .header-switch-system:hover {
+            background: rgba(59, 130, 246, 0.35);
+            border-left-color: #2563eb;
+            color: #1e3a8a;
+        }
+        .header-switch-system-text { display: none; }
+        @media (min-width: 768px) { .header-switch-system-text { display: inline; } }
+        .mobile-menu-item-switch-system {
+            background: rgba(59, 130, 246, 0.15) !important;
+            border-left: 4px solid #3b82f6;
+            font-weight: 600;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="header-left">
+                    <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Menu">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <a href="{% url 'select-system' %}" class="header-switch-system" title="Trocar Sistema">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                            <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                            <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                            <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                        </svg>
+                        <span class="header-switch-system-text">Trocar Sistema</span>
+                    </a>
+                    <a href="{% url 'gestao:home' %}" class="header-logo-link" title="Voltar para Home">
+                        <img src="{% static 'images/lplan.png' %}" alt="LPLAN Logo" class="header-logo">
+                    </a>
+                    <a href="{% url 'gestao:home' %}" class="header-home-link" title="Voltar para Home">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        <span class="header-home-text">Home</span>
+                    </a>
+                    <h1 class="header-title">GestControll</h1>
+                </div>
+                <div class="user-info">
+                    {% if user.is_authenticated %}
+                        {% with user.perfil as perfil %}
+                            {% if perfil and perfil.foto_perfil %}
+                                <img src="{{ perfil.foto_perfil.url }}" alt="Foto de perfil" class="user-avatar">
+                            {% else %}
+                                <div class="user-avatar user-avatar-placeholder">
+                                    <span>{{ user.get_full_name|default:user.username|first|upper }}</span>
+                                </div>
+                            {% endif %}
+                        {% endwith %}
+                        <span class="user-greeting">Olá, <strong>{{ user.get_full_name|default:user.username }}</strong></span>
+                        {% if user_profile %}
+                            <span class="user-profile-badge">({{ user_profile|title }})</span>
+                        {% endif %}
+                        <a href="{% url 'gestao:list_notificacoes' %}" class="notifications-link" title="Notificações">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            {% if notificacoes_count and notificacoes_count > 0 %}
+                                <span class="notification-badge">{{ notificacoes_count }}</span>
+                            {% endif %}
+                        </a>
+                        <a href="{% url 'gestao:edit_my_profile' %}" class="btn btn-profile-header" title="Editar meu perfil">Meu Perfil</a>
+                        <a href="{% url 'logout' %}" class="btn btn-secondary btn-logout">Sair</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="btn">Entrar</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Menu Mobile -->
+        {% if user.is_authenticated %}
+        <div class="mobile-menu" id="mobile-menu">
+            <div class="mobile-menu-content">
+                <div class="mobile-menu-header">
+                    <h3>Menu</h3>
+                    <button class="mobile-menu-close" id="mobile-menu-close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="mobile-menu-nav">
+                    <a href="{% url 'select-system' %}" class="mobile-menu-item mobile-menu-item-switch-system">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                            <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                            <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                            <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                        </svg>
+                        <span>Trocar Sistema</span>
+                    </a>
+                    {% if pode_criar_pedido %}
+                    <a href="{% url 'gestao:create_workorder' %}" class="mobile-menu-item mobile-menu-item-primary">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Criar Novo Pedido</span>
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'gestao:list_workorders' %}" class="mobile-menu-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                        <span>Ver Pedidos</span>
+                    </a>
+                    <a href="{% url 'gestao:list_notificacoes' %}" class="mobile-menu-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <span>Notificações</span>
+                        {% if notificacoes_count and notificacoes_count > 0 %}
+                            <span class="mobile-menu-badge">{{ notificacoes_count }}</span>
+                        {% endif %}
+                    </a>
+                    {% if is_admin or is_responsavel_empresa %}
+                    <a href="{% url 'gestao:list_obras' %}" class="mobile-menu-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        </svg>
+                        <span>Gerenciar Obras</span>
+                    </a>
+                    <a href="{% url 'gestao:list_empresas' %}" class="mobile-menu-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                        </svg>
+                        <span>Gerenciar Empresas</span>
+                    </a>
+                    {% endif %}
+                    {% if is_admin %}
+                    <a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="mobile-menu-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                        </svg>
+                        <span>Gerenciar Usuários</span>
+                    </a>
+                    {% endif %}
+                    <div class="mobile-menu-divider"></div>
+                    <a href="{% url 'gestao:edit_my_profile' %}" class="mobile-menu-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <span>Meu Perfil</span>
+                    </a>
+                    <a href="{% url 'logout' %}" class="mobile-menu-item mobile-menu-item-danger">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Sair</span>
+                    </a>
+                </nav>
+            </div>
+            <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
+        </div>
+        {% endif %}
+    </header>
+    
+    <main>
+        <div class="container">
+            {% if messages %}
+            <div id="gestao-toasts" style="position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;pointer-events:none;">
+                {% for message in messages %}
+                <div class="gestao-toast gestao-toast-{{ message.tags }}" style="pointer-events:auto;">
+                    <div class="gestao-toast-icon">
+                        {% if message.tags == 'success' %}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        {% elif message.tags == 'error' %}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        {% elif message.tags == 'warning' %}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        {% else %}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        {% endif %}
+                    </div>
+                    <div class="gestao-toast-text">{{ message }}</div>
+                    <button type="button" class="gestao-toast-close" onclick="this.closest('.gestao-toast').remove()">&times;</button>
+                    <div class="gestao-toast-timer"></div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3 class="footer-title">GestControll <small style="font-size:0.65em;opacity:0.6;">by LPLAN</small></h3>
+                    <p class="footer-description">Plataforma integrada para gerenciamento de pedidos e aprovações de obras.</p>
+                </div>
+                <div class="footer-section">
+                    <h4 class="footer-subtitle">Acesso Rápido</h4>
+                    <ul class="footer-links">
+                        {% if user.is_authenticated %}
+                            <li><a href="{% url 'gestao:home' %}">Home</a></li>
+                            <li><a href="{% url 'gestao:list_workorders' %}">Pedidos</a></li>
+                            {% if user_profile == 'admin' %}
+                                <li><a href="{% url 'gestao:list_empresas' %}">Empresas</a></li>
+                                <li><a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}">Usuários</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li><a href="{% url 'login' %}">Login</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4 class="footer-subtitle">Suporte</h4>
+                    <ul class="footer-links">
+                        <li><a href="{% url 'gestao:home' %}">Central de Ajuda</a></li>
+                        <li><a href="{% url 'gestao:home' %}">Contato</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p class="footer-copyright">
+                    <span>&copy; {% now "Y" %} LPLAN - GestControll.</span>
+                    <span class="footer-separator">|</span>
+                    <span>Todos os direitos reservados.</span>
+                </p>
+                <p class="footer-version">Versão 1.0.0</p>
+            </div>
+        </div>
+    </footer>
+    
+    <style>
+    .gestao-toast{display:flex;align-items:flex-start;gap:0.6rem;padding:0.75rem 1rem;background:var(--card-bg,#fff);border-radius:var(--radius-md,10px);box-shadow:0 8px 30px rgba(0,0,0,0.12);border-left:4px solid var(--secondary-color,#94a3b8);position:relative;overflow:hidden;animation:gtIn .35s cubic-bezier(.16,1,.3,1)}
+    .gestao-toast.gt-exit{animation:gtOut .3s ease forwards}
+    @keyframes gtIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes gtOut{to{opacity:0;transform:translateX(40px)}}
+    .gestao-toast-icon{flex-shrink:0;margin-top:1px}
+    .gestao-toast-text{flex:1;font-size:0.85rem;font-weight:500;color:var(--text-color,#1e293b)}
+    .gestao-toast-close{flex-shrink:0;background:none;border:none;color:var(--text-muted,#94a3b8);cursor:pointer;font-size:1.1rem;line-height:1;padding:0 2px}
+    .gestao-toast-close:hover{color:var(--dark-color,#475569)}
+    .gestao-toast-timer{position:absolute;bottom:0;left:0;height:3px;border-radius:0 0 0 10px;animation:gtTimer 5s linear forwards}
+    @keyframes gtTimer{from{width:100%}to{width:0%}}
+    .gestao-toast-success{border-color:var(--success-color,#27ae60)}.gestao-toast-success .gestao-toast-icon{color:var(--success-color,#27ae60)}.gestao-toast-success .gestao-toast-timer{background:var(--success-color,#27ae60)}
+    .gestao-toast-error{border-color:var(--danger-color,#e74c3c)}.gestao-toast-error .gestao-toast-icon{color:var(--danger-color,#e74c3c)}.gestao-toast-error .gestao-toast-timer{background:var(--danger-color,#e74c3c)}
+    .gestao-toast-warning{border-color:var(--warning-color,#f39c12)}.gestao-toast-warning .gestao-toast-icon{color:var(--warning-color,#f39c12)}.gestao-toast-warning .gestao-toast-timer{background:var(--warning-color,#f39c12)}
+    .gestao-toast-info{border-color:var(--info-color,#17a2b8)}.gestao-toast-info .gestao-toast-icon{color:var(--info-color,#17a2b8)}.gestao-toast-info .gestao-toast-timer{background:var(--info-color,#17a2b8)}
+    </style>
+    <script>
+    // Auto-dismiss gestao toasts
+    if(document.querySelector('.gestao-toast')){setTimeout(function(){document.querySelectorAll('.gestao-toast').forEach(function(t,i){setTimeout(function(){t.classList.add('gt-exit');setTimeout(function(){t.remove()},300)},i*100)})},5000)}
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Menu Mobile Script -->
+    {% if user.is_authenticated %}
+    <script>
+    // Menu Mobile
+    document.addEventListener('DOMContentLoaded', function() {
+        const menuToggle = document.getElementById('mobile-menu-toggle');
+        const menu = document.getElementById('mobile-menu');
+        const menuClose = document.getElementById('mobile-menu-close');
+        const menuOverlay = document.getElementById('mobile-menu-overlay');
+        
+        if (menuToggle && menu) {
+            function openMenu() {
+                menu.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+            
+            function closeMenu() {
+                menu.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+            
+            menuToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                openMenu();
+            });
+            
+            if (menuClose) {
+                menuClose.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeMenu();
+                });
+            }
+            
+            if (menuOverlay) {
+                menuOverlay.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeMenu();
+                });
+            }
+            
+            // Fechar ao clicar em um item do menu
+            const menuItems = menu.querySelectorAll('.mobile-menu-item');
+            menuItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    setTimeout(closeMenu, 200);
+                });
+            });
+            
+            // Fechar ao pressionar ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && menu.classList.contains('active')) {
+                    closeMenu();
+                }
+            });
+        }
+    });
+    </script>
+    {% endif %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

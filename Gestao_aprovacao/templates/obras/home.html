@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Home - GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/home.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    {% if user.is_authenticated %}
+        <div class="dashboard-layout">
+            <!-- Coluna Esquerda: Últimas Atualizações -->
+            <div class="dashboard-left">
+                <!-- Últimas Atualizações Card -->
+                <div class="updates-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Últimas atualizações</h2>
+                    </div>
+                    <div class="updates-list">
+                        {% if ultimas_atualizacoes %}
+                            {% for workorder in ultimas_atualizacoes %}
+                                <div class="update-item">
+                                    <div class="update-icon">
+                                        {% if workorder.status == 'aprovado' %}
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                            </svg>
+                                        {% elif workorder.status == 'reprovado' %}
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                                            </svg>
+                                        {% elif workorder.status == 'pendente' %}
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <polyline points="12 6 12 12 16 14"></polyline>
+                                            </svg>
+                                        {% elif workorder.status == 'reaprovacao' %}
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                <polyline points="7 10 12 15 17 10"></polyline>
+                                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                                            </svg>
+                                        {% else %}
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                            </svg>
+                                        {% endif %}
+                                    </div>
+                                    <div class="update-content">
+                                        <a href="{% url 'detail_workorder' workorder.pk %}" class="update-link-simple">
+                                            <div class="update-main-info">
+                                                <div class="update-code-line">
+                                                    <span class="update-code">{{ workorder.codigo }}</span>
+                                                </div>
+                                                <div class="update-obra-line">
+                                                    <span class="update-obra-simple">{{ workorder.obra.nome|default:"Obra não especificada" }}</span>
+                                                </div>
+                                            </div>
+                                        </a>
+                                        <div class="update-footer">
+                                            <span class="update-status-badge-simple status-{{ workorder.status }}">
+                                                {{ workorder.get_status_display }}
+                                            </span>
+                                            <span class="update-time-simple">{{ workorder.updated_at|date:"d/m H:i" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="update-empty">
+                                <p>Nenhuma atualização recente encontrada.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna Direita: Ações Rápidas + Informações do Usuário -->
+            <div class="dashboard-right">
+                <!-- Ações Rápidas Card -->
+                <div class="actions-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Ações Rápidas</h2>
+                    </div>
+                    <div class="actions-grid">
+                        {% if pode_criar_pedido %}
+                        <a href="{% url 'create_workorder' %}" class="action-btn action-btn-primary">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            </div>
+                            <span class="action-text">Criar Novo Pedido</span>
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'list_workorders' %}" class="action-btn">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                </svg>
+                            </div>
+                            <span class="action-text">Ver Todos os Pedidos</span>
+                        </a>
+                        <a href="{% url 'list_notificacoes' %}" class="action-btn">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                            </div>
+                            <span class="action-text">Notificações</span>
+                        </a>
+                        {% if is_admin or is_responsavel_empresa %}
+                        <a href="{% url 'list_obras' %}" class="action-btn">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                                    <line x1="9" y1="21" x2="9" y2="9"></line>
+                                </svg>
+                            </div>
+                            <span class="action-text">Gerenciar Obras</span>
+                        </a>
+                        {% endif %}
+                        {% if is_admin or is_responsavel_empresa %}
+                        <a href="{% url 'list_empresas' %}" class="action-btn">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <span class="action-text">Gerenciar Empresas</span>
+                        </a>
+                        {% endif %}
+                        {% if is_admin %}
+                        <a href="{% url 'list_users' %}" class="action-btn">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <span class="action-text">Gerenciar Usuários</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if pode_ver_desempenho %}
+        <!-- Link para Página de Desempenho (Admin e Responsável pela Empresa) -->
+        <div class="dashboard-performance">
+            <div class="performance-card">
+                <div class="card-header">
+                    <h2 class="card-title">Desempenho da equipe – tempo médio de resposta</h2>
+                </div>
+                <div class="performance-content" style="text-align: center; padding: 2rem;">
+                    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Visualize o desempenho da equipe com gráficos detalhados e análises de tempo médio de resposta.</p>
+                    <a href="{% url 'desempenho_equipe' %}" class="btn btn-primary-cta" style="padding: 0.75rem 2rem;">
+                        Ver Desempenho Completo →
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% else %}
+        <!-- Login Prompt -->
+        <div class="welcome-container">
+            <div class="welcome-card">
+                <div class="welcome-icon-wrapper">
+                    <div class="welcome-icon-circle">
+                        <img src="{% static 'images/lplan-logo.png' %}" alt="LPLAN Engenharia Integrada" style="max-width: 120px; height: auto; display: block;" onerror="this.onerror=null; this.src='{% static 'images/lplan-logo.svg' %}'; this.onerror=function(){this.style.display='none';}">
+                    </div>
+                </div>
+                <h1 class="welcome-title">Bem-vindo ao GestControll</h1>
+                <p class="welcome-subtitle">Gerencie seus pedidos de obra de forma simples e eficiente</p>
+                <div class="welcome-features">
+                    <div class="welcome-feature">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <span>Aprovações rápidas</span>
+                    </div>
+                    <div class="welcome-feature">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                        <span>Gestão centralizada</span>
+                    </div>
+                    <div class="welcome-feature">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Equipe integrada</span>
+                    </div>
+                </div>
+                <a href="{% url 'login' %}" class="welcome-login-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                        <polyline points="10 17 15 12 10 7"></polyline>
+                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                    Fazer Login
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Botão Flutuante para Criar Pedido (Mobile) -->
+{% if user.is_authenticated and pode_criar_pedido %}
+    <a href="{% url 'create_workorder' %}" class="fab-button" title="Criar Novo Pedido">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+    </a>
+{% endif %}
+
+<script>
+// Menu Mobile
+document.addEventListener('DOMContentLoaded', function() {
+    const menuToggle = document.getElementById('mobile-menu-toggle');
+    const menu = document.getElementById('mobile-menu');
+    const menuClose = document.getElementById('mobile-menu-close');
+    const menuOverlay = document.getElementById('mobile-menu-overlay');
+    
+    if (menuToggle && menu) {
+        menuToggle.addEventListener('click', function() {
+            menu.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        
+        function closeMenu() {
+            menu.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        if (menuClose) {
+            menuClose.addEventListener('click', closeMenu);
+        }
+        
+        if (menuOverlay) {
+            menuOverlay.addEventListener('click', closeMenu);
+        }
+        
+        // Fechar ao clicar em um item do menu
+        const menuItems = menu.querySelectorAll('.mobile-menu-item');
+        menuItems.forEach(item => {
+            item.addEventListener('click', function() {
+                setTimeout(closeMenu, 300);
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Criar Usuário - SupplyMap{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">➕ Criar Novo Usuário</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="username" class="form-label">Usuário <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                            <small class="form-text text-muted">Nome de usuário para login</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="first_name" class="form-label">Nome</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="last_name" class="form-label">Sobrenome</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="password" class="form-label">Senha <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="grupo" class="form-label">Grupo</label>
+                            <select class="form-select" id="grupo" name="grupo">
+                                <option value="">Selecione um grupo...</option>
+                                {% for grupo in grupos %}
+                                    <option value="{{ grupo.id }}">{{ grupo.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                <strong>CHEFIA</strong> - Visualiza tudo e acessa dashboard<br>
+                                <strong>ENGENHARIA</strong> - Edita planejamento<br>
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_staff" name="is_staff">
+                            <label class="form-check-label" for="is_staff">
+                                Acesso ao Admin Central (Staff)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'admin_central' %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Criar Usuário</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

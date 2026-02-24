@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Deletar Anexo{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/delete_attachment.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'detail_workorder' attachment.workorder.pk %}" class="btn btn-back">← Voltar para Pedido</a>
+</div>
+
+<div class="delete-container">
+    <div class="card">
+        <h1 class="delete-title">
+            Deletar Anexo
+        </h1>
+        
+        <div class="delete-warning">
+            <strong>⚠️ Atenção!</strong>
+            <p>
+                Você está prestes a deletar permanentemente este anexo. Esta ação não pode ser desfeita.
+            </p>
+        </div>
+        
+        <div class="delete-info-box">
+            <p><strong>Pedido:</strong> {{ workorder.codigo }}</p>
+            <p><strong>Arquivo:</strong> {{ attachment.get_nome_display }}</p>
+            {% if attachment.descricao %}
+                <p><strong>Descrição:</strong> {{ attachment.descricao }}</p>
+            {% endif %}
+            <p><strong>Tamanho:</strong> {{ attachment.get_tamanho_display }}</p>
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="delete-actions">
+                <button type="submit" class="btn delete-submit">
+                    🗑️ Confirmar Deleção
+                </button>
+                <a href="{% url 'detail_workorder' workorder.pk %}" class="btn btn-secondary delete-cancel">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+

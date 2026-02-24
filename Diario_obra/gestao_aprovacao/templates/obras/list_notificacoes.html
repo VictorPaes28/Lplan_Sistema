@@ -1,0 +1,447 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Notificações{% endblock %}
+
+{% block page_title %}Notificações{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+<style>
+    .notifications-list-wrap {
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .notification-item {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        border-left: 4px solid #94a3b8;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .notification-item:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    /* Diferenciação por tipo: borda e ícone por categoria */
+    .notification-item.tipo-pedido_criado { border-left-color: #3b82f6; }
+    .notification-item.tipo-pedido_criado .notification-icon-wrapper { background: #eff6ff; color: #2563eb; }
+    .notification-item.tipo-pedido_aprovado { border-left-color: #15803d; }
+    .notification-item.tipo-pedido_aprovado .notification-icon-wrapper { background: #f0fdf4; color: #16a34a; }
+    .notification-item.tipo-pedido_reprovado { border-left-color: #b91c1c; }
+    .notification-item.tipo-pedido_reprovado .notification-icon-wrapper { background: #fef2f2; color: #dc2626; }
+    .notification-item.tipo-pedido_atualizado { border-left-color: #ea580c; }
+    .notification-item.tipo-pedido_atualizado .notification-icon-wrapper { background: #fff7ed; color: #ea580c; }
+    .notification-item.tipo-anexo_adicionado,
+    .notification-item.tipo-anexo_removido { border-left-color: #7c3aed; }
+    .notification-item.tipo-anexo_adicionado .notification-icon-wrapper,
+    .notification-item.tipo-anexo_removido .notification-icon-wrapper { background: #f5f3ff; color: #7c3aed; }
+    .notification-item.tipo-comentario_adicionado { border-left-color: #0d9488; }
+    .notification-item.tipo-comentario_adicionado .notification-icon-wrapper { background: #f0fdfa; color: #0d9488; }
+    .notification-item.tipo-exclusao_solicitada { border-left-color: #ca8a04; }
+    .notification-item.tipo-exclusao_solicitada .notification-icon-wrapper { background: #fefce8; color: #ca8a04; }
+    .notification-item.tipo-exclusao_aprovada { border-left-color: #15803d; }
+    .notification-item.tipo-exclusao_aprovada .notification-icon-wrapper { background: #f0fdf4; color: #16a34a; }
+    .notification-item.tipo-exclusao_rejeitada { border-left-color: #b91c1c; }
+    .notification-item.tipo-exclusao_rejeitada .notification-icon-wrapper { background: #fef2f2; color: #dc2626; }
+
+    .notification-item.nao-lida {
+        background: #fafafa;
+        border-left-width: 4px;
+    }
+
+    .notification-icon-wrapper {
+        flex-shrink: 0;
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    .notification-icon {
+        width: 22px;
+        height: 22px;
+    }
+
+    .notification-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.75rem;
+        margin-bottom: 0.375rem;
+    }
+
+    .notification-titulo {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.9375rem;
+        margin: 0;
+        line-height: 1.3;
+    }
+
+    .notification-item.nao-lida .notification-titulo {
+        font-weight: 700;
+    }
+
+    .notification-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .notification-data {
+        font-size: 0.8125rem;
+        color: #64748b;
+        white-space: nowrap;
+    }
+
+    .notification-unread-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #3b82f6;
+        flex-shrink: 0;
+    }
+
+    .notification-mensagem {
+        color: #475569;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        margin: 0 0 0.75rem 0;
+    }
+
+    .notification-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .notification-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        background: #f1f5f9;
+        color: #475569;
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        text-decoration: none;
+        border: 1px solid #e2e8f0;
+    }
+
+    .notification-link:hover {
+        background: #e2e8f0;
+        color: #1e293b;
+    }
+
+    .notification-marcar-lida {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        color: #64748b;
+        text-decoration: none;
+        border-radius: 4px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+    }
+
+    .notification-marcar-lida:hover {
+        color: #15803d;
+        background: #f0fdf4;
+    }
+
+    .notification-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .notification-tipo {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .notification-tipo.pedido_criado { background: #dbeafe; color: #1d4ed8; }
+    .notification-tipo.pedido_aprovado { background: #dcfce7; color: #166534; }
+    .notification-tipo.pedido_reprovado { background: #fee2e2; color: #b91c1c; }
+    .notification-tipo.pedido_atualizado { background: #ffedd5; color: #c2410c; }
+    .notification-tipo.anexo_adicionado,
+    .notification-tipo.anexo_removido { background: #ede9fe; color: #6d28d9; }
+    .notification-tipo.comentario_adicionado { background: #ccfbf1; color: #0f766e; }
+    .notification-tipo.exclusao_solicitada { background: #fef9c3; color: #a16207; }
+    .notification-tipo.exclusao_aprovada { background: #dcfce7; color: #166534; }
+    .notification-tipo.exclusao_rejeitada { background: #fee2e2; color: #b91c1c; }
+
+    .btn-success-small {
+        background: #15803d;
+        color: #fff;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .btn-warning-small {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .empty-notifications {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: #64748b;
+    }
+
+    .empty-notifications svg {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .notifications-badge-header {
+        display: inline-block;
+        margin-left: 0.75rem;
+        padding: 0.25rem 0.625rem;
+        background: #fef2f2;
+        color: #b91c1c;
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .quick-filter-btn.active {
+        background: #1e293b;
+        color: #fff;
+        border-color: #1e293b;
+    }
+
+    .quick-filter-nao-lida.active {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-color: #93c5fd;
+    }
+
+    .quick-filter-lida.active {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #cbd5e1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="list-header">
+        <div>
+            <h1 class="list-title">Notificações</h1>
+            {% if nao_lidas_count > 0 %}
+                <span class="notifications-badge-header">{{ nao_lidas_count }} não lida{{ nao_lidas_count|pluralize }}</span>
+            {% endif %}
+        </div>
+        {% if nao_lidas_count > 0 %}
+            <a href="?marcar_todas_lidas=true{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if lida_filter %}&lida={{ lida_filter }}{% endif %}" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                Marcar todas como lidas
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Filtros Rápidos -->
+    <div class="quick-filters">
+        <a href="{% url 'gestao:list_notificacoes' %}" class="quick-filter-btn {% if not lida_filter %}active{% endif %}">
+            Todas
+        </a>
+        <a href="?lida=false" class="quick-filter-btn quick-filter-nao-lida {% if lida_filter == 'false' %}active{% endif %}">
+            Não Lidas ({{ nao_lidas_count }})
+        </a>
+        <a href="?lida=true" class="quick-filter-btn quick-filter-lida {% if lida_filter == 'true' %}active{% endif %}">
+            Lidas
+        </a>
+    </div>
+
+    <div class="card">
+        {% if notificacoes %}
+            <div class="notifications-list-wrap">
+                {% for notificacao in notificacoes %}
+                    <div class="notification-item tipo-{{ notificacao.tipo }} {% if not notificacao.lida %}nao-lida{% endif %}" onclick="marcarNotificacaoELer({{ notificacao.pk }}, '{% if notificacao.work_order %}{% url 'gestao:detail_workorder' notificacao.work_order.pk %}{% else %}#{% endif %}', '{% url 'gestao:marcar_notificacao_lida' notificacao.pk %}', {{ notificacao.lida|yesno:"true,false" }});">
+                        <div class="notification-icon-wrapper">
+                            {% if notificacao.tipo == 'pedido_criado' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            {% elif notificacao.tipo == 'pedido_aprovado' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            {% elif notificacao.tipo == 'pedido_reprovado' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                            {% elif notificacao.tipo == 'pedido_atualizado' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            {% elif notificacao.tipo == 'anexo_adicionado' or notificacao.tipo == 'anexo_removido' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                            {% elif notificacao.tipo == 'comentario_adicionado' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            {% elif notificacao.tipo == 'exclusao_solicitada' or notificacao.tipo == 'exclusao_aprovada' or notificacao.tipo == 'exclusao_rejeitada' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                            {% else %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            {% endif %}
+                        </div>
+                        <div class="notification-content">
+                            <div class="notification-header">
+                                <h3 class="notification-titulo">{{ notificacao.titulo }}</h3>
+                                <div class="notification-meta">
+                                    <span class="notification-data" title="{{ notificacao.created_at|date:'d/m/Y H:i' }}">
+                                        {% now "Y-m-d H:i" as now_str %}
+                                        {% with notificacao.created_at|date:"Y-m-d H:i" as notif_str %}
+                                            {% if notif_str|date:"Y-m-d" == now_str|date:"Y-m-d" %}
+                                                Hoje às {{ notificacao.created_at|date:"H:i" }}
+                                            {% else %}
+                                                {{ notificacao.created_at|date:"d/m/Y H:i" }}
+                                            {% endif %}
+                                        {% endwith %}
+                                    </span>
+                                    {% if not notificacao.lida %}
+                                        <span class="notification-unread-dot" title="Não lida"></span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="notification-mensagem">{{ notificacao.mensagem }}</p>
+                            {% if notificacao.work_order %}
+                                <div class="notification-actions">
+                                    <a href="{% url 'gestao:detail_workorder' notificacao.work_order.pk %}" class="notification-link" onclick="event.stopPropagation(); event.preventDefault(); marcarNotificacaoELer({{ notificacao.pk }}, '{% url 'gestao:detail_workorder' notificacao.work_order.pk %}', '{% url 'gestao:marcar_notificacao_lida' notificacao.pk %}', {{ notificacao.lida|yesno:"true,false" }}); return false;">
+                                        Ver pedido {{ notificacao.work_order.codigo }}
+                                    </a>
+                                    {% if notificacao.tipo == 'exclusao_solicitada' and notificacao.work_order.solicitado_exclusao %}
+                                        <a href="{% url 'gestao:aprovar_exclusao' notificacao.work_order.pk %}" class="btn btn-success-small" onclick="event.stopPropagation();">Aprovar</a>
+                                        <a href="{% url 'gestao:rejeitar_exclusao' notificacao.work_order.pk %}" class="btn btn-warning-small" onclick="event.stopPropagation();">Rejeitar</a>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            <div class="notification-footer">
+                                <span class="notification-tipo {{ notificacao.tipo }}">{{ notificacao.get_tipo_display }}</span>
+                                {% if not notificacao.lida %}
+                                    <a href="#" class="notification-marcar-lida" onclick="event.stopPropagation(); event.preventDefault(); marcarSoLida({{ notificacao.pk }}, '{% url 'gestao:marcar_notificacao_lida' notificacao.pk %}'); return false;" title="Marcar como lida e permanecer aqui">Marcar como lida</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Paginação -->
+            {% if page_obj.has_other_pages %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page={{ page_obj.previous_page_number }}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if lida_filter %}&lida={{ lida_filter }}{% endif %}" class="btn btn-secondary">
+                            Anterior
+                        </a>
+                    {% endif %}
+                    
+                    <span class="pagination-info">
+                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                    </span>
+                    
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if lida_filter %}&lida={{ lida_filter }}{% endif %}" class="btn btn-secondary">
+                            Próxima
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                <p style="font-size: 1.1rem; font-weight: 500;">Nenhuma notificação</p>
+                <p style="font-size: 0.9rem; margin-top: 0.5rem;">Você não tem notificações no momento.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function marcarNotificacaoELer(notificacaoId, url, marcarUrl, jaLida) {
+    if (jaLida) {
+        if (url && url !== '#') {
+            window.location.href = url;
+        }
+        return;
+    }
+    fetch(marcarUrl, {
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (response.ok) return response.json().catch(function() { return {}; });
+        throw new Error('Erro na resposta');
+    })
+    .then(function() {
+        if (url && url !== '#') {
+            window.location.href = url;
+        } else {
+            window.location.reload();
+        }
+    })
+    .catch(function(err) {
+        console.error('Erro ao marcar notificação como lida:', err);
+        if (url && url !== '#') window.location.href = url;
+        else window.location.reload();
+    });
+}
+
+function marcarSoLida(notificacaoId, marcarUrl) {
+    fetch(marcarUrl, {
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (response.ok) window.location.reload();
+    })
+    .catch(function(err) {
+        console.error('Erro:', err);
+        window.location.reload();
+    });
+}
+</script>
+{% endblock %}

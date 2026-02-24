@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Obra: {{ obra.codigo }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/detail_workorder.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'list_obras' %}" class="btn btn-back">← Voltar para Lista</a>
+</div>
+
+<div class="detail-container">
+    <!-- Cabeçalho -->
+    <div class="detail-header">
+        <div>
+            <h1 class="detail-title">
+                {{ obra.codigo }}
+            </h1>
+            <p class="detail-subtitle">{{ obra.nome }}</p>
+        </div>
+        <div class="detail-status-container">
+            <span class="status-badge-large {% if obra.ativo %}aprovado{% else %}cancelado{% endif %}">
+                {% if obra.ativo %}Ativa{% else %}Inativa{% endif %}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Ações -->
+    <div class="detail-actions">
+        {% if user_profile == 'admin' or user_profile == 'responsavel_empresa' %}
+            <a href="{% url 'edit_obra' obra.pk %}" class="btn">Editar</a>
+            <a href="{% url 'manage_obra_permissions' obra.pk %}" class="btn">Gerenciar Permissões</a>
+        {% endif %}
+    </div>
+    
+    <!-- Informações Principais -->
+    <div class="card detail-section">
+        <h2 class="detail-section-title">
+            Informações da Obra
+        </h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Empresa:</div>
+                <p class="detail-field-value">
+                    <a href="{% url 'detail_empresa' obra.empresa.pk %}">{{ obra.empresa.codigo }} - {{ obra.empresa.nome }}</a>
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Código:</div>
+                <p class="detail-field-value">{{ obra.codigo }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Nome:</div>
+                <p class="detail-field-value">{{ obra.nome }}</p>
+            </div>
+            
+            {% if obra.email_obra %}
+            <div>
+                <div class="detail-field-label">E-mail da Obra:</div>
+                <p class="detail-field-value">{{ obra.email_obra }}</p>
+            </div>
+            {% endif %}
+            
+            <div>
+                <div class="detail-field-label">Status:</div>
+                <p class="detail-field-value">
+                    {% if obra.ativo %}Ativa{% else %}Inativa{% endif %}
+                </p>
+            </div>
+        </div>
+        
+        {% if obra.descricao %}
+            <div class="detail-description">
+                <div class="detail-field-label">Descrição:</div>
+                <p class="detail-field-value detail-description-text">{{ obra.descricao }}</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Permissões -->
+    <div class="card detail-section">
+        <div class="detail-header">
+            <h2 class="detail-section-title">Permissões de Usuários</h2>
+            {% if user_profile == 'admin' or user_profile == 'responsavel_empresa' %}
+                <a href="{% url 'manage_obra_permissions' obra.pk %}" class="btn">Gerenciar Permissões</a>
+            {% endif %}
+        </div>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Solicitantes ({{ permissoes_solicitantes.count }}):</div>
+                <div class="detail-field-value">
+                    {% if permissoes_solicitantes %}
+                        <ul style="list-style: none; padding: 0; margin-top: 0.5rem;">
+                            {% for perm in permissoes_solicitantes %}
+                                <li style="padding: 0.25rem 0;">
+                                    {{ perm.usuario.get_full_name|default:perm.usuario.username }}
+                                    {% if not perm.ativo %}<span class="text-muted">(Inativo)</span>{% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p style="color: #7f8c8d; margin-top: 0.5rem;">Nenhum solicitante com permissão.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Aprovadores ({{ permissoes_aprovadores.count }}):</div>
+                <div class="detail-field-value">
+                    {% if permissoes_aprovadores %}
+                        <ul style="list-style: none; padding: 0; margin-top: 0.5rem;">
+                            {% for perm in permissoes_aprovadores %}
+                                <li style="padding: 0.25rem 0;">
+                                    {{ perm.usuario.get_full_name|default:perm.usuario.username }}
+                                    {% if not perm.ativo %}<span class="text-muted">(Inativo)</span>{% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p style="color: #7f8c8d; margin-top: 0.5rem;">Nenhum aprovador com permissão.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Estatísticas -->
+    <div class="card detail-section">
+        <h2 class="detail-section-title">
+            Estatísticas
+        </h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Total de Pedidos:</div>
+                <p class="detail-field-value detail-field-value-large">{{ workorders_count }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Pedidos Pendentes:</div>
+                <p class="detail-field-value detail-field-value-large">{{ workorders_pendentes }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Criação:</div>
+                <p class="detail-field-value">{{ obra.created_at|date:"d/m/Y H:i" }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Última Atualização:</div>
+                <p class="detail-field-value">{{ obra.updated_at|date:"d/m/Y H:i" }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

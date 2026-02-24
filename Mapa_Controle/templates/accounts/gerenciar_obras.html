@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Gerenciar Obras - SupplyMap{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>🏗️ Gerenciar Obras</h2>
+            <a href="{% url 'criar_obra' %}" class="btn btn-success">➕ Criar Nova</a>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="ativa" class="form-label">Status:</label>
+                <select class="form-select" id="ativa" name="ativa" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    <option value="1" {% if ativa_filtro == "1" %}selected{% endif %}>Apenas Ativas</option>
+                    <option value="0" {% if ativa_filtro == "0" %}selected{% endif %}>Apenas Inativas</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela de Obras -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Código Sienge</th>
+                        <th>Nome</th>
+                        <th>Status</th>
+                        <th>Data Criação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for obra in obras %}
+                    <tr>
+                        <td><strong>{{ obra.codigo_sienge }}</strong></td>
+                        <td>{{ obra.nome }}</td>
+                        <td>
+                            {% if obra.ativa %}
+                                <span class="badge bg-success">Ativa</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ obra.created_at|date:"d/m/Y" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">Nenhuma obra cadastrada ainda.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

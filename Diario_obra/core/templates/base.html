@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LPlan - Gestão de Obras{% endblock %}</title>
+    
+    <!-- Custom CSS - Tailwind Utilities Replacement -->
+    {% load static %}
+    {% load core_tags %}
+    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/alpine-fixes.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/ux-improvements.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/video-fixes.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/filters.css' %}">
+    
+    <!-- Font Awesome - Carregado antes dos scripts para garantir ícones disponíveis -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    
+    <!-- CSS variables do GestControll / Central / Painel (quando renderiza dentro deste layout) -->
+    {% if '/gestao/' in request.path or '/central/' in request.path or '/accounts/admin-central' in request.path %}
+    <style>
+    :root {
+        --primary-color: #3498db;
+        --primary-dark: #2980b9;
+        --cta-orange: #FF6600;
+        --cta-orange-dark: #E55A00;
+        --brand-navy: #1a365d;
+        --brand-navy-light: #2d4a7c;
+        --secondary-color: #95a5a6;
+        --success-color: #27ae60;
+        --success-light: #d4edda;
+        --danger-color: #e74c3c;
+        --danger-light: #f8d7da;
+        --warning-color: #f39c12;
+        --warning-light: #fff3cd;
+        --info-color: #17a2b8;
+        --dark-color: #2c3e50;
+        --light-bg: #F4F6F8;
+        --card-bg: #FFFFFF;
+        --border-color: #EBEBEB;
+        --text-color: #1a202c;
+        --text-muted: #718096;
+        --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+        --radius-sm: 6px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* Ajustes de layout para páginas Gestão dentro do layout sidebar */
+    .gestao-toast{display:flex;align-items:flex-start;gap:0.6rem;padding:0.75rem 1rem;background:var(--card-bg,#fff);border-radius:var(--radius-md,10px);box-shadow:0 8px 30px rgba(0,0,0,0.12);border-left:4px solid var(--secondary-color,#94a3b8);position:relative;overflow:hidden;animation:gtIn .35s cubic-bezier(.16,1,.3,1)}
+    .gestao-toast.gt-exit{animation:gtOut .3s ease forwards}
+    @keyframes gtIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes gtOut{to{opacity:0;transform:translateX(40px)}}
+    .gestao-toast-icon{flex-shrink:0;margin-top:1px}
+    .gestao-toast-text{flex:1;font-size:0.85rem;font-weight:500;color:var(--text-color,#1e293b)}
+    .gestao-toast-close{flex-shrink:0;background:none;border:none;color:var(--text-muted,#94a3b8);cursor:pointer;font-size:1.1rem;line-height:1;padding:0 2px}
+    .gestao-toast-close:hover{color:var(--dark-color,#475569)}
+    .gestao-toast-timer{position:absolute;bottom:0;left:0;height:3px;border-radius:0 0 0 10px;animation:gtTimer 5s linear forwards}
+    @keyframes gtTimer{from{width:100%}to{width:0%}}
+    .gestao-toast-success{border-color:var(--success-color,#27ae60)}.gestao-toast-success .gestao-toast-icon{color:var(--success-color,#27ae60)}.gestao-toast-success .gestao-toast-timer{background:var(--success-color,#27ae60)}
+    .gestao-toast-error{border-color:var(--danger-color,#e74c3c)}.gestao-toast-error .gestao-toast-icon{color:var(--danger-color,#e74c3c)}.gestao-toast-error .gestao-toast-timer{background:var(--danger-color,#e74c3c)}
+    .gestao-toast-warning{border-color:var(--warning-color,#f39c12)}.gestao-toast-warning .gestao-toast-icon{color:var(--warning-color,#f39c12)}.gestao-toast-warning .gestao-toast-timer{background:var(--warning-color,#f39c12)}
+    .gestao-toast-info{border-color:var(--info-color,#17a2b8)}.gestao-toast-info .gestao-toast-icon{color:var(--info-color,#17a2b8)}.gestao-toast-info .gestao-toast-timer{background:var(--info-color,#17a2b8)}
+    /* Botões genéricos Gestão */
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.25rem; border-radius: var(--radius-md); font-weight: 500; font-size: 0.875rem; text-decoration: none; cursor: pointer; transition: var(--transition); border: none; }
+    .btn-primary-cta { background: var(--cta-orange); color: white; box-shadow: 0 2px 8px rgba(255,102,0,0.2); }
+    .btn-primary-cta:hover { background: var(--cta-orange-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,102,0,0.3); }
+    .btn-secondary { background: var(--light-bg); color: var(--text-color); border: 1px solid var(--border-color); }
+    .btn-secondary:hover { background: var(--border-color); }
+    </style>
+    {% endif %}
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-slate-50">
+    <!-- Mobile Topbar -->
+    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
+        <button id="mobile-sidebar-toggle" type="button" class="text-white focus:outline-none hover:bg-slate-700 p-2 rounded-lg transition-colors" aria-label="Abrir menu de navegação" aria-expanded="false">
+            <i class="fas fa-bars text-xl" aria-hidden="true"></i>
+            <span class="sr-only">Menu</span>
+        </button>
+        <div class="flex items-center space-x-3">
+            <div class="logo-white-box w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
+                <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain">
+            </div>
+            <span class="text-lg font-bold">LPLAN</span>
+        </div>
+        <div class="w-8"></div> <!-- Spacer for centering -->
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="mobile-sidebar-overlay" 
+         class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" style="display: none;"></div>
+
+    <!-- Sidebar (z-index definido em base.css para ficar sempre acima do header) -->
+    <aside id="sidebar"
+            class="fixed top-0 left-0 h-full w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out flex flex-col flex-shrink-0">
+        
+        <!-- Header com Logo e Branding -->
+        <div class="h-20 flex items-center justify-center border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 px-4 relative">
+            <!-- Mobile Close Button -->
+            <button id="mobile-sidebar-close" type="button" class="md:hidden absolute top-4 right-4 text-white hover:bg-slate-700 p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-900" aria-label="Fechar menu de navegação">
+                <i class="fas fa-times text-lg" aria-hidden="true"></i>
+            </button>
+            <div class="flex items-center justify-center w-full">
+                <div class="logo-white-box w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1 flex-shrink-0">
+                    <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" style="max-width: 90%; max-height: 90%;">
+                </div>
+                <div class="flex-1 min-w-0 ml-3 text-center">
+                    <h1 class="text-xl font-bold text-white tracking-tight mb-1">LPLAN</h1>
+                    <p class="text-xs text-gray-400 truncate">
+                        {% if '/accounts/admin-central' in request.path %}
+                            Painel do sistema
+                        {% elif '/gestao/' in request.path %}
+                            GestControll
+                        {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+                            Mapa de Suprimentos
+                        {% elif request.session.selected_project_name %}
+                            {{ request.session.selected_project_name|truncatechars:20 }}
+                        {% else %}
+                            Gestão de Obras
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Navegação: um único bloco padronizado (Trocar Sistema + Trocar Obra + demais itens) -->
+        <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
+            {% if request.resolver_match.url_name != 'select-system' %}
+            <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 text-gray-300 rounded-lg mb-2 transition-all duration-200">
+                <i class="fas fa-th-large w-5 mr-3"></i>
+                <span class="font-medium">Trocar Sistema</span>
+            </a>
+            {% endif %}
+            {% if request.session.selected_project_id and '/gestao/' not in request.path %}
+            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i>
+                <span class="font-medium">Trocar Obra</span>
+            </a>
+            {% endif %}
+            {% if '/accounts/admin-central' in request.path %}
+            <!-- ═══════ MENU: Painel do sistema (hub único) ═══════ -->
+            <a href="{% url 'accounts:admin_central' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-amber-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'admin_central' %}bg-amber-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-cog w-5 mr-3"></i>
+                <span class="font-medium">Início</span>
+            </a>
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mapa de Suprimentos</p>
+            </div>
+            <a href="{% url 'accounts:criar_obra' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-green-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'criar_obra' %}bg-green-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-plus-circle w-5 mr-3"></i>
+                <span class="font-medium">Criar obra (Mapa)</span>
+            </a>
+            <a href="{% url 'accounts:gerenciar_obras' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'gerenciar_obras' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Gerenciar obras (Mapa)</span>
+            </a>
+
+            {% elif '/gestao/' in request.path %}
+            <!-- ═══════ MENU: GestControll ═══════ -->
+            <a href="{% url 'gestao:home' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-home w-5 mr-3"></i>
+                <span class="font-medium">Visão Geral</span>
+            </a>
+            <a href="{% url 'gestao:list_workorders' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'detail_workorder' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-clipboard-list w-5 mr-3"></i>
+                <span class="font-medium">Pedidos</span>
+            </a>
+            {% if pode_criar_pedido %}
+            <a href="{% url 'gestao:create_workorder' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-orange-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'create_workorder' %}bg-orange-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-plus-circle w-5 mr-3"></i>
+                <span class="font-medium">Novo Pedido</span>
+            </a>
+            {% endif %}
+            <a href="{% url 'gestao:list_notificacoes' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_notificacoes' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-bell w-5 mr-3"></i>
+                <span class="font-medium">Notificações</span>
+                {% if notificacoes_count and notificacoes_count > 0 %}
+                <span class="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{{ notificacoes_count }}</span>
+                {% endif %}
+            </a>
+            {% if is_admin or is_responsavel_empresa %}
+            <div class="mt-3 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
+            </div>
+            <a href="{% url 'gestao:list_obras' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_obras' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Obras</span>
+            </a>
+            <a href="{% url 'gestao:list_empresas' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_empresas' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-briefcase w-5 mr-3"></i>
+                <span class="font-medium">Empresas</span>
+            </a>
+            {% endif %}
+            {% if is_admin %}
+            <a href="{% if user.is_staff or user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_users' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-users-cog w-5 mr-3"></i>
+                <span class="font-medium">Usuários</span>
+            </a>
+            {% endif %}
+            {% if is_admin or is_responsavel_empresa %}
+            <a href="{% url 'gestao:desempenho_equipe' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'desempenho_equipe' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-chart-line w-5 mr-3"></i>
+                <span class="font-medium">Desempenho</span>
+            </a>
+            {% endif %}
+
+            {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+            <!-- ═══════ MENU: Mapa de Suprimentos ═══════ -->
+            <a href="{% url 'mapa_obras:home' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' and '/mapa/' in request.path %}bg-emerald-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Selecionar Obra</span>
+            </a>
+            <a href="{% url 'engenharia:dashboard_2' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}bg-emerald-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-chart-pie w-5 mr-3"></i>
+                <span class="font-medium">Dashboard</span>
+            </a>
+            <a href="{% url 'engenharia:mapa' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' %}bg-emerald-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-table w-5 mr-3"></i>
+                <span class="font-medium">Mapa</span>
+            </a>
+            <a href="{% url 'engenharia:importar_sienge' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_sienge_upload' %}bg-emerald-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-upload w-5 mr-3"></i>
+                <span class="font-medium">Importar Sienge</span>
+            </a>
+            {% if obra_atual %}
+            <div class="mt-3 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obra Atual</p>
+            </div>
+            <div class="px-4 py-2 mx-1 bg-emerald-900 bg-opacity-50 rounded-lg border border-emerald-700">
+                <p class="text-sm font-medium text-emerald-300">{{ obra_atual.nome }}</p>
+                <p class="text-xs text-gray-400">Cod: {{ obra_atual.codigo_sienge }}</p>
+            </div>
+            {% endif %}
+
+            {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
+            <!-- ═══════ MENU: Seleção (só "Selecionar Sistema" quando estiver na página select-system) ═══════ -->
+            {% if request.resolver_match.url_name == 'select-system' %}
+            <a href="{% url 'select-system' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 bg-blue-600 text-white shadow-md">
+                <i class="fas fa-th-large w-5 mr-3"></i>
+                <span class="font-medium">Selecionar Sistema</span>
+            </a>
+            {% endif %}
+
+            {% else %}
+            <!-- ═══════ MENU: Diário de Obra ═══════ -->
+            <a href="{% url 'dashboard' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-home w-5 mr-3"></i>
+                <span class="font-medium">Visão geral</span>
+            </a>
+            
+            {% if request.session.selected_project_id %}
+            <a href="{% url 'report-list' %}" 
+               class="flex items-center justify-between px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'report-list' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <div class="flex items-center">
+                    <i class="fas fa-file-alt w-5 mr-3"></i>
+                    <span class="font-medium">Relatórios</span>
+                </div>
+                {% if request.resolver_match.url_name == 'report-list' %}
+                <span class="text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full">{{ total_reports_count|default:0 }}</span>
+                {% endif %}
+            </a>
+            
+            <!-- Filtro de busca -->
+            <div class="mb-2" id="filter-search-container">
+                <button type="button" id="filter-search-button"
+                        class="w-full flex items-center justify-between px-4 py-3 bg-slate-800 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg transition-all duration-200 border border-slate-700">
+                    <div class="flex items-center">
+                        <i class="fas fa-filter w-5 mr-3 text-blue-400"></i>
+                        <span class="font-medium text-sm">Filtro de busca</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-xs transition-transform duration-200 text-gray-400" id="filter-chevron"></i>
+                </button>
+                
+                <div id="filter-search-dropdown"
+                     class="ml-4 mt-1 space-y-1"
+                     style="display: none;">
+                    <a href="{% url 'filter-photos' %}" class="flex items-center justify-between px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-photos' %}bg-slate-800 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas fa-camera w-4 mr-3"></i>
+                            <span>Fotos</span>
+                        </div>
+                        <span class="text-xs">{{ total_photos_count|default:0 }}</span>
+                    </a>
+                    <a href="{% url 'filter-videos' %}" class="flex items-center justify-between px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-videos' %}bg-slate-800 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas fa-video w-4 mr-3"></i>
+                            <span>Vídeos</span>
+                        </div>
+                        <span class="text-xs">{{ total_videos_count|default:0 }}</span>
+                    </a>
+                    <a href="{% url 'filter-activities' %}" class="flex items-center justify-between px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-activities' %}bg-slate-800 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas fa-tasks w-4 mr-3"></i>
+                            <span>Atividades</span>
+                        </div>
+                        <span class="text-xs">{{ total_activities_count|default:0 }}</span>
+                    </a>
+                    <a href="{% url 'filter-occurrences' %}" class="flex items-center justify-between px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-occurrences' %}bg-slate-800 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-triangle w-4 mr-3"></i>
+                            <span>Ocorrências</span>
+                        </div>
+                        <span class="text-xs">{{ total_occurrences_count|default:0 }}</span>
+                    </a>
+                    <a href="{% url 'filter-comments' %}" class="flex items-center justify-between px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-comments' %}bg-slate-800 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas fa-comments w-4 mr-3"></i>
+                            <span>Comentários</span>
+                        </div>
+                        <span class="text-xs">{{ total_comments_count|default:0 }}</span>
+                    </a>
+                    <a href="{% url 'filter-attachments' %}" class="flex items-center justify-between px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-attachments' %}bg-slate-800 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas fa-paperclip w-4 mr-3"></i>
+                            <span>Anexos</span>
+                        </div>
+                        <span class="text-xs">{{ total_attachments_count|default:0 }}</span>
+                    </a>
+                    <a href="{% url 'filter-weather' %}" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-weather' %}bg-slate-800 text-white{% endif %}">
+                        <i class="fas fa-cloud-sun w-4 mr-3"></i>
+                        <span>Condição climática</span>
+                    </a>
+                    <a href="{% url 'filter-labor-histogram' %}" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-labor-histogram' %}bg-slate-800 text-white{% endif %}">
+                        <i class="fas fa-chart-bar w-4 mr-3"></i>
+                        <span>Histograma mão de obra</span>
+                    </a>
+                    <a href="{% url 'filter-equipment-histogram' %}" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all {% if request.resolver_match.url_name == 'filter-equipment-histogram' %}bg-slate-800 text-white{% endif %}">
+                        <i class="fas fa-chart-bar w-4 mr-3"></i>
+                        <span>Histograma equipamentos</span>
+                    </a>
+                </div>
+            </div>
+            
+            {% endif %}
+            
+            <!-- Obras - Lista de projetos (core), apenas para Admin/Staff -->
+            {% if user.is_staff or user.is_superuser %}
+            <a href="/projects/" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Obras</span>
+            </a>
+            {% endif %}
+            <a href="{% url 'analytics' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analytics' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-chart-line w-5 mr-3"></i>
+                <span class="font-medium">Análise de dados</span>
+            </a>
+            <a href="{% url 'profile' %}" 
+               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'profile' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-user w-5 mr-3"></i>
+                <span class="font-medium">Perfil</span>
+            </a>
+            {% endif %}
+
+            <!-- Ajuda e Painel do sistema - visíveis para staff/superuser -->
+            {% if user.is_staff or user.is_superuser %}
+            <div class="mt-3 pt-3 border-t border-slate-700">
+                <a href="{% url 'central_ajuda' %}" 
+                   class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}bg-blue-600 text-white shadow-md{% endif %}">
+                    <i class="fas fa-question-circle w-5 mr-3"></i>
+                    <span class="font-medium">Ajuda</span>
+                </a>
+                <a href="{% url 'accounts:admin_central' %}" 
+                   class="flex items-center px-4 py-3 text-gray-300 hover:bg-amber-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}bg-amber-600 text-white shadow-md{% endif %}">
+                    <i class="fas fa-cog w-5 mr-3"></i>
+                    <span class="font-medium">Painel do sistema</span>
+                </a>
+            </div>
+            {% endif %}
+        </nav>
+
+        <!-- User Section (Bottom) -->
+        {% if user.is_authenticated %}
+        <div class="p-4 border-t border-slate-700 bg-slate-800">
+            <div class="flex items-center">
+                <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mr-3 shadow-lg flex-shrink-0">
+                    <span class="text-white font-semibold text-sm">
+                        {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+                    </span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-white truncate">{{ user.get_full_name|default:user.username|title }}</p>
+                    <p class="text-xs text-gray-400 truncate">{{ user.email|truncatechars:20 }}</p>
+                </div>
+            </div>
+            <a href="{% url 'logout' %}" class="mt-3 flex items-center justify-center w-full px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors font-medium">
+                <i class="fas fa-sign-out-alt mr-3"></i>
+                <span>Sair</span>
+            </a>
+        </div>
+        {% endif %}
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content-wrapper">
+        <!-- Page Content -->
+        <main class="main-content">
+            <!-- Top Bar - Primeiro elemento, no topo -->
+            <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
+                <div>
+                    <h2 class="top-bar-title">{% block page_title %}Dashboard{% endblock %}</h2>
+                    <p class="top-bar-subtitle">{% block page_subtitle %}Visão geral do sistema{% endblock %}</p>
+                </div>
+                
+                <!-- Notificações e User Menu -->
+                {% if user.is_authenticated %}
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <!-- Notificações -->
+                    {% get_unread_notifications_count user as unread_notifications %}
+                    <a href="{% url 'notifications' %}" 
+                       class="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                       aria-label="Notificações{% if unread_notifications > 0 %}. {{ unread_notifications }} não lida{{ unread_notifications|pluralize }}{% endif %}">
+                        <i class="fas fa-bell text-lg md:text-xl" aria-hidden="true"></i>
+                        {% if unread_notifications > 0 %}
+                        <span class="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold" aria-label="{{ unread_notifications }} notificação{{ unread_notifications|pluralize }} não lida{{ unread_notifications|pluralize }}">
+                            {{ unread_notifications }}
+                        </span>
+                        {% endif %}
+                    </a>
+                    
+                    <!-- User Menu Dropdown -->
+                    <div class="relative" id="user-menu-container">
+                        <button type="button" id="user-menu-button" 
+                                class="flex items-center space-x-2 focus:outline-none bg-white hover:bg-gray-50 p-1.5 md:p-2 rounded-lg transition-all duration-200 no-underline"
+                                style="background-color: white !important; border: none !important;">
+                            <div class="w-9 h-9 md:w-10 md:h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-105 flex-shrink-0 overflow-hidden">
+                                <span class="text-white font-semibold text-xs md:text-sm leading-none">
+                                    {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+                                </span>
+                            </div>
+                            <i class="fas fa-chevron-down text-gray-400 text-xs hidden md:block transition-transform duration-200" id="user-menu-chevron"></i>
+                        </button>
+                        
+                        <div id="user-menu-dropdown"
+                             class="absolute right-0 mt-2 w-56 glass-effect rounded-lg shadow-xl py-1 z-50 border border-slate-100"
+                             style="display: none;">
+                            <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-lg">
+                                <p class="text-sm font-semibold text-slate-800 truncate">{{ user.get_full_name|default:user.username|title }}</p>
+                                <p class="text-xs text-gray-500 truncate mt-0.5">{{ user.email }}</p>
+                            </div>
+                            <a href="{% url 'profile' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-slate-50 transition-colors flex items-center">
+                                <i class="fas fa-user mr-3 text-gray-400 w-4"></i> Perfil
+                            </a>
+                            <a href="{% url 'logout' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-slate-50 transition-colors flex items-center">
+                                <i class="fas fa-sign-out-alt mr-3 text-gray-400 w-4"></i> Sair
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Sistema de Mensagens (Toast Notifications) -->
+            {% if messages %}
+            <div id="messages-container" style="position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;pointer-events:none;">
+                {% for message in messages %}
+                <div class="toast-msg toast-{{ message.tags }}" style="pointer-events:auto;">
+                    <div class="toast-icon">
+                        {% if message.tags == 'success' %}
+                            <i class="fas fa-check-circle"></i>
+                        {% elif message.tags == 'error' %}
+                            <i class="fas fa-exclamation-circle"></i>
+                        {% elif message.tags == 'warning' %}
+                            <i class="fas fa-exclamation-triangle"></i>
+                        {% else %}
+                            <i class="fas fa-info-circle"></i>
+                        {% endif %}
+                    </div>
+                    <div class="toast-body">
+                        <p>{{ message }}</p>
+                    </div>
+                    <button type="button" class="toast-close" onclick="this.closest('.toast-msg').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="toast-timer"></div>
+                </div>
+                {% endfor %}
+            </div>
+            <style>
+            .toast-msg {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.75rem;
+                padding: 0.875rem 1rem;
+                background: #fff;
+                border-radius: 12px;
+                box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+                border-left: 4px solid #94a3b8;
+                position: relative;
+                overflow: hidden;
+                animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+            .toast-msg.toast-exit {
+                animation: toastOut 0.3s ease forwards;
+            }
+            @keyframes toastIn {
+                from { opacity: 0; transform: translateX(40px) scale(0.95); }
+                to { opacity: 1; transform: translateX(0) scale(1); }
+            }
+            @keyframes toastOut {
+                to { opacity: 0; transform: translateX(40px) scale(0.95); }
+            }
+            .toast-icon { flex-shrink: 0; font-size: 1.1rem; margin-top: 1px; }
+            .toast-body { flex: 1; }
+            .toast-body p { font-size: 0.85rem; font-weight: 500; color: #1e293b; margin: 0; line-height: 1.4; }
+            .toast-close { flex-shrink: 0; background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px; font-size: 0.8rem; transition: color 0.15s; }
+            .toast-close:hover { color: #475569; }
+            .toast-timer {
+                position: absolute; bottom: 0; left: 0; height: 3px;
+                border-radius: 0 0 0 12px;
+                animation: timerShrink 5s linear forwards;
+            }
+            @keyframes timerShrink { from { width: 100%; } to { width: 0%; } }
+            /* Colors per type */
+            .toast-success { border-color: #10b981; }
+            .toast-success .toast-icon { color: #10b981; }
+            .toast-success .toast-timer { background: #10b981; }
+            .toast-error { border-color: #ef4444; }
+            .toast-error .toast-icon { color: #ef4444; }
+            .toast-error .toast-timer { background: #ef4444; }
+            .toast-warning { border-color: #f59e0b; }
+            .toast-warning .toast-icon { color: #f59e0b; }
+            .toast-warning .toast-timer { background: #f59e0b; }
+            .toast-info { border-color: #3b82f6; }
+            .toast-info .toast-icon { color: #3b82f6; }
+            .toast-info .toast-timer { background: #3b82f6; }
+            .top-bar-container { z-index: 50 !important; }
+            </style>
+            <script>
+            // Auto-dismiss toasts after 5s with smooth exit
+            setTimeout(function() {
+                document.querySelectorAll('.toast-msg').forEach(function(t, i) {
+                    setTimeout(function() {
+                        t.classList.add('toast-exit');
+                        setTimeout(function() { t.remove(); }, 300);
+                    }, i * 100);
+                });
+            }, 5000);
+            </script>
+            {% endif %}
+            
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% block page_modals %}{% endblock %}
+
+    <!-- Scripts - Carregados no final do body para melhor performance -->
+    <!-- Accordion Manager - Sistema robusto de seções expansíveis -->
+    {% load static %}
+    <script src="{% static 'core/js/accordion.js' %}"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
+
+    <!-- JavaScript Vanilla - Dropdowns e Sidebar -->
+    <script>
+        (function() {
+            'use strict';
+            
+            // ============================================
+            // SIDEBAR - Desktop e Mobile
+            // ============================================
+            function initSidebar() {
+                const sidebar = document.getElementById('sidebar');
+                const overlay = document.getElementById('mobile-sidebar-overlay');
+                const toggleBtn = document.getElementById('mobile-sidebar-toggle');
+                const closeBtn = document.getElementById('mobile-sidebar-close');
+                
+                if (!sidebar) return;
+                
+                function closeSidebar() {
+                    if (window.innerWidth < 768) {
+                        sidebar.style.transform = 'translateX(-100%)';
+                        if (overlay) overlay.style.display = 'none';
+                    }
+                }
+                
+                function updateSidebar() {
+                    const isDesktop = window.innerWidth >= 768;
+                    const computedStyle = getComputedStyle(sidebar);
+                    const currentTransform = computedStyle.transform;
+                    const isCurrentlyVisible = currentTransform === 'none' || currentTransform === 'matrix(1, 0, 0, 1, 0, 0)' || sidebar.style.transform === 'translateX(0)';
+                    
+                    if (isDesktop) {
+                        // Desktop - CSS já define via !important no media query
+                        // Apenas garantimos que overlay esteja escondido
+                        if (overlay) overlay.style.display = 'none';
+                        // Não precisamos definir transform/height/position aqui
+                        // porque o CSS media query já faz isso com !important
+                    } else {
+                        // Mobile - esconde se não estiver aberta
+                        if (!isCurrentlyVisible) {
+                            sidebar.style.transform = 'translateX(-100%)';
+                        }
+                    }
+                }
+                
+                // Inicializa baseado no tamanho da tela
+                updateSidebar();
+                
+                // Atualiza ao redimensionar
+                let resizeTimer;
+                window.addEventListener('resize', function() {
+                    clearTimeout(resizeTimer);
+                    resizeTimer = setTimeout(updateSidebar, 100);
+                });
+                
+                // Mobile toggle (apenas em mobile)
+                if (toggleBtn && overlay) {
+                    toggleBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        if (window.innerWidth < 768) {
+                            const computedStyle = getComputedStyle(sidebar);
+                            const currentTransform = sidebar.style.transform || computedStyle.transform;
+                            const isOpen = currentTransform === 'none' || 
+                                         currentTransform === 'matrix(1, 0, 0, 1, 0, 0)' ||
+                                         currentTransform.includes('translateX(0)') ||
+                                         sidebar.style.transform === 'translateX(0)';
+                            
+                            if (isOpen) {
+                                closeSidebar();
+                            } else {
+                                sidebar.style.transform = 'translateX(0)';
+                                if (overlay) overlay.style.display = 'block';
+                            }
+                        }
+                    });
+                    
+                    overlay.addEventListener('click', closeSidebar);
+                }
+                
+                // Mobile close button
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        closeSidebar();
+                    });
+                }
+            }
+            
+            // ============================================
+            // FILTRO DE BUSCA
+            // ============================================
+            function initFilterSearch() {
+                const container = document.getElementById('filter-search-container');
+                const button = document.getElementById('filter-search-button');
+                const dropdown = document.getElementById('filter-search-dropdown');
+                const chevron = document.getElementById('filter-chevron');
+                
+                if (!container || !button || !dropdown) return;
+                
+                let isOpen = false;
+                
+                function toggleDropdown(e) {
+                    if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    
+                    isOpen = !isOpen;
+                    
+                    if (isOpen) {
+                        dropdown.style.display = 'block';
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(180deg)';
+                            chevron.classList.add('rotate-180');
+                        }
+                    } else {
+                        dropdown.style.display = 'none';
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(0deg)';
+                            chevron.classList.remove('rotate-180');
+                        }
+                    }
+                }
+                
+                button.addEventListener('click', toggleDropdown);
+                
+                // Fecha ao clicar fora
+                document.addEventListener('click', function(e) {
+                    if (isOpen && container && !container.contains(e.target)) {
+                        isOpen = false;
+                        dropdown.style.display = 'none';
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(0deg)';
+                            chevron.classList.remove('rotate-180');
+                        }
+                    }
+                });
+            }
+            
+            // ============================================
+            // USER MENU DROPDOWN
+            // ============================================
+            function initUserMenu() {
+                const container = document.getElementById('user-menu-container');
+                const button = document.getElementById('user-menu-button');
+                const dropdown = document.getElementById('user-menu-dropdown');
+                const chevron = document.getElementById('user-menu-chevron');
+                
+                if (!container || !button || !dropdown) return;
+                
+                let isOpen = false;
+                
+                function toggleDropdown(e) {
+                    if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    
+                    isOpen = !isOpen;
+                    
+                    if (isOpen) {
+                        dropdown.style.display = 'block';
+                        dropdown.style.visibility = 'visible';
+                        dropdown.style.opacity = '1';
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(180deg)';
+                        }
+                    } else {
+                        dropdown.style.display = 'none';
+                        dropdown.style.visibility = 'hidden';
+                        dropdown.style.opacity = '0';
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(0deg)';
+                        }
+                    }
+                }
+                
+                button.addEventListener('click', toggleDropdown);
+                
+                // Fecha ao clicar fora
+                document.addEventListener('click', function(e) {
+                    if (isOpen && container && !container.contains(e.target)) {
+                        isOpen = false;
+                        dropdown.style.display = 'none';
+                        dropdown.style.visibility = 'hidden';
+                        dropdown.style.opacity = '0';
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(0deg)';
+                        }
+                    }
+                });
+            }
+            
+            // ============================================
+            // INICIALIZAÇÃO
+            // ============================================
+            function init() {
+                initSidebar();
+                initFilterSearch();
+                initUserMenu();
+            }
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+
+

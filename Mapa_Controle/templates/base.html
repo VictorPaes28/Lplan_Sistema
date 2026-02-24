@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %}SupplyMap{% endblock %}</title>
+    
+    <!-- Bootstrap 5.3 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/supplymap.css' %}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- LPLAN Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark lplan-navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand lplan-brand" href="{% if user.is_authenticated %}{% url 'home' %}{% else %}{% url 'login' %}{% endif %}">
+                <span class="lplan-logo-wrap" aria-hidden="true">
+                    <img class="lplan-logo"
+                         src="{% static 'img/lplan-logo.jpg' %}"
+                         alt="LPLAN">
+                </span>
+                <span class="lplan-wordmark">
+                    <span class="lplan-wordmark-main">LPLAN</span>
+                    <span class="lplan-wordmark-sub">ENGENHARIA INTEGRADA</span>
+                </span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'home' %}"><i class="bi bi-house-door"></i> Início</a>
+                            </li>
+                        {% if user.is_staff or user.is_superuser %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'admin_central' %}"><i class="bi bi-gear"></i> Admin</a>
+                            </li>
+                        {% endif %}
+                        {% if user.groups.all %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:dashboard_2' %}">
+                                    <i class="bi bi-speedometer2"></i> Rastreabilidade
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:mapa' %}">
+                                    <i class="bi bi-table"></i> Mapa de Suprimentos
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:importar_sienge' %}">
+                                    <i class="bi bi-upload"></i> Importar Sienge
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                        <!-- Seletor de Obra (Contexto Multi-Obra) -->
+                        {% if obras_disponiveis %}
+                        <li class="nav-item dropdown me-3">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="obraDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-building me-1"></i>
+                                <span class="obra-nome-atual">{% if obra_atual %}{{ obra_atual.nome }}{% else %}Selecionar Obra{% endif %}</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="obraDropdown">
+                                <li><h6 class="dropdown-header">🏗️ Selecionar Obra</h6></li>
+                                {% for obra in obras_disponiveis %}
+                                    <li>
+                                        <a class="dropdown-item {% if obra_atual and obra.id == obra_atual.id %}active{% endif %}" 
+                                           href="{% url 'obras:selecionar' obra.id %}">
+                                            {% if obra_atual and obra.id == obra_atual.id %}
+                                                <i class="bi bi-check-circle-fill me-2"></i>
+                                            {% else %}
+                                                <i class="bi bi-circle me-2"></i>
+                                            {% endif %}
+                                            {{ obra.nome }}
+                                            <small class="text-muted ms-2">({{ obra.codigo_sienge }})</small>
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                        {% endif %}
+                        
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                <span class="lplan-avatar">{{ user.username|slice:":1"|upper }}</span>
+                                <span class="lplan-user-name">{{ user.get_full_name|default:user.username }}</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'profile' %}">Perfil</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">Sair</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">Entrar</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="container-fluid mt-2">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Content -->
+    {% block content %}{% endblock %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="{% static 'js/supplymap.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Perfil{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h2 class="text-2xl md:text-3xl font-bold text-slate-800">Meu Perfil</h2>
+    <p class="text-sm text-gray-600 mt-1">Gerencie suas informações pessoais e preferências</p>
+</div>
+
+{% if messages %}
+<div class="mb-6">
+    {% for message in messages %}
+    <div class="p-4 rounded-lg mb-4 {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+        <div class="flex items-center">
+            <i class="fas {% if message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %} mr-2"></i>
+            {{ message }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Informações do Usuário -->
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <!-- Header com Avatar (mesmo estilo do header e sidebar: fundo azul, iniciais brancas) -->
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8">
+            <div class="flex items-center space-x-4">
+                <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center shadow-xl ring-4 ring-white/20 flex-shrink-0">
+                    <span class="text-white font-bold text-2xl">
+                        {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+                    </span>
+                </div>
+                <div class="text-white">
+                    <h4 class="text-xl font-bold">{{ user.get_full_name|default:user.username|title }}</h4>
+                    <p class="text-sm text-blue-100">{{ user.email }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <form method="post" class="p-6 space-y-6">
+            {% csrf_token %}
+            
+            <!-- Informações Básicas -->
+            <div>
+                <h4 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
+                    <i class="fas fa-user-circle mr-2 text-blue-600"></i>
+                    Informações Básicas
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome de usuário</label>
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                            <p class="text-sm text-gray-900 font-medium">{{ user.username }}</p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1 flex items-center">
+                            <i class="fas fa-lock text-xs mr-1"></i>
+                            Não pode ser alterado
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ form.email.label }}
+                            {% if form.email.field.required %}<span class="text-red-500">*</span>{% endif %}
+                        </label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.email.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ form.first_name.label }}
+                        </label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.first_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ form.last_name.label }}
+                        </label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.last_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Informações da Conta -->
+            <div class="pt-4 border-t border-slate-200">
+                <h4 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
+                    <i class="fas fa-info-circle mr-2 text-blue-600"></i>
+                    Informações da Conta
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Último acesso</label>
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                            <p class="text-sm text-gray-900 flex items-center">
+                                <i class="fas fa-clock text-gray-400 text-xs mr-2"></i>
+                                {{ user.last_login|date:"d/m/Y H:i"|default:"Nunca" }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Data de cadastro</label>
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                            <p class="text-sm text-gray-900 flex items-center">
+                                <i class="fas fa-calendar text-gray-400 text-xs mr-2"></i>
+                                {{ user.date_joined|date:"d/m/Y" }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de conta</label>
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                            {% if user.is_superuser %}
+                                <span class="inline-flex items-center px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
+                                    <i class="fas fa-crown mr-1"></i>Superusuário
+                                </span>
+                            {% elif user.is_staff %}
+                                <span class="inline-flex items-center px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                    <i class="fas fa-user-shield mr-1"></i>Administrador
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">
+                                    <i class="fas fa-user mr-1"></i>Usuário
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Seção de Alteração de Senha -->
+            <div class="pt-6 border-t border-slate-200">
+                <h4 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
+                    <i class="fas fa-key mr-2 text-blue-600"></i>
+                    Alterar Senha
+                </h4>
+                <p class="text-sm text-gray-600 mb-4">Deixe os campos de senha em branco se não quiser alterar</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="{{ form.current_password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ form.current_password.label }}
+                        </label>
+                        {{ form.current_password }}
+                        {% if form.current_password.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.current_password.errors.0 }}</p>
+                        {% elif form.current_password.help_text %}
+                            <p class="text-xs text-gray-500 mt-1">{{ form.current_password.help_text }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div></div>
+                    
+                    <div>
+                        <label for="{{ form.new_password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ form.new_password.label }}
+                        </label>
+                        {{ form.new_password }}
+                        {% if form.new_password.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.new_password.errors.0 }}</p>
+                        {% elif form.new_password.help_text %}
+                            <p class="text-xs text-gray-500 mt-1">{{ form.new_password.help_text }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.confirm_password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ form.confirm_password.label }}
+                        </label>
+                        {{ form.confirm_password }}
+                        {% if form.confirm_password.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.confirm_password.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="pt-6 border-t border-slate-200">
+                <button type="submit" class="w-full md:w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg flex items-center justify-center">
+                    <i class="fas fa-save mr-2"></i>Salvar Alterações
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Estatísticas -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-800 flex items-center">
+                <i class="fas fa-chart-bar mr-2 text-blue-600"></i>
+                Minhas Estatísticas
+            </h3>
+        </div>
+        
+        <div class="p-6 space-y-4">
+            <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between overflow-visible">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-slate-600 mb-1">Relatórios Criados</p>
+                    <p class="text-3xl font-bold text-blue-600">{{ user_diaries_count }}</p>
+                    <p class="text-xs text-slate-500 mt-1">Neste projeto</p>
+                </div>
+                <div class="w-14 h-14 flex-shrink-0 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg ml-4">
+                    <i class="fas fa-file-alt text-white text-xl" aria-hidden="true"></i>
+                </div>
+            </div>
+            
+            <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between overflow-visible">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-slate-600 mb-1">Fotos Enviadas</p>
+                    <p class="text-3xl font-bold text-green-600">{{ user_photos_count }}</p>
+                    <p class="text-xs text-slate-500 mt-1">Neste projeto</p>
+                </div>
+                <div class="w-14 h-14 flex-shrink-0 bg-green-600 rounded-xl flex items-center justify-center shadow-lg ml-4">
+                    <i class="fas fa-camera text-white text-xl" aria-hidden="true"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="px-6 pb-6">
+            <a href="{% url 'report-list' %}" class="block w-full text-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg">
+                <i class="fas fa-arrow-right mr-2"></i>Ver meus relatórios
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

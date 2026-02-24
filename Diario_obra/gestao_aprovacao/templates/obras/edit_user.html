@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Editar Usuário: {{ user_obj.username }}{% endblock %}
+
+{% block page_title %}Editar Usuário{% endblock %}
+{% block page_subtitle %}{% if use_central_urls %}Central - Usuários{% else %}GestControll - Gerenciamento{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="card">
+        <h1 class="form-title">Editar Usuário: {{ user_obj.username }}</h1>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" value="{{ user_obj.username }}" class="form-control" disabled>
+                <small class="form-text">O username não pode ser alterado</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" id="email" name="email" value="{{ user_obj.email|default:'' }}" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Nova Senha</label>
+                <input type="password" id="password" name="password" class="form-control">
+                <small class="form-text">Deixe em branco para manter a senha atual</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="first_name" class="form-label">Nome</label>
+                <input type="text" id="first_name" name="first_name" value="{{ user_obj.first_name|default:'' }}" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="last_name" class="form-label">Sobrenome</label>
+                <input type="text" id="last_name" name="last_name" value="{{ user_obj.last_name|default:'' }}" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="foto_perfil" class="form-label">Foto de Perfil</label>
+                {% if user_perfil and user_perfil.foto_perfil %}
+                    <div style="margin-bottom: 1rem;">
+                        <img src="{{ user_perfil.foto_perfil.url }}" alt="Foto atual" 
+                             style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #e9ecef;">
+                        <p class="form-text" style="margin-top: 0.5rem;">Foto atual</p>
+                    </div>
+                {% endif %}
+                <input type="file" id="foto_perfil" name="foto_perfil" accept="image/*" class="form-control">
+                <small class="form-text">Envie uma nova foto para substituir a atual (opcional). Formatos aceitos: JPG, PNG, GIF.</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Grupos</label>
+                <div class="form-help mb-2">Um ou mais grupos conforme os sistemas que o usuário acessa (Gestão, Diário, Mapa).</div>
+                {% for grupo in grupos %}
+                    <div class="form-check">
+                        <input type="checkbox" id="grupo_{{ grupo.id }}" name="grupos" value="{{ grupo.name }}" class="form-check-input" {% if grupo in user_grupos %}checked{% endif %}>
+                        <label for="grupo_{{ grupo.id }}" class="form-check-label">{{ grupo.name }}</label>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Obras (Diário de Obra e GestControll)</label>
+                <div class="form-help">Mesma lista para todo o sistema. O usuário terá acesso ao Diário e ao GestControll nas obras selecionadas.</div>
+                {% if projects %}
+                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
+                        {% for project in projects %}
+                        <div class="form-check">
+                            <input type="checkbox" id="project_{{ project.id }}" name="projects" value="{{ project.id }}" class="form-check-input" {% if project.id in user_project_ids %}checked{% endif %}>
+                            <label for="project_{{ project.id }}" class="form-check-label">{{ project.code }} – {{ project.name }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Nenhum projeto cadastrado no Diário de Obra.</p>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn">Salvar Alterações</button>
+                <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

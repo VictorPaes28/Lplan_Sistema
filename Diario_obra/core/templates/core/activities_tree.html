@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}EAP - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">Estrutura Analítica de Projetos (EAP)</h2>
+            <p class="text-sm text-gray-600 mt-1">{{ project.code }} - {{ project.name }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'central_project_list' %}" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium">
+                <i class="fas fa-arrow-left mr-2"></i>Obras
+            </a>
+            <a href="{% url 'dashboard' %}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm font-medium">
+                Dashboard
+            </a>
+        </div>
+    </div>
+    
+    <div id="activities-tree" class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        {% for activity in root_activities %}
+        <div class="activity-item mb-4 border border-slate-200 rounded-lg p-4" data-activity-id="{{ activity.id }}">
+            <div class="activity-header flex items-start justify-between">
+                <div class="activity-info flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="font-mono text-sm font-semibold text-blue-600">{{ activity.code }}</span>
+                        <span class="text-lg font-semibold text-slate-800">{{ activity.name }}</span>
+                    </div>
+                    <div class="activity-meta flex items-center gap-4 mb-3">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                            {% if activity.status == 'IP' %}bg-yellow-100 text-yellow-800
+                            {% elif activity.status == 'CO' %}bg-green-100 text-green-800
+                            {% elif activity.status == 'BL' or activity.status == 'CA' %}bg-red-100 text-red-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ activity.get_status_display }}
+                        </span>
+                        {% if activity.weight > 0 %}
+                        <span class="text-sm text-gray-600">Peso: {{ activity.weight }}%</span>
+                        {% endif %}
+                    </div>
+                    <div class="progress-bar-container w-full bg-gray-200 rounded-full h-4 mb-2">
+                        <div class="progress-bar bg-blue-600 h-4 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-300" 
+                             style="width: 0%;" 
+                             data-progress="{{ activity.id }}"
+                             id="progress-{{ activity.id }}"
+                             role="progressbar"
+                             aria-valuenow="0"
+                             aria-valuemin="0"
+                             aria-valuemax="100"
+                             aria-label="Progresso da atividade {{ activity.code }}">
+                            0%
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 ml-4">
+                    {% if activity.numchild > 0 %}
+                    <button class="expand-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors" 
+                            hx-get="{% url 'activity-children' activity.id %}"
+                            hx-target="closest .activity-item"
+                            hx-swap="beforeend"
+                            hx-indicator="#spinner-{{ activity.id }}"
+                            onclick="toggleChildren(this, '{{ activity.id }}')"
+                            aria-label="Expandir atividades filhas"
+                            aria-expanded="false">
+                        <i class="fas fa-chevron-down mr-2" aria-hidden="true"></i>
+                        <span>Expandir</span>
+                        <span id="spinner-{{ activity.id }}" class="loading-spinner ml-2" style="display: none;" aria-hidden="true">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                    </button>
+                    {% else %}
+                    <span class="text-sm text-gray-500">Sem filhos</span>
+                    {% endif %}
+                    <a href="{% url 'activity-new-child' project.id activity.id %}" 
+                       class="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                       title="Adicionar subatividade"
+                       aria-label="Adicionar subatividade">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span class="sr-only">Adicionar subatividade</span>
+                    </a>
+                    <a href="{% url 'activity-edit' project.id activity.id %}" 
+                       class="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
+                       title="Editar"
+                       aria-label="Editar atividade">
+                        <i class="fas fa-edit" aria-hidden="true"></i>
+                        <span class="sr-only">Editar</span>
+                    </a>
+                    <a href="{% url 'activity-delete' project.id activity.id %}" 
+                       class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                       title="Deletar"
+                       aria-label="Deletar atividade"
+                       onclick="return confirm('Tem certeza que deseja deletar esta atividade? Esta ação não pode ser desfeita.');">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                        <span class="sr-only">Deletar</span>
+                    </a>
+                </div>
+            </div>
+            <div class="children-container ml-8 mt-4" id="children-{{ activity.id }}"></div>
+        </div>
+        {% empty %}
+        <div class="text-center py-12 text-gray-500">
+            <i class="fas fa-inbox text-4xl mb-4"></i>
+            <p class="text-lg">Nenhuma atividade encontrada para este projeto.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Carrega progresso de todas as atividades raiz
+    document.addEventListener('DOMContentLoaded', function() {
+        const activities = document.querySelectorAll('[data-activity-id]');
+        activities.forEach(function(activityEl) {
+            const activityId = activityEl.getAttribute('data-activity-id');
+            loadProgress(activityId);
+        });
+    });
+    
+    function loadProgress(activityId) {
+        fetch(`/api/activities/${activityId}/progress/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const progressBar = document.getElementById(`progress-${activityId}`);
+                if (progressBar) {
+                    const progress = Math.round(data.progress || 0);
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = progress + '%';
+                    progressBar.setAttribute('aria-valuenow', progress);
+                }
+            })
+            .catch(error => {
+                // Erro ao carregar progresso - não crítico, apenas log
+                console.warn('Não foi possível carregar o progresso da atividade:', activityId);
+                // Define progresso como 0% em caso de erro
+                const progressBar = document.getElementById(`progress-${activityId}`);
+                if (progressBar) {
+                    progressBar.style.width = '0%';
+                    progressBar.textContent = '0%';
+                    progressBar.setAttribute('aria-valuenow', '0');
+                }
+            });
+    }
+    
+    function toggleChildren(button, activityId) {
+        const container = document.getElementById(`children-${activityId}`);
+        if (container && container.classList.contains('loaded')) {
+            // Recolher
+            container.innerHTML = '';
+            container.classList.remove('loaded');
+            button.innerHTML = '<i class="fas fa-chevron-down mr-2" aria-hidden="true"></i><span>Expandir</span>';
+            button.setAttribute('aria-expanded', 'false');
+        }
+    }
+    
+    // HTMX event handlers
+    document.body.addEventListener('htmx:beforeRequest', function(event) {
+        const spinner = event.detail.elt.querySelector('.loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'inline-block';
+        }
+    });
+    
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        const spinner = event.detail.elt.querySelector('.loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'none';
+        }
+        
+        // Marca o container como carregado
+        const target = event.detail.target;
+        if (target && target.classList.contains('children-container')) {
+            target.classList.add('loaded');
+            // Atualiza o botão para "Recolher"
+            const button = target.closest('.activity-item')?.querySelector('.expand-btn');
+            if (button) {
+                button.innerHTML = '<i class="fas fa-chevron-up mr-2" aria-hidden="true"></i><span>Recolher</span>';
+                button.setAttribute('aria-expanded', 'true');
+            }
+        }
+        
+        // Carrega progresso das atividades filhas recém-carregadas
+        const newActivities = event.detail.target.querySelectorAll('[data-activity-id]');
+        newActivities.forEach(function(activityEl) {
+            const activityId = activityEl.getAttribute('data-activity-id');
+            loadProgress(activityId);
+        });
+    });
+</script>
+{% endblock %}
+

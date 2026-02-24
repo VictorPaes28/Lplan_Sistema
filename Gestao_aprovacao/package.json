@@ -1,0 +1,72 @@
+{
+  "name": "gestao-aprovacao-lplan",
+  "version": "1.0.0",
+  "description": "Sistema de Gestão de Obras e Aprovações - LPLAN Engenharia Integrada",
+  "private": true,
+  "environment": "PRODUCTION",
+  "deployment": {
+    "host": "cPanel",
+    "url": "https://gestao.lplan.com.br",
+    "database": {
+      "type": "MySQL",
+      "provider": "cPanel MySQL (diferente do desenvolvimento local)",
+      "name": "lplan_gestaoap",
+      "user": "lplan_gestaoap2",
+      "note": "Banco de dados MySQL específico do cPanel, diferente do SQLite usado em desenvolvimento local"
+    }
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "django",
+    "gestao",
+    "obras",
+    "aprovacao",
+    "lplan"
+  ],
+  "author": "LPLAN Engenharia Integrada",
+  "license": "UNLICENSED",
+  "dependencies": {},
+  "devDependencies": {},
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "notes": {
+    "javascript_libraries": {
+      "chart.js": {
+        "version": "4.4.0",
+        "source": "CDN",
+        "url": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+        "usage": "Gráficos e visualizações de dados no dashboard",
+        "location": "templates/base.html"
+      }
+    },
+    "frontend_stack": {
+      "framework": "Vanilla JavaScript",
+      "css": "CSS3 puro (sem frameworks)",
+      "build_tool": "Nenhum (arquivos estáticos servidos diretamente)",
+      "package_manager": "Nenhum (bibliotecas via CDN)"
+    },
+    "backend_stack": {
+      "framework": "Django 5.0.1",
+      "language": "Python 3.11+",
+      "database": {
+        "production": "MySQL 8.0+ (cPanel - lplan_gestaoap)",
+        "development": "SQLite (local)",
+        "note": "⚠️ O banco de dados em PRODUÇÃO (cPanel) é DIFERENTE do desenvolvimento local",
+        "driver_production": "pymysql (com monkey patch obrigatório no cPanel)",
+        "driver_development": "sqlite3 (nativo Python)"
+      },
+      "static_files": "WhiteNoise",
+      "email": "SMTP (mail.lplan.com.br)",
+      "deployment": "cPanel (PRODUÇÃO)"
+    }
+  }
+}

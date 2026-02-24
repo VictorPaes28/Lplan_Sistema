@@ -1,0 +1,1054 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Desempenho da Equipe{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/desempenho_equipe.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="page-title">Análise de Desempenho</h1>
+        <p style="color: #6c757d; margin-top: 0.5rem; font-size: 0.95rem;">Acompanhamento de métricas e indicadores da equipe</p>
+        <a href="{% url 'home' %}" class="btn-back">← Voltar para Home</a>
+    </div>
+
+    <!-- Conteúdo Integrado -->
+    <div style="background: #F6F7F9; padding: 1.5rem; border-radius: 12px;">
+        <!-- Seção: Qualidade das Solicitações -->
+        <div style="margin-bottom: 3rem;">
+            <h2 style="color: #212529; font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 2px solid #dee2e6;">
+                Qualidade das Solicitações
+            </h2>
+            <div id="tab-solicitantes" class="tab-content">
+        <div class="performance-card" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+            <!-- Filtros -->
+            <div class="period-selector-container" style="display: flex; gap: 1.25rem; align-items: flex-end; flex-wrap: wrap; padding: 1rem 1.25rem; background: #ffffff; border: 1px solid #E6E8EC; border-radius: 10px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                <div style="flex: 1; min-width: 200px;">
+                    <label for="period-selector-solicitantes" class="period-label" style="color: #6c757d; font-weight: 500; margin-bottom: 0.375rem; display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.3px;">Período de análise</label>
+                    <select id="period-selector-solicitantes" class="period-selector" style="width: 100%; height: 40px; padding: 0 0.875rem; border-radius: 10px; border: 1px solid #E6E8EC; font-size: 0.9rem; background: white; color: #212529; cursor: pointer;">
+                        <option value="7">Últimos 7 dias</option>
+                        <option value="15">Últimos 15 dias</option>
+                        <option value="30" selected>Últimos 30 dias</option>
+                        <option value="60">Últimos 60 dias</option>
+                        <option value="90">Últimos 90 dias</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label for="tipo-selector-solicitantes" class="period-label" style="color: #6c757d; font-weight: 500; margin-bottom: 0.375rem; display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.3px;">Tipo de Solicitação</label>
+                    <select id="tipo-selector-solicitantes" class="period-selector" style="width: 100%; height: 40px; padding: 0 0.875rem; border-radius: 10px; border: 1px solid #E6E8EC; font-size: 0.9rem; background: white; color: #212529; cursor: pointer;">
+                        <option value="">Todos os tipos</option>
+                        <option value="contrato">Contrato</option>
+                        <option value="medicao">Medição</option>
+                        <option value="ordem_servico">Ordem de Serviço (OS)</option>
+                        <option value="mapa_cotacao">Mapa de Cotação</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Cards de Resumo Geral -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+                <div style="background: #ffffff; padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                    <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;">Total de Reprovações</div>
+                    <div style="font-size: 2.25rem; font-weight: 700; line-height: 1.1; color: #dc3545;" id="total-reprovacoes-solicitantes">Carregando...</div>
+                </div>
+                <div style="background: #ffffff; padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                    <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;">Solicitantes com Erros</div>
+                    <div style="font-size: 2.25rem; font-weight: 700; line-height: 1.1; color: #495057;" id="total-solicitantes">-</div>
+                </div>
+                <div style="background: #ffffff; padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                    <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;">Taxa de Reprovação</div>
+                    <div style="font-size: 2.25rem; font-weight: 700; line-height: 1.1; color: #495057;" id="taxa-reprovacao-geral">-</div>
+                </div>
+            </div>
+
+            <!-- Top Tags Gerais -->
+            <div id="top-tags-container" style="margin: 1.5rem 0; padding: 1.5rem; background: #ffffff; border: 1px solid #E6E8EC; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: none;">
+                <h3 style="margin: 0 0 1.25rem 0; color: #212529; font-size: 1.1rem; font-weight: 600;">
+                    Top Tags de Erro (Geral)
+                </h3>
+                <div id="top-tags-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Reprovações por Tipo -->
+            <div id="reprovacoes-por-tipo-container" style="margin: 1.5rem 0; padding: 1.5rem; background: #ffffff; border: 1px solid #E6E8EC; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: none;">
+                <h3 style="margin: 0 0 1.25rem 0; color: #212529; font-size: 1.1rem; font-weight: 600;">
+                    Reprovações por Tipo de Solicitação
+                </h3>
+                <div id="reprovacoes-por-tipo-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Tabela de Solicitantes -->
+            <div class="detailed-table-container" id="solicitantes-table-container" style="display: none; margin-top: 2rem;">
+                <div class="table-header" style="margin-bottom: 1.25rem; padding: 1.25rem; background: #ffffff; border: 1px solid #E6E8EC; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                    <h3 class="table-title" style="margin: 0 0 0.5rem 0; color: #212529; font-size: 1.1rem; font-weight: 600;">
+                        Análise Detalhada por Solicitante
+                    </h3>
+                    <p style="margin: 0; color: #6c757d; font-size: 0.8rem; line-height: 1.4;">
+                        <strong>Ranking:</strong> Ordenado por número de reprovações. <span style="color: #dc3545; font-weight: 500;">1º lugar = maior incidência de reprovações</span>. 
+                        Os 3 primeiros são destacados para identificação rápida.
+                    </p>
+                </div>
+                <div class="table-wrapper" style="background: white; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;">
+                    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+                        <table class="detailed-table" id="solicitantes-table" style="width: 100%; border-collapse: collapse;">
+                            <thead style="position: sticky; top: 0; z-index: 10; background: #F6F7F9;">
+                                <tr>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.8rem; white-space: nowrap;" title="Posição por número de reprovações (1º = mais reprovações)">Pos.</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: left; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Solicitante</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Total Pedidos</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Reprovações</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Taxa de Erro</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Média Tags/Reprov.</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;" title="Tempo médio que o solicitante leva para corrigir e reenviar após uma reprovação. Valores menores indicam maior proatividade.">Tempo para Corrigir</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;" title="Tempo médio total desde a criação do pedido até a aprovação final (incluindo tempo de correção após reprovações). Mostra eficiência geral do processo.">Tempo Total até Aprovação</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: left; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Por Tipo</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: left; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Top Tags de Erro</th>
+                                    <th style="padding: 0.75rem 0.875rem; text-align: center; font-weight: 600; color: #495057; border-bottom: 1px solid #E6E8EC; font-size: 0.85rem;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="solicitantes-table-body">
+                                <!-- Preenchido via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Seção: Tempo de Resposta dos Aprovadores -->
+        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #dee2e6;">
+            <h2 style="color: #212529; font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 2px solid #dee2e6;">
+                Tempo de Resposta dos Aprovadores
+            </h2>
+            <div id="tab-aprovadores" class="tab-content">
+            <div class="performance-card" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+                <!-- Filtros -->
+                <div class="period-selector-container" style="display: flex; gap: 1.25rem; align-items: flex-end; flex-wrap: wrap; padding: 1rem 1.25rem; background: #ffffff; border: 1px solid #E6E8EC; border-radius: 10px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label for="period-selector" class="period-label" style="color: #6c757d; font-weight: 500; margin-bottom: 0.375rem; display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.3px;">Período de análise</label>
+                        <select id="period-selector" class="period-selector" style="width: 100%; height: 40px; padding: 0 0.875rem; border-radius: 10px; border: 1px solid #E6E8EC; font-size: 0.9rem; background: white; color: #212529; cursor: pointer;">
+                            <option value="7">Últimos 7 dias</option>
+                            <option value="15">Últimos 15 dias</option>
+                            <option value="30" selected>Últimos 30 dias</option>
+                            <option value="60">Últimos 60 dias</option>
+                            <option value="90">Últimos 90 dias</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Cards de Resumo Geral -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+                    <div style="background: #ffffff; padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; gap: 0.25rem;">
+                            Tempo Médio de Resposta
+                            <span style="cursor: help; font-size: 0.9rem;" title="Tempo médio que o aprovador leva para tomar uma decisão (aprovar ou reprovar)">ℹ️</span>
+                        </div>
+                        <div style="font-size: 2.25rem; font-weight: 700; line-height: 1.1; color: #495057;" id="tempo-medio-geral">Carregando...</div>
+                        <div style="font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;" id="sla-info">Meta (SLA): 24h</div>
+                    </div>
+                    <div style="background: #ffffff; padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06); position: relative;">
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; gap: 0.25rem;">
+                            % Fora do SLA
+                            <span style="cursor: help; font-size: 0.9rem;" title="Percentual de decisões que levaram mais de 24h (SLA)">ℹ️</span>
+                        </div>
+                        <div style="font-size: 2.25rem; font-weight: 700; line-height: 1.1; color: #dc3545;" id="pct-fora-sla">-</div>
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-top: 0.25rem;">Meta: &lt; 20%</div>
+                    </div>
+                    <div style="background: #ffffff; padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid #E6E8EC; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;">Total de Decisões</div>
+                        <div style="font-size: 2.25rem; font-weight: 700; line-height: 1.1; color: #495057;" id="total-decisoes">-</div>
+                    </div>
+                </div>
+                
+                <!-- Blocos de Aprovadores (Leitura Rápida) -->
+                <div id="aprovadores-blocks" style="display: none; margin-top: 2rem;">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+                
+            </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tempoMedioEl = document.getElementById('tempo-medio-geral');
+    const totalDecisoesEl = document.getElementById('total-decisoes');
+    const periodSelector = document.getElementById('period-selector');
+    
+    if (!tempoMedioEl || !totalDecisoesEl || !periodSelector) {
+        console.error('Elementos não encontrados.');
+        return;
+    }
+    
+    let currentAbortController = null;
+    
+    // Função para criar blocos visuais de aprovadores (definida antes de ser usada)
+    function criarBlocosAprovadores(dados, slaHoras) {
+        const container = document.getElementById('aprovadores-blocks');
+        
+        if (!container || !dados || dados.length === 0) {
+            if (container) container.style.display = 'none';
+            return;
+        }
+        
+        container.style.display = 'block';
+        container.innerHTML = '';
+        
+        // Função auxiliar para formatar tempo
+        const formatarTempo = (horas) => {
+            if (!horas && horas !== 0) return 'N/A';
+            const h = Math.floor(horas);
+            const m = Math.round((horas - h) * 60);
+            if (h > 0 && m > 0) {
+                return `${h}h ${m}min`;
+            } else if (h > 0) {
+                return `${h}h`;
+            } else if (m > 0) {
+                return `${m}min`;
+            }
+            return `${m}min`;
+        };
+        
+        dados.forEach((item, index) => {
+            // Criar card principal do aprovador com animação
+            const card = document.createElement('div');
+            card.style.cssText = 'background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border: 2px solid #E6E8EC; border-radius: 16px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: all 0.3s ease; position: relative; overflow: hidden;';
+            card.onmouseenter = function() {
+                this.style.transform = 'translateY(-4px)';
+                this.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
+                this.style.borderColor = '#667eea';
+            };
+            card.onmouseleave = function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                this.style.borderColor = '#E6E8EC';
+            };
+            
+            // Header com nome e risco
+            const riscoCor = item.cor_risco || '#6c757d';
+            const riscoLabel = item.classificacao_risco || 'N/A';
+            const riscoTexto = riscoLabel.charAt(0).toUpperCase() + riscoLabel.slice(1);
+            const riscoIcon = riscoCor === '#dc3545' ? '⚠️' : riscoCor === '#ffc107' ? '⚡' : '✓';
+            
+            // Determinar cor do tempo vs SLA
+            const tempoCor = item.tempo_medio_horas > slaHoras ? '#dc3545' : '#28a745';
+            const tempoStatus = item.tempo_medio_horas > slaHoras ? 'Acima do SLA' : 'Dentro do SLA';
+            const tempoPercentual = Math.min(100, (item.tempo_medio_horas / slaHoras) * 100);
+            
+            // Determinar cor da capacidade
+            const capacidadeCor = item.saldo_capacidade < 0 ? '#dc3545' : item.saldo_capacidade > 1 ? '#28a745' : '#ffc107';
+            const capacidadeStatus = item.saldo_capacidade < 0 ? 'Sobrecarga' : item.saldo_capacidade > 1 ? 'Capacidade OK' : 'No limite';
+            const capacidadePercentual = item.bms_recebidas_dia > 0 ? Math.min(100, (item.bms_aprovadas_dia / item.bms_recebidas_dia) * 100) : 0;
+            
+            // Taxa de aprovação
+            const taxaAprovacao = item.total_decisoes > 0 ? ((item.aprovados / item.total_decisoes) * 100).toFixed(1) : 0;
+            
+            card.innerHTML = `
+                <!-- Barra de Risco no Topo -->
+                <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, ${riscoCor} 0%, ${riscoCor}88 100%);"></div>
+                
+                <!-- Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 2px solid #E6E8EC;">
+                    <div>
+                        <h3 style="margin: 0 0 0.5rem 0; color: #212529; font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="width: 48px; height: 48px; background: linear-gradient(135deg, ${riscoCor} 0%, ${riscoCor}88 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 8px ${riscoCor}40;">${riscoIcon}</span>
+                            ${item.usuario}
+                        </h3>
+                        <div style="font-size: 0.85rem; color: #6c757d; margin-top: 0.25rem;">${item.total_decisoes || 0} decisões no período</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
+                        <span style="padding: 0.625rem 1.25rem; background: ${riscoCor}; color: white; border-radius: 24px; font-size: 0.9rem; font-weight: 700; box-shadow: 0 2px 8px ${riscoCor}40;" title="Nível de risco operacional baseado em atrasos, reprovações e violações de SLA">
+                            Risco ${riscoTexto}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Diagnóstico Automático -->
+                <div style="background: linear-gradient(135deg, ${riscoCor === '#dc3545' ? '#fff5f5' : riscoCor === '#ffc107' ? '#fffbf0' : '#f0f9ff'} 0%, ${riscoCor === '#dc3545' ? '#ffeaea' : riscoCor === '#ffc107' ? '#fff8e0' : '#e6f4ff'} 100%); border-left: 5px solid ${riscoCor}; padding: 1.25rem; border-radius: 10px; margin-bottom: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                    <div style="display: flex; align-items: start; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">💡</span>
+                        <div style="flex: 1;">
+                            <div style="font-size: 0.75rem; color: ${riscoCor}; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Diagnóstico Automático</div>
+                            <div style="font-size: 0.95rem; color: #495057; line-height: 1.7; font-weight: 500;">
+                                ${item.diagnostico || 'Processo operando dentro dos parâmetros normais'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Grid de Métricas -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                    <!-- Saúde do Fluxo -->
+                    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); padding: 1.5rem; border-radius: 12px; border: 2px solid #E6E8EC; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: 0; right: 0; width: 80px; height: 80px; background: ${tempoCor}15; border-radius: 0 0 0 100%;"></div>
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.2rem;">⏱️</span> Saúde do Fluxo
+                        </div>
+                        
+                        <!-- Tempo Médio com Barra de Progresso -->
+                        <div style="margin-bottom: 1.25rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <div style="font-size: 0.85rem; color: #495057; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                    Tempo Médio
+                                    <span style="cursor: help; font-size: 0.9rem;" title="Tempo médio para tomar decisão (aprovar ou reprovar)">ℹ️</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #6c757d;">Meta: ${slaHoras}h</div>
+                            </div>
+                            <div style="font-size: 2rem; font-weight: 700; color: ${tempoCor}; margin-bottom: 0.5rem;">${formatarTempo(item.tempo_medio_horas)}</div>
+                            <div style="width: 100%; height: 8px; background: #E6E8EC; border-radius: 10px; overflow: hidden; margin-bottom: 0.5rem;">
+                                <div style="width: ${tempoPercentual}%; height: 100%; background: linear-gradient(90deg, ${tempoCor} 0%, ${tempoCor}88 100%); border-radius: 10px; transition: width 0.5s ease;"></div>
+                            </div>
+                            <div style="font-size: 0.75rem; color: ${tempoCor}; font-weight: 600;">${tempoStatus}</div>
+                        </div>
+                        
+                        <!-- % Fora do SLA -->
+                        <div style="margin-bottom: 1.25rem; padding: 1rem; background: ${item.pct_fora_sla > 30 ? '#fff5f5' : item.pct_fora_sla > 10 ? '#fffbf0' : '#f0f9ff'}; border-radius: 8px; border: 1px solid ${item.pct_fora_sla > 30 ? '#dc3545' : item.pct_fora_sla > 10 ? '#ffc107' : '#28a745'};">
+                            <div style="font-size: 0.8rem; color: #495057; margin-bottom: 0.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                % Fora do SLA
+                                <span style="cursor: help; font-size: 0.9rem;" title="Percentual de decisões que levaram mais de 24h (acima da meta)">ℹ️</span>
+                            </div>
+                            <div style="font-size: 1.75rem; font-weight: 700; color: ${item.pct_fora_sla > 30 ? '#dc3545' : item.pct_fora_sla > 10 ? '#ffc107' : '#28a745'};">${item.pct_fora_sla || 0}%</div>
+                            <div style="width: 100%; height: 6px; background: #E6E8EC; border-radius: 10px; overflow: hidden; margin-top: 0.5rem;">
+                                <div style="width: ${item.pct_fora_sla || 0}%; height: 100%; background: linear-gradient(90deg, ${item.pct_fora_sla > 30 ? '#dc3545' : item.pct_fora_sla > 10 ? '#ffc107' : '#28a745'} 0%, ${item.pct_fora_sla > 30 ? '#dc3545' : item.pct_fora_sla > 10 ? '#ffc107' : '#28a745'}88 100%); border-radius: 10px;"></div>
+                            </div>
+                            <div style="font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem;">Meta: &lt; 20%</div>
+                        </div>
+                        
+                        ${item.variacao_tendencia !== null && item.variacao_tendencia !== undefined ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid #E6E8EC;">
+                            <div style="font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                Tendência
+                                <span style="cursor: help; font-size: 0.9rem;" title="Comparação: últimos 7 dias vs últimos 30 dias. Positivo = piorando, Negativo = melhorando">ℹ️</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.5rem;">${item.variacao_tendencia > 0 ? '📈' : '📉'}</span>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: ${item.variacao_tendencia > 0 ? '#dc3545' : '#28a745'};">
+                                    ${item.variacao_tendencia > 0 ? '+' : ''}${item.variacao_tendencia}%
+                                </div>
+                                <div style="font-size: 0.75rem; color: #6c757d; margin-left: auto;">${item.variacao_tendencia > 0 ? 'Piorando' : 'Melhorando'}</div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Decisão -->
+                    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); padding: 1.5rem; border-radius: 12px; border: 2px solid #E6E8EC; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: 0; right: 0; width: 80px; height: 80px; background: #667eea15; border-radius: 0 0 0 100%;"></div>
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.2rem;">⚖️</span> Decisão
+                        </div>
+                        
+                        <!-- Total Decisões -->
+                        <div style="margin-bottom: 1.25rem;">
+                            <div style="font-size: 0.85rem; color: #495057; margin-bottom: 0.5rem; font-weight: 600;">Total Decisões</div>
+                            <div style="font-size: 2.5rem; font-weight: 700; color: #495057;">${item.total_decisoes || 0}</div>
+                        </div>
+                        
+                        <!-- Aprovados vs Reprovados com Gráfico -->
+                        <div style="margin-bottom: 1.25rem; padding: 1rem; background: #F6F7F9; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: #495057; margin-bottom: 0.75rem; font-weight: 600;">Aprovados vs Reprovados</div>
+                            <div style="display: flex; gap: 1rem; margin-bottom: 0.75rem;">
+                                <div style="flex: 1; text-align: center; padding: 0.75rem; background: #28a74515; border-radius: 8px; border: 2px solid #28a745;">
+                                    <div style="font-size: 0.75rem; color: #28a745; margin-bottom: 0.25rem; font-weight: 600;">Aprovados</div>
+                                    <div style="font-size: 1.75rem; font-weight: 700; color: #28a745;">${item.aprovados || 0}</div>
+                                </div>
+                                <div style="flex: 1; text-align: center; padding: 0.75rem; background: #dc354515; border-radius: 8px; border: 2px solid #dc3545;">
+                                    <div style="font-size: 0.75rem; color: #dc3545; margin-bottom: 0.25rem; font-weight: 600;">Reprovados</div>
+                                    <div style="font-size: 1.75rem; font-weight: 700; color: #dc3545;">${item.reprovados || 0}</div>
+                                </div>
+                            </div>
+                            <div style="width: 100%; height: 12px; background: #E6E8EC; border-radius: 10px; overflow: hidden; display: flex;">
+                                <div style="width: ${taxaAprovacao}%; height: 100%; background: linear-gradient(90deg, #28a745 0%, #20c997 100%);"></div>
+                                <div style="width: ${100 - taxaAprovacao}%; height: 100%; background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);"></div>
+                            </div>
+                            <div style="text-align: center; margin-top: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #495057;">Taxa: ${taxaAprovacao}%</div>
+                        </div>
+                        
+                        <!-- Taxa de Aprovação -->
+                        <div style="margin-bottom: 1rem; padding: 1rem; background: #F6F7F9; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: #495057; margin-bottom: 0.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                Taxa de Aprovação
+                                <span style="cursor: help; font-size: 0.9rem;" title="Percentual de pedidos aprovados em relação ao total de decisões">ℹ️</span>
+                            </div>
+                            <div style="font-size: 1.75rem; font-weight: 700; color: #28a745;">${taxaAprovacao}%</div>
+                            <div style="font-size: 0.7rem; color: #6c757d; margin-top: 0.25rem;">${item.aprovados || 0} aprovados de ${item.total_decisoes || 0} decisões</div>
+                        </div>
+                        
+                        <!-- Retrabalhos -->
+                        <div>
+                            <div style="font-size: 0.8rem; color: #495057; margin-bottom: 0.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                Retrabalhos
+                                <span style="cursor: help; font-size: 0.9rem;" title="Pedidos que foram reprovados e depois reapresentados para aprovação">ℹ️</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.5rem;">${item.retrabalhos > 0 ? '🔄' : '✓'}</span>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: ${item.retrabalhos > 0 ? '#ffc107' : '#28a745'};">${item.retrabalhos || 0}</div>
+                                ${item.retrabalhos > 0 ? '<div style="font-size: 0.75rem; color: #6c757d; margin-left: auto;">Reapresentados</div>' : '<div style="font-size: 0.75rem; color: #6c757d; margin-left: auto;">Sem retrabalho</div>'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Capacidade -->
+                    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); padding: 1.5rem; border-radius: 12px; border: 2px solid #E6E8EC; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: 0; right: 0; width: 80px; height: 80px; background: ${capacidadeCor}15; border-radius: 0 0 0 100%;"></div>
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-bottom: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.2rem;">📊</span> Capacidade
+                        </div>
+                        
+                        <!-- Capacidade de Processamento -->
+                        <div style="margin-bottom: 1.25rem; padding: 1rem; background: #F6F7F9; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: #495057; margin-bottom: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                Capacidade de Processamento
+                                <span style="cursor: help; font-size: 0.9rem;" title="Quantas BMs o aprovador processa por dia vs quantas recebe">ℹ️</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.75rem; color: #6c757d; margin-bottom: 0.25rem;">Processa/Dia</div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: #28a745;">${item.bms_aprovadas_dia || 0}</div>
+                                </div>
+                                <div style="flex: 1; text-align: right;">
+                                    <div style="font-size: 0.75rem; color: #6c757d; margin-bottom: 0.25rem;">Recebe/Dia</div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: #495057;">${item.bms_recebidas_dia || 0}</div>
+                                </div>
+                            </div>
+                            <div style="padding: 0.75rem; background: ${capacidadeCor}15; border-radius: 6px; border: 1px solid ${capacidadeCor};">
+                                <div style="font-size: 0.75rem; color: #495057; margin-bottom: 0.25rem; font-weight: 600;">Saldo</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: ${capacidadeCor};">
+                                    ${item.saldo_capacidade >= 0 ? '+' : ''}${item.saldo_capacidade || 0} BMs/dia
+                                </div>
+                                <div style="font-size: 0.7rem; color: ${capacidadeCor}; margin-top: 0.25rem; font-weight: 600;">${capacidadeStatus}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Backlog -->
+                        <div>
+                            <div style="font-size: 0.8rem; color: #495057; margin-bottom: 0.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                                Backlog
+                                <span style="cursor: help; font-size: 0.9rem;" title="Quantidade de pedidos recebidos mas ainda não aprovados (pendentes)">ℹ️</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.5rem;">${item.backlog > 0 ? '📦' : '✓'}</span>
+                                <div style="font-size: 1.75rem; font-weight: 700; color: ${item.backlog > 0 ? '#dc3545' : '#28a745'};">${item.backlog || 0}</div>
+                                ${item.backlog > 0 ? '<div style="font-size: 0.75rem; color: #dc3545; margin-left: auto; font-weight: 600;">Pendentes</div>' : '<div style="font-size: 0.75rem; color: #28a745; margin-left: auto;">Sem pendências</div>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(card);
+        });
+    }
+    
+    // Função para carregar dados de desempenho
+    function carregarDados(dias) {
+        // Cancelar requisição anterior se existir
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        
+        // Criar novo controller
+        currentAbortController = new AbortController();
+        const timeoutId = setTimeout(() => currentAbortController.abort(), 30000);
+        
+        // Mostrar indicador de carregamento
+        tempoMedioEl.textContent = 'Carregando...';
+        totalDecisoesEl.textContent = '-';
+        const pctForaSlaEl = document.getElementById('pct-fora-sla');
+        if (pctForaSlaEl) pctForaSlaEl.textContent = '-';
+        
+        fetch('{% url "desempenho_equipe_api" %}?dias=' + dias, {
+            signal: currentAbortController.signal
+        })
+        .then(response => {
+            clearTimeout(timeoutId);
+            return response.json().then(data => {
+                if (!response.ok) {
+                    throw new Error(data.erro || 'Erro na resposta da API: ' + response.status);
+                }
+                return data;
+            });
+        })
+        .then(data => {
+            // Verificar se há erro na resposta
+            if (data.erro) {
+                tempoMedioEl.textContent = 'Erro';
+                totalDecisoesEl.textContent = 'Erro';
+                const pctForaSlaEl = document.getElementById('pct-fora-sla');
+                if (pctForaSlaEl) pctForaSlaEl.textContent = 'Erro';
+                
+                // Mostrar mensagem de erro
+                const container = document.getElementById('aprovadores-blocks');
+                if (container) {
+                    container.style.display = 'block';
+                    container.innerHTML = `
+                        <div style="background: #fff5f5; border: 2px solid #dc3545; border-radius: 12px; padding: 2rem; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; color: #dc3545; margin-bottom: 0.5rem;">Erro ao carregar dados</div>
+                            <div style="font-size: 0.9rem; color: #6c757d;">${data.erro}</div>
+                        </div>
+                    `;
+                }
+                console.error('Erro na API:', data.erro);
+                return;
+            }
+            
+            // Atualizar resumo
+            if (data.tempo_medio_geral > 0) {
+                const horas = Math.floor(data.tempo_medio_geral);
+                const minutos = Math.round((data.tempo_medio_geral - horas) * 60);
+                let tempoTexto = '';
+                if (horas > 0) {
+                    tempoTexto = `${horas}h`;
+                    if (minutos > 0) {
+                        tempoTexto += ` ${minutos}min`;
+                    }
+                } else {
+                    tempoTexto = `${minutos}min`;
+                }
+                tempoMedioEl.textContent = tempoTexto;
+            } else {
+                tempoMedioEl.textContent = 'N/A';
+            }
+            
+            // Atualizar estatísticas gerais
+            if (totalDecisoesEl && data.total_decisoes !== undefined) {
+                totalDecisoesEl.textContent = data.total_decisoes;
+            }
+            
+            // Atualizar % fora do SLA
+            const pctForaSlaEl = document.getElementById('pct-fora-sla');
+            if (pctForaSlaEl && data.pct_fora_sla_geral !== undefined) {
+                pctForaSlaEl.textContent = data.pct_fora_sla_geral + '%';
+            }
+            
+            // Removido: % acima de 24h (redundante com % Fora do SLA)
+            
+            // Criar blocos visuais de aprovadores
+            criarBlocosAprovadores(data.dados, data.sla_horas || 24);
+            })
+            .catch(error => {
+            clearTimeout(timeoutId);
+            console.error('Erro ao carregar dados de desempenho:', error);
+            console.error('Detalhes do erro:', error.message);
+            
+            // Tratar erros
+            const tempoMedioElError = document.getElementById('tempo-medio-geral');
+            const totalDecisoesElError = document.getElementById('total-decisoes');
+            const pctForaSlaElError = document.getElementById('pct-fora-sla');
+            
+            if (tempoMedioElError) {
+                tempoMedioElError.textContent = 'Erro ao carregar';
+            }
+            
+            if (totalDecisoesElError) {
+                totalDecisoesElError.textContent = 'Erro';
+            }
+            
+            if (pctForaSlaElError) {
+                pctForaSlaElError.textContent = 'Erro';
+            }
+        });
+    }
+    
+    // Função para atualizar cards de comparação
+    function atualizarComparacao(comparacao, dataAtual) {
+        const comparisonContainer = document.getElementById('comparison-container');
+        
+        if (!comparacao || !comparisonContainer) {
+            if (comparisonContainer) comparisonContainer.style.display = 'none';
+            return;
+        }
+        
+        // Verificar se há dados suficientes para comparação
+        if (comparacao.tempo_medio_anterior === 0 && comparacao.total_decisoes_anterior === 0) {
+            comparisonContainer.style.display = 'none';
+            return;
+        }
+        
+        comparisonContainer.style.display = 'block';
+        
+        // Função auxiliar para formatar variação
+        function formatarVariacao(valor) {
+            if (valor === null || valor === undefined) return { texto: 'N/A', classe: 'neutral' };
+            
+            const sinal = valor >= 0 ? '+' : '';
+            const texto = `${sinal}${valor}%`;
+            
+            // Determinar classe baseado no valor absoluto
+            let classe = 'neutral';
+            if (Math.abs(valor) < 0.1) {
+                classe = 'neutral'; // Praticamente sem mudança
+            } else if (valor < 0) {
+                classe = 'improvement'; // Redução (pode ser bom ou ruim dependendo do contexto)
+            } else {
+                classe = 'worsening'; // Aumento (pode ser bom ou ruim dependendo do contexto)
+            }
+            
+            return { texto, classe };
+        }
+        
+        // Função auxiliar para formatar tempo
+        function formatarTempo(h) {
+            if (h === null || h === undefined || isNaN(h)) return 'N/A';
+            const hh = Math.floor(h);
+            const mm = Math.round((h - hh) * 60);
+            if (hh > 0 && mm > 0) {
+                return `${hh}h ${mm}min`;
+            } else if (hh > 0) {
+                return `${hh}h`;
+            } else if (mm > 0) {
+                return `${mm}min`;
+            }
+            return `${mm}min`;
+        }
+        
+        // Atualizar tempo médio
+        const tempoValue = document.getElementById('comparison-tempo-value');
+        const tempoVariacao = document.getElementById('comparison-tempo-variacao');
+        if (tempoValue && tempoVariacao && comparacao.variacao_tempo_medio !== null && comparacao.variacao_tempo_medio !== undefined) {
+            tempoValue.textContent = `${formatarTempo(comparacao.tempo_medio_anterior)} → ${formatarTempo(dataAtual.tempo_medio_geral)}`;
+            const variacao = formatarVariacao(comparacao.variacao_tempo_medio);
+            // Para tempo médio: negativo (redução) é melhor, positivo (aumento) é pior
+            if (variacao.classe === 'improvement') {
+                variacao.classe = 'improvement'; // Tempo diminuiu = melhor (verde)
+            } else if (variacao.classe === 'worsening') {
+                variacao.classe = 'worsening'; // Tempo aumentou = pior (vermelho)
+            }
+            tempoVariacao.textContent = variacao.texto;
+            tempoVariacao.className = 'variation-badge ' + variacao.classe;
+        }
+        
+        // Atualizar taxa de aprovação
+        const taxaValue = document.getElementById('comparison-taxa-value');
+        const taxaVariacao = document.getElementById('comparison-taxa-variacao');
+        if (taxaValue && taxaVariacao && comparacao.variacao_taxa_aprovacao !== null && comparacao.variacao_taxa_aprovacao !== undefined) {
+            taxaValue.textContent = `${comparacao.taxa_aprovacao_anterior}% → ${dataAtual.taxa_aprovacao_geral}%`;
+            const variacao = formatarVariacao(comparacao.variacao_taxa_aprovacao);
+            // Para taxa: positivo (aumento) é melhor, negativo (redução) é pior
+            if (variacao.classe === 'improvement') {
+                variacao.classe = 'worsening'; // Taxa diminuiu = pior (vermelho)
+            } else if (variacao.classe === 'worsening') {
+                variacao.classe = 'improvement'; // Taxa aumentou = melhor (verde)
+            }
+            taxaVariacao.textContent = variacao.texto;
+            taxaVariacao.className = 'variation-badge ' + variacao.classe;
+        }
+        
+        // Atualizar volume
+        const volumeValue = document.getElementById('comparison-volume-value');
+        const volumeVariacao = document.getElementById('comparison-volume-variacao');
+        if (volumeValue && volumeVariacao && comparacao.variacao_volume !== null && comparacao.variacao_volume !== undefined) {
+            const totalDecisoesAtual = dataAtual.total_aprovados_geral + dataAtual.total_reprovados_geral;
+            volumeValue.textContent = `${comparacao.total_decisoes_anterior} → ${totalDecisoesAtual}`;
+            const variacao = formatarVariacao(comparacao.variacao_volume);
+            // Para volume: positivo (aumento) é melhor, negativo (redução) é pior
+            if (variacao.classe === 'improvement') {
+                variacao.classe = 'worsening'; // Volume diminuiu = pior (vermelho)
+            } else if (variacao.classe === 'worsening') {
+                variacao.classe = 'improvement'; // Volume aumentou = melhor (verde)
+            }
+            volumeVariacao.textContent = variacao.texto;
+            volumeVariacao.className = 'variation-badge ' + variacao.classe;
+        }
+    }
+    
+    // Event listener para mudança de período
+    periodSelector.addEventListener('change', function() {
+        const dias = parseInt(this.value);
+        carregarDados(dias);
+    });
+    
+    // Carregar dados iniciais de ambas as seções (sem abas, tudo visível)
+    carregarDados(30);
+    
+    // Carregar dados iniciais de solicitantes
+});
+
+// ========== FUNCIONALIDADE DE SOLICITANTES ==========
+document.addEventListener('DOMContentLoaded', function() {
+    // Função para carregar dados de solicitantes
+    function carregarDadosSolicitantes(dias, tipoSolicitacao) {
+        const totalReprovacoesEl = document.getElementById('total-reprovacoes-solicitantes');
+        const periodoEl = document.getElementById('periodo-analisado-solicitantes');
+        const totalSolicitantesEl = document.getElementById('total-solicitantes');
+        
+        if (totalReprovacoesEl) totalReprovacoesEl.textContent = 'Carregando...';
+        
+        let url = '{% url "desempenho_solicitantes_api" %}?dias=' + dias;
+        if (tipoSolicitacao) {
+            url += '&tipo_solicitacao=' + encodeURIComponent(tipoSolicitacao);
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.erro) {
+                    if (totalReprovacoesEl) totalReprovacoesEl.textContent = 'Erro';
+                    return;
+                }
+                
+                // Atualizar resumo
+                if (totalReprovacoesEl) totalReprovacoesEl.textContent = data.total_reprovacoes || 0;
+                // Mostrar total de solicitantes (incluindo os sem reprovações)
+                if (totalSolicitantesEl) {
+                    const totalSolicitantes = data.dados ? data.dados.length : 0;
+                    totalSolicitantesEl.textContent = totalSolicitantes;
+                    console.log(`Total de solicitantes encontrados: ${totalSolicitantes}`);
+                }
+                const taxaReprovacaoEl = document.getElementById('taxa-reprovacao-geral');
+                if (taxaReprovacaoEl) {
+                    taxaReprovacaoEl.textContent = (data.taxa_reprovacao_geral || 0) + '%';
+                }
+                
+                // Top tags gerais - lista limpa
+                const topTagsContainer = document.getElementById('top-tags-container');
+                const topTagsList = document.getElementById('top-tags-list');
+                if (topTagsContainer && topTagsList && data.top_tags_geral && data.top_tags_geral.length > 0) {
+                    topTagsList.innerHTML = '';
+                    const maxCount = data.top_tags_geral[0].count; // Para calcular proporção
+                    data.top_tags_geral.forEach((tag, index) => {
+                        const tagEl = document.createElement('div');
+                        const proporcao = (tag.count / maxCount) * 100;
+                        tagEl.style.cssText = `display: flex; align-items: center; gap: 0.875rem; padding: 0.625rem 0; border-bottom: 1px solid #E6E8EC;`;
+                        tagEl.innerHTML = `
+                            <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #E6E8EC; color: #6c757d; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600;">${index + 1}</div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-size: 0.875rem; color: #212529; font-weight: 500; margin-bottom: 0.25rem;">${tag.nome}</div>
+                                <div style="height: 4px; background: #E6E8EC; border-radius: 2px; overflow: hidden;">
+                                    <div style="height: 100%; width: ${proporcao}%; background: #6c757d; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                            <div style="flex-shrink: 0; font-size: 0.8rem; color: #6c757d; font-weight: 600;">${tag.count}x</div>
+                        `;
+                        topTagsList.appendChild(tagEl);
+                    });
+                    topTagsContainer.style.display = 'block';
+                } else if (topTagsContainer) {
+                    topTagsContainer.style.display = 'none';
+                }
+                
+                // Reprovações por tipo - cards menores
+                const reprovacoesPorTipoContainer = document.getElementById('reprovacoes-por-tipo-container');
+                const reprovacoesPorTipoList = document.getElementById('reprovacoes-por-tipo-list');
+                if (reprovacoesPorTipoContainer && reprovacoesPorTipoList && data.reprovacoes_por_tipo_geral) {
+                    reprovacoesPorTipoList.innerHTML = '';
+                    const tipoLabels = {
+                        'contrato': 'Contrato',
+                        'medicao': 'Medição',
+                        'ordem_servico': 'Ordem de Serviço (OS)',
+                        'mapa_cotacao': 'Mapa de Cotação'
+                    };
+                    
+                    Object.entries(data.reprovacoes_por_tipo_geral).forEach(([tipo, count]) => {
+                        const tipoEl = document.createElement('div');
+                        tipoEl.style.cssText = `padding: 1rem 1.25rem; background: #ffffff; border: 1px solid #E6E8EC; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); text-align: center; transition: all 0.2s;`;
+                        tipoEl.innerHTML = `<div style="font-size: 0.7rem; font-weight: 500; margin-bottom: 0.5rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.3px;">${tipoLabels[tipo] || tipo}</div><div style="font-size: 2rem; font-weight: 700; color: #212529; line-height: 1.1;">${count}</div>`;
+                        tipoEl.onmouseenter = () => {
+                            tipoEl.style.backgroundColor = '#F6F7F9';
+                            tipoEl.style.boxShadow = '0 2px 6px rgba(0,0,0,0.08)';
+                        };
+                        tipoEl.onmouseleave = () => {
+                            tipoEl.style.backgroundColor = '#ffffff';
+                            tipoEl.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+                        };
+                        reprovacoesPorTipoList.appendChild(tipoEl);
+                    });
+                    reprovacoesPorTipoContainer.style.display = Object.keys(data.reprovacoes_por_tipo_geral).length > 0 ? 'block' : 'none';
+                }
+                
+                // Função para formatar tempo (horas para dias/horas) - definida uma vez
+                function formatarTempo(horas) {
+                    if (!horas && horas !== 0) return '<span style="color: #868e96; font-size: 0.8rem;">-</span>';
+                    
+                    const h = Math.floor(horas);
+                    const m = Math.round((horas - h) * 60);
+                    
+                    if (horas < 24) {
+                        // Menos de 24h: mostrar horas e minutos
+                        if (h > 0 && m > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${h}h ${m}min</span>`;
+                        } else if (h > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${h}h</span>`;
+                        } else if (m > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${m}min</span>`;
+                        } else {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">0min</span>`;
+                        }
+                    } else {
+                        // 24h ou mais: mostrar dias, horas e minutos
+                        const dias = Math.floor(horas / 24);
+                        const horasRestantes = Math.floor((horas % 24));
+                        const minutosRestantes = Math.round((horas % 1) * 60);
+                        
+                        if (dias > 0 && horasRestantes > 0 && minutosRestantes > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${dias}d ${horasRestantes}h ${minutosRestantes}min</span>`;
+                        } else if (dias > 0 && horasRestantes > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${dias}d ${horasRestantes}h</span>`;
+                        } else if (dias > 0 && minutosRestantes > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${dias}d ${minutosRestantes}min</span>`;
+                        } else if (dias > 0) {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${dias}d</span>`;
+                        } else {
+                            return `<span style="color: #495057; font-weight: 500; font-size: 0.85rem;">${h}h ${m}min</span>`;
+                        }
+                    }
+                }
+                
+                // Tabela de solicitantes
+                const tableContainer = document.getElementById('solicitantes-table-container');
+                const tableBody = document.getElementById('solicitantes-table-body');
+                
+                if (tableBody && data.dados && data.dados.length > 0) {
+                    console.log(`[Desempenho] Exibindo ${data.dados.length} solicitantes na tabela`);
+                    tableBody.innerHTML = '';
+                    data.dados.forEach(item => {
+                        const row = document.createElement('tr');
+                        
+                        // Formatar reprovações por tipo
+                        const tipoLabels = {
+                            'contrato': 'Contrato',
+                            'medicao': 'Medição',
+                            'ordem_servico': 'OS',
+                            'mapa_cotacao': 'Mapa'
+                        };
+                        let reprovacoesPorTipoHtml = '';
+                        Object.entries(item.reprovacoes_por_tipo || {}).forEach(([tipo, count]) => {
+                            reprovacoesPorTipoHtml += `<span style="display: inline-block; padding: 0.25rem 0.625rem; background: #F6F7F9; color: #495057; border-radius: 12px; font-size: 0.75rem; font-weight: 500;">${tipoLabels[tipo] || tipo}: ${count}</span>`;
+                        });
+                        
+                        // Formatar top tags (Top 3 + "+N" se houver mais)
+                        let topTagsHtml = '';
+                        if (item.top_tags && item.top_tags.length > 0) {
+                            const top3 = item.top_tags.slice(0, 3);
+                            const restantes = item.top_tags.length - 3;
+                            top3.forEach((tag) => {
+                                topTagsHtml += `<span style="display: inline-block; padding: 0.25rem 0.625rem; background: #F6F7F9; color: #495057; border-radius: 12px; font-size: 0.75rem; font-weight: 500; margin-right: 0.375rem; margin-bottom: 0.25rem;">${tag.nome} <span style="color: #6c757d; font-weight: 400;">${tag.count}x</span></span>`;
+                            });
+                            if (restantes > 0) {
+                                topTagsHtml += `<span style="display: inline-block; padding: 0.25rem 0.625rem; background: #E6E8EC; color: #6c757d; border-radius: 12px; font-size: 0.75rem; font-weight: 500; margin-right: 0.375rem; margin-bottom: 0.25rem;" title="${restantes} tag(s) adicional(is)">+${restantes}</span>`;
+                            }
+                        } else {
+                            topTagsHtml = '<span style="color: #868e96; font-style: italic; font-size: 0.8rem;">Nenhuma tag</span>';
+                        }
+                        
+                        // URLs de exportação
+                        let exportUrlCsv = '/exportar-historico-solicitante/' + item.solicitante_id + '/?dias=' + dias + '&formato=csv';
+                        let exportUrlPdf = '/exportar-historico-solicitante/' + item.solicitante_id + '/?dias=' + dias + '&formato=pdf';
+                        if (tipoSolicitacao) {
+                            exportUrlCsv += '&tipo_solicitacao=' + encodeURIComponent(tipoSolicitacao);
+                            exportUrlPdf += '&tipo_solicitacao=' + encodeURIComponent(tipoSolicitacao);
+                        }
+                        
+                        // Determinar estilo do ranking (mais discreto)
+                        let rankingStyle = '';
+                        let rankingLabel = item.ranking || '-';
+                        if (item.ranking === 1) {
+                            rankingStyle = 'border-left: 3px solid #dc3545; background: #fff;';
+                            rankingLabel = '1º';
+                        } else if (item.ranking === 2) {
+                            rankingStyle = 'border-left: 3px solid #fd7e14; background: #fff;';
+                            rankingLabel = '2º';
+                        } else if (item.ranking === 3) {
+                            rankingStyle = 'border-left: 3px solid #fd7e14; background: #fff;';
+                            rankingLabel = '3º';
+                        } else {
+                            rankingStyle = 'background: #fff;';
+                        }
+                        
+                        // Determinar cor da taxa de erro
+                        let taxaErroColor = '#28a745';
+                        if (item.taxa_erro >= 50) {
+                            taxaErroColor = '#dc3545';
+                        } else if (item.taxa_erro >= 30) {
+                            taxaErroColor = '#fd7e14';
+                        } else if (item.taxa_erro >= 15) {
+                            taxaErroColor = '#ffc107';
+                        }
+                        
+                        // Extrair métricas de tempo (agora simplificadas)
+                        const tempoParaCorrigir = item.tempo_medio_para_corrigir;
+                        const tempoTotalAprovacao = item.tempo_medio_total_aprovacao;
+                        
+                        // Zebra striping
+                        const isEven = data.dados.indexOf(item) % 2 === 0;
+                        const rowBg = isEven ? '#fff' : '#F6F7F9';
+                        
+                        row.innerHTML = `
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; ${rankingStyle}">
+                                <span style="font-weight: 600; font-size: 0.85rem; color: #495057;" title="${item.ranking === 1 ? 'Maior incidência de reprovações' : 'Posição ' + item.ranking + ' em número de reprovações'}">${rankingLabel}</span>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <strong style="color: #212529; font-size: 0.875rem; font-weight: 600;">${item.solicitante}</strong>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <span style="color: #495057; font-weight: 500; font-size: 0.875rem;">${item.total_pedidos || '-'}</span>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <span style="display: inline-block; padding: 0.375rem 0.625rem; background: #dc3545; color: white; border-radius: 6px; font-weight: 600; font-size: 0.85rem;">${item.total_reprovacoes}</span>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <span style="display: inline-block; padding: 0.25rem 0.625rem; background: ${taxaErroColor === '#dc3545' ? '#fff5f5' : taxaErroColor === '#fd7e14' ? '#fff8f0' : taxaErroColor === '#ffc107' ? '#fffbf0' : '#f0f9ff'}; color: ${taxaErroColor}; border: 1px solid ${taxaErroColor}; border-radius: 6px; font-weight: 600; font-size: 0.8rem;">${item.taxa_erro || 0}%</span>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <span style="color: #6c757d; font-weight: 400; font-size: 0.85rem;">${item.media_tags_por_reprovacao || '0'}</span>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                ${formatarTempo(tempoParaCorrigir)}
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                ${formatarTempo(tempoTotalAprovacao)}
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">${reprovacoesPorTipoHtml || '<span style="color: #868e96; font-size: 0.8rem;">-</span>'}</div>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">${topTagsHtml}</div>
+                            </td>
+                            <td style="padding: 0.75rem 0.875rem; text-align: center; border-bottom: 1px solid #E6E8EC; background: ${rowBg};">
+                                <div style="display: inline-flex; gap: 0.5rem; align-items: center;">
+                                    <a href="${exportUrlCsv}" style="display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; background: #495057; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#212529';" onmouseout="this.style.backgroundColor='#495057';" title="Exportar em CSV (Excel)"> 
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                        CSV
+                                    </a>
+                                    <a href="${exportUrlPdf}" style="display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; background: #dc3545; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#c82333';" onmouseout="this.style.backgroundColor='#dc3545';" title="Exportar em PDF"> 
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                        PDF
+                                    </a>
+                                </div>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    
+                    if (tableContainer) {
+                        tableContainer.style.display = 'block';
+                    }
+                } else if (tableContainer) {
+                    tableContainer.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar dados de solicitantes:', error);
+                const totalReprovacoesEl = document.getElementById('total-reprovacoes-solicitantes');
+                if (totalReprovacoesEl) totalReprovacoesEl.textContent = 'Erro ao carregar';
+            });
+    }
+    
+    // Event listeners para filtros de solicitantes
+    const periodSelectorSolicitantes = document.getElementById('period-selector-solicitantes');
+    const tipoSelectorSolicitantes = document.getElementById('tipo-selector-solicitantes');
+    
+    if (periodSelectorSolicitantes) {
+        periodSelectorSolicitantes.addEventListener('change', function() {
+            const dias = parseInt(this.value);
+            const tipo = tipoSelectorSolicitantes ? tipoSelectorSolicitantes.value : '';
+            carregarDadosSolicitantes(dias, tipo);
+        });
+    }
+    
+    if (tipoSelectorSolicitantes) {
+        tipoSelectorSolicitantes.addEventListener('change', function() {
+            const dias = parseInt(periodSelectorSolicitantes.value);
+            const tipo = this.value;
+            carregarDadosSolicitantes(dias, tipo);
+        });
+    }
+    
+    // Carregar dados iniciais da aba de solicitantes (aba padrão)
+    if (periodSelectorSolicitantes && tipoSelectorSolicitantes) {
+        const diasInicial = parseInt(periodSelectorSolicitantes.value);
+        const tipoInicial = tipoSelectorSolicitantes.value;
+        carregarDadosSolicitantes(diasInicial, tipoInicial);
+    }
+    
+    // Função para criar gráficos de distribuição de tempos (mantida para compatibilidade, mas não usada)
+    function criarGraficosDistribuicao(dados) {
+        const container = document.getElementById('distribuicao-container');
+        const chartsContainer = document.getElementById('distribuicao-charts');
+        
+        if (!container || !chartsContainer || !dados || dados.length === 0) {
+            if (container) container.style.display = 'none';
+            return;
+        }
+        
+        container.style.display = 'block';
+        chartsContainer.innerHTML = '';
+        
+        dados.forEach(item => {
+            if (!item.distribuicao) return;
+            
+            const dist = item.distribuicao;
+            const total = dist.menos_1h + dist.entre_1_4h + dist.entre_4_24h + dist.mais_24h;
+            
+            if (total === 0) return;
+            
+            // Calcular percentuais
+            const pMenos1h = ((dist.menos_1h / total) * 100).toFixed(1);
+            const p1_4h = ((dist.entre_1_4h / total) * 100).toFixed(1);
+            const p4_24h = ((dist.entre_4_24h / total) * 100).toFixed(1);
+            const pMais24h = ((dist.mais_24h / total) * 100).toFixed(1);
+            
+            // Criar card do gráfico
+            const card = document.createElement('div');
+            card.style.cssText = 'background: #F6F7F9; padding: 1.25rem; border-radius: 10px; border: 1px solid #E6E8EC;';
+            
+            card.innerHTML = `
+                <h4 style="margin: 0 0 1rem 0; color: #212529; font-size: 1rem; font-weight: 600;">${item.usuario}</h4>
+                <div style="margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.85rem; color: #495057;">&lt; 1h</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #495057;">${dist.menos_1h} (${pMenos1h}%)</span>
+                    </div>
+                    <div style="width: 100%; height: 20px; background: #E6E8EC; border-radius: 10px; overflow: hidden;">
+                        <div style="width: ${pMenos1h}%; height: 100%; background: linear-gradient(90deg, #28a745, #20c997); transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.85rem; color: #495057;">1h - 4h</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #495057;">${dist.entre_1_4h} (${p1_4h}%)</span>
+                    </div>
+                    <div style="width: 100%; height: 20px; background: #E6E8EC; border-radius: 10px; overflow: hidden;">
+                        <div style="width: ${p1_4h}%; height: 100%; background: linear-gradient(90deg, #17a2b8, #138496); transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.85rem; color: #495057;">4h - 24h</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #495057;">${dist.entre_4_24h} (${p4_24h}%)</span>
+                    </div>
+                    <div style="width: 100%; height: 20px; background: #E6E8EC; border-radius: 10px; overflow: hidden;">
+                        <div style="width: ${p4_24h}%; height: 100%; background: linear-gradient(90deg, #ffc107, #e0a800); transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.85rem; color: #495057;">&gt; 24h</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #495057;">${dist.mais_24h} (${pMais24h}%)</span>
+                    </div>
+                    <div style="width: 100%; height: 20px; background: #E6E8EC; border-radius: 10px; overflow: hidden;">
+                        <div style="width: ${pMais24h}%; height: 100%; background: linear-gradient(90deg, #dc3545, #c82333); transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            `;
+            
+            chartsContainer.appendChild(card);
+        });
+    }
+});
+</script>
+{% endblock %}
+

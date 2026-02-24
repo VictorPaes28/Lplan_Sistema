@@ -1,0 +1,465 @@
+/* ============================================
+   WORKORDER_FORM.CSS - Estilos padronizados de formulário
+   ============================================ */
+
+.page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-container {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 2.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+}
+
+.form-title {
+    color: var(--text-color);
+    margin-bottom: 2rem;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    padding-bottom: 1.25rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 1.75rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.625rem;
+    color: #334155;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-input,
+.form-textarea,
+.form-select,
+.form-control {
+    width: 100%;
+    padding: 0.875rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-family: 'Inter', inherit;
+    transition: all 0.3s ease;
+    background: var(--card-bg);
+    color: var(--text-color);
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* Estilizar select e inputs do Django */
+select,
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="date"],
+input[type="file"],
+textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus,
+.form-control:focus,
+select:focus,
+input:focus,
+textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.form-input.readonly,
+.form-select.readonly {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+    border-color: #dee2e6;
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.form-help {
+    font-size: 0.8125rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+    font-style: italic;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Estilizar campo de arquivo - Dropzone style */
+input[type="file"] {
+    width: 100%;
+    padding: 1.5rem;
+    border: 2px dashed #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    max-width: 100%;
+    text-align: center;
+}
+
+input[type="file"]:hover {
+    border-color: #3498db;
+    background: linear-gradient(180deg, #fafafe 0%, #f0f0ff 100%);
+}
+
+input[type="file"]:focus {
+    border-color: #3498db;
+    border-style: solid;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+input[type="file"]:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+input[type="file"]::-webkit-file-upload-button {
+    padding: 0.5rem 1rem;
+    margin-right: 1rem;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+input[type="file"]::-webkit-file-upload-button:hover {
+    background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
+}
+
+/* Melhorar select no mobile */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2.5rem !important;
+}
+
+select:focus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233498db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+}
+
+.form-error {
+    color: #e74c3c;
+    font-size: 0.8125rem;
+    margin-top: 0.5rem;
+    font-weight: 500;
+}
+
+.form-required {
+    color: #e74c3c;
+    font-weight: 700;
+    margin-left: 0.25rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.75rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 2px solid #f1f3f5;
+    flex-wrap: wrap;
+}
+
+.btn-submit {
+    background: #FF6600;
+    color: white;
+    border: none;
+    padding: 0.875rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(255, 102, 0, 0.25);
+}
+
+.btn-submit:hover {
+    background: #e55a00;
+    box-shadow: 0 6px 16px rgba(255, 102, 0, 0.35);
+    transform: translateY(-2px);
+}
+
+.btn-cancel {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 0.875rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+    background: #5a6268;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb-nav {
+    margin-bottom: 1.5rem;
+}
+
+.breadcrumb-list {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+}
+
+.breadcrumb-item a {
+    color: #3498db;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.breadcrumb-item a:hover {
+    color: #2980b9;
+    text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+    color: #6c757d;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.breadcrumb-separator {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    user-select: none;
+}
+
+.form-error-box {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    color: #721c24;
+    padding: 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    border-left: 4px solid #e74c3c;
+    font-weight: 500;
+}
+
+.form-optional-fields {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #f1f3f5;
+}
+
+.form-optional-summary {
+    cursor: pointer;
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.form-optional-summary:hover {
+    background: #e9ecef;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page-container {
+        padding: 1.5rem 1rem;
+        padding-bottom: 6rem; /* Espaço para o botão flutuante */
+    }
+
+    .form-container {
+        max-width: 100%;
+    }
+
+    .card {
+        padding: 1.5rem;
+    }
+
+    .form-title {
+        font-size: 1.75rem;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem;
+    }
+
+    .form-group {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .form-group {
+        margin-bottom: 1.75rem; /* Mais espaçamento no mobile */
+    }
+
+    .form-label {
+        font-size: 1rem; /* Labels maiores no mobile */
+        margin-bottom: 0.75rem;
+    }
+
+    .form-control,
+    select,
+    input[type="text"],
+    input[type="email"],
+    input[type="number"],
+    input[type="date"],
+    textarea {
+        font-size: 16px !important; /* Evita zoom no iOS */
+        padding: 1rem !important; /* Área de toque maior */
+        min-height: 48px !important; /* Altura mínima para touch */
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    input[type="file"] {
+        font-size: 16px !important;
+        padding: 0.75rem !important;
+        min-height: 52px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    input[type="file"]::-webkit-file-upload-button {
+        padding: 0.625rem 1rem !important;
+        font-size: 0.875rem !important;
+        min-height: 40px !important;
+    }
+
+    textarea {
+        min-height: 120px !important;
+    }
+
+    .form-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+        position: sticky;
+        bottom: 0;
+        background: white;
+        padding: 1rem 0;
+        margin-top: 2rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        min-height: 52px; /* Botões maiores para touch */
+    }
+
+    .page-navigation {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .page-navigation .btn {
+        width: 100%;
+        padding: 0.875rem;
+        min-height: 48px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-container {
+        padding: 1rem 0.75rem;
+    }
+
+    .card {
+        padding: 1.25rem;
+    }
+
+    .form-title {
+        font-size: 1.5rem;
+    }
+
+    .form-label {
+        font-size: 0.875rem;
+    }
+
+    .form-input,
+    .form-textarea,
+    .form-select {
+        font-size: 0.9rem;
+        padding: 0.75rem;
+    }
+
+    .form-textarea {
+        min-height: 100px;
+    }
+}

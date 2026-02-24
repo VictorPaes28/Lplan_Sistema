@@ -1,0 +1,455 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Logs de E-mail - GestControll{% endblock %}
+
+{% block page_title %}Logs de E-mail{% endblock %}
+{% block page_subtitle %}Acompanhe envios, falhas e reenvie e-mails de pedidos e aprovações{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 email-logs-page">
+    {% if user.is_staff or user.is_superuser %}
+    <p class="mb-3">
+        <a href="{% url 'accounts:admin_central' %}" class="email-logs-back">← Voltar ao Painel</a>
+    </p>
+    {% endif %}
+
+    <header class="email-logs-page-header mb-4">
+        <h1 class="email-logs-page-title">Logs de E-mail</h1>
+        <p class="email-logs-page-desc">Histórico de envios do GestControll. Filtre por status e tipo; reenvie os que falharam.</p>
+    </header>
+
+    <section class="email-logs-stats mb-4" aria-label="Resumo">
+        <div class="email-logs-stats-inner">
+            <div class="email-logs-stat-item">
+                <span class="email-logs-stat-num">{{ total_logs }}</span>
+                <span class="email-logs-stat-tag">Total</span>
+            </div>
+            <div class="email-logs-stat-item">
+                <span class="email-logs-stat-num">{{ enviados }}</span>
+                <span class="email-logs-stat-tag">Enviados</span>
+            </div>
+            <div class="email-logs-stat-item">
+                <span class="email-logs-stat-num {% if falhados > 0 %}email-logs-stat-num-fail{% endif %}">{{ falhados }}</span>
+                <span class="email-logs-stat-tag">Falhados</span>
+            </div>
+            <div class="email-logs-stat-item">
+                <span class="email-logs-stat-num">{{ pendentes }}</span>
+                <span class="email-logs-stat-tag">Pendentes</span>
+            </div>
+            <div class="email-logs-stat-item">
+                <span class="email-logs-stat-num">{{ taxa_sucesso }}%</span>
+                <span class="email-logs-stat-tag">Taxa de sucesso</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="email-logs-filters mb-4" aria-label="Filtros">
+        <form method="get" class="email-logs-form">
+            <div class="email-logs-form-row">
+                <label for="status" class="email-logs-label">Status</label>
+                <select name="status" id="status" class="email-logs-select">
+                    <option value="">Todos</option>
+                    <option value="enviado" {% if status_filter == 'enviado' %}selected{% endif %}>Enviados</option>
+                    <option value="falhou" {% if status_filter == 'falhou' %}selected{% endif %}>Falhados</option>
+                    <option value="pendente" {% if status_filter == 'pendente' %}selected{% endif %}>Pendentes</option>
+                </select>
+            </div>
+            <div class="email-logs-form-row">
+                <label for="tipo" class="email-logs-label">Tipo</label>
+                <select name="tipo" id="tipo" class="email-logs-select">
+                    <option value="">Todos</option>
+                    <option value="novo_pedido" {% if tipo_filter == 'novo_pedido' %}selected{% endif %}>Novo Pedido</option>
+                    <option value="aprovacao" {% if tipo_filter == 'aprovacao' %}selected{% endif %}>Aprovação</option>
+                    <option value="reprovacao" {% if tipo_filter == 'reprovacao' %}selected{% endif %}>Reprovação</option>
+                </select>
+            </div>
+            <div class="email-logs-form-row email-logs-form-search">
+                <label for="search" class="email-logs-label">Buscar</label>
+                <input type="text" name="search" id="search" class="email-logs-input" placeholder="Assunto, destinatário ou código" value="{{ search }}">
+            </div>
+            <div class="email-logs-form-row email-logs-form-submit">
+                <button type="submit" class="email-logs-btn">Filtrar</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="email-logs-table-wrap" aria-label="Histórico">
+        <h2 class="email-logs-table-title">Histórico</h2>
+        <div class="email-logs-table-inner">
+            {% if page_obj %}
+                <div class="table-responsive">
+                    <table class="email-logs-table" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Tipo</th>
+                                <th>Assunto</th>
+                                <th>Destinatários</th>
+                                <th>Pedido</th>
+                                <th>Tentativas</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in page_obj %}
+                            <tr>
+                                <td>
+                                    {% if log.status == 'enviado' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check-circle"></i> Enviado
+                                        </span>
+                                    {% elif log.status == 'falhou' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times-circle"></i> Falhou
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock"></i> Pendente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ log.get_tipo_email_display }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ log.assunto|truncatewords:10 }}</strong>
+                                </td>
+                                <td>
+                                    <small>{{ log.destinatarios|truncatewords:5 }}</small>
+                                </td>
+                                <td>
+                                    {% if log.work_order %}
+                                        <a href="{% url 'gestao:detail_workorder' log.work_order.pk %}" class="text-decoration-none">
+                                            {{ log.work_order.codigo }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ log.tentativas }}</span>
+                                </td>
+                                <td>
+                                    <small>
+                                        {% if log.enviado_em %}
+                                            {{ log.enviado_em|date:"d/m/Y H:i" }}
+                                        {% else %}
+                                            {{ log.criado_em|date:"d/m/Y H:i" }}
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-info" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#modalDetalhes{{ log.pk }}"
+                                                title="Ver detalhes">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                            <a href="{% url 'gestao:reenviar_email' log.pk %}" 
+                                               class="btn btn-sm btn-warning"
+                                               onclick="return confirm('Deseja realmente reenviar este email?');"
+                                               title="Reenviar">
+                                                <i class="fas fa-redo"></i>
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Modal de Detalhes -->
+                            <div class="modal fade" id="modalDetalhes{{ log.pk }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Detalhes do Email</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <table class="table table-sm">
+                                                <tr>
+                                                    <th width="30%">Status:</th>
+                                                    <td>
+                                                        {% if log.status == 'enviado' %}
+                                                            <span class="badge bg-success">Enviado</span>
+                                                        {% elif log.status == 'falhou' %}
+                                                            <span class="badge bg-danger">Falhou</span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning">Pendente</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Tipo:</th>
+                                                    <td>{{ log.get_tipo_email_display }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Assunto:</th>
+                                                    <td>{{ log.assunto }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Destinatários:</th>
+                                                    <td>{{ log.destinatarios }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Pedido:</th>
+                                                    <td>
+                                                        {% if log.work_order %}
+                                                            <a href="{% url 'gestao:detail_workorder' log.work_order.pk %}">
+                                                                {{ log.work_order.codigo }}
+                                                            </a>
+                                                        {% else %}
+                                                            N/A
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Tentativas:</th>
+                                                    <td>{{ log.tentativas }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Criado em:</th>
+                                                    <td>{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
+                                                </tr>
+                                                {% if log.enviado_em %}
+                                                <tr>
+                                                    <th>Enviado em:</th>
+                                                    <td>{{ log.enviado_em|date:"d/m/Y H:i:s" }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if log.mensagem_erro %}
+                                                <tr>
+                                                    <th>Erro:</th>
+                                                    <td>
+                                                        <div class="alert alert-danger mb-0">
+                                                            <small>{{ log.mensagem_erro }}</small>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                            </table>
+                                        </div>
+                                        <div class="modal-footer">
+                                            {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                                <a href="{% url 'gestao:reenviar_email' log.pk %}" 
+                                                   class="btn btn-warning"
+                                                   onclick="return confirm('Deseja realmente reenviar este email?');">
+                                                    <i class="fas fa-redo"></i> Reenviar
+                                                </a>
+                                            {% endif %}
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginação -->
+                {% if page_obj.has_other_pages %}
+                <nav class="email-logs-pagination" aria-label="Paginação">
+                    <span class="email-logs-pagination-info">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    <div class="email-logs-pagination-links">
+                        {% if page_obj.has_previous %}
+                            <a class="email-logs-pagination-link" href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Primeira</a>
+                            <a class="email-logs-pagination-link" href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Anterior</a>
+                        {% endif %}
+                        {% if page_obj.has_next %}
+                            <a class="email-logs-pagination-link" href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Próxima</a>
+                            <a class="email-logs-pagination-link" href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Última</a>
+                        {% endif %}
+                    </div>
+                </nav>
+                {% endif %}
+            {% else %}
+                <p class="email-logs-empty">Nenhum log de e-mail encontrado.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Logs de E-mail — visual neutro e profissional */
+.email-logs-page { max-width: 100%; }
+.email-logs-back {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-decoration: none;
+    font-weight: 500;
+}
+.email-logs-back:hover { color: #111827; }
+.email-logs-page-header { }
+.email-logs-page-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 0.25rem 0;
+}
+.email-logs-page-desc {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    line-height: 1.45;
+    margin: 0;
+}
+.email-logs-stats-inner {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: #e5e7eb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.email-logs-stat-item {
+    background: #fff;
+    padding: 1rem 1.25rem;
+    text-align: center;
+}
+.email-logs-stat-num {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+}
+.email-logs-stat-num-fail { color: #b91c1c; }
+.email-logs-stat-tag {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #9ca3af;
+    margin-top: 0.2rem;
+}
+@media (max-width: 768px) {
+    .email-logs-stats-inner { grid-template-columns: repeat(2, 1fr); }
+}
+.email-logs-filters {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 1.25rem 1.5rem;
+}
+.email-logs-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr minmax(0, 2fr) auto;
+    gap: 1rem 1.25rem;
+    align-items: end;
+}
+.email-logs-form-row { display: flex; flex-direction: column; gap: 0.35rem; }
+.email-logs-form-search { min-width: 0; }
+.email-logs-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #374151;
+}
+.email-logs-select,
+.email-logs-input {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #fff;
+    color: #111827;
+}
+.email-logs-input { min-width: 0; }
+.email-logs-btn {
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    background: #111827;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.email-logs-btn:hover { background: #374151; }
+@media (max-width: 768px) {
+    .email-logs-form { grid-template-columns: 1fr; }
+}
+.email-logs-table-wrap {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.email-logs-table-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin: 0;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+.email-logs-table-inner { padding: 0 1.5rem 1.5rem; }
+.email-logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+.email-logs-table th {
+    text-align: left;
+    font-weight: 600;
+    color: #6b7280;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+.email-logs-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+}
+.email-logs-table tbody tr:hover { background: #f9fafb; }
+.email-logs-table .badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+.email-logs-table .bg-success { background: #d1fae5; color: #065f46; }
+.email-logs-table .bg-danger { background: #fee2e2; color: #b91c1c; }
+.email-logs-table .bg-warning { background: #fef3c7; color: #92400e; }
+.email-logs-table .bg-info { background: #e0e7ff; color: #3730a3; }
+.email-logs-table .bg-secondary { background: #f3f4f6; color: #4b5563; }
+.email-logs-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1rem;
+    margin-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+.email-logs-pagination-info { font-size: 0.8125rem; color: #6b7280; }
+.email-logs-pagination-links { display: flex; gap: 0.5rem; }
+.email-logs-pagination-link {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #374151;
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #fff;
+}
+.email-logs-pagination-link:hover { background: #f9fafb; border-color: #9ca3af; color: #111827; }
+.email-logs-empty {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0;
+    padding: 2rem;
+    text-align: center;
+}
+</style>
+{% endblock %}

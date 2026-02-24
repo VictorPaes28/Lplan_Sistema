@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-navigation">
+        <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+        <a href="{% url 'list_workorders' %}" class="btn btn-back">← Voltar para Lista</a>
+    </div>
+
+    <div class="form-container">
+        <div class="card">
+            <h1 class="form-title">
+                {{ title }}
+            </h1>
+            
+            <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="form-error-box">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="{{ form.obra.id_for_label }}" class="form-label">
+                    {{ form.obra.label }}
+                    {% if form.obra.field.required %}<span class="form-required">*</span>{% endif %}
+                </label>
+                {{ form.obra }}
+                {% if form.obra.help_text %}
+                    <div class="form-help">{{ form.obra.help_text }}</div>
+                {% endif %}
+                {% if form.obra.errors %}
+                    <div class="form-error">{{ form.obra.errors }}</div>
+                {% endif %}
+            </div>
+            
+            {% if form.codigo %}
+                <div class="form-group">
+                    <label for="{{ form.codigo.id_for_label }}" class="form-label">
+                        {{ form.codigo.label }}
+                        {% if form.codigo.field.required %}<span class="form-required">*</span>{% endif %}
+                    </label>
+                    {{ form.codigo }}
+                    {% if form.codigo.help_text %}
+                        <div class="form-help">{{ form.codigo.help_text }}</div>
+                    {% endif %}
+                    {% if form.codigo.errors %}
+                        <div class="form-error">{{ form.codigo.errors }}</div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="form-help" style="color: #28a745; padding: 0.5rem; background-color: #d4edda; border-radius: 4px; margin-bottom: 1rem;">
+                    <strong>✓</strong> O código será gerado automaticamente após salvar o pedido.
+                </div>
+            {% endif %}
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="{{ form.nome_credor.id_for_label }}" class="form-label">
+                        {{ form.nome_credor.label }}
+                        {% if form.nome_credor.field.required %}<span class="form-required">*</span>{% endif %}
+                    </label>
+                    {{ form.nome_credor }}
+                    {% if form.nome_credor.help_text %}
+                        <div class="form-help">{{ form.nome_credor.help_text }}</div>
+                    {% endif %}
+                    {% if form.nome_credor.errors %}
+                        <div class="form-error">{{ form.nome_credor.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.tipo_solicitacao.id_for_label }}" class="form-label">
+                        {{ form.tipo_solicitacao.label }}
+                        {% if form.tipo_solicitacao.field.required %}<span class="form-required">*</span>{% endif %}
+                    </label>
+                    {{ form.tipo_solicitacao }}
+                    {% if form.tipo_solicitacao.help_text %}
+                        <div class="form-help">{{ form.tipo_solicitacao.help_text }}</div>
+                    {% endif %}
+                    {% if form.tipo_solicitacao.errors %}
+                        <div class="form-error">{{ form.tipo_solicitacao.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.observacoes.id_for_label }}" class="form-label">
+                    {{ form.observacoes.label }}
+                </label>
+                {{ form.observacoes }}
+                {% if form.observacoes.help_text %}
+                    <div class="form-help">{{ form.observacoes.help_text }}</div>
+                {% endif %}
+                {% if form.observacoes.errors %}
+                    <div class="form-error">{{ form.observacoes.errors }}</div>
+                {% endif %}
+            </div>
+            
+            {% if form.status %}
+                <div class="form-group">
+                    <label for="{{ form.status.id_for_label }}" class="form-label">
+                        {{ form.status.label }}
+                        {% if form.status.field.required %}<span class="form-required">*</span>{% endif %}
+                    </label>
+                    {{ form.status }}
+                    {% if form.status.help_text %}
+                        <div class="form-help">{{ form.status.help_text }}</div>
+                    {% endif %}
+                    {% if form.status.errors %}
+                        <div class="form-error">{{ form.status.errors }}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
+            
+            <!-- Anexos -->
+            {% if is_solicitante and not workorder %}
+                <!-- Apenas na criação: obrigatório para solicitantes -->
+                <div class="form-group">
+                    <label for="anexos" class="form-label">
+                        Anexos <span class="form-required">*</span>
+                    </label>
+                    <input type="file" id="anexos" name="anexos" class="form-control" 
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.rar,.7z" multiple required>
+                    <div class="form-help">
+                        <strong>Obrigatório:</strong> Selecione um ou mais arquivos para anexar ao pedido.
+                        Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB cada).
+                        Você pode selecionar múltiplos arquivos mantendo Ctrl (ou Cmd no Mac) pressionado.
+                    </div>
+                </div>
+            {% else %}
+                <!-- Na edição: opcional, adiciona aos existentes -->
+                <div class="form-group">
+                    {% if workorder %}
+                        {% with workorder.attachments.all as anexos_existentes %}
+                            {% if anexos_existentes %}
+                                <div style="margin-bottom: 1rem; padding: 1rem; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                                    <strong style="color: #2c3e50; display: block; margin-bottom: 0.75rem;">Anexos Existentes:</strong>
+                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                        {% for anexo in anexos_existentes %}
+                                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background-color: white; border-radius: 4px; {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}opacity: 0.6; cursor: not-allowed;{% else %}cursor: pointer; transition: background-color 0.2s;{% endif %}">
+                                                <input type="checkbox" name="excluir_anexos" value="{{ anexo.id }}" 
+                                                       {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}disabled title="Você não pode excluir anexos de um pedido que já foi aprovado ou reprovado"{% else %}style="cursor: pointer;"{% endif %}>
+                                                <span style="flex: 1; color: #555;">{{ anexo.nome }}</span>
+                                                {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}
+                                                    <span style="color: #6c757d; font-size: 0.85rem;">Não pode excluir</span>
+                                                {% else %}
+                                                    <span style="color: #dc3545; font-size: 0.85rem; font-weight: 500;">Excluir</span>
+                                                {% endif %}
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #6c757d;">
+                                        {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}
+                                            <em style="color: #dc3545;">Você não pode excluir anexos de um pedido que já foi aprovado ou reprovado.</em>
+                                        {% else %}
+                                            <em>Marque os anexos que deseja excluir</em>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endwith %}
+                    {% endif %}
+                    <label for="anexos" class="form-label">
+                        Adicionar Anexos <span style="color: #6c757d;">(Opcional)</span>
+                    </label>
+                    <input type="file" id="anexos" name="anexos" class="form-control" 
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.rar,.7z" multiple>
+                    <div class="form-help">
+                        {% if workorder %}
+                            <strong>Novos arquivos serão adicionados aos existentes.</strong> Selecione um ou mais arquivos para adicionar ao pedido.
+                            Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB cada).
+                        {% else %}
+                            Selecione um ou mais arquivos para anexar ao pedido.
+                            Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB cada).
+                        {% endif %}
+                        Você pode selecionar múltiplos arquivos mantendo Ctrl (ou Cmd no Mac) pressionado.
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Campos Opcionais (colapsados) - apenas para não solicitantes -->
+            {% if not is_solicitante %}
+                <details class="form-optional-fields">
+                    <summary class="form-optional-summary">
+                        Campos Opcionais (Valor{% if form.prazo_estimado %}, Prazo{% endif %}{% if form.local %}, Local{% endif %})
+                    </summary>
+                    
+                    <div class="form-grid">
+                        {% if form.valor_estimado %}
+                            <div class="form-group">
+                                <label for="{{ form.valor_estimado.id_for_label }}" class="form-label">
+                                    {{ form.valor_estimado.label }}
+                                </label>
+                                {{ form.valor_estimado }}
+                                {% if form.valor_estimado.help_text %}
+                                    <div class="form-help">{{ form.valor_estimado.help_text }}</div>
+                                {% endif %}
+                                {% if form.valor_estimado.errors %}
+                                    <div class="form-error">{{ form.valor_estimado.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        
+                        {% if form.prazo_estimado %}
+                            <div class="form-group">
+                                <label for="{{ form.prazo_estimado.id_for_label }}" class="form-label">
+                                    {{ form.prazo_estimado.label }}
+                                </label>
+                                {{ form.prazo_estimado }}
+                                {% if form.prazo_estimado.help_text %}
+                                    <div class="form-help">{{ form.prazo_estimado.help_text }}</div>
+                                {% endif %}
+                                {% if form.prazo_estimado.errors %}
+                                    <div class="form-error">{{ form.prazo_estimado.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if form.local %}
+                        <div class="form-group">
+                            <label for="{{ form.local.id_for_label }}" class="form-label">
+                                {{ form.local.label }}
+                            </label>
+                            {{ form.local }}
+                            {% if form.local.help_text %}
+                                <div class="form-help">{{ form.local.help_text }}</div>
+                            {% endif %}
+                            {% if form.local.errors %}
+                                <div class="form-error">{{ form.local.errors }}</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </details>
+            {% endif %}
+            
+            <div class="form-actions">
+                <button type="submit" class="btn">Salvar</button>
+                {% if workorder %}
+                    <a href="{% url 'detail_workorder' workorder.pk %}" class="btn btn-secondary">Cancelar</a>
+                {% else %}
+                    <a href="{% url 'list_workorders' %}" class="btn btn-secondary">Cancelar</a>
+                {% endif %}
+            </div>
+        </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

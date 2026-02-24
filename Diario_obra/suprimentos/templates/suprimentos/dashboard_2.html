@@ -1,0 +1,1720 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Dashboard 2 - Rastreabilidade Total{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard_2.css' %}">
+{% endblock %}
+
+{% block content %}
+{{ itens_pipeline_serializable|json_script:"dashboard-itens" }}
+<!-- Skip to main content (Acessibilidade) -->
+<a href="#main-content" class="skip-link">Pular para conteúdo principal</a>
+
+<!-- Header -->
+<header class="dashboard-header" role="banner">
+    <h1 class="dashboard-title">
+        <span class="dashboard-title-main">Dashboard de Rastreabilidade</span>
+        <span class="dashboard-title-sub">Engenharia vs Sienge vs Obra</span>
+    </h1>
+    <div class="dashboard-controls">
+        <button type="button" class="btn-header-action btn-refresh" 
+                onclick="window.location.reload()"
+                aria-label="Atualizar dados da página"
+                title="Atualizar dados da página">
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+            <span class="btn-header-label">Atualizar</span>
+        </button>
+        <button type="button" class="btn-header-action btn-theme" 
+                id="btnThemeToggle"
+                onclick="alternarTema()"
+                aria-label="Alternar tema claro e escuro"
+                title="Alternar tema claro e escuro">
+            <span id="themeIcon" aria-hidden="true"><i class="bi bi-moon-fill"></i></span>
+            <span class="btn-header-label" id="themeLabel">Tema escuro</span>
+        </button>
+        <button type="button" class="btn-header-action btn-modo-tabela" 
+                id="btnModoTabela"
+                onclick="alternarModoDashboard()"
+                aria-label="Alternar entre Pipeline e Dashboard por Tabelas"
+                title="Modo Tabela: resumo por Local, Categoria e Status">
+            <i class="bi bi-table" aria-hidden="true"></i>
+            <span class="btn-header-label" id="labelModoDashboard">Modo Tabela</span>
+        </button>
+        <select class="dashboard-obra-select" 
+                id="obraSelect" 
+                aria-label="Selecione uma obra"
+                title="Selecione uma obra para visualizar"
+                onchange="var p=new URLSearchParams(); p.set('obra',this.value); if(new URLSearchParams(window.location.search).get('modo')==='tabela') p.set('modo','tabela'); window.location.href='?'+p.toString()">
+            <option value="">Selecione uma obra</option>
+            {% for obra in obras %}
+            <option value="{{ obra.id }}" {% if obra.id|stringformat:"s" == obra_id %}selected{% endif %}>
+                {{ obra.nome }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <!-- Barra de Pesquisa e Filtros (sempre visível quando há obra selecionada) -->
+    {% if obra_selecionada %}
+    <div class="dashboard-filtros-bar">
+        <div class="dashboard-busca">
+            <i class="bi bi-search dashboard-busca-icon"></i>
+            <input type="text" 
+                   class="dashboard-busca-input" 
+                   id="buscaInput"
+                   aria-label="Buscar por insumo, código, SC, categoria ou fornecedor"
+                   placeholder="Buscar: prego, 16072, SC95, FUNDAÇÃO..."
+                   value="{{ busca_query }}"
+                   onkeypress="if(event.key==='Enter') buscar()"
+                   oninput="debounceBusca(this.value)">
+            {% if busca_query %}
+            <button class="dashboard-busca-clear" 
+                    onclick="limparBusca()" 
+                    aria-label="Limpar busca"
+                    title="Limpar busca">
+                <i class="bi bi-x"></i>
+            </button>
+            {% endif %}
+        </div>
+        <div class="dashboard-filtros-chips-wrapper">
+            <span class="filtros-chips-label">Status:</span>
+            <div class="dashboard-filtros-chips">
+                <button class="filtro-chip-home {% if filtro_status == 'falta_comprar' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'falta_comprar')"
+                        title="Itens com SC mas quantidade solicitada menor que planejada">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Falta Comprar</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'nao_alocado' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'nao_alocado')"
+                        title="Material recebido mas não alocado">
+                    <i class="bi bi-box-seam"></i>
+                    <span>Não Alocado</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'a_caminho' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'a_caminho')"
+                        title="Material comprado mas ainda não recebido">
+                    <i class="bi bi-truck"></i>
+                    <span>A Caminho</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'com_sc' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'com_sc')"
+                        title="Itens com Solicitação de Compra">
+                    <i class="bi bi-check-circle"></i>
+                    <span>Com SC</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'sem_sc' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'sem_sc')"
+                        title="Itens sem Solicitação de Compra">
+                    <i class="bi bi-x-circle"></i>
+                    <span>Sem SC</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'atrasados' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'atrasados')"
+                        title="Itens com prazo vencido">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Atrasados</span>
+                </button>
+                {% if filtro_status or categoria_filtro or fornecedor_filtro or busca_query %}
+                <button class="filtro-chip-home btn-limpar-home" onclick="limparFiltros()" title="Limpar todos os filtros">
+                    <i class="bi bi-x-lg"></i>
+                    <span>Limpar Filtros</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% if fornecedores_disponiveis %}
+        <div class="dashboard-filtro-fornecedor">
+            <label for="filtroFornecedor" class="filtro-fornecedor-label">Fornecedor:</label>
+            <select id="filtroFornecedor" class="dashboard-select-fornecedor" onchange="aplicarFiltro('fornecedor', this.value)" aria-label="Filtrar por fornecedor">
+                <option value="">Todos</option>
+                {% for f in fornecedores_disponiveis %}
+                <option value="{{ f|escapejs }}" {% if fornecedor_filtro == f %}selected{% endif %}>{{ f }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</header>
+
+{% if obra_selecionada %}
+<main id="main-content" role="main">
+    <!-- ========== MODO TABELA – Dashboard alternativo (estilo Power BI) ========== -->
+    <div id="dashboard-modo-tabela-wrap" class="dashboard-modo-tabela-wrap" aria-hidden="true" style="display: none;">
+        <!-- Nível 1: Resumo – toque numa linha para descer -->
+        <div id="dashboard-drill-nivel1" class="dashboard-drill-nivel1">
+            <h2 class="dashboard-tabela-pagetitle"><i class="bi bi-table"></i> Dashboard por Tabelas</h2>
+            <p class="dashboard-drill-resumo">Total: <strong class="mono">{{ kpi_total_itens }}</strong> itens na obra. Toque numa linha abaixo para ver a lista.</p>
+            <!-- Acesso rápido: atalhos para o que o engenheiro mais consulta -->
+            <div class="dashboard-drill-atalhos" aria-label="Acesso rápido por status">
+                <span class="drill-atalhos-label">Acesso rápido:</span>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=sem_sc" class="drill-atalho drill-atalho-danger" title="Itens sem Solicitação de Compra"><i class="bi bi-x-octagon"></i> Sem SC <strong>{{ kpi_sem_sc }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=atrasados" class="drill-atalho drill-atalho-warning" title="Itens atrasados"><i class="bi bi-clock-history"></i> Atrasados <strong>{{ kpi_atrasados }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=com_sc" class="drill-atalho drill-atalho-ok" title="Itens com SC"><i class="bi bi-check-circle"></i> Com SC <strong>{{ kpi_com_sc }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=recebido" class="drill-atalho drill-atalho-info" title="Recebidos na obra"><i class="bi bi-truck"></i> Recebidos <strong>{{ kpi_recebidos }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=nao_alocado" class="drill-atalho drill-atalho-neutral" title="Não alocados"><i class="bi bi-box-seam"></i> Não alocado</a>
+            </div>
+            <p class="dashboard-drill-atualizado" aria-hidden="true">Atualizado em {% now "d/m/Y" %} às {% now "H:i" %}</p>
+            <div class="dashboard-drill-boxes">
+                <section class="dashboard-drill-card" aria-label="Por Local">
+                    <h3 class="dashboard-drill-title"><i class="bi bi-geo-alt"></i> Por Local</h3>
+                    <table class="dashboard-drill-table" aria-label="Resumo por local">
+                        <thead><tr><th>Local</th><th>Itens</th></tr></thead>
+                        <tbody>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&local=todos" class="dashboard-drill-link">Todos</a></td><td class="mono">{{ kpi_total_itens }}</td></tr>
+                            {% for ld in locais_data %}
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&local={{ ld.local_id|default:'sem-local' }}" class="dashboard-drill-link">{{ ld.local_nome }}</a></td><td class="mono">{{ ld.total_itens }}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </section>
+                <section class="dashboard-drill-card" aria-label="Por Categoria">
+                    <h3 class="dashboard-drill-title"><i class="bi bi-pie-chart"></i> Por Categoria</h3>
+                    <table class="dashboard-drill-table" aria-label="Resumo por categoria">
+                        <thead><tr><th>Categoria</th><th>Itens</th></tr></thead>
+                        <tbody>
+                            {% for cat in categorias_com_contagem %}
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&categoria={{ cat.nome|urlencode }}" class="dashboard-drill-link">{{ cat.nome }}</a></td><td class="mono">{{ cat.total }}</td></tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-muted">Nenhuma categoria</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </section>
+                <section class="dashboard-drill-card" aria-label="Por Status">
+                    <h3 class="dashboard-drill-title"><i class="bi bi-flag"></i> Por Status</h3>
+                    <table class="dashboard-drill-table" aria-label="Resumo por status">
+                        <thead><tr><th>Status</th><th>Itens</th></tr></thead>
+                        <tbody>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=sem_sc" class="dashboard-drill-link">Sem SC</a></td><td class="mono">{{ kpi_sem_sc }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=com_sc" class="dashboard-drill-link">Com SC</a></td><td class="mono">{{ kpi_com_sc }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=atrasados" class="dashboard-drill-link">Atrasados</a></td><td class="mono">{{ kpi_atrasados }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=recebido" class="dashboard-drill-link">Recebidos</a></td><td class="mono">{{ kpi_recebidos }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=nao_alocado" class="dashboard-drill-link">Não alocado</a></td><td class="mono">—</td></tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+        <!-- Nível 2: Tabela de itens (drill) -->
+        <div id="dashboard-drill-nivel2" class="dashboard-drill-nivel2" style="display: none;">
+            <div class="dashboard-drill-voltar" role="navigation" aria-label="Voltar">
+                <a href="?obra={{ obra_id }}&modo=tabela{% if busca_query %}&busca={{ busca_query|urlencode }}{% endif %}" class="dashboard-drill-voltar-link"><i class="bi bi-arrow-left"></i> Voltar ao resumo</a>
+            </div>
+            <div class="dashboard-drill-nivel2-box">
+                <div class="dashboard-drill-nivel2-header">
+                    <h2 class="dashboard-drill-nivel2-title">
+                        {% if local_selecionado_id and local_selecionado_id != 'todos' %}{{ local_selecionado_obj.nome|default:"Local" }}{% elif categoria_filtro %}{{ categoria_filtro }}{% elif filtro_status %}{% if filtro_status == 'sem_sc' %}Sem SC{% elif filtro_status == 'com_sc' %}Com SC{% elif filtro_status == 'atrasados' %}Atrasados{% elif filtro_status == 'recebido' %}Recebidos{% elif filtro_status == 'nao_alocado' %}Não alocado{% else %}{{ filtro_status }}{% endif %}{% else %}Itens{% endif %}
+                        <span class="dashboard-drill-nivel2-count">({{ itens_pipeline|length }} itens)</span>
+                    </h2>
+                    <div class="dashboard-drill-nivel2-actions no-print">
+                        <button type="button" class="btn-drill-action" onclick="window.print()" title="Imprimir esta tabela"><i class="bi bi-printer"></i> Imprimir</button>
+                        <button type="button" class="btn-drill-action" onclick="exportarDrillCSV()" title="Exportar para Excel/CSV"><i class="bi bi-file-earmark-spreadsheet"></i> Exportar CSV</button>
+                    </div>
+                </div>
+                <p class="dashboard-drill-atualizado drill-nivel2-atualizado" aria-hidden="true">Atualizado em {% now "d/m/Y" %} às {% now "H:i" %}</p>
+                <div class="dashboard-drill-nivel2-table-wrap">
+                    <table class="dashboard-drill-nivel2-table" id="tabelaDrillNivel2" aria-label="Lista de itens">
+                        <thead>
+                            <tr>
+                                <th>Insumo</th>
+                                <th>Cód.</th>
+                                <th>Local</th>
+                                <th class="mono">Plano</th>
+                                <th class="mono">Pedido</th>
+                                <th class="mono">Pátio</th>
+                                <th class="mono">Destino</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens_pipeline %}
+                            <tr class="{% if forloop.counter|divisibleby:2 %}drill-row-even{% endif %}" data-plano="{{ item.coluna_1_plano|floatformat:0 }}" data-pedido="{% if item.coluna_2_pedido_sc %}{{ item.coluna_2_pedido_qtd|floatformat:0 }}{% else %}0{% endif %}" data-patio="{{ item.coluna_3_patio|floatformat:0 }}" data-destino="{{ item.coluna_4_destino_qtd|floatformat:0 }}">
+                                <td>{{ item.insumo_descricao }}</td>
+                                <td class="mono">{{ item.insumo_codigo|default:"—" }}</td>
+                                <td>{{ item.local_nome }}</td>
+                                <td class="mono">{{ item.coluna_1_plano|floatformat:0 }}</td>
+                                <td class="mono">{% if item.coluna_2_pedido_sc %}{{ item.coluna_2_pedido_qtd|floatformat:0 }}{% else %}—{% endif %}</td>
+                                <td class="mono">{{ item.coluna_3_patio|floatformat:0 }}</td>
+                                <td class="mono">{{ item.coluna_4_destino_qtd|floatformat:0 }}</td>
+                                <td><span class="drill-status-badge {{ item.status_class }}">{{ item.status_label }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="8" class="dashboard-drill-empty">Nenhum item.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if itens_pipeline %}
+                        <tfoot class="dashboard-drill-tfoot">
+                            <tr>
+                                <th scope="row" colspan="3">Total</th>
+                                <td class="mono drill-total">{{ drill_totals.plano|floatformat:0 }}</td>
+                                <td class="mono drill-total">{{ drill_totals.pedido|floatformat:0 }}</td>
+                                <td class="mono drill-total">{{ drill_totals.patio|floatformat:0 }}</td>
+                                <td class="mono drill-total">{{ drill_totals.destino|floatformat:0 }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conteúdo modo Pipeline (KPI + chips + lista) -->
+    <div id="dashboard-conteudo-pipeline" class="dashboard-conteudo-pipeline">
+    <!-- KPI SUMMARY BAR - Modern Design with Progress -->
+    <div class="kpi-bar">
+        <!-- Total -->
+        <div class="kpi-item" onclick="limparFiltros()" title="Total de itens ativos na obra">
+            <div class="kpi-icon-mini"><i class="bi bi-layers"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiTotalItens">{{ kpi_total_itens }}</span>
+                <span class="kpi-label">Total Itens</span>
+            </div>
+        </div>
+        <!-- Pipeline: Solicitados -->
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','com_sc')" title="Itens com Solicitação de Compra">
+            <div class="kpi-icon-mini kpi-icon-success"><i class="bi bi-check2-circle"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_com_sc }}<span class="kpi-pct">{{ kpi_pct_sc }}%</span></span>
+                <span class="kpi-label">Solicitados</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-success" style="width: {{ kpi_pct_sc }}%"></div></div>
+            </div>
+        </div>
+        <!-- Pipeline: Recebidos -->
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','recebido')" title="Itens com material recebido na obra">
+            <div class="kpi-icon-mini kpi-icon-info"><i class="bi bi-truck"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_recebidos }}<span class="kpi-pct">{{ kpi_pct_recebidos }}%</span></span>
+                <span class="kpi-label">Recebidos</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-info" style="width: {{ kpi_pct_recebidos }}%"></div></div>
+            </div>
+        </div>
+        <!-- Pipeline: Alocados (número = já alocados; clique = ver NÃO alocados) -->
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','nao_alocado')" title="Clique para ver itens não alocados (pendentes)">
+            <div class="kpi-icon-mini kpi-icon-cyan"><i class="bi bi-geo-alt"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_alocados }}<span class="kpi-pct">{{ kpi_pct_alocados }}%</span></span>
+                <span class="kpi-label">Alocados</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-cyan" style="width: {{ kpi_pct_alocados }}%"></div></div>
+            </div>
+        </div>
+        <!-- Sem SC -->
+        <div class="kpi-item kpi-danger" onclick="aplicarFiltro('status','sem_sc')" title="Itens sem Solicitação de Compra">
+            <div class="kpi-icon-mini kpi-icon-danger"><i class="bi bi-x-octagon"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_sem_sc }}</span>
+                <span class="kpi-label">Sem SC</span>
+            </div>
+        </div>
+        <!-- Atrasados -->
+        <div class="kpi-item kpi-warning" onclick="aplicarFiltro('status','atrasados')" title="Itens com prazo vencido">
+            <div class="kpi-icon-mini kpi-icon-warning"><i class="bi bi-exclamation-triangle"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiAlertas">{{ kpi_atrasados }}</span>
+                <span class="kpi-label">Atrasados</span>
+            </div>
+        </div>
+    </div>
+    <p class="kpi-hint">Toque num número acima para filtrar a lista.</p>
+
+    <!-- Atalhos de pendências (um toque – referência: dashboards mobile engenharia) -->
+    {% if kpi_sem_sc > 0 or kpi_atrasados > 0 %}
+    <div class="dashboard-atalhos-pendencias">
+        <span class="atalhos-label">Pendências:</span>
+        {% if kpi_sem_sc > 0 %}
+        <button type="button" class="atalho-btn atalho-danger {% if filtro_status == 'sem_sc' %}active{% endif %}" onclick="aplicarFiltro('status','sem_sc')" title="Ver itens sem Solicitação de Compra">
+            <i class="bi bi-x-octagon"></i> Sem SC ({{ kpi_sem_sc }})
+        </button>
+        {% endif %}
+        {% if kpi_atrasados > 0 %}
+        <button type="button" class="atalho-btn atalho-warning {% if filtro_status == 'atrasados' %}active{% endif %}" onclick="aplicarFiltro('status','atrasados')" title="Ver itens atrasados">
+            <i class="bi bi-clock-history"></i> Atrasados ({{ kpi_atrasados }})
+        </button>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- LOCAL / BLOCO: "Onde você está?" – escolher o bloco primeiro afunila a lista -->
+    <div class="local-chips-wrapper">
+        <span class="local-chips-label">Local / Bloco:</span>
+        <div class="local-chips-bar">
+        <button class="local-chip {% if local_selecionado_id == 'todos' %}active{% endif %}" 
+                onclick="navegarParaLocal('todos')">
+            <i class="bi bi-grid-3x3-gap"></i> Todos
+            <span class="local-chip-count">{{ kpi_total_itens }}</span>
+        </button>
+        {% for local_data in locais_data %}
+        <button class="local-chip {% if local_data.local_id|stringformat:'s' == local_selecionado_id %}active{% endif %}" 
+                onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">
+            {{ local_data.local_nome }}
+            <span class="local-chip-count">{{ local_data.total_itens }}</span>
+            {% if local_data.itens_atrasados > 0 %}
+            <span class="local-chip-alert">{{ local_data.itens_atrasados }}</span>
+            {% endif %}
+        </button>
+        {% endfor %}
+        </div>
+    </div>
+
+    <!-- Filtrar por categoria (só chips – sem tabela Pátio/Caminho/Sem SC) -->
+    {% if categorias_com_contagem %}
+    <input type="hidden" id="filtroCategoria" value="{{ categoria_filtro|escapejs }}">
+    <div class="categorias-resumo-bar categorias-resumo-bar-simple" aria-label="Filtrar por categoria">
+        <span class="categorias-resumo-label">Categoria:</span>
+        <div class="categoria-chips-row" aria-label="Categorias">
+            <button type="button" class="categoria-chip {% if not categoria_filtro %}active{% endif %}"
+                    onclick="aplicarFiltro('categoria', '')" title="Ver todas">
+                Todas
+            </button>
+            {% for cat in categorias_com_contagem %}
+            <button type="button" class="categoria-chip {% if categoria_filtro == cat.nome %}active{% endif %}"
+                    onclick="aplicarFiltro('categoria', '{{ cat.nome|escapejs }}')"
+                    title="Filtrar {{ cat.nome }}">
+                {{ cat.nome }}
+                <span class="categoria-chip-count">{{ cat.total }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TABELA DE ITENS (sempre visível quando há obra) -->
+    <div class="itens-container active" id="itensContainer">
+        <div class="itens-header">
+            <div class="itens-header-top">
+                <div class="itens-header-left">
+                    <h2 class="itens-title">{{ local_selecionado_obj.nome|default:"Todos os Locais" }}</h2>
+                    {% if categoria_filtro or filtro_status or fornecedor_filtro %}
+                    <span class="itens-filtro-ativo" title="Filtro aplicado">
+                        {% if categoria_filtro %}{{ categoria_filtro }}{% endif %}
+                        {% if categoria_filtro and filtro_status %} · {% endif %}
+                        {% if filtro_status == 'nao_alocado' %}Não Alocado{% elif filtro_status == 'a_caminho' %}A Caminho{% elif filtro_status == 'falta_comprar' %}Falta Comprar{% elif filtro_status == 'com_sc' %}Com SC{% elif filtro_status == 'sem_sc' %}Sem SC{% elif filtro_status == 'atrasados' %}Atrasados{% elif filtro_status == 'recebido' %}Recebidos{% endif %}
+                        {% if fornecedor_filtro %}{% if categoria_filtro or filtro_status %} · {% endif %}Fornecedor: {{ fornecedor_filtro }}{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="itens-header-right">
+                    {% if itens_pipeline %}
+                    <div class="itens-count">
+                        <span class="itens-count-value">{{ itens_pipeline|length }}</span>
+                        <span class="itens-count-label">item{{ itens_pipeline|length|pluralize:"s" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% if local_selecionado_id == 'todos' and locais_data %}
+            <div class="itens-header-locais" aria-label="Trocar bloco sem sair da lista">
+                <span class="itens-header-locais-label">Bloco:</span>
+                <button type="button" class="itens-header-local-chip active" onclick="navegarParaLocal('todos')">Todos</button>
+                {% for local_data in locais_data %}
+                <button type="button" class="itens-header-local-chip" onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">{{ local_data.local_nome }}</button>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% if itens_pipeline and local_selecionado_id == 'todos' and itens_pipeline|length > 15 %}
+        <p class="itens-muitos-hint">Muitos itens? Toque num <strong>bloco</strong> acima para ver só aquele bloco.</p>
+        {% endif %}
+        
+        {% if itens_pipeline %}
+        <!-- MOBILE: Lista virtual (só renderiza cards visíveis; evita 300+ no DOM) -->
+        <div class="mobile-cards-container" id="mobileCards" data-local-todos="{% if local_selecionado_id == 'todos' %}1{% else %}0{% endif %}">
+            <div id="mobileCardsVirtual" class="mobile-cards-virtual-wrapper">
+                <div class="mobile-cards-virtual-spacer" id="virtualSpacer"></div>
+                <div class="mobile-cards-virtual-viewport" id="virtualViewport"></div>
+            </div>
+        </div>
+        <!-- DESKTOP: Tabela principal (escondida no mobile) -->
+        <p class="table-hint" aria-live="polite">
+            <i class="bi bi-hand-index"></i> Clique numa linha para abrir detalhes e alocar.
+        </p>
+        <div id="tabelaContainer" class="tabela-container-vertical">
+        <table class="matriz-table" id="tabelaMatriz">
+            <thead>
+                <tr>
+                    <th class="col-status-mini">STATUS</th>
+                    <th class="col-insumo">Insumo</th>
+                    {% if local_selecionado_id == 'todos' %}<th class="col-local">Local</th>{% endif %}
+                    <th class="col-plano">PLANO</th>
+                    <th class="col-pedido">PEDIDO</th>
+                    <th class="col-patio">PATIO</th>
+                    <th class="col-destino">DESTINO</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in itens_pipeline %}
+                <tr class="{% if item.alerta_nao_alocado %}alerta-nao-alocado{% elif item.alerta_falta_comprar %}alerta-critico{% endif %}" 
+                    onclick="abrirBottomSheet({{ item.id }})" 
+                    role="button"
+                    tabindex="0"
+                    aria-label="{{ item.insumo_descricao|escapejs }} - Clique para ver detalhes"
+                    title="Clique para ver detalhes e alocar"
+                    onkeypress="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); abrirBottomSheet({{ item.id }}); }">
+                    <!-- COLUNA 0: STATUS PIPELINE -->
+                    <td class="col-status-mini">
+                        <div class="pipeline-mini" title="{{ item.status_label }} ({{ item.pipeline_pct }}%)">
+                            <span class="pipeline-badge {{ item.status_class }}">{{ item.status_label }}</span>
+                            <div class="pipeline-bar">
+                                <div class="pipeline-fill {{ item.status_class }}" style="width: {{ item.pipeline_pct }}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <!-- COLUNA 1: INSUMO (linha inteira é clicável → abre painel de detalhes) -->
+                    <td class="col-insumo">
+                        <div class="insumo-nome">{{ item.insumo_descricao }}</div>
+                        <div class="insumo-meta">
+                            <span class="insumo-codigo">{{ item.insumo_codigo|default:"—" }}</span>
+                            <span class="insumo-unidade">{{ item.insumo_unidade }}</span>
+                        </div>
+                        {% if item.categoria %}
+                        <div class="insumo-categoria">{{ item.categoria }}</div>
+                        {% endif %}
+                        <span class="insumo-ver-detalhes" aria-hidden="true"><i class="bi bi-box-arrow-up-right"></i> Ver detalhes</span>
+                    </td>
+                    {% if local_selecionado_id == 'todos' %}
+                    <td class="col-local">
+                        <span class="local-badge">{{ item.local_nome|default:"—" }}</span>
+                    </td>
+                    {% endif %}
+                    <!-- COLUNA 2: PLANO -->
+                    <td class="col-plano">
+                        <div class="plano-valor mono">{{ item.coluna_1_plano|floatformat:0 }}</div>
+                        <div class="plano-unidade">{{ item.insumo_unidade }}</div>
+                        {% if item.coluna_1_plano == 0 %}
+                        <div class="plano-zero">Sem planejamento</div>
+                        {% endif %}
+                    </td>
+                    <!-- COLUNA 3: PEDIDO -->
+                    <td class="col-pedido">
+                        {% if item.coluna_2_pedido_sc %}
+                            <div class="pedido-sc mono">SC{{ item.coluna_2_pedido_sc }}</div>
+                            <div class="pedido-qtd mono">{{ item.coluna_2_pedido_qtd|floatformat:0 }} {{ item.insumo_unidade }}</div>
+                            {% if item.gap_comprado > 0 %}
+                            <div class="pedido-gap mono" title="Falta comprar {{ item.gap_comprado|floatformat:0 }} {{ item.insumo_unidade }}">
+                                <i class="bi bi-exclamation-triangle"></i> -{{ item.gap_comprado|floatformat:0 }}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="pedido-sem-sc">
+                                <i class="bi bi-x-circle"></i> NÃO SOLICITADO
+                            </div>
+                            <div class="pedido-gap mono">-{{ item.coluna_1_plano|floatformat:0 }} {{ item.insumo_unidade }}</div>
+                        {% endif %}
+                    </td>
+                    <!-- COLUNA 4: PÁTIO -->
+                    <td class="col-patio">
+                        <div class="patio-valor mono" style="color: {% if item.coluna_3_patio > 0 %}var(--neon-green){% else %}var(--text-on-base-medium){% endif %};">
+                            {{ item.coluna_3_patio|floatformat:0 }}
+                        </div>
+                        <div class="patio-unidade">{{ item.insumo_unidade }}</div>
+                        {% if item.gap_recebido > 0 %}
+                        <div class="patio-gap mono" title="Ainda não recebido: {{ item.gap_recebido|floatformat:0 }} {{ item.insumo_unidade }}">
+                            <i class="bi bi-truck"></i> -{{ item.gap_recebido|floatformat:0 }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <!-- COLUNA 5: DESTINO -->
+                    <td class="col-destino">
+                        <div class="destino-qtd mono" style="color: {% if item.coluna_4_destino_qtd > 0 %}var(--neon-cyan){% else %}var(--text-on-base-medium){% endif %};">
+                            {{ item.coluna_4_destino_qtd|floatformat:0 }}
+                        </div>
+                        <div class="destino-unidade">{{ item.insumo_unidade }}</div>
+                        <div class="destino-local">{{ item.coluna_4_destino_local|default:"Sem local" }}</div>
+                        {% if item.gap_alocado > 0 %}
+                        <div class="destino-gap mono" title="Falta alocar {{ item.gap_alocado|floatformat:0 }} {{ item.insumo_unidade }}">
+                            <i class="bi bi-box-seam"></i> -{{ item.gap_alocado|floatformat:0 }}
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if local_selecionado_id == 'todos' %}7{% else %}6{% endif %}" class="empty-state-cell">
+                        <div class="empty-state">
+                            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+                            <div class="empty-state-title">Nenhum item encontrado</div>
+                            <div class="empty-state-message">
+                                {% if busca_query %}
+                                    Não há itens correspondentes à busca "{{ busca_query }}"
+                                {% elif categoria_filtro %}
+                                    Não há itens na categoria "{{ categoria_filtro }}"
+                                {% else %}
+                                    Este local não possui itens cadastrados
+                                {% endif %}
+                            </div>
+                            {% if busca_query or categoria_filtro or filtro_status %}
+                            <button type="button" class="empty-state-action" onclick="limparFiltros()">
+                                Ver todos os itens
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        
+        {% elif local_selecionado_id %}
+        <!-- Só mostra "nenhum item" se um local foi selecionado -->
+        <div class="empty-state-container">
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="bi bi-box-seam"></i></div>
+                <div class="empty-state-title">Nenhum item encontrado</div>
+                <div class="empty-state-message">
+                    {% if busca_query %}
+                        Nenhum item corresponde à busca "{{ busca_query }}".
+                    {% elif categoria_filtro or fornecedor_filtro or filtro_status %}
+                        Nenhum item com os filtros aplicados.
+                    {% else %}
+                        Este local não possui itens cadastrados.
+                    {% endif %}
+                </div>
+                {% if busca_query or categoria_filtro or fornecedor_filtro or filtro_status %}
+                <button type="button" class="empty-state-action" onclick="limparFiltros()">Ver todos os itens</button>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    </div><!-- fim dashboard-conteudo-pipeline -->
+    </main>
+{% else %}
+    <main id="main-content" role="main">
+        <div class="empty-state-container empty-state-large">
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="bi bi-building"></i></div>
+                <div class="empty-state-title">Selecione uma Obra</div>
+                <div class="empty-state-message">
+                    Escolha uma obra no menu acima para visualizar a rastreabilidade de materiais e insumos.
+                </div>
+            </div>
+        </div>
+    </main>
+{% endif %}
+
+<!-- NÍVEL 3: BOTTOM SHEET (fora do if obra_selecionada para sempre estar disponível) -->
+<div class="bottom-sheet-overlay" id="overlay" onclick="fecharBottomSheet()" role="dialog" aria-label="Overlay do painel de alocação" aria-hidden="true"></div>
+<div class="bottom-sheet" id="bottomSheet">
+    <!-- Drag Handle (mobile swipe indicator) -->
+    <div class="bottom-sheet-drag-handle"><div class="drag-handle-bar"></div></div>
+    <!-- Loading State -->
+    <div class="bottom-sheet-loading" id="bottomSheetLoading">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Carregando detalhes do item...</p>
+    </div>
+    
+    <!-- Error State -->
+    <div class="bottom-sheet-error" id="bottomSheetError" style="display: none;">
+        <div class="error-icon"><i class="bi bi-exclamation-triangle"></i></div>
+        <h3 class="error-title">Erro ao carregar</h3>
+        <p class="error-message" id="errorMessage">Não foi possível carregar os detalhes do item.</p>
+        <button class="btn-retry" onclick="retryLoadItem()">Tentar novamente</button>
+    </div>
+    
+    <!-- Empty State -->
+    <div class="bottom-sheet-empty" id="bottomSheetEmpty" style="display: none;">
+        <div class="empty-icon"><i class="bi bi-box"></i></div>
+        <h3 class="empty-title">Nenhum item selecionado</h3>
+        <p class="empty-message">Clique em um item para ver os detalhes.</p>
+    </div>
+    
+    <!-- Content State -->
+    <div class="bottom-sheet-header">
+        <div class="bottom-sheet-header-content">
+            <div class="bottom-sheet-icon"><i class="bi bi-clipboard-data"></i></div>
+            <div>
+                <h2 class="bottom-sheet-title">Detalhes do Item</h2>
+                <p class="bottom-sheet-subtitle" id="bottomSheetSubtitle">Apenas consulta (alocação em outro lugar)</p>
+            </div>
+        </div>
+        <button class="bottom-sheet-close" 
+                onclick="fecharBottomSheet()"
+                aria-label="Fechar painel de alocação"
+                title="Fechar">
+            <span>×</span>
+        </button>
+    </div>
+    
+    <div class="bottom-sheet-content" id="bottomSheetContent">
+        {% if item_detalhes %}
+        <!-- Status e Próximo passo -->
+        <div class="bottom-sheet-info-section bottom-sheet-status-block">
+            <div class="bottom-sheet-status-row">
+                <span class="drill-status-badge {{ item_detalhes.status_class|default:'' }}">{{ item_detalhes.status_label|default:"—" }}</span>
+                {% if item_detalhes.is_atrasado %}
+                <span class="bottom-sheet-alerta-atraso" title="Prazo vencido"><i class="bi bi-clock-history"></i> Atrasado</span>
+                {% endif %}
+            </div>
+            <div class="bottom-sheet-pipeline-bar" title="Pipeline: Plano → SC → Pátio → Alocado">
+                <div class="bottom-sheet-pipeline-fill" style="width: {{ item_detalhes.pipeline_pct|default:0 }}%;"></div>
+            </div>
+            <p class="bottom-sheet-proximo-passo"><i class="bi bi-arrow-right-circle"></i> {{ item_detalhes.proximo_passo|default:"" }}</p>
+        </div>
+        
+        <!-- Informações do Item -->
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title">Informações do Item</h3>
+            <div class="bottom-sheet-chave">
+                <div class="bottom-sheet-chave-item bottom-sheet-chave-full">
+                    <div class="bottom-sheet-chave-label">Descrição</div>
+                    <div class="bottom-sheet-chave-value">{{ item_detalhes.insumo_descricao|default:"—" }}</div>
+                </div>
+                <div class="bottom-sheet-chave-item">
+                    <div class="bottom-sheet-chave-label">Código</div>
+                    <div class="bottom-sheet-chave-value mono">{{ item_detalhes.insumo_codigo|default:"—" }}</div>
+                </div>
+                <div class="bottom-sheet-chave-item">
+                    <div class="bottom-sheet-chave-label">Número SC</div>
+                    <div class="bottom-sheet-chave-value mono">{{ item_detalhes.numero_sc|default:"—" }}</div>
+                </div>
+                {% if item_detalhes.categoria %}
+                <div class="bottom-sheet-chave-item">
+                    <div class="bottom-sheet-chave-label">Categoria</div>
+                    <div class="bottom-sheet-chave-value">{{ item_detalhes.categoria }}</div>
+                </div>
+                {% endif %}
+                {% if item_detalhes.empresa_fornecedora %}
+                <div class="bottom-sheet-chave-item">
+                    <div class="bottom-sheet-chave-label">Fornecedor</div>
+                    <div class="bottom-sheet-chave-value">{{ item_detalhes.empresa_fornecedora }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quantidades -->
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title">Quantidades</h3>
+            <div class="bottom-sheet-saldo">
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Planejado</div>
+                    <div class="bottom-sheet-saldo-value mono">{{ item_detalhes.quantidade_planejada|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Recebido</div>
+                    <div class="bottom-sheet-saldo-value max mono">{{ item_detalhes.saldo_maximo|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Alocado</div>
+                    <div class="bottom-sheet-saldo-value alocado mono">{{ item_detalhes.total_alocado|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Disponível</div>
+                    <div class="bottom-sheet-saldo-value disponivel mono">{{ item_detalhes.saldo_disponivel|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+            </div>
+            {% if item_detalhes.quantidade_planejada and item_detalhes.quantidade_planejada > 0 %}
+            <p class="bottom-sheet-recebido-pct">Recebido: <strong>{{ item_detalhes.percentual_recebido|default:0 }}%</strong> do planejado</p>
+            <div class="bottom-sheet-bar-recebido" title="Recebido vs planejado"><div class="bottom-sheet-bar-recebido-fill" style="width: {{ item_detalhes.percentual_recebido|default:0 }}%;"></div></div>
+            {% endif %}
+        </div>
+        
+        <!-- Este insumo em outros locais -->
+        {% if item_detalhes.outros_locais %}
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title"><i class="bi bi-geo-alt"></i> Mesmo insumo em outros locais</h3>
+            <p class="bottom-sheet-hint">Este material também está planejado em:</p>
+            <ul class="bottom-sheet-outros-locais">
+                {% for out in item_detalhes.outros_locais %}
+                <li class="bottom-sheet-outro-local">
+                    <span class="bottom-sheet-outro-local-nome">{{ out.local_nome }}</span>
+                    <span class="bottom-sheet-outro-local-qtd mono">{{ out.quantidade_planejada|floatformat:0 }} {{ item_detalhes.insumo_unidade }}{% if out.tem_sc %} <i class="bi bi-check-circle" title="Com SC"></i>{% endif %}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- Outros itens neste local -->
+        {% if item_detalhes.outros_itens_mesmo_local %}
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title"><i class="bi bi-layers"></i> Outros itens neste local</h3>
+            <p class="bottom-sheet-hint">No mesmo bloco ({{ item_detalhes.local_nome }}) também há:</p>
+            <ul class="bottom-sheet-outros-itens">
+                {% for out in item_detalhes.outros_itens_mesmo_local %}
+                <li class="bottom-sheet-outro-item">
+                    <span class="bottom-sheet-outro-item-desc">{{ out.descricao }}</span>
+                    <span class="bottom-sheet-outro-item-qtd mono">{{ out.quantidade_planejada|floatformat:0 }} {{ out.unidade }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- Alocações Existentes (somente leitura) -->
+        <div class="bottom-sheet-info-section" id="alocacoesExistentesSection" style="display: none;">
+            <h3 class="bottom-sheet-section-title">Histórico de Alocações</h3>
+            <div id="alocacoesExistentesList" class="bottom-sheet-alocacoes-list">
+                <!-- Será preenchido via JavaScript -->
+            </div>
+        </div>
+        {% elif item_selecionado_id %}
+        <div class="bottom-sheet-info-section">
+            <div class="bottom-sheet-empty" style="display: block;">
+                <div class="empty-icon"><i class="bi bi-exclamation-circle"></i></div>
+                <h3 class="empty-title">Item não encontrado</h3>
+                <p class="empty-message">O item selecionado não existe ou não pertence a esta obra. Feche o painel e clique em outro item.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Success Toast -->
+    <div class="toast-success" id="toastSuccess" style="display: none;">
+        <div class="toast-icon">✓</div>
+        <div class="toast-message" id="toastMessage">Alocação realizada com sucesso!</div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+// Definir cedo para onclick no HTML não dar ReferenceError se algo falhar depois
+window.navegarParaLocal = function(localId) {
+    if (!localId) return;
+    var p = new URLSearchParams(window.location.search);
+    var obra = p.get('obra') || '{{ obra_id|default:"" }}';
+    if (!obra) { var s = document.getElementById('obraSelect'); if (s && s.value) obra = s.value; }
+    if (!obra) return;
+    p.set('obra', obra);
+    p.set('local', localId);
+    if (new URLSearchParams(window.location.search).get('modo') === 'tabela') p.set('modo', 'tabela');
+    var bus = document.getElementById('buscaInput'); if (bus && bus.value) p.set('busca', bus.value);
+    var cat = document.getElementById('filtroCategoria'); if (cat && cat.value) p.set('categoria', cat.value);
+    var forn = document.getElementById('filtroFornecedor'); if (forn && forn.value) p.set('fornecedor', forn.value);
+    if ('{{ filtro_status|default:"" }}') p.set('status', '{{ filtro_status|escapejs }}');
+    window.location.href = '?' + p.toString();
+};
+
+// ====== ANIMATED KPI COUNTERS ======
+function animateCounter(el, target) {
+    const duration = 600;
+    const start = 0;
+    const startTime = performance.now();
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+        el.textContent = Math.round(start + (target - start) * eased).toLocaleString('pt-BR');
+        if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+}
+
+// Animate all KPI values on load
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.kpi-value').forEach(function(el) {
+        const text = el.textContent.trim().replace(/\D/g, '');
+        const val = parseInt(text) || 0;
+        if (val > 0) animateCounter(el, val);
+    });
+});
+
+// ====== BOTTOM SHEET SWIPE-TO-DISMISS ======
+(function() {
+    const sheet = document.getElementById('bottomSheet');
+    if (!sheet) return;
+    let startY = 0, currentY = 0, isDragging = false;
+    
+    sheet.addEventListener('touchstart', function(e) {
+        if (e.target.closest('.bottom-sheet-content')) return; // Don't intercept content scroll
+        startY = e.touches[0].clientY;
+        isDragging = true;
+        sheet.style.transition = 'none';
+    }, { passive: true });
+    
+    sheet.addEventListener('touchmove', function(e) {
+        if (!isDragging) return;
+        currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+        if (diff > 0) { // Only drag down
+            sheet.style.transform = 'translateY(' + diff + 'px)';
+        }
+    }, { passive: true });
+    
+    sheet.addEventListener('touchend', function() {
+        if (!isDragging) return;
+        isDragging = false;
+        sheet.style.transition = 'transform 0.3s ease';
+        const diff = currentY - startY;
+        if (diff > 120) { // Threshold to dismiss
+            fecharBottomSheet();
+        }
+        sheet.style.transform = '';
+    });
+})();
+
+// Função para abrir overlay fullscreen - SIMPLES E DIRETO
+window.alternarRotacao = function() {
+    const container = document.getElementById('tabelaContainer');
+    const icon = document.getElementById('iconRotacao');
+    const itensContainer = document.getElementById('itensContainer');
+    
+    if (!container) {
+        console.error('tabelaContainer não encontrado!');
+        return;
+    }
+    
+    const isAtivo = document.body.classList.toggle('modo-matriz-tatica');
+    
+    // Forçar visibilidade do container e tabela
+    if (isAtivo) {
+        // Garantir que itens-container esteja visível
+        if (itensContainer) {
+            itensContainer.classList.add('active');
+            itensContainer.style.display = 'block';
+            itensContainer.style.visibility = 'visible';
+            itensContainer.style.opacity = '1';
+        }
+        
+        // Garantir que tabelaContainer esteja visível
+        container.style.display = 'block';
+        container.style.visibility = 'visible';
+        container.style.opacity = '1';
+        container.style.position = 'fixed';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100vw';
+        container.style.height = '100vh';
+        container.style.zIndex = '99999';
+        container.style.background = '#0f172a';
+        
+        // Garantir que a tabela esteja visível
+        const tabela = container.querySelector('.matriz-table');
+        if (tabela) {
+            tabela.style.display = 'table';
+            tabela.style.visibility = 'visible';
+            tabela.style.opacity = '1';
+            console.log('Tabela encontrada e forçada a aparecer');
+        } else {
+            console.error('Tabela .matriz-table não encontrada dentro do container!');
+        }
+    } else {
+        // Restaurar estado normal
+        if (container) {
+            container.style.position = '';
+            container.style.top = '';
+            container.style.left = '';
+            container.style.width = '';
+            container.style.height = '';
+            container.style.zIndex = '';
+        }
+    }
+    
+    // Criar ou atualizar botão Voltar
+    let btnVoltar = document.getElementById('btnVoltarMatriz');
+    if (isAtivo) {
+        if (!btnVoltar) {
+            btnVoltar = document.createElement('button');
+            btnVoltar.id = 'btnVoltarMatriz';
+            btnVoltar.className = 'btn-voltar-matriz';
+            btnVoltar.innerHTML = '<i class="bi bi-x-circle"></i> VOLTAR';
+            btnVoltar.addEventListener('click', window.alternarRotacao);
+            document.body.appendChild(btnVoltar);
+        }
+        btnVoltar.style.display = 'flex';
+        
+        if (icon) {
+            icon.innerHTML = '<i class="bi bi-phone"></i>';
+        }
+        
+        console.log('Modo matriz tatica ATIVADO');
+    } else {
+        if (btnVoltar) {
+            btnVoltar.style.display = 'none';
+        }
+        
+        if (icon) {
+            icon.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+        }
+        
+        console.log('Modo matriz tatica DESATIVADO');
+    }
+    
+    localStorage.setItem('dashboard2_modo_matriz', isAtivo ? 'ativa' : 'inativa');
+};
+
+// Alias para compatibilidade
+function alternarRotacao() {
+    window.alternarRotacao();
+}
+
+// Dados do item atual (saldo entre aspas evita SyntaxError quando locale usa vírgula decimal)
+let itemAtual = {% if item_detalhes %}{
+    'item_id': {{ item_detalhes.item_id|default:0 }},
+    'insumo_unidade': '{{ item_detalhes.insumo_unidade|default:""|escapejs }}',
+    'saldo_disponivel': parseFloat("{{ item_detalhes.saldo_disponivel|default:0 }}".replace(",", "."))
+}{% else %}null{% endif %};
+
+// Preservar modo=tabela em qualquer navegação
+function preservarModoTabela(params) {
+    if (new URLSearchParams(window.location.search).get('modo') === 'tabela')
+        params.set('modo', 'tabela');
+    return params;
+}
+
+// Navegação - Função global para evitar erros de referência
+window.navegarParaLocal = function(localId) {
+    if (!localId) return;
+    const params = new URLSearchParams();
+    params.set('obra', '{{ obra_id }}');
+    params.set('local', localId);
+    const busca = document.getElementById('buscaInput')?.value || '';
+    if (busca) params.set('busca', busca);
+    const statusAtual = '{{ filtro_status|escapejs }}';
+    if (statusAtual) params.set('status', statusAtual);
+    const catAtual = document.getElementById('filtroCategoria')?.value || '';
+    if (catAtual) params.set('categoria', catAtual);
+    const fornAtual = document.getElementById('filtroFornecedor')?.value || '';
+    if (fornAtual) params.set('fornecedor', fornAtual);
+    preservarModoTabela(params);
+    window.location.href = '?' + params.toString();
+};
+
+function navegarParaLocal(localId) {
+    window.navegarParaLocal(localId);
+}
+
+function voltarParaLocais() {
+    var params = new URLSearchParams();
+    params.set('obra', '{{ obra_id }}');
+    params.set('local', 'todos');
+    preservarModoTabela(params);
+    window.location.href = '?' + params.toString();
+}
+
+// Debounce para busca em tempo real
+let buscaTimeout;
+function debounceBusca(valor) {
+    clearTimeout(buscaTimeout);
+    buscaTimeout = setTimeout(() => {
+        buscar();
+    }, 500); // Aguarda 500ms após parar de digitar
+}
+
+function buscar() {
+    const buscaInput = document.getElementById('buscaInput');
+    if (!buscaInput) return;
+    const busca = buscaInput.value;
+    aplicarFiltro('busca', busca);
+}
+
+function limparBusca() {
+    const buscaInput = document.getElementById('buscaInput');
+    if (buscaInput) {
+        buscaInput.value = '';
+        buscar();
+    }
+}
+
+function aplicarFiltro(tipo, valor) {
+    const params = new URLSearchParams();
+    params.set('obra', '{{ obra_id }}');
+    // Só incluir local se estiver dentro de um bloco (não na home)
+    {% if local_selecionado_id %}
+    params.set('local', '{{ local_selecionado_id }}');
+    {% endif %}
+    
+    // Manter filtros existentes
+    const busca = document.getElementById('buscaInput')?.value || '';
+    if (busca && tipo !== 'busca') {
+        params.set('busca', busca);
+    } else if (tipo === 'busca') {
+        if (valor) params.set('busca', valor);
+    }
+    
+    const categoria = document.getElementById('filtroCategoria')?.value || '';
+    if (categoria && tipo !== 'categoria') {
+        params.set('categoria', categoria);
+    } else if (tipo === 'categoria') {
+        if (valor) params.set('categoria', valor);
+    }
+    
+    const fornecedor = document.getElementById('filtroFornecedor')?.value || '';
+    if (fornecedor && tipo !== 'fornecedor') {
+        params.set('fornecedor', fornecedor);
+    } else if (tipo === 'fornecedor') {
+        if (valor) params.set('fornecedor', valor);
+    }
+    
+    const statusAtual = '{{ filtro_status }}';
+    // Toggle: se clicar no mesmo filtro, remove
+    if (tipo === 'status' && statusAtual === valor) {
+        // Não adicionar o parâmetro (remove o filtro)
+    } else if (statusAtual && tipo !== 'status') {
+        params.set('status', statusAtual);
+    } else if (tipo === 'status') {
+        if (valor) params.set('status', valor);
+    }
+    preservarModoTabela(params);
+    window.location.href = '?' + params.toString();
+}
+
+function limparFiltros() {
+    const params = new URLSearchParams();
+    params.set('obra', '{{ obra_id }}');
+    {% if local_selecionado_id %}
+    params.set('local', '{{ local_selecionado_id }}');
+    {% endif %}
+    const buscaInput = document.getElementById('buscaInput');
+    if (buscaInput) buscaInput.value = '';
+    preservarModoTabela(params);
+    window.location.href = '?' + params.toString();
+}
+
+// Exportar tabela do Modo Tabela (Nível 2) para CSV (Excel)
+function exportarDrillCSV() {
+    var tbl = document.getElementById('tabelaDrillNivel2');
+    if (!tbl) return;
+    var rows = tbl.querySelectorAll('tr');
+    var csv = [];
+    for (var i = 0; i < rows.length; i++) {
+        var cells = rows[i].querySelectorAll('th, td');
+        var row = [];
+        for (var j = 0; j < cells.length; j++) {
+            var t = (cells[j].textContent || '').trim().replace(/"/g, '""');
+            row.push('"' + t + '"');
+        }
+        csv.push(row.join(';'));
+    }
+    var BOM = '\uFEFF';
+    var blob = new Blob([BOM + csv.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rastreabilidade_' + (new Date().toISOString().slice(0,10)) + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+// ============================================
+// MODO TABELA – Dashboard alternativo (URL = fonte da verdade)
+// ============================================
+window.alternarModoDashboard = function() {
+    var params = new URLSearchParams(window.location.search);
+    var obra = params.get('obra');
+    if (!obra) {
+        var sel = document.getElementById('obraSelect');
+        obra = sel ? sel.value : '';
+        if (!obra) {
+            alert('Selecione uma obra no menu acima antes de mudar o modo.');
+            if (sel) sel.focus();
+            return;
+        }
+        params.set('obra', obra);
+    }
+    if (params.get('modo') === 'tabela') {
+        params.delete('modo');
+        params.delete('local');
+        params.delete('categoria');
+        params.delete('status');
+        window.location.href = '?' + params.toString();
+    } else {
+        params.set('modo', 'tabela');
+        window.location.href = '?' + params.toString();
+    }
+};
+function aplicarModoDashboard() {
+    var params = new URLSearchParams(window.location.search);
+    var modoTabela = params.get('modo') === 'tabela';
+    var wrapTabela = document.getElementById('dashboard-modo-tabela-wrap');
+    var nivel1 = document.getElementById('dashboard-drill-nivel1');
+    var nivel2 = document.getElementById('dashboard-drill-nivel2');
+    var pipeline = document.getElementById('dashboard-conteudo-pipeline');
+    var filtrosBar = document.querySelector('.dashboard-filtros-bar');
+    var btn = document.getElementById('btnModoTabela');
+    var label = document.getElementById('labelModoDashboard');
+    var localId = '{{ local_selecionado_id|default:"" }}';
+    var cat = '{{ categoria_filtro|default:"" }}';
+    var st = '{{ filtro_status|default:"" }}';
+    var hasDrill = (localId && localId !== 'todos') || !!cat || !!st;
+    if (modoTabela) {
+        if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
+        if (label) label.textContent = 'Modo Pipeline';
+        if (filtrosBar) filtrosBar.style.display = ''; /* visível no modo tabela para buscar e manter modo */
+        if (pipeline) pipeline.style.display = 'none';
+        if (wrapTabela) {
+            wrapTabela.style.display = 'block';
+            wrapTabela.setAttribute('aria-hidden', 'false');
+        }
+        if (hasDrill) {
+            if (nivel1) nivel1.style.display = 'none';
+            if (nivel2) { nivel2.style.display = 'block'; }
+        } else {
+            if (nivel1) nivel1.style.display = 'block';
+            if (nivel2) nivel2.style.display = 'none';
+        }
+    } else {
+        if (btn) { btn.classList.remove('active'); btn.setAttribute('aria-pressed', 'false'); }
+        if (label) label.textContent = 'Modo Tabela';
+        if (filtrosBar) filtrosBar.style.display = '';
+        if (pipeline) pipeline.style.display = '';
+        if (wrapTabela) {
+            wrapTabela.style.display = 'none';
+            wrapTabela.setAttribute('aria-hidden', 'true');
+        }
+    }
+}
+
+// Botão de rotação será configurado quando necessário (se existir no template)
+// A função alternarRotacao está disponível globalmente se precisar ser chamada
+
+// Tabela é a única visualização
+
+// ============================================
+// SISTEMA DE TEMA (DARK/LIGHT MODE)
+// ============================================
+function alternarTema() {
+    const body = document.body;
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+    const isDark = body.classList.contains('dark-mode');
+    
+    if (isDark) {
+        body.classList.remove('dark-mode');
+        if (themeIcon) themeIcon.innerHTML = '<i class="bi bi-moon-fill"></i>';
+        if (themeLabel) themeLabel.textContent = 'Tema escuro';
+        localStorage.setItem('dashboard2_tema', 'light');
+    } else {
+        body.classList.add('dark-mode');
+        if (themeIcon) themeIcon.innerHTML = '<i class="bi bi-sun-fill"></i>';
+        if (themeLabel) themeLabel.textContent = 'Tema claro';
+        localStorage.setItem('dashboard2_tema', 'dark');
+    }
+}
+
+// Restaurar preferência de tema ao carregar
+function restaurarTema() {
+    const temaSalvo = localStorage.getItem('dashboard2_tema');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+    
+    // Padrão é light mode (white mode)
+    if (temaSalvo === 'dark') {
+        document.body.classList.add('dark-mode');
+        if (themeIcon) themeIcon.innerHTML = '<i class="bi bi-sun-fill"></i>';
+        if (themeLabel) themeLabel.textContent = 'Tema claro';
+    } else {
+        document.body.classList.remove('dark-mode');
+        if (themeIcon) themeIcon.innerHTML = '<i class="bi bi-moon-fill"></i>';
+        if (themeLabel) themeLabel.textContent = 'Tema escuro';
+    }
+}
+
+// Restaurar preferência de visualização ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    // Restaurar tema primeiro
+    restaurarTema();
+    // Aplicar modo dashboard (Tabela vs Pipeline)
+    if (typeof aplicarModoDashboard === 'function') aplicarModoDashboard();
+    
+    // Restaurar modo matriz
+    const preferencia = localStorage.getItem('dashboard2_modo_matriz');
+    if (preferencia === 'ativa' && window.alternarRotacao) {
+        setTimeout(() => window.alternarRotacao(), 200);
+    }
+    
+});
+
+function abrirBottomSheet(itemId) {
+    if (!itemId) return;
+    var p = new URLSearchParams(window.location.search);
+    var obra = p.get('obra') || '{{ obra_id|default:"" }}';
+    if (!obra) {
+        var sel = document.getElementById('obraSelect');
+        if (sel && sel.value) obra = sel.value;
+    }
+    if (!obra) {
+        alert('Selecione uma obra primeiro.');
+        return;
+    }
+    p.set('obra', obra);
+    p.set('local', p.get('local') || '{{ local_selecionado_id|default:"todos" }}');
+    p.set('item', String(itemId));
+    if ('{{ busca_query|default:"" }}') p.set('busca', '{{ busca_query|urlencode }}');
+    preservarModoTabela(p);
+    window.location.href = '?' + p.toString();
+}
+
+function fecharBottomSheet() {
+    const bottomSheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('overlay');
+    
+    if (bottomSheet) bottomSheet.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+    
+    setTimeout(() => {
+        const params = new URLSearchParams();
+        params.set('obra', '{{ obra_id }}');
+        {% if local_selecionado_id %}
+        params.set('local', '{{ local_selecionado_id }}');
+        {% endif %}
+        {% if busca_query %}
+        params.set('busca', '{{ busca_query|urlencode }}');
+        {% endif %}
+        preservarModoTabela(params);
+        window.location.href = '?' + params.toString();
+    }, 300);
+}
+
+function retryLoadItem() {
+    const itemId = new URLSearchParams(window.location.search).get('item');
+    if (itemId) {
+        abrirBottomSheet(itemId);
+    }
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toastSuccess');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    if (toast && toastMessage) {
+        toastMessage.textContent = message || 'Operação realizada com sucesso!';
+        toast.style.display = 'flex';
+        
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3000);
+    }
+}
+
+// Verificar se há item selecionado ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    const itemId = new URLSearchParams(window.location.search).get('item');
+    if (itemId) {
+        const bottomSheet = document.getElementById('bottomSheet');
+        const overlay = document.getElementById('overlay');
+        if (bottomSheet) bottomSheet.classList.add('active');
+        if (overlay) overlay.classList.add('active');
+    }
+    
+    // Esconder loading se houver conteúdo
+    const content = document.getElementById('bottomSheetContent');
+    const loading = document.getElementById('bottomSheetLoading');
+    if (content && content.innerHTML.trim() && loading) {
+        loading.style.display = 'none';
+        content.style.display = 'block';
+    }
+    
+    // Carregar alocações existentes se houver item selecionado
+    {% if item_selecionado_id %}
+    setTimeout(() => {
+        carregarAlocacoesExistentes({{ item_selecionado_id }});
+    }, 300);
+    {% endif %}
+});
+
+// Carregar alocações existentes
+function carregarAlocacoesExistentes(itemId) {
+    if (!itemId) return;
+    
+    fetch(`{% url 'suprimentos:item_alocacoes_json' 0 %}`.replace('0', itemId))
+        .then(response => response.json())
+        .then(data => {
+            const section = document.getElementById('alocacoesExistentesSection');
+            const list = document.getElementById('alocacoesExistentesList');
+            
+            if (data.alocacoes && data.alocacoes.length > 0) {
+                if (section) section.style.display = 'block';
+                if (list) {
+                    list.innerHTML = '';
+                    data.alocacoes.forEach(function(alocacao) {
+                        const dataFormatada = new Date(alocacao.data_alocacao).toLocaleDateString('pt-BR');
+                        const qtdNum = normalizarNumero(alocacao.quantidade_alocada);
+                        const qtdFormatada = qtdNum.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 2
+                        });
+                        
+                        const item = document.createElement('div');
+                        item.className = 'bottom-sheet-alocacao-item';
+                        item.innerHTML = `
+                            <div class="bottom-sheet-alocacao-info">
+                                <div class="bottom-sheet-alocacao-qtd">${qtdFormatada} ${itemAtual?.insumo_unidade || ''}</div>
+                                <div class="bottom-sheet-alocacao-data">${dataFormatada}</div>
+                            </div>
+                            <button type="button" class="btn-remover-alocacao" 
+                                    onclick="removerAlocacaoDashboard(${itemId}, ${alocacao.id})"
+                                    title="Remover esta alocação">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        `;
+                        list.appendChild(item);
+                    });
+                }
+            } else {
+                if (section) section.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar alocações:', error);
+        });
+}
+
+// Remover alocação no dashboard
+function removerAlocacaoDashboard(itemId, alocacaoId) {
+    if (!confirm('Tem certeza que deseja remover esta alocação?')) return;
+    
+    fetch(`{% url 'suprimentos:item_remover_alocacao' 0 %}`.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            'alocacao_id': alocacaoId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Alocação removida com sucesso!');
+            // Recarregar alocações
+            carregarAlocacoesExistentes(itemId);
+            // Recarregar página para atualizar dados
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível remover a alocação'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao remover alocação. Tente novamente.');
+    });
+}
+
+// Garantir que filtros apareçam (se existirem)
+document.addEventListener('DOMContentLoaded', function() {
+    const filtrosBar = document.querySelector('.dashboard-filtros-bar');
+    if (filtrosBar) {
+        filtrosBar.style.display = 'flex';
+        filtrosBar.style.visibility = 'visible';
+        filtrosBar.style.opacity = '1';
+    }
+    
+    // KPIs são calculados no backend e preenchidos via template
+    // Apenas destacar visualmente se houver alertas
+    function atualizarKPIs() {
+        const kpiAlertas = document.getElementById('kpiAlertas');
+        if (kpiAlertas) {
+            const val = parseInt(kpiAlertas.textContent.replace(/\D/g, '')) || 0;
+            if (val > 0) {
+                kpiAlertas.closest('.kpi-item').style.borderColor = 'var(--text-status-warning)';
+            }
+        }
+    }
+    
+    // Calcular resumo de gaps
+    const rows = document.querySelectorAll('.matriz-table tbody tr');
+    let totalFaltaComprar = 0;
+    let totalACaminho = 0;
+    let totalNaoAlocado = 0;
+    
+    rows.forEach(row => {
+        if (row.querySelector('.col-pedido .gap-negativo')) {
+            totalFaltaComprar++;
+        }
+        if (row.querySelector('.col-patio .gap-atencao')) {
+            totalACaminho++;
+        }
+        if (row.querySelector('.col-destino .gap-atencao')) {
+            totalNaoAlocado++;
+        }
+    });
+    
+    const resumoFaltaComprar = document.getElementById('totalFaltaComprar');
+    const resumoACaminho = document.getElementById('totalACaminho');
+    const resumoNaoAlocado = document.getElementById('totalNaoAlocado');
+    
+    // Atualizar KPIs
+    atualizarKPIs();
+    
+    // Atualizar KPIs quando a tabela for filtrada ou atualizada
+    const observer = new MutationObserver(function(mutations) {
+        atualizarKPIs();
+    });
+    
+    const tabelaContainer = document.getElementById('tabelaContainer');
+    if (tabelaContainer) {
+        observer.observe(tabelaContainer, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class']
+        });
+    }
+    
+    if (resumoFaltaComprar) resumoFaltaComprar.textContent = totalFaltaComprar + ' item(s)';
+    if (resumoACaminho) resumoACaminho.textContent = totalACaminho + ' item(s)';
+    if (resumoNaoAlocado) resumoNaoAlocado.textContent = totalNaoAlocado + ' item(s)';
+    
+    // Fechar ao clicar no overlay (se existir)
+    const overlay = document.getElementById('overlay');
+    if (overlay) {
+        overlay.addEventListener('click', fecharBottomSheet);
+    }
+    
+    // Abrir bottom sheet se houver item selecionado (após reload com ?item=)
+    {% if item_selecionado_id %}
+    requestAnimationFrame(function() {
+        setTimeout(function() {
+            var sheet = document.getElementById('bottomSheet');
+            var ov = document.getElementById('overlay');
+            if (sheet) sheet.classList.add('active');
+            if (ov) ov.classList.add('active');
+        }, 150);
+    });
+    {% endif %}
+    
+    // Validação de quantidade
+    const quantidadeInput = document.getElementById('quantidadeInput');
+    const btnAlocar = document.getElementById('btnAlocar');
+    const quantidadeError = document.getElementById('quantidadeError');
+    
+    if (quantidadeInput && itemAtual) {
+        quantidadeInput.addEventListener('input', function() {
+            const qtd = normalizarNumero(this.value);
+            const saldoDisponivel = normalizarNumero(itemAtual.saldo_disponivel);
+            
+            if (qtd > saldoDisponivel) {
+                quantidadeError.classList.add('active');
+                btnAlocar.disabled = true;
+            } else {
+                quantidadeError.classList.remove('active');
+                btnAlocar.disabled = qtd <= 0;
+            }
+        });
+    }
+});
+
+// Salvar alocação
+// Função auxiliar para normalizar número (aceita vírgula ou ponto)
+// ROBUSTA: Remove caracteres inválidos, trata múltiplas vírgulas/pontos, preserva precisão
+function normalizarNumero(valor) {
+    if (!valor && valor !== 0) return 0;
+    
+    // Converter para string e remover espaços
+    let valorStr = String(valor).trim();
+    
+    // Se vazio, retornar 0
+    if (!valorStr) return 0;
+    
+    // Remover caracteres não numéricos exceto vírgula e ponto
+    valorStr = valorStr.replace(/[^\d,.-]/g, '');
+    
+    // Se não tem nenhum dígito, retornar 0
+    if (!/\d/.test(valorStr)) return 0;
+    
+    // Tratar múltiplas vírgulas/pontos - manter apenas o último separador decimal
+    const ultimaVirgula = valorStr.lastIndexOf(',');
+    const ultimoPonto = valorStr.lastIndexOf('.');
+    
+    if (ultimaVirgula > ultimoPonto) {
+        // Vírgula é o separador decimal
+        // Remover todas as vírgulas e pontos, depois adicionar ponto no lugar da última vírgula
+        valorStr = valorStr.replace(/[,.]/g, '');
+        if (ultimaVirgula < valorStr.length) {
+            valorStr = valorStr.slice(0, ultimaVirgula) + '.' + valorStr.slice(ultimaVirgula);
+        }
+    } else if (ultimoPonto > ultimaVirgula) {
+        // Ponto é o separador decimal
+        // Remover todas as vírgulas e pontos, depois adicionar ponto no lugar do último ponto
+        valorStr = valorStr.replace(/[,.]/g, '');
+        if (ultimoPonto < valorStr.length) {
+            valorStr = valorStr.slice(0, ultimoPonto) + '.' + valorStr.slice(ultimoPonto);
+        }
+    } else {
+        // Sem separador decimal, remover vírgulas e pontos (são separadores de milhar)
+        valorStr = valorStr.replace(/[,.]/g, '');
+    }
+    
+    // Converter para número
+    const numero = parseFloat(valorStr);
+    
+    // Validar resultado
+    if (isNaN(numero) || !isFinite(numero)) return 0;
+    
+    return numero;
+}
+
+// Função para formatar número para string preservando precisão decimal
+// IMPORTANTE: Usar para enviar ao backend - preserva decimais
+function numeroParaString(numero) {
+    if (numero === null || numero === undefined || isNaN(numero)) return '0';
+    
+    // Converter para número se for string
+    const num = typeof numero === 'string' ? normalizarNumero(numero) : numero;
+    
+    // Se não for número válido, retornar '0'
+    if (isNaN(num) || !isFinite(num)) return '0';
+    
+    // Converter para string preservando decimais
+    // Usar toFixed para garantir decimais, mas remover zeros desnecessários
+    const str = num.toString();
+    
+    // Se já é uma string válida com ponto, retornar
+    if (str.includes('.')) {
+        return str;
+    }
+    
+    // Se for inteiro, retornar como está
+    return str;
+}
+
+function salvarAlocacao() {
+    const quantidadeInput = document.getElementById('quantidadeInput');
+    
+    if (!quantidadeInput.value) {
+        alert('Preencha a quantidade');
+        return;
+    }
+    
+    // Normalizar número (aceita vírgula ou ponto)
+    const qtd = normalizarNumero(quantidadeInput.value);
+    const saldoDisponivel = normalizarNumero(itemAtual.saldo_disponivel);
+    
+    if (qtd <= 0) {
+        alert('Quantidade deve ser maior que zero');
+        quantidadeInput.focus();
+        return;
+    }
+    
+    if (qtd > saldoDisponivel) {
+        alert('Quantidade excede o saldo disponível');
+        quantidadeInput.focus();
+        return;
+    }
+    
+    const btnAlocar = document.getElementById('btnAlocar');
+    btnAlocar.disabled = true;
+    btnAlocar.textContent = 'Alocando...';
+    
+    // Chamada AJAX - enviar como string para garantir precisão decimal
+    // IMPORTANTE: Usar numeroParaString para garantir precisão
+    const qtdString = numeroParaString(qtd);
+    fetch('{% url "suprimentos:dashboard2_alocar" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            'item_id': itemAtual.item_id,
+            'quantidade_alocada': qtdString, // Enviar como string para preservar decimais
+            'observacao': 'Alocação via Dashboard 2 Rastreabilidade'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+            btnAlocar.disabled = false;
+            btnAlocar.textContent = 'Alocar';
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao salvar alocação. Tente novamente.');
+        btnAlocar.disabled = false;
+        btnAlocar.textContent = 'Alocar';
+    });
+}
+
+// Lista virtual no mobile: só renderiza os cards visíveis (evita 300+ no DOM)
+(function() {
+    var el = document.getElementById('dashboard-itens');
+    if (!el) return;
+    var itens = [];
+    try { itens = JSON.parse(el.textContent); } catch (e) { return; }
+    if (!Array.isArray(itens) || itens.length === 0) return;
+    var wrapper = document.getElementById('mobileCardsVirtual');
+    var spacer = document.getElementById('virtualSpacer');
+    var viewport = document.getElementById('virtualViewport');
+    if (!wrapper || !spacer || !viewport) return;
+    var CARD_HEIGHT = 152;
+    var localTodos = document.getElementById('mobileCards') && document.getElementById('mobileCards').getAttribute('data-local-todos') === '1';
+    function esc(s) {
+        if (s == null || s === undefined) return '';
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+    function fmt(n) {
+        if (n == null || n === '' || n === undefined) return '—';
+        return Number(n).toFixed(0);
+    }
+    function createCard(item, index) {
+        var alertClass = item.alerta_nao_alocado ? 'mc-alert-warning' : (item.alerta_falta_comprar ? 'mc-alert-danger' : '');
+        var atrasadoHtml = item.is_atrasado ? '<span class="mc-atrasado"><i class="bi bi-clock-history"></i></span>' : '';
+        var localHtml = localTodos ? '<span class="mc-local">' + esc(item.local_nome) + '</span>' : '';
+        var pedidoVal = item.coluna_2_pedido_sc ? fmt(item.coluna_2_pedido_qtd) : '—';
+        var pedidoClass = item.coluna_2_pedido_sc ? '' : ' mc-danger';
+        var scHtml = item.coluna_2_pedido_sc ? '<div class="mc-sc">SC' + esc(String(item.coluna_2_pedido_sc)) + '</div>' : '';
+        var div = document.createElement('div');
+        div.className = 'mobile-card ' + alertClass;
+        div.setAttribute('role', 'button');
+        div.setAttribute('tabindex', '0');
+        div.style.position = 'absolute';
+        div.style.left = '0';
+        div.style.right = '0';
+        div.style.top = (index * CARD_HEIGHT) + 'px';
+        div.style.height = CARD_HEIGHT + 'px';
+        div.style.boxSizing = 'border-box';
+        div.innerHTML =
+            '<div class="mc-header"><span class="pipeline-badge ' + esc(item.status_class) + '">' + esc(item.status_label) + '</span>' + atrasadoHtml + '</div>' +
+            '<div class="mc-title">' + esc(item.insumo_descricao) + '</div>' +
+            '<div class="mc-meta"><span class="mc-code">' + esc(item.insumo_codigo || '—') + '</span>' + localHtml + '</div>' +
+            '<div class="mc-pipeline"><div class="mc-pipeline-bar"><div class="pipeline-fill ' + esc(item.status_class) + '" style="width:' + (item.pipeline_pct || 0) + '%"></div></div></div>' +
+            '<div class="mc-metrics">' +
+            '<div class="mc-metric"><span class="mc-metric-label">Plano</span><span class="mc-metric-value">' + fmt(item.coluna_1_plano) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Pedido</span><span class="mc-metric-value' + pedidoClass + '">' + pedidoVal + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Patio</span><span class="mc-metric-value">' + fmt(item.coluna_3_patio) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Destino</span><span class="mc-metric-value">' + fmt(item.coluna_4_destino_qtd) + '</span></div>' +
+            '</div>' + scHtml;
+        div.onclick = function() { if (typeof abrirBottomSheet === 'function') abrirBottomSheet(item.id); };
+        div.onkeydown = function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (typeof abrirBottomSheet === 'function') abrirBottomSheet(item.id); } };
+        return div;
+    }
+    spacer.style.height = (itens.length * CARD_HEIGHT) + 'px';
+    function renderVisible() {
+        var scrollTop = wrapper.scrollTop;
+        var height = wrapper.clientHeight;
+        var start = Math.max(0, Math.floor(scrollTop / CARD_HEIGHT) - 2);
+        var end = Math.min(itens.length, start + Math.ceil(height / CARD_HEIGHT) + 6);
+        viewport.innerHTML = '';
+        for (var i = start; i < end; i++) {
+            viewport.appendChild(createCard(itens[i], i));
+        }
+    }
+    wrapper.addEventListener('scroll', renderVisible);
+    window.addEventListener('resize', renderVisible);
+    renderVisible();
+})();
+
+// Função auxiliar para pegar CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Usuários{% endblock %}
+
+{% block page_title %}Usuários{% endblock %}
+{% block page_subtitle %}{% if use_central_urls %}Central - Usuários{% else %}GestControll - Gerenciamento{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+<link rel="stylesheet" href="{% static 'css/list_users.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container list-users">
+    <div class="list-header">
+        <h1 class="list-title">Usuários</h1>
+        <a href="{% if use_central_urls %}{% url 'central_create_user' %}{% else %}{% url 'gestao:create_user' %}{% endif %}" class="btn">+ Novo Usuário</a>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card filters-card">
+        <form method="get" class="filters-form">
+            <div class="filter-group">
+                <label for="search" class="filter-label">Buscar</label>
+                <input type="text" id="search" name="search" class="filter-input"
+                       value="{{ search_query|default:'' }}" placeholder="Username, e-mail ou nome">
+            </div>
+            <div class="filter-group">
+                <label for="grupo" class="filter-label">Grupo</label>
+                <select id="grupo" name="grupo" class="filter-select">
+                    <option value="">Todos</option>
+                    {% for grupo in grupos %}
+                        <option value="{{ grupo.name }}" {% if grupo_filter == grupo.name %}selected{% endif %}>{{ grupo.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn">Filtrar</button>
+            <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary">Limpar</a>
+        </form>
+    </div>
+
+    <!-- Lista de Usuários -->
+    <div class="card table-container">
+        {% if users_with_groups %}
+        <div class="users-count">
+            <strong>{{ page_obj.paginator.count }}</strong> usuário{{ page_obj.paginator.count|pluralize }} encontrado{{ page_obj.paginator.count|pluralize }}
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Foto</th>
+                    <th>Username</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Grupos</th>
+                    <th>Superusuário</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in users_with_groups %}
+                    <tr>
+                        <td data-label="Foto">
+                            {% with item.user.perfil as perfil %}
+                                {% if perfil and perfil.foto_perfil %}
+                                    <img src="{{ perfil.foto_perfil.url }}" alt="">
+                                {% else %}
+                                    <div>{{ item.user.get_full_name|default:item.user.username|slice:":1"|upper }}</div>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td data-label="Username">{{ item.user.username }}</td>
+                        <td data-label="Nome">{{ item.user.get_full_name|default:"—" }}</td>
+                        <td data-label="Email">{{ item.user.email|default:"—" }}</td>
+                        <td data-label="Grupos">
+                            <div class="group-badges">
+                                {% if item.groups %}
+                                    {% for grupo in item.groups %}
+                                        <span class="group-badge">{{ grupo.name }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="group-badge group-badge-muted">Sem grupo</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td data-label="Superusuário">
+                            {% if item.user.is_superuser %}
+                                <span class="badge-super">Sim</span>
+                            {% else %}
+                                <span class="text-muted">Não</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Ações">
+                            <div class="action-btns">
+                                <a href="{% if use_central_urls %}{% url 'central_edit_user' item.user.pk %}{% else %}{% url 'gestao:edit_user' item.user.pk %}{% endif %}" class="btn-edit">Editar</a>
+                                {% if is_admin %}
+                                    <a href="{% if use_central_urls %}{% url 'central_delete_user' item.user.pk %}{% else %}{% url 'gestao:delete_user' item.user.pk %}{% endif %}" class="btn-delete" onclick="return confirm('Tem certeza que deseja excluir o usuário {{ item.user.username }}? Esta ação não pode ser desfeita.');">Excluir</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Paginação -->
+        {% if page_obj.has_other_pages %}
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Anterior</a>
+                {% endif %}
+                
+                <span class="pagination-info">
+                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                </span>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Próxima</a>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <p class="empty-message">Nenhum usuário encontrado.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

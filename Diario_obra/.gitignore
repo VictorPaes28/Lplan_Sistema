@@ -1,0 +1,30 @@
+# Ambiente e segredos
+.env
+venv/
+.venv/
+env/
+
+# Banco e mídia (desenvolvimento)
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

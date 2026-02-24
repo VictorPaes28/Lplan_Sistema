@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Selecionar Obra{% endblock %}
+{% block page_subtitle %}Escolha a obra que deseja gerenciar{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/select_project.css' %}">
+<style>
+    /* Search input */
+    .project-search {
+        margin-bottom: 2rem;
+    }
+    .search-input-wrapper {
+        position: relative;
+        max-width: 500px;
+    }
+    .search-input {
+        width: 100%;
+        padding: 0.875rem 1rem 0.875rem 2.75rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+        background: #fff;
+    }
+    .search-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        pointer-events: none;
+    }
+
+    /* Project cards - enhanced hover */
+    .project-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .project-card:hover:not(.no-hover) {
+        transform: translateY(-4px);
+    }
+    .project-card button {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .project-card:hover:not(.no-hover) button {
+        box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+        border-color: #3b82f6;
+    }
+
+    /* Active/Selected project - more prominent */
+    .project-card button[data-selected="true"],
+    .project-card button.border-blue-500.bg-blue-50 {
+        border-width: 3px;
+        border-color: #2563eb;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        box-shadow: 0 8px 16px -4px rgba(37, 99, 235, 0.2);
+        position: relative;
+    }
+    .project-card button[data-selected="true"]::before,
+    .project-card button.border-blue-500.bg-blue-50::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #3b82f6);
+        border-radius: 12px 12px 0 0;
+    }
+
+    /* Empty state improvements */
+    .empty-state {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 2px dashed #cbd5e1;
+        border-radius: 16px;
+        padding: 3rem 2rem;
+        text-align: center;
+    }
+    .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    .empty-state-icon i {
+        font-size: 2rem;
+        color: #6366f1;
+    }
+
+    /* Hidden projects */
+    .project-card.hidden {
+        display: none;
+    }
+
+    /* No results message */
+    .no-results {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: #64748b;
+    }
+    .no-results i {
+        font-size: 3rem;
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .project-card,
+        .project-card button,
+        .empty-state-icon {
+            transition: none;
+            animation: none;
+        }
+        .project-card:hover:not(.no-hover) {
+            transform: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto fade-in">
+    {% if error %}
+    <div class="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg shadow-sm flex items-start" role="alert" aria-live="polite">
+        <i class="fas fa-exclamation-circle mr-2 mt-0.5 flex-shrink-0"></i>
+        <div>
+            <p class="font-semibold text-sm">Erro</p>
+            <p class="text-sm mt-1">{{ error }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mb-8">
+        <h2 class="text-2xl font-bold text-slate-900 mb-2">Selecione uma Obra</h2>
+        <p class="text-gray-600">Escolha a obra que deseja visualizar e gerenciar no sistema.</p>
+    </div>
+
+    {% if projects %}
+    <!-- Search Input -->
+    <div class="project-search">
+        <div class="search-input-wrapper">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" 
+                   id="projectSearch" 
+                   class="search-input" 
+                   placeholder="Buscar obra por nome ou código..."
+                   autocomplete="off">
+        </div>
+    </div>
+
+    <!-- No results message (hidden by default) -->
+    <div class="no-results hidden" id="noResults">
+        <i class="fas fa-search"></i>
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">Nenhuma obra encontrada</h3>
+        <p class="text-sm">Tente buscar com outros termos.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="projectsGrid">
+        {% for project in projects %}
+        <form method="post" action="{% url 'select-project' %}" class="project-card" data-project-name="{{ project.name|lower }}" data-project-code="{{ project.code|lower }}">
+            {% csrf_token %}
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <button type="submit" class="w-full text-left bg-white rounded-xl shadow-sm border-2 {% if selected_project_id == project.id %}border-blue-500 bg-blue-50{% else %}border-slate-200{% endif %} p-6 hover:border-blue-500 hover:shadow-lg transition-all duration-300 group" {% if selected_project_id == project.id %}data-selected="true"{% endif %}>
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center mb-1">
+                            <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3 group-hover:scale-105 transition-transform flex-shrink-0">
+                                <i class="fas fa-building text-white text-lg"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate" title="{{ project.name }}">
+                                    {{ project.name }}
+                                </h3>
+                                <p class="text-xs text-gray-500 font-mono">{{ project.code }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all flex-shrink-0 ml-2"></i>
+                </div>
+                
+                {% if project.address %}
+                <p class="text-sm text-gray-600 mb-3 line-clamp-1 flex items-center" title="{{ project.address }}">
+                    <i class="fas fa-map-marker-alt text-gray-400 mr-1.5 flex-shrink-0 text-xs"></i>
+                    <span class="truncate">{{ project.address }}</span>
+                </p>
+                {% elif project.responsible %}
+                <p class="text-sm text-gray-600 mb-3 flex items-center">
+                    <i class="fas fa-user-hard-hat text-gray-400 mr-1.5 flex-shrink-0 text-xs"></i>
+                    <span>Responsável: {{ project.responsible }}</span>
+                </p>
+                {% elif project.description and project.description != project.name %}
+                <p class="text-sm text-gray-600 mb-3 line-clamp-2">{{ project.description }}</p>
+                {% endif %}
+                
+                <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-slate-100">
+                    <div class="flex items-center">
+                        <i class="fas fa-calendar mr-1"></i>
+                        <span>{{ project.start_date|date:"d/m/Y" }} - {{ project.end_date|date:"d/m/Y" }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if selected_project_id == project.id %}
+                        <span class="px-2 py-1 bg-blue-600 text-white rounded-full font-medium text-xs">
+                            <i class="fas fa-check-circle mr-1"></i>Selecionada
+                        </span>
+                        {% endif %}
+                        {% if project.is_active %}
+                        <span class="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-xs">
+                            <i class="fas fa-circle mr-1"></i>Ativa
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </button>
+        </form>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="fas fa-building"></i>
+        </div>
+        <h3 class="text-xl font-semibold text-slate-900 mb-2">Nenhuma obra disponível</h3>
+        {% if user.is_staff or user.is_superuser %}
+        <p class="text-gray-600 mb-6">Não há obras ativas cadastradas no sistema.</p>
+        <a href="{% url 'project-new' %}" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
+            <i class="fas fa-plus mr-2"></i>
+            Criar Nova Obra
+        </a>
+        {% else %}
+        <p class="text-gray-600 mb-6">Você não está vinculado a nenhuma obra. Acesso ao Diário de Obra é por vínculo: só aparecem as obras às quais você foi vinculado. Entre em contato com o administrador para ser vinculado a uma ou mais obras.</p>
+        <p class="text-sm text-gray-500">Volte à <a href="{% url 'select-system' %}" class="text-blue-600 hover:underline">seleção de sistema</a> para acessar outros módulos.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Project search functionality
+(function() {
+    const searchInput = document.getElementById('projectSearch');
+    const projectsGrid = document.getElementById('projectsGrid');
+    const noResults = document.getElementById('noResults');
+    
+    if (!searchInput || !projectsGrid) return;
+    
+    searchInput.addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase().trim();
+        const projectCards = projectsGrid.querySelectorAll('.project-card');
+        let visibleCount = 0;
+        
+        projectCards.forEach(function(card) {
+            const projectName = card.getAttribute('data-project-name') || '';
+            const projectCode = card.getAttribute('data-project-code') || '';
+            
+            if (searchTerm === '' || 
+                projectName.includes(searchTerm) || 
+                projectCode.includes(searchTerm)) {
+                card.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                card.classList.add('hidden');
+            }
+        });
+        
+        // Show/hide no results message
+        if (visibleCount === 0 && searchTerm !== '') {
+            noResults.classList.remove('hidden');
+            projectsGrid.classList.add('hidden');
+        } else {
+            noResults.classList.add('hidden');
+            projectsGrid.classList.remove('hidden');
+        }
+    });
+})();
+</script>
+{% endblock %}
+

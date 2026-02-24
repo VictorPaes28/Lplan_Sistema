@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Filtro de Anexos{% endblock %}
+
+{% block content %}
+<div class="filter-page-header">
+    <h1 class="filter-page-title">Anexos e Documentos</h1>
+    <p class="filter-page-total">Total: {{ total_attachments }} anexo{{ total_attachments|pluralize }}</p>
+</div>
+
+<div class="filter-form-card">
+    <form method="get" class="filter-form">
+        <div>
+            <label for="filter-attachments-search">Buscar</label>
+            <input type="text" id="filter-attachments-search" name="search" value="{{ search }}" placeholder="Nome do arquivo...">
+        </div>
+        <div>
+            <label for="filter-attachments-date-start">Data início</label>
+            <input type="date" id="filter-attachments-date-start" name="date_start" value="{{ date_start }}">
+        </div>
+        <div>
+            <label for="filter-attachments-date-end">Data fim</label>
+            <input type="date" id="filter-attachments-date-end" name="date_end" value="{{ date_end }}">
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Lista de Anexos -->
+{% if attachments %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for attachment in attachments %}
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center">
+                <i class="fas fa-file text-blue-500 text-2xl mr-3"></i>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">
+                        {{ attachment.name }}
+                    </p>
+                    <p class="text-xs text-gray-500">
+                        {{ attachment.diary.date|date:"d/m/Y" }} - {{ attachment.diary.project.code }}
+                    </p>
+                </div>
+            </div>
+            <a href="{{ attachment.file.url }}" 
+               target="_blank"
+               class="text-blue-600 hover:text-blue-800">
+                <i class="fas fa-external-link-alt"></i>
+            </a>
+        </div>
+        {% if attachment.description %}
+        <p class="text-sm text-gray-700 mb-3 line-clamp-2">{{ attachment.description }}</p>
+        {% endif %}
+        <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+            <span>{{ attachment.file_type|default:"-" }}</span>
+            {% if attachment.file_size %}
+            <span>{{ attachment.file_size|filesizeformat }}</span>
+            {% endif %}
+        </div>
+        <a href="{% url 'diary-detail' attachment.diary.id %}" 
+           class="text-xs text-blue-600 hover:text-blue-800">
+            Ver relatório <i class="fas fa-arrow-right ml-1"></i>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Paginação -->
+{% if attachments.has_other_pages %}
+<div class="flex justify-center items-center space-x-2 mt-6">
+    {% if attachments.has_previous %}
+    <a href="?page={{ attachments.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}" 
+       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        <i class="fas fa-chevron-left"></i>
+    </a>
+    {% endif %}
+    
+    <span class="px-4 py-2 bg-blue-600 text-white rounded-lg">
+        Página {{ attachments.number }} de {{ attachments.paginator.num_pages }}
+    </span>
+    
+    {% if attachments.has_next %}
+    <a href="?page={{ attachments.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}" 
+       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+    <i class="fas fa-paperclip text-gray-300 text-6xl mb-4"></i>
+    <p class="text-gray-600 text-lg">Nenhum anexo encontrado</p>
+    <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de busca</p>
+</div>
+{% endif %}
+{% endblock %}
+

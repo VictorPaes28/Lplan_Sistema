@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Solicitar Exclusão: {{ workorder.codigo }}{% endblock %}
+
+{% block page_title %}Solicitar Exclusão{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/approval_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="approval-container">
+    <div class="card">
+        <h1 class="approval-title">
+            Solicitar Exclusão do Pedido
+        </h1>
+        
+        <div class="approval-info-box">
+            <p><strong>Código:</strong> {{ workorder.codigo }}</p>
+            <p><strong>Obra:</strong> {{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
+            <p><strong>Credor:</strong> {{ workorder.nome_credor }}</p>
+            <p><strong>Status:</strong> {{ workorder.get_status_display }}</p>
+        </div>
+        
+        <div class="approval-alert reprovar">
+            <strong>⚠ Atenção!</strong>
+            <p>
+                Você está prestes a solicitar a exclusão deste pedido. 
+                A exclusão só será efetivada após aprovação do aprovador responsável.
+                Você receberá uma notificação quando a exclusão for aprovada ou rejeitada.
+            </p>
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="approval-form-group">
+                <label for="motivo" class="approval-label">
+                    Motivo da Exclusão <span class="approval-required">*</span>:
+                </label>
+                <textarea 
+                    id="motivo" 
+                    name="motivo" 
+                    rows="5"
+                    required
+                    placeholder="Informe o motivo da exclusão do pedido (obrigatório)..."
+                    class="approval-textarea"
+                ></textarea>
+                <p class="approval-help">
+                    O motivo é obrigatório para solicitar a exclusão do pedido.
+                </p>
+            </div>
+            
+            <div class="approval-actions">
+                <button 
+                    type="submit" 
+                    class="btn approval-submit reprovar"
+                >
+                    ✓ Confirmar Solicitação de Exclusão
+                </button>
+                <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-secondary approval-cancel">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

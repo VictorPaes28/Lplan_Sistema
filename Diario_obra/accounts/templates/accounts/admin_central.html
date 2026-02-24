@@ -1,0 +1,973 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Painel do sistema{% endblock %}
+{% block page_subtitle %}Hub único: obras, usuários, ajuda e dados do LPLAN{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .admin-page { max-width: 1200px; }
+
+    /* ═══ Animations ═══ */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .anim-1 { animation: fadeInUp 0.35s ease both; }
+    .anim-2 { animation: fadeInUp 0.35s ease 0.06s both; }
+    .anim-3 { animation: fadeInUp 0.35s ease 0.12s both; }
+    .anim-4 { animation: fadeInUp 0.35s ease 0.18s both; }
+    .anim-5 { animation: fadeInUp 0.35s ease 0.24s both; }
+    .anim-6 { animation: fadeInUp 0.35s ease 0.3s both; }
+
+    /* ═══ KPI Cards ═══ */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.75rem;
+    }
+    .kpi-card {
+        background: white;
+        border-radius: 14px;
+        padding: 1.25rem 1.35rem;
+        border: 1px solid #e2e8f0;
+        transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+        position: relative;
+        overflow: hidden;
+    }
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 14px 14px 0 0;
+        opacity: 0;
+        transition: opacity 0.25s;
+    }
+    .kpi-card:hover {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        transform: translateY(-3px);
+    }
+    .kpi-card:hover::before { opacity: 1; }
+    .kpi-card.blue::before { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+    .kpi-card.green::before { background: linear-gradient(135deg, #22c55e, #10b981); }
+    .kpi-card.amber::before { background: linear-gradient(135deg, #f59e0b, #f97316); }
+    .kpi-card.purple::before { background: linear-gradient(135deg, #a855f7, #8b5cf6); }
+    
+    .kpi-top {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+        transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .kpi-card:hover .kpi-icon { transform: scale(1.1) rotate(4deg); }
+    .kpi-value {
+        font-size: 1.85rem;
+        font-weight: 800;
+        line-height: 1;
+        color: #1e293b;
+        letter-spacing: -0.03em;
+    }
+    .kpi-label {
+        font-size: 0.8rem;
+        color: #64748b;
+        font-weight: 500;
+        margin-top: 3px;
+    }
+    .kpi-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+    .kpi-badge {
+        font-size: 0.7rem;
+        padding: 2px 10px;
+        border-radius: 9999px;
+        font-weight: 600;
+    }
+
+    /* ═══ Two-Column Layout ═══ */
+    .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.75rem;
+    }
+    @media (max-width: 900px) {
+        .two-col { grid-template-columns: 1fr; }
+    }
+
+    /* ═══ Section Title ═══ */
+    .section-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .section-title i { font-size: 0.9rem; }
+
+    /* ═══ Action Cards ═══ */
+    .action-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+    }
+    .action-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.9rem 1.15rem;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .action-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 16px rgba(59,130,246,0.12);
+        color: inherit;
+        text-decoration: none;
+        transform: translateX(3px);
+    }
+    .action-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+        transition: transform 0.25s;
+    }
+    .action-card:hover .action-icon { transform: scale(1.08); }
+    .action-title {
+        font-weight: 600;
+        font-size: 0.88rem;
+        color: #1e293b;
+    }
+    .action-desc {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-top: 1px;
+    }
+    .action-arrow {
+        margin-left: auto;
+        color: #cbd5e1;
+        font-size: 0.75rem;
+        transition: all 0.2s;
+    }
+    .action-card:hover .action-arrow {
+        color: #3b82f6;
+        transform: translateX(3px);
+    }
+
+    /* ═══ System Cards ═══ */
+    .system-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .system-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        transition: all 0.2s;
+    }
+    .system-card:hover {
+        box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+    }
+    .system-card-header {
+        padding: 0.9rem 1.15rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .system-card-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+    }
+    .system-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    .system-card-header .system-name {
+        font-weight: 700;
+        font-size: 0.88rem;
+        color: #1e293b;
+    }
+    .system-card-header .system-desc {
+        font-size: 0.73rem;
+        color: #94a3b8;
+    }
+    .system-link {
+        font-size: 0.75rem;
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        transition: color 0.2s;
+    }
+    .system-link:hover { color: #1d4ed8; }
+    .system-card-body {
+        padding: 0.6rem 1.15rem 0.75rem;
+    }
+    .system-stat {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.4rem 0;
+    }
+    .system-stat:not(:last-child) {
+        border-bottom: 1px solid #f8fafc;
+    }
+    .system-stat-label {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    .system-stat-value {
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 0.88rem;
+    }
+
+    /* ═══ Roles / Groups ═══ */
+    .admin-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+    }
+    .admin-section-header {
+        padding: 0.9rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .admin-section-header h3 {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .admin-section-header h3 i { font-size: 0.9rem; }
+    .admin-section-link {
+        font-size: 0.78rem;
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .admin-section-link:hover { color: #1d4ed8; }
+
+    /* Group rows */
+    .group-system-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.3rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .group-system-label i { font-size: 0.72rem; }
+    .group-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.35rem 0 0.35rem 0.6rem;
+    }
+    .group-row:not(:last-child) {
+        border-bottom: 1px solid #f8fafc;
+    }
+    .group-name {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #334155;
+    }
+    .group-desc {
+        font-size: 0.68rem;
+        color: #94a3b8;
+        margin-left: 0.5rem;
+    }
+    .group-count {
+        padding: 2px 10px;
+        border-radius: 9999px;
+        font-size: 0.73rem;
+        font-weight: 700;
+        min-width: 28px;
+        text-align: center;
+    }
+
+    /* ═══ Table ═══ */
+    .admin-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .admin-table th {
+        font-size: 0.73rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        padding: 0.75rem 1.15rem;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: left;
+        background: #fafbfc;
+    }
+    .admin-table td {
+        padding: 0.7rem 1.15rem;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.85rem;
+    }
+    .admin-table tr:last-child td { border-bottom: none; }
+    .admin-table tr:hover td { background: #f8fafc; }
+    .user-avatar-sm {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.72rem;
+        color: white;
+        flex-shrink: 0;
+    }
+    .group-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 9px;
+        border-radius: 9999px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        margin-right: 3px;
+        margin-bottom: 2px;
+    }
+    .group-badge-engenharia { background: #dbeafe; color: #1d4ed8; }
+    .group-badge-administrador { background: #fee2e2; color: #dc2626; }
+    .group-badge-aprovador { background: #fae8ff; color: #7e22ce; }
+    .group-badge-solicitante { background: #e0f2fe; color: #0369a1; }
+    .group-badge-responsavel { background: #fef3c7; color: #a16207; }
+    .group-badge-gerentes { background: #ede9fe; color: #6d28d9; }
+    .group-badge-default { background: #f1f5f9; color: #475569; }
+
+    /* ═══ Obras Grid ═══ */
+    .obras-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.75rem;
+        padding: 1.15rem;
+    }
+    .obra-mini-card {
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s;
+    }
+    .obra-mini-card:hover {
+        border-color: #22c55e;
+        box-shadow: 0 2px 8px rgba(34,197,94,0.1);
+    }
+    .obra-nome {
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 0.88rem;
+        margin-bottom: 4px;
+    }
+    .obra-codigo {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .obra-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        margin-top: 0.5rem;
+        padding: 2px 9px;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: #dcfce7;
+        color: #16a34a;
+    }
+    .obra-status .dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #22c55e;
+    }
+
+    /* Bottom grid */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1.5rem;
+        margin-bottom: 1.75rem;
+    }
+    @media (max-width: 900px) {
+        .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Logs de E-mail — neutro, profissional */
+    .email-logs-panel { margin-bottom: 1.75rem; }
+    .email-logs-panel-inner {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .email-logs-panel-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    .email-logs-panel-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #6b7280;
+        margin: 0 0 0.25rem 0;
+    }
+    .email-logs-panel-desc {
+        font-size: 0.8125rem;
+        color: #4b5563;
+        line-height: 1.45;
+        margin: 0;
+    }
+    .email-logs-panel-link {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .email-logs-panel-link:hover { color: #111827; }
+    .email-logs-panel-link .fa-chevron-right { font-size: 0.65rem; }
+    .email-logs-panel-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        background: #f3f4f6;
+    }
+    .email-logs-stat {
+        background: #fff;
+        padding: 1rem 1.25rem;
+        text-align: center;
+    }
+    .email-logs-stat-value {
+        display: block;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #111827;
+        line-height: 1.2;
+    }
+    .email-logs-stat-value.email-logs-stat-fail { color: #b91c1c; }
+    .email-logs-stat-label {
+        display: block;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        margin-top: 0.25rem;
+    }
+    @media (max-width: 600px) {
+        .email-logs-panel-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+
+    <!-- ═══ Logs de E-mail ═══ -->
+    <section class="email-logs-panel anim-1" aria-labelledby="email-logs-title">
+        <div class="email-logs-panel-inner">
+            <header class="email-logs-panel-header">
+                <div>
+                    <p id="email-logs-title" class="email-logs-panel-label">Logs de E-mail</p>
+                    <p class="email-logs-panel-desc">Histórico de envios do GestControll (pedidos e aprovações). Ver detalhes e reenviar falhas.</p>
+                </div>
+                <a href="{% url 'gestao:list_email_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+            </header>
+            {% if stats_email_logs %}
+            <div class="email-logs-panel-stats">
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value">{{ stats_email_logs.total }}</span>
+                    <span class="email-logs-stat-label">Total</span>
+                </div>
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value">{{ stats_email_logs.enviados }}</span>
+                    <span class="email-logs-stat-label">Enviados</span>
+                </div>
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value {% if stats_email_logs.falhados > 0 %}email-logs-stat-fail{% endif %}">{{ stats_email_logs.falhados }}</span>
+                    <span class="email-logs-stat-label">Falhados</span>
+                </div>
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value">{{ stats_email_logs.taxa_sucesso }}%</span>
+                    <span class="email-logs-stat-label">Taxa de sucesso</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ═══ KPI Cards ═══ -->
+    <div class="kpi-grid">
+        <div class="kpi-card blue anim-1">
+            <div class="kpi-top">
+                <div class="kpi-icon" style="background: #eff6ff; color: #3b82f6;">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div>
+                    <div class="kpi-value">{{ total_usuarios }}</div>
+                    <div class="kpi-label">Usuários</div>
+                </div>
+            </div>
+            <div class="kpi-badges">
+                <span class="kpi-badge" style="background: #dcfce7; color: #16a34a;">{{ usuarios_ativos }} ativos</span>
+                {% if novos_usuarios_30d > 0 %}
+                <span class="kpi-badge" style="background: #dbeafe; color: #2563eb;">+{{ novos_usuarios_30d }} este mês</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="kpi-card green anim-2">
+            <div class="kpi-top">
+                <div class="kpi-icon" style="background: #f0fdf4; color: #22c55e;">
+                    <i class="fas fa-hard-hat"></i>
+                </div>
+                <div>
+                    <div class="kpi-value">{{ stats_diario.projetos_ativos }}</div>
+                    <div class="kpi-label">Projetos Ativos</div>
+                </div>
+            </div>
+            <div class="kpi-badges">
+                <span class="kpi-badge" style="background: #f0fdf4; color: #16a34a;">{{ stats_diario.projetos }} total</span>
+            </div>
+        </div>
+        
+        <div class="kpi-card amber anim-3">
+            <div class="kpi-top">
+                <div class="kpi-icon" style="background: #fef3c7; color: #f59e0b;">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div>
+                    <div class="kpi-value">{{ stats_diario.diarios }}</div>
+                    <div class="kpi-label">Diários de Obra</div>
+                </div>
+            </div>
+            <div class="kpi-badges">
+                {% if stats_diario.diarios_30d > 0 %}
+                <span class="kpi-badge" style="background: #fef3c7; color: #92400e;">+{{ stats_diario.diarios_30d }} últimos 30d</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="kpi-card purple anim-4">
+            <div class="kpi-top">
+                <div class="kpi-icon" style="background: #fae8ff; color: #a855f7;">
+                    <i class="fas fa-clipboard-check"></i>
+                </div>
+                <div>
+                    <div class="kpi-value">{{ stats_gestao.ordens }}</div>
+                    <div class="kpi-label">Ordens de Serviço</div>
+                </div>
+            </div>
+            <div class="kpi-badges">
+                <span class="kpi-badge" style="background: #fae8ff; color: #7e22ce;">{{ stats_gestao.aprovacoes }} aprovações</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Obras e usuários (hub único) ═══ -->
+    <div class="anim-5" style="margin-bottom: 1.75rem;">
+        <div class="section-title">
+            <i class="fas fa-cogs" style="color: #1e40af;"></i> Obras e usuários
+        </div>
+        <p class="admin-p-intro" style="font-size: 0.9rem; color: #64748b; margin-bottom: 1rem; line-height: 1.5;">Cadastre obras (projetos) e usuários aqui. As mesmas obras e vínculos valem para o Diário de Obra, o sistema de Pedidos e o Mapa.</p>
+        <div class="central-help-card" style="margin-bottom: 1.25rem;">
+            <p class="central-help-title">Algo deu errado ou alguém reclamou de um problema?</p>
+            <p class="central-help-desc">Use a página de Ajuda: passo a passo em linguagem simples e botões que levam ao lugar certo para resolver.</p>
+            <a href="{% url 'central_ajuda' %}" class="central-help-btn">
+                <i class="fas fa-question-circle" aria-hidden="true"></i> Ajuda — Quando algo der errado
+            </a>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <a href="{% url 'central_project_list' %}" class="central-action-card">
+                <div class="central-action-icon" style="background:#eff6ff;color:#2563eb;">
+                    <i class="fas fa-building" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Obras</h2>
+                <p class="central-action-desc">Criar e editar obras. Aparecem no Diário, Pedidos e Mapa.</p>
+                <span class="central-action-link">Ver obras <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+            <a href="{% url 'central_list_users' %}" class="central-action-card">
+                <div class="central-action-icon" style="background:#f0fdf4;color:#059669;">
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Usuários</h2>
+                <p class="central-action-desc">Criar usuários e vincular às obras.</p>
+                <span class="central-action-link">Ver usuários <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+            <a href="{% url 'central_manutencao' %}" class="central-action-card">
+                <div class="central-action-icon" style="background:#fef3c7;color:#d97706;">
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Atualizar listas</h2>
+                <p class="central-action-desc">Fazer obras aparecerem no Pedidos e no Mapa.</p>
+                <span class="central-action-link">Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+            <a href="{% url 'central_ajuda' %}" class="central-action-card">
+                <div class="central-action-icon" style="background:#eff6ff;color:#2563eb;">
+                    <i class="fas fa-question-circle" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Ajuda</h2>
+                <p class="central-action-desc">Passo a passo quando algo der errado.</p>
+                <span class="central-action-link">Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- ═══ Mais ações + Sistemas ═══ -->
+    <div class="two-col anim-5">
+        <!-- Mapa, análise e navegação (sem duplicar Obras/Usuários já acima) -->
+        <div>
+            <div class="section-title">
+                <i class="fas fa-bolt" style="color: #f59e0b;"></i> Mapa, análise e navegação
+            </div>
+            <p class="admin-p-intro" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.85rem; line-height: 1.4;">Obras do Mapa de Suprimentos, métricas de uso e volta à seleção de sistemas.</p>
+            <div class="action-grid">
+                <a href="{% url 'accounts:criar_obra' %}" class="action-card">
+                    <div class="action-icon" style="background: #dcfce7; color: #16a34a;">
+                        <i class="fas fa-map-marked-alt"></i>
+                    </div>
+                    <div>
+                        <div class="action-title">Criar obra (Mapa)</div>
+                        <div class="action-desc">Cadastrar obra no Mapa de Suprimentos</div>
+                    </div>
+                    <i class="fas fa-chevron-right action-arrow"></i>
+                </a>
+                <a href="{% url 'accounts:gerenciar_obras' %}" class="action-card">
+                    <div class="action-icon" style="background: #fae8ff; color: #a855f7;">
+                        <i class="fas fa-city"></i>
+                    </div>
+                    <div>
+                        <div class="action-title">Gerenciar obras (Mapa)</div>
+                        <div class="action-desc">Obras do Mapa de Suprimentos</div>
+                    </div>
+                    <i class="fas fa-chevron-right action-arrow"></i>
+                </a>
+                <a href="{% url 'accounts:admin_analise_usuarios' %}" class="action-card">
+                    <div class="action-icon" style="background: #e0e7ff; color: #4f46e5;">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <div class="action-title">Análise de Usuários</div>
+                        <div class="action-desc">Métricas, por grupo e filtros de uso</div>
+                    </div>
+                    <i class="fas fa-chevron-right action-arrow"></i>
+                </a>
+                <a href="{% url 'select-system' %}" class="action-card">
+                    <div class="action-icon" style="background: #f1f5f9; color: #475569;">
+                        <i class="fas fa-th-large"></i>
+                    </div>
+                    <div>
+                        <div class="action-title">Selecionar Sistema</div>
+                        <div class="action-desc">Ir para Diário, GestControll ou Mapa</div>
+                    </div>
+                    <i class="fas fa-chevron-right action-arrow"></i>
+                </a>
+            </div>
+        </div>
+        
+        <!-- Sistemas Integrados -->
+        <div>
+            <div class="section-title">
+                <i class="fas fa-th-large" style="color: #3b82f6;"></i> Sistemas Integrados
+            </div>
+            <div class="system-grid">
+                <!-- Diário de Obra -->
+                <div class="system-card">
+                    <div class="system-card-header">
+                        <div class="system-card-header-left">
+                            <div class="system-icon" style="background: #eff6ff; color: #3b82f6;">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <div>
+                                <div class="system-name">Diário de Obra</div>
+                                <div class="system-desc">Relatórios diários de obra</div>
+                            </div>
+                        </div>
+                        <a href="{% url 'select-project' %}" class="system-link">
+                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        </a>
+                    </div>
+                    <div class="system-card-body">
+                        <div class="system-stat">
+                            <span class="system-stat-label">Projetos ativos</span>
+                            <span class="system-stat-value">{{ stats_diario.projetos_ativos }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Diários registrados</span>
+                            <span class="system-stat-value">{{ stats_diario.diarios }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- GestControll -->
+                <div class="system-card">
+                    <div class="system-card-header">
+                        <div class="system-card-header-left">
+                            <div class="system-icon" style="background: #fae8ff; color: #a855f7;">
+                                <i class="fas fa-clipboard-check"></i>
+                            </div>
+                            <div>
+                                <div class="system-name">GestControll</div>
+                                <div class="system-desc">Ordens de serviço e aprovações</div>
+                            </div>
+                        </div>
+                        <a href="{% url 'gestao:home' %}" class="system-link">
+                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        </a>
+                    </div>
+                    <div class="system-card-body">
+                        <div class="system-stat">
+                            <span class="system-stat-label">Ordens de serviço</span>
+                            <span class="system-stat-value">{{ stats_gestao.ordens }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Aprovações</span>
+                            <span class="system-stat-value">{{ stats_gestao.aprovacoes }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mapa de Suprimentos -->
+                <div class="system-card">
+                    <div class="system-card-header">
+                        <div class="system-card-header-left">
+                            <div class="system-icon" style="background: #f0fdf4; color: #22c55e;">
+                                <i class="fas fa-map"></i>
+                            </div>
+                            <div>
+                                <div class="system-name">Mapa de Suprimentos</div>
+                                <div class="system-desc">Suprimentos e insumos</div>
+                            </div>
+                        </div>
+                        <a href="{% url 'accounts:gerenciar_obras' %}" class="system-link">
+                            Obras <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        </a>
+                    </div>
+                    <div class="system-card-body">
+                        <div class="system-stat">
+                            <span class="system-stat-label">Obras ativas</span>
+                            <span class="system-stat-value">{{ stats_mapa.obras_ativas }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Insumos cadastrados</span>
+                            <span class="system-stat-value">{{ stats_mapa.insumos }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Itens no mapa</span>
+                            <span class="system-stat-value">{{ stats_mapa.itens_mapa }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ═══ Grupos + Últimos Usuários ═══ -->
+    <div class="bottom-grid anim-6">
+        <!-- Grupos e Permissões -->
+        <div class="admin-section">
+            <div class="admin-section-header">
+                <h3><i class="fas fa-layer-group" style="color: #6366f1;"></i> Grupos</h3>
+            </div>
+            <div style="padding: 0.85rem 1.15rem;">
+                <!-- Gestão de Aprovação -->
+                <div style="margin-bottom: 0.85rem;">
+                    <div class="group-system-label" style="color: #a855f7;">
+                        <i class="fas fa-clipboard-check"></i> Gestão de Aprovação
+                    </div>
+                    {% for grupo in grupos_gestao %}
+                    <div class="group-row">
+                        <div>
+                            <span class="group-name">{{ grupo.name }}</span>
+                            <span class="group-desc">{{ grupo.desc }}</span>
+                        </div>
+                        <span class="group-count" style="background: #fae8ff; color: #7e22ce;">{{ grupo.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Diário de Obra -->
+                <div style="margin-bottom: 0.85rem;">
+                    <div class="group-system-label" style="color: #3b82f6;">
+                        <i class="fas fa-book"></i> Diário de Obra
+                    </div>
+                    {% for grupo in grupos_diario %}
+                    <div class="group-row">
+                        <div>
+                            <span class="group-name">{{ grupo.name }}</span>
+                            <span class="group-desc">{{ grupo.desc }}</span>
+                        </div>
+                        <span class="group-count" style="background: #dbeafe; color: #1d4ed8;">{{ grupo.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Mapa de Suprimentos -->
+                <div>
+                    <div class="group-system-label" style="color: #22c55e;">
+                        <i class="fas fa-map"></i> Mapa de Suprimentos
+                    </div>
+                    {% for grupo in grupos_mapa %}
+                    <div class="group-row">
+                        <div>
+                            <span class="group-name">{{ grupo.name }}</span>
+                            <span class="group-desc">{{ grupo.desc }}</span>
+                        </div>
+                        <span class="group-count" style="background: #dcfce7; color: #16a34a;">{{ grupo.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Últimos Usuários -->
+        <div class="admin-section">
+            <div class="admin-section-header">
+                <h3><i class="fas fa-clock" style="color: #f59e0b;"></i> Últimos Usuários</h3>
+                <a href="{% url 'central_list_users' %}" class="admin-section-link">
+                    Ver todos <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                </a>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Nome</th>
+                            <th>Grupos</th>
+                            <th>Cadastro</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in ultimos_usuarios %}
+                        <tr>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                    <div class="user-avatar-sm" style="background: linear-gradient(135deg, #3b82f6, #6366f1);">
+                                        {{ usuario.username|first|upper }}
+                                    </div>
+                                    <span style="font-weight: 600; color: #1e293b;">{{ usuario.username }}</span>
+                                </div>
+                            </td>
+                            <td style="color: #64748b;">{{ usuario.get_full_name|default:"-" }}</td>
+                            <td>
+                                {% for grupo in usuario.groups.all %}
+                                <span class="group-badge {% if grupo.name == 'Mapa de Suprimentos' %}group-badge-engenharia{% elif grupo.name == 'Administrador' %}group-badge-administrador{% elif grupo.name == 'Aprovador' %}group-badge-aprovador{% elif grupo.name == 'Solicitante' %}group-badge-solicitante{% elif grupo.name == 'Responsavel Empresa' %}group-badge-responsavel{% elif grupo.name == 'Diário de Obra' %}group-badge-gerentes{% else %}group-badge-default{% endif %}">
+                                    {{ grupo.name }}
+                                </span>
+                                {% empty %}
+                                <span style="color: #cbd5e1; font-size: 0.78rem;">Sem grupo</span>
+                                {% endfor %}
+                            </td>
+                            <td style="color: #94a3b8; font-size: 0.78rem;">{{ usuario.date_joined|date:"d/m/Y" }}</td>
+                            <td>
+                                <a href="{% url 'central_edit_user' usuario.pk %}" style="color: #3b82f6; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem; padding: 4px 8px; border-radius: 6px; transition: background 0.2s;"
+                                   onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='transparent'">
+                                    <i class="fas fa-pen" style="font-size: 0.7rem;"></i> Editar
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: #94a3b8; padding: 2rem;">
+                                <i class="fas fa-users" style="font-size: 1.5rem; color: #e2e8f0; display: block; margin-bottom: 0.5rem;"></i>
+                                Nenhum usuário cadastrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ═══ Obras Ativas (Mapa) ═══ -->
+    {% if obras_ativas %}
+    <div class="admin-section anim-6" style="margin-bottom: 1.5rem;">
+        <div class="admin-section-header">
+            <h3><i class="fas fa-building" style="color: #22c55e;"></i> Obras ativas (Mapa de Suprimentos)</h3>
+            <a href="{% url 'accounts:gerenciar_obras' %}" class="admin-section-link">
+                Gerenciar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+            </a>
+        </div>
+        <div class="obras-grid">
+            {% for obra in obras_ativas %}
+            <div class="obra-mini-card">
+                <div class="obra-nome">{{ obra.nome }}</div>
+                <div class="obra-codigo">{{ obra.codigo_sienge }}</div>
+                <div class="obra-status"><span class="dot"></span> Ativa</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+</div>
+{% endblock %}

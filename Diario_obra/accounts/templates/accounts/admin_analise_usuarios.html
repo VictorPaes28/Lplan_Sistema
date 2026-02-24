@@ -1,0 +1,706 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Análise de Usuários{% endblock %}
+{% block page_subtitle %}Visão geral e métricas para administradores{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-page { max-width: 1200px; }
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .anim-1 { animation: fadeInUp 0.35s ease both; }
+    .anim-2 { animation: fadeInUp 0.35s ease 0.06s both; }
+    .anim-3 { animation: fadeInUp 0.35s ease 0.12s both; }
+    .anim-4 { animation: fadeInUp 0.35s ease 0.18s both; }
+    .anim-5 { animation: fadeInUp 0.35s ease 0.24s both; }
+    .anim-6 { animation: fadeInUp 0.35s ease 0.3s both; }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.75rem;
+    }
+    .kpi-card {
+        background: white;
+        border-radius: 14px;
+        padding: 1.1rem 1.2rem;
+        border: 1px solid #e2e8f0;
+        transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+        position: relative;
+        overflow: hidden;
+    }
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        border-radius: 14px 14px 0 0;
+        opacity: 0;
+        transition: opacity 0.25s;
+    }
+    .kpi-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-2px); }
+    .kpi-card:hover::before { opacity: 1; }
+    .kpi-card.blue::before { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+    .kpi-card.green::before { background: linear-gradient(135deg, #22c55e, #10b981); }
+    .kpi-card.amber::before { background: linear-gradient(135deg, #f59e0b, #f97316); }
+    .kpi-card.red::before { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .kpi-card.purple::before { background: linear-gradient(135deg, #a855f7, #8b5cf6); }
+    .kpi-card.slate::before { background: linear-gradient(135deg, #64748b, #475569); }
+
+    .kpi-value { font-size: 1.6rem; font-weight: 800; line-height: 1; color: #1e293b; letter-spacing: -0.03em; }
+    .kpi-label { font-size: 0.75rem; color: #64748b; font-weight: 500; margin-top: 2px; }
+
+    .section-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .section-title i { font-size: 0.9rem; }
+
+    .analise-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+        padding: 1rem 1.2rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+    }
+    .analise-toolbar label { font-size: 0.8rem; font-weight: 600; color: #475569; margin-right: 0.35rem; }
+    .analise-toolbar select {
+        padding: 0.4rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.85rem;
+        background: white;
+    }
+    .analise-toolbar .btn-apply {
+        padding: 0.45rem 1rem;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .analise-toolbar .btn-apply:hover { background: #2563eb; }
+    .analise-toolbar .btn-link {
+        font-size: 0.85rem;
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .analise-toolbar .btn-link:hover { text-decoration: underline; }
+
+    .admin-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+    .admin-section-header {
+        padding: 0.9rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .admin-section-header h3 {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .admin-section-link {
+        font-size: 0.78rem;
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .admin-section-link:hover { color: #1d4ed8; }
+
+    .admin-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .admin-table th {
+        font-size: 0.73rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        padding: 0.75rem 1rem;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: left;
+        background: #fafbfc;
+    }
+    .admin-table td {
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.85rem;
+    }
+    .admin-table tr:last-child td { border-bottom: none; }
+    .admin-table tr:hover td { background: #f8fafc; }
+    .user-avatar-sm {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.72rem;
+        color: white;
+        flex-shrink: 0;
+        background: linear-gradient(135deg, #64748b, #475569);
+    }
+    .group-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        margin-right: 3px;
+        margin-bottom: 2px;
+    }
+    .group-badge-engenharia { background: #dbeafe; color: #1d4ed8; }
+    .group-badge-administrador { background: #fee2e2; color: #dc2626; }
+    .group-badge-aprovador { background: #fae8ff; color: #7e22ce; }
+    .group-badge-solicitante { background: #e0f2fe; color: #0369a1; }
+    .group-badge-responsavel { background: #fef3c7; color: #a16207; }
+    .group-badge-gerentes { background: #ede9fe; color: #6d28d9; }
+    .group-badge-default { background: #f1f5f9; color: #475569; }
+    .badge-ativo { background: #dcfce7; color: #16a34a; font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    .badge-inativo { background: #f1f5f9; color: #64748b; font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    .badge-desempenho { font-size: 0.68rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    .badge-desempenho.alto { background: #dcfce7; color: #15803d; }
+    .badge-desempenho.medio { background: #fef3c7; color: #a16207; }
+    .badge-desempenho.baixo { background: #f1f5f9; color: #64748b; }
+    .text-muted { color: #94a3b8; font-size: 0.8rem; }
+    .analise-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.88rem;
+        color: #64748b;
+        text-decoration: none;
+        margin-bottom: 1rem;
+    }
+    .analise-back:hover { color: #3b82f6; }
+    .grupos-list { padding: 1rem 1.25rem; }
+    .grupos-list ul { margin: 0; padding: 0; list-style: none; }
+    .grupos-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.88rem;
+    }
+    .grupos-list li:last-child { border-bottom: none; }
+    .grupos-list .grupo-count {
+        padding: 2px 10px;
+        border-radius: 9999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    .chart-bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding: 0.5rem 0; }
+    .chart-bar-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+    .chart-bar {
+        width: 100%;
+        max-width: 14px;
+        min-height: 2px;
+        border-radius: 4px 4px 0 0;
+        background: linear-gradient(180deg, #3b82f6, #60a5fa);
+        transition: height 0.3s ease;
+    }
+    .chart-bar-wrap span { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; }
+    .distrib-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+    .distrib-bar label { width: 140px; font-size: 0.78rem; color: #475569; flex-shrink: 0; }
+    .distrib-bar-track { flex: 1; height: 22px; background: #f1f5f9; border-radius: 6px; overflow: hidden; }
+    .distrib-bar-fill { height: 100%; border-radius: 6px; min-width: 4px; transition: width 0.4s ease; }
+    .desempenho-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+    .desempenho-card { background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1px solid #bbf7d0; border-radius: 12px; padding: 0.9rem; text-align: center; }
+    .desempenho-card.warn { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-color: #fde68a; }
+    .desempenho-value { font-size: 1.5rem; font-weight: 800; color: #15803d; }
+    .desempenho-card.warn .desempenho-value { color: #b45309; }
+    .desempenho-label { font-size: 0.72rem; color: #166534; font-weight: 600; margin-top: 2px; }
+    .desempenho-card.warn .desempenho-label { color: #92400e; }
+    .btn-export { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; background: #0f766e; color: white; border-radius: 8px; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+    .btn-export:hover { background: #0d9488; color: white; }
+
+    .analise-hero { font-size: 1rem; color: #475569; margin-bottom: 1.5rem; padding: 0.9rem 1.1rem; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1px solid #bbf7d0; border-radius: 12px; }
+    .analise-hero strong { color: #15803d; }
+    .analise-hero-meta { display: block; font-size: 0.8rem; color: #64748b; margin-top: 0.35rem; }
+
+    .prod-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .prod-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.2rem; text-align: center; transition: box-shadow 0.2s; }
+    .prod-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .prod-value { display: block; font-size: 1.75rem; font-weight: 800; color: #0d9488; letter-spacing: -0.02em; }
+    .prod-label { font-size: 0.75rem; color: #64748b; font-weight: 600; }
+
+    .top-list { list-style: none; margin: 0; padding: 0.75rem 1.25rem; }
+    .top-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem; }
+    .top-list li:last-child { border-bottom: none; }
+    .top-name { font-weight: 600; color: #334155; }
+    .top-count { font-weight: 700; color: #0d9488; min-width: 2rem; text-align: right; }
+
+    .kpi-compact .kpi-card { padding: 0.85rem 1rem; }
+    .kpi-compact .kpi-value { font-size: 1.4rem; }
+    .accordion-details summary::-webkit-details-marker { display: none; }
+    .accordion-details summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+    .accordion-details summary::after { content: '▼'; font-size: 0.7rem; color: #94a3b8; }
+    .accordion-details[open] summary::after { content: '▲'; }
+
+    .toolbar-busca { padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem; width: 180px; }
+    .toolbar-busca:focus { outline: none; border-color: #3b82f6; }
+
+    @media (max-width: 768px) {
+        .prod-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        .desempenho-grid[style*="repeat(4)"] { grid-template-columns: repeat(2, 1fr) !important; }
+        .charts-row.two-col { grid-template-columns: 1fr !important; }
+        .admin-table th:nth-child(n+6), .admin-table td:nth-child(n+6) { display: none; }
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .admin-table th.sortable { cursor: pointer; user-select: none; }
+    .admin-table th.sortable:hover { color: #3b82f6; }
+    .admin-table tr.row-sem-producao td { background: #fffbeb; }
+    .admin-table tr.row-com-reprovacao td { background: #fef2f2; }
+    .admin-table tr.row-sem-producao.row-com-reprovacao td { background: #fef3c7; }
+    @media (max-width: 768px) {
+        .alert-section div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <a href="{% url 'accounts:admin_central' %}" class="analise-back anim-1">
+        <i class="fas fa-arrow-left"></i> Voltar ao Painel do sistema
+    </a>
+
+    <!-- Resumo em uma linha (hero) -->
+    <div class="analise-hero anim-1">
+        <strong>{{ usuarios_ativos }}</strong> usuários ativos &middot;
+        <strong>{{ total_diarios_30d }}</strong> diários e <strong>{{ total_pedidos_30d }}</strong> pedidos (30d); <strong>{{ total_diarios_90d }}</strong> diários e <strong>{{ total_pedidos_90d }}</strong> pedidos (90d).
+        <span class="analise-hero-meta">Retenção {{ taxa_retencao_pct }}% &middot; Sem login 90d: {{ sem_login_90d }}{% if usuarios_sem_producao_30d_count %} &middot; <a href="?uso=sem_producao&status=ativos" style="color: #b45309; font-weight: 600;">{{ usuarios_sem_producao_30d_count }} sem produção 30d</a>{% endif %}</span>
+    </div>
+
+    <!-- Uso por sistema (30d) — quem usou Diário, Pedidos, ambos ou nenhum -->
+    <div class="section-title anim-1"><i class="fas fa-pie-chart" style="color: #6366f1;"></i> Uso por sistema (últimos 30 dias)</div>
+    <div class="desempenho-grid anim-1" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
+        <div class="desempenho-card">
+            <span class="desempenho-value">{{ resumo_sistema.só_diario }}</span>
+            <span class="desempenho-label">Só Diário de Obra</span>
+        </div>
+        <div class="desempenho-card">
+            <span class="desempenho-value">{{ resumo_sistema.só_pedido }}</span>
+            <span class="desempenho-label">Só Pedidos (GestControll)</span>
+        </div>
+        <div class="desempenho-card">
+            <span class="desempenho-value">{{ resumo_sistema.ambos }}</span>
+            <span class="desempenho-label">Diário e Pedidos</span>
+        </div>
+        <div class="desempenho-card warn">
+            <span class="desempenho-value">{{ resumo_sistema.nenhum }}</span>
+            <span class="desempenho-label">Sem uso em 30d</span>
+        </div>
+    </div>
+
+    <!-- Onde está o erro (GestControll) — para cobrança e resultado -->
+    {% if total_pedidos_30d > 0 or total_reprovacoes_30d > 0 or top10_reprovacoes_solicitante or top10_reprovacoes_obra %}
+    <div class="admin-section alert-section anim-1" style="margin-bottom: 1.5rem; border-color: #fecaca;">
+        <div class="admin-section-header" style="background: #fef2f2;">
+            <h3><i class="fas fa-exclamation-triangle" style="color: #dc2626;"></i> Onde está o erro (GestControll)</h3>
+            <span class="text-muted">Quem mais teve pedidos reprovados e qual obra mais erra</span>
+        </div>
+        <div style="padding: 1rem 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <div>
+                <p style="font-size: 0.85rem; margin-bottom: 0.75rem;"><strong>Taxa de reprovação (30d):</strong> <span style="color: #dc2626; font-weight: 800;">{{ taxa_reprovacao_pct }}%</span> — {{ total_reprovacoes_30d }} reprovações em {{ total_aprovacoes_ok_30d|add:total_reprovacoes_30d }} decisões.</p>
+                <h4 style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;">Quem mais teve pedidos reprovados (solicitante)</h4>
+                <ul class="top-list">
+                    {% for item in top10_reprovacoes_solicitante %}
+                    <li><span class="top-name">{{ item.user.username }}</span><span class="top-count" style="color: #dc2626;">{{ item.count }} reprov.</span></li>
+                    {% empty %}
+                    <li class="text-muted">Nenhuma reprovação no período.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div>
+                <h4 style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;">Obras com mais reprovações</h4>
+                <ul class="top-list">
+                    {% for item in top10_reprovacoes_obra %}
+                    <li><span class="top-name">{{ item.obra_nome|truncatewords:6 }}</span><span class="top-count" style="color: #dc2626;">{{ item.count }}</span></li>
+                    {% empty %}
+                    <li class="text-muted">Nenhuma no período.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Produtividade em destaque (primeira seção) -->
+    <div class="section-title anim-1">
+        <i class="fas fa-chart-line" style="color: #0d9488;"></i> Produtividade (30 dias)
+    </div>
+    <div class="prod-grid anim-1" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="prod-card">
+            <span class="prod-value">{{ total_diarios_30d }}</span>
+            <span class="prod-label">Diários (30d)</span>
+        </div>
+        <div class="prod-card">
+            <span class="prod-value">{{ total_diarios_90d }}</span>
+            <span class="prod-label">Diários (90d)</span>
+        </div>
+        <div class="prod-card">
+            <span class="prod-value">{{ total_revisoes_30d }}</span>
+            <span class="prod-label">Revisões (30d)</span>
+        </div>
+        <div class="prod-card">
+            <span class="prod-value">{{ total_pedidos_30d }}</span>
+            <span class="prod-label">Pedidos (30d)</span>
+        </div>
+        <div class="prod-card">
+            <span class="prod-value">{{ total_pedidos_90d }}</span>
+            <span class="prod-label">Pedidos (90d)</span>
+        </div>
+        <div class="prod-card">
+            <span class="prod-value">{{ total_aprovacoes_30d }}</span>
+            <span class="prod-label">Aprovações (30d)</span>
+        </div>
+    </div>
+
+    <!-- Top 5 produtividade e desempenho -->
+    <div class="section-title anim-1"><i class="fas fa-trophy" style="color: #eab308;"></i> Destaques (30 dias)</div>
+    <div class="charts-row two-col" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+        <div class="admin-section">
+            <div class="admin-section-header">
+                <h3><i class="fas fa-book" style="color: #0d9488;"></i> Top 5 — Diários criados</h3>
+            </div>
+            <ul class="top-list">
+                {% for item in top5_diarios %}
+                <li><span class="top-name">{{ item.user.username }}</span><span class="top-count">{{ item.count }}</span></li>
+                {% empty %}
+                <li class="text-muted">Nenhum nos últimos 30 dias.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="admin-section">
+            <div class="admin-section-header">
+                <h3><i class="fas fa-clipboard-list" style="color: #f59e0b;"></i> Top 5 — Pedidos criados</h3>
+            </div>
+            <ul class="top-list">
+                {% for item in top5_pedidos %}
+                <li><span class="top-name">{{ item.user.username }}</span><span class="top-count">{{ item.count }}</span></li>
+                {% empty %}
+                <li class="text-muted">Nenhum nos últimos 30 dias.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="admin-section">
+            <div class="admin-section-header">
+                <h3><i class="fas fa-check-double" style="color: #6366f1;"></i> Top 5 — Aprovações</h3>
+            </div>
+            <ul class="top-list">
+                {% for item in top5_aprovadores %}
+                <li><span class="top-name">{{ item.user.username }}</span><span class="top-count">{{ item.count }}</span></li>
+                {% empty %}
+                <li class="text-muted">Nenhuma aprovação nos últimos 30 dias.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- KPIs usuários (compacto) -->
+    <div class="section-title anim-1">Usuários</div>
+    <div class="kpi-grid kpi-compact">
+        <div class="kpi-card blue anim-1">
+            <div class="kpi-value">{{ total_usuarios }}</div>
+            <div class="kpi-label">Total</div>
+        </div>
+        <div class="kpi-card green anim-2">
+            <div class="kpi-value">{{ usuarios_ativos }}</div>
+            <div class="kpi-label">Ativos</div>
+        </div>
+        <div class="kpi-card slate anim-3">
+            <div class="kpi-value">{{ usuarios_inativos }}</div>
+            <div class="kpi-label">Inativos</div>
+        </div>
+        <div class="kpi-card purple anim-4">
+            <div class="kpi-value">{{ novos_30d }}</div>
+            <div class="kpi-label">Novos (30d)</div>
+        </div>
+        <div class="kpi-card amber anim-5">
+            <div class="kpi-value">{{ nunca_logaram }}</div>
+            <div class="kpi-label">Nunca logaram</div>
+        </div>
+        <div class="kpi-card red anim-6">
+            <div class="kpi-value">{{ sem_login_30d }}</div>
+            <div class="kpi-label">Sem login 30d</div>
+        </div>
+        <div class="kpi-card amber anim-6">
+            <div class="kpi-value">{{ usuarios_sem_producao_30d_count }}</div>
+            <div class="kpi-label">Sem produção 30d</div>
+        </div>
+    </div>
+
+    <!-- Detalhes de acesso (login) — recolhível -->
+    <details class="admin-section accordion-details" style="margin-bottom: 1.5rem;">
+        <summary class="admin-section-header" style="cursor: pointer; list-style: none; user-select: none;">
+            <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i class="fas fa-sign-in-alt" style="color: #64748b;"></i> Detalhes de acesso (login)</h3>
+            <span class="text-muted" style="font-size: 0.78rem;">Gráficos de cadastros, último acesso e logins</span>
+        </summary>
+        <div style="padding: 1rem 1.25rem;">
+            <div class="charts-row two-col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1rem;">
+                <div>
+                    <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem;">Cadastros (30 dias)</h4>
+                    <div class="chart-bars">
+                        {% for item in cadastros_por_dia %}
+                        <div class="chart-bar-wrap">
+                            <div class="chart-bar" style="height: {% if max_cadastros > 0 %}{% widthratio item.count max_cadastros 100 %}{% else %}0{% endif %}px; max-height: 80px; min-height: {% if item.count > 0 %}4px{% else %}0{% endif %};"></div>
+                            <span>{{ item.date }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div>
+                    <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem;">Último acesso</h4>
+                    {% for item in distribuicao_ultimo_acesso %}
+                    <div class="distrib-bar">
+                        <label>{{ item.label }}</label>
+                        <div class="distrib-bar-track">
+                            <div class="distrib-bar-fill" style="width: {{ item.pct }}%; background: {{ item.cor }};"></div>
+                        </div>
+                        <span style="font-size: 0.8rem; font-weight: 700; min-width: 28px;">{{ item.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if has_login_log and logins_por_dia %}
+            <div>
+                <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem;">Logins por dia (30d)</h4>
+                <div class="chart-bars">
+                    {% for item in logins_por_dia %}
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar" style="height: {% if max_logins > 0 %}{% widthratio item.count max_logins 100 %}{% else %}0{% endif %}px; max-height: 80px; background: linear-gradient(180deg, #0d9488, #14b8a6);"></div>
+                        <span>{{ item.date }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </details>
+
+    <div class="two-col" style="display: grid; grid-template-columns: 1fr 280px; gap: 1.5rem; margin-bottom: 1.5rem;">
+        <div style="order: 1;">
+            <div class="section-title">
+                <i class="fas fa-list" style="color: #3b82f6;"></i> Lista de usuários
+            </div>
+            <form method="get" action="{% url 'accounts:admin_analise_usuarios' %}" class="analise-toolbar">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="busca">Buscar</label>
+                    <input type="text" name="busca" id="busca" class="toolbar-busca" placeholder="Nome ou usuário" value="{{ busca_query|default:'' }}">
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="grupo">Grupo</label>
+                    <select name="grupo" id="grupo">
+                        <option value="">Todos</option>
+                        {% for g in grupos_com_count %}
+                        <option value="{{ g.id }}" {% if grupo_id == g.id|stringformat:'d' %}selected{% endif %}>{{ g.name }} ({{ g.count }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="status">Status</label>
+                    <select name="status" id="status">
+                        <option value="ativos" {% if status_filtro == 'ativos' %}selected{% endif %}>Ativos</option>
+                        <option value="inativos" {% if status_filtro == 'inativos' %}selected{% endif %}>Inativos</option>
+                        <option value="todos" {% if status_filtro == 'todos' %}selected{% endif %}>Todos</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="uso">Uso</label>
+                    <select name="uso" id="uso">
+                        <option value="" {% if not uso_filtro %}selected{% endif %}>Todos</option>
+                        <option value="sem_producao" {% if uso_filtro == 'sem_producao' %}selected{% endif %}>Sem produção 30d</option>
+                        <option value="nunca_logou" {% if uso_filtro == 'nunca_logou' %}selected{% endif %}>Nunca logou</option>
+                        <option value="sem_login_30d" {% if uso_filtro == 'sem_login_30d' %}selected{% endif %}>Sem login 30 dias</option>
+                        <option value="sem_login_90d" {% if uso_filtro == 'sem_login_90d' %}selected{% endif %}>Sem login 90 dias</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-apply">Filtrar</button>
+                <a href="{% url 'accounts:admin_analise_usuarios_export_csv' %}?{{ request.GET.urlencode }}" class="btn-export"><i class="fas fa-file-csv"></i> Exportar CSV</a>
+                <a href="{% url 'central_list_users' %}" class="btn-link">Gerenciar usuários →</a>
+            </form>
+
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3><i class="fas fa-users" style="color: #3b82f6;"></i> Resultados</h3>
+                    <a href="{% url 'central_list_users' %}" class="admin-section-link">Editar usuários <i class="fas fa-external-link-alt" style="font-size: 0.65rem;"></i></a>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Usuário</th>
+                                <th>Nome / E-mail</th>
+                                <th>Grupos</th>
+                                <th>Obras</th>
+                                <th>Último login</th>
+                                <th>Última ativ.</th>
+                                <th>Cadastro</th>
+                                <th class="sortable" data-sort="number" data-col="7">Diários (30d)</th>
+                                <th class="sortable" data-sort="number" data-col="8">Revisões (30d)</th>
+                                <th class="sortable" data-sort="number" data-col="9">Pedidos (30d)</th>
+                                <th class="sortable" data-sort="number" data-col="10">Aprovações (30d)</th>
+                                <th class="sortable" data-sort="number" data-col="11">Reprov. (30d)</th>
+                                <th>% Reprov.</th>
+                                <th>Desempenho</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analise-tbody">
+                            {% for row in usuarios_com_prod %}
+                            {% with u=row.user %}
+                            <tr class="{% if row.sem_producao %}row-sem-producao{% endif %} {% if row.reprovacoes_30d > 0 %}row-com-reprovacao{% endif %}">
+                                <td>
+                                    <span class="user-avatar-sm">{{ u.username|slice:":2"|upper }}</span>
+                                    <strong style="margin-left: 0.5rem;">{{ u.username }}</strong>
+                                </td>
+                                <td>
+                                    <div>{{ u.get_full_name|default:"—" }}</div>
+                                    <div class="text-muted">{{ u.email|default:"—" }}</div>
+                                </td>
+                                <td>
+                                    {% for gr in u.groups.all %}
+                                    <span class="group-badge group-badge-{{ gr.name|slugify }}">{{ gr.name }}</span>
+                                    {% empty %}
+                                    <span class="text-muted">—</span>
+                                    {% endfor %}
+                                </td>
+                                <td><span title="Obras (projetos) vinculadas no Diário">{{ row.obras_vinculadas|default:0 }}</span></td>
+                                <td>
+                                    {% if u.last_login %}
+                                    {{ u.last_login|date:"d/m/Y H:i" }}
+                                    {% else %}
+                                    <span class="text-muted">Nunca</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if row.ultima_atividade %}
+                                    {{ row.ultima_atividade|date:"d/m/Y" }}
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ u.date_joined|date:"d/m/Y" }}</td>
+                                <td>{{ row.diarios_criados_30d|default:0 }}</td>
+                                <td>{{ row.diarios_revisados_30d|default:0 }}</td>
+                                <td>{{ row.pedidos_30d|default:0 }}</td>
+                                <td>{{ row.aprovacoes_30d|default:0 }}</td>
+                                <td>{% if row.reprovacoes_30d > 0 %}<strong style="color: #dc2626;">{{ row.reprovacoes_30d }}</strong>{% else %}{{ row.reprovacoes_30d|default:0 }}{% endif %}</td>
+                                <td>{% if row.taxa_reprovacao is not None %}{{ row.taxa_reprovacao }}%{% else %}—{% endif %}</td>
+                                <td>
+                                    {% if row.desempenho == 'alto' %}<span class="badge-desempenho alto" title="Alta atividade (diários + pedidos + aprovações)">Alto</span>
+                                    {% elif row.desempenho == 'medio' %}<span class="badge-desempenho medio">Médio</span>
+                                    {% else %}<span class="badge-desempenho baixo" title="Sem atividade em 30d">Baixo</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if row.sem_producao %}<span class="badge-inativo" style="background: #fef3c7; color: #92400e;" title="Sem diários nem pedidos em 30d">Sem produção</span><br>{% endif %}
+                                    {% if u.is_active %}<span class="badge-ativo">Ativo</span>{% else %}<span class="badge-inativo">Inativo</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endwith %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="15" style="text-align: center; padding: 2rem; color: #94a3b8;">Nenhum usuário encontrado com os filtros aplicados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if usuarios_com_prod|length >= 200 %}
+                <p style="padding: 0.75rem 1.25rem; font-size: 0.8rem; color: #64748b; margin: 0; border-top: 1px solid #f1f5f9;">
+                    Exibindo até 200 registros. Use <a href="{% url 'central_list_users' %}">Gerenciar usuários</a> para ver a lista completa.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        <div style="order: 2;">
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3><i class="fas fa-layer-group" style="color: #64748b;"></i> Por grupo</h3>
+                </div>
+                <div class="grupos-list">
+                    <ul>
+                        {% for g in grupos_com_count %}
+                        <li>
+                            <span>{{ g.name }}</span>
+                            <span class="grupo-count">{{ g.count }}</span>
+                        </li>
+                        {% empty %}
+                        <li class="text-muted">Nenhum grupo com usuários.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @media (max-width: 900px) {
+            .two-col { grid-template-columns: 1fr !important; }
+            .two-col > div:first-of-type { order: 2 !important; }
+            .two-col > div:last-of-type { order: 1 !important; }
+            .charts-row { grid-template-columns: 1fr !important; }
+        }
+    </style>
+
+    <script>
+    (function() {
+        var ths = document.querySelectorAll('.admin-table th.sortable');
+        ths.forEach(function(th) {
+            th.addEventListener('click', function() {
+                var col = parseInt(th.getAttribute('data-col'), 10);
+                var tbody = document.getElementById('analise-tbody');
+                if (!tbody) return;
+                var rows = Array.from(tbody.querySelectorAll('tr'));
+                var desc = th.getAttribute('aria-sort') === 'ascending';
+                th.setAttribute('aria-sort', desc ? 'descending' : 'ascending');
+                rows.sort(function(a, b) {
+                    var ac = parseInt(a.cells[col] && a.cells[col].textContent.trim(), 10) || 0;
+                    var bc = parseInt(b.cells[col] && b.cells[col].textContent.trim(), 10) || 0;
+                    return desc ? ac - bc : bc - ac;
+                });
+                rows.forEach(function(r) { tbody.appendChild(r); });
+            });
+        });
+    })();
+    </script>
+</div>
+{% endblock %}

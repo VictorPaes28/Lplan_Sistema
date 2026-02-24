@@ -1,0 +1,187 @@
+/* ============================================
+   LIST_USERS.CSS - Tela de listagem de usuários
+   ============================================ */
+
+/* Filtros em linha em telas maiores */
+.list-users .filters-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto auto;
+    gap: 1rem;
+    align-items: end;
+}
+
+@media (max-width: 768px) {
+    .list-users .filters-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+.list-users .filter-group {
+    margin-bottom: 0;
+}
+
+.list-users .filter-label {
+    margin-bottom: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-muted, #64748b);
+    font-weight: 600;
+}
+
+/* Contador de resultados */
+.list-users .users-count {
+    padding: 0.75rem 1.25rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.list-users .users-count strong {
+    color: var(--text-color, #1e293b);
+}
+
+/* Tabela de usuários */
+.list-users .table-container {
+    padding: 0;
+    overflow-x: auto;
+}
+
+.list-users .data-table th {
+    white-space: nowrap;
+}
+
+.list-users .data-table td[data-label="Foto"] {
+    width: 56px;
+    vertical-align: middle;
+}
+
+.list-users .data-table td[data-label="Foto"] img,
+.list-users .data-table td[data-label="Foto"] > div {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+    color: #475569;
+    border: 2px solid #e2e8f0;
+}
+
+.list-users .data-table td[data-label="Username"] {
+    font-weight: 600;
+    color: var(--text-color, #1e293b);
+}
+
+.list-users .data-table td[data-label="Grupos"] {
+    min-width: 160px;
+}
+
+.list-users .group-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.list-users .group-badge {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.2);
+}
+
+.list-users .group-badge-muted {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
+.list-users .badge-super {
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: #fff;
+}
+
+.list-users .data-table td[data-label="Ações"] {
+    white-space: nowrap;
+}
+
+.list-users .action-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.list-users .btn-edit {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.list-users .btn-edit:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+.list-users .btn-delete {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #fff;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.list-users .btn-delete:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+/* Paginação */
+.list-users .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.list-users .pagination-info {
+    font-size: 0.9rem;
+    color: var(--text-muted, #64748b);
+}
+
+.list-users .empty-state {
+    padding: 3rem 2rem;
+    text-align: center;
+}
+
+.list-users .empty-state .empty-message {
+    font-size: 1.05rem;
+    color: var(--text-muted, #64748b);
+}

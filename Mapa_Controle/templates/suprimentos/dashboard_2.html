@@ -1,0 +1,1327 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - Mapa de Controle{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard_2.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- Skip to main content (Acessibilidade) -->
+<a href="#main-content" class="skip-link">Pular para conteúdo principal</a>
+
+<!-- Header -->
+<header class="dashboard-header" role="banner">
+    <h1 class="dashboard-title">
+        <span class="dashboard-title-main">Dashboard - Mapa de Controle</span>
+        <span class="dashboard-title-sub">Rastreabilidade: Engenharia vs Sienge vs Obra</span>
+    </h1>
+    <div class="dashboard-controls">
+        <button class="btn-header-action" 
+                onclick="window.location.reload()"
+                aria-label="Atualizar dados"
+                title="Atualizar dados">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <button class="btn-header-action" 
+                id="btnThemeToggle"
+                onclick="alternarTema()"
+                aria-label="Alternar entre modo claro e escuro"
+                title="Alternar tema">
+            <span id="themeIcon"><i class="bi bi-moon-fill"></i></span>
+        </button>
+        <select class="dashboard-obra-select" 
+                id="obraSelect" 
+                aria-label="Selecione uma obra"
+                title="Selecione uma obra para visualizar"
+                onchange="window.location.href='?obra=' + this.value">
+            <option value="">Selecione uma obra</option>
+            {% for obra in obras %}
+            <option value="{{ obra.id }}" {% if obra.id|stringformat:"s" == obra_id %}selected{% endif %}>
+                {{ obra.nome }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <!-- Barra de Pesquisa e Filtros (sempre visível quando há obra selecionada) -->
+    {% if obra_selecionada %}
+    <div class="dashboard-filtros-bar">
+        <div class="dashboard-busca">
+            <i class="bi bi-search dashboard-busca-icon"></i>
+            <input type="text" 
+                   class="dashboard-busca-input" 
+                   id="buscaInput"
+                   aria-label="Buscar por insumo, código, SC, categoria ou fornecedor"
+                   placeholder="Buscar: prego, 16072, SC95, FUNDAÇÃO..."
+                   value="{{ busca_query }}"
+                   onkeypress="if(event.key==='Enter') buscar()"
+                   oninput="debounceBusca(this.value)">
+            {% if busca_query %}
+            <button class="dashboard-busca-clear" 
+                    onclick="limparBusca()" 
+                    aria-label="Limpar busca"
+                    title="Limpar busca">
+                <i class="bi bi-x"></i>
+            </button>
+            {% endif %}
+        </div>
+        <div class="dashboard-filtros-chips-wrapper">
+            <div class="dashboard-filtros-chips">
+                <button class="filtro-chip-home {% if filtro_status == 'falta_comprar' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'falta_comprar')"
+                        title="Itens com SC mas quantidade solicitada menor que planejada">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Falta Comprar</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'nao_alocado' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'nao_alocado')"
+                        title="Material recebido mas não alocado">
+                    <i class="bi bi-box-seam"></i>
+                    <span>Não Alocado</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'a_caminho' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'a_caminho')"
+                        title="Material comprado mas ainda não recebido">
+                    <i class="bi bi-truck"></i>
+                    <span>A Caminho</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'com_sc' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'com_sc')"
+                        title="Itens com Solicitação de Compra">
+                    <i class="bi bi-check-circle"></i>
+                    <span>Com SC</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'sem_sc' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'sem_sc')"
+                        title="Itens sem Solicitação de Compra">
+                    <i class="bi bi-x-circle"></i>
+                    <span>Sem SC</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'atrasados' %}active{% endif %}" 
+                        onclick="aplicarFiltro('status', 'atrasados')"
+                        title="Itens com prazo vencido">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Atrasados</span>
+                </button>
+                {% if filtro_status or categoria_filtro or fornecedor_filtro or busca_query %}
+                <button class="filtro-chip-home btn-limpar-home" onclick="limparFiltros()" title="Limpar todos os filtros">
+                    <i class="bi bi-x-lg"></i>
+                    <span>Limpar Filtros</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</header>
+
+{% if obra_selecionada %}
+<main id="main-content" role="main">
+    <!-- KPI SUMMARY BAR -->
+    <div class="kpi-bar">
+        <div class="kpi-item" onclick="limparFiltros()" title="Total de itens ativos na obra">
+            <div class="kpi-icon-mini"><i class="bi bi-layers"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiTotalItens">{{ kpi_total_itens }}</span>
+                <span class="kpi-label">Total Itens</span>
+            </div>
+        </div>
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','com_sc')" title="Itens com Solicitação de Compra">
+            <div class="kpi-icon-mini kpi-icon-success"><i class="bi bi-check2-circle"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_com_sc }}<span class="kpi-pct">{{ kpi_pct_sc }}%</span></span>
+                <span class="kpi-label">Solicitados</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-success" style="width: {{ kpi_pct_sc }}%"></div></div>
+            </div>
+        </div>
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','recebido')" title="Itens com material recebido na obra">
+            <div class="kpi-icon-mini kpi-icon-info"><i class="bi bi-truck"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_recebidos }}<span class="kpi-pct">{{ kpi_pct_recebidos }}%</span></span>
+                <span class="kpi-label">Recebidos</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-info" style="width: {{ kpi_pct_recebidos }}%"></div></div>
+            </div>
+        </div>
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','nao_alocado')" title="Itens com material alocado no destino">
+            <div class="kpi-icon-mini kpi-icon-cyan"><i class="bi bi-geo-alt"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_alocados }}<span class="kpi-pct">{{ kpi_pct_alocados }}%</span></span>
+                <span class="kpi-label">Alocados</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-cyan" style="width: {{ kpi_pct_alocados }}%"></div></div>
+            </div>
+        </div>
+        <div class="kpi-item kpi-danger" onclick="aplicarFiltro('status','sem_sc')" title="Itens sem Solicitação de Compra">
+            <div class="kpi-icon-mini kpi-icon-danger"><i class="bi bi-x-octagon"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_sem_sc }}</span>
+                <span class="kpi-label">Sem SC</span>
+            </div>
+        </div>
+        <div class="kpi-item kpi-warning" onclick="aplicarFiltro('status','atrasados')" title="Itens com prazo vencido">
+            <div class="kpi-icon-mini kpi-icon-warning"><i class="bi bi-exclamation-triangle"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiAlertas">{{ kpi_atrasados }}</span>
+                <span class="kpi-label">Atrasados</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCAL CHIPS -->
+    <div class="local-chips-bar">
+        <button class="local-chip {% if local_selecionado_id == 'todos' %}active{% endif %}" onclick="navegarParaLocal('todos')">
+            <i class="bi bi-grid-3x3-gap"></i> Todos
+            <span class="local-chip-count">{{ kpi_total_itens }}</span>
+        </button>
+        {% for local_data in locais_data %}
+        <button class="local-chip {% if local_data.local_id|stringformat:'s' == local_selecionado_id %}active{% endif %}" 
+                onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">
+            {{ local_data.local_nome }}
+            <span class="local-chip-count">{{ local_data.total_itens }}</span>
+            {% if local_data.itens_atrasados > 0 %}
+            <span class="local-chip-alert">{{ local_data.itens_atrasados }}</span>
+            {% endif %}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- TABELA DE ITENS -->
+    <div class="itens-container active" id="itensContainer">
+        <div class="itens-header">
+            <div class="itens-header-left">
+                <h2 class="itens-title">{{ local_selecionado_obj.nome|default:"Todos os Locais" }}</h2>
+            </div>
+            <div class="itens-header-right">
+                {% if itens_pipeline %}
+                <div class="itens-count">
+                    <span class="itens-count-value">{{ itens_pipeline|length }}</span>
+                    <span class="itens-count-label">item{{ itens_pipeline|length|pluralize:"s" }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if itens_pipeline %}
+        <!-- MOBILE: Cards -->
+        <div class="mobile-cards-container" id="mobileCards">
+            {% for item in itens_pipeline %}
+            <div class="mobile-card {% if item.alerta_nao_alocado %}mc-alert-warning{% elif item.alerta_falta_comprar %}mc-alert-danger{% endif %}"
+                 onclick="abrirBottomSheet({{ item.id }})" role="button" tabindex="0">
+                <div class="mc-header">
+                    <span class="pipeline-badge {{ item.status_class }}">{{ item.status_label }}</span>
+                    {% if item.is_atrasado %}<span class="mc-atrasado"><i class="bi bi-clock-history"></i></span>{% endif %}
+                </div>
+                <div class="mc-title">{{ item.insumo_descricao }}</div>
+                <div class="mc-meta">
+                    <span class="mc-code">{{ item.insumo_codigo|default:"—" }}</span>
+                    {% if local_selecionado_id == 'todos' %}<span class="mc-local">{{ item.local_nome }}</span>{% endif %}
+                </div>
+                <div class="mc-pipeline">
+                    <div class="mc-pipeline-bar"><div class="pipeline-fill {{ item.status_class }}" style="width: {{ item.pipeline_pct }}%"></div></div>
+                </div>
+                <div class="mc-metrics">
+                    <div class="mc-metric"><span class="mc-metric-label">Plano</span><span class="mc-metric-value">{{ item.coluna_1_plano|floatformat:0 }}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Pedido</span><span class="mc-metric-value {% if not item.coluna_2_pedido_sc %}mc-danger{% endif %}">{% if item.coluna_2_pedido_sc %}{{ item.coluna_2_pedido_qtd|floatformat:0 }}{% else %}—{% endif %}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Patio</span><span class="mc-metric-value">{{ item.coluna_3_patio|floatformat:0 }}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Destino</span><span class="mc-metric-value">{{ item.coluna_4_destino_qtd|floatformat:0 }}</span></div>
+                </div>
+                {% if item.coluna_2_pedido_sc %}<div class="mc-sc">SC{{ item.coluna_2_pedido_sc }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <!-- DESKTOP: Tabela -->
+        <div id="tabelaContainer" class="tabela-container-vertical">
+        <table class="matriz-table" id="tabelaMatriz">
+            <thead>
+                <tr>
+                    <th class="col-status-mini">STATUS</th>
+                    <th class="col-insumo">Insumo</th>
+                    {% if local_selecionado_id == 'todos' %}<th class="col-local">Local</th>{% endif %}
+                    <th class="col-plano">PLANO</th>
+                    <th class="col-pedido">PEDIDO</th>
+                    <th class="col-patio">PATIO</th>
+                    <th class="col-destino">DESTINO</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in itens_pipeline %}
+                <tr class="{% if item.alerta_nao_alocado %}alerta-nao-alocado{% elif item.alerta_falta_comprar %}alerta-critico{% endif %}" 
+                    onclick="abrirBottomSheet({{ item.id }})" 
+                    role="button"
+                    tabindex="0"
+                    aria-label="{{ item.insumo_descricao|escapejs }} - Clique para ver detalhes"
+                    title="Clique para ver detalhes e alocar"
+                    onkeypress="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); abrirBottomSheet({{ item.id }}); }">
+                    <td class="col-status-mini">
+                        <div class="pipeline-mini" title="{{ item.status_label }} ({{ item.pipeline_pct }}%)">
+                            <span class="pipeline-badge {{ item.status_class }}">{{ item.status_label }}</span>
+                            <div class="pipeline-bar"><div class="pipeline-fill {{ item.status_class }}" style="width: {{ item.pipeline_pct }}%"></div></div>
+                        </div>
+                    </td>
+                    <td class="col-insumo">
+                        <div class="insumo-nome">{{ item.insumo_descricao }}</div>
+                        <div class="insumo-meta">
+                            <span class="insumo-codigo">{{ item.insumo_codigo|default:"—" }}</span>
+                            <span class="insumo-unidade">{{ item.insumo_unidade }}</span>
+                        </div>
+                        {% if item.categoria %}
+                        <div class="insumo-categoria">{{ item.categoria }}</div>
+                        {% endif %}
+                    </td>
+                    {% if local_selecionado_id == 'todos' %}
+                    <td class="col-local"><span class="local-badge">{{ item.local_nome|default:"—" }}</span></td>
+                    {% endif %}
+                    <!-- COLUNA 2: PLANO -->
+                    <td class="col-plano">
+                        <div class="plano-valor mono">{{ item.coluna_1_plano|floatformat:0 }}</div>
+                        <div class="plano-unidade">{{ item.insumo_unidade }}</div>
+                        {% if item.coluna_1_plano == 0 %}
+                        <div class="plano-zero">Sem planejamento</div>
+                        {% endif %}
+                    </td>
+                    <!-- COLUNA 3: PEDIDO -->
+                    <td class="col-pedido">
+                        {% if item.coluna_2_pedido_sc %}
+                            <div class="pedido-sc mono">SC{{ item.coluna_2_pedido_sc }}</div>
+                            <div class="pedido-qtd mono">{{ item.coluna_2_pedido_qtd|floatformat:0 }} {{ item.insumo_unidade }}</div>
+                            {% if item.gap_comprado > 0 %}
+                            <div class="pedido-gap mono" title="Falta comprar {{ item.gap_comprado|floatformat:0 }} {{ item.insumo_unidade }}">
+                                <i class="bi bi-exclamation-triangle"></i> -{{ item.gap_comprado|floatformat:0 }}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="pedido-sem-sc">
+                                <i class="bi bi-x-circle"></i> NÃO SOLICITADO
+                            </div>
+                            <div class="pedido-gap mono">-{{ item.coluna_1_plano|floatformat:0 }} {{ item.insumo_unidade }}</div>
+                        {% endif %}
+                    </td>
+                    <!-- COLUNA 4: PÁTIO -->
+                    <td class="col-patio">
+                        <div class="patio-valor mono" style="color: {% if item.coluna_3_patio > 0 %}var(--neon-green){% else %}var(--text-on-base-medium){% endif %};">
+                            {{ item.coluna_3_patio|floatformat:0 }}
+                        </div>
+                        <div class="patio-unidade">{{ item.insumo_unidade }}</div>
+                        {% if item.gap_recebido > 0 %}
+                        <div class="patio-gap mono" title="Ainda não recebido: {{ item.gap_recebido|floatformat:0 }} {{ item.insumo_unidade }}">
+                            <i class="bi bi-truck"></i> -{{ item.gap_recebido|floatformat:0 }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <!-- COLUNA 5: DESTINO -->
+                    <td class="col-destino">
+                        <div class="destino-qtd mono" style="color: {% if item.coluna_4_destino_qtd > 0 %}var(--neon-cyan){% else %}var(--text-on-base-medium){% endif %};">
+                            {{ item.coluna_4_destino_qtd|floatformat:0 }}
+                        </div>
+                        <div class="destino-unidade">{{ item.insumo_unidade }}</div>
+                        <div class="destino-local">{{ item.coluna_4_destino_local|default:"Sem local" }}</div>
+                        {% if item.gap_alocado > 0 %}
+                        <div class="destino-gap mono" title="Falta alocar {{ item.gap_alocado|floatformat:0 }} {{ item.insumo_unidade }}">
+                            <i class="bi bi-box-seam"></i> -{{ item.gap_alocado|floatformat:0 }}
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if local_selecionado_id == 'todos' %}7{% else %}6{% endif %}" class="empty-state-cell">
+                        <div class="empty-state">
+                            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+                            <div class="empty-state-title">Nenhum item encontrado</div>
+                            <div class="empty-state-message">
+                                {% if busca_query %}
+                                    Não há itens correspondentes à busca "{{ busca_query }}"
+                                {% elif categoria_filtro %}
+                                    Não há itens na categoria "{{ categoria_filtro }}"
+                                {% else %}
+                                    Este local não possui itens cadastrados
+                                {% endif %}
+                            </div>
+                            {% if busca_query or categoria_filtro %}
+                            <button class="empty-state-action" onclick="window.location.href='?obra={{ obra_id }}&local={{ local_selecionado_id }}'">
+                                Limpar Filtros
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        
+        {% elif local_selecionado_id %}
+        <!-- Só mostra "nenhum item" se um local foi selecionado -->
+        <div class="empty-state-container">
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="bi bi-box-seam"></i></div>
+                <div class="empty-state-title">Nenhum item encontrado</div>
+                <div class="empty-state-message">
+                    {% if busca_query %}
+                        Não há itens correspondentes à busca "{{ busca_query }}"
+                    {% elif categoria_filtro or fornecedor_filtro %}
+                        Os filtros aplicados não retornaram resultados.
+                    {% else %}
+                        Este local não possui itens cadastrados.
+                    {% endif %}
+                </div>
+                {% if busca_query or categoria_filtro or fornecedor_filtro %}
+                <button class="empty-state-action" onclick="limparFiltros()">
+                    Limpar Filtros
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    </main>
+{% else %}
+    <main id="main-content" role="main">
+        <div class="empty-state-container empty-state-large">
+            <div class="empty-state">
+                <div class="empty-state-icon">🏗️</div>
+                <div class="empty-state-title">Selecione uma Obra</div>
+                <div class="empty-state-message">
+                    Escolha uma obra no menu acima para visualizar a rastreabilidade de materiais e insumos.
+                </div>
+            </div>
+        </div>
+    </main>
+{% endif %}
+
+<!-- NÍVEL 3: BOTTOM SHEET (fora do if obra_selecionada para sempre estar disponível) -->
+<div class="bottom-sheet-overlay" id="overlay" onclick="fecharBottomSheet()" role="dialog" aria-label="Overlay do painel de alocação" aria-hidden="true"></div>
+<div class="bottom-sheet" id="bottomSheet">
+    <div class="bottom-sheet-drag-handle"><div class="drag-handle-bar"></div></div>
+    <!-- Loading State -->
+    <div class="bottom-sheet-loading" id="bottomSheetLoading">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Carregando detalhes do item...</p>
+    </div>
+    
+    <!-- Error State -->
+    <div class="bottom-sheet-error" id="bottomSheetError" style="display: none;">
+        <div class="error-icon">⚠️</div>
+        <h3 class="error-title">Erro ao carregar</h3>
+        <p class="error-message" id="errorMessage">Não foi possível carregar os detalhes do item.</p>
+        <button class="btn-retry" onclick="retryLoadItem()">Tentar novamente</button>
+    </div>
+    
+    <!-- Empty State -->
+    <div class="bottom-sheet-empty" id="bottomSheetEmpty" style="display: none;">
+        <div class="empty-icon">📦</div>
+        <h3 class="empty-title">Nenhum item selecionado</h3>
+        <p class="empty-message">Clique em um item para ver os detalhes e fazer alocações.</p>
+    </div>
+    
+    <!-- Content State -->
+    <div class="bottom-sheet-header">
+        <div class="bottom-sheet-header-content">
+            <div class="bottom-sheet-icon">📋</div>
+            <div>
+                <h2 class="bottom-sheet-title">Controle de Alocação</h2>
+                <p class="bottom-sheet-subtitle" id="bottomSheetSubtitle">Detalhes do item selecionado</p>
+            </div>
+        </div>
+        <button class="bottom-sheet-close" 
+                onclick="fecharBottomSheet()"
+                aria-label="Fechar painel de alocação"
+                title="Fechar">
+            <span>×</span>
+        </button>
+    </div>
+    
+    <div class="bottom-sheet-content" id="bottomSheetContent">
+        {% if item_detalhes %}
+        <!-- Informações do Item -->
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title">Informações do Item</h3>
+            <div class="bottom-sheet-chave">
+                <div class="bottom-sheet-chave-item bottom-sheet-chave-full">
+                    <div class="bottom-sheet-chave-label">Descrição</div>
+                    <div class="bottom-sheet-chave-value">{{ item_detalhes.insumo_descricao|default:"—" }}</div>
+                </div>
+                <div class="bottom-sheet-chave-item">
+                    <div class="bottom-sheet-chave-label">Código</div>
+                    <div class="bottom-sheet-chave-value mono">{{ item_detalhes.insumo_codigo|default:"—" }}</div>
+                </div>
+                <div class="bottom-sheet-chave-item">
+                    <div class="bottom-sheet-chave-label">Número SC</div>
+                    <div class="bottom-sheet-chave-value mono">{{ item_detalhes.numero_sc|default:"—" }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quantidades -->
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title">Quantidades</h3>
+            <div class="bottom-sheet-saldo">
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Planejado</div>
+                    <div class="bottom-sheet-saldo-value mono">{{ item_detalhes.quantidade_planejada|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Recebido</div>
+                    <div class="bottom-sheet-saldo-value max mono">{{ item_detalhes.saldo_maximo|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Alocado</div>
+                    <div class="bottom-sheet-saldo-value alocado mono">{{ item_detalhes.total_alocado|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+                <div class="bottom-sheet-saldo-item">
+                    <div class="bottom-sheet-saldo-label">Disponível</div>
+                    <div class="bottom-sheet-saldo-value disponivel mono">{{ item_detalhes.saldo_disponivel|floatformat:2 }} {{ item_detalhes.insumo_unidade }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alocações Existentes -->
+        <div class="bottom-sheet-info-section" id="alocacoesExistentesSection" style="display: none;">
+            <h3 class="bottom-sheet-section-title">Histórico de Alocações</h3>
+            <div id="alocacoesExistentesList" class="bottom-sheet-alocacoes-list">
+                <!-- Será preenchido via JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Formulário de Alocação -->
+        <div class="bottom-sheet-info-section">
+            <h3 class="bottom-sheet-section-title">✏️ Nova Alocação</h3>
+            <div class="bottom-sheet-form">
+                <div class="bottom-sheet-form-group">
+                    <label class="bottom-sheet-form-label">Local de Aplicação</label>
+                    <input type="text" 
+                           class="bottom-sheet-form-input" 
+                           value="{{ item_detalhes.local_nome }}" 
+                           readonly
+                           aria-label="Local de aplicação"
+                           title="Local de aplicação">
+                </div>
+                
+                <div class="bottom-sheet-form-group">
+                    <label class="bottom-sheet-form-label">Quantidade a Alocar</label>
+                    <input type="number" 
+                           class="bottom-sheet-form-input" 
+                           id="quantidadeInput" 
+                           step="0.01" 
+                           min="0" 
+                           max="{{ item_detalhes.saldo_disponivel }}"
+                           placeholder="0.00"
+                           aria-label="Quantidade a alocar"
+                           aria-describedby="quantidadeError"
+                           title="Digite a quantidade a alocar">
+                    <div class="bottom-sheet-form-error" id="quantidadeError">
+                        Quantidade excede o saldo disponível
+                    </div>
+                </div>
+                
+                <div class="bottom-sheet-form-actions">
+                    <button class="btn-alocar" 
+                            id="btnAlocar" 
+                            onclick="salvarAlocacao()" 
+                            disabled
+                            aria-label="Confirmar alocação do material"
+                            title="Confirmar alocação">
+                        Alocar
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Success Toast -->
+    <div class="toast-success" id="toastSuccess" style="display: none;">
+        <div class="toast-icon">✓</div>
+        <div class="toast-message" id="toastMessage">Alocação realizada com sucesso!</div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+// Função para abrir overlay fullscreen - SIMPLES E DIRETO
+window.alternarRotacao = function() {
+    const container = document.getElementById('tabelaContainer');
+    const icon = document.getElementById('iconRotacao');
+    const itensContainer = document.getElementById('itensContainer');
+    
+    if (!container) {
+        console.error('tabelaContainer não encontrado!');
+        return;
+    }
+    
+    const isAtivo = document.body.classList.toggle('modo-matriz-tatica');
+    
+    // Forçar visibilidade do container e tabela
+    if (isAtivo) {
+        // Garantir que itens-container esteja visível
+        if (itensContainer) {
+            itensContainer.classList.add('active');
+            itensContainer.style.display = 'block';
+            itensContainer.style.visibility = 'visible';
+            itensContainer.style.opacity = '1';
+        }
+        
+        // Garantir que tabelaContainer esteja visível
+        container.style.display = 'block';
+        container.style.visibility = 'visible';
+        container.style.opacity = '1';
+        container.style.position = 'fixed';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100vw';
+        container.style.height = '100vh';
+        container.style.zIndex = '99999';
+        container.style.background = '#0f172a';
+        
+        // Garantir que a tabela esteja visível
+        const tabela = container.querySelector('.matriz-table');
+        if (tabela) {
+            tabela.style.display = 'table';
+            tabela.style.visibility = 'visible';
+            tabela.style.opacity = '1';
+            console.log('Tabela encontrada e forçada a aparecer');
+        } else {
+            console.error('Tabela .matriz-table não encontrada dentro do container!');
+        }
+    } else {
+        // Restaurar estado normal
+        if (container) {
+            container.style.position = '';
+            container.style.top = '';
+            container.style.left = '';
+            container.style.width = '';
+            container.style.height = '';
+            container.style.zIndex = '';
+        }
+    }
+    
+    // Criar ou atualizar botão Voltar
+    let btnVoltar = document.getElementById('btnVoltarMatriz');
+    if (isAtivo) {
+        if (!btnVoltar) {
+            btnVoltar = document.createElement('button');
+            btnVoltar.id = 'btnVoltarMatriz';
+            btnVoltar.className = 'btn-voltar-matriz';
+            btnVoltar.innerHTML = '❌ VOLTAR PARA O CELULAR';
+            btnVoltar.addEventListener('click', window.alternarRotacao);
+            document.body.appendChild(btnVoltar);
+        }
+        btnVoltar.style.display = 'flex';
+        
+        if (icon) {
+            icon.textContent = '📱';
+        }
+        
+        console.log('✅ Modo matriz tática ATIVADO');
+    } else {
+        if (btnVoltar) {
+            btnVoltar.style.display = 'none';
+        }
+        
+        if (icon) {
+            icon.textContent = '🔄';
+        }
+        
+        console.log('✅ Modo matriz tática DESATIVADO');
+    }
+    
+    localStorage.setItem('dashboard2_modo_matriz', isAtivo ? 'ativa' : 'inativa');
+};
+
+// Alias para compatibilidade
+function alternarRotacao() {
+    window.alternarRotacao();
+}
+
+// Dados do item atual
+let itemAtual = {% if item_detalhes %}{
+    'item_id': {{ item_detalhes.item_id|default:"0" }},
+    'insumo_unidade': '{{ item_detalhes.insumo_unidade|default:""|escapejs }}',
+    'saldo_disponivel': {{ item_detalhes.saldo_disponivel|default:"0"|floatformat:2 }},
+}{% else %}null{% endif %};
+
+// Navegação - Função global para evitar erros de referência
+window.navegarParaLocal = function(localId) {
+    if (!localId) return;
+    window.location.href = '?obra={{ obra_id }}&local=' + encodeURIComponent(localId);
+};
+
+// Alias para compatibilidade
+function navegarParaLocal(localId) {
+    window.navegarParaLocal(localId);
+}
+
+function voltarParaLocais() {
+    window.location.href = '?obra={{ obra_id }}';
+}
+
+// Debounce para busca em tempo real
+let buscaTimeout;
+function debounceBusca(valor) {
+    clearTimeout(buscaTimeout);
+    buscaTimeout = setTimeout(() => {
+        buscar();
+    }, 500); // Aguarda 500ms após parar de digitar
+}
+
+function buscar() {
+    const buscaInput = document.getElementById('buscaInput');
+    if (!buscaInput) return;
+    const busca = buscaInput.value;
+    aplicarFiltro('busca', busca);
+}
+
+function limparBusca() {
+    const buscaInput = document.getElementById('buscaInput');
+    if (buscaInput) {
+        buscaInput.value = '';
+        buscar();
+    }
+}
+
+function aplicarFiltro(tipo, valor) {
+    const params = new URLSearchParams();
+    params.set('obra', '{{ obra_id }}');
+    // Só incluir local se estiver dentro de um bloco (não na home)
+    {% if local_selecionado_id %}
+    params.set('local', '{{ local_selecionado_id }}');
+    {% endif %}
+    
+    // Manter filtros existentes
+    const busca = document.getElementById('buscaInput')?.value || '';
+    if (busca && tipo !== 'busca') {
+        params.set('busca', busca);
+    } else if (tipo === 'busca') {
+        if (valor) params.set('busca', valor);
+    }
+    
+    const categoria = document.getElementById('filtroCategoria')?.value || '';
+    if (categoria && tipo !== 'categoria') {
+        params.set('categoria', categoria);
+    } else if (tipo === 'categoria') {
+        if (valor) params.set('categoria', valor);
+    }
+    
+    const fornecedor = document.getElementById('filtroFornecedor')?.value || '';
+    if (fornecedor && tipo !== 'fornecedor') {
+        params.set('fornecedor', fornecedor);
+    } else if (tipo === 'fornecedor') {
+        if (valor) params.set('fornecedor', valor);
+    }
+    
+    const statusAtual = '{{ filtro_status }}';
+    // Toggle: se clicar no mesmo filtro, remove
+    if (tipo === 'status' && statusAtual === valor) {
+        // Não adicionar o parâmetro (remove o filtro)
+    } else if (statusAtual && tipo !== 'status') {
+        params.set('status', statusAtual);
+    } else if (tipo === 'status') {
+        if (valor) params.set('status', valor);
+    }
+    
+    window.location.href = '?' + params.toString();
+}
+
+function limparFiltros() {
+    const params = new URLSearchParams();
+    params.set('obra', '{{ obra_id }}');
+    {% if local_selecionado_id %}
+    params.set('local', '{{ local_selecionado_id }}');
+    {% endif %}
+    // Limpar busca
+    const buscaInput = document.getElementById('buscaInput');
+    if (buscaInput) buscaInput.value = '';
+    window.location.href = '?' + params.toString();
+}
+
+
+// Botão de rotação será configurado quando necessário (se existir no template)
+// A função alternarRotacao está disponível globalmente se precisar ser chamada
+
+// Função para alternar entre Cards e Tabela
+// PADRÃO: Tabela (melhor para muitos itens na obra)
+function alternarVisualizacao(tipo) {
+    const cardsContainer = document.getElementById('cardsContainer');
+    const tabelaContainer = document.getElementById('tabelaContainer');
+    const btnCards = document.getElementById('btnViewCards');
+    const btnTable = document.getElementById('btnViewTable');
+    
+    if (tipo === 'tabela') {
+        // TABELA é o padrão (melhor para muitos itens)
+        if (cardsContainer) cardsContainer.style.display = 'none';
+        if (tabelaContainer) tabelaContainer.style.display = 'block';
+        if (btnCards) btnCards.classList.remove('active');
+        if (btnTable) btnTable.classList.add('active');
+        localStorage.setItem('dashboard2_visualizacao', 'tabela');
+        // Atualizar URL sem recarregar
+        const params = new URLSearchParams(window.location.search);
+        params.set('view', 'tabela');
+        window.history.replaceState({}, '', '?' + params.toString());
+    } else {
+        // Cards (alternativa - NÃO recomendado para muitos itens)
+        if (cardsContainer) cardsContainer.style.display = 'grid';
+        if (tabelaContainer) tabelaContainer.style.display = 'none';
+        if (btnCards) btnCards.classList.add('active');
+        if (btnTable) btnTable.classList.remove('active');
+        localStorage.setItem('dashboard2_visualizacao', 'cards');
+        // Atualizar URL sem recarregar
+        const params = new URLSearchParams(window.location.search);
+        params.set('view', 'cards');
+        window.history.replaceState({}, '', '?' + params.toString());
+    }
+}
+
+// ============================================
+// SISTEMA DE TEMA (DARK/LIGHT MODE)
+// ============================================
+function alternarTema() {
+    const body = document.body;
+    const themeIcon = document.getElementById('themeIcon');
+    const isDark = body.classList.contains('dark-mode');
+    
+    if (isDark) {
+        // Mudar para light mode (padrão)
+        body.classList.remove('dark-mode');
+        themeIcon.textContent = '🌙';
+        localStorage.setItem('dashboard2_tema', 'light');
+    } else {
+        // Mudar para dark mode
+        body.classList.add('dark-mode');
+        themeIcon.textContent = '☀️';
+        localStorage.setItem('dashboard2_tema', 'dark');
+    }
+}
+
+// Restaurar preferência de tema ao carregar
+function restaurarTema() {
+    const temaSalvo = localStorage.getItem('dashboard2_tema');
+    const themeIcon = document.getElementById('themeIcon');
+    
+    // Padrão é light mode (white mode)
+    if (temaSalvo === 'dark') {
+        document.body.classList.add('dark-mode');
+        if (themeIcon) themeIcon.textContent = '☀️';
+    } else {
+        document.body.classList.remove('dark-mode');
+        if (themeIcon) themeIcon.textContent = '🌙';
+    }
+}
+
+// Restaurar preferência de visualização ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    // Restaurar tema primeiro
+    restaurarTema();
+    
+    // Restaurar modo matriz
+    const preferencia = localStorage.getItem('dashboard2_modo_matriz');
+    if (preferencia === 'ativa' && window.alternarRotacao) {
+        setTimeout(() => window.alternarRotacao(), 200);
+    }
+    
+    // Restaurar preferência de visualização (cards ou tabela)
+    // Priorizar parâmetro da URL, depois localStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    const visualizacao = viewParam || localStorage.getItem('dashboard2_visualizacao') || 'tabela';
+    setTimeout(() => {
+        if (typeof alternarVisualizacao === 'function') {
+            alternarVisualizacao(visualizacao);
+        } else {
+            // Fallback se função não estiver definida
+            const cardsContainer = document.getElementById('cardsContainer');
+            const tabelaContainer = document.getElementById('tabelaContainer');
+            if (visualizacao === 'tabela') {
+                // TABELA é o padrão (melhor para muitos itens)
+                if (cardsContainer) cardsContainer.style.display = 'none';
+                if (tabelaContainer) tabelaContainer.style.display = 'block';
+            } else {
+                // Cards (alternativa - não recomendado para muitos itens)
+                if (cardsContainer) cardsContainer.style.display = 'grid';
+                if (tabelaContainer) tabelaContainer.style.display = 'none';
+            }
+        }
+    }, 100);
+});
+
+function abrirBottomSheet(itemId) {
+    const bottomSheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('overlay');
+    const loading = document.getElementById('bottomSheetLoading');
+    const error = document.getElementById('bottomSheetError');
+    const empty = document.getElementById('bottomSheetEmpty');
+    const content = document.getElementById('bottomSheetContent');
+    
+    // Mostrar loading
+    if (loading) loading.style.display = 'flex';
+    if (error) error.style.display = 'none';
+    if (empty) empty.style.display = 'none';
+    if (content) content.style.display = 'none';
+    
+    // Abrir bottom sheet
+    if (bottomSheet) bottomSheet.classList.add('active');
+    if (overlay) overlay.classList.add('active');
+    
+    // Carregar dados
+    window.location.href = '?obra={{ obra_id }}&local={{ local_selecionado_id }}&item=' + itemId + '&busca={{ busca_query|urlencode }}';
+}
+
+function fecharBottomSheet() {
+    const bottomSheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('overlay');
+    
+    if (bottomSheet) bottomSheet.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+    
+    // Limpar URL
+    setTimeout(() => {
+        const params = new URLSearchParams();
+        params.set('obra', '{{ obra_id }}');
+        {% if local_selecionado_id %}
+        params.set('local', '{{ local_selecionado_id }}');
+        {% endif %}
+        {% if busca_query %}
+        params.set('busca', '{{ busca_query|urlencode }}');
+        {% endif %}
+        window.location.href = '?' + params.toString();
+    }, 300);
+}
+
+function retryLoadItem() {
+    const itemId = new URLSearchParams(window.location.search).get('item');
+    if (itemId) {
+        abrirBottomSheet(itemId);
+    }
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toastSuccess');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    if (toast && toastMessage) {
+        toastMessage.textContent = message || 'Operação realizada com sucesso!';
+        toast.style.display = 'flex';
+        
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3000);
+    }
+}
+
+// Verificar se há item selecionado ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    const itemId = new URLSearchParams(window.location.search).get('item');
+    if (itemId) {
+        const bottomSheet = document.getElementById('bottomSheet');
+        const overlay = document.getElementById('overlay');
+        if (bottomSheet) bottomSheet.classList.add('active');
+        if (overlay) overlay.classList.add('active');
+    }
+    
+    // Esconder loading se houver conteúdo
+    const content = document.getElementById('bottomSheetContent');
+    const loading = document.getElementById('bottomSheetLoading');
+    if (content && content.innerHTML.trim() && loading) {
+        loading.style.display = 'none';
+        content.style.display = 'block';
+    }
+    
+    // Carregar alocações existentes se houver item selecionado
+    {% if item_selecionado_id %}
+    setTimeout(() => {
+        carregarAlocacoesExistentes({{ item_selecionado_id }});
+    }, 300);
+    {% endif %}
+});
+
+// Carregar alocações existentes
+function carregarAlocacoesExistentes(itemId) {
+    if (!itemId) return;
+    
+    fetch(`{% url 'suprimentos:item_alocacoes_json' 0 %}`.replace('0', itemId))
+        .then(response => response.json())
+        .then(data => {
+            const section = document.getElementById('alocacoesExistentesSection');
+            const list = document.getElementById('alocacoesExistentesList');
+            
+            if (data.alocacoes && data.alocacoes.length > 0) {
+                if (section) section.style.display = 'block';
+                if (list) {
+                    list.innerHTML = '';
+                    data.alocacoes.forEach(function(alocacao) {
+                        const dataFormatada = new Date(alocacao.data_alocacao).toLocaleDateString('pt-BR');
+                        const qtdNum = normalizarNumero(alocacao.quantidade_alocada);
+                        const qtdFormatada = qtdNum.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 2
+                        });
+                        
+                        const item = document.createElement('div');
+                        item.className = 'bottom-sheet-alocacao-item';
+                        item.innerHTML = `
+                            <div class="bottom-sheet-alocacao-info">
+                                <div class="bottom-sheet-alocacao-qtd">${qtdFormatada} ${itemAtual?.insumo_unidade || ''}</div>
+                                <div class="bottom-sheet-alocacao-data">${dataFormatada}</div>
+                            </div>
+                            <button type="button" class="btn-remover-alocacao" 
+                                    onclick="removerAlocacaoDashboard(${itemId}, ${alocacao.id})"
+                                    title="Remover esta alocação">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        `;
+                        list.appendChild(item);
+                    });
+                }
+            } else {
+                if (section) section.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar alocações:', error);
+        });
+}
+
+// Remover alocação no dashboard
+function removerAlocacaoDashboard(itemId, alocacaoId) {
+    if (!confirm('Tem certeza que deseja remover esta alocação?')) return;
+    
+    fetch(`{% url 'suprimentos:item_remover_alocacao' 0 %}`.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            'alocacao_id': alocacaoId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Alocação removida com sucesso!');
+            // Recarregar alocações
+            carregarAlocacoesExistentes(itemId);
+            // Recarregar página para atualizar dados
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível remover a alocação'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao remover alocação. Tente novamente.');
+    });
+}
+
+// Garantir que filtros apareçam (se existirem)
+document.addEventListener('DOMContentLoaded', function() {
+    const filtrosBar = document.querySelector('.dashboard-filtros-bar');
+    if (filtrosBar) {
+        filtrosBar.style.display = 'flex';
+        filtrosBar.style.visibility = 'visible';
+        filtrosBar.style.opacity = '1';
+    }
+    
+    // Calcular KPIs dinamicamente
+    function atualizarKPIs() {
+        const rows = document.querySelectorAll('.matriz-table tbody tr');
+        const localCards = document.querySelectorAll('.local-card');
+        
+        // Total de itens (soma de todos os locais)
+        let totalItens = 0;
+        localCards.forEach(card => {
+            const stats = card.querySelectorAll('.local-stat');
+            stats.forEach(stat => {
+                const label = stat.querySelector('.local-stat-label');
+                const value = stat.querySelector('.local-stat-value');
+                if (label && value && label.textContent.trim() === 'Itens') {
+                    const valor = parseInt(value.textContent.trim().replace(/\D/g, '')) || 0;
+                    totalItens += valor;
+                }
+            });
+        });
+        
+        // Se não encontrou nos cards, usar contagem de linhas da tabela
+        if (totalItens === 0 && rows.length > 0) {
+            totalItens = rows.length;
+        }
+        
+        // Alertas (linhas com alerta)
+        let totalAlertas = 0;
+        rows.forEach(row => {
+            if (row.classList.contains('alerta-nao-alocado') || row.classList.contains('alerta-critico')) {
+                totalAlertas++;
+            }
+        });
+        
+        // Pendentes (itens sem SC ou sem recebimento)
+        let totalPendentes = 0;
+        rows.forEach(row => {
+            const pedidoCell = row.querySelector('.col-pedido');
+            if (pedidoCell) {
+                const texto = pedidoCell.textContent || '';
+                if (texto.includes('NÃO SOLICITADO') || texto.includes('SEM SC')) {
+                    totalPendentes++;
+                }
+            }
+        });
+        
+        // Atualizar valores nos cards com animação
+        const kpiTotalItens = document.getElementById('kpiTotalItens');
+        const kpiAlertas = document.getElementById('kpiAlertas');
+        const kpiPendentes = document.getElementById('kpiPendentes');
+        
+        if (kpiTotalItens) {
+            kpiTotalItens.textContent = totalItens.toLocaleString('pt-BR');
+        }
+        if (kpiAlertas) {
+            kpiAlertas.textContent = totalAlertas.toLocaleString('pt-BR');
+            // Destacar se houver alertas
+            if (totalAlertas > 0) {
+                kpiAlertas.parentElement.parentElement.style.borderColor = 'var(--neon-orange)';
+            }
+        }
+        if (kpiPendentes) {
+            kpiPendentes.textContent = totalPendentes.toLocaleString('pt-BR');
+            // Destacar se houver pendentes
+            if (totalPendentes > 0) {
+                kpiPendentes.parentElement.parentElement.style.borderColor = 'var(--neon-yellow)';
+            }
+        }
+    }
+    
+    // Calcular resumo de gaps
+    const rows = document.querySelectorAll('.matriz-table tbody tr');
+    let totalFaltaComprar = 0;
+    let totalACaminho = 0;
+    let totalNaoAlocado = 0;
+    
+    rows.forEach(row => {
+        if (row.querySelector('.col-pedido .gap-negativo')) {
+            totalFaltaComprar++;
+        }
+        if (row.querySelector('.col-patio .gap-atencao')) {
+            totalACaminho++;
+        }
+        if (row.querySelector('.col-destino .gap-atencao')) {
+            totalNaoAlocado++;
+        }
+    });
+    
+    const resumoFaltaComprar = document.getElementById('totalFaltaComprar');
+    const resumoACaminho = document.getElementById('totalACaminho');
+    const resumoNaoAlocado = document.getElementById('totalNaoAlocado');
+    
+    // Atualizar KPIs
+    atualizarKPIs();
+    
+    // Atualizar KPIs quando a tabela for filtrada ou atualizada
+    const observer = new MutationObserver(function(mutations) {
+        atualizarKPIs();
+    });
+    
+    const tabelaContainer = document.getElementById('tabelaContainer');
+    if (tabelaContainer) {
+        observer.observe(tabelaContainer, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class']
+        });
+    }
+    
+    if (resumoFaltaComprar) resumoFaltaComprar.textContent = totalFaltaComprar + ' item(s)';
+    if (resumoACaminho) resumoACaminho.textContent = totalACaminho + ' item(s)';
+    if (resumoNaoAlocado) resumoNaoAlocado.textContent = totalNaoAlocado + ' item(s)';
+    
+    // Fechar ao clicar no overlay (se existir)
+    const overlay = document.getElementById('overlay');
+    if (overlay) {
+        overlay.addEventListener('click', fecharBottomSheet);
+    }
+    
+    // Abrir bottom sheet se houver item selecionado
+    {% if item_selecionado_id %}
+    setTimeout(() => {
+        document.getElementById('bottomSheet').classList.add('active');
+        document.getElementById('overlay').classList.add('active');
+    }, 100);
+    {% endif %}
+    
+    // Validação de quantidade
+    const quantidadeInput = document.getElementById('quantidadeInput');
+    const btnAlocar = document.getElementById('btnAlocar');
+    const quantidadeError = document.getElementById('quantidadeError');
+    
+    if (quantidadeInput && itemAtual) {
+        quantidadeInput.addEventListener('input', function() {
+            const qtd = normalizarNumero(this.value);
+            const saldoDisponivel = normalizarNumero(itemAtual.saldo_disponivel);
+            
+            if (qtd > saldoDisponivel) {
+                quantidadeError.classList.add('active');
+                btnAlocar.disabled = true;
+            } else {
+                quantidadeError.classList.remove('active');
+                btnAlocar.disabled = qtd <= 0;
+            }
+        });
+    }
+});
+
+// Salvar alocação
+// Função auxiliar para normalizar número (aceita vírgula ou ponto)
+// ROBUSTA: Remove caracteres inválidos, trata múltiplas vírgulas/pontos, preserva precisão
+function normalizarNumero(valor) {
+    if (!valor && valor !== 0) return 0;
+    
+    // Converter para string e remover espaços
+    let valorStr = String(valor).trim();
+    
+    // Se vazio, retornar 0
+    if (!valorStr) return 0;
+    
+    // Remover caracteres não numéricos exceto vírgula e ponto
+    valorStr = valorStr.replace(/[^\d,.-]/g, '');
+    
+    // Se não tem nenhum dígito, retornar 0
+    if (!/\d/.test(valorStr)) return 0;
+    
+    // Tratar múltiplas vírgulas/pontos - manter apenas o último separador decimal
+    const ultimaVirgula = valorStr.lastIndexOf(',');
+    const ultimoPonto = valorStr.lastIndexOf('.');
+    
+    if (ultimaVirgula > ultimoPonto) {
+        // Vírgula é o separador decimal
+        // Remover todas as vírgulas e pontos, depois adicionar ponto no lugar da última vírgula
+        valorStr = valorStr.replace(/[,.]/g, '');
+        if (ultimaVirgula < valorStr.length) {
+            valorStr = valorStr.slice(0, ultimaVirgula) + '.' + valorStr.slice(ultimaVirgula);
+        }
+    } else if (ultimoPonto > ultimaVirgula) {
+        // Ponto é o separador decimal
+        // Remover todas as vírgulas e pontos, depois adicionar ponto no lugar do último ponto
+        valorStr = valorStr.replace(/[,.]/g, '');
+        if (ultimoPonto < valorStr.length) {
+            valorStr = valorStr.slice(0, ultimoPonto) + '.' + valorStr.slice(ultimoPonto);
+        }
+    } else {
+        // Sem separador decimal, remover vírgulas e pontos (são separadores de milhar)
+        valorStr = valorStr.replace(/[,.]/g, '');
+    }
+    
+    // Converter para número
+    const numero = parseFloat(valorStr);
+    
+    // Validar resultado
+    if (isNaN(numero) || !isFinite(numero)) return 0;
+    
+    return numero;
+}
+
+// Função para formatar número para string preservando precisão decimal
+// IMPORTANTE: Usar para enviar ao backend - preserva decimais
+function numeroParaString(numero) {
+    if (numero === null || numero === undefined || isNaN(numero)) return '0';
+    
+    // Converter para número se for string
+    const num = typeof numero === 'string' ? normalizarNumero(numero) : numero;
+    
+    // Se não for número válido, retornar '0'
+    if (isNaN(num) || !isFinite(num)) return '0';
+    
+    // Converter para string preservando decimais
+    // Usar toFixed para garantir decimais, mas remover zeros desnecessários
+    const str = num.toString();
+    
+    // Se já é uma string válida com ponto, retornar
+    if (str.includes('.')) {
+        return str;
+    }
+    
+    // Se for inteiro, retornar como está
+    return str;
+}
+
+function salvarAlocacao() {
+    const quantidadeInput = document.getElementById('quantidadeInput');
+    
+    if (!quantidadeInput.value) {
+        alert('Preencha a quantidade');
+        return;
+    }
+    
+    // Normalizar número (aceita vírgula ou ponto)
+    const qtd = normalizarNumero(quantidadeInput.value);
+    const saldoDisponivel = normalizarNumero(itemAtual.saldo_disponivel);
+    
+    if (qtd <= 0) {
+        alert('Quantidade deve ser maior que zero');
+        quantidadeInput.focus();
+        return;
+    }
+    
+    if (qtd > saldoDisponivel) {
+        alert('Quantidade excede o saldo disponível');
+        quantidadeInput.focus();
+        return;
+    }
+    
+    const btnAlocar = document.getElementById('btnAlocar');
+    btnAlocar.disabled = true;
+    btnAlocar.textContent = 'Alocando...';
+    
+    // Chamada AJAX - enviar como string para garantir precisão decimal
+    // IMPORTANTE: Usar numeroParaString para garantir precisão
+    const qtdString = numeroParaString(qtd);
+    fetch('{% url "suprimentos:dashboard2_alocar" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            'item_id': itemAtual.item_id,
+            'quantidade_alocada': qtdString, // Enviar como string para preservar decimais
+            'observacao': 'Alocação via Dashboard 2 Rastreabilidade'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+            btnAlocar.disabled = false;
+            btnAlocar.textContent = 'Alocar';
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao salvar alocação. Tente novamente.');
+        btnAlocar.disabled = false;
+        btnAlocar.textContent = 'Alocar';
+    });
+}
+
+// Função auxiliar para pegar CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
+

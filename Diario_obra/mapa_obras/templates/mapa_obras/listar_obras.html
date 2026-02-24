@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Mapa de Suprimentos{% endblock %}
+{% block page_subtitle %}Selecione a obra para acessar o mapa{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Layout horizontal: cartões em linha */
+    .obras-grid {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        align-items: stretch;
+    }
+
+    .obra-card {
+        flex: 1 1 280px;
+        min-width: 260px;
+        max-width: 380px;
+        background: #fff;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        transition: all 0.2s ease;
+        position: relative;
+        text-decoration: none;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .obra-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 8px 20px -6px rgba(59, 130, 246, 0.18);
+    }
+
+    .obra-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: linear-gradient(180deg, #3b82f6, #2563eb);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+    .obra-card:hover::before {
+        opacity: 1;
+    }
+
+    .obra-card-body {
+        padding: 1rem 1.25rem;
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .obra-icon-wrap {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #2563eb;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        transition: all 0.25s ease;
+    }
+    .obra-card:hover .obra-icon-wrap {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: #fff;
+    }
+
+    .obra-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0 0 0.25rem 0;
+        line-height: 1.3;
+    }
+
+    .obra-code {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748b;
+        font-family: ui-monospace, monospace;
+        background: #f1f5f9;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-block;
+        width: fit-content;
+    }
+
+    .obra-locais-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: #eff6ff;
+        color: #2563eb;
+        margin-top: 0.5rem;
+    }
+
+    .obra-action-wrap {
+        display: flex;
+        align-items: stretch;
+        border-left: 1px solid #e2e8f0;
+    }
+    .obra-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0 1rem;
+        min-width: 120px;
+        background: #f8fafc;
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #475569;
+        transition: all 0.2s ease;
+    }
+    .obra-card:hover .obra-action {
+        background: #3b82f6;
+        color: #fff;
+    }
+    .obra-action i {
+        transition: transform 0.2s ease;
+    }
+    .obra-card:hover .obra-action i {
+        transform: translateX(3px);
+    }
+
+    .obra-card:nth-child(1) { animation: cardIn 0.35s 0.05s both; }
+    .obra-card:nth-child(2) { animation: cardIn 0.35s 0.1s both; }
+    .obra-card:nth-child(3) { animation: cardIn 0.35s 0.15s both; }
+    .obra-card:nth-child(4) { animation: cardIn 0.35s 0.2s both; }
+    @keyframes cardIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .empty-obras {
+        text-align: center;
+        padding: 3rem 2rem;
+        background: #fff;
+        border-radius: 12px;
+        border: 2px dashed #e2e8f0;
+    }
+    .empty-obras-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 1.5rem;
+        color: #94a3b8;
+    }
+
+    .obras-page-intro {
+        font-size: 0.9rem;
+        color: #64748b;
+        margin-bottom: 1.25rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .obra-card, .obra-card .obra-icon-wrap, .obra-card .obra-action, .obra-card .obra-action i {
+            transition: none;
+            animation: none;
+        }
+        .obra-card:hover { transform: none; }
+        .obra-card:hover .obra-action i { transform: none; }
+    }
+
+    @media (max-width: 768px) {
+        .obras-grid {
+            flex-direction: column;
+        }
+        .obra-card {
+            max-width: none;
+            flex-direction: column;
+        }
+        .obra-action-wrap {
+            border-left: none;
+            border-top: 1px solid #e2e8f0;
+        }
+        .obra-action {
+            min-width: 100%;
+            padding: 0.75rem 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto fade-in" style="padding: 0;">
+    <p class="obras-page-intro">Clique na obra que deseja acessar no Mapa de Suprimentos.</p>
+
+    {% if obras %}
+    <div class="obras-grid">
+        {% for obra in obras %}
+        <a href="{% url 'mapa_obras:selecionar' obra.id %}" class="obra-card">
+            <div class="obra-card-body">
+                <div class="flex items-start gap-3">
+                    <div class="obra-icon-wrap">
+                        <i class="fas fa-hard-hat"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="obra-name">{{ obra.nome }}</h3>
+                        <span class="obra-code">{{ obra.codigo_sienge }}</span>
+                        {% if obra.locais.count > 0 %}
+                        <div class="flex flex-wrap gap-1 mt-2">
+                            {% for local in obra.locais.all|slice:":3" %}
+                            <span class="obra-locais-badge">
+                                <i class="fas fa-map-pin" style="font-size: 0.55rem;"></i>
+                                {{ local.nome }}
+                            </span>
+                            {% endfor %}
+                            {% if obra.locais.count > 3 %}
+                            <span class="obra-locais-badge" style="background: #f1f5f9; color: #64748b;">+{{ obra.locais.count|add:"-3" }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="obra-action-wrap">
+                <span class="obra-action">Acessar obra <i class="fas fa-arrow-right"></i></span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-obras">
+        <div class="empty-obras-icon">
+            <i class="fas fa-building"></i>
+        </div>
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: #1e293b; margin-bottom: 0.5rem;">Nenhuma obra encontrada</h3>
+        <p style="font-size: 0.9rem; color: #64748b;">Não há obras ativas cadastradas no Mapa de Suprimentos.</p>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.5rem;">Entre em contato com o administrador para cadastrar obras.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

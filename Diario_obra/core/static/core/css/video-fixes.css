@@ -1,0 +1,55 @@
+/* Fixes para vídeos - Garantir que sejam clicáveis e reproduzíveis */
+
+video {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+video::-webkit-media-controls {
+    pointer-events: auto !important;
+}
+
+video::-webkit-media-controls-panel {
+    pointer-events: auto !important;
+}
+
+video::-webkit-media-controls-play-button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+video::-webkit-media-controls-timeline {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+video::-webkit-media-controls-volume-slider {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Garantir que containers de vídeo não bloqueiem interação */
+.video-container,
+.aspect-video {
+    pointer-events: none;
+}
+
+.video-container video,
+.aspect-video video {
+    pointer-events: auto !important;
+}
+
+/* Prevenir que links ao redor bloqueiem vídeos */
+a > video {
+    pointer-events: auto !important;
+}
+
+/* Garantir que controles do vídeo funcionem */
+video:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}

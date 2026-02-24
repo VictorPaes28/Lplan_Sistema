@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Empresas{% endblock %}
+
+{% block page_title %}Empresas{% endblock %}
+{% block page_subtitle %}GestControll - Gerenciamento{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="list-header">
+        <h1 class="list-title">Empresas</h1>
+        {% if user_profile == 'admin' %}
+            <a href="{% url 'gestao:create_empresa' %}" class="btn">+ Nova Empresa</a>
+        {% endif %}
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card filters-card">
+    <form method="get" class="filters-form">
+        <div class="filter-group">
+            <label for="search" class="filter-label">Buscar:</label>
+            <input type="text" id="search" name="search" class="filter-input" 
+                   value="{{ search_query }}" placeholder="Código, nome, CNPJ...">
+        </div>
+        
+        <div class="filter-group">
+            <label for="ativo" class="filter-label">Status:</label>
+            <select id="ativo" name="ativo" class="filter-select">
+                <option value="">Todos</option>
+                <option value="1" {% if ativo_filter == '1' %}selected{% endif %}>Ativas</option>
+                <option value="0" {% if ativo_filter == '0' %}selected{% endif %}>Inativas</option>
+            </select>
+        </div>
+        
+        <button type="submit" class="btn">Filtrar</button>
+        <a href="{% url 'gestao:list_empresas' %}" class="btn btn-secondary">Limpar</a>
+    </form>
+</div>
+
+    <!-- Lista de Empresas -->
+    <div class="card table-container">
+        {% if empresas %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nome</th>
+                    <th>Responsável</th>
+                    <th>Obras</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for empresa in empresas %}
+                    <tr>
+                        <td data-label="Código"><strong>{{ empresa.codigo }}</strong></td>
+                        <td data-label="Nome">{{ empresa.nome }}</td>
+                        <td data-label="Responsável">
+                            {% if empresa.responsavel %}
+                                {{ empresa.responsavel.get_full_name|default:empresa.responsavel.username }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td data-label="Obras">{{ empresa.obras.count }}</td>
+                        <td data-label="Status">
+                            {% if empresa.ativo %}
+                                <span class="badge badge-success">Ativa</span>
+                            {% else %}
+                                <span class="badge" style="background-color: #dc3545;">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Ações">
+                            <a href="{% url 'gestao:detail_empresa' empresa.pk %}" class="btn btn-sm">Ver</a>
+                            {% if user_profile == 'admin' %}
+                                <a href="{% url 'gestao:edit_empresa' empresa.pk %}" class="btn btn-sm">Editar</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Paginação -->
+        {% if page_obj.has_other_pages %}
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if ativo_filter %}&ativo={{ ativo_filter }}{% endif %}" class="btn">Anterior</a>
+                {% endif %}
+                
+                <span class="pagination-info">
+                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                </span>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if ativo_filter %}&ativo={{ ativo_filter }}{% endif %}" class="btn">Próxima</a>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <p class="empty-message">Nenhuma empresa encontrada.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

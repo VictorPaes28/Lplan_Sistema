@@ -1,0 +1,108 @@
+{
+  "name": "diario-obra-lplan",
+  "version": "2.0.0",
+  "description": "Sistema completo de gestão de obras com EAP hierárquica, workflow de aprovação e geração de PDF otimizada - LPLAN",
+  "main": "manage.py",
+  "scripts": {
+    "start": "python manage.py runserver",
+    "start:prod": "python manage.py runserver 0.0.0.0:8000",
+    "migrate": "python manage.py migrate",
+    "makemigrations": "python manage.py makemigrations",
+    "makemigrations:core": "python manage.py makemigrations core",
+    "collectstatic": "python manage.py collectstatic --noinput",
+    "test": "python manage.py test",
+    "test:core": "python manage.py test core",
+    "createsuperuser": "python manage.py createsuperuser",
+    "setup_superuser": "python manage.py setup_superuser",
+    "shell": "python manage.py shell",
+    "celery": "celery -A diario_obra worker -l info",
+    "celery:beat": "celery -A diario_obra beat -l info"
+  },
+  "keywords": [
+    "django",
+    "construction",
+    "diary",
+    "lplan",
+    "obra",
+    "relatorio",
+    "eap",
+    "workflow",
+    "pdf"
+  ],
+  "author": "LPLAN",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "flatpickr": "^4.6.13",
+    "fullcalendar": "^5.11.5",
+    "htmx.org": "^1.9.10",
+    "@fortawesome/fontawesome-free": "^6.4.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "python": {
+    "version": ">=3.10",
+    "dependencies": "requirements.txt",
+    "framework": "Django 5.0+",
+    "database": "PostgreSQL (recomendado) ou SQLite (desenvolvimento)",
+    "cache_queue": "Redis + Celery"
+  },
+  "workspaces": [],
+  "port": 8000,
+  "default_url": "http://localhost:8000",
+  "config": {
+    "static_files": "core/static/",
+    "media_files": "media/",
+    "templates": "core/templates/",
+    "migrations": "core/migrations/"
+  },
+  "environment": {
+    "required": [
+      "SECRET_KEY (Django secret key)",
+      "DEBUG (True/False)"
+    ],
+    "optional": [
+      "USE_POSTGRES (True/False - default: False)",
+      "DB_NAME (PostgreSQL database name)",
+      "DB_USER (PostgreSQL user)",
+      "DB_PASSWORD (PostgreSQL password)",
+      "DB_HOST (PostgreSQL host - default: localhost)",
+      "DB_PORT (PostgreSQL port - default: 5432)",
+      "CELERY_BROKER_URL (Redis URL - default: redis://localhost:6379/0)",
+      "CELERY_RESULT_BACKEND (Redis URL - default: redis://localhost:6379/0)"
+    ]
+  },
+  "notes": {
+    "frontend": "Atualmente usa bibliotecas JavaScript via CDN. Dependências listadas aqui para referência e possível migração futura.",
+    "cdn_libraries": [
+      "flatpickr@4.6.13 (date picker)",
+      "fullcalendar@5.11.5 (calendar component)",
+      "htmx.org@1.9.10 (HTMX for dynamic HTML)",
+      "@fortawesome/fontawesome-free@6.4.0 (Font Awesome icons)"
+    ],
+    "current_usage": "All JavaScript libraries are currently loaded via CDN. This package.json is for documentation and future migration to npm/yarn if needed.",
+    "alpine_js": "Alpine.js is mentioned in README but not currently loaded via CDN. Only CSS fixes exist.",
+    "structure": {
+      "main_app": "core/",
+      "settings": "diario_obra/settings.py",
+      "urls": "diario_obra/urls.py",
+      "wsgi": "diario_obra/wsgi.py",
+      "celery": "diario_obra/celery.py"
+    },
+    "database": {
+      "development": "SQLite (db.sqlite3)",
+      "production": "PostgreSQL (configure via USE_POSTGRES=True)"
+    },
+    "cache_queue": {
+      "broker": "Redis (required for Celery)",
+      "result_backend": "Redis (required for Celery)"
+    }
+  }
+}

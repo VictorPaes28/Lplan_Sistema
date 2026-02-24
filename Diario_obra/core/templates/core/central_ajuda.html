@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Ajuda{% endblock %}
+{% block page_subtitle %}Quando algo der errado — passo a passo{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <p class="text-slate-600 mb-8 text-[0.9375rem] leading-relaxed">Use esta página quando alguém reclamar de algum problema. Cada situação abaixo tem um botão que leva direto ao lugar certo para resolver. Você não precisa saber programar: basta seguir o passo a passo.</p>
+
+    <div class="space-y-5">
+        <div class="central-ajuda-card">
+            <h2 class="central-ajuda-heading">Um funcionário não consegue ver as obras</h2>
+            <p class="central-ajuda-text">A pessoa entra no sistema mas não aparece nenhuma obra para escolher (nem no Diário de Obra nem no sistema de Pedidos).</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Editar o usuário e marcar as obras que ele deve acessar. O vínculo vale para os dois sistemas.</p>
+            <a href="{% url 'central_list_users' %}" class="central-btn-primary"><i class="fas fa-users" aria-hidden="true"></i> Ir para a lista de usuários</a>
+        </div>
+
+        <div class="central-ajuda-card">
+            <h2 class="central-ajuda-heading">Criei uma obra aqui mas ela não aparece no sistema de Pedidos ou no Mapa</h2>
+            <p class="central-ajuda-text">Você cadastrou uma obra nova no Central, mas quando a pessoa abre o sistema de Pedidos (GestControll) ou o Mapa, a obra não está na lista.</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> O sistema precisa “atualizar” a lista. Abra a tela abaixo e clique no botão <strong>Atualizar listas de obras</strong>. Em poucos segundos as obras passam a aparecer nos outros sistemas.</p>
+            <a href="{% url 'central_manutencao' %}" class="central-btn-primary"><i class="fas fa-sync-alt" aria-hidden="true"></i> Atualizar listas de obras</a>
+        </div>
+
+        <div class="central-ajuda-card">
+            <h2 class="central-ajuda-heading">O e-mail do pedido (ou da aprovação) não chegou</h2>
+            <p class="central-ajuda-text">Alguém fez um pedido ou aprovou/reprovou, mas o e-mail não foi recebido.</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Existe uma tela que mostra todos os e-mails que o sistema tentou enviar. Lá você pode ver se deu erro e usar o botão <strong>Reenviar</strong> para mandar de novo.</p>
+            <a href="{% url 'gestao:list_email_logs' %}" class="central-btn-primary"><i class="fas fa-envelope" aria-hidden="true"></i> Ver e-mails enviados e reenviar</a>
+        </div>
+
+        <div class="central-ajuda-card">
+            <h2 class="central-ajuda-heading">Alguém não consegue aprovar pedidos</h2>
+            <p class="central-ajuda-text">A pessoa que deveria aprovar pedidos entra no sistema mas não consegue aprovar (ou não vê os pedidos para aprovar).</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Quem aprova precisa estar vinculado à obra como “Aprovador” e ter as obras certas na ficha. Edite o usuário na lista de usuários, confira as obras marcadas e o perfil (se é Aprovador).</p>
+            <a href="{% url 'central_list_users' %}" class="central-btn-primary"><i class="fas fa-users" aria-hidden="true"></i> Ir para a lista de usuários</a>
+        </div>
+
+        <div class="central-ajuda-card">
+            <h2 class="central-ajuda-heading">Preciso cadastrar uma obra nova</h2>
+            <p class="central-ajuda-text">Toda obra nova deve ser criada aqui no Central. Depois ela aparece no Diário de Obra, no sistema de Pedidos e no Mapa.</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Abra a lista de obras, clique em nova obra e preencha. Depois use “Atualizar listas de obras” (acima) para ela aparecer nos outros sistemas.</p>
+            <a href="{% url 'central_project_list' %}" class="central-btn-primary"><i class="fas fa-building" aria-hidden="true"></i> Ver e cadastrar obras</a>
+        </div>
+
+        <div class="central-ajuda-card">
+            <h2 class="central-ajuda-heading">Quero que o diário da obra seja enviado por e-mail todo dia</h2>
+            <p class="central-ajuda-text">Você pode cadastrar e-mails (gerente, fiscal, etc.) que recebem o <strong>diário em PDF</strong> todo dia por e-mail — o documento vai em anexo. Quando houver diário preenchido na data, cada um recebe o PDF no e-mail.</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Na lista de obras, clique em <strong>E-mails do diário</strong> na obra desejada e adicione os e-mails. O envio é feito automaticamente todo dia (quando o responsável técnico tiver agendado o envio no servidor).</p>
+            <a href="{% url 'central_project_list' %}" class="central-btn-primary"><i class="fas fa-building" aria-hidden="true"></i> Ir para a lista de obras</a>
+        </div>
+
+        <div class="central-ajuda-fallback">
+            <h2 class="text-lg font-bold text-amber-900 mb-2">Nada disso resolveu?</h2>
+            <p class="text-slate-700 text-[0.9375rem] leading-relaxed">Anote o que a pessoa estava fazendo e qual mensagem apareceu na tela (ou tire um print). Envie para o responsável técnico ou suporte. Evite desligar o computador ou fechar o navegador antes de anotar, para não perder a informação.</p>
+        </div>
+    </div>
+
+    <div class="mt-8 pt-6 border-t border-slate-100">
+        <a href="{% url 'accounts:admin_central' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao Painel</a>
+    </div>
+</div>
+{% endblock %}

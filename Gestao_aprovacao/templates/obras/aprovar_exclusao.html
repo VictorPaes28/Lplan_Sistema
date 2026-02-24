@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Aprovar Exclusão: {{ workorder.codigo }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/approval_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'detail_workorder' workorder.pk %}" class="btn btn-back">← Voltar para Pedido</a>
+</div>
+
+<div class="approval-container">
+    <div class="card">
+        <h1 class="approval-title">
+            Aprovar Exclusão do Pedido
+        </h1>
+        
+        <div class="approval-info-box">
+            <p><strong>Código:</strong> {{ workorder.codigo }}</p>
+            <p><strong>Obra:</strong> {{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
+            <p><strong>Credor:</strong> {{ workorder.nome_credor }}</p>
+            <p><strong>Solicitado por:</strong> {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }}</p>
+            <p><strong>Solicitado em:</strong> {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}</p>
+            {% if workorder.motivo_exclusao %}
+                <div style="margin-top: 1rem; padding: 1rem; background-color: #f8f9fa; border-radius: 4px; border-left: 4px solid #ffc107;">
+                    <strong style="display: block; margin-bottom: 0.5rem; color: #856404;">Motivo da Exclusão:</strong>
+                    <p style="margin: 0; color: #555; white-space: pre-wrap;">{{ workorder.motivo_exclusao }}</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="approval-alert reprovar">
+            <strong>⚠ Atenção!</strong>
+            <p>
+                Você está prestes a aprovar a exclusão deste pedido. 
+                O pedido será marcado como cancelado e não poderá mais ser editado ou aprovado.
+                Esta ação não pode ser desfeita.
+            </p>
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="approval-actions">
+                <button 
+                    type="submit" 
+                    class="btn approval-submit reprovar"
+                >
+                    ✓ Confirmar Aprovação da Exclusão
+                </button>
+                <a href="{% url 'detail_workorder' workorder.pk %}" class="btn btn-secondary approval-cancel">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

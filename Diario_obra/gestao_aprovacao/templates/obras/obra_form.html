@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}Formulário de Obra{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="card">
+        <h1 class="form-title">
+            {{ title }}
+        </h1>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="form-error-box">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="{{ form.empresa.id_for_label }}" class="form-label">
+                    {{ form.empresa.label }}
+                    <span class="form-required">*</span>
+                </label>
+                {{ form.empresa }}
+                {% if form.empresa.help_text %}
+                    <div class="form-help">{{ form.empresa.help_text }}</div>
+                {% endif %}
+                {% if form.empresa.errors %}
+                    <div class="form-error">{{ form.empresa.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.codigo.id_for_label }}" class="form-label">
+                    {{ form.codigo.label }}
+                    <span class="form-required">*</span>
+                </label>
+                {{ form.codigo }}
+                {% if form.codigo.help_text %}
+                    <div class="form-help">{{ form.codigo.help_text }}</div>
+                {% endif %}
+                {% if form.codigo.errors %}
+                    <div class="form-error">{{ form.codigo.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.nome.id_for_label }}" class="form-label">
+                    {{ form.nome.label }}
+                    <span class="form-required">*</span>
+                </label>
+                {{ form.nome }}
+                {% if form.nome.help_text %}
+                    <div class="form-help">{{ form.nome.help_text }}</div>
+                {% endif %}
+                {% if form.nome.errors %}
+                    <div class="form-error">{{ form.nome.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.descricao.id_for_label }}" class="form-label">
+                    {{ form.descricao.label }}
+                </label>
+                {{ form.descricao }}
+                {% if form.descricao.help_text %}
+                    <div class="form-help">{{ form.descricao.help_text }}</div>
+                {% endif %}
+                {% if form.descricao.errors %}
+                    <div class="form-error">{{ form.descricao.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.email_obra.id_for_label }}" class="form-label">
+                    {{ form.email_obra.label }}
+                </label>
+                {{ form.email_obra }}
+                {% if form.email_obra.help_text %}
+                    <div class="form-help">{{ form.email_obra.help_text }}</div>
+                {% endif %}
+                {% if form.email_obra.errors %}
+                    <div class="form-error">{{ form.email_obra.errors }}</div>
+                {% endif %}
+            </div>
+            
+            {% if obra %}
+                <div class="form-help" style="background-color: #d1ecf1; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <strong>ℹ️ Gerenciamento de Permissões:</strong> Após criar/editar a obra, você pode gerenciar as permissões de usuários (solicitantes e aprovadores) na página de detalhes da obra.
+                </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="{{ form.ativo.id_for_label }}" class="form-label">
+                    {{ form.ativo.label }}
+                </label>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    {{ form.ativo }}
+                    <span>Marque para ativar a obra</span>
+                </div>
+                {% if form.ativo.help_text %}
+                    <div class="form-help">{{ form.ativo.help_text }}</div>
+                {% endif %}
+                {% if form.ativo.errors %}
+                    <div class="form-error">{{ form.ativo.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn">Salvar</button>
+                {% if obra %}
+                    <a href="{% url 'gestao:detail_obra' obra.pk %}" class="btn btn-secondary">Cancelar</a>
+                {% else %}
+                    <a href="{% url 'gestao:list_obras' %}" class="btn btn-secondary">Cancelar</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

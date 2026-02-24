@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %}LPLAN{% endblock %}</title>
+    
+    <!-- Bootstrap 5.3 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/supplymap.css' %}">
+    <style>
+        /* Trocar Sistema: primeiro item e em destaque */
+        .nav-link-switch-system {
+            background: rgba(59, 130, 246, 0.25) !important;
+            border: 1px solid rgba(96, 165, 250, 0.5);
+            border-left: 4px solid #3b82f6;
+            font-weight: 600;
+        }
+        .nav-link-switch-system:hover {
+            background: rgba(59, 130, 246, 0.4) !important;
+            border-left-color: #60a5fa;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- LPLAN Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark lplan-navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand lplan-brand" href="/">
+                <span class="lplan-logo-wrap" aria-hidden="true">
+                    <img class="lplan-logo"
+                         src="{% static 'img/lplan-logo.jpg' %}"
+                         alt="LPLAN">
+                </span>
+                <span class="lplan-wordmark">
+                    <span class="lplan-wordmark-main">LPLAN</span>
+                    <span class="lplan-wordmark-sub">ENGENHARIA INTEGRADA</span>
+                </span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link nav-link-switch-system px-3 py-2 rounded me-1" href="{% url 'select-system' %}" title="Trocar de sistema">
+                                <i class="bi bi-grid-3x3-gap"></i> <span class="d-none d-lg-inline">Trocar Sistema</span>
+                            </a>
+                        </li>
+                        {% if user.is_staff or user.is_superuser %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'accounts:admin_central' %}"><i class="bi bi-gear"></i> <span class="d-none d-lg-inline">Painel</span></a>
+                            </li>
+                        {% endif %}
+                        {% if user.groups.all %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:dashboard_2' %}">
+                                    <i class="bi bi-speedometer2"></i> <span class="d-none d-lg-inline">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:mapa' %}">
+                                    <i class="bi bi-table"></i> <span class="d-none d-lg-inline">Mapa</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:importar_sienge' %}">
+                                    <i class="bi bi-upload"></i> <span class="d-none d-lg-inline">Importar</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'mapa_obras:home' %}">
+                                    <i class="bi bi-arrow-left-right"></i> <span class="d-none d-lg-inline">Trocar Obra</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                        <!-- Seletor de Obra (Contexto Multi-Obra) -->
+                        {% if obras_disponiveis %}
+                        <li class="nav-item dropdown me-3">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="obraDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-building me-1"></i>
+                                <span class="obra-nome-atual">{% if obra_atual %}{{ obra_atual.nome }}{% else %}Selecionar Obra{% endif %}</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="obraDropdown">
+                                <li><h6 class="dropdown-header">Selecionar Obra</h6></li>
+                                {% for obra in obras_disponiveis %}
+                                    <li>
+                                        <a class="dropdown-item {% if obra_atual and obra.id == obra_atual.id %}active{% endif %}" 
+                                           href="{% url 'mapa_obras:selecionar' obra.id %}">
+                                            {% if obra_atual and obra.id == obra_atual.id %}
+                                                <i class="bi bi-check-circle-fill me-2"></i>
+                                            {% else %}
+                                                <i class="bi bi-circle me-2"></i>
+                                            {% endif %}
+                                            {{ obra.nome }}
+                                            <small class="text-muted ms-2">({{ obra.codigo_sienge }})</small>
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                        {% endif %}
+                        
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                <span class="lplan-avatar">{{ user.username|slice:":1"|upper }}</span>
+                                <span class="lplan-user-name">{{ user.get_full_name|default:user.username }}</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'profile' %}">Perfil</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">Sair</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">Entrar</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Toast Messages -->
+    {% if messages %}
+    <div id="mapa-toasts" style="position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;pointer-events:none;">
+        {% for message in messages %}
+        <div class="mapa-toast mapa-toast-{{ message.tags }}" style="pointer-events:auto;">
+            <div class="mapa-toast-icon">
+                {% if message.tags == 'success' %}<i class="bi bi-check-circle-fill"></i>
+                {% elif message.tags == 'error' or message.tags == 'danger' %}<i class="bi bi-exclamation-circle-fill"></i>
+                {% elif message.tags == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>
+                {% else %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+            </div>
+            <div class="mapa-toast-text">{{ message }}</div>
+            <button type="button" class="mapa-toast-close" onclick="this.closest('.mapa-toast').remove()">&times;</button>
+            <div class="mapa-toast-timer"></div>
+        </div>
+        {% endfor %}
+    </div>
+    <style>
+    .mapa-toast{display:flex;align-items:flex-start;gap:0.6rem;padding:0.75rem 1rem;background:#fff;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.12);border-left:4px solid #94a3b8;position:relative;overflow:hidden;animation:mtIn .35s cubic-bezier(.16,1,.3,1)}
+    .mapa-toast.mt-exit{animation:mtOut .3s ease forwards}
+    @keyframes mtIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes mtOut{to{opacity:0;transform:translateX(40px)}}
+    .mapa-toast-icon{flex-shrink:0;font-size:1rem;margin-top:1px}
+    .mapa-toast-text{flex:1;font-size:0.85rem;font-weight:500;color:#1e293b}
+    .mapa-toast-close{flex-shrink:0;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 2px}
+    .mapa-toast-close:hover{color:#475569}
+    .mapa-toast-timer{position:absolute;bottom:0;left:0;height:3px;border-radius:0 0 0 10px;animation:mtTimer 5s linear forwards}
+    @keyframes mtTimer{from{width:100%}to{width:0%}}
+    .mapa-toast-success{border-color:#10b981}.mapa-toast-success .mapa-toast-icon{color:#10b981}.mapa-toast-success .mapa-toast-timer{background:#10b981}
+    .mapa-toast-error,.mapa-toast-danger{border-color:#ef4444}.mapa-toast-error .mapa-toast-icon,.mapa-toast-danger .mapa-toast-icon{color:#ef4444}.mapa-toast-error .mapa-toast-timer,.mapa-toast-danger .mapa-toast-timer{background:#ef4444}
+    .mapa-toast-warning{border-color:#f59e0b}.mapa-toast-warning .mapa-toast-icon{color:#f59e0b}.mapa-toast-warning .mapa-toast-timer{background:#f59e0b}
+    .mapa-toast-info{border-color:#3b82f6}.mapa-toast-info .mapa-toast-icon{color:#3b82f6}.mapa-toast-info .mapa-toast-timer{background:#3b82f6}
+    </style>
+    <script>setTimeout(function(){document.querySelectorAll('.mapa-toast').forEach(function(t,i){setTimeout(function(){t.classList.add('mt-exit');setTimeout(function(){t.remove()},300)},i*100)})},5000)</script>
+    {% endif %}
+
+    <!-- Content -->
+    {% block content %}{% endblock %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="{% static 'js/supplymap.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Notificações{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">Notificações</h2>
+            <p class="text-sm text-gray-600 mt-1">
+                {% if unread_count > 0 %}
+                    Você tem <strong>{{ unread_count }}</strong> notificação(ões) não lida(s)
+                {% else %}
+                    Todas as notificações foram lidas
+                {% endif %}
+            </p>
+        </div>
+        {% if unread_count > 0 %}
+        <form method="post" action="{% url 'notification-mark-all-read' %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i class="fas fa-check-double mr-2"></i>Marcar todas como lidas
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-6">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+            <select name="type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none text-sm">
+                <option value="">Todos os tipos</option>
+                <option value="diary_pending" {% if filter_type == 'diary_pending' %}selected{% endif %}>Relatório Pendente</option>
+                <option value="diary_review" {% if filter_type == 'diary_review' %}selected{% endif %}>Relatório Requer Revisão</option>
+                <option value="activity_delayed" {% if filter_type == 'activity_delayed' %}selected{% endif %}>Atividade Atrasada</option>
+                <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Sistema</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select name="read" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none text-sm">
+                <option value="">Todas</option>
+                <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
+                <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i class="fas fa-filter mr-2"></i>Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Lista de Notificações -->
+<div class="space-y-4">
+    {% for notification in notifications %}
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow {% if not notification.is_read %}border-l-4 border-l-blue-600{% endif %}">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <div class="flex items-center mb-2">
+                    {% if not notification.is_read %}
+                    <span class="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
+                    {% endif %}
+                    <h3 class="text-lg font-semibold text-slate-800">{{ notification.title }}</h3>
+                    <span class="ml-3 px-2 py-1 text-xs font-semibold rounded-full
+                        {% if notification.notification_type == 'diary_pending' %}bg-yellow-100 text-yellow-800
+                        {% elif notification.notification_type == 'diary_review' %}bg-orange-100 text-orange-800
+                        {% elif notification.notification_type == 'activity_delayed' %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ notification.get_notification_type_display }}
+                    </span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">{{ notification.message }}</p>
+                <div class="flex items-center text-xs text-gray-500">
+                    <i class="fas fa-clock mr-1"></i>
+                    <span>{{ notification.created_at|date:"d/m/Y H:i" }}</span>
+                    {% if notification.related_diary %}
+                    <span class="mx-2">•</span>
+                    <a href="{% url 'diary-detail' notification.related_diary.id %}" class="text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-external-link-alt mr-1"></i>Ver relatório
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% if not notification.is_read %}
+            <form method="post" action="{% url 'notification-mark-read' notification.id %}" class="ml-4">
+                {% csrf_token %}
+                <button type="submit" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
+                    <i class="fas fa-check mr-1"></i>Marcar como lida
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fas fa-bell-slash text-gray-300 text-6xl mb-4"></i>
+        <p class="text-gray-600 text-lg">Nenhuma notificação encontrada</p>
+        <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de busca</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Paginação -->
+{% if notifications.has_other_pages %}
+<div class="flex justify-center items-center space-x-2 mt-6">
+    {% if notifications.has_previous %}
+    <a href="?page={{ notifications.previous_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" 
+       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        <i class="fas fa-chevron-left"></i>
+    </a>
+    {% endif %}
+    
+    <span class="px-4 py-2 bg-blue-600 text-white rounded-lg">
+        Página {{ notifications.number }} de {{ notifications.paginator.num_pages }}
+    </span>
+    
+    {% if notifications.has_next %}
+    <a href="?page={{ notifications.next_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" 
+       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+

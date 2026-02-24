@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Perfil - SupplyMap{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4>Perfil do Usuário</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Usuário:</strong> {{ user.username }}</p>
+                <p><strong>Nome:</strong> {{ user.get_full_name|default:"-" }}</p>
+                <p><strong>Email:</strong> {{ user.email|default:"-" }}</p>
+                <p><strong>Grupos:</strong>
+                    {% for group in user.groups.all %}
+                        <span class="badge bg-secondary">{{ group.name }}</span>
+                    {% empty %}
+                        Nenhum grupo atribuído
+                    {% endfor %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

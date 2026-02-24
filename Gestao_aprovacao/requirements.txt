@@ -1,0 +1,66 @@
+# ============================================
+# Sistema de Gestão de Obras - LPLAN
+# Requirements.txt - Dependências Python
+# ============================================
+# 
+# ⚠️ AMBIENTE: PRODUÇÃO (cPanel)
+# ⚠️ BANCO DE DADOS: MySQL do cPanel (diferente do desenvolvimento local)
+# 
+# Este arquivo contém as dependências do sistema em PRODUÇÃO.
+# O banco de dados MySQL está configurado no cPanel e é diferente
+# do banco usado em desenvolvimento local (SQLite).
+#
+# Configuração de produção:
+# - Host: cPanel (gestao.lplan.com.br)
+# - Banco: MySQL do cPanel (lplan_gestaoap)
+# - Usuário: lplan_gestaoap2
+# - Driver: pymysql (monkey patch obrigatório no cPanel)
+# ============================================
+
+# Framework Web
+Django>=5.0.1,<6.0.0
+
+# Banco de Dados - PRODUÇÃO (cPanel)
+# IMPORTANTE: No cPanel, o mysqlclient nativo pode não estar disponível,
+# por isso usamos pymysql com monkey patch (configurado em settings.py)
+# 
+# mysqlclient: driver nativo MySQL (pode não funcionar no cPanel)
+mysqlclient>=2.2.0,<3.0.0
+# pymysql: driver alternativo MySQL (OBRIGATÓRIO no cPanel - usado com monkey patch)
+# Este é o driver usado em PRODUÇÃO no cPanel devido a limitações do ambiente
+pymysql>=1.1.0,<2.0.0
+
+# Processamento de Imagens
+# Pillow: necessário para ImageField (fotos de perfil)
+Pillow>=10.0.0,<11.0.0
+
+# Servir arquivos estáticos em produção
+whitenoise>=6.6.0,<7.0.0
+
+# Gerenciamento de variáveis de ambiente
+python-dotenv>=1.0.0,<2.0.0
+
+# Geração de PDFs e relatórios
+reportlab>=4.0.7,<5.0.0
+
+# ============================================
+# Dependências opcionais (descomente se necessário)
+# ============================================
+#
+# NOTA: Este sistema está em PRODUÇÃO no cPanel.
+# As dependências abaixo são opcionais e podem ser necessárias
+# apenas para desenvolvimento local ou funcionalidades futuras.
+#
+# Para desenvolvimento local (descomente se usar SQLite)
+# sqlite3 já vem com Python, não precisa instalar
+# ⚠️ ATENÇÃO: Em desenvolvimento local, o banco é SQLite (diferente da produção)
+
+# Para testes (descomente se necessário)
+# pytest>=7.4.0,<8.0.0
+# pytest-django>=4.5.2,<5.0.0
+
+# Para segurança adicional em produção (recomendado)
+# django-cors-headers>=4.3.0,<5.0.0  # Se precisar de CORS
+# gunicorn>=21.2.0,<22.0.0  # Servidor WSGI para produção
+# psycopg2-binary>=2.9.9,<3.0.0  # Se migrar para PostgreSQL
+

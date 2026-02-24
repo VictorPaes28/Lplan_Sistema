@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load core_tags %}
+
+{% block page_title %}Histograma Equipamentos{% endblock %}
+
+{% block content %}
+<div class="filter-page-header">
+    <h1 class="filter-page-title">Histograma de Equipamentos</h1>
+    <p class="filter-page-total">Análise de utilização de equipamentos</p>
+</div>
+
+<div class="filter-form-card">
+    <form method="get" class="filter-form">
+        <div>
+            <label for="filter-equipment-date-start">Data início</label>
+            <input type="date" id="filter-equipment-date-start" name="date_start" value="{{ date_start }}">
+        </div>
+        <div>
+            <label for="filter-equipment-date-end">Data fim</label>
+            <input type="date" id="filter-equipment-date-end" name="date_end" value="{{ date_end }}">
+        </div>
+        <div>
+            <label for="filter-equipment-activity">Atividade</label>
+            <select id="filter-equipment-activity" name="activity_id">
+                <option value="">Todas</option>
+                {% for activity in activities %}
+                <option value="{{ activity.id }}" {% if activity_id == activity.id|stringformat:"s" %}selected{% endif %}>
+                    {{ activity.code }} - {{ activity.name|truncatechars:30 }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Estatísticas de Equipamentos -->
+{% if equipment_stats %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Equipamentos Utilizados</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for name, count in equipment_stats.items %}
+        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center">
+                <i class="fas fa-tools text-blue-500 mr-3"></i>
+                <span class="text-sm font-medium text-gray-900">{{ name }}</span>
+            </div>
+            <span class="text-lg font-bold text-blue-600">{{ count }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="mt-4 pt-4 border-t border-gray-200">
+        <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-900">Total de Utilizações</span>
+            <span class="text-xl font-bold text-blue-600">{{ equipment_stats|sum_values }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Histograma por Data -->
+{% if equipment_by_date %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Distribuição por Data</h3>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                    {% for name in equipment_stats.keys %}
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ name|truncatechars:15 }}</th>
+                    {% endfor %}
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+                {% for date_key, stats in equipment_by_date.items %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        {{ date_key|parse_date|date:"d/m/Y" }}
+                    </td>
+                    {% for name in equipment_stats.keys %}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        {{ stats|get_item:name|default:0 }}
+                    </td>
+                    {% endfor %}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-center">
+                        {{ stats|sum_values }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+    <i class="fas fa-tools text-gray-300 text-6xl mb-4"></i>
+    <p class="text-gray-600 text-lg">Nenhum dado de equipamento encontrado</p>
+    <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de data</p>
+</div>
+{% endif %}
+{% endblock %}
+

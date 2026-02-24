@@ -1,0 +1,590 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Visão geral das obras e relatórios{% endblock %}
+
+{% block extra_css %}
+<!-- FullCalendar CSS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.css" rel="stylesheet">
+<!-- Custom CSS -->
+<link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-content">
+<!-- ========== MODO VISUAL (cards, calendário, fotos, vídeos) ========== -->
+<div id="dashboard-view-visual" class="dashboard-view dashboard-view--visual">
+<!-- KPIs Cards - visual coeso e profissional -->
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8 fade-in">
+    <!-- Total de Relatórios -->
+    <a href="{% url 'report-list' %}" 
+       class="kpi-card kpi-card--primary bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+       aria-label="Ver todos os relatórios. Total: {{ total_diaries }}">
+        <div class="flex items-center justify-between">
+            <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Relatórios</p>
+                <p class="text-2xl font-bold text-slate-800 kpi-value" aria-label="{{ total_diaries }} relatórios">{{ total_diaries }}</p>
+            </div>
+            <div class="kpi-icon kpi-icon--reports w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <i class="fas fa-file-alt text-sm"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Atividades -->
+    <a href="{% url 'filter-activities' %}" class="kpi-card bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2">
+        <div class="flex items-center justify-between">
+            <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Atividades</p>
+                <p class="text-2xl font-bold text-slate-800 kpi-value">{{ total_activities|default:0 }}</p>
+            </div>
+            <div class="kpi-icon kpi-icon--activities w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-tasks text-sm"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Ocorrências -->
+    <a href="{% url 'filter-occurrences' %}" class="kpi-card bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2">
+        <div class="flex items-center justify-between">
+            <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Ocorrências</p>
+                <p class="text-2xl font-bold text-slate-800 kpi-value">{{ total_occurrences|default:0 }}</p>
+            </div>
+            <div class="kpi-icon kpi-icon--occurrences w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-sm"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Comentários -->
+    <a href="{% url 'filter-comments' %}" class="kpi-card bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2">
+        <div class="flex items-center justify-between">
+            <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Comentários</p>
+                <p class="text-2xl font-bold text-slate-800 kpi-value">{{ total_comments|default:0 }}</p>
+            </div>
+            <div class="kpi-icon kpi-icon--comments w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-comments text-sm"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Fotos -->
+    <a href="{% url 'filter-photos' %}" class="kpi-card bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2">
+        <div class="flex items-center justify-between">
+            <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Fotos</p>
+                <p class="text-2xl font-bold text-slate-800 kpi-value">{{ total_photos|default:0 }}</p>
+            </div>
+            <div class="kpi-icon kpi-icon--photos w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-camera text-sm"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Vídeos -->
+    <a href="{% url 'filter-videos' %}" class="kpi-card bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2">
+        <div class="flex items-center justify-between">
+            <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Vídeos</p>
+                <p class="text-2xl font-bold text-slate-800 kpi-value">{{ total_videos|default:0 }}</p>
+            </div>
+            <div class="kpi-icon kpi-icon--videos w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-video text-sm"></i>
+            </div>
+        </div>
+    </a>
+</div>
+
+<!-- Calendário (visão rápida do mês - boa prática: timeline logo após KPIs) -->
+<section class="dashboard-calendar-section fade-in mb-8" aria-labelledby="calendar-heading">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="dashboard-calendar-header">
+            <h2 id="calendar-heading" class="dashboard-calendar-title">
+                <i class="fas fa-calendar-alt mr-2 text-blue-600" aria-hidden="true"></i>
+                Calendário de Relatórios
+            </h2>
+            <div class="dashboard-calendar-legend" role="list" aria-label="Legenda do calendário">
+                <span class="dashboard-legend-item dashboard-legend-filled">
+                    <i class="fas fa-check-circle" aria-hidden="true"></i>
+                    Preenchido
+                </span>
+                <span class="dashboard-legend-item dashboard-legend-overdue">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    Atraso
+                </span>
+                <span class="dashboard-legend-item dashboard-legend-draft">
+                    <i class="fas fa-pencil-alt" aria-hidden="true"></i>
+                    Rascunho
+                </span>
+            </div>
+        </div>
+        <div class="dashboard-calendar-wrapper">
+            <div id="calendar" class="w-full dashboard-calendar-inner"></div>
+        </div>
+    </div>
+</section>
+
+<!-- Seção Principal: Relatórios Recentes e Fotos -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 fade-in">
+    <!-- Relatórios Recentes -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-slate-800">Relatórios Recentes</h3>
+            <a href="{% url 'report-list' %}" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                Ver tudo →
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 recent-reports-table">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Data</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Nº</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Fotos</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-200">
+                    {% for report in recent_reports %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            <a href="{% url 'diary-detail' report.id %}" class="block" aria-label="Ver detalhes do relatório de {{ report.date|date:'d/m/Y' }}">
+                                {{ report.date|date:"d/m/Y" }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            <a href="{% url 'diary-detail' report.id %}" class="block">
+                                {{ report.report_number|default:"-" }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <a href="{% url 'diary-detail' report.id %}" class="block">
+                                <span class="status-badge status-approved px-2 py-1 text-xs font-semibold rounded-full">Preenchido</span>
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <a href="{% url 'diary-detail' report.id %}" class="block">
+                                <div class="flex items-center">
+                                    <i class="fas fa-camera text-gray-400 mr-1"></i>
+                                    {{ report.images.count }}
+                                </div>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-12 text-center">
+                            <div class="empty-state-container">
+                                <div class="empty-state-icon" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);">
+                                    <i class="fas fa-file-alt text-blue-500"></i>
+                                </div>
+                                <p class="empty-state-title">Nenhum relatório ainda</p>
+                                <p class="empty-state-desc">Comece criando seu primeiro relatório de obra</p>
+                                <a href="{% url 'diary-new' %}" class="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition" style="padding:0.5rem 1rem;text-decoration:none;display:inline-flex;align-items:center;gap:0.375rem;">
+                                    <i class="fas fa-plus" style="font-size:0.65rem;"></i> Criar relatório
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Fotos Recentes -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-slate-800">Fotos Recentes</h3>
+            <a href="{% url 'filter-photos' %}" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                Ver tudo →
+            </a>
+        </div>
+        {% if recent_photos %}
+        <div class="dashboard-photos-grid">
+            {% for photo in recent_photos %}
+            <a href="{% url 'diary-detail' photo.diary.pk %}" 
+               class="dashboard-photo-thumb rounded-lg overflow-hidden bg-slate-100 group cursor-pointer hover:opacity-90 transition-opacity block"
+               aria-label="Ver detalhes do relatório com foto">
+                <img src="{{ photo.image.url }}" 
+                     alt="{{ photo.caption|default:'Foto' }}"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200">
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-container">
+            <div class="empty-state-icon" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);">
+                <i class="fas fa-camera text-purple-400"></i>
+            </div>
+            <p class="empty-state-title">Nenhuma foto encontrada</p>
+            <p class="empty-state-desc">As fotos dos relatórios aparecerão aqui</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Seção: Vídeos Recentes e Informações da Obra -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 fade-in">
+    <!-- Vídeos Recentes -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-slate-800">Vídeos recentes</h3>
+            <a href="{% url 'filter-videos' %}" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                Ver tudo →
+            </a>
+        </div>
+        {% if recent_videos %}
+        <div class="dashboard-videos-grid">
+            {% for video in recent_videos %}
+            <div class="dashboard-video-card-wrapper">
+                <div class="dashboard-video-card rounded-xl border border-slate-200 overflow-hidden bg-slate-100 hover:border-slate-300 hover:shadow-md transition-all">
+                    <div class="dashboard-video-thumb">
+                        <video class="dashboard-video-player"
+                               controls
+                               controlsList="play pause volume fullscreen"
+                               preload="metadata"
+                               onclick="event.preventDefault(); event.stopPropagation();"
+                               onplay="event.stopPropagation()"
+                               onpause="event.stopPropagation()"
+                               title="{{ video.caption|default:'Reproduzir vídeo' }}">
+                            <source src="{{ video.video.url }}" type="video/mp4">
+                            <source src="{{ video.video.url }}" type="video/webm">
+                            Seu navegador não suporta a reprodução de vídeos HTML5.
+                        </video>
+                        <div class="dashboard-video-placeholder" aria-hidden="true">
+                            <i class="fas fa-play text-slate-400"></i>
+                        </div>
+                    </div>
+                    <div class="dashboard-video-info">
+                        <p class="dashboard-video-caption" title="{{ video.caption|default:'' }}">
+                            {{ video.caption|default:"Vídeo"|truncatewords:6 }}
+                        </p>
+                        <a href="{% url 'diary-detail' video.diary.pk %}"
+                           class="dashboard-video-link"
+                           onclick="event.stopPropagation()"
+                           aria-label="Ver detalhes do relatório">
+                            Ver relatório <i class="fas fa-arrow-right text-xs ml-0.5"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-container">
+            <div class="empty-state-icon" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);">
+                <i class="fas fa-video text-green-400"></i>
+            </div>
+            <p class="empty-state-title">Nenhum vídeo encontrado</p>
+            <p class="empty-state-desc">Os vídeos dos relatórios aparecerão aqui</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Informações da Obra -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="text-lg font-semibold text-slate-800 mb-4">Informações da obra</h3>
+        
+        <div class="dashboard-project-info space-y-4">
+            <!-- Status -->
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">Status:</span>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                    Em andamento
+                </span>
+            </div>
+            
+            <!-- Endereço -->
+            {% if project.address %}
+            <div class="flex items-start justify-between">
+                <span class="text-sm text-gray-600">Endereço:</span>
+                <span class="text-sm font-medium text-slate-800 text-right">{{ project.address }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- Responsável -->
+            {% if project.responsible %}
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">Responsável:</span>
+                <span class="text-sm font-medium text-slate-800">{{ project.responsible }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- N° do contrato -->
+            {% if project.contract_number %}
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">N° do contrato:</span>
+                <span class="text-sm font-medium text-slate-800">{{ project.contract_number }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- Contratante -->
+            {% if project.client_name %}
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">Contratante:</span>
+                <span class="text-sm font-medium text-slate-800">{{ project.client_name }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- Data início -->
+            {% if project.start_date %}
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">Data início:</span>
+                <span class="text-sm font-medium text-slate-800">{{ project.start_date|date:"d/m/Y" }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- Prazo (uma linha por informação, mesmo padrão da seção) -->
+            {% if project.start_date and project.end_date %}
+            <div class="pt-4 border-t border-gray-200 space-y-4">
+                {% if project_days_total %}
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                         style="width: {{ project_progress_percent|default:0 }}%"></div>
+                </div>
+                {% endif %}
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Prazo contratual:</span>
+                    <span class="text-sm font-medium text-slate-800">{{ project_days_total|default:"-" }} dias</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Prazo decorrido:</span>
+                    <span class="text-sm font-medium text-slate-800">{{ project_days_elapsed|default:0 }} dias</span>
+                </div>
+                {% if project.end_date %}
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Previsão de término:</span>
+                    <span class="text-sm font-medium text-slate-800">{{ project.end_date|date:"d/m/Y" }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Prazo a vencer:</span>
+                    <span class="text-sm font-medium text-slate-800">{{ project_days_remaining|default:0 }} dias</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+<!-- Fim do modo Visual -->
+
+</div>
+<!-- Fim do dashboard-content -->
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- FullCalendar JS -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/locales/pt-br.js"></script>
+
+<script>
+// URLs base geradas pelo Django (evita hardcode)
+const DIARY_DETAIL_URL = "{% url 'diary-detail' 0 %}".replace('/0/', '/{id}/');
+const DIARY_NEW_URL = "{% url 'diary-new' %}";
+
+// Aguarda a top bar estar visível antes de renderizar o calendário
+document.addEventListener('DOMContentLoaded', function() {
+    // Pequeno delay para garantir que a top bar esteja renderizada
+    setTimeout(function() {
+        const calendarEl = document.getElementById('calendar');
+        if (!calendarEl) return;
+        
+        const isMobile = window.innerWidth < 768;
+        
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'pt-br',
+        initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: isMobile ? 'listWeek' : 'dayGridMonth,timeGridWeek,listWeek'
+        },
+        buttonText: {
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            list: 'Lista'
+        },
+        events: {
+            url: '{% url "calendar-events" %}',
+            method: 'GET',
+            failure: function() {
+                // Erro ao carregar eventos - não interrompe a experiência do usuário
+                console.warn('Não foi possível carregar eventos do calendário. Tente recarregar a página.');
+            }
+        },
+        eventContent: function(arg) {
+            var props = arg.event.extendedProps;
+            var short = (props && props.short_title) ? props.short_title : arg.event.title;
+            var icon = 'fa-check-circle';
+            if (props && props.missing) {
+                icon = (props.status === 'Atraso') ? 'fa-exclamation-triangle' : 'fa-calendar-day';
+            } else if (props && props.has_diary) {
+                icon = 'fa-check-circle';
+            }
+            return {
+                html: '<span class="fc-event-content-inner">' +
+                    '<i class="fas ' + icon + ' fc-event-icon" aria-hidden="true"></i>' +
+                    '<span class="fc-event-title-text">' + (short || '').replace(/</g, '&lt;') + '</span>' +
+                    '</span>'
+            };
+        },
+        eventDidMount: function(info) {
+            const props = info.event.extendedProps;
+            const status = props.status;
+            const hasDiary = props.has_diary !== false; // Default true se não especificado
+            const isMissing = props.missing === true;
+            
+            // Classes para garantir contraste de texto via CSS
+            if (isMissing) {
+                if (status === 'Atraso') {
+                    info.el.classList.add('fc-event--atraso');
+                } else {
+                    info.el.classList.add('fc-event--futuro');
+                }
+            } else if (status === 'APROVADO' || status === 'Finalizado' || status === 'Preenchido' || status === 'Preenchendo') {
+                info.el.classList.add('fc-event--preenchido');
+            }
+            
+            // Aplica cores baseadas no status
+            if (isMissing) {
+                // Dia faltante - estilo elegante: borda colorida + fundo suave
+                if (status === 'Atraso') {
+                    // Falta: fundo rosado suave + borda vermelha fina
+                    info.el.style.backgroundColor = '#fef2f2';
+                    info.el.style.borderColor = '#dc2626';
+                    info.el.style.borderStyle = 'solid';
+                    info.el.style.borderWidth = '1px';
+                    info.el.style.color = '#991b1b';
+                    info.el.style.fontWeight = '700';
+                    info.el.style.opacity = '1';
+                    info.el.style.boxShadow = 'none';
+                } else {
+                    // Dia futuro - azul com texto escuro legível (não clicável)
+                    info.el.style.backgroundColor = '#dbeafe';
+                    info.el.style.borderColor = '#3b82f6';
+                    info.el.style.borderStyle = 'solid';
+                    info.el.style.borderWidth = '2px';
+                    info.el.style.color = '#1e40af';
+                    info.el.style.fontWeight = '600';
+                    info.el.style.opacity = '1';
+                    info.el.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.2)';
+                    info.el.style.cursor = 'default';
+                }
+                if (status === 'Atraso') {
+                    info.el.style.cursor = 'pointer';
+                }
+                info.el.style.transition = 'all 0.2s ease';
+                
+                info.el.addEventListener('mouseenter', function() {
+                    if (status === 'Atraso') {
+                        this.style.backgroundColor = '#fee2e2';
+                        this.style.transform = 'scale(1.02)';
+                        this.style.boxShadow = '0 2px 6px rgba(220, 38, 38, 0.15)';
+                    } else {
+                        this.style.backgroundColor = '#bfdbfe';
+                        this.style.transform = 'scale(1.02)';
+                        this.style.boxShadow = '0 4px 8px rgba(59, 130, 246, 0.3)';
+                    }
+                });
+                info.el.addEventListener('mouseleave', function() {
+                    if (status === 'Atraso') {
+                        this.style.backgroundColor = '#fef2f2';
+                        this.style.transform = 'scale(1)';
+                        this.style.boxShadow = 'none';
+                    } else {
+                        this.style.backgroundColor = '#dbeafe';
+                        this.style.transform = 'scale(1)';
+                        this.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.2)';
+                    }
+                });
+            } else if (status === 'APROVADO' || status === 'Finalizado' || status === 'Preenchido' || status === 'Preenchendo') {
+                // Relatório preenchido - verde com texto branco
+                info.el.style.backgroundColor = '#059669';
+                info.el.style.borderColor = '#047857';
+                info.el.style.color = '#fff';
+            } else if (status === 'Não preenchido' || status === 'Atraso') {
+                info.el.style.backgroundColor = '#ef4444'; // Vermelho
+                info.el.style.borderColor = '#ef4444';
+            } else if (status === 'Indefinido') {
+                info.el.style.backgroundColor = '#6b7280'; // Cinza
+                info.el.style.borderColor = '#6b7280';
+            }
+        },
+        eventClick: function(info) {
+            const props = info.event.extendedProps;
+            
+            // Se tem relatório, vai para detalhes
+            if (props.diary_id) {
+                const diaryId = props.diary_id;
+                window.location.href = DIARY_DETAIL_URL.replace('{id}', diaryId);
+            }
+            // Dia futuro: não dá para preencher relatório antes da data
+            else if (props.missing === true && props.status === 'Futuro') {
+                return; // Não faz nada; opcional: mostrar tooltip "Preencha na data"
+            }
+            // Dia atrasado (Falta): cria novo relatório com data pré-selecionada
+            else if (props.missing === true && props.status === 'Atraso') {
+                const eventDate = info.event.start;
+                let dateStr;
+                if (eventDate instanceof Date) {
+                    const year = eventDate.getFullYear();
+                    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(eventDate.getDate()).padStart(2, '0');
+                    dateStr = `${year}-${month}-${day}`;
+                } else {
+                    dateStr = eventDate.split('T')[0];
+                }
+                window.location.href = '{% url "diary-new" %}?date=' + dateStr;
+            }
+        },
+        height: 'auto',
+        contentHeight: 'auto'
+    });
+    
+        calendar.render();
+        
+        // Ajusta view ao redimensionar
+        window.addEventListener('resize', function() {
+            const newIsMobile = window.innerWidth < 768;
+            if (newIsMobile !== isMobile) {
+                calendar.changeView(newIsMobile ? 'listWeek' : 'dayGridMonth');
+            }
+        });
+    }, 100); // Delay de 100ms para garantir que a top bar esteja renderizada
+    
+    // Previne que cliques nos vídeos sejam capturados por elementos pais
+    document.addEventListener('DOMContentLoaded', function() {
+        const videos = document.querySelectorAll('video');
+        videos.forEach(function(video) {
+            // Previne propagação de eventos de clique nos controles do vídeo
+            video.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+            video.addEventListener('play', function(e) {
+                e.stopPropagation();
+            });
+            video.addEventListener('pause', function(e) {
+                e.stopPropagation();
+            });
+            // Previne que cliques nos controles sejam capturados
+            const controls = video.querySelectorAll('*');
+            controls.forEach(function(control) {
+                control.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            });
+        });
+    });
+});
+
+</script>
+{% endblock %}
+
+

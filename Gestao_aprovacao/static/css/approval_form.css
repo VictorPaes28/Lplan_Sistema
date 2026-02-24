@@ -1,0 +1,145 @@
+/* ============================================
+   APPROVAL_FORM.CSS - Estilos do formulário de aprovação
+   ============================================ */
+
+.approval-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.approval-title {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+}
+
+.approval-info-box {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+}
+
+.approval-info-box p {
+    margin-bottom: 0.5rem;
+}
+
+.approval-info-box p:last-child {
+    margin-bottom: 0;
+}
+
+.approval-alert {
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid;
+}
+
+.approval-alert.aprovar {
+    background-color: #d4edda;
+    color: #155724;
+    border-color: #28a745;
+}
+
+.approval-alert.reprovar {
+    background-color: #f8d7da;
+    color: #721c24;
+    border-color: #dc3545;
+}
+
+.approval-alert strong {
+    display: block;
+}
+
+.approval-alert p {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+}
+
+.approval-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.approval-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.approval-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.approval-help {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.approval-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.approval-submit {
+    flex: 1;
+}
+
+.approval-submit.aprovar {
+    background-color: #28a745;
+}
+
+.approval-submit.reprovar {
+    background-color: #dc3545;
+}
+
+.approval-cancel {
+    flex: 1;
+    text-align: center;
+}
+
+.approval-required {
+    color: #dc3545;
+}
+
+/* Responsive - Mobile */
+@media (max-width: 768px) {
+    .approval-container {
+        padding: 1.5rem 1rem;
+    }
+
+    .approval-title {
+        font-size: 1.25rem;
+    }
+
+    .approval-actions {
+        flex-direction: column;
+    }
+
+    .approval-submit,
+    .approval-cancel {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .approval-container {
+        padding: 1rem 0.75rem;
+    }
+
+    .approval-title {
+        font-size: 1.1rem;
+    }
+
+    .approval-textarea {
+        font-size: 0.9rem;
+    }
+}
+

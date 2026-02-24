@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Criar Obra - LPLAN{% endblock %}
+{% block page_title %}Criar Obra{% endblock %}
+{% block page_subtitle %}Painel do sistema - Cadastrar nova obra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 640px;
+    }
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+    }
+    .form-card-header {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #bbf7d0;
+    }
+    .form-card-header h2 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #166534;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .form-card-header h2 i {
+        width: 36px;
+        height: 36px;
+        background: #16a34a;
+        color: white;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+    }
+    .form-card-body {
+        padding: 2rem;
+    }
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    .form-group label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.5rem;
+    }
+    .form-group label .required {
+        color: #ef4444;
+        margin-left: 2px;
+    }
+    .form-group input[type="text"] {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        color: #1e293b;
+        transition: all 0.2s ease;
+        outline: none;
+        background: #f8fafc;
+    }
+    .form-group input[type="text"]:focus {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
+        background: white;
+    }
+    .form-group .form-hint {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-top: 0.35rem;
+    }
+    .form-check-custom {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: #f8fafc;
+        border-radius: 10px;
+        border: 1.5px solid #e2e8f0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .form-check-custom:hover {
+        border-color: #22c55e;
+        background: #f0fdf4;
+    }
+    .form-check-custom input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #22c55e;
+        cursor: pointer;
+    }
+    .form-check-custom label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #334155;
+        cursor: pointer;
+        margin: 0;
+    }
+    .form-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+        padding-top: 1rem;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 0.5rem;
+    }
+    .btn-cancel {
+        padding: 0.65rem 1.5rem;
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .btn-cancel:hover {
+        background: #e2e8f0;
+        color: #1e293b;
+        text-decoration: none;
+    }
+    .btn-submit {
+        padding: 0.65rem 1.75rem;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.25);
+    }
+    .btn-submit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+    }
+    /* Breadcrumb */
+    .admin-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.85rem;
+    }
+    .admin-breadcrumb a {
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    .admin-breadcrumb a:hover {
+        color: #1d4ed8;
+    }
+    .admin-breadcrumb .separator {
+        color: #cbd5e1;
+    }
+    .admin-breadcrumb .current {
+        color: #64748b;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container" style="animation: fadeInUp 0.3s ease;">
+    <!-- Breadcrumb -->
+    <div class="admin-breadcrumb">
+        <a href="{% url 'accounts:admin_central' %}"><i class="fas fa-cog" style="margin-right: 0.25rem;"></i> Painel do sistema</a>
+        <span class="separator"><i class="fas fa-chevron-right" style="font-size: 0.65rem;"></i></span>
+        <a href="{% url 'accounts:gerenciar_obras' %}">Obras</a>
+        <span class="separator"><i class="fas fa-chevron-right" style="font-size: 0.65rem;"></i></span>
+        <span class="current">Criar Obra</span>
+    </div>
+
+    <div class="form-card">
+        <div class="form-card-header">
+            <h2>
+                <i class="fas fa-plus"></i>
+                Criar Nova Obra
+            </h2>
+        </div>
+        <div class="form-card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="codigo_sienge">Código Sienge <span class="required">*</span></label>
+                    <input type="text" id="codigo_sienge" name="codigo_sienge" required placeholder="Ex: 12345">
+                    <div class="form-hint">Código único da obra no sistema Sienge</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="nome">Nome da Obra <span class="required">*</span></label>
+                    <input type="text" id="nome" name="nome" required placeholder="Ex: Residencial Vila Nova">
+                </div>
+                
+                <div class="form-group">
+                    <div class="form-check-custom">
+                        <input type="checkbox" id="ativa" name="ativa" checked>
+                        <label for="ativa">Obra Ativa</label>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:admin_central' %}" class="btn-cancel">
+                        <i class="fas fa-arrow-left"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn-submit">
+                        <i class="fas fa-check"></i> Criar Obra
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+{% endblock %}

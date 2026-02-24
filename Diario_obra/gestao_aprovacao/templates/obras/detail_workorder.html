@@ -1,0 +1,416 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pedido: {{ workorder.codigo }}{% endblock %}
+
+{% block page_title %}Detalhes do Pedido{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/detail_workorder.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="detail-container">
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.25rem;">
+        <a href="{% url 'gestao:list_workorders' %}" class="back-link" aria-label="Voltar para Pedidos">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Voltar aos pedidos
+        </a>
+        <a href="{% url 'gestao:home' %}" class="back-link" aria-label="Voltar ao GestControll">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            Voltar ao GestControll
+        </a>
+    </div>
+    <!-- Cabeçalho -->
+    <div class="detail-header">
+        <div>
+            <h1 class="detail-title">
+                {{ workorder.codigo }}
+            </h1>
+            <p class="detail-subtitle">{{ workorder.nome_credor }}</p>
+        </div>
+        <div class="detail-status-container">
+            <span class="status-badge-large {{ workorder.status }}">
+                {{ workorder.get_status_display }}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Ações -->
+    <div class="detail-actions">
+        {% if can_edit %}
+            {% if workorder.status == 'reprovado' %}
+                <a href="{% url 'gestao:edit_workorder' workorder.pk %}" class="btn btn-reenviar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:0.375rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    Reenviar para Reavaliação
+                </a>
+            {% else %}
+                <a href="{% url 'gestao:edit_workorder' workorder.pk %}" class="btn">Editar</a>
+            {% endif %}
+        {% endif %}
+        {% if can_solicitar_exclusao %}
+            <a href="{% url 'gestao:solicitar_exclusao' workorder.pk %}" class="btn btn-exclusao">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:0.25rem;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                Solicitar Exclusão
+            </a>
+        {% endif %}
+        {% if workorder.solicitado_exclusao and workorder.status == 'pendente' %}
+            <div class="alert-exclusao-solicitada">
+                <div class="alert-exclusao-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <strong>Exclusão Solicitada</strong>
+                </div>
+                <p class="alert-exclusao-text">
+                    Solicitado por {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }} 
+                    em {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}. Aguardando aprovação.
+                </p>
+                {% if workorder.motivo_exclusao %}
+                    <div class="alert-exclusao-motivo">
+                        <strong>Motivo:</strong>
+                        <p>{{ workorder.motivo_exclusao }}</p>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% if can_aprovar_exclusao and workorder.status == 'pendente' %}
+            <div class="exclusao-actions">
+                <a href="{% url 'gestao:aprovar_exclusao' workorder.pk %}" class="btn btn-aprovar-exclusao">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:0.25rem;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Aprovar Exclusão
+                </a>
+                <a href="{% url 'gestao:rejeitar_exclusao' workorder.pk %}" class="btn btn-rejeitar-exclusao">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:0.25rem;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    Rejeitar Exclusão
+                </a>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Informações Principais -->
+    <div class="detail-section">
+        <h2 class="detail-section-title">Informações do Pedido</h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Obra:</div>
+                <p class="detail-field-value">{{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Código:</div>
+                <p class="detail-field-value">{{ workorder.codigo }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Nome do Credor:</div>
+                <p class="detail-field-value">{{ workorder.nome_credor }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Tipo de Solicitação:</div>
+                <p class="detail-field-value">{{ workorder.get_tipo_solicitacao_display }}</p>
+            </div>
+            
+            {% if workorder.valor_estimado %}
+            <div>
+                <div class="detail-field-label">Valor Estimado:</div>
+                <p class="detail-field-value detail-field-value-large">
+                    R$ {{ workorder.valor_estimado|floatformat:2 }}
+                </p>
+            </div>
+            {% endif %}
+            
+            {% if workorder.prazo_estimado %}
+            <div>
+                <div class="detail-field-label">Prazo Estimado:</div>
+                <p class="detail-field-value">
+                    {{ workorder.prazo_estimado }} dia{% if workorder.prazo_estimado != 1 %}s{% endif %}
+                </p>
+            </div>
+            {% endif %}
+            
+            {% if workorder.local %}
+            <div>
+                <div class="detail-field-label">Local:</div>
+                <p class="detail-field-value">{{ workorder.local }}</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if workorder.observacoes %}
+            <div class="detail-description">
+                <div class="detail-field-label">Observações:</div>
+                <p class="detail-field-value detail-description-text">{{ workorder.observacoes }}</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Informações de Controle -->
+    <div class="detail-section">
+        <h2 class="detail-section-title">Controle</h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Solicitante:</div>
+                <p class="detail-field-value">
+                    {{ workorder.criado_por.get_full_name|default:workorder.criado_por.username }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">E-mail do Solicitante:</div>
+                <p class="detail-field-value">
+                    {{ workorder.criado_por.email|default:"Não informado" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Criação:</div>
+                <p class="detail-field-value">
+                    {{ workorder.created_at|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Envio:</div>
+                <p class="detail-field-value">
+                    {{ workorder.data_envio|date:"d/m/Y H:i"|default:"Ainda não enviado" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Última Atualização:</div>
+                <p class="detail-field-value">
+                    {{ workorder.updated_at|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            
+            {% if workorder.data_aprovacao %}
+                <div>
+                    <div class="detail-field-label">Data de Aprovação/Reprovação:</div>
+                    <p class="detail-field-value">
+                        {{ workorder.data_aprovacao|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Área de Aprovação -->
+    {% if can_approve %}
+        <div class="approval-section">
+            <h2 class="approval-section-title">Aprovação</h2>
+            <p class="approval-section-text">Este pedido está aguardando sua aprovação.</p>
+            <div class="approval-actions">
+                <a href="{% url 'gestao:approve_workorder' workorder.pk %}" class="btn approval-btn-approve">Aprovar</a>
+                <a href="{% url 'gestao:reject_workorder' workorder.pk %}" class="btn approval-btn-reject">Reprovar</a>
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Comentários e Discussão -->
+    {% if can_comment %}
+    <div class="detail-section">
+        <div class="detail-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Comentários</span>
+            <span class="comments-count">{{ comments|length }} comentário{{ comments|length|pluralize }}</span>
+        </div>
+        {% if comments %}
+            <div class="comments-list">
+                {% for comment in comments %}
+                    <div class="comment-item">
+                        <div class="comment-row">
+                            <div class="comment-author-row">
+                                <div class="comment-avatar">{{ comment.autor.get_full_name|default:comment.autor.username|first|upper }}</div>
+                                <div>
+                                    <div class="comment-author-name">{{ comment.autor.get_full_name|default:comment.autor.username }}</div>
+                                    <div class="comment-meta">{{ comment.created_at|date:"d/m/Y H:i" }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comment-text">{{ comment.texto }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="comment-empty">Nenhum comentário ainda.</div>
+        {% endif %}
+        <form method="post" action="{% url 'gestao:add_comment' workorder.pk %}" class="comment-form-divider">
+            {% csrf_token %}
+            <label for="comment-texto" class="comment-form-label">Adicionar comentário</label>
+            <textarea id="comment-texto" name="texto" rows="3" placeholder="Digite seu comentário..." required class="comment-form-textarea"></textarea>
+            <span class="comment-form-help">Use para esclarecer dúvidas ou pedir informações durante a análise.</span>
+            <button type="submit" class="btn comment-form-submit">Enviar</button>
+        </form>
+    </div>
+    {% endif %}
+    
+    <!-- Anexos -->
+    <div class="detail-section">
+        <div class="attachments-header">
+            <h2 class="detail-section-title" style="margin-bottom: 0;">Anexos</h2>
+            {% if can_add_attachment %}
+                <a href="{% url 'gestao:upload_attachment' workorder.pk %}" class="btn">+ Adicionar Anexo</a>
+            {% endif %}
+        </div>
+        
+        {% if attachments_originais or anexos_por_versao %}
+            {% if attachments_originais %}
+                <div class="attachments-block">
+                    <h3 class="attachments-subtitle">Anexos originais</h3>
+                    <div class="attachments-list">
+                        {% for attachment in attachments_originais %}
+                            <div class="attachment-item">
+                                <div class="attachment-icon" aria-hidden="true">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                </div>
+                                <div class="attachment-info">
+                                    <div class="attachment-name">
+                                        <strong>{{ attachment.get_nome_display }}</strong>
+                                        <span class="attachment-extension">{{ attachment.get_extensao }}</span>
+                                    </div>
+                                    {% if attachment.descricao %}
+                                        <p class="attachment-description">{{ attachment.descricao }}</p>
+                                    {% endif %}
+                                    <div class="attachment-meta">
+                                        <span>{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}</span>
+                                        <span class="attachment-meta-sep">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+                                        <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
+                                    </div>
+                                </div>
+                                <div class="attachment-actions">
+                                    <a href="{{ attachment.arquivo.url }}" target="_blank" rel="noopener" class="attachment-download">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        Baixar
+                                    </a>
+                                    {% if can_delete_attachment %}
+                                        {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
+                                            <a href="{% url 'gestao:delete_attachment' attachment.pk %}" class="attachment-delete">Excluir</a>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            
+            {% if anexos_por_versao_ordenado %}
+                {% for versao, anexos in anexos_por_versao_ordenado %}
+                    <div class="anexos-versao">
+                        <h3 class="anexos-versao-title"><span class="versao-badge">v{{ versao }}</span> Reaprovação v{{ versao }}</h3>
+                        <div class="attachments-list">
+                            {% for attachment in anexos %}
+                                <div class="attachment-item">
+                                    <div class="attachment-icon" aria-hidden="true">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                    </div>
+                                    <div class="attachment-info">
+                                        <div class="attachment-name">
+                                            <strong>{{ attachment.get_nome_display }}</strong>
+                                            <span class="attachment-extension">Novo</span>
+                                        </div>
+                                        {% if attachment.descricao %}
+                                            <p class="attachment-description">{{ attachment.descricao }}</p>
+                                        {% endif %}
+                                        <div class="attachment-meta">
+                                            <span>{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}</span>
+                                            <span class="attachment-meta-sep">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+                                            <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="attachment-actions">
+                                        <a href="{{ attachment.arquivo.url }}" target="_blank" rel="noopener" class="attachment-download">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            Baixar
+                                        </a>
+                                        {% if can_delete_attachment %}
+                                            {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
+                                                <a href="{% url 'gestao:delete_attachment' attachment.pk %}" class="attachment-delete">Excluir</a>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% else %}
+            <p class="empty-attachments">Nenhum anexo adicionado ainda.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Histórico de Aprovações -->
+    {% if approvals %}
+        <div class="detail-section">
+            <h2 class="detail-section-title">Histórico de Aprovações</h2>
+            <div class="approvals-list">
+                {% for approval in approvals %}
+                    <div class="approval-item {{ approval.decisao }}">
+                        <div class="approval-header">
+                            <div>
+                                <strong class="approval-decision {{ approval.decisao }}">{{ approval.get_decisao_display|upper }}</strong>
+                                <span class="approval-meta">por {{ approval.aprovado_por.get_full_name|default:approval.aprovado_por.username }}</span>
+                            </div>
+                            <span class="approval-date">{{ approval.created_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                        {% if approval.comentario %}
+                            <p class="approval-comment {{ approval.decisao }}">{{ approval.comentario }}</p>
+                        {% endif %}
+                        {% if approval.decisao == 'reprovado' and approval.tags_erro.exists %}
+                            <div class="approval-tags-line">
+                                <span class="approval-tags-label">Motivos:</span>
+                                <div class="approval-tags-list">
+                                    {% for tag in approval.tags_erro.all %}
+                                        <span class="approval-tag-chip">{{ tag.nome }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Histórico de Status -->
+    {% if status_history %}
+        <div class="detail-section">
+            <h2 class="detail-section-title">Histórico de Mudanças de Status</h2>
+            
+            <div class="approvals-list">
+                {% for history in status_history %}
+                    <div class="approval-item {% if history.status_anterior == history.status_novo and history.status_anterior %}editado{% endif %}">
+                        <div class="approval-header">
+                            <div>
+                                <strong>
+                                    {% if history.status_anterior == history.status_novo and history.status_anterior %}
+                                        Pedido Editado ({{ history.status_novo|title }})
+                                    {% elif history.status_anterior %}
+                                        {{ history.status_anterior|title }} → {{ history.status_novo|title }}
+                                    {% else %}
+                                        {{ history.status_novo|title }}
+                                    {% endif %}
+                                </strong>
+                                <span class="approval-meta">
+                                    por {{ history.alterado_por.get_full_name|default:history.alterado_por.username }}
+                                </span>
+                            </div>
+                            <span class="approval-date">
+                                {{ history.created_at|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+                        {% if history.observacao %}
+                            <p class="approval-comment {% if history.status_anterior == history.status_novo %}editado{% endif %}">
+                                {{ history.observacao }}
+                            </p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

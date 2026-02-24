@@ -1,0 +1,71 @@
+{% for item in children_with_progress %}
+<div class="activity-item mb-4 border border-slate-200 rounded-lg p-4 ml-8" data-activity-id="{{ item.activity.id }}">
+    <div class="activity-header flex items-start justify-between">
+        <div class="activity-info flex-1">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="font-mono text-sm font-semibold text-blue-600">{{ item.activity.code }}</span>
+                <span class="text-lg font-semibold text-slate-800">{{ item.activity.name }}</span>
+            </div>
+            <div class="activity-meta flex items-center gap-4 mb-3">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                    {% if item.activity.status == 'IP' %}bg-yellow-100 text-yellow-800
+                    {% elif item.activity.status == 'CO' %}bg-green-100 text-green-800
+                    {% elif item.activity.status == 'BL' or item.activity.status == 'CA' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ item.activity.get_status_display }}
+                </span>
+                {% if item.activity.weight > 0 %}
+                <span class="text-sm text-gray-600">Peso: {{ item.activity.weight }}%</span>
+                {% endif %}
+            </div>
+            <div class="progress-bar-container w-full bg-gray-200 rounded-full h-4 mb-2">
+                <div class="progress-bar bg-blue-600 h-4 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-300" 
+                     style="width: {{ item.progress }}%;" 
+                     data-progress="{{ item.activity.id }}"
+                     id="progress-{{ item.activity.id }}">
+                    {{ item.progress|floatformat:0 }}%
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 ml-4">
+            {% if item.activity.numchild > 0 %}
+            <button class="expand-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm" 
+                    hx-get="{% url 'activity-children' item.activity.id %}"
+                    hx-target="closest .activity-item"
+                    hx-swap="beforeend"
+                    hx-indicator="#spinner-{{ item.activity.id }}"
+                    onclick="toggleChildren(this, '{{ item.activity.id }}')">
+                <i class="fas fa-chevron-down mr-2"></i>Expandir
+                <span id="spinner-{{ item.activity.id }}" class="loading-spinner ml-2" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </span>
+            </button>
+            {% else %}
+            <span class="text-sm text-gray-500">Sem filhos</span>
+            {% endif %}
+            <a href="{% url 'activity-new-child' parent_activity.project.id item.activity.id %}" 
+               class="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+               title="Adicionar subatividade">
+                <i class="fas fa-plus"></i>
+            </a>
+            <a href="{% url 'activity-edit' parent_activity.project.id item.activity.id %}" 
+               class="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
+               title="Editar">
+                <i class="fas fa-edit"></i>
+            </a>
+            <a href="{% url 'activity-delete' parent_activity.project.id item.activity.id %}" 
+               class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+               title="Deletar"
+               onclick="return confirm('Tem certeza que deseja deletar esta atividade? Esta ação não pode ser desfeita.');">
+                <i class="fas fa-trash"></i>
+            </a>
+        </div>
+    </div>
+    <div class="children-container ml-8 mt-4" id="children-{{ item.activity.id }}"></div>
+</div>
+{% empty %}
+<div class="text-center py-8 text-gray-500 ml-8">
+    <p>Nenhum filho encontrado.</p>
+</div>
+{% endfor %}
+

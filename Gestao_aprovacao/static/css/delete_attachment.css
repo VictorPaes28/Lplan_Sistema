@@ -1,0 +1,93 @@
+/* ============================================
+   DELETE_ATTACHMENT.CSS - Estilos da confirmação de deleção
+   ============================================ */
+
+.delete-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.delete-title {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+}
+
+.delete-warning {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #dc3545;
+}
+
+.delete-warning strong {
+    display: block;
+}
+
+.delete-warning p {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+}
+
+.delete-info-box {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+}
+
+.delete-info-box p {
+    margin-bottom: 0.5rem;
+}
+
+.delete-info-box p:last-child {
+    margin-bottom: 0;
+}
+
+.delete-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.delete-submit {
+    flex: 1;
+    background-color: #dc3545;
+}
+
+.delete-cancel {
+    flex: 1;
+    text-align: center;
+}
+
+/* Responsive - Mobile */
+@media (max-width: 768px) {
+    .delete-container {
+        padding: 1.5rem 1rem;
+    }
+
+    .delete-title {
+        font-size: 1.25rem;
+    }
+
+    .delete-actions {
+        flex-direction: column;
+    }
+
+    .delete-submit,
+    .delete-cancel {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .delete-container {
+        padding: 1rem 0.75rem;
+    }
+
+    .delete-title {
+        font-size: 1.1rem;
+    }
+}
+

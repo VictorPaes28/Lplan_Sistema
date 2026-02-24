@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Filtro de Fotos{% endblock %}
+
+{% block content %}
+<div class="filter-page-header">
+    <h1 class="filter-page-title">Fotos de Evidência</h1>
+    <p class="filter-page-total">Total: {{ total_photos }} foto{{ total_photos|pluralize }}</p>
+</div>
+
+<div class="filter-form-card">
+    <form method="get" class="filter-form">
+        <div>
+            <label for="filter-photo-search">Buscar</label>
+            <input type="text" id="filter-photo-search" name="search" value="{{ search }}" placeholder="Legenda, obra...">
+        </div>
+        <div>
+            <label for="filter-photo-date-start">Data início</label>
+            <input type="date" id="filter-photo-date-start" name="date_start" value="{{ date_start }}">
+        </div>
+        <div>
+            <label for="filter-photo-date-end">Data fim</label>
+            <input type="date" id="filter-photo-date-end" name="date_end" value="{{ date_end }}">
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if photos %}
+<div class="filter-grid filter-grid--photos">
+    {% for photo in photos %}
+    <div class="filter-card">
+        <a href="{{ photo.image.url }}" target="_blank" rel="noopener" class="block filter-photo-thumb">
+            <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Foto' }}">
+        </a>
+        <div class="filter-card-body">
+            <p class="filter-card-date">{{ photo.diary.date|date:"d/m/Y" }}{% if photo.diary.project.code %} · {{ photo.diary.project.code }}{% endif %}</p>
+            {% if photo.caption %}
+            <p class="filter-card-caption" title="{{ photo.caption }}">{{ photo.caption }}</p>
+            {% endif %}
+            <a href="{% url 'diary-detail' photo.diary.id %}" class="filter-card-link" aria-label="Ver relatório">
+                Ver relatório <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if photos.has_other_pages %}
+<nav class="filter-pagination" aria-label="Paginação de fotos">
+    {% if photos.has_previous %}
+    <a href="?page={{ photos.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}">
+        <i class="fas fa-chevron-left"></i> Anterior
+    </a>
+    {% endif %}
+    <span class="filter-pagination-current">Pág. {{ photos.number }} de {{ photos.paginator.num_pages }}</span>
+    {% if photos.has_next %}
+    <a href="?page={{ photos.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}">
+        Próxima <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+</nav>
+{% endif %}
+{% else %}
+<div class="filter-empty">
+    <i class="fas fa-camera filter-empty-icon"></i>
+    <p class="filter-empty-title">Nenhuma foto encontrada</p>
+    <p class="filter-empty-desc">Adicione fotos aos relatórios ou ajuste os filtros.</p>
+</div>
+{% endif %}
+
+{% if photos_by_date %}
+<div class="filter-form-card filter-stats-section">
+    <h3 class="filter-stats-title">Fotos por data</h3>
+    <div class="filter-stats-list">
+        {% for item in photos_by_date %}
+        <div class="filter-stats-row">
+            <span class="filter-stats-date">
+                {% if item.diary__date %}{{ item.diary__date|date:"d/m/Y" }}{% else %}{{ item.date|date:"d/m/Y" }}{% endif %}
+            </span>
+            <span class="filter-stats-count">{{ item.count }} foto{{ item.count|pluralize }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Meus Diários de Obra{% endblock %}
+{% block page_subtitle %}Portal do Dono da Obra{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-xl font-bold text-slate-800">Diários disponíveis</h1>
+    <p class="text-sm text-slate-500 mt-1">Selecione um diário para visualizar e comentar (dentro do prazo de 24h).</p>
+</div>
+
+{% if not diaries_by_project %}
+<div class="bg-amber-50 border border-amber-200 rounded-lg p-6 text-amber-800">
+    <p class="font-medium">Nenhum diário disponível no momento.</p>
+    <p class="text-sm mt-2">Quando um diário da sua obra for aprovado, você receberá um e-mail com o link e ele aparecerá aqui.</p>
+</div>
+{% else %}
+<div class="space-y-6">
+    {% for item in diaries_by_project %}
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">
+            <i class="fas fa-building text-blue-600 mr-2"></i>{{ item.project.name }}
+            {% if item.project.code %}<span class="text-slate-500 font-normal">({{ item.project.code }})</span>{% endif %}
+        </h2>
+        <ul class="space-y-2">
+            {% for d in item.diaries %}
+            <li>
+                <a href="{% url 'client-diary-detail' d.pk %}" class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-700 hover:text-blue-700 transition-colors">
+                    <span><i class="fas fa-file-alt text-slate-400 mr-2"></i>Diário {{ d.date|date:"d/m/Y" }}{% if d.report_number %} · #{{ d.report_number }}{% endif %}</span>
+                    <i class="fas fa-chevron-right text-slate-400 text-sm"></i>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="mt-6">
+    <a href="{% url 'logout' %}" class="text-slate-600 hover:text-slate-800 text-sm"><i class="fas fa-sign-out-alt mr-1"></i>Sair</a>
+</div>
+{% endblock %}

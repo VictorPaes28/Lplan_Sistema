@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Obras (Diário de Obra){% endblock %}
+{% block page_subtitle %}Cadastre obras e configure quem recebe o PDF do diário por e-mail, diariamente{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'accounts:admin_central' %}" class="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar ao Painel</a>
+</div>
+
+<header class="project-list-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Obras</h2>
+        <p class="text-slate-500 text-sm mt-0.5 max-w-xl">Obras do <strong>Diário de Obra</strong>: cadastro e e-mails que recebem o PDF do diário automaticamente todo dia. (Pedidos e aprovações ficam no GestControll.)</p>
+    </div>
+    <a href="{% url 'project-new' %}" class="central-btn-primary inline-flex shrink-0 w-fit items-center gap-2" id="project-list-primary-cta">
+        <i class="fas fa-plus" aria-hidden="true"></i> Nova Obra
+    </a>
+</header>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for project in projects %}
+    <div class="central-project-card">
+        <div class="flex items-start justify-between mb-4">
+            <div class="min-w-0 flex-1 pr-2">
+                <h3 class="text-lg font-semibold text-slate-800 truncate">{{ project.code }}</h3>
+                <p class="text-sm text-slate-500 mt-1 line-clamp-2">{{ project.name }}</p>
+            </div>
+            <span class="central-project-badge shrink-0 {% if project.is_active %}central-project-badge-ativo{% else %}central-project-badge-inativo{% endif %}">{% if project.is_active %}Ativo{% else %}Inativa{% endif %}</span>
+        </div>
+
+        <div class="space-y-2 mb-4">
+            <div class="flex items-center justify-between central-project-stat">
+                <span>Diários</span>
+                <strong>{{ project.diaries_count }}</strong>
+            </div>
+            <div class="flex items-center justify-between central-project-stat">
+                <span>Atividades</span>
+                <strong>{{ project.activities_count }}</strong>
+            </div>
+        </div>
+
+        <div class="central-project-actions">
+            <a href="{% url 'central_diary_emails' project.id %}" class="central-project-btn central-project-btn-email" title="E-mails que recebem o PDF do diário por e-mail, todo dia">
+                <i class="fas fa-envelope" aria-hidden="true"></i> E-mails do diário
+            </a>
+            <a href="{% url 'project-edit' project.id %}" class="central-project-btn central-project-btn-icon" title="Editar obra">
+                <i class="fas fa-edit" aria-hidden="true"></i>
+            </a>
+            <form action="{% url 'project-delete' project.id %}" method="post" class="central-project-delete-form" onsubmit="return confirm('Tem certeza que deseja excluir a obra \u00AB{{ project.name|escapejs }}\u00BB? Esta ação não pode ser desfeita.');">
+                {% csrf_token %}
+                <button type="submit" class="central-project-btn central-project-btn-icon central-project-btn-delete" title="Excluir obra">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full central-section project-list-empty text-center py-12 px-6">
+        <i class="fas fa-folder-open text-5xl text-slate-300 mb-4 block" aria-hidden="true"></i>
+        <p class="text-slate-600 font-medium">Nenhuma obra cadastrada.</p>
+        <p class="text-slate-500 text-sm mt-1 max-w-md mx-auto">Use o botão <strong>Nova Obra</strong> acima para cadastrar a primeira obra e configurar os e-mails que recebem o diário em PDF.</p>
+        <a href="{% url 'project-new' %}" class="inline-flex items-center gap-2 mt-4 text-sm font-medium text-slate-600 hover:text-slate-800 underline underline-offset-2">Cadastrar primeira obra <i class="fas fa-arrow-right text-xs" aria-hidden="true"></i></a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

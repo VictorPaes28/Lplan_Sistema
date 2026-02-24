@@ -1,0 +1,361 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Logs de Email - GestControll{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">📧 Logs de Email</h1>
+        <div>
+            <a href="{% url 'list_workorders' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total de Emails
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_logs }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-envelope fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Enviados
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ enviados }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                Falhados
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ falhados }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Taxa de Sucesso
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ taxa_sucesso }}%</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filtros</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="enviado" {% if status_filter == 'enviado' %}selected{% endif %}>Enviados</option>
+                        <option value="falhou" {% if status_filter == 'falhou' %}selected{% endif %}>Falhados</option>
+                        <option value="pendente" {% if status_filter == 'pendente' %}selected{% endif %}>Pendentes</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="tipo" class="form-label">Tipo</label>
+                    <select name="tipo" id="tipo" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="novo_pedido" {% if tipo_filter == 'novo_pedido' %}selected{% endif %}>Novo Pedido</option>
+                        <option value="aprovacao" {% if tipo_filter == 'aprovacao' %}selected{% endif %}>Aprovação</option>
+                        <option value="reprovacao" {% if tipo_filter == 'reprovacao' %}selected{% endif %}>Reprovação</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Buscar</label>
+                    <input type="text" name="search" id="search" class="form-control" 
+                           placeholder="Assunto, destinatário ou código do pedido..." 
+                           value="{{ search }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabela de Logs -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Histórico de Emails</h6>
+        </div>
+        <div class="card-body">
+            {% if page_obj %}
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Tipo</th>
+                                <th>Assunto</th>
+                                <th>Destinatários</th>
+                                <th>Pedido</th>
+                                <th>Tentativas</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in page_obj %}
+                            <tr>
+                                <td>
+                                    {% if log.status == 'enviado' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check-circle"></i> Enviado
+                                        </span>
+                                    {% elif log.status == 'falhou' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times-circle"></i> Falhou
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock"></i> Pendente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ log.get_tipo_email_display }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ log.assunto|truncatewords:10 }}</strong>
+                                </td>
+                                <td>
+                                    <small>{{ log.destinatarios|truncatewords:5 }}</small>
+                                </td>
+                                <td>
+                                    {% if log.work_order %}
+                                        <a href="{% url 'detail_workorder' log.work_order.pk %}" class="text-decoration-none">
+                                            {{ log.work_order.codigo }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ log.tentativas }}</span>
+                                </td>
+                                <td>
+                                    <small>
+                                        {% if log.enviado_em %}
+                                            {{ log.enviado_em|date:"d/m/Y H:i" }}
+                                        {% else %}
+                                            {{ log.criado_em|date:"d/m/Y H:i" }}
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-info" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#modalDetalhes{{ log.pk }}"
+                                                title="Ver detalhes">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                            <a href="{% url 'reenviar_email' log.pk %}" 
+                                               class="btn btn-sm btn-warning"
+                                               onclick="return confirm('Deseja realmente reenviar este email?');"
+                                               title="Reenviar">
+                                                <i class="fas fa-redo"></i>
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Modal de Detalhes -->
+                            <div class="modal fade" id="modalDetalhes{{ log.pk }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Detalhes do Email</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <table class="table table-sm">
+                                                <tr>
+                                                    <th width="30%">Status:</th>
+                                                    <td>
+                                                        {% if log.status == 'enviado' %}
+                                                            <span class="badge bg-success">Enviado</span>
+                                                        {% elif log.status == 'falhou' %}
+                                                            <span class="badge bg-danger">Falhou</span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning">Pendente</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Tipo:</th>
+                                                    <td>{{ log.get_tipo_email_display }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Assunto:</th>
+                                                    <td>{{ log.assunto }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Destinatários:</th>
+                                                    <td>{{ log.destinatarios }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Pedido:</th>
+                                                    <td>
+                                                        {% if log.work_order %}
+                                                            <a href="{% url 'detail_workorder' log.work_order.pk %}">
+                                                                {{ log.work_order.codigo }}
+                                                            </a>
+                                                        {% else %}
+                                                            N/A
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Tentativas:</th>
+                                                    <td>{{ log.tentativas }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Criado em:</th>
+                                                    <td>{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
+                                                </tr>
+                                                {% if log.enviado_em %}
+                                                <tr>
+                                                    <th>Enviado em:</th>
+                                                    <td>{{ log.enviado_em|date:"d/m/Y H:i:s" }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if log.mensagem_erro %}
+                                                <tr>
+                                                    <th>Erro:</th>
+                                                    <td>
+                                                        <div class="alert alert-danger mb-0">
+                                                            <small>{{ log.mensagem_erro }}</small>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                            </table>
+                                        </div>
+                                        <div class="modal-footer">
+                                            {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                                <a href="{% url 'reenviar_email' log.pk %}" 
+                                                   class="btn btn-warning"
+                                                   onclick="return confirm('Deseja realmente reenviar este email?');">
+                                                    <i class="fas fa-redo"></i> Reenviar
+                                                </a>
+                                            {% endif %}
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginação -->
+                {% if page_obj.has_other_pages %}
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Primeira</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Anterior</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Próxima</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}">Última</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Nenhum log de email encontrado.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+.border-left-danger {
+    border-left: 0.25rem solid #e74a3b !important;
+}
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+</style>
+{% endblock %}

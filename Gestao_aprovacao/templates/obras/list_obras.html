@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Obras{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-navigation">
+        <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    </div>
+
+    <div class="list-header">
+        <h1 class="list-title">Obras</h1>
+        <a href="{% url 'create_obra' %}" class="btn">+ Nova Obra</a>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card filters-card">
+    <form method="get" class="filters-form">
+        <div class="filter-group">
+            <label for="search" class="filter-label">
+                Buscar:
+            </label>
+            <input 
+                type="text" 
+                id="search" 
+                name="search" 
+                value="{{ search_query|default:'' }}"
+                placeholder="Código, nome ou descrição..."
+                class="filter-input"
+            >
+        </div>
+        
+        <div class="filter-group-small">
+            <label for="ativo" class="filter-label">
+                Status:
+            </label>
+            <select id="ativo" name="ativo" class="filter-select">
+                <option value="">Todas</option>
+                <option value="1" {% if ativo_filter == '1' %}selected{% endif %}>Ativas</option>
+                <option value="0" {% if ativo_filter == '0' %}selected{% endif %}>Inativas</option>
+            </select>
+        </div>
+        
+        <div class="filter-actions">
+            <button type="submit" class="btn filter-btn">Filtrar</button>
+            <a href="{% url 'list_obras' %}" class="btn btn-secondary filter-btn">
+                Limpar
+            </a>
+        </div>
+    </form>
+    </div>
+
+    <!-- Lista de Obras -->
+    {% if obras %}
+    <div class="card table-container">
+        <table class="workorders-table">
+            <thead>
+                <tr>
+                    <th>Empresa</th>
+                    <th>Código</th>
+                    <th>Nome</th>
+                    <th class="text-center">Status</th>
+                    <th>Pedidos</th>
+                    <th class="text-center">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obra in obras %}
+                    <tr>
+                        <td data-label="Empresa">
+                            <strong>{{ obra.empresa.codigo }}</strong><br>
+                            <small class="text-muted">{{ obra.empresa.nome }}</small>
+                        </td>
+                        <td data-label="Código">
+                            <strong class="code-link">{{ obra.codigo }}</strong>
+                        </td>
+                        <td data-label="Nome">{{ obra.nome }}</td>
+                        <td class="text-center" data-label="Status">
+                            <span class="status-badge {% if obra.ativo %}aprovado{% else %}cancelado{% endif %}">
+                                {% if obra.ativo %}Ativa{% else %}Inativa{% endif %}
+                            </span>
+                        </td>
+                        <td data-label="Pedidos">{{ obra.work_orders.count }}</td>
+                        <td class="text-center" data-label="Ações">
+                            <a href="{% url 'detail_obra' obra.pk %}" class="btn action-btn">Ver</a>
+                            {% if user_profile == 'admin' or user_profile == 'responsavel_empresa' %}
+                                <a href="{% url 'manage_obra_permissions' obra.pk %}" class="btn action-btn">Permissões</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Paginação -->
+    {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if ativo_filter %}&ativo={{ ativo_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="btn btn-secondary">
+                    Anterior
+                </a>
+            {% endif %}
+            
+            <span class="pagination-info">
+                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if ativo_filter %}&ativo={{ ativo_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="btn btn-secondary">
+                    Próxima
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+    {% else %}
+        <div class="card empty-state">
+            <p class="empty-message">
+                Nenhuma obra encontrada.
+            </p>
+            <a href="{% url 'create_obra' %}" class="btn">Criar Primeira Obra</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+

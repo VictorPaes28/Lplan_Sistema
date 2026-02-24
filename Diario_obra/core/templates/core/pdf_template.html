@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>RQ-10 RELATÓRIO DIÁRIO DE OBRA (RDO) - {{ diary.project.code }} - {{ diary.date }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm 1.2cm;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 8pt;
+            line-height: 1.3;
+            color: #1e293b;
+            background: #fff;
+            forced-color-adjust: none;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        
+        /* Cabeçalho Ultra Compacto - Faixa Horizontal Fina (< 3cm) */
+        .header-compact {
+            border-top: 2px solid #F97316;
+            padding: 4px 0;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .header-left {
+            flex-shrink: 0;
+            width: 60px;
+        }
+        
+        .header-logo {
+            width: 60px;
+            height: auto;
+        }
+        
+        .header-logo img {
+            width: 60px;
+            height: auto;
+            max-height: 24px;
+            object-fit: contain;
+            display: block;
+        }
+        
+        .header-center {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .header-title {
+            font-size: 9pt;
+            font-weight: 700;
+            color: #0F172A;
+            margin-bottom: 1px;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+            line-height: 1.1;
+        }
+        
+        .header-subtitle {
+            font-size: 7pt;
+            color: #475569;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .header-badges {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 2px;
+        }
+        
+        .day-badge {
+            display: inline-block;
+            font-size: 5.5pt;
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 2px;
+            background: #fed7aa;
+            color: #9a3412;
+        }
+        
+        .header-right {
+            flex-shrink: 0;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 2px;
+            padding: 3px 6px;
+            min-width: 100px;
+        }
+        
+        .status-card {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 6.5pt;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: #475569;
+            min-width: 35px;
+        }
+        
+        .status-value {
+            color: #0F172A;
+            font-weight: 500;
+        }
+        
+        /* Seções - Compactação Extrema */
+        .section {
+            margin-top: 8px;
+            margin-bottom: 6px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .section-title {
+            font-size: 7pt;
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #cbd5e1;
+        }
+        
+        .section-content {
+            font-size: 8pt;
+            line-height: 1.4;
+            color: #1e293b;
+        }
+        
+        /* Atividades - Lista Compacta */
+        .activities-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .activities-list li {
+            margin-bottom: 3px;
+            padding-left: 12px;
+            position: relative;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            font-size: 7.5pt;
+        }
+        
+        .activities-list li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #2563EB;
+            font-weight: bold;
+            font-size: 8pt;
+        }
+        
+        .activity-code {
+            font-weight: 700;
+            color: #2563EB;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .activity-notes {
+            display: block;
+            margin-top: 2px;
+            margin-left: 3px;
+            font-style: italic;
+            color: #64748b;
+            font-size: 7pt;
+        }
+        
+        /* Grid de Fotos - 3 Colunas para Máxima Densidade */
+        .photos-grid {
+            width: 100%;
+            margin: 4px 0;
+            border-collapse: separate;
+            border-spacing: 4px;
+        }
+        
+        .photos-grid td {
+            width: 33.33%;
+            vertical-align: top;
+            padding: 0;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        /* Quando há apenas 1 foto */
+        .photos-grid.single-photo td {
+            width: 33.33%;
+        }
+        
+        .photo-card {
+            border: none;
+            overflow: hidden;
+            background: #fff;
+            width: 100%;
+        }
+        
+        .photo-container {
+            width: 100%;
+            height: 100px;
+            overflow: hidden;
+            background: #fff;
+        }
+        
+        .photo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .photo-caption {
+            font-size: 5.5pt;
+            text-align: center;
+            color: #64748b;
+            font-style: italic;
+            padding: 0;
+            background: #fff;
+            border: none;
+            line-height: 1.2;
+            margin-top: 1px;
+        }
+        
+        /* Vídeos - Compacto */
+        .videos-list {
+            list-style: none;
+            padding: 0;
+            margin: 4px 0;
+        }
+        
+        .video-item {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 4px;
+            padding: 4px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .video-thumbnail {
+            width: 60px;
+            height: 45px;
+            flex-shrink: 0;
+            border: 1px solid #cbd5e1;
+            background: #f1f5f9;
+            overflow: hidden;
+        }
+        
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .video-info {
+            flex: 1;
+        }
+        
+        .video-caption {
+            font-weight: 600;
+            font-size: 7pt;
+            color: #0F172A;
+            margin-bottom: 2px;
+        }
+        
+        .video-details {
+            font-size: 6.5pt;
+            color: #64748b;
+        }
+        
+        .video-file-info {
+            font-size: 6pt;
+            color: #94a3b8;
+            margin-top: 2px;
+            font-style: italic;
+        }
+        
+        /* Anexos - Compacto */
+        .attachments-list {
+            list-style: none;
+            padding: 0;
+            margin: 4px 0;
+        }
+        
+        .attachment-item {
+            padding: 3px 6px;
+            margin-bottom: 3px;
+            border-left: 2px solid #2563EB;
+            background: #fff;
+            border-top: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 7pt;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .attachment-name {
+            font-weight: 600;
+            color: #2563EB;
+        }
+        
+        .attachment-desc {
+            font-size: 6.5pt;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        
+        .attachment-meta {
+            font-size: 6pt;
+            color: #94a3b8;
+            margin-top: 1px;
+            font-style: italic;
+        }
+        
+        /* Tabelas de Alta Densidade - Padding Mínimo */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 4px 0;
+            font-size: 7pt;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .data-table thead {
+            background: #1e293b;
+        }
+        
+        .data-table th {
+            background: #1e293b;
+            color: #fff;
+            font-weight: 700;
+            padding: 3px 6px;
+            text-align: left;
+            font-size: 6.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .data-table th.center {
+            text-align: center;
+        }
+        
+        .data-table tbody tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .data-table tbody tr:nth-child(odd) {
+            background: #f8fafc;
+        }
+        
+        .data-table tbody tr:nth-child(even) {
+            background: #fff;
+        }
+        
+        .data-table td {
+            padding: 2px 6px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #1e293b;
+            font-size: 7pt;
+        }
+        
+        .data-table td.center {
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .data-table .section-header {
+            background: #e2e8f0 !important;
+            font-weight: 700;
+            color: #0F172A;
+            font-size: 7pt;
+        }
+        
+        .data-table .subtotal {
+            background: #f1f5f9 !important;
+            font-weight: 700;
+            color: #0F172A;
+        }
+        
+        .data-table .total {
+            background: #cbd5e1 !important;
+            font-weight: 700;
+            color: #0F172A;
+            border-top: 1px solid #94a3b8;
+            border-bottom: 1px solid #94a3b8;
+        }
+        
+        /* Clima/Chuva - Layout Horizontal Ultra Compacto */
+        .rain-section {
+            padding: 4px 6px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            border-left: 2px solid #2563EB;
+        }
+        
+        .rain-options {
+            display: flex;
+            gap: 4px;
+            font-size: 7pt;
+        }
+        
+        .rain-option {
+            flex: 1;
+            padding: 3px 4px;
+            border: 1px solid #cbd5e1;
+            text-align: center;
+            font-weight: 500;
+            background: #fff;
+            color: #64748b;
+        }
+        
+        .rain-option.selected {
+            background: #2563EB;
+            color: #fff;
+            border-color: #2563EB;
+        }
+        
+        .rain-observations {
+            margin-top: 4px;
+            font-size: 7pt;
+            color: #1e293b;
+            padding-top: 3px;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        /* Deliberações - Compacto */
+        .deliberations {
+            padding: 4px 6px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            border-left: 2px solid #10b981;
+            min-height: 30px;
+            line-height: 1.4;
+            color: #1e293b;
+            font-size: 7.5pt;
+        }
+        
+        /* Assinaturas - Compacto */
+        .signatures {
+            margin-top: 12px;
+            display: table;
+            width: 100%;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .signature-box {
+            display: table-cell;
+            width: 50%;
+            padding-right: 12px;
+            vertical-align: top;
+        }
+        
+        .signature-label {
+            font-weight: 700;
+            font-size: 7pt;
+            color: #0F172A;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .signature-line {
+            border-top: 1px solid #0F172A;
+            padding-top: 4px;
+            min-height: 18px;
+            color: #64748b;
+            font-size: 7pt;
+        }
+        
+        /* Rodapé - Mínimo */
+        .footer {
+            margin-top: 12px;
+            padding-top: 6px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 5.5pt;
+            color: #94a3b8;
+            text-align: center;
+            line-height: 1.6;
+        }
+        
+        .footer p {
+            margin: 1px 0;
+        }
+        
+        /* Informações do Projeto - Compacto */
+        .project-info {
+            display: flex;
+            gap: 12px;
+            font-size: 7pt;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        /* Utilitários */
+        .no-break {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Cabeçalho Ultra Compacto - Faixa Horizontal Fina -->
+    <div class="header-compact no-break">
+        <div class="header-left">
+            {% if logo_path %}
+            <div class="header-logo">
+                <img src="{{ logo_path }}" alt="LPLAN" />
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="header-center">
+            <div class="header-title">RQ-10 RELATÓRIO DIÁRIO DE OBRA (RDO)</div>
+            <div class="header-subtitle">{{ diary.project.code }} - {{ diary.project.name }}</div>
+            {% if days_elapsed is not None or days_remaining is not None %}
+            <div class="header-badges">
+                {% if days_elapsed is not None %}
+                    <span class="day-badge">{{ days_elapsed }} corridos</span>
+                {% endif %}
+                {% if days_remaining is not None %}
+                    <span class="day-badge">{{ days_remaining }} restantes</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="header-right">
+            <div class="status-card">
+                <div class="status-item">
+                    <span class="status-label">Data:</span>
+                    <span class="status-value">{{ diary.date|date:"d/m/Y" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Informações do Projeto (Compacto) -->
+    {% if diary.project.start_date and diary.project.end_date %}
+    <div class="project-info">
+        <div><strong>INÍCIO:</strong> {{ diary.project.start_date|date:"d/m/Y" }}</div>
+        <div><strong>TÉRMINO:</strong> {{ diary.project.end_date|date:"d/m/Y" }}</div>
+    </div>
+    {% endif %}
+
+    <!-- ATIVIDADES / SERVIÇOS -->
+    <div class="section">
+        <div class="section-title">ATIVIDADES / SERVIÇOS</div>
+        <div class="section-content">
+            {% if work_logs %}
+            <ul class="activities-list">
+                {% for work_log in work_logs %}
+                <li>
+                    <span class="activity-code">{{ work_log.activity.code }}</span> - {{ work_log.activity.name }}
+                    {% if work_log.notes %}
+                    <span class="activity-notes">{{ work_log.notes }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="font-size: 7pt; color: #94a3b8; font-style: italic;">Nenhuma atividade registrada.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- REGISTRO FOTOGRÁFICO - Grid 3 Colunas para Máxima Densidade -->
+    <div class="section">
+        <div class="section-title">REGISTRO FOTOGRÁFICO</div>
+        {% if images_with_paths %}
+        <table class="photos-grid {% if images_with_paths|length == 1 %}single-photo{% endif %}">
+            {% for item in images_with_paths %}
+                {% if forloop.counter0|divisibleby:3 %}
+            <tr>
+                {% endif %}
+                <td>
+                    <div class="photo-card">
+                        <div class="photo-container">
+                            {% if item.file_url %}
+                            <img src="{{ item.file_url }}" alt="{{ item.image.caption|default:'Foto' }}">
+                            {% endif %}
+                        </div>
+                        <div class="photo-caption">
+                            {% if item.image.caption %}
+                            {{ item.image.caption }}
+                            {% else %}
+                            Foto {{ forloop.counter }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                {% if forloop.counter|divisibleby:3 or forloop.last %}
+            </tr>
+                {% endif %}
+            {% endfor %}
+        </table>
+        {% else %}
+        <p style="font-size: 7pt; color: #94a3b8; font-style: italic;">Nenhuma foto registrada.</p>
+        {% endif %}
+    </div>
+
+    <!-- VÍDEOS -->
+    <div class="section">
+        <div class="section-title">REGISTRO DE VÍDEOS</div>
+        {% if videos_with_paths %}
+        <ul class="videos-list">
+            {% for item in videos_with_paths %}
+            <li class="video-item">
+                <div class="video-thumbnail">
+                    {% if item.thumbnail_url %}
+                    <img src="{{ item.thumbnail_url }}" alt="Thumbnail">
+                    {% else %}
+                    <span style="font-size: 16px;">🎥</span>
+                    {% endif %}
+                </div>
+                <div class="video-info">
+                    <div class="video-caption">{{ item.video.caption }}</div>
+                    <div class="video-details">
+                        {% if item.video.duration %}
+                        Duração: {{ item.video.duration }}s
+                        {% endif %}
+                        {% if item.video.uploaded_at %}
+                        | Data: {{ item.video.uploaded_at|date:"d/m/Y H:i" }}
+                        {% endif %}
+                    </div>
+                    {% if item.video.video %}
+                    <div class="video-file-info">
+                        Arquivo: {{ item.video.video.name|default:"N/A" }}
+                    </div>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="font-size: 7pt; color: #94a3b8; font-style: italic;">Nenhum vídeo registrado.</p>
+        {% endif %}
+    </div>
+
+    <!-- ANEXOS -->
+    <div class="section">
+        <div class="section-title">ANEXOS E DOCUMENTOS</div>
+        {% if attachments %}
+        <ul class="attachments-list">
+            {% for attachment in attachments %}
+            <li class="attachment-item">
+                <div class="attachment-name">📎 {{ attachment.name }}</div>
+                {% if attachment.description %}
+                <div class="attachment-desc">{{ attachment.description }}</div>
+                {% endif %}
+                <div class="attachment-meta">
+                    {% if attachment.file_type %}
+                    Tipo: {{ attachment.file_type }}
+                    {% endif %}
+                    {% if attachment.file_size %}
+                    | Tamanho: {{ attachment.file_size|filesizeformat }}
+                    {% endif %}
+                    {% if attachment.uploaded_at %}
+                    | Data: {{ attachment.uploaded_at|date:"d/m/Y H:i" }}
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="font-size: 7pt; color: #94a3b8; font-style: italic;">Nenhum anexo registrado.</p>
+        {% endif %}
+    </div>
+
+    <!-- EFETIVO -->
+    {% if labor_entries_by_category %}
+    <div class="section">
+        <div class="section-title">EFETIVO</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 60%;">Função</th>
+                    <th style="width: 20%;">Empresa</th>
+                    <th class="center" style="width: 20%;">Quantidade</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="section-header">
+                    <td colspan="3">EFETIVO INDIRETO (LPLAN)</td>
+                </tr>
+                {% if labor_entries_by_category.indireta %}
+                    {% for item in labor_entries_by_category.indireta %}
+                    <tr>
+                        <td>{{ item.cargo_name }}</td>
+                        <td>LPLAN</td>
+                        <td class="center">{{ item.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum funcionário indireto registrado</td></tr>
+                {% endif %}
+                <tr class="subtotal">
+                    <td colspan="2"><strong>TOTAL INDIRETO:</strong></td>
+                    <td class="center">{{ total_indirect|default:0 }}</td>
+                </tr>
+                
+                <tr class="section-header">
+                    <td colspan="3">EFETIVO DIRETO</td>
+                </tr>
+                {% if labor_entries_by_category.direta %}
+                    {% for item in labor_entries_by_category.direta %}
+                    <tr>
+                        <td>{{ item.cargo_name }}</td>
+                        <td>-</td>
+                        <td class="center">{{ item.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum funcionário direto registrado</td></tr>
+                {% endif %}
+                <tr class="subtotal">
+                    <td colspan="2"><strong>TOTAL DIRETO:</strong></td>
+                    <td class="center">{{ total_direct|default:0 }}</td>
+                </tr>
+                
+                <tr class="section-header">
+                    <td colspan="3">EFETIVO TERCEIROS</td>
+                </tr>
+                {% if labor_entries_by_category.terceirizada %}
+                    {% for block in labor_entries_by_category.terceirizada %}
+                    {% for item in block.items %}
+                    <tr>
+                        <td>{{ item.cargo_name }}</td>
+                        <td>{{ block.company }}</td>
+                        <td class="center">{{ item.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum funcionário terceiro registrado</td></tr>
+                {% endif %}
+                <tr class="subtotal">
+                    <td colspan="2"><strong>TOTAL TERCEIROS:</strong></td>
+                    <td class="center">{{ total_third_party|default:0 }}</td>
+                </tr>
+                
+                <tr class="total">
+                    <td colspan="2"><strong>EFETIVO TOTAL:</strong></td>
+                    <td class="center">{{ total_labor|default:0 }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% elif work_logs and (labor_by_type.I or labor_by_type.D or labor_by_type.T) %}
+    <div class="section">
+        <div class="section-title">EFETIVO</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 60%;">Função</th>
+                    <th style="width: 20%;">Empresa</th>
+                    <th class="center" style="width: 20%;">Quantidade</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="section-header">
+                    <td colspan="3">EFETIVO INDIRETO (LPLAN)</td>
+                </tr>
+                {% if labor_by_type.I %}
+                    {% for item in labor_by_type.I.values %}
+                    <tr>
+                        <td>{% if item.labor.role %}{{ item.labor.get_role_display }}{% if item.labor.name %} ({{ item.labor.name }}){% endif %}{% else %}{{ item.labor.name|default:"-" }}{% endif %}</td>
+                        <td>LPLAN</td>
+                        <td class="center">{{ item.count }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum funcionário indireto registrado</td></tr>
+                {% endif %}
+                <tr class="subtotal">
+                    <td colspan="2"><strong>TOTAL INDIRETO:</strong></td>
+                    <td class="center">{{ total_indirect|default:0 }}</td>
+                </tr>
+                
+                <tr class="section-header">
+                    <td colspan="3">EFETIVO DIRETO</td>
+                </tr>
+                {% if labor_by_type.D %}
+                    {% for item in labor_by_type.D.values %}
+                    <tr>
+                        <td>{% if item.labor.role %}{{ item.labor.get_role_display }}{% if item.labor.name %} ({{ item.labor.name }}){% endif %}{% else %}{{ item.labor.name|default:"-" }}{% endif %}</td>
+                        <td>-</td>
+                        <td class="center">{{ item.count }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum funcionário direto registrado</td></tr>
+                {% endif %}
+                <tr class="subtotal">
+                    <td colspan="2"><strong>TOTAL DIRETO:</strong></td>
+                    <td class="center">{{ total_direct|default:0 }}</td>
+                </tr>
+                
+                <tr class="section-header">
+                    <td colspan="3">EFETIVO TERCEIROS</td>
+                </tr>
+                {% if labor_by_type.T %}
+                    {% for item in labor_by_type.T.values %}
+                    <tr>
+                        <td>{% if item.labor.role %}{{ item.labor.get_role_display }}{% if item.labor.name %} ({{ item.labor.name }}){% endif %}{% else %}{{ item.labor.name|default:"-" }}{% endif %}</td>
+                        <td>{{ item.labor.company|default:"-" }}</td>
+                        <td class="center">{{ item.count }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum funcionário terceiro registrado</td></tr>
+                {% endif %}
+                <tr class="subtotal">
+                    <td colspan="2"><strong>TOTAL TERCEIROS:</strong></td>
+                    <td class="center">{{ total_third_party|default:0 }}</td>
+                </tr>
+                
+                <tr class="total">
+                    <td colspan="2"><strong>EFETIVO TOTAL:</strong></td>
+                    <td class="center">{{ total_labor|default:0 }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- EQUIPAMENTOS -->
+    {% if work_logs and equipment_count %}
+    <div class="section">
+        <div class="section-title">EQUIPAMENTOS</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 80%;">Equipamento</th>
+                    <th class="center" style="width: 20%;">Quantidade</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if equipment_count %}
+                    {% for item in equipment_count.values %}
+                    <tr>
+                        <td>{{ item.equipment.code }} - {{ item.equipment.name }}{% if item.equipment.equipment_type %} ({{ item.equipment.equipment_type }}){% endif %}</td>
+                        <td class="center">{{ item.count }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="2" style="text-align: center; color: #94a3b8; font-style: italic;">Nenhum equipamento registrado</td></tr>
+                {% endif %}
+                <tr class="total">
+                    <td><strong>TOTAL:</strong></td>
+                    <td class="center">{{ total_equipment|default:0 }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- OCORRÊNCIA DE CHUVAS -->
+    <div class="section">
+        <div class="section-title">OCORRÊNCIA DE CHUVAS</div>
+        <div class="rain-section">
+            <div style="font-size: 7pt; color: #1e293b;">
+                <strong>Intensidade:</strong> 
+                {% if diary.rain_occurrence == 'F' %}
+                    Fraca
+                {% elif diary.rain_occurrence == 'M' %}
+                    Média
+                {% elif diary.rain_occurrence == 'S' %}
+                    Forte
+                {% else %}
+                    Nenhuma
+                {% endif %}
+                {% if diary.pluviometric_index %}
+                | <strong>Índice Pluviométrico:</strong> {{ diary.pluviometric_index }} mm
+                {% endif %}
+            </div>
+            {% if diary.rain_observations %}
+            <div class="rain-observations">
+                <strong>OBSERVAÇÕES:</strong> {{ diary.rain_observations }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- HORAS TRABALHADAS -->
+    {% if diary.work_hours %}
+    <div class="section">
+        <div class="section-title">HORAS TRABALHADAS</div>
+        <div class="section-content">
+            <strong>{{ diary.work_hours }} horas</strong>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- CONDICIÕES CLIMÁTICAS DETALHADAS -->
+    {% if diary.weather_morning_condition or diary.weather_afternoon_condition or diary.weather_night_enabled %}
+    <div class="section">
+        <div class="section-title">CONDIÇÕES CLIMÁTICAS</div>
+        <div class="section-content">
+            {% if diary.weather_morning_condition %}
+            <div style="margin-bottom: 4px;">
+                <strong>Manhã:</strong> 
+                {% if diary.weather_morning_condition == 'B' %}Bom{% elif diary.weather_morning_condition == 'R' %}Ruim{% endif %}
+                {% if diary.weather_morning_workable %}
+                - {% if diary.weather_morning_workable == 'T' %}Trabalhável{% elif diary.weather_morning_workable == 'N' %}Não Trabalhável{% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if diary.weather_afternoon_condition %}
+            <div style="margin-bottom: 4px;">
+                <strong>Tarde:</strong> 
+                {% if diary.weather_afternoon_condition == 'B' %}Bom{% elif diary.weather_afternoon_condition == 'R' %}Ruim{% endif %}
+                {% if diary.weather_afternoon_workable %}
+                - {% if diary.weather_afternoon_workable == 'T' %}Trabalhável{% elif diary.weather_afternoon_workable == 'N' %}Não Trabalhável{% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if diary.weather_night_enabled and diary.weather_night_type %}
+            <div style="margin-bottom: 4px;">
+                <strong>Noite:</strong> 
+                {% if diary.weather_night_type == 'C' %}Claro{% elif diary.weather_night_type == 'N' %}Nublado{% elif diary.weather_night_type == 'CH' %}Chuvoso{% endif %}
+                {% if diary.weather_night_workable %}
+                - {% if diary.weather_night_workable == 'P' %}Praticável{% elif diary.weather_night_workable == 'I' %}Impraticável{% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if diary.weather_conditions %}
+            <div style="margin-top: 4px; font-style: italic; color: #64748b;">{{ diary.weather_conditions }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- PARALISAÇÕES -->
+    {% if diary.stoppages %}
+    <div class="section">
+        <div class="section-title">PARALISAÇÕES</div>
+        <div class="section-content">
+            {{ diary.stoppages|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ACIDENTES -->
+    {% if diary.accidents %}
+    <div class="section">
+        <div class="section-title">ACIDENTES</div>
+        <div class="section-content">
+            {{ diary.accidents|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- RISCOS EMINENTES -->
+    {% if diary.imminent_risks %}
+    <div class="section">
+        <div class="section-title">RISCOS EMINENTES</div>
+        <div class="section-content">
+            {{ diary.imminent_risks|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- OUTROS INCIDENTES -->
+    {% if diary.incidents %}
+    <div class="section">
+        <div class="section-title">OUTROS INCIDENTES</div>
+        <div class="section-content">
+            {{ diary.incidents|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- OCORRÊNCIAS -->
+    {% if occurrences %}
+    <div class="section">
+        <div class="section-title">OCORRÊNCIAS / INTERRUPÇÕES</div>
+        <div class="section-content">
+            {% for occ in occurrences %}
+            <div class="section-content" style="margin-bottom: 8px;">
+                <strong>{{ forloop.counter }}.</strong> {{ occ.description|linebreaks }}
+                {% if occ.tags.exists %}<span style="font-size: 7pt; color: #64748b;"> [{% for tag in occ.tags.all %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}]</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- FISCALIZAÇÕES -->
+    {% if diary.inspections %}
+    <div class="section">
+        <div class="section-title">FISCALIZAÇÕES</div>
+        <div class="section-content">
+            {{ diary.inspections|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- DDS -->
+    {% if diary.dds %}
+    <div class="section">
+        <div class="section-title">DDS (DIScurso DIÁRIO DE SEGURANÇA)</div>
+        <div class="section-content">
+            {{ diary.dds|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- DELIBERAÇÕES -->
+    {% if diary.deliberations %}
+    <div class="section">
+        <div class="section-title">DELIBERAÇÕES</div>
+        <div class="deliberations">
+            {{ diary.deliberations|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- OBSERVAÇÕES GERAIS -->
+    {% if diary.general_notes %}
+    <div class="section">
+        <div class="section-title">OBSERVAÇÕES GERAIS</div>
+        <div class="section-content">
+            {{ diary.general_notes|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ASSINATURA -->
+    <div class="signatures no-break">
+        <div class="signature-box">
+            <div class="signature-label">RESPONSÁVEL PELO PREENCHIMENTO:</div>
+            <div class="signature-line">{{ diary.inspection_responsible|default:"_________________________" }}</div>
+        </div>
+    </div>
+
+    <!-- Rodapé -->
+    <div class="footer">
+        <p>Form. UE 2222 OR PE/PROD 05</p>
+        <p>Documento gerado automaticamente pelo Sistema LPlan - Gestão de Obras</p>
+        <p>Gerado em: {% now "d/m/Y H:i" %}</p>
+    </div>
+</body>
+</html>

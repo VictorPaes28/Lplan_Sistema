@@ -1,0 +1,331 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-6">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-6 flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800">{{ form_title }}</h2>
+                <p class="text-sm text-gray-600 mt-1">Gerenciamento de mão de obra</p>
+            </div>
+            <a href="{% url 'dashboard' %}" 
+               class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center">
+                <i class="fas fa-arrow-left mr-2"></i>Voltar
+            </a>
+        </div>
+
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg mb-4 {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <form method="post" class="p-6 space-y-6">
+                {% csrf_token %}
+                
+                <!-- Tipo de Mão de Obra -->
+                <div class="border-b border-gray-200 pb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Tipo de Mão de Obra</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <label class="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all {% if form.labor_type.value == 'I' %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="radio" 
+                                   name="labor_type" 
+                                   value="I" 
+                                   {% if form.labor_type.value == 'I' or not form.labor_type.value %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <span class="ml-3 text-sm font-medium text-gray-700">Indireto (LPLAN)</span>
+                        </label>
+                        <label class="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all {% if form.labor_type.value == 'D' %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="radio" 
+                                   name="labor_type" 
+                                   value="D" 
+                                   {% if form.labor_type.value == 'D' %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <span class="ml-3 text-sm font-medium text-gray-700">Direto</span>
+                        </label>
+                        <label class="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all {% if form.labor_type.value == 'T' %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="radio" 
+                                   name="labor_type" 
+                                   value="T" 
+                                   {% if form.labor_type.value == 'T' %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <span class="ml-3 text-sm font-medium text-gray-700">Terceiros</span>
+                        </label>
+                    </div>
+                    {% if form.labor_type.errors %}
+                        <p class="text-xs text-red-600 mt-2">{{ form.labor_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Nome -->
+                <div>
+                    <label for="{{ form.name.id_for_label }}" class="block text-sm font-semibold text-gray-900 mb-2">
+                        Nome <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Função/Categoria - Checkboxes de Tags -->
+                <div class="border-t border-gray-200 pt-6">
+                    <label class="block text-sm font-semibold text-gray-900 mb-4">
+                        Função/Categoria <span class="text-red-500">*</span>
+                    </label>
+                    
+                    <!-- Mão de Obra Própria -->
+                    <div class="mb-6">
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Própria</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="AJ" 
+                                       {% if form.role.value == 'AJ' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Ajudante</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="EL" 
+                                       {% if form.role.value == 'EL' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Eletricista</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="EN" 
+                                       {% if form.role.value == 'EN' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Engenheiro</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="ES" 
+                                       {% if form.role.value == 'ES' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Estagiário</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="GE" 
+                                       {% if form.role.value == 'GE' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Gesseiro</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="ME" 
+                                       {% if form.role.value == 'ME' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Mestre de Obra</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="PE" 
+                                       {% if form.role.value == 'PE' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Pedreiro</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="SE" 
+                                       {% if form.role.value == 'SE' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Servente</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="TE" 
+                                       {% if form.role.value == 'TE' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Técnico em Edificações</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="CA" 
+                                       {% if form.role.value == 'CA' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Carpinteiro</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="HI" 
+                                       {% if form.role.value == 'HI' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Hidráulico</span>
+                            </label>
+                            <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                                <input type="radio" 
+                                       name="role" 
+                                       value="AR" 
+                                       {% if form.role.value == 'AR' %}checked{% endif %}
+                                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-700">Armador</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Outros -->
+                    <div class="border-t border-gray-200 pt-4">
+                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-300 transition-all role-checkbox">
+                            <input type="radio" 
+                                   name="role" 
+                                   value="OU" 
+                                   {% if form.role.value == 'OU' or not form.role.value %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <span class="ml-3 text-sm text-gray-700">Outro</span>
+                        </label>
+                        
+                        <!-- Campo personalizado (aparece quando "Outro" está selecionado) -->
+                        <div id="role-custom-field" class="mt-3 ml-7" style="display: {% if form.role.value == 'OU' or not form.role.value %}block{% else %}none{% endif %};">
+                            <label for="{{ form.role_custom.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                Especifique a função
+                            </label>
+                            {{ form.role_custom }}
+                            {% if form.role_custom.errors %}
+                                <p class="text-xs text-red-600 mt-1">{{ form.role_custom.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if form.role.errors %}
+                        <p class="text-xs text-red-600 mt-2">{{ form.role.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Empresa (para terceiros) -->
+                <div id="company-field" style="display: {% if form.labor_type.value == 'T' %}block{% else %}none{% endif %};">
+                    <label for="{{ form.company.id_for_label }}" class="block text-sm font-semibold text-gray-900 mb-2">
+                        {{ form.company.label }} <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.company }}
+                    {% if form.company.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.company.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-xs text-gray-500 mt-1">Obrigatório para terceiros</p>
+                </div>
+
+                <!-- Taxa Horária -->
+                <div>
+                    <label for="{{ form.hourly_rate.id_for_label }}" class="block text-sm font-semibold text-gray-900 mb-2">
+                        {{ form.hourly_rate.label }}
+                    </label>
+                    {{ form.hourly_rate }}
+                    {% if form.hourly_rate.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.hourly_rate.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Status Ativo -->
+                <div class="border-t border-gray-200 pt-4">
+                    <label class="flex items-center cursor-pointer">
+                        {{ form.is_active }}
+                        <span class="ml-3 text-sm font-medium text-gray-700">Funcionário ativo</span>
+                    </label>
+                </div>
+
+                {% if form.non_field_errors %}
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p class="text-sm text-red-800">{{ form.non_field_errors.0 }}</p>
+                </div>
+                {% endif %}
+
+                <!-- Botões -->
+                <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                    <a href="{% url 'dashboard' %}" 
+                       class="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                        Cancelar
+                    </a>
+                    <button type="submit" 
+                            class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm">
+                        <i class="fas fa-save mr-2"></i>Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .role-checkbox input[type="radio"]:checked + span {
+        font-weight: 600;
+        color: #2563eb;
+    }
+    
+    .role-checkbox:has(input[type="radio"]:checked) {
+        border-color: #3b82f6;
+        background-color: #eff6ff;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const roleRadios = document.querySelectorAll('input[name="role"]');
+        const roleCustomField = document.getElementById('role-custom-field');
+        const laborTypeRadios = document.querySelectorAll('input[name="labor_type"]');
+        const companyField = document.getElementById('company-field');
+        
+        // Toggle campo personalizado baseado no role
+        function toggleRoleCustom() {
+            const otherSelected = document.querySelector('input[name="role"][value="OU"]:checked');
+            if (otherSelected) {
+                roleCustomField.style.display = 'block';
+            } else {
+                roleCustomField.style.display = 'none';
+            }
+        }
+        
+        // Toggle campo empresa baseado no tipo
+        function toggleCompany() {
+            const terceirosSelected = document.querySelector('input[name="labor_type"][value="T"]:checked');
+            if (terceirosSelected) {
+                companyField.style.display = 'block';
+                const companyInput = companyField.querySelector('input');
+                if (companyInput) {
+                    companyInput.required = true;
+                }
+            } else {
+                companyField.style.display = 'none';
+                const companyInput = companyField.querySelector('input');
+                if (companyInput) {
+                    companyInput.required = false;
+                }
+            }
+        }
+        
+        // Event listeners para role
+        roleRadios.forEach(radio => {
+            radio.addEventListener('change', toggleRoleCustom);
+        });
+        
+        laborTypeRadios.forEach(radio => {
+            radio.addEventListener('change', toggleCompany);
+        });
+        
+        // Inicializa
+        toggleRoleCustom();
+        toggleCompany();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Condição Climática{% endblock %}
+
+{% block content %}
+<div class="filter-page-header">
+    <h1 class="filter-page-title">Análise de Condições Climáticas</h1>
+    <p class="filter-page-total">Análise do período selecionado</p>
+</div>
+
+<div class="filter-form-card">
+    <form method="get" class="filter-form filter-form--3cols">
+        <div>
+            <label for="filter-weather-date-start">Data início</label>
+            <input type="date" id="filter-weather-date-start" name="date_start" value="{{ date_start }}">
+        </div>
+        <div>
+            <label for="filter-weather-date-end">Data fim</label>
+            <input type="date" id="filter-weather-date-end" name="date_end" value="{{ date_end }}">
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Estatísticas Gerais -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Total de Dias</p>
+                <p class="text-3xl font-bold text-slate-800">{{ weather_stats.total_days }}</p>
+            </div>
+            <i class="fas fa-calendar-alt text-blue-500 text-3xl"></i>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Dias de Sol</p>
+                <p class="text-3xl font-bold text-yellow-600">{{ weather_stats.sunny_days }}</p>
+            </div>
+            <i class="fas fa-sun text-yellow-500 text-3xl"></i>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Dias Nublados</p>
+                <p class="text-3xl font-bold text-gray-600">{{ weather_stats.cloudy_days }}</p>
+            </div>
+            <i class="fas fa-cloud text-gray-500 text-3xl"></i>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Dias de Chuva</p>
+                <p class="text-3xl font-bold text-blue-600">{{ weather_stats.rainy_days }}</p>
+            </div>
+            <i class="fas fa-cloud-rain text-blue-500 text-3xl"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas de Chuva -->
+{% if rain_stats.total > 0 %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Ocorrências de Chuva</h3>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="text-center p-4 bg-blue-50 rounded-lg">
+            <p class="text-2xl font-bold text-blue-600">{{ rain_stats.total }}</p>
+            <p class="text-sm text-gray-600 mt-1">Total</p>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg">
+            <p class="text-2xl font-bold text-green-600">{{ rain_stats.weak }}</p>
+            <p class="text-sm text-gray-600 mt-1">Fraca</p>
+        </div>
+        <div class="text-center p-4 bg-yellow-50 rounded-lg">
+            <p class="text-2xl font-bold text-yellow-600">{{ rain_stats.medium }}</p>
+            <p class="text-sm text-gray-600 mt-1">Média</p>
+        </div>
+        <div class="text-center p-4 bg-red-50 rounded-lg">
+            <p class="text-2xl font-bold text-red-600">{{ rain_stats.strong }}</p>
+            <p class="text-sm text-gray-600 mt-1">Forte</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Lista de Registros Climáticos -->
+{% if diaries %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+    <div class="p-4 border-b border-slate-200">
+        <h3 class="text-lg font-semibold text-slate-800">Registros Climáticos</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condições</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chuva</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+                {% for diary in diaries %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ diary.date|date:"d/m/Y" }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">
+                        <div class="flex items-center">
+                            {% if 'sol' in diary.weather_conditions|lower %}
+                                <i class="fas fa-sun text-yellow-500 mr-2"></i>
+                            {% elif 'nuvem' in diary.weather_conditions|lower or 'nublado' in diary.weather_conditions|lower %}
+                                <i class="fas fa-cloud text-gray-500 mr-2"></i>
+                            {% elif 'chuva' in diary.weather_conditions|lower %}
+                                <i class="fas fa-cloud-rain text-blue-500 mr-2"></i>
+                            {% endif %}
+                            <span>{{ diary.weather_conditions|truncatechars:50 }}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if diary.rain_occurrence == 'F' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Fraca</span>
+                        {% elif diary.rain_occurrence == 'M' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Média</span>
+                        {% elif diary.rain_occurrence == 'S' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Forte</span>
+                        {% else %}
+                            <span class="text-sm text-gray-500">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <a href="{% url 'diary-detail' diary.id %}" 
+                           class="text-blue-600 hover:text-blue-800">
+                            Ver relatório
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+    <i class="fas fa-cloud-sun text-gray-300 text-6xl mb-4"></i>
+    <p class="text-gray-600 text-lg">Nenhum registro climático encontrado</p>
+    <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de data</p>
+</div>
+{% endif %}
+{% endblock %}
+

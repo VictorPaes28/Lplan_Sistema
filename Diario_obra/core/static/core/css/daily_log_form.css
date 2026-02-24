@@ -1,0 +1,1508 @@
+/* Daily Log Form Styles - Professional */
+
+/* ========== Layout e página ========== */
+.diary-form-page {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    min-height: 100vh;
+}
+
+.diary-form-inner {
+    max-width: 100%;
+}
+
+/* ========== Header do formulário ========== */
+.diary-form-header-card {
+    background: #fff;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    border-top: 4px solid #3b82f6;
+}
+
+.diary-form-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.diary-form-main-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+}
+
+.diary-form-subtitle {
+    margin-top: 0.25rem;
+}
+
+/* ========== Copiar dados de relatório anterior (UX melhorado) ========== */
+.copy-from-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Mini-card: fonte (último relatório) */
+.copy-from-source-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.copy-from-source-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eff6ff;
+    color: #2563eb;
+    border-radius: 8px;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.copy-from-source-label {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #64748b;
+}
+.copy-from-source-value {
+    margin: 0.25rem 0 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+/* Bloco "O que copiar?" */
+.copy-from-options-block {
+    margin: 0;
+}
+.copy-from-options-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+}
+.copy-from-options-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+}
+.copy-from-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Chips: contraste forte (texto escuro em fundo claro), borda visível */
+#copy-from-section .copy-from-flow button.copy-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 20px;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 2px solid #94a3b8;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    opacity: 1 !important;
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
+}
+#copy-from-section .copy-from-flow button.copy-chip.copy-chip--unselected {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
+    border-color: #94a3b8 !important;
+}
+#copy-from-section .copy-from-flow button.copy-chip.copy-chip--unselected:hover {
+    background-color: #e2e8f0 !important;
+    border-color: #64748b !important;
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
+}
+#copy-from-section .copy-from-flow button.copy-chip.copy-chip--selected {
+    background-color: #2563eb !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    border-color: #2563eb !important;
+}
+#copy-from-section .copy-from-flow button.copy-chip.copy-chip--selected:hover {
+    background-color: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+}
+
+/* "Selecionar tudo": botão secundário legível */
+#copy-from-section .copy-from-flow button.copy-select-all-link {
+    background: transparent !important;
+    border: none !important;
+    color: #2563eb !important;
+    -webkit-text-fill-color: #2563eb !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.8125rem !important;
+    font-weight: 600 !important;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+#copy-from-section .copy-from-flow button.copy-select-all-link:hover {
+    color: #1d4ed8 !important;
+    -webkit-text-fill-color: #1d4ed8 !important;
+}
+
+/* Ação: hint + contador + botão */
+.copy-from-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding-top: 0.25rem;
+}
+.copy-from-hint {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+    flex: 1;
+    min-width: 200px;
+}
+.copy-from-count {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+#copy-from-section .copy-from-flow button.apply-copy-btn {
+    min-height: 44px;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    background-color: #2563eb !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#copy-from-section .copy-from-flow button.apply-copy-btn:hover:not(:disabled) {
+    background-color: #1d4ed8 !important;
+}
+#copy-from-section .copy-from-flow button.apply-copy-btn:disabled {
+    background-color: #94a3b8 !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    opacity: 0.9 !important;
+    cursor: not-allowed;
+}
+
+/* Condição Climática: dois cards (Manhã/Tarde) com borda, sombra e hierarquia clara */
+.weather-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+@media (min-width: 768px) {
+    .weather-cards-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+}
+
+.weather-card {
+    min-height: 220px;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px;
+    background: #fff !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.weather-card-header {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    background: #f8fafc;
+}
+.weather-card-checkbox {
+    min-width: 20px;
+    min-height: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.weather-card-body {
+    padding: 1.25rem !important;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    flex: 1;
+}
+/* Linha: label à esquerda, chips à direita */
+.weather-card-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    min-height: 44px;
+}
+.weather-card-row .weather-row-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.weather-card-row .weather-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+/* Chips: padding 8px 20px, borda arredondada, estados claros */
+.weather-chip {
+    -webkit-tap-highlight-color: transparent;
+    padding: 8px 20px !important;
+    min-height: 44px;
+    min-width: 44px;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.weather-chip--selected {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+}
+.weather-chip--unselected {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+.weather-chip--unselected:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* Mão de Obra e Equipamentos: botões +/− tocáveis em mobile (44px) */
+@media (max-width: 768px) {
+    #diary-form .diary-labor-minus,
+    #diary-form .diary-labor-plus,
+    #diary-form .diary-equipment-minus,
+    #diary-form .diary-equipment-plus {
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* Mão de Obra e Equipamentos: títulos de subcategorias com hierarquia visual */
+.diary-subcategory-header {
+    background: #f1f5f9;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+.diary-subcategory-body {
+    padding: 0.5rem 0.75rem 0.75rem;
+}
+.diary-labor-cargo-list.diary-subcategory-body,
+.diary-equipment-item-list.diary-subcategory-body {
+    padding-top: 0.5rem;
+    padding-bottom: 0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+.diary-form-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.diary-form-btn-primary {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.diary-form-btn-primary:hover {
+    background: #1d4ed8;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.diary-form-btn-secondary {
+    color: #475569;
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid #e2e8f0;
+}
+
+.diary-form-btn-secondary:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.diary-form-info-block {
+    padding: 1.5rem 1.5rem;
+    background: #fff;
+}
+
+.diary-form-info-grid {
+    gap: 2rem 3rem;
+}
+
+@media (min-width: 1024px) {
+    .diary-form-info-grid {
+        gap: 2rem 4rem;
+    }
+}
+
+.diary-form-info-col .diary-form-block-title {
+    margin-bottom: 0.75rem;
+}
+
+.diary-form-block-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.diary-form-helper {
+    margin-top: 0.5rem;
+    display: block;
+}
+
+/* ========== Cards das seções colapsáveis ========== */
+.diary-form-section-card {
+    background: #fff;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.diary-form-section-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.diary-form-section-card .section-toggle {
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.diary-form-section-card .section-toggle:hover {
+    background: #f8fafc !important;
+}
+
+.diary-form-section-card.section-expanded .section-toggle,
+.diary-form-section-card .section-toggle.section-expanded {
+    border-left: 4px solid #2563eb;
+}
+
+.diary-form-section-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+
+.diary-form-section-card .section-toggle.section-expanded .diary-form-section-icon {
+    background: #eff6ff;
+}
+
+.diary-form-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.diary-form-chevron {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+/* Aplicar estilo de card a todas as seções (clima, mão de obra, etc.) */
+#section-clima,
+#section-maoObra,
+#section-equipamentos,
+#section-atividades,
+#section-ocorrencias,
+#section-fotos,
+#section-videos,
+#section-anexos,
+#section-assinaturas,
+#section-comentarios {
+    background: #fff !important;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+#section-clima .section-toggle,
+#section-maoObra .section-toggle,
+#section-equipamentos .section-toggle,
+#section-atividades .section-toggle,
+#section-ocorrencias .section-toggle,
+#section-fotos .section-toggle,
+#section-videos .section-toggle,
+#section-anexos .section-toggle,
+#section-assinaturas .section-toggle,
+#section-comentarios .section-toggle {
+    padding: 1rem 1.25rem !important;
+}
+
+#section-clima .section-toggle.section-expanded,
+#section-maoObra .section-toggle.section-expanded,
+#section-equipamentos .section-toggle.section-expanded,
+#section-atividades .section-toggle.section-expanded,
+#section-ocorrencias .section-toggle.section-expanded,
+#section-fotos .section-toggle.section-expanded,
+#section-videos .section-toggle.section-expanded,
+#section-anexos .section-toggle.section-expanded,
+#section-assinaturas .section-toggle.section-expanded,
+#section-comentarios .section-toggle.section-expanded {
+    border-left: 4px solid #2563eb;
+}
+
+#section-clima .section-toggle .w-8,
+#section-maoObra .section-toggle .w-8,
+#section-equipamentos .section-toggle .w-8,
+#section-atividades .section-toggle .w-8,
+#section-ocorrencias .section-toggle .w-8,
+#section-fotos .section-toggle .w-8,
+#section-videos .section-toggle .w-8,
+#section-anexos .section-toggle .w-8 {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    border-radius: 0.75rem !important;
+    background: #f1f5f9 !important;
+}
+
+#section-clima .section-toggle.section-expanded .w-8,
+#section-maoObra .section-toggle.section-expanded .w-8,
+#section-equipamentos .section-toggle.section-expanded .w-8,
+#section-atividades .section-toggle.section-expanded .w-8,
+#section-ocorrencias .section-toggle.section-expanded .w-8,
+#section-fotos .section-toggle.section-expanded .w-8,
+#section-videos .section-toggle.section-expanded .w-8,
+#section-anexos .section-toggle.section-expanded .w-8 {
+    background: #eff6ff !important;
+}
+
+/* Sidebar Detalhes do relatório */
+#diary-form .bg-white.rounded-lg.border.border-slate-200.shadow-sm.p-4.sticky {
+    background: #fff !important;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    padding: 1.25rem !important;
+}
+
+#diary-form .bg-white.rounded-lg.border.border-slate-200.shadow-sm.p-4.sticky h3 {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 1rem;
+}
+
+/* Barra inferior Salvar Diário: não sobrepor conteúdo, borda neutra */
+.sticky.bottom-0.bg-white.border-t,
+.sticky.bottom-0.z-40 {
+    background: #fff !important;
+    border-top: 1px solid #e2e8f0 !important;
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+    padding: 1rem 1.5rem !important;
+    z-index: 40;
+}
+
+.sticky.bottom-0 .bg-blue-600 {
+    border-radius: 0.75rem !important;
+    padding: 0.75rem 1.5rem !important;
+    font-weight: 600 !important;
+}
+
+/* Ocultar código JavaScript que aparece na página */
+div[data-weather],
+.weather-icon-morning,
+.weather-icon-afternoon {
+    display: block !important;
+}
+
+/* Weather Icons */
+.weather-icon-morning,
+.weather-icon-afternoon {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.weather-icon-morning:hover,
+.weather-icon-afternoon:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.weather-icon-morning.active,
+.weather-icon-afternoon.active {
+    border-color: #2563eb !important;
+    background-color: #eff6ff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Seções colapsáveis */
+.section-content {
+    transition: all 0.3s ease;
+}
+
+.section-chevron {
+    transition: transform 0.3s ease;
+}
+
+.section-chevron.fa-chevron-up {
+    transform: rotate(180deg);
+}
+
+/* Form Validation: só campos de formulário (evitar borda vermelha em botões/outros) */
+#diary-form input:not([type="button"]):not([type="submit"]):not([type="hidden"]):invalid,
+#diary-form textarea:invalid,
+#diary-form select:invalid {
+    border-color: #e2e8f0;
+}
+#diary-form input:not([type="button"]):not([type="submit"]):not([type="hidden"]).invalid,
+#diary-form textarea.invalid,
+#diary-form select.invalid {
+    border-color: #ef4444;
+}
+.diary-modal-card input:invalid,
+.diary-modal-card textarea:invalid,
+.diary-modal-card select:invalid {
+    border-color: #e2e8f0;
+}
+.diary-modal-card input:valid,
+.diary-modal-card textarea:valid,
+.diary-modal-card select:valid {
+    border-color: #cbd5e1;
+}
+
+/* Image Preview */
+.image-preview-container {
+    position: relative;
+    display: inline-block;
+    margin: 0.5rem;
+}
+
+.image-preview-container img {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 0.5rem;
+    border: 2px solid #e5e7eb;
+    transition: all 0.3s ease;
+}
+
+.image-preview-container:hover img {
+    transform: scale(1.05);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.image-preview-container .remove-image {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.image-preview-container .remove-image:hover {
+    transform: scale(1.1);
+    background: #dc2626;
+}
+
+/* Formset Rows */
+.worklog-form-row, .image-form-row {
+    transition: all 0.3s ease;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.worklog-form-row:hover, .image-form-row:hover {
+    background-color: #f0f9ff !important; /* blue-50 */
+}
+
+/* Forçar backgrounds brancos em todos os containers do formulário */
+#diary-form .worklog-form-row,
+#diary-form .image-form-row,
+#diary-form .activity-item,
+#diary-form .equipment-item,
+#diary-form .occurrence-item,
+#diary-form .attachment-item,
+.worklog-form-row,
+.image-form-row,
+.activity-item,
+.equipment-item,
+.occurrence-item,
+.attachment-item {
+    background-color: #ffffff !important;
+}
+
+#diary-form .worklog-form-row:hover,
+.worklog-form-row:hover {
+    background-color: #f0f9ff !important; /* blue-50 */
+}
+
+#diary-form .activity-item:hover,
+#diary-form .equipment-item:hover,
+#diary-form .occurrence-item:hover,
+#diary-form .attachment-item:hover,
+.activity-item:hover,
+.equipment-item:hover,
+.occurrence-item:hover,
+.attachment-item:hover {
+    background-color: #f0f9ff !important; /* blue-50 */
+}
+
+/* Auto-save indicator */
+.autosave-indicator {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: #10b981;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    display: none;
+    z-index: 1000;
+    animation: slideInUp 0.3s ease;
+}
+
+.autosave-indicator.show {
+    display: block;
+}
+
+.autosave-indicator.saving {
+    background: #f59e0b;
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Required field indicator */
+.required-field::after {
+    content: " *";
+    color: #ef4444;
+}
+
+/* Progress indicator for form completion */
+.form-progress {
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.form-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    transition: width 0.3s ease;
+}
+
+/* Tab animations */
+.tab-content {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Estilos profissionais para seção de clima */
+.weather-option {
+    cursor: pointer;
+}
+
+.weather-option input {
+    cursor: pointer;
+}
+
+/* Melhorias visuais para inputs */
+input[type="checkbox"]:checked + span,
+input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+/* Melhorias para campos de input - Design profissional */
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+textarea:focus,
+select:focus {
+    border-color: #475569;
+    box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.1);
+    outline: none;
+}
+
+/* Estados de hover sutis e profissionais */
+.weather-row:hover {
+    background-color: #f8fafc !important;
+}
+
+/* Estilo para o campo de data nativo */
+#id_date {
+    cursor: pointer;
+}
+
+#id_date:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Transições suaves e profissionais */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Melhorias para botões - Design consistente */
+button[type="submit"],
+.btn-primary {
+    transition: all 0.2s ease;
+}
+
+button[type="submit"]:hover,
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+button[type="submit"]:active,
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Garantir que botões de toggle sejam clicáveis */
+[data-toggle-section],
+.section-toggle {
+    cursor: pointer !important;
+    position: relative !important;
+    z-index: 10 !important;
+    pointer-events: auto !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+
+[data-toggle-section]:hover,
+.section-toggle:hover {
+    background-color: #f9fafb !important;
+}
+
+/* Permite cliques em elementos filhos, mas o botão ainda captura o evento */
+[data-toggle-section] h3,
+[data-toggle-section] i,
+[data-toggle-section] .section-chevron,
+.section-toggle h3,
+.section-toggle i,
+.section-toggle .section-chevron {
+    pointer-events: none !important;
+}
+
+.section-content {
+    transition: opacity 0.3s ease, max-height 0.3s ease;
+    overflow: hidden;
+}
+
+.section-content.section-collapsed {
+    display: none !important;
+    opacity: 0;
+    max-height: 0;
+}
+
+.section-content.section-expanded {
+    display: block !important;
+    opacity: 1;
+    max-height: 5000px;
+}
+
+/* Estados dos botões */
+.section-toggle.section-expanded {
+    background-color: #ffffff !important;
+}
+
+.section-toggle.section-collapsed {
+    background-color: #ffffff !important;
+}
+
+.section-toggle {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* Forçar backgrounds brancos em todos os containers principais - SOBRESCREVE base.css */
+#diary-form .section-content,
+.section-content {
+    background-color: #ffffff !important;
+}
+
+#diary-form .bg-white,
+#diary-form .bg-slate-50,
+#diary-form .bg-gray-50,
+.bg-white,
+.bg-slate-50,
+.bg-gray-50 {
+    background-color: #ffffff !important;
+}
+
+/* Containers específicos do formulário */
+#section-clima-content,
+#section-maoObra-content,
+#section-equipamentos-content,
+#section-atividades-content,
+#section-ocorrencias-content,
+#section-fotos-content,
+#section-videos-content,
+#section-anexos-content,
+#section-comentarios-content {
+    background-color: #ffffff !important;
+}
+
+/* Cards e containers dentro das seções - SOBRESCREVE base.css */
+#diary-form .bg-slate-50,
+#diary-form .bg-gray-50,
+#diary-form .bg-slate-100,
+#diary-form .bg-gray-100,
+.bg-slate-50,
+.bg-gray-50,
+.bg-slate-100,
+.bg-gray-100 {
+    background-color: #ffffff !important;
+}
+
+/* Tabelas */
+#diary-form table thead,
+#diary-form table tbody tr,
+table thead,
+table tbody tr {
+    background-color: #ffffff !important;
+}
+
+#diary-form table tbody tr:hover,
+table tbody tr:hover {
+    background-color: #f0f9ff !important; /* blue-50 */
+}
+
+/* Áreas de upload */
+#diary-form .border-dashed,
+.border-dashed {
+    background-color: #ffffff !important;
+}
+
+/* Cards de resumo */
+#diary-form .bg-blue-50,
+.bg-blue-50 {
+    background-color: #eff6ff !important; /* Mantém azul claro para diferenciação */
+}
+
+/* SOBRESCREVER regras do base.css para section-toggle */
+#diary-form .section-toggle,
+#diary-form .section-toggle:hover,
+#diary-form .section-toggle.section-expanded,
+#diary-form .section-toggle.section-expanded:hover,
+#diary-form .section-toggle.section-collapsed,
+.section-toggle,
+.section-toggle:hover,
+.section-toggle.section-expanded,
+.section-toggle.section-expanded:hover,
+.section-toggle.section-collapsed {
+    background-color: #ffffff !important;
+}
+
+#diary-form .section-toggle:hover,
+.section-toggle:hover {
+    background-color: #f0f9ff !important; /* blue-50 no hover */
+}
+
+/* Animação do chevron */
+.section-chevron {
+    transition: transform 0.3s ease;
+}
+
+.section-chevron.rotated {
+    transform: rotate(180deg);
+}
+
+/* Classes utilitárias para substituir estilos inline */
+.hidden-field {
+    display: none !important;
+}
+
+.modal-overlay-padding {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Tag badge com cor dinâmica */
+.tag-badge {
+    /* Cor será aplicada via JavaScript ou atributo data */
+}
+
+/* Tag checkbox com cor dinâmica */
+.tag-checkbox {
+    /* Cor será aplicada via JavaScript ou atributo data */
+}
+
+/* Canvas de assinatura - borda visível para ver o limite da área de assinatura */
+.signature-canvas {
+    touch-action: none;
+    max-width: 100%;
+    height: 150px;
+    border: 2px dashed #64748b !important;
+    border-radius: 0.5rem;
+    background-color: #fafafa;
+    box-sizing: border-box;
+}
+
+/* Botões +/- da mão de obra: anular regra global de botões (evitar sombra/fundo escuro) */
+#diary-form .diary-labor-minus,
+#diary-form .diary-labor-plus,
+#diary-form #diary-labor-by-category button[type="button"] {
+    background-color: #e2e8f0 !important;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+}
+#diary-form .diary-labor-minus:hover,
+#diary-form .diary-labor-plus:hover,
+#diary-form #diary-labor-by-category button[type="button"]:hover {
+    background-color: #cbd5e1 !important;
+    border-color: #94a3b8;
+    color: #334155;
+}
+#diary-form .diary-labor-minus:active,
+#diary-form .diary-labor-plus:active,
+#diary-form #diary-labor-by-category button[type="button"]:active {
+    background-color: #cbd5e1 !important;
+}
+
+/* Botões +/- de equipamentos: mesmo estilo claro */
+#diary-form .diary-equipment-minus,
+#diary-form .diary-equipment-plus,
+#diary-form #diary-equipment-by-category button[type="button"],
+#diary-form #diary-equipment-custom-list button.diary-equipment-minus,
+#diary-form #diary-equipment-custom-list button.diary-equipment-plus {
+    background-color: #e2e8f0 !important;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+}
+#diary-form .diary-equipment-minus:hover,
+#diary-form .diary-equipment-plus:hover,
+#diary-form #diary-equipment-custom-list button.diary-equipment-minus:hover,
+#diary-form #diary-equipment-custom-list button.diary-equipment-plus:hover {
+    background-color: #cbd5e1 !important;
+    border-color: #94a3b8;
+    color: #334155;
+}
+
+/* Layout: Indireta e Direta lado a lado; Terceirizada em linha inteira */
+#diary-labor-by-category {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 0.5rem;
+    align-items: start;
+}
+#diary-labor-by-category .diary-labor-category-block[data-category-slug="terceirizada"] {
+    grid-column: 1 / -1;
+    margin-top: 0.25rem;
+}
+#diary-labor-by-category .diary-labor-cargo-list li + li {
+    margin-top: 0;
+}
+#diary-labor-by-category .diary-labor-cargo-list {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+@media (max-width: 768px) {
+    #diary-labor-by-category {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+}
+
+/* ========== Fotos: grid e cards ========== */
+#photos-preview-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+#photos-preview-grid .photo-item {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+/* Área da imagem: ratio 1:1, botão X por cima */
+#photos-preview-grid .photo-item .photo-item__media {
+    position: relative;
+    isolation: isolate;
+    flex-shrink: 0;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: #f1f5f9;
+}
+#photos-preview-grid .photo-item .photo-item__media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#photos-preview-grid .photo-item .photo-item__media .photo-loading-spinner {
+    z-index: 1;
+}
+#photos-preview-grid .photo-item .photo-item__media .photo-item__remove {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    z-index: 10;
+    pointer-events: auto;
+}
+/* Legenda abaixo da imagem, nunca sobreposta */
+#photos-preview-grid .photo-item .photo-item__caption {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 0;
+}
+
+/* ========== Vídeos: grid e cards ========== */
+#videos-preview-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+#videos-preview-grid .video-item {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+/* Área do vídeo: ratio 16:9, lixeira por cima */
+#videos-preview-grid .video-item .video-item__media {
+    position: relative;
+    isolation: isolate;
+    flex-shrink: 0;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #f1f5f9;
+}
+#videos-preview-grid .video-item .video-item__media video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#videos-preview-grid .video-item .video-item__media .video-loading-spinner {
+    z-index: 1;
+}
+#videos-preview-grid .video-item .video-item__media .video-item__remove {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    z-index: 10;
+    pointer-events: auto;
+}
+/* Legenda abaixo do vídeo */
+#videos-preview-grid .video-item .video-item__caption {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 0;
+}
+
+/* Modal Atividade e Ocorrência: textareas compactos (evitar campo gigante) */
+#modal-add-activity #activity-description,
+#worklog-formset-container textarea[name$="-activity_description"] {
+    height: 4rem !important;
+    max-height: 5.5rem !important;
+    min-height: 3rem;
+}
+#modal-add-occurrence #occurrence-description {
+    height: 3.5rem !important;
+    max-height: 5rem !important;
+    min-height: 2.75rem;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .weather-icon {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .weather-icon i {
+        font-size: 1.5rem;
+    }
+}
+
+/* Modais do diário: overlay + transição */
+.diary-modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.diary-modal-overlay.diary-modal-open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+.diary-modal-overlay.hidden {
+    display: none !important;
+}
+/* Card do modal: tamanho confortável + transição */
+.diary-modal-card {
+    max-height: min(90vh, 40rem);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.96);
+    opacity: 0.9;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Botões dos modais: sobrescrevem base.css (que força fundo escuro em button[type="button"]) */
+.diary-modal-close-btn {
+    background-color: transparent !important;
+    color: #64748b !important;
+    border: none !important;
+}
+.diary-modal-close-btn:hover {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+}
+.diary-modal-btn-cancel {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+    border: 1px solid #e2e8f0 !important;
+}
+.diary-modal-btn-cancel:hover {
+    background-color: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+.diary-modal-btn-save {
+    background-color: #2563eb !important;
+    color: #fff !important;
+    border: 1px solid #1d4ed8 !important;
+}
+.diary-modal-btn-save:hover {
+    background-color: #1d4ed8 !important;
+    color: #fff !important;
+}
+.diary-modal-overlay.diary-modal-open .diary-modal-card {
+    transform: scale(1);
+    opacity: 1;
+}
+.diary-modal-card .diary-modal-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
+}
+/* Lista de tags: usa boa parte do modal para mostrar mais tags sem scroll excessivo */
+#modal-add-occurrence #tags-list-container {
+    max-height: min(20rem, 45vh) !important;
+    min-height: 8rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.25rem 1rem;
+    align-content: start;
+}
+#modal-add-occurrence #tags-list-container .tag-option {
+    margin: 0;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.375rem;
+}
+@media (max-width: 480px) {
+    #modal-add-occurrence #tags-list-container {
+        grid-template-columns: 1fr;
+    }
+}
+/* Rodapé dos modais: fora da área de scroll, nunca cortado */
+.diary-modal-card .diary-modal-footer {
+    flex-shrink: 0;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+/* ========== Botões: evitar corte e sobreposição ========== */
+/* Containers de botões não devem cortar (overflow visible) */
+#diary-form .flex.items-center.justify-between.pt-4,
+#diary-form .flex.items-center.justify-end.space-x-3,
+#diary-form .flex.items-center.justify-end.pt-4,
+.diary-modal-card .diary-modal-body .flex.items-center.justify-between,
+.diary-modal-card .diary-modal-footer {
+    overflow: visible !important;
+}
+/* Botões sempre inteiros: não cortar por overflow do pai */
+#diary-form button,
+.diary-modal-card button {
+    flex-shrink: 0;
+    min-height: 2.25rem;
+}
+/* Evitar borda/outline vermelha em botões (validação ou tema) */
+#diary-form button,
+.diary-modal-card button,
+#diary-form button:focus,
+.diary-modal-card button:focus,
+#diary-form button:invalid,
+.diary-modal-card button:invalid {
+    border-color: inherit;
+    box-shadow: none;
+    outline: none;
+}
+#diary-form button:focus-visible,
+.diary-modal-card button:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+/* Evitar que a barra sticky cubra botões do conteúdo: espaço no final do form */
+.diary-form-inner {
+    padding-bottom: 7rem;
+}
+
+/* ========== Mobile: evitar cortes e overflow ========== */
+/* Quando a página do diário está no main, não cortar conteúdo */
+.main-content:has(.diary-form-page) {
+    overflow: visible;
+    min-width: 0;
+}
+/* Contêiner da página do diário: não cortar conteúdo; scroll se precisar */
+.diary-form-page {
+    overflow-x: auto;
+    overflow-y: auto;
+    min-height: 100vh;
+    -webkit-overflow-scrolling: touch;
+}
+.diary-form-page .max-w-7xl {
+    min-width: 0;
+    max-width: 100%;
+}
+@media (max-width: 768px) {
+    .diary-form-page {
+        width: 100%;
+        max-width: 100vw;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Evitar que qualquer trecho seja cortado: padding e espaço para barra fixa */
+    .diary-form-page {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+    .diary-form-inner {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-bottom: 8rem;
+        min-width: 0;
+    }
+    .diary-form-header-card,
+    .diary-form-section-card,
+    #diary-form .bg-white.rounded-lg.border {
+        overflow: visible;
+    }
+    .diary-form-header-bar {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+    .diary-form-header-bar .flex.items-center.gap-3 {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    /* Seções colapsáveis: conteúdo expandido não cortado */
+    #diary-form .section-content.section-expanded {
+        overflow: visible;
+    }
+    #diary-form .section-content {
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Cards de seção: só esconder overflow na borda, não o conteúdo interno */
+    #section-clima,
+    #section-maoObra,
+    #section-equipamentos,
+    #section-atividades,
+    #section-ocorrencias,
+    #section-fotos,
+    #section-videos,
+    #section-anexos,
+    #section-assinaturas,
+    #section-comentarios {
+        overflow: visible;
+    }
+    /* Tabelas e grids: scroll horizontal se necessário */
+    #diary-form .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+        margin-left: -0.25rem;
+        margin-right: -0.25rem;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+    /* Texto e labels que não devem ser cortados */
+    #diary-form .section-toggle h3,
+    #diary-form .diary-form-main-title,
+    #diary-form .diary-form-block-title {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        min-width: 0;
+    }
+    .sticky.bottom-0.z-40,
+    .sticky.bottom-0.bg-white.border-t {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+        padding-top: 1rem !important;
+        overflow: visible !important;
+    }
+    .sticky.bottom-0.z-40 .flex.flex-wrap {
+        gap: 0.5rem;
+    }
+    .sticky.bottom-0.z-40 p {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    .diary-modal-overlay {
+        padding: 0.5rem;
+        align-items: flex-start;
+        padding-top: env(safe-area-inset-top, 0.5rem);
+    }
+    .diary-modal-card {
+        width: 100%;
+        max-width: 100%;
+        max-height: min(92vh, 40rem);
+        margin: auto 0;
+        border-radius: 1rem 1rem 0 0;
+    }
+    .diary-modal-card .diary-modal-body {
+        padding: 1rem;
+        -webkit-overflow-scrolling: touch;
+    }
+    .diary-modal-card .diary-modal-footer {
+        padding: 1rem;
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    #modal-add-occurrence #tags-list-container {
+        max-height: min(18rem, 50vh);
+    }
+}
+/* Área de toque mínima para botões (acessibilidade/mobile) */
+@media (pointer: coarse) {
+    .diary-modal-card button:not(.diary-modal-close-btn),
+    #diary-form .section-toggle,
+    #diary-form .diary-form-btn {
+        min-height: 2.75rem;
+        min-width: 2.75rem;
+    }
+    .diary-modal-footer .diary-modal-btn-cancel,
+    .diary-modal-footer .diary-modal-btn-save {
+        min-height: 3rem;
+        padding: 0.625rem 1rem;
+    }
+}

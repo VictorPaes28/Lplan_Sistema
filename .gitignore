@@ -1,0 +1,52 @@
+# ========== Segredos e ambiente ==========
+.env
+.env.local
+.env.*.local
+venv/
+.venv/
+env/
+
+# ========== Banco e arquivos gerados ==========
+*.sqlite3
+db.sqlite3
+*.db
+
+# ========== Mídia e estáticos (gerados no servidor) ==========
+media/
+staticfiles/
+Diario_obra/staticfiles/
+Gestao_aprovacao/staticfiles/
+Mapa_Controle/staticfiles/
+
+# ========== Logs ==========
+*.log
+logs/
+Diario_obra/logs/
+
+# ========== Python ==========
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+*.manifest
+
+# ========== IDE e editor ==========
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ========== Sistema ==========
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========== Debug (não versionar) ==========
+debug.log
+*.sqlite3-journal

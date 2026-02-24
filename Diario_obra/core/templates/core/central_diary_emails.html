@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}E-mails do diário{% endblock %}
+{% block page_subtitle %}{{ project.name }} — Quem recebe o diário (PDF) por e-mail{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">Cadastre aqui os e-mails que devem receber o diário de obra todo dia. O sistema envia um e-mail com o <strong>PDF do diário em anexo</strong> (e o link para abrir no sistema). Quando houver diário preenchido na data, cada destinatário recebe o documento por e-mail.</p>
+
+    <div class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-plus-circle text-emerald-600"></i> Adicionar e-mail</h2>
+        <form method="post" action="{% url 'central_diary_emails' project.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="email" class="central-input-label">E-mail *</label>
+                    <input type="email" name="email" id="email" required
+                           class="central-input"
+                           placeholder="exemplo@empresa.com"
+                           autocomplete="email">
+                </div>
+                <div>
+                    <label for="nome" class="central-input-label">Nome (opcional)</label>
+                    <input type="text" name="nome" id="nome" maxlength="120"
+                           class="central-input"
+                           placeholder="Ex.: Gerente, Fiscal"
+                           autocomplete="off">
+                </div>
+            </div>
+            <button type="submit" class="central-btn-primary">
+                <i class="fas fa-plus" aria-hidden="true"></i> Adicionar e-mail
+            </button>
+        </form>
+    </div>
+
+    <div class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-envelope text-slate-500"></i> E-mails cadastrados ({{ recipients|length }})</h2>
+        {% if recipients %}
+        <ul class="list-none p-0 m-0">
+            {% for rec in recipients %}
+            <li class="central-email-row">
+                <div class="min-w-0 flex-1">
+                    <span class="central-email-address">{{ rec.email }}</span>
+                    {% if rec.nome %}<span class="central-email-nome">— {{ rec.nome }}</span>{% endif %}
+                </div>
+                <form method="post" action="{% url 'central_diary_emails' project.id %}" onsubmit="return confirm('Remover este e-mail da lista?');" class="flex-shrink-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove" />
+                    <input type="hidden" name="recipient_id" value="{{ rec.id }}" />
+                    <button type="submit" class="central-btn-danger-ghost" title="Remover e-mail">
+                        <i class="fas fa-trash-alt mr-1" aria-hidden="true"></i> Remover
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="central-empty-state">
+            <i class="fas fa-inbox text-4xl text-slate-300 mb-3 block" aria-hidden="true"></i>
+            Nenhum e-mail cadastrado ainda. Use o formulário acima para adicionar.
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="flex flex-wrap gap-4 mt-6 pt-6 border-t border-slate-100">
+        <a href="{% url 'central_project_list' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar à lista de obras</a>
+        <a href="{% url 'project-edit' project.id %}" class="central-btn-secondary"><i class="fas fa-edit" aria-hidden="true"></i> Editar esta obra</a>
+    </div>
+</div>
+{% endblock %}

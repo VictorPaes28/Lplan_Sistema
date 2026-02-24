@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gerenciar Obras - LPLAN{% endblock %}
+{% block page_title %}Gerenciar Obras{% endblock %}
+{% block page_subtitle %}Painel do sistema - Obras do Mapa de Suprimentos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .obras-container {
+        max-width: 960px;
+    }
+    /* Breadcrumb */
+    .admin-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.85rem;
+    }
+    .admin-breadcrumb a {
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    .admin-breadcrumb a:hover { color: #1d4ed8; }
+    .admin-breadcrumb .separator { color: #cbd5e1; }
+    .admin-breadcrumb .current { color: #64748b; font-weight: 500; }
+    
+    /* Page header */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.25rem;
+    }
+    .page-header h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+    .page-header h2 i {
+        color: #22c55e;
+    }
+    .btn-criar {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 1.25rem;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.25);
+    }
+    .btn-criar:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+        color: white;
+        text-decoration: none;
+    }
+    
+    /* Filter bar */
+    .filter-bar {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .filter-bar label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #475569;
+        white-space: nowrap;
+    }
+    .filter-bar select {
+        padding: 0.5rem 2rem 0.5rem 0.75rem;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: #334155;
+        background: #f8fafc;
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .filter-bar select:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .filter-count {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        margin-left: auto;
+    }
+    
+    /* Table */
+    .obras-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+    }
+    .obras-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .obras-table th {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        padding: 0.85rem 1.25rem;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: left;
+        background: #f8fafc;
+    }
+    .obras-table td {
+        padding: 0.85rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.875rem;
+        color: #334155;
+    }
+    .obras-table tr:last-child td {
+        border-bottom: none;
+    }
+    .obras-table tr:hover td {
+        background: #f8fafc;
+    }
+    .obras-table .codigo {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-weight: 600;
+        color: #1e293b;
+        background: #f1f5f9;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+    }
+    .badge-ativa {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .badge-ativa.ativa {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+    .badge-ativa.inativa {
+        background: #f1f5f9;
+        color: #94a3b8;
+    }
+    .badge-ativa .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+    .badge-ativa.ativa .dot {
+        background: #22c55e;
+    }
+    .badge-ativa.inativa .dot {
+        background: #cbd5e1;
+    }
+    
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+    .empty-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .empty-icon i {
+        font-size: 1.4rem;
+        color: #22c55e;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="obras-container" style="animation: fadeInUp 0.3s ease;">
+    <!-- Breadcrumb -->
+    <div class="admin-breadcrumb">
+        <a href="{% url 'accounts:admin_central' %}"><i class="fas fa-cog" style="margin-right: 0.25rem;"></i> Painel do sistema</a>
+        <span class="separator"><i class="fas fa-chevron-right" style="font-size: 0.65rem;"></i></span>
+        <span class="current">Gerenciar Obras</span>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+        <h2><i class="fas fa-building"></i> Obras</h2>
+        <a href="{% url 'accounts:criar_obra' %}" class="btn-criar">
+            <i class="fas fa-plus"></i> Criar Nova
+        </a>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+        <label for="ativa"><i class="fas fa-filter" style="margin-right: 0.35rem; color: #94a3b8;"></i> Status:</label>
+        <form method="get" style="display:inline;">
+            <select id="ativa" name="ativa" onchange="this.form.submit()">
+                <option value="">Todas</option>
+                <option value="1" {% if ativa_filtro == "1" %}selected{% endif %}>Apenas Ativas</option>
+                <option value="0" {% if ativa_filtro == "0" %}selected{% endif %}>Apenas Inativas</option>
+            </select>
+        </form>
+        <span class="filter-count">{{ obras|length }} obra{{ obras|length|pluralize:"s" }}</span>
+    </div>
+
+    <!-- Table -->
+    <div class="obras-section">
+        <table class="obras-table">
+            <thead>
+                <tr>
+                    <th>Código Sienge</th>
+                    <th>Nome da Obra</th>
+                    <th>Status</th>
+                    <th>Data Criação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obra in obras %}
+                <tr>
+                    <td><span class="codigo">{{ obra.codigo_sienge }}</span></td>
+                    <td style="font-weight: 500;">{{ obra.nome }}</td>
+                    <td>
+                        {% if obra.ativa %}
+                        <span class="badge-ativa ativa"><span class="dot"></span> Ativa</span>
+                        {% else %}
+                        <span class="badge-ativa inativa"><span class="dot"></span> Inativa</span>
+                        {% endif %}
+                    </td>
+                    <td style="color: #94a3b8; font-size: 0.82rem;">{{ obra.created_at|date:"d/m/Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <div class="empty-icon">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <p style="font-weight: 600; color: #334155; margin-bottom: 0.35rem;">Nenhuma obra cadastrada</p>
+                            <p style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 1rem;">Comece cadastrando a primeira obra do sistema.</p>
+                            <a href="{% url 'accounts:criar_obra' %}" class="btn-criar" style="font-size: 0.82rem;">
+                                <i class="fas fa-plus"></i> Criar Obra
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+{% endblock %}

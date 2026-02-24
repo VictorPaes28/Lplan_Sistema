@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Filtro de Vídeos{% endblock %}
+
+{% block content %}
+<div class="filter-page-header">
+    <h1 class="filter-page-title">Vídeos de Evidência</h1>
+    <p class="filter-page-total">Total: {{ total_videos }} vídeo{{ total_videos|pluralize }}</p>
+</div>
+
+<div class="filter-form-card">
+    <form method="get" class="filter-form">
+        <div>
+            <label for="filter-video-search">Buscar</label>
+            <input type="text" id="filter-video-search" name="search" value="{{ search }}" placeholder="Descrição, obra...">
+        </div>
+        <div>
+            <label for="filter-video-date-start">Data início</label>
+            <input type="date" id="filter-video-date-start" name="date_start" value="{{ date_start }}">
+        </div>
+        <div>
+            <label for="filter-video-date-end">Data fim</label>
+            <input type="date" id="filter-video-date-end" name="date_end" value="{{ date_end }}">
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if videos %}
+<div class="filter-grid filter-grid--videos">
+    {% for video in videos %}
+    <div class="filter-card">
+        <div class="filter-video-thumb relative overflow-hidden">
+            <video class="w-full h-full object-cover"
+                   controls
+                   preload="metadata"
+                   onclick="event.stopPropagation()"
+                   onplay="event.stopPropagation()"
+                   onpause="event.stopPropagation()"
+                   style="pointer-events: auto;"
+                   title="{{ video.caption|default:'Reproduzir' }}">
+                <source src="{{ video.video.url }}" type="video/mp4">
+                Seu navegador não suporta a reprodução de vídeos.
+            </video>
+        </div>
+        <div class="filter-card-body">
+            <p class="filter-card-date">{{ video.diary.date|date:"d/m/Y" }}</p>
+            {% if video.caption %}
+            <p class="filter-card-caption" title="{{ video.caption }}">{{ video.caption }}</p>
+            {% else %}
+            <p class="filter-card-caption filter-card-caption--muted">Sem legenda</p>
+            {% endif %}
+            <a href="{% url 'diary-detail' video.diary.pk %}" class="filter-card-link" aria-label="Ver relatório">
+                Ver relatório <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if videos.has_other_pages %}
+<nav class="filter-pagination" aria-label="Paginação de vídeos">
+    {% if videos.has_previous %}
+    <a href="?page={{ videos.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}">
+        <i class="fas fa-chevron-left"></i> Anterior
+    </a>
+    {% endif %}
+    <span class="filter-pagination-current">Pág. {{ videos.number }} de {{ videos.paginator.num_pages }}</span>
+    {% if videos.has_next %}
+    <a href="?page={{ videos.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}">
+        Próxima <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+</nav>
+{% endif %}
+{% else %}
+<div class="filter-empty">
+    <i class="fas fa-video filter-empty-icon"></i>
+    <p class="filter-empty-title">Nenhum vídeo encontrado</p>
+    <p class="filter-empty-desc">Adicione vídeos aos relatórios ou ajuste os filtros.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Previne que cliques nos vídeos sejam capturados por elementos pais
+document.addEventListener('DOMContentLoaded', function() {
+    const videos = document.querySelectorAll('video');
+    videos.forEach(function(video) {
+        // Garante que o vídeo pode ser clicado
+        video.style.pointerEvents = 'auto';
+        video.style.cursor = 'pointer';
+        
+        // Previne propagação de eventos de clique nos controles do vídeo
+        video.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Permite que o vídeo seja reproduzido normalmente
+            return true;
+        }, true);
+        
+        video.addEventListener('play', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        video.addEventListener('pause', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        // Previne que cliques nos controles sejam capturados
+        video.addEventListener('loadedmetadata', function() {
+            // Garante que todos os controles funcionem
+            const controls = video.querySelectorAll('*');
+            controls.forEach(function(control) {
+                control.style.pointerEvents = 'auto';
+                control.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                }, true);
+            });
+        });
+        
+        // Adiciona tratamento de erro para debug
+        video.addEventListener('error', function(e) {
+            console.error('Erro ao carregar vídeo:', video.src, e);
+        });
+    });
+});
+</script>
+{% endblock %}
+

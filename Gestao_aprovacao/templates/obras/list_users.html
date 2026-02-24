@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Usuários{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-navigation">
+        <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    </div>
+
+    <div class="list-header">
+        <h1 class="list-title">Usuários</h1>
+        <a href="{% url 'create_user' %}" class="btn">+ Novo Usuário</a>
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card filters-card">
+    <form method="get" class="filters-form">
+        <div class="filter-group">
+            <label for="search" class="filter-label">Buscar:</label>
+            <input type="text" id="search" name="search" class="filter-input" 
+                   value="{{ search_query }}" placeholder="Username, email ou nome...">
+        </div>
+        
+        <div class="filter-group">
+            <label for="grupo" class="filter-label">Grupo:</label>
+            <select id="grupo" name="grupo" class="filter-select">
+                <option value="">Todos</option>
+                {% for grupo in grupos %}
+                    <option value="{{ grupo.name }}" {% if grupo_filter == grupo.name %}selected{% endif %}>
+                        {{ grupo.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit" class="btn">Filtrar</button>
+        <a href="{% url 'list_users' %}" class="btn btn-secondary">Limpar</a>
+    </form>
+    </div>
+
+    <!-- Lista de Usuários -->
+    <div class="card table-container">
+        {% if users_with_groups %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Foto</th>
+                    <th>Username</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Grupos</th>
+                    <th>Superusuário</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in users_with_groups %}
+                    <tr>
+                        <td data-label="Foto">
+                            {% with item.user.perfil as perfil %}
+                                {% if perfil and perfil.foto_perfil %}
+                                    <img src="{{ perfil.foto_perfil.url }}" alt="Foto de perfil" 
+                                         style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e9ecef;">
+                                {% else %}
+                                    <div style="width: 40px; height: 40px; border-radius: 50%; background: #e9ecef; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; color: #6c757d; border: 2px solid #dee2e6;">
+                                        {{ item.user.get_full_name|default:item.user.username|first|upper }}
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td data-label="Username"><strong>{{ item.user.username }}</strong></td>
+                        <td data-label="Nome">{{ item.user.get_full_name|default:"-" }}</td>
+                        <td data-label="Email">{{ item.user.email|default:"-" }}</td>
+                        <td data-label="Grupos">
+                            {% if item.groups %}
+                                {% for grupo in item.groups %}
+                                    <span class="badge">{{ grupo.name }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">Sem grupo</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Superusuário">
+                            {% if item.user.is_superuser %}
+                                <span class="badge badge-success">Sim</span>
+                            {% else %}
+                                <span class="text-muted">Não</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Ações">
+                            <a href="{% url 'edit_user' item.user.pk %}" class="btn btn-sm">Editar</a>
+                            {% if is_admin %}
+                                <a href="{% url 'delete_user' item.user.pk %}" class="btn btn-sm" style="background-color: #dc3545; color: white; margin-left: 0.5rem;" onclick="return confirm('Tem certeza que deseja excluir o usuário {{ item.user.username }}? Esta ação não pode ser desfeita!');">Excluir</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Paginação -->
+        {% if page_obj.has_other_pages %}
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Anterior</a>
+                {% endif %}
+                
+                <span class="pagination-info">
+                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                </span>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Próxima</a>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <p class="empty-message">Nenhum usuário encontrado.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

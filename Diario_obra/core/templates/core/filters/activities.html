@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Filtro de Atividades{% endblock %}
+
+{% block content %}
+<div class="filter-page-header">
+    <h1 class="filter-page-title">Atividades do Projeto</h1>
+    <p class="filter-page-total">Total: {{ total_activities }} atividade{{ total_activities|pluralize }}</p>
+</div>
+
+<div class="filter-form-card">
+    <form method="get" class="filter-form filter-form--3cols">
+        <div>
+            <label for="filter-activities-search">Buscar</label>
+            <input type="text" id="filter-activities-search" name="search" value="{{ search }}" placeholder="Nome, código...">
+        </div>
+        <div>
+            <label for="filter-activities-status">Status</label>
+            <select id="filter-activities-status" name="status">
+                <option value="">Todos</option>
+                <option value="PL" {% if status_filter == 'PL' %}selected{% endif %}>Planejado</option>
+                <option value="EM" {% if status_filter == 'EM' %}selected{% endif %}>Em Execução</option>
+                <option value="CO" {% if status_filter == 'CO' %}selected{% endif %}>Concluído</option>
+                <option value="PA" {% if status_filter == 'PA' %}selected{% endif %}>Pausado</option>
+            </select>
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Lista de Atividades -->
+{% if activities %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progresso</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+                {% for activity in activities %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {{ activity.code }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">
+                        {{ activity.name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if activity.status == 'CO' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Concluído</span>
+                        {% elif activity.status == 'EM' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Em Execução</span>
+                        {% elif activity.status == 'PA' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Pausado</span>
+                        {% else %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Planejado</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                                <div class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <span class="text-sm text-gray-600">0%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+    <i class="fas fa-tasks text-gray-300 text-6xl mb-4"></i>
+    <p class="text-gray-600 text-lg">Nenhuma atividade encontrada</p>
+    <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de busca</p>
+</div>
+{% endif %}
+
+<!-- Estatísticas -->
+{% if activities_by_status %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mt-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Atividades por Status</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {% for stat in activities_by_status %}
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-blue-600">{{ stat.count }}</p>
+            <p class="text-sm text-gray-600 mt-1">
+                {% if stat.status == 'CO' %}Concluído
+                {% elif stat.status == 'EM' %}Em Execução
+                {% elif stat.status == 'PA' %}Pausado
+                {% else %}Planejado{% endif %}
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+

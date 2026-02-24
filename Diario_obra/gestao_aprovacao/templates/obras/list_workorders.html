@@ -1,0 +1,698 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pedidos de Obra{% endblock %}
+
+{% block page_title %}Pedidos{% endblock %}
+{% block page_subtitle %}GestControll - Lista de Pedidos{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.25rem;">
+        <a href="{% url 'gestao:home' %}" class="back-link" aria-label="Voltar ao GestControll">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            Voltar ao GestControll
+        </a>
+    </div>
+    <div class="list-header">
+        <h1 class="list-title">Pedidos de Obra</h1>
+        {% if pode_criar_pedido %}
+            <a href="{% url 'gestao:create_workorder' %}" class="btn">+ Novo Pedido</a>
+        {% endif %}
+    </div>
+    {% if aviso_sem_obras %}
+    <div class="alert alert-info" style="margin-bottom: 1rem; padding: 1rem; background: #e0f2fe; border: 1px solid #0ea5e9; border-radius: 8px; color: #0369a1;">
+        <strong>Nenhuma obra atribuída.</strong> No GestControll o acesso é por obra. Peça ao administrador para vinculá-lo a uma ou mais obras (em Usuários → Editar seu usuário → Obras no GestControll).
+    </div>
+    {% endif %}
+
+    <!-- Filtros Rápidos por Status -->
+    <div class="quick-filters">
+        <a href="{% url 'gestao:list_workorders' %}" class="quick-filter-btn {% if not status_filter %}active{% endif %}">
+            Todos
+        </a>
+        <a href="?status=pendente{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-pendente {% if status_filter == 'pendente' %}active{% endif %}">
+            Pendentes
+        </a>
+        <a href="?status=aprovado{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-aprovado {% if status_filter == 'aprovado' %}active{% endif %}">
+            Aprovados
+        </a>
+        <a href="?status=reprovado{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-reprovado {% if status_filter == 'reprovado' %}active{% endif %}">
+            Reprovados
+        </a>
+        <a href="?status=reaprovacao{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-reaprovacao {% if status_filter == 'reaprovacao' %}active{% endif %}">
+            Reaprovação
+        </a>
+        {% if pode_marcar_analisado %}
+        <div class="quick-filter-divider"></div>
+        <a href="?analisado=nao{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-analisado {% if analisado_filter == 'nao' %}active{% endif %}">
+            Não Analisados
+        </a>
+        <a href="?analisado=sim{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-analisado-check {% if analisado_filter == 'sim' %}active{% endif %}">
+            Analisados
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Filtros e Busca -->
+    <div class="card filters-card">
+    <div class="filters-header">
+        <h3 class="filters-title">Filtros de Busca</h3>
+        <button type="button" class="toggle-filters-btn" onclick="toggleFilters()">
+            <span id="toggle-filters-text">Mostrar Filtros Avançados</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="toggle-filters-icon">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </button>
+    </div>
+    <form method="get" class="filters-form" id="filters-form">
+        <div class="filter-group">
+            <label for="search" class="filter-label">
+                Buscar:
+            </label>
+            <input 
+                type="text" 
+                id="search" 
+                name="search" 
+                value="{{ search_query|default:'' }}"
+                placeholder="Código, credor ou observações..."
+                class="filter-input"
+            >
+        </div>
+        
+        <div class="filter-actions-main">
+            <button type="submit" class="btn filter-btn">Buscar</button>
+            <a href="{% url 'gestao:list_workorders' %}" class="btn btn-secondary filter-btn">
+                Limpar
+            </a>
+        </div>
+        
+        <div class="advanced-filters" id="advanced-filters" style="display: none;">
+            {% if obras_disponiveis %}
+            <div class="filter-group-small">
+                <label for="obra" class="filter-label">
+                    Obra:
+                </label>
+                <select id="obra" name="obra" class="filter-select">
+                    <option value="">Todas</option>
+                    {% for obra in obras_disponiveis %}
+                        <option value="{{ obra.pk }}" {% if obra_filter|stringformat:"s" == obra.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ obra.codigo }} - {{ obra.nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <div class="filter-group-small">
+                <label for="status" class="filter-label">
+                    Status:
+                </label>
+                <select id="status" name="status" class="filter-select">
+                    <option value="">Todos</option>
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group-small">
+                <label for="tipo_solicitacao" class="filter-label">
+                    Tipo:
+                </label>
+                <select id="tipo_solicitacao" name="tipo_solicitacao" class="filter-select">
+                    <option value="">Todos</option>
+                    {% for value, label in tipo_solicitacao_choices %}
+                        <option value="{{ value }}" {% if tipo_solicitacao_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            {% if engenheiros_list %}
+            <div class="filter-group-small">
+                <label for="engenheiro" class="filter-label">
+                    Solicitante:
+                </label>
+                <select id="engenheiro" name="engenheiro" class="filter-select">
+                    <option value="">Todos</option>
+                    {% for eng in engenheiros_list %}
+                        <option value="{{ eng.pk }}" {% if engenheiro_filter|stringformat:"s" == eng.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ eng.get_full_name|default:eng.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <div class="filter-group-small">
+                <label for="credor" class="filter-label">
+                    Credor:
+                </label>
+                <input 
+                    type="text" 
+                    id="credor" 
+                    name="credor" 
+                    value="{{ credor_filter|default:'' }}"
+                    placeholder="Nome do credor..."
+                    class="filter-input"
+                >
+            </div>
+            
+            <div class="filter-group-small">
+                <label for="data_inicio" class="filter-label">
+                    Data Início:
+                </label>
+                <input 
+                    type="date" 
+                    id="data_inicio" 
+                    name="data_inicio" 
+                    value="{{ data_inicio }}"
+                    class="filter-input"
+                >
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Contador de Resultados -->
+{% if workorders %}
+    <div class="results-count">
+        <div class="results-stats">
+            <div class="stat-item">
+                <span class="stat-label">Total</span>
+                <span class="stat-value">{{ page_obj.paginator.count }}</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-label">Exibindo</span>
+                <span class="stat-value">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span>
+            </div>
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-label">Página</span>
+                <span class="stat-value">{{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+
+<!-- Lista de Pedidos -->
+{% if workorders %}
+    <div class="card table-container">
+        <table class="workorders-table">
+            <thead>
+                <tr>
+                    {% if pode_marcar_analisado %}
+                    <th class="text-center sortable" data-sort="analisado" style="width: 80px;">
+                        <div class="th-content">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <span style="font-size: 0.7rem;">Sim</span>
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    {% endif %}
+                    <th class="sortable" data-sort="codigo">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 6h16M4 12h16M4 18h16"></path>
+                            </svg>
+                            Código
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    <th class="sortable" data-sort="obra">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                                <line x1="9" y1="21" x2="9" y2="9"></line>
+                            </svg>
+                            Obra
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    <th class="sortable" data-sort="nome_credor">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            Credor
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            Tipo
+                        </div>
+                    </th>
+                    <th class="text-center">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            Status
+                        </div>
+                    </th>
+                    <th class="sortable" data-sort="criado_por">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            Solicitante
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    <th class="sortable" data-sort="data_envio">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Data Envio
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    <th class="text-center">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for workorder in workorders %}
+                    <tr>
+                        {% if pode_marcar_analisado %}
+                        <td class="text-center" data-label="Analisado" style="padding: 0.75rem 0.5rem;">
+                            {% if workorder.status == 'aprovado' %}
+                            <label class="checkbox-analisado" for="analisado_{{ workorder.pk }}" style="
+                                display: inline-flex;
+                                align-items: center;
+                                justify-content: center;
+                                cursor: pointer;
+                                padding: 4px 6px;
+                                border-radius: 4px;
+                                transition: all 0.2s ease;
+                                user-select: none;
+                                {% if workorder.marcado_para_deletar %}
+                                background-color: #fee2e2;
+                                border: 1px solid #dc3545;
+                                {% else %}
+                                background-color: #f8f9fa;
+                                border: 1px solid #dee2e6;
+                                {% endif %}
+                            ">
+                                <input 
+                                    type="checkbox" 
+                                    id="analisado_{{ workorder.pk }}" 
+                                    name="analisado" 
+                                    value="{{ workorder.pk }}"
+                                    {% if workorder.marcado_para_deletar %}checked{% endif %}
+                                    onchange="marcarPedidoAnalisado(this, {{ workorder.pk }})"
+                                    style="
+                                        width: 16px;
+                                        height: 16px;
+                                        cursor: pointer;
+                                        accent-color: #dc3545;
+                                        margin: 0;
+                                    "
+                                />
+                            </label>
+                            {% else %}
+                            <span style="color: #adb5bd; font-size: 11px;">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td data-label="Código">
+                            <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="code-link">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem; vertical-align: middle;">
+                                    <path d="M4 6h16M4 12h16M4 18h16"></path>
+                                </svg>
+                                <strong>{{ workorder.codigo }}</strong>
+                            </a>
+                        </td>
+                        <td data-label="Obra">
+                            <div class="cell-with-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                </svg>
+                                <span>{{ workorder.obra.codigo }}</span>
+                            </div>
+                        </td>
+                        <td data-label="Credor">
+                            <div class="cell-with-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                </svg>
+                                <span>{{ workorder.nome_credor|truncatewords:15 }}</span>
+                            </div>
+                        </td>
+                        <td data-label="Tipo">
+                            <span class="tipo-badge">{{ workorder.get_tipo_solicitacao_display }}</span>
+                        </td>
+                        <td class="text-center" data-label="Status">
+                            <span class="status-badge {{ workorder.status }}">
+                                {{ workorder.get_status_display }}
+                            </span>
+                        </td>
+                        <td data-label="Solicitante">
+                            <div class="cell-with-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                <span>{{ workorder.criado_por.get_full_name|default:workorder.criado_por.username|truncatewords:10 }}</span>
+                            </div>
+                        </td>
+                        <td data-label="Data Envio">
+                            <div class="cell-with-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                <span>{{ workorder.data_envio|date:"d/m/Y H:i"|default:"-" }}</span>
+                            </div>
+                        </td>
+                        <td class="text-center" data-label="Ações">
+                            <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn action-btn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                Ver
+                            </a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Paginação -->
+    {% if page_obj.has_other_pages %}
+        <div class="pagination-wrapper">
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Primeira página">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="11 17 6 12 11 7"></polyline>
+                            <polyline points="18 17 13 12 18 7"></polyline>
+                        </svg>
+                    </a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn" title="Página anterior">
+                        Anterior
+                    </a>
+                {% else %}
+                    <span class="pagination-btn pagination-btn-disabled pagination-btn-icon" title="Primeira página">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="11 17 6 12 11 7"></polyline>
+                            <polyline points="18 17 13 12 18 7"></polyline>
+                        </svg>
+                    </span>
+                    <span class="pagination-btn pagination-btn-disabled">Anterior</span>
+                {% endif %}
+                
+                <div class="pagination-numbers">
+                    {% if page_obj.number > 3 %}
+                        <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-number">1</a>
+                        {% if page_obj.number > 4 %}
+                            <span class="pagination-ellipsis">...</span>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if num == page_obj.number %}
+                            <span class="pagination-number pagination-number-active">{{ num }}</span>
+                        {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+                            <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-number">{{ num }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.number < page_obj.paginator.num_pages|add:"-2" %}
+                        {% if page_obj.number < page_obj.paginator.num_pages|add:"-3" %}
+                            <span class="pagination-ellipsis">...</span>
+                        {% endif %}
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-number">{{ page_obj.paginator.num_pages }}</a>
+                    {% endif %}
+                </div>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn" title="Próxima página">
+                        Próxima
+                    </a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Última página">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="13 17 18 12 13 7"></polyline>
+                            <polyline points="6 17 11 12 6 7"></polyline>
+                        </svg>
+                    </a>
+                {% else %}
+                    <span class="pagination-btn pagination-btn-disabled">Próxima</span>
+                    <span class="pagination-btn pagination-btn-disabled pagination-btn-icon" title="Última página">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="13 17 18 12 13 7"></polyline>
+                            <polyline points="6 17 11 12 6 7"></polyline>
+                        </svg>
+                    </span>
+                {% endif %}
+                
+                <div class="pagination-jump">
+                    <label for="jump-to-page" class="pagination-jump-label">Ir para:</label>
+                    <input type="number" id="jump-to-page" class="pagination-jump-input" min="1" max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}" placeholder="{{ page_obj.number }}">
+                    <button type="button" class="pagination-jump-btn" onclick="jumpToPage()" title="Ir para página">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="card empty-state">
+        <p class="empty-message">
+            Nenhum pedido encontrado.
+        </p>
+        {% if pode_criar_pedido %}
+            <a href="{% url 'gestao:create_workorder' %}" class="btn">Criar Primeiro Pedido</a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<script>
+function toggleFilters() {
+    const advancedFilters = document.getElementById('advanced-filters');
+    const toggleText = document.getElementById('toggle-filters-text');
+    const toggleIcon = document.getElementById('toggle-filters-icon');
+    
+    if (advancedFilters.style.display === 'none' || advancedFilters.style.display === '') {
+        advancedFilters.style.display = 'grid';
+        toggleText.textContent = 'Ocultar Filtros Avançados';
+        toggleIcon.style.transform = 'rotate(180deg)';
+    } else {
+        advancedFilters.style.display = 'none';
+        toggleText.textContent = 'Mostrar Filtros Avançados';
+        toggleIcon.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Ordenação clicável
+document.addEventListener('DOMContentLoaded', function() {
+    const hasFilters = {% if obra_filter or tipo_solicitacao_filter or credor_filter or engenheiro_filter or data_inicio %}true{% else %}false{% endif %};
+    if (hasFilters) {
+        const advancedFilters = document.getElementById('advanced-filters');
+        const toggleText = document.getElementById('toggle-filters-text');
+        const toggleIcon = document.getElementById('toggle-filters-icon');
+        advancedFilters.style.display = 'grid';
+        toggleText.textContent = 'Ocultar Filtros Avançados';
+        toggleIcon.style.transform = 'rotate(180deg)';
+    }
+    
+    // Adicionar eventos de ordenação
+    const sortableHeaders = document.querySelectorAll('.sortable');
+    const currentSort = '{{ order_by|default:"-created_at" }}';
+    
+    // Mapear campos de ordenação
+    const sortFieldMap = {
+        'codigo': 'codigo',
+        'obra': 'obra__codigo',
+        'nome_credor': 'nome_credor',
+        'criado_por': 'criado_por__first_name',
+        'data_envio': 'data_envio',
+        'analisado': 'marcado_para_deletar'
+    };
+    
+    sortableHeaders.forEach(header => {
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', function() {
+            const sortKey = this.getAttribute('data-sort');
+            const sortField = sortFieldMap[sortKey] || sortKey;
+            const currentOrder = '{{ order_by|default:"" }}';
+            let newOrder = sortField;
+            
+            // Se já está ordenando por este campo, inverter
+            if (currentOrder === sortField) {
+                newOrder = '-' + sortField;
+            } else if (currentOrder === '-' + sortField) {
+                newOrder = sortField;
+            }
+            
+            // Construir URL com todos os parâmetros
+            const url = new URL(window.location.href);
+            url.searchParams.set('order_by', newOrder);
+            window.location.href = url.toString();
+        });
+        
+        // Mostrar indicador de ordenação atual
+        const sortKey = header.getAttribute('data-sort');
+        const sortField = sortFieldMap[sortKey] || sortKey;
+        if (currentSort === sortField || currentSort === '-' + sortField) {
+            const indicator = header.querySelector('.sort-indicator');
+            indicator.textContent = currentSort.startsWith('-') ? ' ↓' : ' ↑';
+            indicator.style.opacity = '1';
+        }
+    });
+});
+
+{% if pode_marcar_analisado %}
+// Função para marcar pedido como analisado
+function marcarPedidoAnalisado(checkbox, pedidoId) {
+    var marcado = checkbox.checked;
+    var label = checkbox.closest('label');
+    var originalState = !marcado;
+    
+    // Desabilitar durante requisição
+    checkbox.disabled = true;
+    label.style.opacity = '0.6';
+    
+    // Obter CSRF token
+    var csrftoken = getCookie('csrftoken');
+    if (!csrftoken) {
+        // Tentar pegar do meta tag se existir
+        var metaTag = document.querySelector('meta[name=csrf-token]');
+        if (metaTag) {
+            csrftoken = metaTag.getAttribute('content');
+        }
+    }
+    
+    // Fazer requisição AJAX
+    fetch('/pedidos/' + pedidoId + '/marcar-analisado/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrftoken
+        },
+        body: 'marcado=' + marcado + '&csrfmiddlewaretoken=' + csrftoken
+    })
+    .then(response => {
+        // Verificar se a resposta HTTP foi bem-sucedida
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Erro na requisição');
+            }).catch(() => {
+                throw new Error('Erro ao processar resposta do servidor');
+            });
+        }
+        return response.json().catch(() => {
+            // Se não conseguir fazer parse do JSON, mas a resposta foi OK, assumir sucesso
+            return { success: true, marcado: marcado };
+        });
+    })
+    .then(data => {
+        if (data && data.success) {
+            // Atualizar visual
+            if (marcado) {
+                label.style.backgroundColor = '#fee2e2';
+                label.style.borderColor = '#dc3545';
+            } else {
+                label.style.backgroundColor = '#f8f9fa';
+                label.style.borderColor = '#dee2e6';
+            }
+        } else {
+            // Reverter em caso de erro
+            checkbox.checked = originalState;
+            const errorMsg = (data && data.error) ? data.error : 'Não foi possível atualizar.';
+            console.error('Erro ao atualizar:', errorMsg);
+        }
+    })
+    .catch(error => {
+        // Reverter em caso de erro
+        checkbox.checked = originalState;
+        console.error('Erro na requisição:', error.message || error);
+        // Não mostrar alerta para não incomodar o usuário se funcionou no servidor
+    })
+    .finally(() => {
+        // Reabilitar
+        checkbox.disabled = false;
+        label.style.opacity = '1';
+    });
+}
+
+// Função auxiliar para obter cookie CSRF
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Função para pular para uma página específica
+function jumpToPage() {
+    const input = document.getElementById('jump-to-page');
+    const page = parseInt(input.value);
+    const maxPages = parseInt(input.getAttribute('max'));
+    
+    if (isNaN(page) || page < 1 || page > maxPages) {
+        alert('Por favor, insira um número de página válido entre 1 e ' + maxPages);
+        input.value = '{{ page_obj.number }}';
+        return;
+    }
+    
+    // Construir URL com todos os parâmetros
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', page);
+    window.location.href = url.toString();
+}
+
+// Permitir Enter no input de página
+document.addEventListener('DOMContentLoaded', function() {
+    const jumpInput = document.getElementById('jump-to-page');
+    if (jumpInput) {
+        jumpInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                jumpToPage();
+            }
+        });
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

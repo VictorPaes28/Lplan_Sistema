@@ -1,0 +1,21 @@
+PassengerEnabled on
+PassengerAppRoot /home/lplan/public_html/gestao_aprovacao
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+PassengerBaseURI /
+PassengerPython /home/lplan/virtualenv/public_html/gestao_aprovacao/3.11/bin/python
+PassengerAppLogFile /home/lplan/passenger.log
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Arquivos estáticos/media não vão para o Passenger
+    RewriteCond %{REQUEST_URI} !^/static/
+    RewriteCond %{REQUEST_URI} !^/media/
+
+    # Se o arquivo não existir, manda tudo para o Passenger
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    RewriteRule ^(.*)$ passenger_wsgi.py [QSA,L]
+</IfModule>

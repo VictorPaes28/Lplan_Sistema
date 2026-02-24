@@ -1,0 +1,47 @@
+# ===========================================
+# Lplan_Sistema - Raiz do repositório
+# ===========================================
+
+# Ambiente e segredos (nunca versionar)
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Django (todos os subprojetos)
+*.log
+db.sqlite3
+db.sqlite3-journal
+*/db.sqlite3
+staticfiles/
+media/
+*/staticfiles/
+*/media/
+local_settings.py
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

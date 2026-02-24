@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Adicionar Anexo - {{ workorder.codigo }}{% endblock %}
+
+{% block page_title %}Anexar Arquivo{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/upload_attachment.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="card">
+        <h1 class="upload-title">
+            Adicionar Anexo
+        </h1>
+        
+        <div class="upload-info-box">
+            <p><strong>Pedido:</strong> {{ workorder.codigo }}</p>
+            <p><strong>Obra:</strong> {{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
+            <p><strong>Credor:</strong> {{ workorder.nome_credor }}</p>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="upload-error-box">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            
+            <div class="upload-form-group">
+                <label for="{{ form.arquivo.id_for_label }}" class="upload-label">
+                    {{ form.arquivo.label }} <span class="upload-required">*</span>
+                </label>
+                <div class="upload-dropzone-wrapper">
+                    <div class="upload-dropzone" id="upload-dropzone">
+                        <svg class="upload-dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="upload-dropzone-text">Arraste o arquivo aqui ou clique para selecionar</p>
+                        <p class="upload-dropzone-hint">PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB)</p>
+                        {{ form.arquivo }}
+                    </div>
+                    <div class="upload-file-selected" id="upload-file-selected" style="display: none;">
+                        <svg class="upload-file-selected-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span class="upload-file-selected-name" id="upload-file-name"></span>
+                    </div>
+                </div>
+                {% if form.arquivo.help_text %}
+                    <div class="upload-help">
+                        {{ form.arquivo.help_text }}
+                    </div>
+                {% endif %}
+                {% if form.arquivo.errors %}
+                    <div class="upload-error">
+                        {{ form.arquivo.errors }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="upload-form-group">
+                <label for="{{ form.nome.id_for_label }}" class="upload-label">
+                    {{ form.nome.label }}
+                </label>
+                {{ form.nome }}
+                {% if form.nome.help_text %}
+                    <div class="upload-help">
+                        {{ form.nome.help_text }}
+                    </div>
+                {% endif %}
+                {% if form.nome.errors %}
+                    <div class="upload-error">
+                        {{ form.nome.errors }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="upload-form-group">
+                <label for="{{ form.descricao.id_for_label }}" class="upload-label">
+                    {{ form.descricao.label }}
+                </label>
+                {{ form.descricao }}
+                {% if form.descricao.help_text %}
+                    <div class="upload-help">
+                        {{ form.descricao.help_text }}
+                    </div>
+                {% endif %}
+                {% if form.descricao.errors %}
+                    <div class="upload-error">
+                        {{ form.descricao.errors }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="upload-actions">
+                <button type="submit" class="btn upload-submit">
+                    Enviar Anexo
+                </button>
+                <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-secondary upload-cancel">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dropzone = document.getElementById('upload-dropzone');
+    const fileInput = dropzone.querySelector('input[type="file"]');
+    const fileSelected = document.getElementById('upload-file-selected');
+    const fileName = document.getElementById('upload-file-name');
+    
+    // Atualizar visual quando arquivo é selecionado
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files.length > 0) {
+                const file = e.target.files[0];
+                fileName.textContent = file.name;
+                fileSelected.style.display = 'flex';
+                dropzone.style.display = 'none';
+            }
+        });
+        
+        // Drag and Drop
+        dropzone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+        });
+        
+        dropzone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                const file = e.dataTransfer.files[0];
+                fileName.textContent = file.name;
+                fileSelected.style.display = 'flex';
+                dropzone.style.display = 'none';
+                
+                // Disparar evento change para validação
+                const event = new Event('change', { bubbles: true });
+                fileInput.dispatchEvent(event);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

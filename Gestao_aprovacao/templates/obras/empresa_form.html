@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'list_empresas' %}" class="btn btn-back">← Voltar para Lista</a>
+</div>
+
+<div class="form-container">
+    <div class="card">
+        <h1 class="form-title">{{ title }}</h1>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="form-error-box">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="{{ form.codigo.id_for_label }}" class="form-label">
+                    {{ form.codigo.label }} <span class="form-required">*</span>
+                </label>
+                {{ form.codigo }}
+                {% if form.codigo.help_text %}
+                    <div class="form-help">{{ form.codigo.help_text }}</div>
+                {% endif %}
+                {% if form.codigo.errors %}
+                    <div class="form-error">{{ form.codigo.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.nome.id_for_label }}" class="form-label">
+                    {{ form.nome.label }} <span class="form-required">*</span>
+                </label>
+                {{ form.nome }}
+                {% if form.nome.errors %}
+                    <div class="form-error">{{ form.nome.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.telefone.id_for_label }}" class="form-label">
+                    {{ form.telefone.label }}
+                </label>
+                {{ form.telefone }}
+                {% if form.telefone.errors %}
+                    <div class="form-error">{{ form.telefone.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.email.id_for_label }}" class="form-label">
+                    {{ form.email.label }}
+                </label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <div class="form-error">{{ form.email.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.responsavel.id_for_label }}" class="form-label">
+                    {{ form.responsavel.label }}
+                </label>
+                {{ form.responsavel }}
+                {% if form.responsavel.help_text %}
+                    <div class="form-help">{{ form.responsavel.help_text }}</div>
+                {% endif %}
+                {% if form.responsavel.errors %}
+                    <div class="form-error">{{ form.responsavel.errors }}</div>
+                {% endif %}
+                <small class="form-text text-muted">Selecione o usuário responsável por gerenciar esta empresa. Deve ser um usuário do grupo "Responsavel Empresa".</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.ativo.id_for_label }}" class="form-label">
+                    {{ form.ativo.label }}
+                </label>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    {{ form.ativo }}
+                    <span>Marque para ativar a empresa</span>
+                </div>
+                {% if form.ativo.errors %}
+                    <div class="form-error">{{ form.ativo.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn">Salvar</button>
+                {% if empresa %}
+                    <a href="{% url 'detail_empresa' empresa.pk %}" class="btn btn-secondary">Cancelar</a>
+                {% else %}
+                    <a href="{% url 'list_empresas' %}" class="btn btn-secondary">Cancelar</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Criar Usuário{% endblock %}
+
+{% block page_title %}Novo Usuário{% endblock %}
+{% block page_subtitle %}{% if use_central_urls %}Central - Usuários{% else %}GestControll - Gerenciamento{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="card">
+        <h1 class="form-title">Criar Novo Usuário</h1>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="username" class="form-label">Username *</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" id="email" name="email" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Senha *</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="first_name" class="form-label">Nome</label>
+                <input type="text" id="first_name" name="first_name" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="last_name" class="form-label">Sobrenome</label>
+                <input type="text" id="last_name" name="last_name" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="foto_perfil" class="form-label">Foto de Perfil</label>
+                <input type="file" id="foto_perfil" name="foto_perfil" accept="image/*" class="form-control">
+                <small class="form-text">Envie uma foto de perfil (opcional). Formatos aceitos: JPG, PNG, GIF.</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Grupos</label>
+                <div class="form-help mb-2">Selecione um ou mais grupos conforme os sistemas que este usuário acessa. O mesmo usuário pode usar GestControll, Mapa de Suprimentos e Diário de Obra.</div>
+                {% for grupo in grupos %}
+                    <div class="form-check">
+                        <input type="checkbox" id="grupo_{{ grupo.id }}" name="grupos" value="{{ grupo.name }}" class="form-check-input">
+                        <label for="grupo_{{ grupo.id }}" class="form-check-label">{{ grupo.name }}</label>
+                    </div>
+                {% endfor %}
+                <small class="form-text text-muted">Gestão: Administrador, Responsavel Empresa, Aprovador, Solicitante. Diário: Diário de Obra. Mapa: Mapa de Suprimentos.</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Obras (Diário de Obra e GestControll)</label>
+                <div class="form-help">Selecione as obras em que o usuário pode atuar. É a <strong>mesma lista</strong> para todo o sistema: quem for vinculado aqui terá acesso ao Diário de Obra e ao GestControll (pedidos) nessas obras. Empresas são derivadas automaticamente.</div>
+                {% if projects %}
+                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
+                        {% for project in projects %}
+                        <div class="form-check">
+                            <input type="checkbox" id="project_{{ project.id }}" name="projects" value="{{ project.id }}" class="form-check-input">
+                            <label for="project_{{ project.id }}" class="form-check-label">{{ project.code }} – {{ project.name }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Cadastre projetos no Diário de Obra primeiro (Core → Projetos). Depois vincule as obras do GestControll aos projetos no admin.</p>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn">Criar Usuário</button>
+                <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

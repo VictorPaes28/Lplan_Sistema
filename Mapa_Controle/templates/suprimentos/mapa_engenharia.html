@@ -1,0 +1,1554 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load suprimentos_filters %}
+
+{% block title %}Mapa Engenharia - SupplyMap{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-2">
+<!-- ============================================
+     MAPA DE SUPRIMENTOS - Tabela Responsiva
+     ============================================ -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="mb-0">Mapa de Suprimentos - Engenharia</h2>
+    </div>
+
+<!-- KPIs - Barra compacta melhorada -->
+<div class="kpi-container">
+    <div class="kpi-card kpi-total">
+        <div class="kpi-icon">
+            <i class="bi bi-list-ul"></i>
+        </div>
+        <div class="kpi-content">
+            <div class="kpi-valor">{{ kpis.total|default:0 }}</div>
+            <div class="kpi-label">Total</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-atrasados">
+        <div class="kpi-icon">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <div class="kpi-content">
+            <div class="kpi-valor text-danger">{{ kpis.atrasados|default:0 }}</div>
+            <div class="kpi-label">Atrasados</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-solicitados">
+        <div class="kpi-icon">
+            <i class="bi bi-file-earmark-text"></i>
+        </div>
+        <div class="kpi-content">
+            <div class="kpi-valor">{{ kpis.solicitados|default:0 }}</div>
+            <div class="kpi-label">Solicitados</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-compra">
+        <div class="kpi-icon">
+            <i class="bi bi-cart"></i>
+        </div>
+        <div class="kpi-content">
+            <div class="kpi-valor text-warning">{{ kpis.em_compra|default:0 }}</div>
+            <div class="kpi-label">Em Compra</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-parciais">
+        <div class="kpi-icon">
+            <i class="bi bi-hourglass-split"></i>
+        </div>
+        <div class="kpi-content">
+            <div class="kpi-valor text-warning">{{ kpis.parciais|default:0 }}</div>
+            <div class="kpi-label">Parciais</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-entregues">
+        <div class="kpi-icon">
+            <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <div class="kpi-content">
+            <div class="kpi-valor text-success">{{ kpis.entregues|default:0 }}</div>
+            <div class="kpi-label">Entregues</div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     NOVO LEVANTAMENTO (pré-Sienge) - Design Melhorado
+     ============================================ -->
+<div class="novo-levantamento-card mb-3">
+    <div class="novo-levantamento-header" id="novoLevantamentoHeader">
+        <div class="novo-levantamento-header-left">
+            <div class="novo-levantamento-icon">
+                <i class="bi bi-plus-circle-fill"></i>
+            </div>
+            <div class="novo-levantamento-title">
+                <h6 class="mb-0">Novo Levantamento</h6>
+                <small class="text-muted">Cadastrar insumo antes do Sienge (sem SC)</small>
+            </div>
+        </div>
+        <button class="novo-levantamento-toggle" type="button" id="novoLevantamentoToggle" aria-expanded="false">
+            <i class="bi bi-chevron-down" id="novoLevantamentoIcon"></i>
+        </button>
+    </div>
+    <div class="novo-levantamento-body collapse" id="novoLevantamentoBody">
+        <div class="novo-levantamento-content">
+            <form method="post" action="{% url 'engenharia:novo_levantamento' %}" id="formNovoLevantamento">
+                {% csrf_token %}
+                <input type="hidden" name="obra" value="{{ filtros.obra_id|default:'' }}">
+                
+                <div class="novo-levantamento-form-grid">
+                    <div class="novo-levantamento-form-group novo-levantamento-form-group-full">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-box-seam"></i> Descrição do Insumo <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" 
+                               name="descricao_insumo" 
+                               class="form-control novo-levantamento-input" 
+                               required
+                               placeholder="Ex: Cimento CP II 50kg"
+                               autocomplete="off">
+                    </div>
+                    
+                    <div class="novo-levantamento-form-group">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-tags"></i> Categoria
+                        </label>
+                        <select name="categoria" class="form-select novo-levantamento-input">
+                            {% for val,label in categorias_opcoes %}
+                                <option value="{{ val }}" {% if val == "A CLASSIFICAR" %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="novo-levantamento-form-group">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-flag"></i> Prioridade
+                        </label>
+                        <select name="prioridade" class="form-select novo-levantamento-input">
+                            <option value="MEDIA" selected>Média</option>
+                            <option value="BAIXA">Baixa</option>
+                            <option value="ALTA">Alta</option>
+                            <option value="URGENTE">Urgente</option>
+                        </select>
+                    </div>
+                </div>
+                
+                {% if not filtros.obra_id %}
+                <div class="novo-levantamento-alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Selecione uma <strong>Obra</strong> nos filtros antes de criar um levantamento.</span>
+                </div>
+                {% endif %}
+                
+                <div class="novo-levantamento-actions">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCancelarLevantamento">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-check-circle"></i> Criar Levantamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Legenda de Cores - Chips Compactos -->
+<div class="legenda-cores">
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom" 
+         title='1) LEVANTAMENTO: Engenharia ainda não gerou a SC.'>
+        <div class="legenda-cor status-branco"></div>
+        <span class="legenda-texto">1) Levantamento</span>
+    </div>
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
+         title='2) AGUARDANDO COMPRA: Engenharia gerou a SC, aguardando Compras gerar o PC.'>
+        <div class="legenda-cor status-vermelho"></div>
+        <span class="legenda-texto">2) Aguard. Compra</span>
+    </div>
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
+         title='3) AGUARDANDO ENTREGA: PC gerado, aguardando fornecedor entregar na obra.'>
+        <div class="legenda-cor status-azul"></div>
+        <span class="legenda-texto">3) Aguard. Entrega</span>
+    </div>
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
+         title='4) AGUARDANDO ALOCAÇÃO: Material chegou na obra, falta alocar para este local.'>
+        <div class="legenda-cor status-amarelo"></div>
+        <span class="legenda-texto">4) Aguard. Alocação</span>
+    </div>
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
+         title='5) ALOCAÇÃO PARCIAL: Material parcialmente alocado para este local.'>
+        <div class="legenda-cor status-laranja"></div>
+        <span class="legenda-texto">5) Parcial</span>
+    </div>
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
+         title='ENTREGUE: Material totalmente alocado para este local.'>
+        <div class="legenda-cor status-verde"></div>
+        <span class="legenda-texto">✓ Entregue</span>
+    </div>
+    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
+         title="ATRASADO: Prazo de entrega vencido e ainda não entregue.">
+        <div class="legenda-cor status-atrasado"></div>
+        <span class="legenda-texto">⚠ Atrasado</span>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="filtros-container">
+    <form id="filtro-form" method="get">
+        <div class="filtros-row">
+            <div class="filtro-item">
+                <label for="obra" class="form-label">Obra:</label>
+                <select name="obra" id="obra" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for obra in obras %}
+                        <option value="{{ obra.id }}" {% if filtros.obra_id == obra.id|stringformat:"s" %}selected{% endif %}>
+                            {{ obra.nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-item">
+                <label for="categoria" class="form-label">Categoria:</label>
+                <select name="categoria" id="categoria" class="form-select">
+                    <option value="">Todas</option>
+                    {% for val,label in categorias_opcoes %}
+                        <option value="{{ val }}" {% if filtros.categoria == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                    {% if categorias_legado %}
+                        <optgroup label="LEGADO">
+                            {% for cat in categorias_legado %}
+                        <option value="{{ cat }}" {% if filtros.categoria == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                        </optgroup>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="filtro-item">
+                <label for="local" class="form-label">Local:</label>
+                <select name="local" id="local" class="form-select">
+                    <option value="">Todos</option>
+                    {% for local in locais %}
+                        <option value="{{ local.id }}" {% if filtros.local_id == local.id|stringformat:"s" %}selected{% endif %}>
+                            {{ local.nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-item">
+                <label for="prioridade" class="form-label">Prioridade:</label>
+                <select name="prioridade" id="prioridade" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="URGENTE" {% if filtros.prioridade == "URGENTE" %}selected{% endif %}>Urgente</option>
+                    <option value="ALTA" {% if filtros.prioridade == "ALTA" %}selected{% endif %}>Alta</option>
+                    <option value="MEDIA" {% if filtros.prioridade == "MEDIA" %}selected{% endif %}>Média</option>
+                    <option value="BAIXA" {% if filtros.prioridade == "BAIXA" %}selected{% endif %}>Baixa</option>
+                </select>
+            </div>
+            <div class="filtro-item">
+                <label for="status" class="form-label">Status:</label>
+                <select name="status" id="status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="LEVANTAMENTO" {% if filtros.status == "LEVANTAMENTO" %}selected{% endif %}>1) Levantamento</option>
+                    <option value="AGUARDANDO_COMPRA" {% if filtros.status == "AGUARDANDO_COMPRA" %}selected{% endif %}>2) Aguardando Compra</option>
+                    <option value="AGUARDANDO_ENTREGA" {% if filtros.status == "AGUARDANDO_ENTREGA" %}selected{% endif %}>3) Aguardando Entrega</option>
+                    <option value="AGUARDANDO_ALOCACAO" {% if filtros.status == "AGUARDANDO_ALOCACAO" %}selected{% endif %}>4) Aguardando Alocação</option>
+                    <option value="PARCIAL" {% if filtros.status == "PARCIAL" %}selected{% endif %}>5) Parcial</option>
+                    <option value="ENTREGUE" {% if filtros.status == "ENTREGUE" %}selected{% endif %}>✓ Entregue</option>
+                    <option value="ATRASADO" {% if filtros.status == "ATRASADO" %}selected{% endif %}>⚠ Atrasado</option>
+                </select>
+            </div>
+            <div class="filtro-item">
+                <label for="search" class="form-label">Buscar:</label>
+                <input type="text" name="search" id="search" class="form-control" 
+                       value="{{ filtros.search }}" placeholder="Buscar: insumo, código, SC, PC, fornecedor...">
+            </div>
+            <div class="filtro-item">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+            </div>
+            <div class="filtro-item">
+                <a href="{% url 'engenharia:exportar_excel' %}?{{ request.GET.urlencode }}" 
+                   class="btn btn-success" 
+                   title="Exportar mapa atual para Excel">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Tabela -->
+<div class="table-responsive">
+    <table class="tabela-mapa">
+        <thead>
+            <!-- Linha 1: Agrupadores (igual planilha do chefe) -->
+            <tr class="thead-agrupadores">
+                <th colspan="8" class="text-center">REQUISIÇÃO DE PRODUTO/SERVIÇO</th>
+                <th colspan="3" class="text-center">SOLICITAÇÃO DE COMPRA</th>
+                <th colspan="3" class="text-center">ENTREGA DE PRODUTO/SERVIÇO</th>
+                <th colspan="4" class="text-center"></th>
+            </tr>
+            <!-- Linha 2: Colunas (igual planilha do chefe) -->
+            <tr>
+                <th class="col-sticky-left">1. CATEGORIA</th>
+                <th>2. CÓDIGO DO INSUMO</th>
+                <th>3. DESCRIÇÃO DO ITEM</th>
+                <th>4. LOCAL</th>
+                <th>5. RESPONSÁVEL</th>
+                <th>6. PRAZO</th>
+                <th>7. QUANTITATIVO</th>
+                <th>8. UND</th>
+                <th>9. Nº SOLICITAÇÃO</th>
+                <th>10. Nº PEDIDO DE COMPRA</th>
+                <th>11. EMPRESA RESPONSÁVEL</th>
+                <th>12. PRAZO RECEBIMENTO</th>
+                <th>13. QUANTIDADE RECEBIDA</th>
+                <th>14. SALDO A SER ENTREGUE</th>
+                <th class="col-sticky-right">15. STATUS</th>
+                <th>16. PRIORIDADE</th>
+                <th>17. OBSERVAÇÃO</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if itens %}
+            {% regroup itens by categoria as itens_por_categoria %}
+            {% for categoria_group in itens_por_categoria %}
+                <tr class="categoria-header" data-categoria="{{ categoria_group.grouper }}">
+                    <td colspan="18">
+                        <span class="toggle-categoria" data-categoria="{{ categoria_group.grouper }}">
+                            <i class="bi bi-chevron-down"></i>
+                        </span>
+                        {{ categoria_group.grouper }} ({{ categoria_group.list|length }} itens)
+                    </td>
+                </tr>
+                {% for item in categoria_group.list %}
+            <tr data-item-id="{{ item.id }}" 
+                class="{{ item.status_css }} categoria-{{ categoria_group.grouper|slugify }} linha-item-mapa"
+                data-status-etapa="{{ item.status_etapa }}"
+                {% if item.is_atrasado %}data-atrasado="true"{% endif %}>
+                <!-- 1. CATEGORIA (Select - lista fechada LPLAN) -->
+                <td class="col-sticky-left">
+                    <select class="input-inline form-select form-select-sm" 
+                            data-item-id="{{ item.id }}" 
+                            data-field="categoria"
+                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+                        {% if item.categoria and item.categoria not in categorias_opcoes_values %}
+                            <option value="{{ item.categoria }}" selected>LEGADO: {{ item.categoria }}</option>
+                        {% endif %}
+                        {% for val,label in categorias_opcoes %}
+                            <option value="{{ val }}" {% if item.categoria == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <!-- 2. CÓDIGO INSUMO - Input Editável (sempre editável) -->
+                <td>
+                    {% with cod=item.insumo.codigo_sienge|default:"" %}
+                        {% if cod|slice:":7" == "SM-LEV-" or not cod %}
+                            {# Em levantamento: campo vazio para engenheiro inserir código #}
+                            <input type="text" 
+                                   class="input-inline form-control form-control-sm"
+                                   value=""
+                                   data-item-id="{{ item.id }}"
+                                   data-field="insumo_codigo"
+                                   data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                                   placeholder="Digite o código"
+                                   title="Código do insumo (insira para vincular com o banco. Chave: SC + Código)"
+                                   style="min-width: 100px; font-style: italic;">
+                        {% else %}
+                            {# Já tem código: mostrar e permitir edição (sempre editável) #}
+                            <input type="text" 
+                                   class="input-inline form-control form-control-sm"
+                                   value="{{ cod }}"
+                                   data-item-id="{{ item.id }}"
+                                   data-field="insumo_codigo"
+                                   data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                                   placeholder="Código"
+                                   title="Código do insumo (sempre editável. Chave: SC + Código)"
+                                   style="min-width: 100px;">
+                        {% endif %}
+                    {% endwith %}
+                </td>
+                <!-- 3. DESCRIÇÃO - Input Editável -->
+                <td>
+                    <input type="text" 
+                           class="input-inline form-control form-control-sm ghost-input"
+                           value="{{ item.descricao_override|default:item.insumo.descricao }}"
+                           data-item-id="{{ item.id }}"
+                           data-field="descricao_override"
+                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                           placeholder="{{ item.insumo.descricao }}"
+                           title="Descrição original: {{ item.insumo.descricao }}">
+                </td>
+                <!-- 4. LOCAL - Select padronizado -->
+                <td>
+                    <select class="input-inline form-select form-select-sm" 
+                            data-item-id="{{ item.id }}" 
+                            data-field="local_aplicacao" 
+                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+                        <option value="">-- Selecione --</option>
+                        {% for local in locais %}
+                            <option value="{{ local.id }}" {% if item.local_aplicacao_id == local.id %}selected{% endif %}>
+                                {{ local.nome }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <!-- 5. RESPONSÁVEL -->
+                <td>
+                    <input type="text" class="input-inline form-control form-control-sm" 
+                           value="{{ item.responsavel|default:'' }}"
+                           data-item-id="{{ item.id }}" 
+                           data-field="responsavel"
+                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+                </td>
+                <!-- 6. PRAZO -->
+                <td>
+                    <input type="date" class="input-inline form-control form-control-sm" 
+                           value="{{ item.prazo_necessidade|date:'Y-m-d'|default:'' }}"
+                           data-item-id="{{ item.id }}" 
+                           data-field="prazo_necessidade"
+                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+                </td>
+                <!-- 7. QUANTITATIVO (do Sienge) -->
+                <td class="input-readonly campo-sienge text-center"
+                    data-bs-toggle="tooltip"
+                    title="Quantidade solicitada no Sienge (SC)">
+                    {% if item.quantidade_solicitada_sienge > 0 %}
+                        <strong>{{ item.quantidade_solicitada_sienge|floatformat:2 }}</strong>
+                        <span class="text-muted small">{{ item.insumo.unidade|format_unidade }}</span>
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <!-- 8. UND - Editável (Select) -->
+                <td class="text-center">
+                    <select class="input-inline form-select form-select-sm text-center" 
+                            data-item-id="{{ item.id }}"
+                            data-field="insumo_unidade"
+                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                            title="Unidade de medida - sempre editável"
+                            style="min-width: 70px; max-width: 90px;">
+                        <option value="" {% if not item.insumo.unidade or item.insumo.unidade == '' %}selected{% endif %}>--</option>
+                        <option value="UND" {% if item.insumo.unidade == 'UND' %}selected{% endif %}>UND</option>
+                        <option value="KG" {% if item.insumo.unidade == 'KG' %}selected{% endif %}>KG</option>
+                        <option value="M3" {% if item.insumo.unidade == 'M3' %}selected{% endif %}>m³</option>
+                        <option value="M2" {% if item.insumo.unidade == 'M2' %}selected{% endif %}>m²</option>
+                        <option value="M" {% if item.insumo.unidade == 'M' %}selected{% endif %}>M</option>
+                        <option value="L" {% if item.insumo.unidade == 'L' %}selected{% endif %}>L</option>
+                        <option value="GL" {% if item.insumo.unidade == 'GL' %}selected{% endif %}>GL</option>
+                        <option value="TON" {% if item.insumo.unidade == 'TON' %}selected{% endif %}>TON</option>
+                        <option value="MES" {% if item.insumo.unidade == 'MES' %}selected{% endif %}>MES</option>
+                    </select>
+                </td>
+                <!-- 9. Nº SOLICITAÇÃO (SC) -->
+                <!-- Novo fluxo: pode ser cadastrado manualmente após criar no Sienge, para vincular importação -->
+                <td class="campo-sienge" style="padding: 4px 6px;"
+                    data-bs-toggle="tooltip"
+                    title="Digite a SC após criar no Sienge (vincula na próxima importação).">
+                        <input type="text" 
+                           class="input-inline form-control form-control-sm ghost-input"
+                           style="min-width: 100px; max-width: 130px; font-size: 0.9em; padding: 2px 6px; font-weight: 500;"
+                               value="{{ item.numero_sc|default:'' }}"
+                           placeholder="SC"
+                               data-item-id="{{ item.id }}" 
+                               data-field="numero_sc"
+                           data-insumo-id="{{ item.insumo.id }}"
+                               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                           list="sc-datalist-{{ item.id }}">
+                    <datalist id="sc-datalist-{{ item.id }}"></datalist>
+                </td>
+                <!-- 10. Nº PEDIDO (Readonly - Sienge - Automático) -->
+                <td class="input-readonly campo-sienge text-center" 
+                    data-bs-toggle="tooltip" 
+                    title="Nº Pedido de Compra (preenchido automaticamente pelo Sienge)"
+                    style="padding: 4px 6px; min-width: 90px; max-width: 120px;">
+                    {% if item.numero_pc %}
+                        <span class="text-primary fw-bold" style="font-size: 0.95em;">{{ item.numero_pc }}</span>
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                <!-- 11. EMPRESA RESPONSÁVEL (Editável) -->
+                <td style="padding: 4px 6px;">
+                    <input type="text" 
+                           class="input-inline form-control form-control-sm" 
+                           value="{{ item.empresa_fornecedora|default:'' }}"
+                           data-item-id="{{ item.id }}"
+                           data-field="empresa_fornecedora"
+                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                           placeholder="-"
+                           maxlength="200"
+                           style="font-size: 0.85em; padding: 2px 6px;">
+                </td>
+                <!-- 12. PRAZO RECEBIMENTO (Readonly - Sienge - Automático) -->
+                <td class="input-readonly campo-sienge text-center" 
+                    data-bs-toggle="tooltip" 
+                    title="Prazo de recebimento (preenchido automaticamente pelo Sienge)"
+                    style="padding: 4px 6px; min-width: 90px;">
+                    {% if item.prazo_recebimento %}
+                        <span style="font-size: 0.9em;">{{ item.prazo_recebimento|date:"d/m/Y" }}</span>
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                <!-- 13. QUANTIDADE RECEBIDA (Barra de progresso no fundo) -->
+                <!-- IMPORTANTE: Esta coluna mostra ALOCADO/SOLICITADO (alocação manual), não recebido do Sienge -->
+                <td class="celula-progresso" 
+                    data-bs-toggle="tooltip" 
+                    title="Alocado para este local: {{ item.quantidade_alocada_local|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} | {% if item.numero_sc %}Solicitado no Sienge: {{ item.quantidade_solicitada_sienge|floatformat:2 }}{% else %}Planejado: {{ item.quantidade_planejada|floatformat:2 }}{% endif %} {{ item.insumo.unidade|format_unidade }} | Recebido na Obra (disponível para alocar): {{ item.quantidade_recebida_obra|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} | {{ item.percentual_alocado_porcentagem|floatformat:0 }}%">
+                    <div class="progresso-bg" style="width: {{ item.percentual_alocado_porcentagem|floatformat:0 }}%; background: {% if item.percentual_alocado >= 1 %}rgba(34,197,94,0.2){% elif item.percentual_alocado > 0 %}rgba(245,158,11,0.2){% else %}rgba(156,163,175,0.1){% endif %};"></div>
+                    <span class="progresso-texto">
+                        {% if item.numero_sc and item.quantidade_solicitada_sienge > 0 %}
+                            {# Se tem SC, mostrar alocado/solicitado (alocação manual vs solicitado no Sienge) #}
+                            {# IMPORTANTE: Mostra o que foi ALOCADO MANUALMENTE para este local, não o recebido do Sienge #}
+                            {# Formatação: usar filtro customizado para preservar zeros e melhorar legibilidade #}
+                            <strong>{{ item.quantidade_alocada_local|format_quantidade }}</strong>/<span class="text-muted">{{ item.quantidade_solicitada_sienge|format_quantidade }}</span>
+                        {% else %}
+                            {# Senão, mostrar alocado/planejado do local #}
+                            <strong>{{ item.quantidade_alocada_local|format_quantidade }}</strong>/<span class="text-muted">{{ item.quantidade_planejada|format_quantidade }}</span>
+                        {% endif %}
+                        <span class="text-muted small ms-1">{{ item.insumo.unidade|format_unidade }}</span>
+                        {% if item.numero_sc and item.quantidade_disponivel_sienge > 0 %}
+                        {# Botão de alocar: mostrar se tem SC e há quantidade recebida disponível para alocar #}
+                        {# IMPORTANTE: Mostra apenas quando há material recebido na obra que ainda não foi alocado #}
+                        <button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" 
+                                data-item-id="{{ item.id }}"
+                                data-saldo="{{ item.quantidade_disponivel_sienge }}"
+                                data-unidade="{{ item.insumo.unidade }}"
+                                data-recebido="{{ item.quantidade_recebida_obra }}"
+                                data-alocado="{{ item.quantidade_alocada_local }}"
+                                title="Alocar até {{ item.quantidade_disponivel_sienge }} {{ item.insumo.unidade|format_unidade }} (Recebido: {{ item.quantidade_recebida_obra }}, Já alocado globalmente: {{ item.quantidade_alocada_local }}, Disponível: {{ item.quantidade_disponivel_sienge }})">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                        {% elif not item.numero_sc and item.quantidade_recebida_obra > 0 and item.quantidade_alocada_local < item.quantidade_planejada %}
+                        {# Fallback: se não tem SC mas tem recebimento legado e ainda falta alocar #}
+                        <button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" 
+                                data-item-id="{{ item.id }}"
+                                data-saldo="{{ item.saldo_a_alocar_local }}"
+                                data-unidade="{{ item.insumo.unidade }}"
+                                data-recebido="{{ item.quantidade_recebida_obra }}"
+                                data-alocado="{{ item.quantidade_alocada_local }}"
+                                title="Alocar {{ item.saldo_a_alocar_local }} {{ item.insumo.unidade|format_unidade }}">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                        {% endif %}
+                    </span>
+                </td>
+                <!-- 14. SALDO (Readonly - Sienge se tiver SC, senão Local) -->
+                <td class="input-readonly campo-sienge" 
+                    data-bs-toggle="tooltip" 
+                    title="{% if item.numero_sc %}Saldo do Sienge: Solicitado - Recebido{% else %}Saldo do LOCAL: Planejado - Alocado{% endif %}">
+                    {% if item.numero_sc %}
+                        {# Se tem SC, mostrar saldo do Sienge (solicitado - recebido) #}
+                        {# IMPORTANTE: Mostra o total mesmo quando ainda não recebeu nada #}
+                        <strong>{{ item.saldo_a_entregar_sienge|format_quantidade }}</strong> {{ item.insumo.unidade|format_unidade }}
+                    {% else %}
+                        {# Senão, mostrar saldo local #}
+                        {% if item.saldo_negativo %}
+                            <span class="badge bg-warning" data-bs-toggle="tooltip" 
+                                  title="Atenção: alocado maior que o planejado para este local.">
+                                {{ item.saldo_local_diferenca|floatformat:2 }} {{ item.insumo.unidade|format_unidade }}
+                                <i class="bi bi-exclamation-triangle"></i>
+                            </span>
+                        {% else %}
+                            <strong>{{ item.saldo_a_alocar_local|floatformat:2 }}</strong> {{ item.insumo.unidade|format_unidade }}
+                        {% endif %}
+                    {% endif %}
+                </td>
+                <!-- 15. STATUS (Cor de Fundo Automática - Sticky Right) -->
+                <td class="col-sticky-right status-cell {{ item.status_css }}">
+                    <div class="status-content">
+                        <span class="badge-status 
+                            {% if item.status_css == 'status-branco' %}badge-branco
+                            {% elif item.status_css == 'status-vermelho' %}badge-vermelho
+                            {% elif item.status_css == 'status-amarelo' %}badge-amarelo
+                            {% elif item.status_css == 'status-laranja' %}badge-laranja
+                            {% elif item.status_css == 'status-verde' %}badge-verde
+                            {% elif item.status_css == 'status-atrasado' %}badge-atrasado
+                            {% else %}badge-branco{% endif %}">
+                            {% if item.is_atrasado %}
+                                <i class="bi bi-clock-history"></i>
+                            {% elif 'ENTREGUE' in item.status_etapa %}
+                                <i class="bi bi-check-circle"></i>
+                            {% elif 'AGUARDANDO ENTREGA' in item.status_etapa %}
+                                <i class="bi bi-hourglass-split"></i>
+                            {% elif 'LEVANTAMENTO' in item.status_etapa %}
+                                <i class="bi bi-file-earmark-text"></i>
+                            {% elif 'SOLICITACAO' in item.status_etapa %}
+                                <i class="bi bi-cart-plus"></i>
+                            {% endif %}
+                            {{ item.status_etapa }}
+                        </span>
+                        {% if item.is_atrasado %}
+                                <span class="badge bg-danger" 
+                                  data-bs-toggle="tooltip" 
+                                  title="Atrasado desde {{ item.prazo_recebimento|date:'d/m/Y'|default:'prazo vencido' }}">
+                                <i class="bi bi-exclamation-triangle"></i>
+                            </span>
+                        {% endif %}
+                    </div>
+                </td>
+                <!-- 16. PRIORIDADE (cores AZUL/ROXO - diferente do STATUS) -->
+                <td class="td-prioridade">
+                    <select class="input-inline form-select form-select-sm select-prioridade prioridade-{{ item.prioridade|lower }}" 
+                            data-item-id="{{ item.id }}" 
+                            data-field="prioridade"
+                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+                        <option value="URGENTE" {% if item.prioridade == "URGENTE" %}selected{% endif %}>Urgente</option>
+                        <option value="ALTA" {% if item.prioridade == "ALTA" %}selected{% endif %}>Alta</option>
+                        <option value="MEDIA" {% if item.prioridade == "MEDIA" %}selected{% endif %}>Média</option>
+                        <option value="BAIXA" {% if item.prioridade == "BAIXA" %}selected{% endif %}>Baixa</option>
+                    </select>
+                </td>
+                <!-- 17. OBSERVAÇÃO -->
+                <td>
+                    <input type="text" class="input-inline form-control form-control-sm" 
+                           value="{{ item.observacao_eng|default:'' }}"
+                           data-item-id="{{ item.id }}" 
+                           data-field="observacao_eng"
+                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+                </td>
+                <!-- Ações -->
+                <td>
+                    <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-info" 
+                            data-modal-target="modalDetalhe"
+                            data-item-id="{{ item.id }}">
+                        Detalhes
+                    </button>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                data-action="delete-item"
+                                data-item-id="{{ item.id }}"
+                                data-delete-url="{% url 'suprimentos:item_excluir' item.id %}"
+                                title="Excluir item">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+                {% endfor %}
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="18" class="text-center">Nenhum item encontrado.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+</div><!-- Fim desktop-view -->
+</div><!-- Fim container-fluid -->
+
+{# Categorias agora são uma lista fechada (select). Datalist removido. #}
+
+<!-- Modal Criar Item -->
+<div class="modal fade" id="modalCriarItem" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Adicionar Novo Item ao Mapa
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formCriarItem">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="criar_obra" class="form-label">Obra <span class="text-danger">*</span></label>
+                        <select class="form-select" id="criar_obra" name="obra" required>
+                            <option value="">Selecione uma obra...</option>
+                            {% for obra in obras %}
+                                <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>{{ obra.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="criar_insumo" class="form-label">Insumo <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <select class="form-select" id="criar_insumo" name="insumo" required>
+                                <option value="">Selecione um insumo...</option>
+                                {% for insumo in insumos %}
+                                    <option value="{{ insumo.id }}">{{ insumo.codigo_sienge }} - {{ insumo.descricao }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCriarInsumo">
+                                <i class="bi bi-plus-circle"></i> Novo Insumo
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> Se o insumo não existir, clique em "Novo Insumo" para cadastrar
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="criar_categoria" class="form-label">Categoria <span class="text-danger">*</span></label>
+                        <select class="form-select" id="criar_categoria" name="categoria" required>
+                            {% for val,label in categorias_opcoes %}
+                                <option value="{{ val }}" {% if val == "A CLASSIFICAR" %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Lista fechada (padrão LPLAN).</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="criar_local" class="form-label">
+                                Local
+                                <small class="text-muted">(carregado automaticamente ao selecionar obra)</small>
+                            </label>
+                            <select class="form-select" id="criar_local" name="local_aplicacao">
+                                <option value="">-- Selecione uma obra primeiro --</option>
+                                {% for local in locais %}
+                                    <option value="{{ local.id }}">{{ local.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="criar_responsavel" class="form-label">Responsável</label>
+                            <input type="text" class="form-control" id="criar_responsavel" name="responsavel" 
+                                   placeholder="Nome do responsável técnico">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="criar_prazo" class="form-label">Prazo Necessidade</label>
+                            <input type="date" class="form-control" id="criar_prazo" name="prazo_necessidade"
+                                   title="Data em que o insumo é necessário na obra">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="criar_quantidade" class="form-label">Quantidade Planejada <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="criar_quantidade" name="quantidade_planejada" 
+                                   step="0.01" min="0" value="0.00" required
+                                   title="Quantidade necessária do insumo">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="criar_prioridade" class="form-label">Prioridade</label>
+                            <select class="form-select" id="criar_prioridade" name="prioridade">
+                                <option value="URGENTE">🔴 Urgente</option>
+                                <option value="ALTA">🟠 Alta</option>
+                                <option value="MEDIA" selected>🟡 Média</option>
+                                <option value="BAIXA">🟢 Baixa</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                Nº SOLICITAÇÃO (SC)
+                            </label>
+                            <div class="form-control bg-light text-muted" style="cursor: not-allowed;">
+                                <i class="bi bi-lock"></i> Preenchido via importação do Sienge
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                A SC é vinculada automaticamente quando você importar dados do Sienge
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="criar_observacao" class="form-label">Observação</label>
+                        <textarea class="form-control" id="criar_observacao" name="observacao_eng" rows="2"
+                                  placeholder="Observações adicionais sobre este item"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="criar_descricao_override" class="form-label">Descrição Alternativa (opcional)</label>
+                        <input type="text" class="form-control" id="criar_descricao_override" name="descricao_override" 
+                               placeholder="Descrição diferente do insumo padrão (ex: especificações adicionais)">
+                        <small class="text-muted">Use apenas se precisar de uma descrição diferente do insumo padrão</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Dica:</strong> Selecione uma <strong>SC do Sienge</strong> para vincular este item 
+                        automaticamente. Se não tiver SC ainda, deixe vazio e vincule depois.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Criar Item
+                    </button>
+                </div>
+                <div class="modal-footer border-top bg-light">
+                    <small class="text-muted">
+                        <i class="bi bi-lightbulb"></i> 
+                        <strong>Dica:</strong> Campos marcados com <span class="text-danger">*</span> são obrigatórios. 
+                        A <strong>SC do Sienge</strong> é opcional - se selecionada, vincula automaticamente ao insumo e dados do pedido.
+                    </small>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Criar Insumo -->
+<div class="modal fade" id="modalCriarInsumo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Criar Novo Insumo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formCriarInsumo" method="post" action="{% url 'engenharia:criar_insumo' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Dica:</strong> Preencha os campos abaixo para cadastrar um novo insumo no catálogo.
+                        Após criar, o insumo estará disponível para uso em todos os itens do mapa.
+                    </div>
+                    
+                    {% if form_insumo.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form_insumo.non_field_errors }}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form_insumo.codigo_sienge.id_for_label }}" class="form-label">
+                            {{ form_insumo.codigo_sienge.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form_insumo.codigo_sienge }}
+                        {% if form_insumo.codigo_sienge.errors %}
+                            <div class="text-danger small">{{ form_insumo.codigo_sienge.errors }}</div>
+                        {% endif %}
+                        {% if form_insumo.codigo_sienge.help_text %}
+                            <small class="text-muted">{{ form_insumo.codigo_sienge.help_text }}</small>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form_insumo.descricao.id_for_label }}" class="form-label">
+                            {{ form_insumo.descricao.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form_insumo.descricao }}
+                        {% if form_insumo.descricao.errors %}
+                            <div class="text-danger small">{{ form_insumo.descricao.errors }}</div>
+                        {% endif %}
+                        {% if form_insumo.descricao.help_text %}
+                            <small class="text-muted">{{ form_insumo.descricao.help_text }}</small>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                            <label for="{{ form_insumo.unidade.id_for_label }}" class="form-label">
+                                {{ form_insumo.unidade.label }}
+                            </label>
+                            {{ form_insumo.unidade }}
+                            {% if form_insumo.unidade.errors %}
+                                <div class="text-danger small">{{ form_insumo.unidade.errors }}</div>
+                            {% endif %}
+                        {% if form_insumo.unidade.help_text %}
+                            <small class="text-muted">{{ form_insumo.unidade.help_text }}</small>
+                            {% endif %}
+                    </div>
+                    
+                    <div class="alert alert-info py-2 small">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Nota:</strong> Insumos normalmente são importados do Sienge via CSV.
+                        A <strong>categoria de aplicação</strong> (FUNDAÇÃO, ESTRUTURA, etc.) é definida 
+                        no item do mapa, não no insumo.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Criar Insumo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detalhe -->
+<div class="modal fade" id="modalDetalhe" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Item</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Carregando...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Alocação Rápida -->
+<div class="modal fade" id="modalAlocar" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title">
+                    <i class="bi bi-box-arrow-in-down"></i> Alocar Material
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAlocar">
+                <div class="modal-body">
+                    <input type="hidden" id="alocar_item_id" name="item_id">
+                    
+                    <div class="alert alert-info py-2 small">
+                        <i class="bi bi-info-circle"></i>
+                        Material chegou na obra. Informe quanto será destinado a este local.
+                    </div>
+                    
+                    <!-- Alocações Existentes -->
+                    <div class="mb-3" id="alocacoes_existentes" style="display: none;">
+                        <label class="form-label">
+                            <strong>Alocações Existentes</strong>
+                        </label>
+                        <div class="list-group" id="lista_alocacoes">
+                            <!-- Será preenchido via JavaScript -->
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btnRemoverTodas" style="display: none;">
+                                <i class="bi bi-trash"></i> Remover Todas
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="alocar_quantidade" class="form-label">
+                            <strong>Quantidade a Alocar</strong>
+                            <small class="text-muted d-block">Digite o valor numérico (ex: 10000 ou 10000.00)</small>
+                        </label>
+                        <div class="input-group">
+                            <input type="number" 
+                                   class="form-control form-control-lg" 
+                                   id="alocar_quantidade" 
+                                   name="quantidade_alocada" 
+                                   step="0.01" 
+                                   min="0.01" 
+                                   placeholder="Ex: 10000"
+                                   required
+                                   style="font-size: 1.1em; font-weight: 500;">
+                            <span class="input-group-text" id="alocar_unidade" style="font-size: 1.1em;">UND</span>
+                        </div>
+                        <div class="small text-muted mt-2" id="alocar_saldo">Carregando...</div>
+                        <div class="small text-info mt-1">
+                            <i class="bi bi-lightbulb"></i> 
+                            <strong>Dica:</strong> Use ponto (.) ou vírgula (,) para decimais. Ex: 10000.50 ou 0,5
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-check-circle"></i> Confirmar Alocação
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Função auxiliar para normalizar número (aceita vírgula ou ponto)
+    // ROBUSTA: Remove caracteres inválidos, trata múltiplas vírgulas/pontos, preserva precisão
+    // Deve estar no escopo global para ser usada em múltiplos lugares
+    function normalizarNumero(valor) {
+        if (!valor && valor !== 0) return 0;
+        
+        // Converter para string e remover espaços
+        let valorStr = String(valor).trim();
+        
+        // Se vazio, retornar 0
+        if (!valorStr) return 0;
+        
+        // Remover caracteres não numéricos exceto vírgula e ponto
+        valorStr = valorStr.replace(/[^\d,.-]/g, '');
+        
+        // Se não tem nenhum dígito, retornar 0
+        if (!/\d/.test(valorStr)) return 0;
+        
+        // Tratar múltiplas vírgulas/pontos - manter apenas o último separador decimal
+        const ultimaVirgula = valorStr.lastIndexOf(',');
+        const ultimoPonto = valorStr.lastIndexOf('.');
+        
+        if (ultimaVirgula > ultimoPonto) {
+            // Vírgula é o separador decimal
+            // Remover todas as vírgulas e pontos, depois adicionar ponto no lugar da última vírgula
+            valorStr = valorStr.replace(/[,.]/g, '');
+            if (ultimaVirgula < valorStr.length) {
+                valorStr = valorStr.slice(0, ultimaVirgula) + '.' + valorStr.slice(ultimaVirgula);
+            }
+        } else if (ultimoPonto > ultimaVirgula) {
+            // Ponto é o separador decimal
+            // Remover todas as vírgulas e pontos, depois adicionar ponto no lugar do último ponto
+            valorStr = valorStr.replace(/[,.]/g, '');
+            if (ultimoPonto < valorStr.length) {
+                valorStr = valorStr.slice(0, ultimoPonto) + '.' + valorStr.slice(ultimoPonto);
+            }
+        } else {
+            // Sem separador decimal, remover vírgulas e pontos (são separadores de milhar)
+            valorStr = valorStr.replace(/[,.]/g, '');
+        }
+        
+        // Converter para número
+        const numero = parseFloat(valorStr);
+        
+        // Validar resultado
+        if (isNaN(numero) || !isFinite(numero)) return 0;
+        
+        return numero;
+    }
+    
+    // Função para formatar número para string preservando precisão decimal
+    // IMPORTANTE: Usar para enviar ao backend - preserva decimais
+    function numeroParaString(numero) {
+        if (numero === null || numero === undefined || isNaN(numero)) return '0';
+        
+        // Converter para número se for string
+        const num = typeof numero === 'string' ? normalizarNumero(numero) : numero;
+        
+        // Se não for número válido, retornar '0'
+        if (isNaN(num) || !isFinite(num)) return '0';
+        
+        // Converter para string preservando decimais
+        // Usar toFixed para garantir decimais, mas remover zeros desnecessários
+        const str = num.toString();
+        
+        // Se já é uma string válida com ponto, retornar
+        if (str.includes('.')) {
+            return str;
+        }
+        
+        // Se for inteiro, retornar como está
+        return str;
+    }
+    
+    // Função para verificar e atualizar estado de campos editáveis
+    function atualizarEstadoCampo(campo) {
+        if (!campo) return;
+        
+        const valor = campo.value ? campo.value.trim() : '';
+        const temValor = valor !== '' && valor !== '0' && valor !== '-- Selecione --';
+        
+        if (temValor) {
+            campo.classList.add('campo-preenchido');
+        } else {
+            campo.classList.remove('campo-preenchido');
+        }
+    }
+    
+    // Inicializar formulário de criar item
+    document.addEventListener('DOMContentLoaded', function() {
+        initCriarItem();
+        
+        // Inicializar tooltips do Bootstrap
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        // Destacar linhas atrasadas
+        document.querySelectorAll('[data-atrasado="true"]').forEach(function(row) {
+            row.style.animation = 'pulse-border 2s infinite';
+        });
+        
+        // Verificar estado inicial de todos os campos editáveis
+        document.querySelectorAll('[data-field], [data-update-url]').forEach(function(campo) {
+            atualizarEstadoCampo(campo);
+            
+            // Adicionar listeners para atualizar estado quando o valor mudar
+            campo.addEventListener('input', function() {
+                atualizarEstadoCampo(this);
+            });
+            
+            campo.addEventListener('change', function() {
+                atualizarEstadoCampo(this);
+            });
+        });
+        
+        // === MODAL DE ALOCAÇÃO ===
+        const modalAlocar = new bootstrap.Modal(document.getElementById('modalAlocar'));
+        
+        // Botões de alocar
+        document.querySelectorAll('.btn-alocar').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const itemId = this.dataset.itemId;
+                const saldo = normalizarNumero(this.dataset.saldo);
+                const unidade = this.dataset.unidade;
+                const recebido = normalizarNumero(this.dataset.recebido);
+                const alocado = normalizarNumero(this.dataset.alocado);
+                
+                document.getElementById('alocar_item_id').value = itemId;
+                document.getElementById('alocar_quantidade').value = '';
+                document.getElementById('alocar_quantidade').max = saldo;
+                document.getElementById('alocar_unidade').textContent = unidade;
+                
+                // Mostrar informações de alocação (já formatadas)
+                const saldoFormatado = saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                let saldoText = `<div class="alert alert-success py-2 mb-2">`;
+                saldoText += `<strong><i class="bi bi-check-circle"></i> Disponível para alocar: ${saldoFormatado} ${unidade}</strong>`;
+                saldoText += `</div>`;
+                
+                // Se há informação de recebido e alocado, mostrar também
+                if (recebido > 0) {
+                    const alocadoFormatado = alocado.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const recebidoFormatado = recebido.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const disponivelFormatado = (recebido - alocado).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    saldoText += `<div class="small text-muted">`;
+                    saldoText += `<strong>Resumo:</strong><br>`;
+                    saldoText += `• Recebido na obra: ${recebidoFormatado} ${unidade}<br>`;
+                    saldoText += `• Já alocado para este local: ${alocadoFormatado} ${unidade}<br>`;
+                    saldoText += `• Disponível para alocar: ${disponivelFormatado} ${unidade}`;
+                    saldoText += `</div>`;
+                }
+                
+                document.getElementById('alocar_saldo').innerHTML = saldoText;
+                
+                // Carregar alocações existentes
+                carregarAlocacoesExistentes(itemId, unidade);
+                
+                // Focar no campo de quantidade e adicionar validação em tempo real
+                setTimeout(() => {
+                    const input = document.getElementById('alocar_quantidade');
+                    input.focus();
+                    // Sugerir o valor máximo disponível como placeholder
+                    if (saldo > 0) {
+                        input.placeholder = `Máximo: ${saldo.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                    }
+                    
+                    // Adicionar feedback visual em tempo real
+                    input.addEventListener('input', function() {
+                        const valor = normalizarNumero(this.value);
+                        const maxValor = normalizarNumero(this.max) || 0;
+                        
+                        // Remover classes anteriores
+                        this.classList.remove('is-valid', 'is-invalid');
+                        
+                        if (valor > 0 && valor <= maxValor) {
+                            this.classList.add('is-valid');
+                        } else if (valor > maxValor) {
+                            this.classList.add('is-invalid');
+                        }
+                    });
+                }, 300);
+                
+                modalAlocar.show();
+            });
+        });
+        
+        // Função para carregar alocações existentes
+        function carregarAlocacoesExistentes(itemId, unidade) {
+            // Buscar alocações do item através do endpoint JSON
+            fetch(`{% url 'suprimentos:item_alocacoes_json' 0 %}`.replace('0', itemId))
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('alocacoes_existentes');
+                    const lista = document.getElementById('lista_alocacoes');
+                    const btnRemoverTodas = document.getElementById('btnRemoverTodas');
+                    
+                    if (data.alocacoes && data.alocacoes.length > 0) {
+                        container.style.display = 'block';
+                        lista.innerHTML = '';
+                        
+                        let totalAlocado = 0;
+                        data.alocacoes.forEach(function(alocacao, index) {
+                            totalAlocado += normalizarNumero(alocacao.quantidade_alocada || 0);
+                            const dataFormatada = new Date(alocacao.data_alocacao).toLocaleString('pt-BR');
+                            const qtdNum = normalizarNumero(alocacao.quantidade_alocada);
+                            const qtdFormatada = qtdNum.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            
+                            const item = document.createElement('div');
+                            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                            item.innerHTML = `
+                                <div>
+                                    <strong>${qtdFormatada} ${unidade}</strong>
+                                    <br><small class="text-muted">${dataFormatada}</small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-remover-alocacao" 
+                                        data-item-id="${itemId}" 
+                                        data-alocacao-id="${alocacao.id}">
+                                    <i class="bi bi-x-circle"></i> Remover
+                                </button>
+                            `;
+                            lista.appendChild(item);
+                        });
+                        
+                        // Mostrar botão de remover todas se houver mais de uma alocação
+                        if (data.alocacoes.length > 1) {
+                            btnRemoverTodas.style.display = 'block';
+                            btnRemoverTodas.onclick = function() {
+                                if (confirm(`Tem certeza que deseja remover TODAS as ${data.alocacoes.length} alocações (${totalAlocado.toLocaleString('pt-BR', {minimumFractionDigits: 2})} ${unidade})?`)) {
+                                    removerAlocacao(itemId, true);
+                                }
+                            };
+                        } else {
+                            btnRemoverTodas.style.display = 'none';
+                        }
+                    } else {
+                        container.style.display = 'none';
+                        btnRemoverTodas.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar alocações:', error);
+                    document.getElementById('alocacoes_existentes').style.display = 'none';
+                });
+        }
+        
+        // Função para remover alocação
+        function removerAlocacao(itemId, removerTodas = false, alocacaoId = null) {
+            const csrftoken = getCookie('csrftoken');
+            const url = `{% url 'suprimentos:item_remover_alocacao' 0 %}`.replace('0', itemId);
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    remover_todas: removerTodas,
+                    alocacao_id: alocacaoId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', data.message);
+                    // Recarregar a página para atualizar os dados
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('❌ Erro ao remover alocação. Tente novamente.');
+            });
+        }
+        
+        // Delegar eventos de remover alocação (para elementos dinâmicos)
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-remover-alocacao')) {
+                e.preventDefault();
+                const btn = e.target.closest('.btn-remover-alocacao');
+                const itemId = btn.dataset.itemId;
+                const alocacaoId = btn.dataset.alocacaoId;
+                if (confirm('Tem certeza que deseja remover esta alocação?')) {
+                    removerAlocacao(itemId, false, alocacaoId);
+                }
+            }
+        });
+        
+        // Submit do form de alocação
+        document.getElementById('formAlocar').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const itemId = document.getElementById('alocar_item_id').value;
+            const quantidadeInput = document.getElementById('alocar_quantidade');
+            const quantidade = quantidadeInput.value;
+            
+            console.log('Tentando alocar:', { itemId, quantidade });
+            
+            // Normalizar número (aceita vírgula ou ponto)
+            const qtdNum = normalizarNumero(quantidade);
+            if (!quantidade || qtdNum <= 0) {
+                alert('❌ Por favor, informe uma quantidade válida maior que zero.\n\nExemplo: 10000 ou 10000.50 ou 0,5');
+                quantidadeInput.focus();
+                return;
+            }
+            
+            // Validar se não excede o máximo disponível
+            const saldoMax = normalizarNumero(quantidadeInput.max) || 0;
+            if (qtdNum > saldoMax) {
+                alert(`❌ A quantidade (${qtdNum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}) excede o disponível (${saldoMax.toLocaleString('pt-BR', {minimumFractionDigits: 2})}).\n\nDigite um valor menor ou igual ao disponível.`);
+                quantidadeInput.focus();
+                return;
+            }
+            
+            if (!itemId) {
+                alert('Erro: ID do item não encontrado');
+                return;
+            }
+            
+            // Obter CSRF token
+            const csrftoken = getCookie('csrftoken');
+            console.log('CSRF Token:', csrftoken ? 'OK' : 'FALTANDO');
+            
+            // Mostrar loading no botão
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Alocando...';
+            
+            const url = `{% url 'suprimentos:item_alocar' 0 %}`.replace('0', itemId);
+            console.log('URL da requisição:', url);
+            
+            // Enviar como string para preservar precisão decimal
+            // IMPORTANTE: Usar numeroParaString para garantir precisão
+            const qtdString = numeroParaString(qtdNum);
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    quantidade_alocada: qtdString // Enviar como string para preservar decimais
+                })
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    return response.json().then(err => { 
+                        console.log('Erro:', err);
+                        throw err; 
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    modalAlocar.hide();
+                    // Mostrar mensagem de sucesso com detalhes
+                    const qtdNum = normalizarNumero(quantidade);
+                    const qtdFormatada = qtdNum.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const unidade = document.getElementById('alocar_unidade').textContent;
+                    showToast('success', `✅ Alocação confirmada: ${qtdFormatada} ${unidade}`);
+                    // Recarregar a página para atualizar os dados
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao alocar: ' + (error.error || error.message || 'Tente novamente'));
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+        });
+    });
+    
+    // Toast simples
+    function showToast(type, message) {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'x-circle'}"></i> ${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // =============================================
+    // SC (Nº SOLICITAÇÃO) - sugestões para evitar erro
+    // Novo fluxo: usuário pode digitar a SC após criar no Sienge,
+    // e o vínculo acontece na próxima importação (obra + SC + insumo).
+    // =============================================
+    const obraAtualId = '{{ filtros.obra_id|default:"" }}';
+    let scCachePorObra = null; // lista retornada de /api/internal/scs/?obra=
+    let scCacheCarregando = false;
+
+    function carregarScsDaObra() {
+        if (!obraAtualId) return Promise.resolve([]);
+        if (scCachePorObra) return Promise.resolve(scCachePorObra);
+        if (scCacheCarregando) {
+            // espera simples (poll)
+            return new Promise(resolve => {
+                const t = setInterval(() => {
+                    if (scCachePorObra) { clearInterval(t); resolve(scCachePorObra); }
+                }, 120);
+                setTimeout(() => { clearInterval(t); resolve(scCachePorObra || []); }, 4000);
+            });
+        }
+
+        scCacheCarregando = true;
+        const scsUrl = `{% url 'suprimentos:listar_scs' %}?obra=${encodeURIComponent(obraAtualId)}`;
+        return fetch(scsUrl)
+            .then(r => r.json())
+            .then(data => {
+                scCachePorObra = (data.scs || []);
+                return scCachePorObra;
+            })
+            .catch(() => {
+                scCachePorObra = [];
+                return [];
+            })
+            .finally(() => {
+                scCacheCarregando = false;
+            });
+    }
+
+    // Preencher datalist por linha (filtra por insumo_id, para sugerir SC certa)
+    document.querySelectorAll('input[data-field="numero_sc"][list]').forEach(input => {
+        input.addEventListener('focus', async function() {
+            const listId = this.getAttribute('list');
+            const datalist = document.getElementById(listId);
+            if (!datalist) return;
+            if (datalist.childElementCount > 0) return; // já preenchido
+
+            const insumoId = this.getAttribute('data-insumo-id');
+            const scs = await carregarScsDaObra();
+            const filtradas = scs.filter(s => String(s.insumo_id) === String(insumoId));
+
+            // Se não houver SCs desse insumo, deixa vazio (usuário pode digitar mesmo assim)
+            datalist.innerHTML = filtradas.slice(0, 80).map(s => {
+                const val = String(s.numero_sc || '').trim();
+                if (!val) return '';
+                return `<option value="${val}"></option>`;
+            }).join('');
+        });
+    });
+    
+    // Apply Ghost Input styles to desktop inputs
+    document.querySelectorAll('.input-inline').forEach(input => {
+        input.classList.add('ghost-input');
+    });
+    
+    // Função auxiliar para obter cookie CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Novo Levantamento - Toggle suave com Bootstrap Collapse
+    const novoLevantamentoToggle = document.getElementById('novoLevantamentoToggle');
+    const novoLevantamentoHeader = document.getElementById('novoLevantamentoHeader');
+    const novoLevantamentoBody = document.getElementById('novoLevantamentoBody');
+    const formNovoLevantamento = document.getElementById('formNovoLevantamento');
+    const btnCancelarLevantamento = document.getElementById('btnCancelarLevantamento');
+    
+    if (novoLevantamentoToggle && novoLevantamentoBody) {
+        // Inicializar collapse do Bootstrap
+        const bsCollapse = new bootstrap.Collapse(novoLevantamentoBody, {
+            toggle: false
+        });
+        
+        // Atualizar aria-expanded quando collapse mudar
+        novoLevantamentoBody.addEventListener('shown.bs.collapse', function() {
+            novoLevantamentoToggle.setAttribute('aria-expanded', 'true');
+        });
+        
+        novoLevantamentoBody.addEventListener('hidden.bs.collapse', function() {
+            novoLevantamentoToggle.setAttribute('aria-expanded', 'false');
+        });
+        
+        // Toggle no botão
+        novoLevantamentoToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            bsCollapse.toggle();
+        });
+        
+        // Toggle no header inteiro
+        if (novoLevantamentoHeader) {
+            novoLevantamentoHeader.addEventListener('click', function(e) {
+                if (e.target !== novoLevantamentoToggle && !novoLevantamentoToggle.contains(e.target)) {
+                    bsCollapse.toggle();
+                }
+            });
+        }
+        
+        // Fechar ao cancelar
+        if (btnCancelarLevantamento) {
+            btnCancelarLevantamento.addEventListener('click', function() {
+                bsCollapse.hide();
+                if (formNovoLevantamento) {
+                    formNovoLevantamento.reset();
+                }
+            });
+        }
+        
+        // Fechar após submit bem-sucedido (se houver sucesso)
+        if (formNovoLevantamento) {
+            formNovoLevantamento.addEventListener('submit', function() {
+                // O fechamento será feito após resposta do servidor
+                // Por enquanto, apenas resetar após delay
+                setTimeout(() => {
+                    if (bsCollapse._isShown()) {
+                        bsCollapse.hide();
+                    }
+                    if (formNovoLevantamento) {
+                        formNovoLevantamento.reset();
+                    }
+                }, 1000);
+            });
+        }
+    }
+    
+    // Atualizar unidade quando selecionada (select) - AJAX
+    document.querySelectorAll('select[data-field="insumo_unidade"]').forEach(select => {
+        select.addEventListener('change', function() {
+            const url = this.getAttribute('data-update-url');
+            const field = this.getAttribute('data-field');
+            const value = this.value;
+            const itemId = this.getAttribute('data-item-id');
+            
+            if (!url || !field || !itemId) return;
+            
+            // Obter CSRF token
+            const csrftoken = getCookie('csrftoken');
+            
+            // Fazer requisição AJAX
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    item_id: itemId,
+                    field: field,
+                    value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Feedback visual de sucesso
+                    this.classList.add('is-valid');
+                    setTimeout(() => {
+                        this.classList.remove('is-valid');
+                    }, 2000);
+                } else {
+                    // Feedback visual de erro
+                    this.classList.add('is-invalid');
+                    alert('Erro ao atualizar unidade: ' + (data.error || 'Erro desconhecido'));
+                    setTimeout(() => {
+                        this.classList.remove('is-invalid');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao atualizar unidade');
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+

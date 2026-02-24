@@ -1,0 +1,28 @@
+{% extends 'base_mapa.html' %}
+
+{% block title %}Home - LPLAN{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h3>Bem-vindo ao LPLAN, {{ user.get_full_name|default:user.username }}!</h3>
+            </div>
+            <div class="card-body">
+                <p>Você está logado, mas não possui um grupo atribuído.</p>
+                <p>Entre em contato com o administrador para que ele atribua seu acesso ao sistema.</p>
+                <hr>
+                <h5>Links disponíveis:</h5>
+                <ul>
+                    <li><a href="{% url 'admin:index' %}">Django Admin</a></li>
+                    <li><a href="{% url 'accounts:profile' %}">Meu Perfil</a></li>
+                    <li><a href="{% url 'accounts:logout' %}">Sair</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

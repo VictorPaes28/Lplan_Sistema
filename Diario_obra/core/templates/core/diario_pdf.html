@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diário de Obra - {{ diary.project.code }} - {{ diary.date }}</title>
+</head>
+<body>
+    <!-- Cabeçalho -->
+    <div class="header">
+        <h1>Diário de Obra</h1>
+        <div class="project-info">
+            <strong>Projeto:</strong> {{ diary.project.code }} - {{ diary.project.name }}<br>
+            <strong>Data:</strong> {{ diary.date|date:"d/m/Y" }}
+        </div>
+    </div>
+
+    <!-- Informações do Diário -->
+    <div class="diary-info">
+        <table>
+            <tr>
+                <td>Status:</td>
+                <td>{{ diary.get_status_display }}</td>
+            </tr>
+            <tr>
+                <td>Criado por:</td>
+                <td>{{ diary.created_by.get_full_name|default:diary.created_by.username }}</td>
+            </tr>
+            {% if diary.reviewed_by %}
+            <tr>
+                <td>Revisado por:</td>
+                <td>{{ diary.reviewed_by.get_full_name|default:diary.reviewed_by.username }}</td>
+            </tr>
+            {% endif %}
+            {% if diary.approved_at %}
+            <tr>
+                <td>Aprovado em:</td>
+                <td>{{ diary.approved_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+            {% endif %}
+            {% if diary.weather_conditions %}
+            <tr>
+                <td>Condições Climáticas:</td>
+                <td>{{ diary.weather_conditions }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <!-- Observações Gerais -->
+    {% if diary.general_notes %}
+    <div class="notes-section">
+        <h4>Observações Gerais</h4>
+        <p>{{ diary.general_notes|linebreaks }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Seção de Imagens -->
+    {% if images_with_paths %}
+    <div class="images-section">
+        <h2>Registro Fotográfico</h2>
+        {% for item in images_with_paths %}
+        <div class="image-card no-break">
+            {% if item.file_url %}
+                <img src="{{ item.file_url }}" alt="{{ item.image.caption|default:'Imagem do diário' }}">
+            {% endif %}
+            {% if item.image.caption %}
+            <div class="image-caption">{{ item.image.caption }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Seção de Registros de Trabalho -->
+    {% if work_logs %}
+    <div class="work-logs-section">
+        <h2>Registros de Trabalho</h2>
+        {% for work_log in work_logs %}
+        <div class="work-log-item no-break">
+            <h3>
+                <span class="activity-code">{{ work_log.activity.code }}</span> - 
+                {{ work_log.activity.name }}
+            </h3>
+            <div class="progress-info">
+                <strong>Progresso Executado Hoje:</strong> {{ work_log.percentage_executed_today }}%<br>
+                <strong>Progresso Acumulado:</strong> {{ work_log.accumulated_progress_snapshot }}%
+            </div>
+            {% if work_log.notes %}
+            <div class="notes-section">
+                <h4>Notas:</h4>
+                <p>{{ work_log.notes|linebreaks }}</p>
+            </div>
+            {% endif %}
+            {% if work_log.resources_labor.all %}
+            <div class="progress-info">
+                <strong>Mão de Obra:</strong> 
+                {{ work_log.resources_labor.all|join:", " }}
+            </div>
+            {% endif %}
+            {% if work_log.resources_equipment.all %}
+            <div class="progress-info">
+                <strong>Equipamentos:</strong> 
+                {{ work_log.resources_equipment.all|join:", " }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Rodapé -->
+    <div class="footer">
+        <p>Documento gerado automaticamente pelo Sistema Diário de Obra V2.0 - LPLAN</p>
+        <p>Gerado em: {% now "d/m/Y H:i" %}</p>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,443 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Notificações{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+<style>
+    .notification-item {
+        padding: 1.25rem;
+        border-bottom: 1px solid #e9ecef;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .notification-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .notification-item:last-child {
+        border-bottom: none;
+    }
+    
+    .notification-item.nao-lida {
+        background-color: #e3f2fd;
+        border-left: 4px solid #3498db;
+    }
+    
+    .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+    }
+    
+    .notification-titulo {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1rem;
+        margin: 0;
+    }
+    
+    .notification-item.nao-lida .notification-titulo {
+        font-weight: 700;
+    }
+    
+    .notification-data {
+        font-size: 0.85rem;
+        color: #6c757d;
+        white-space: nowrap;
+        margin-left: 1rem;
+    }
+    
+    .notification-mensagem {
+        color: #555;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+    }
+    
+    .notification-link {
+        color: #3498db;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    
+    .notification-link:hover {
+        text-decoration: underline;
+    }
+    
+    .notification-tipo {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-top: 0.5rem;
+    }
+    
+    .notification-tipo.pedido_criado {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    .notification-tipo.pedido_aprovado {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .notification-tipo.pedido_reprovado {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .notification-tipo.pedido_atualizado {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .empty-notifications {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6c757d;
+    }
+    
+    .empty-notifications svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .notifications-badge-header {
+        display: inline-block;
+        margin-left: 1rem;
+        padding: 0.375rem 0.875rem;
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(231, 76, 60, 0.3);
+    }
+
+    .notification-item {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .notification-icon-wrapper {
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #e9ecef;
+    }
+
+    .notification-item.nao-lida .notification-icon-wrapper {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-color: #3498db;
+    }
+
+    .notification-icon {
+        color: #6c757d;
+    }
+
+    .notification-item.nao-lida .notification-icon {
+        color: #3498db;
+    }
+
+    .notification-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notification-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .notification-unread-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #3498db;
+        display: inline-block;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    }
+
+    .notification-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .notification-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-success-small {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+
+    .btn-success-small:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-warning-small {
+        background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
+        color: #000;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+
+    .btn-warning-small:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
+    }
+
+    .notification-footer {
+        margin-top: 0.75rem;
+    }
+
+    .quick-filter-nao-lida.active {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        color: #1976d2;
+        border-color: #bbdefb;
+    }
+
+    .quick-filter-lida.active {
+        background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+        color: #495057;
+        border-color: #dee2e6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-navigation">
+        <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    </div>
+
+    <div class="list-header">
+        <div>
+            <h1 class="list-title">Notificações</h1>
+            {% if nao_lidas_count > 0 %}
+                <span class="notifications-badge-header">{{ nao_lidas_count }} não lida{{ nao_lidas_count|pluralize }}</span>
+            {% endif %}
+        </div>
+        {% if nao_lidas_count > 0 %}
+            <a href="?marcar_todas_lidas=true{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if lida_filter %}&lida={{ lida_filter }}{% endif %}" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                ✓ Marcar Todas como Lidas
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Filtros Rápidos -->
+    <div class="quick-filters">
+        <a href="{% url 'list_notificacoes' %}" class="quick-filter-btn {% if not lida_filter %}active{% endif %}">
+            Todas
+        </a>
+        <a href="?lida=false" class="quick-filter-btn quick-filter-nao-lida {% if lida_filter == 'false' %}active{% endif %}">
+            Não Lidas ({{ nao_lidas_count }})
+        </a>
+        <a href="?lida=true" class="quick-filter-btn quick-filter-lida {% if lida_filter == 'true' %}active{% endif %}">
+            Lidas
+        </a>
+    </div>
+
+    <div class="card">
+        {% if notificacoes %}
+            <div style="padding: 0;">
+                {% for notificacao in notificacoes %}
+                    <div class="notification-item {% if not notificacao.lida %}nao-lida{% endif %}" onclick="marcarNotificacaoELer({{ notificacao.pk }}, '{% if notificacao.work_order %}{% url 'detail_workorder' notificacao.work_order.pk %}{% else %}#{% endif %}', '{% url 'marcar_notificacao_lida' notificacao.pk %}', {{ notificacao.lida|yesno:"true,false" }});">
+                        <div class="notification-icon-wrapper">
+                            {% if notificacao.tipo == 'pedido_criado' %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            {% elif notificacao.tipo == 'pedido_aprovado' %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            {% elif notificacao.tipo == 'pedido_reprovado' %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                            {% elif notificacao.tipo == 'pedido_atualizado' %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                            {% elif notificacao.tipo == 'anexo_adicionado' or notificacao.tipo == 'anexo_removido' %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            {% elif notificacao.tipo == 'comentario_adicionado' %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                            {% else %}
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="notification-icon">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                            {% endif %}
+                        </div>
+                        <div class="notification-content">
+                            <div class="notification-header">
+                                <h3 class="notification-titulo">{{ notificacao.titulo }}</h3>
+                                <div class="notification-meta">
+                                    <span class="notification-data" title="{{ notificacao.created_at|date:'d/m/Y H:i' }}">
+                                        {% now "Y-m-d H:i" as now_str %}
+                                        {% with notificacao.created_at|date:"Y-m-d H:i" as notif_str %}
+                                            {% if notif_str|date:"Y-m-d" == now_str|date:"Y-m-d" %}
+                                                Hoje às {{ notificacao.created_at|date:"H:i" }}
+                                            {% else %}
+                                                {{ notificacao.created_at|date:"d/m/Y H:i" }}
+                                            {% endif %}
+                                        {% endwith %}
+                                    </span>
+                                    {% if not notificacao.lida %}
+                                        <span class="notification-unread-dot"></span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="notification-mensagem">{{ notificacao.mensagem }}</p>
+                            {% if notificacao.work_order %}
+                                <div class="notification-actions">
+                                    <a href="{% url 'detail_workorder' notificacao.work_order.pk %}" class="notification-link" onclick="event.stopPropagation(); event.preventDefault(); marcarNotificacaoELer({{ notificacao.pk }}, '{% url 'detail_workorder' notificacao.work_order.pk %}', '{% url 'marcar_notificacao_lida' notificacao.pk %}', {{ notificacao.lida|yesno:"true,false" }}); return false;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                        Ver pedido {{ notificacao.work_order.codigo }}
+                                    </a>
+                                    {% if notificacao.tipo == 'exclusao_solicitada' and notificacao.work_order.solicitado_exclusao %}
+                                        <a href="{% url 'aprovar_exclusao' notificacao.work_order.pk %}" class="btn btn-success-small" onclick="event.stopPropagation();">✓ Aprovar</a>
+                                        <a href="{% url 'rejeitar_exclusao' notificacao.work_order.pk %}" class="btn btn-warning-small" onclick="event.stopPropagation();">✗ Rejeitar</a>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            <div class="notification-footer">
+                                <span class="notification-tipo {{ notificacao.tipo }}">
+                                    {{ notificacao.get_tipo_display }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Paginação -->
+            {% if page_obj.has_other_pages %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page={{ page_obj.previous_page_number }}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if lida_filter %}&lida={{ lida_filter }}{% endif %}" class="btn btn-secondary">
+                            Anterior
+                        </a>
+                    {% endif %}
+                    
+                    <span class="pagination-info">
+                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                    </span>
+                    
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if tipo_filter %}&tipo={{ tipo_filter }}{% endif %}{% if lida_filter %}&lida={{ lida_filter }}{% endif %}" class="btn btn-secondary">
+                            Próxima
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                <p style="font-size: 1.1rem; font-weight: 500;">Nenhuma notificação</p>
+                <p style="font-size: 0.9rem; margin-top: 0.5rem;">Você não tem notificações no momento.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function marcarNotificacaoELer(notificacaoId, url, marcarUrl, jaLida) {
+    // Se já está lida, apenas redireciona
+    if (jaLida) {
+        if (url && url !== '#') {
+            window.location.href = url;
+        }
+        return;
+    }
+    
+    // Marca como lida via AJAX antes de redirecionar
+    fetch(marcarUrl, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (response.ok) {
+            return response.json().catch(function() { return {}; });
+        }
+        throw new Error('Erro na resposta');
+    })
+    .then(function(data) {
+        // Redireciona após marcar como lida
+        if (url && url !== '#') {
+            window.location.href = url;
+        } else {
+            // Recarrega a página se não houver URL
+            window.location.reload();
+        }
+    })
+    .catch(function(error) {
+        console.error('Erro ao marcar notificação como lida:', error);
+        // Mesmo com erro, redireciona
+        if (url && url !== '#') {
+            window.location.href = url;
+        } else {
+            window.location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}
+

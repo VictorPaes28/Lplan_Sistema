@@ -1,0 +1,510 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+
+{% block page_title %}Relatórios{% endblock %}
+{% block page_subtitle %}Gerencie e visualize todos os relatórios de obra{% endblock %}
+
+{% block content %}
+<div class="page-content-wrapper">
+<!-- Header -->
+<div class="filter-page-header mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="filter-page-title mb-0.5">Relatórios</h1>
+            <p class="filter-page-total mb-0">
+                <span class="font-semibold text-slate-800">{{ diaries.count }}</span> relatório{{ diaries.count|pluralize }} encontrado{{ diaries.count|pluralize }}
+            </p>
+        </div>
+        <button type="button"
+                onclick="openModal()"
+                aria-label="Abrir modal para adicionar novo relatório"
+                class="report-list-add-btn px-5 py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow font-medium whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 border-0 text-sm">
+            Adicionar relatório
+        </button>
+    </div>
+</div>
+
+<!-- Filtros HTMX (mantém hx-get, hx-target, hx-trigger e names para não quebrar HTMX) -->
+<div class="filter-form-card mb-6">
+    <form hx-get="{% url 'report-list' %}" 
+          hx-target="#report-list" 
+          hx-trigger="change, keyup delay:500ms"
+          class="filter-form">
+        <div>
+            <label for="search-input">Pesquisa</label>
+            <div class="relative">
+                <input type="text" 
+                       name="search" 
+                       id="search-input"
+                       value="{{ request.GET.search }}"
+                       placeholder="Projeto, notas..."
+                       aria-label="Buscar relatórios"
+                       class="pl-9">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" aria-hidden="true"></i>
+            </div>
+        </div>
+        <div>
+            <label for="report-list-date-start">Data início</label>
+            <input type="date" id="report-list-date-start" name="date_start" value="{{ request.GET.date_start }}">
+        </div>
+        <div>
+            <label for="report-list-date-end">Data fim</label>
+            <input type="date" id="report-list-date-end" name="date_end" value="{{ request.GET.date_end }}">
+        </div>
+        <div class="filter-submit-wrap">
+            <button type="submit" class="filter-submit">
+                <i class="fas fa-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+    <div class="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+        <a href="{% url 'report-list' %}" 
+           class="text-sm text-slate-600 hover:text-slate-800 font-medium">
+            <i class="fas fa-redo mr-1"></i> Limpar filtros
+        </a>
+    </div>
+</div>
+
+<!-- Container de Resultados (HTMX substitui este bloco) -->
+<div id="report-list">
+    <!-- Desktop: Tabela -->
+    <div class="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <table class="min-w-full divide-y divide-slate-200 report-list-table">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Data</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">N°</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Fotos</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+                {% for diary in diaries %}
+                <tr class="report-list-row hover:bg-slate-50 transition-colors cursor-pointer" onclick="window.location.href='{% url 'diary-detail' diary.id %}'">
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-calendar-day text-slate-600 text-xs"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-slate-900">{{ diary.date|date:"d/m/Y" }}</p>
+                                <p class="text-xs text-slate-500">{{ diary.date|date:"l"|capfirst }}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">#{{ diary.report_number|default:"-" }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="report-status {{ diary|report_status_css }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center gap-1 text-sm text-slate-600">
+                            <i class="fas fa-camera text-slate-400"></i>{{ diary.images.count }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right" onclick="event.stopPropagation();">
+                        <div class="flex items-center justify-end gap-1">
+                            <a href="{% url 'diary-pdf' diary.id %}" 
+                               class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                               title="Baixar PDF" aria-label="PDF do relatório {{ diary.date|date:'d/m/Y' }}"
+                               onclick="event.stopPropagation();"><i class="fas fa-file-pdf"></i></a>
+                            {% if diary|can_edit:user %}
+                            <a href="{% url 'diary-edit' diary.id %}" 
+                               class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                               title="Editar" aria-label="Editar relatório {{ diary.date|date:'d/m/Y' }}"
+                               onclick="event.stopPropagation();"><i class="fas fa-edit"></i></a>
+                            {% else %}
+                            <a href="{% url 'diary-detail' diary.id %}" 
+                               class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                               title="Visualizar" aria-label="Visualizar relatório {{ diary.date|date:'d/m/Y' }}"
+                               onclick="event.stopPropagation();"><i class="fas fa-eye"></i></a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-16">
+                        <div class="empty-state-container text-center max-w-sm mx-auto">
+                            <div class="empty-state-icon bg-slate-100">
+                                <i class="fas fa-file-alt text-slate-500 text-3xl"></i>
+                            </div>
+                            <p class="empty-state-title">Nenhum relatório encontrado</p>
+                            <p class="empty-state-desc">Crie um relatório ou ajuste os filtros.</p>
+                            <a href="{% url 'diary-new' %}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 text-sm font-medium transition-colors">
+                                Criar relatório
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Mobile: Cards -->
+    <div class="block md:hidden space-y-3">
+        {% for diary in diaries %}
+        <a href="{% url 'diary-detail' diary.id %}" class="block bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md hover:border-slate-300 transition-all">
+            <div class="p-4">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-calendar-day text-slate-600"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-slate-900">{{ diary.date|date:"d/m/Y" }}</p>
+                            <p class="text-xs text-slate-500">N° {{ diary.report_number|default:"-" }} · {{ diary.images.count }} foto{{ diary.images.count|pluralize }}</p>
+                        </div>
+                    </div>
+                    <span class="report-status {{ diary|report_status_css }} flex-shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
+                </div>
+                <div class="flex items-center gap-2 pt-3 border-t border-slate-100" onclick="event.preventDefault(); event.stopPropagation();">
+                    <a href="{% url 'diary-pdf' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200" onclick="event.stopPropagation();"><i class="fas fa-file-pdf mr-1"></i>PDF</a>
+                    {% if diary|can_edit:user %}
+                    <a href="{% url 'diary-edit' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700" onclick="event.stopPropagation();"><i class="fas fa-edit mr-1"></i>Editar</a>
+                    {% else %}
+                    <a href="{% url 'diary-detail' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700" onclick="event.stopPropagation();"><i class="fas fa-eye mr-1"></i>Ver</a>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% empty %}
+        <div class="bg-white rounded-xl border border-slate-200 p-10 text-center">
+            <div class="empty-state-container">
+                <div class="empty-state-icon bg-slate-100">
+                    <i class="fas fa-file-alt text-slate-500 text-3xl"></i>
+                </div>
+                <p class="empty-state-title">Nenhum relatório encontrado</p>
+                <p class="empty-state-desc">Crie um relatório ou ajuste os filtros.</p>
+                <a href="{% url 'diary-new' %}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 text-sm font-medium">Criar relatório</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal: Adicionar Relatório -->
+<div id="modal-new-report" 
+     class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300"
+     onclick="if(event.target === this) closeModal()"
+     role="dialog"
+     aria-labelledby="modal-title"
+     aria-modal="true">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all duration-300 scale-95 opacity-0 modal-content" onclick="event.stopPropagation()" style="max-width: 28rem;">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <div class="flex items-center justify-between">
+                <h3 id="modal-title" class="text-lg font-semibold text-slate-900">
+                    Adicionar relatório
+                </h3>
+                <button type="button"
+                        id="modal-close-button"
+                        onclick="closeModal()"
+                        aria-label="Fechar modal"
+                        aria-expanded="false"
+                        tabindex="0"
+                        style="background-color: transparent !important; color: #64748b !important;">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Conteúdo -->
+        <div class="p-6">
+            <form method="get" action="{% url 'diary-new' %}" id="new-report-form" novalidate>
+                <div class="space-y-5">
+                    <!-- Selecionar Obra -->
+                    <div>
+                        <label for="select_project" class="block text-sm font-medium text-slate-700 mb-2">
+                            Selecione a obra <span class="text-red-500" aria-label="campo obrigatório">*</span>
+                        </label>
+                        <div class="relative">
+                            <select id="select_project" 
+                                    name="project"
+                                    required
+                                    aria-required="true"
+                                    aria-invalid="false"
+                                    aria-describedby="project-error"
+                                    class="w-full px-4 py-3 pr-10 text-sm border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white cursor-pointer transition-all hover:border-slate-400 invalid:border-red-300 invalid:focus:ring-red-500 invalid:focus:border-red-500"
+                                    style="-webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none;">
+                                <option value="">-- Selecione uma obra --</option>
+                                {% for proj in all_projects %}
+                                    <option value="{{ proj.id }}" {% if project and project.id == proj.id %}selected{% endif %}>
+                                        {{ proj.name }}{% if proj.code %} ({{ proj.code }}){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none text-sm"></i>
+                        </div>
+                        <p id="project-error" class="mt-1.5 text-xs text-red-600 hidden">Por favor, selecione uma obra.</p>
+                    </div>
+                    
+                    <!-- Data do Relatório -->
+                    <div style="margin-top: 2rem !important; display: block !important;">
+                        <label for="report_date" class="block text-sm font-medium text-slate-700 mb-2">
+                            Data do relatório <span class="text-red-500" aria-label="campo obrigatório">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" 
+                                   id="report_date"
+                                   required
+                                   aria-required="true"
+                                   aria-invalid="false"
+                                   aria-describedby="date-error"
+                                   placeholder="Clique para selecionar a data"
+                                   readonly
+                                   class="w-full px-4 py-3 text-sm border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white flatpickr-input transition-all hover:border-slate-400 cursor-pointer invalid:border-red-300 invalid:focus:ring-red-500 invalid:focus:border-red-500">
+                        </div>
+                        <p id="date-error" class="mt-1.5 text-xs text-red-600 hidden">Por favor, selecione uma data.</p>
+                        <p class="mt-1.5 text-xs text-gray-500 flex items-center">
+                            <i class="fas fa-info-circle mr-1.5"></i>
+                            <span>A data não pode ser futura</span>
+                        </p>
+                        <!-- Campo hidden para enviar data no formato ISO -->
+                        <input type="hidden" id="report_date_iso" name="date">
+                    </div>
+                </div>
+                
+                <!-- Botões -->
+                <div class="flex items-center justify-end gap-2 pt-6 mt-6 border-t border-slate-200">
+                    <button type="button"
+                            onclick="closeModal()"
+                            aria-label="Cancelar e fechar modal"
+                            class="px-5 py-2.5 text-sm font-semibold transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 rounded-lg flex items-center"
+                            style="background-color: #f3f4f6 !important; color: #374151 !important; border: 1px solid #d1d5db !important; gap: 0 !important;">
+                        <i class="fas fa-times" style="font-size: 0.75rem; margin: 0; margin-right: 0.375rem !important;"></i>
+                        <span style="margin: 0; padding: 0;">Cancelar</span>
+                    </button>
+                    <button type="submit"
+                            id="submit-btn"
+                            class="px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 text-sm font-medium transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                            style="gap: 0 !important;">
+                        <span class="submit-text flex items-center" style="gap: 0 !important;"><span style="margin: 0; padding: 0;">Salvar</span></span>
+                        <span class="submit-loading hidden flex items-center" style="gap: 0 !important;"><span style="margin: 0; padding: 0;">Salvando...</span></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Fim do page-content-wrapper -->
+
+<!-- CSS específico para o botão X do modal - Sobrescreve regras globais -->
+<style>
+/* Sobrescreve a regra global de base.css que deixa botões pretos */
+#modal-close-button,
+#modal-close-button:not([aria-expanded="true"]),
+#modal-close-button[type="button"] {
+    width: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #64748b !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s, color 0.2s !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    outline: none !important;
+    position: relative !important;
+    z-index: 10 !important;
+    box-shadow: none !important;
+}
+
+#modal-close-button:hover,
+#modal-close-button:hover:not([aria-expanded="true"]),
+#modal-close-button[type="button"]:hover {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+}
+
+#modal-close-button:focus,
+#modal-close-button:focus:not([aria-expanded="true"]),
+#modal-close-button[type="button"]:focus {
+    outline: 2px solid #60a5fa !important;
+    outline-offset: 2px !important;
+    background-color: transparent !important;
+}
+
+#modal-close-button:active,
+#modal-close-button:active:not([aria-expanded="true"]),
+#modal-close-button[type="button"]:active {
+    background-color: #e2e8f0 !important;
+    color: #334155 !important;
+}
+
+#modal-close-button i {
+    font-size: 18px !important;
+    line-height: 1 !important;
+    display: block !important;
+    width: 18px !important;
+    height: 18px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: inherit !important;
+}
+</style>
+
+<!-- JavaScript para Modal e Opções de Copiar -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('modal-new-report');
+    var modalContent = modal.querySelector('.modal-content');
+    var form = document.getElementById('new-report-form');
+    var projectSelect = document.getElementById('select_project');
+    var dateInput = document.getElementById('report_date');
+    var submitBtn = document.getElementById('submit-btn');
+    var projectError = document.getElementById('project-error');
+    var dateError = document.getElementById('date-error');
+    
+    // Função para abrir modal com animação
+    window.openModal = function() {
+        modal.classList.remove('hidden');
+        // Força reflow para garantir que a animação funcione
+        void modal.offsetWidth;
+        setTimeout(function() {
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95', 'opacity-0');
+            modalContent.classList.add('scale-100', 'opacity-100');
+            // Foca no primeiro campo
+            projectSelect.focus();
+        }, 10);
+    };
+    
+    // Função para fechar modal com animação
+    window.closeModal = function() {
+        modal.classList.add('opacity-0');
+        modalContent.classList.remove('scale-100', 'opacity-100');
+        modalContent.classList.add('scale-95', 'opacity-0');
+        setTimeout(function() {
+            modal.classList.add('hidden');
+            form.reset();
+            resetValidation();
+        }, 300);
+    };
+    
+    // Fechar modal com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+    
+    // Resetar validação
+    function resetValidation() {
+        projectSelect.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+        projectSelect.setAttribute('aria-invalid', 'false');
+        projectError.classList.add('hidden');
+        
+        dateInput.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+        dateInput.setAttribute('aria-invalid', 'false');
+        dateError.classList.add('hidden');
+        
+        submitBtn.disabled = false;
+        submitBtn.querySelector('.submit-text').classList.remove('hidden');
+        submitBtn.querySelector('.submit-loading').classList.add('hidden');
+    }
+    
+    // Validação em tempo real
+    projectSelect.addEventListener('change', function() {
+        if (this.value) {
+            this.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+            this.setAttribute('aria-invalid', 'false');
+            projectError.classList.add('hidden');
+        } else {
+            this.classList.add('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+            this.setAttribute('aria-invalid', 'true');
+            projectError.classList.remove('hidden');
+        }
+    });
+    
+    // Validação do formulário
+    form.addEventListener('submit', function(e) {
+        var isValid = true;
+        
+        // Validar projeto
+        if (!projectSelect.value) {
+            projectSelect.classList.add('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+            projectSelect.setAttribute('aria-invalid', 'true');
+            projectError.classList.remove('hidden');
+            isValid = false;
+        }
+        
+        // Validar data
+        var dateIso = document.getElementById('report_date_iso');
+        if (!dateIso || !dateIso.value) {
+            dateInput.classList.add('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+            dateInput.setAttribute('aria-invalid', 'true');
+            dateError.classList.remove('hidden');
+            isValid = false;
+        }
+        
+        if (!isValid) {
+            e.preventDefault();
+            // Foca no primeiro campo inválido
+            if (!projectSelect.value) {
+                projectSelect.focus();
+            } else if (!dateIso || !dateIso.value) {
+                dateInput.focus();
+            }
+            return false;
+        }
+        
+        // Mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.querySelector('.submit-text').classList.add('hidden');
+        submitBtn.querySelector('.submit-loading').classList.remove('hidden');
+    });
+    
+    // Flatpickr para datas
+    if (typeof flatpickr !== 'undefined') {
+        var reportDatePicker = flatpickr('#report_date', {
+            dateFormat: 'd/m/Y',
+            locale: 'pt',
+            allowInput: false,
+            clickOpens: true,
+            maxDate: 'today',
+            altInput: true,
+            altFormat: 'd/m/Y',
+            onChange: function(selectedDates, dateStr, instance) {
+                // Converte para formato ISO (yyyy-MM-dd) e armazena em campo hidden
+                if (selectedDates.length > 0) {
+                    var isoDate = selectedDates[0].toISOString().split('T')[0]; // yyyy-MM-dd
+                    var hiddenInput = document.getElementById('report_date_iso');
+                    if (!hiddenInput) {
+                        hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.id = 'report_date_iso';
+                        hiddenInput.name = 'date';
+                        instance.input.parentNode.appendChild(hiddenInput);
+                    }
+                    hiddenInput.value = isoDate;
+                    // Remove o name do input visual para não enviar o formato brasileiro
+                    instance.input.removeAttribute('name');
+                    
+                    // Remove erro se houver
+                    dateInput.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+                    dateInput.setAttribute('aria-invalid', 'false');
+                    dateError.classList.add('hidden');
+                }
+            }
+        });
+    }
+    
+    // Atualizar botão de abrir modal
+    var openModalBtn = document.querySelector('button[onclick*="modal-new-report"]');
+    if (openModalBtn) {
+        openModalBtn.setAttribute('onclick', 'openModal()');
+    }
+});
+</script>
+{% endblock %}
+
+

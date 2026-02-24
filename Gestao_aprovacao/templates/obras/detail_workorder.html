@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pedido: {{ workorder.codigo }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/detail_workorder.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-navigation">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Voltar para Home</a>
+    <a href="{% url 'list_workorders' %}" class="btn btn-back">← Voltar para Lista</a>
+</div>
+
+<div class="detail-container">
+    <!-- Cabeçalho -->
+    <div class="detail-header">
+        <div>
+            <h1 class="detail-title">
+                {{ workorder.codigo }}
+            </h1>
+            <p class="detail-subtitle">{{ workorder.nome_credor }}</p>
+        </div>
+        <div class="detail-status-container">
+            <span class="status-badge-large {{ workorder.status }}">
+                {{ workorder.get_status_display }}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Ações -->
+    <div class="detail-actions">
+        {% if can_edit %}
+            {% if workorder.status == 'reprovado' %}
+                <a href="{% url 'edit_workorder' workorder.pk %}" class="btn" style="background-color: #f39c12; color: white; font-weight: 600; font-size: 1.1rem; padding: 0.875rem 2rem;">
+                    🔄 Reenviar para Reavaliação
+                </a>
+            {% else %}
+                <a href="{% url 'edit_workorder' workorder.pk %}" class="btn">Editar</a>
+            {% endif %}
+        {% endif %}
+        {% if can_solicitar_exclusao %}
+            <a href="{% url 'solicitar_exclusao' workorder.pk %}" class="btn" style="background-color: #dc3545; color: white;">🗑️ Solicitar Exclusão</a>
+        {% endif %}
+        {% if workorder.solicitado_exclusao and workorder.status == 'pendente' %}
+            <div style="padding: 1rem; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; margin-bottom: 1rem;">
+                <strong>⚠ Exclusão Solicitada</strong>
+                <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                    Este pedido foi solicitado para exclusão por {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }} 
+                    em {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}. 
+                    Aguardando aprovação do aprovador.
+                </p>
+                {% if workorder.motivo_exclusao %}
+                    <div style="margin-top: 0.75rem; padding: 0.75rem; background-color: #fff; border-radius: 4px; border: 1px solid #ffc107;">
+                        <strong style="display: block; margin-bottom: 0.5rem; color: #856404;">Motivo:</strong>
+                        <p style="margin: 0; color: #555; white-space: pre-wrap;">{{ workorder.motivo_exclusao }}</p>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% if can_aprovar_exclusao and workorder.status == 'pendente' %}
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <a href="{% url 'aprovar_exclusao' workorder.pk %}" class="btn" style="background-color: #28a745; color: white;">✓ Aprovar Exclusão</a>
+                <a href="{% url 'rejeitar_exclusao' workorder.pk %}" class="btn" style="background-color: #ffc107; color: #000;">✗ Rejeitar Exclusão</a>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Informações Principais -->
+    <div class="card detail-section">
+        <h2 class="detail-section-title">
+            Informações do Pedido
+        </h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Obra:</div>
+                <p class="detail-field-value">{{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Código:</div>
+                <p class="detail-field-value">{{ workorder.codigo }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Nome do Credor:</div>
+                <p class="detail-field-value">{{ workorder.nome_credor }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Tipo de Solicitação:</div>
+                <p class="detail-field-value">{{ workorder.get_tipo_solicitacao_display }}</p>
+            </div>
+            
+            {% if workorder.valor_estimado %}
+            <div>
+                <div class="detail-field-label">Valor Estimado:</div>
+                <p class="detail-field-value detail-field-value-large">
+                    R$ {{ workorder.valor_estimado|floatformat:2 }}
+                </p>
+            </div>
+            {% endif %}
+            
+            {% if workorder.prazo_estimado %}
+            <div>
+                <div class="detail-field-label">Prazo Estimado:</div>
+                <p class="detail-field-value">
+                    {{ workorder.prazo_estimado }} dia{% if workorder.prazo_estimado != 1 %}s{% endif %}
+                </p>
+            </div>
+            {% endif %}
+            
+            {% if workorder.local %}
+            <div>
+                <div class="detail-field-label">Local:</div>
+                <p class="detail-field-value">{{ workorder.local }}</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if workorder.observacoes %}
+            <div class="detail-description">
+                <div class="detail-field-label">Observações:</div>
+                <p class="detail-field-value detail-description-text">{{ workorder.observacoes }}</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Informações de Controle -->
+    <div class="card detail-section">
+        <h2 class="detail-section-title">
+            Controle
+        </h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Solicitante:</div>
+                <p class="detail-field-value">
+                    {{ workorder.criado_por.get_full_name|default:workorder.criado_por.username }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">E-mail do Solicitante:</div>
+                <p class="detail-field-value">
+                    {{ workorder.criado_por.email|default:"Não informado" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Criação:</div>
+                <p class="detail-field-value">
+                    {{ workorder.created_at|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Envio:</div>
+                <p class="detail-field-value">
+                    {{ workorder.data_envio|date:"d/m/Y H:i"|default:"Ainda não enviado" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Última Atualização:</div>
+                <p class="detail-field-value">
+                    {{ workorder.updated_at|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            
+            {% if workorder.data_aprovacao %}
+                <div>
+                    <div class="detail-field-label">Data de Aprovação/Reprovação:</div>
+                    <p class="detail-field-value">
+                        {{ workorder.data_aprovacao|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Área de Aprovação -->
+    {% if can_approve %}
+        <div class="card approval-section">
+            <h2 class="approval-section-title">
+                Aprovação
+            </h2>
+            <p class="approval-section-text">
+                Este pedido está aguardando sua aprovação.
+            </p>
+            <div class="approval-actions">
+                <a href="{% url 'approve_workorder' workorder.pk %}" class="btn approval-btn-approve" style="background-color: #28a745 !important; color: white !important;">
+                    ✓ Aprovar
+                </a>
+                <a href="{% url 'reject_workorder' workorder.pk %}" class="btn approval-btn-reject" style="background-color: #dc3545 !important; color: white !important;">
+                    ✗ Reprovar
+                </a>
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Comentários e Discussão -->
+    {% if can_comment %}
+    <div class="card detail-section">
+        <div class="detail-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0;">💬 Comentários e Discussão</h2>
+            <span style="font-size: 0.9rem; color: #6c757d; font-weight: normal;">
+                {{ comments|length }} comentário{{ comments|length|pluralize }}
+            </span>
+        </div>
+        
+        <!-- Lista de Comentários -->
+        {% if comments %}
+            <div class="comments-list" style="margin-top: 1.5rem; margin-bottom: 2rem;">
+                {% for comment in comments %}
+                    <div class="comment-item" style="padding: 1.25rem; margin-bottom: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border-left: 4px solid #3498db; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.9rem;">
+                                    {{ comment.autor.get_full_name|default:comment.autor.username|first|upper }}
+                                </div>
+                                <div>
+                                    <strong style="color: #2c3e50; font-size: 0.95rem;">
+                                        {{ comment.autor.get_full_name|default:comment.autor.username }}
+                                    </strong>
+                                    <div style="font-size: 0.8rem; color: #6c757d; margin-top: 0.25rem;">
+                                        {% with comment.autor.groups.all as grupos %}
+                                            {% if grupos %}
+                                                {% for grupo in grupos %}
+                                                    {% if grupo.name == 'Aprovador' %}
+                                                        <span style="background: #28a745; color: white; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin-right: 0.5rem;">Aprovador</span>
+                                                    {% elif grupo.name == 'Solicitante' %}
+                                                        <span style="background: #17a2b8; color: white; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin-right: 0.5rem;">Solicitante</span>
+                                                    {% elif grupo.name == 'Administrador' %}
+                                                        <span style="background: #dc3545; color: white; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin-right: 0.5rem;">Admin</span>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endwith %}
+                                        {{ comment.created_at|date:"d/m/Y H:i" }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="color: #2c3e50; line-height: 1.6; white-space: pre-wrap; padding-left: 3.25rem;">{{ comment.texto }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 2rem; color: #6c757d; font-style: italic;">
+                <p style="margin: 0;">Nenhum comentário ainda. Seja o primeiro a comentar!</p>
+            </div>
+        {% endif %}
+        
+        <!-- Formulário para Adicionar Comentário -->
+        <form method="post" action="{% url 'add_comment' workorder.pk %}" style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e9ecef;">
+            {% csrf_token %}
+            <div style="margin-bottom: 1rem;">
+                <label for="comment-texto" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2c3e50; font-size: 0.9rem;">
+                    Adicionar Comentário:
+                </label>
+                <textarea 
+                    id="comment-texto" 
+                    name="texto" 
+                    rows="4"
+                    placeholder="Digite seu comentário aqui... (ex: Preciso de mais informações sobre o valor do contrato)"
+                    required
+                    style="width: 100%; padding: 0.875rem; border: 2px solid #e9ecef; border-radius: 8px; font-size: 0.9375rem; font-family: inherit; transition: all 0.3s ease; resize: vertical;"
+                    onfocus="this.style.borderColor='#3498db'; this.style.boxShadow='0 0 0 3px rgba(52, 152, 219, 0.1)';"
+                    onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='none';"
+                ></textarea>
+                <small style="display: block; margin-top: 0.5rem; color: #6c757d; font-size: 0.85rem;">
+                    💡 Use os comentários para esclarecer dúvidas, pedir informações adicionais ou comunicar-se com a equipe durante a análise do pedido.
+                </small>
+            </div>
+            <button type="submit" class="btn" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 0.75rem 2rem; font-weight: 600;">
+                💬 Enviar Comentário
+            </button>
+        </form>
+    </div>
+    {% endif %}
+    
+    <!-- Anexos -->
+    <div class="card detail-section">
+        <div class="attachments-header">
+            <h2 class="detail-section-title">
+                Anexos
+            </h2>
+            {% if can_add_attachment %}
+                <a href="{% url 'upload_attachment' workorder.pk %}" class="btn">+ Adicionar Anexo</a>
+            {% endif %}
+        </div>
+        
+        {% if attachments_originais or anexos_por_versao %}
+            <!-- Anexos Originais -->
+            {% if attachments_originais %}
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="color: #2c3e50; font-size: 1.1rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e9ecef;">
+                        📎 Anexos Originais
+                    </h3>
+                    <div class="attachments-list">
+                        {% for attachment in attachments_originais %}
+                            <div class="attachment-item">
+                                <div class="attachment-info">
+                                    <div class="attachment-name">
+                                        <strong>{{ attachment.get_nome_display }}</strong>
+                                        <span class="attachment-extension">
+                                            {{ attachment.get_extensao }}
+                                        </span>
+                                    </div>
+                                    {% if attachment.descricao %}
+                                        <p class="attachment-description">
+                                            {{ attachment.descricao }}
+                                        </p>
+                                    {% endif %}
+                                    <div class="attachment-meta">
+                                        <span>Enviado por: {{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}</span>
+                                        <span>•</span>
+                                        <span>{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+                                        <span>•</span>
+                                        <span>{{ attachment.get_tamanho_display }}</span>
+                                    </div>
+                                </div>
+                                <div class="attachment-actions">
+                                    <a href="{{ attachment.arquivo.url }}" target="_blank" class="btn attachment-btn">
+                                        📥 Download
+                                    </a>
+                                    {% if can_delete_attachment %}
+                                        {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
+                                            <a href="{% url 'delete_attachment' attachment.pk %}" class="btn btn-secondary attachment-btn attachment-btn-delete">
+                                                🗑️ Deletar
+                                            </a>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Anexos de Reaprovação -->
+            {% if anexos_por_versao_ordenado %}
+                {% for versao, anexos in anexos_por_versao_ordenado %}
+                    <div style="margin-bottom: 2rem; padding: 1rem; background-color: #fff3cd; border-left: 4px solid #ff9800; border-radius: 4px;">
+                        <h3 style="color: #cc6600; font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="background-color: #ff9800; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">v{{ versao }}</span>
+                            🔄 Anexos Adicionados na Reaprovação v{{ versao }}
+                        </h3>
+                        <div class="attachments-list">
+                            {% for attachment in anexos %}
+                                <div class="attachment-item" style="border-left: 3px solid #ff9800; background-color: #fffbf0;">
+                                    <div class="attachment-info">
+                                        <div class="attachment-name">
+                                            <strong>{{ attachment.get_nome_display }}</strong>
+                                            <span class="attachment-extension" style="background-color: #ff9800; color: white;">
+                                                NOVO
+                                            </span>
+                                        </div>
+                                        {% if attachment.descricao %}
+                                            <p class="attachment-description">
+                                                {{ attachment.descricao }}
+                                            </p>
+                                        {% endif %}
+                                        <div class="attachment-meta">
+                                            <span>Enviado por: {{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}</span>
+                                            <span>•</span>
+                                            <span>{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+                                            <span>•</span>
+                                            <span>{{ attachment.get_tamanho_display }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="attachment-actions">
+                                        <a href="{{ attachment.arquivo.url }}" target="_blank" class="btn attachment-btn">
+                                            📥 Download
+                                        </a>
+                                        {% if can_delete_attachment %}
+                                            {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
+                                                <a href="{% url 'delete_attachment' attachment.pk %}" class="btn btn-secondary attachment-btn attachment-btn-delete">
+                                                    🗑️ Deletar
+                                                </a>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% else %}
+            <p class="empty-attachments">
+                Nenhum anexo adicionado ainda.
+            </p>
+        {% endif %}
+    </div>
+    
+    <!-- Histórico de Aprovações -->
+    {% if approvals %}
+        <div class="card detail-section">
+            <h2 class="detail-section-title">
+                Histórico de Aprovações
+            </h2>
+            
+            <div class="approvals-list">
+                {% for approval in approvals %}
+                    <div class="approval-item {{ approval.decisao }}">
+                        <div class="approval-header">
+                            <div>
+                                <strong class="approval-decision {{ approval.decisao }}">
+                                    {{ approval.get_decisao_display|upper }}
+                                </strong>
+                                <span class="approval-meta">
+                                    por {{ approval.aprovado_por.get_full_name|default:approval.aprovado_por.username }}
+                                </span>
+                            </div>
+                            <span class="approval-date">
+                                {{ approval.created_at|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+                        
+                        {% if approval.decisao == 'reprovado' and approval.tags_erro.exists %}
+                            <div style="margin-top: 1rem; padding: 1rem; background-color: #fff; border-radius: 6px; border: 1px solid #dc3545;">
+                                <strong style="display: block; margin-bottom: 0.75rem; color: #721c24; font-size: 0.9rem;">
+                                    🏷️ Tags de Erro Selecionadas:
+                                </strong>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                    {% for tag in approval.tags_erro.all %}
+                                        <span style="display: inline-block; padding: 0.5rem 1rem; background-color: #f8d7da; color: #721c24; border-radius: 20px; font-size: 0.85rem; font-weight: 600; border: 1px solid #f5c6cb;">
+                                            {{ tag.nome }}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {% if approval.comentario %}
+                            <p class="approval-comment {{ approval.decisao }}" style="margin-top: {% if approval.decisao == 'reprovado' and approval.tags_erro.exists %}1rem{% else %}0.5rem{% endif %};">
+                                <strong style="display: block; margin-bottom: 0.5rem; color: {% if approval.decisao == 'reprovado' %}#721c24{% else %}#155724{% endif %};">
+                                    📝 Comentário:
+                                </strong>
+                                {{ approval.comentario }}
+                            </p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Histórico de Status -->
+    {% if status_history %}
+        <div class="card detail-section">
+            <h2 class="detail-section-title">
+                Histórico de Mudanças de Status
+            </h2>
+            
+            <div class="approvals-list">
+                {% for history in status_history %}
+                    <div class="approval-item {% if history.status_anterior == history.status_novo and history.status_anterior %}editado{% endif %}">
+                        <div class="approval-header">
+                            <div>
+                                <strong>
+                                    {% if history.status_anterior == history.status_novo and history.status_anterior %}
+                                        Pedido Editado ({{ history.status_novo|title }})
+                                    {% elif history.status_anterior %}
+                                        {{ history.status_anterior|title }} → {{ history.status_novo|title }}
+                                    {% else %}
+                                        {{ history.status_novo|title }}
+                                    {% endif %}
+                                </strong>
+                                <span class="approval-meta">
+                                    por {{ history.alterado_por.get_full_name|default:history.alterado_por.username }}
+                                </span>
+                            </div>
+                            <span class="approval-date">
+                                {{ history.created_at|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+                        {% if history.observacao %}
+                            <p class="approval-comment {% if history.status_anterior == history.status_novo %}editado{% endif %}">
+                                {{ history.observacao }}
+                            </p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

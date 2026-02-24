@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Empresa: {{ empresa.codigo }}{% endblock %}
+
+{% block page_title %}Detalhes da Empresa{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/detail_workorder.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="detail-header">
+    <div>
+        <h1 class="detail-title">{{ empresa.codigo }} - {{ empresa.nome }}</h1>
+        {% if empresa.ativo %}
+            <span class="status-badge badge-success">Ativa</span>
+        {% else %}
+            <span class="status-badge" style="background-color: #dc3545; color: white;">Inativa</span>
+        {% endif %}
+    </div>
+    <div class="detail-actions">
+        {% if user_profile == 'admin' %}
+            <a href="{% url 'gestao:edit_empresa' empresa.pk %}" class="btn">Editar</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="detail-section-title">Informações da Empresa</h2>
+    
+    <div class="detail-grid">
+        <div class="detail-field">
+            <div class="detail-field-label">Código:</div>
+            <div class="detail-field-value">{{ empresa.codigo }}</div>
+        </div>
+        
+        <div class="detail-field">
+            <div class="detail-field-label">Nome:</div>
+            <div class="detail-field-value">{{ empresa.nome }}</div>
+        </div>
+        
+        {% if empresa.razao_social %}
+            <div class="detail-field">
+                <div class="detail-field-label">Razão Social:</div>
+                <div class="detail-field-value">{{ empresa.razao_social }}</div>
+            </div>
+        {% endif %}
+        
+        {% if empresa.cnpj %}
+            <div class="detail-field">
+                <div class="detail-field-label">CNPJ:</div>
+                <div class="detail-field-value">{{ empresa.cnpj }}</div>
+            </div>
+        {% endif %}
+        
+        {% if empresa.email %}
+            <div class="detail-field">
+                <div class="detail-field-label">E-mail:</div>
+                <div class="detail-field-value">{{ empresa.email }}</div>
+            </div>
+        {% endif %}
+        
+        {% if empresa.telefone %}
+            <div class="detail-field">
+                <div class="detail-field-label">Telefone:</div>
+                <div class="detail-field-value">{{ empresa.telefone }}</div>
+            </div>
+        {% endif %}
+        
+        {% if empresa.responsavel %}
+            <div class="detail-field">
+                <div class="detail-field-label">Responsável:</div>
+                <div class="detail-field-value">
+                    {{ empresa.responsavel.get_full_name|default:empresa.responsavel.username }}
+                    <span class="text-muted">({{ empresa.responsavel.email }})</span>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="detail-section-title">Estatísticas</h2>
+    
+    <div class="detail-grid">
+        <div class="detail-field">
+            <div class="detail-field-label">Total de Obras:</div>
+            <div class="detail-field-value">{{ obras_count }}</div>
+        </div>
+        
+        <div class="detail-field">
+            <div class="detail-field-label">Obras Ativas:</div>
+            <div class="detail-field-value">{{ obras_ativas }}</div>
+        </div>
+        
+        <div class="detail-field">
+            <div class="detail-field-label">Usuários Vinculados:</div>
+            <div class="detail-field-value">{{ usuarios_count }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="detail-header">
+        <h2 class="detail-section-title">Usuários Vinculados</h2>
+    </div>
+    
+    {% if usuarios_vinculados %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Grupos</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user_empresa in usuarios_vinculados %}
+                    <tr>
+                        <td data-label="Username"><strong>{{ user_empresa.usuario.username }}</strong></td>
+                        <td data-label="Nome">{{ user_empresa.usuario.get_full_name|default:"-" }}</td>
+                        <td data-label="Email">{{ user_empresa.usuario.email|default:"-" }}</td>
+                        <td data-label="Grupos">
+                            {% for grupo in user_empresa.usuario.groups.all %}
+                                <span class="badge">{{ grupo.name }}</span>
+                            {% empty %}
+                                <span class="text-muted">Sem grupo</span>
+                            {% endfor %}
+                        </td>
+                        <td data-label="Ações">
+                            {% if user_profile == 'admin' or user_profile == 'responsavel_empresa' %}
+                                <a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'central_edit_user' user_empresa.usuario.pk %}{% else %}{% url 'gestao:edit_user' user_empresa.usuario.pk %}{% endif %}" class="btn btn-sm">Editar</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="empty-message">Nenhum usuário vinculado a esta empresa.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="detail-header">
+        <h2 class="detail-section-title">Obras</h2>
+        {% if user_profile == 'admin' or user_profile == 'responsavel_empresa' %}
+            <a href="{% url 'gestao:create_obra' %}?empresa={{ empresa.pk }}" class="btn">+ Nova Obra</a>
+        {% endif %}
+    </div>
+    
+    {% if empresa.obras.all %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nome</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obra in empresa.obras.all %}
+                    <tr>
+                        <td><strong>{{ obra.codigo }}</strong></td>
+                        <td>{{ obra.nome }}</td>
+                        <td>
+                            {% if obra.ativo %}
+                                <span class="badge badge-success">Ativa</span>
+                            {% else %}
+                                <span class="badge" style="background-color: #dc3545; color: white;">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'gestao:detail_obra' obra.pk %}" class="btn btn-sm">Ver</a>
+                            <a href="{% url 'gestao:manage_obra_permissions' obra.pk %}" class="btn btn-sm">Permissões</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="empty-message">Nenhuma obra cadastrada para esta empresa.</p>
+    {% endif %}
+</div>
+{% endblock %}

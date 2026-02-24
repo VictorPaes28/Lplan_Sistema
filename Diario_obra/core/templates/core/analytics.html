@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Análise de Dados{% endblock %}
+{% block page_subtitle %}{{ project.name|default:"Visão geral do sistema" }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/analytics.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="analytics-page">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="analytics-title">Análise de Dados</h1>
+        <p class="analytics-subtitle">{{ project.name|default:"Visão geral do sistema" }}</p>
+    </div>
+
+    <!-- Cards de Estatísticas -->
+    <div class="analytics-kpi-grid">
+        <div class="analytics-kpi-card analytics-kpi-blue">
+            <div class="analytics-kpi-inner">
+                <div class="analytics-kpi-content">
+                    <p class="analytics-kpi-label">Total de Relatórios</p>
+                    <p class="analytics-kpi-value" aria-label="{{ total_diaries }} relatórios">{{ total_diaries }}</p>
+                </div>
+                <div class="analytics-kpi-icon analytics-kpi-icon-blue">
+                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-kpi-card analytics-kpi-green">
+            <div class="analytics-kpi-inner">
+                <div class="analytics-kpi-content">
+                    <p class="analytics-kpi-label">Total de Fotos</p>
+                    <p class="analytics-kpi-value">{{ total_photos }}</p>
+                </div>
+                <div class="analytics-kpi-icon analytics-kpi-icon-green">
+                    <i class="fas fa-camera" aria-hidden="true"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-kpi-card analytics-kpi-purple">
+            <div class="analytics-kpi-inner">
+                <div class="analytics-kpi-content">
+                    <p class="analytics-kpi-label">Total de Atividades</p>
+                    <p class="analytics-kpi-value">{{ total_activities }}</p>
+                </div>
+                <div class="analytics-kpi-icon analytics-kpi-icon-purple">
+                    <i class="fas fa-tasks" aria-hidden="true"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-kpi-card analytics-kpi-orange">
+            <div class="analytics-kpi-inner">
+                <div class="analytics-kpi-content">
+                    <p class="analytics-kpi-label">Horas Trabalhadas</p>
+                    <p class="analytics-kpi-value">{{ total_hours|floatformat:0 }}h</p>
+                </div>
+                <div class="analytics-kpi-icon analytics-kpi-icon-orange">
+                    <i class="fas fa-clock" aria-hidden="true"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos e Análises -->
+    <div class="analytics-charts-grid">
+        <!-- Relatórios por Status -->
+        <div class="analytics-card">
+            <h3 class="analytics-card-title">Relatórios por Status</h3>
+            <div class="analytics-card-body">
+                {% for status, count in status_data.items %}
+                <div class="analytics-bar-item">
+                    <div class="analytics-bar-header">
+                        <span class="analytics-bar-label">{{ status }}</span>
+                        <span class="analytics-bar-count">{{ count }}</span>
+                    </div>
+                    <div class="analytics-bar-track">
+                        <div class="analytics-bar-fill analytics-bar-fill-blue" style="width: {% widthratio count total_diaries 100 %}%;"></div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="analytics-empty">
+                    <i class="fas fa-chart-bar text-gray-300 text-3xl mb-2"></i>
+                    <p class="text-sm text-gray-500">Nenhum dado disponível</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Top Atividades -->
+        <div class="analytics-card">
+            <h3 class="analytics-card-title">Atividades Mais Frequentes</h3>
+            <div class="analytics-card-body">
+                {% for activity in top_activities %}
+                <div class="analytics-activity-item">
+                    <span class="analytics-activity-name">{{ activity.activity__name|truncatechars:35 }}</span>
+                    <span class="analytics-activity-badge">{{ activity.count }}</span>
+                </div>
+                {% empty %}
+                <div class="analytics-empty">
+                    <i class="fas fa-tasks text-gray-300 text-3xl mb-2"></i>
+                    <p class="text-sm text-gray-500">Nenhuma atividade registrada</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Distribuição de Mão de Obra -->
+    <div class="analytics-card analytics-card-full">
+        <h3 class="analytics-card-title">Distribuição de Mão de Obra</h3>
+        <div class="analytics-card-body">
+            <div class="analytics-labor-grid">
+                {% for labor in labor_by_type %}
+                <div class="analytics-labor-card">
+                    <p class="analytics-labor-type">
+                        {% if labor.labor_type == 'D' %}Direto
+                        {% elif labor.labor_type == 'I' %}Indireto
+                        {% elif labor.labor_type == 'T' %}Terceiros
+                        {% else %}{{ labor.labor_type }}{% endif %}
+                    </p>
+                    <p class="analytics-labor-count">{{ labor.count }}</p>
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-500 col-span-3 text-center py-6">Nenhum dado disponível</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Relatórios por Mês -->
+    <div class="analytics-card analytics-card-full">
+        <h3 class="analytics-card-title">Relatórios por Mês (Últimos 6 meses)</h3>
+        <div class="analytics-card-body">
+            {% for month_data in diaries_by_month %}
+            <div class="analytics-bar-item">
+                <div class="analytics-bar-header">
+                    <span class="analytics-bar-label">{{ month_data.month }}</span>
+                    <span class="analytics-bar-count">{{ month_data.count }} relatórios</span>
+                </div>
+                <div class="analytics-bar-track">
+                    <div class="analytics-bar-fill analytics-bar-fill-green" style="width: {% widthratio month_data.count total_diaries 100 %}%;"></div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="analytics-empty py-8">
+                <i class="fas fa-calendar-alt text-gray-300 text-3xl mb-2"></i>
+                <p class="text-sm text-gray-500">Nenhum dado disponível</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

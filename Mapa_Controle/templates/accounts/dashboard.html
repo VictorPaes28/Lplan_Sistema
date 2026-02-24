@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - Mapa de Controle{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-mapa-controle { padding: 2rem 0; }
+    .dashboard-mapa-controle .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+    }
+    .dashboard-mapa-controle .page-subtitle {
+        color: #64748b;
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+    .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+    .dashboard-card {
+        display: block;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-decoration: none;
+        color: inherit;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+    .dashboard-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        transform: translateY(-2px);
+        color: inherit;
+    }
+    .dashboard-card-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .dashboard-card-icon.primary { background: #eff6ff; color: #2563eb; }
+    .dashboard-card-icon.success { background: #f0fdf4; color: #16a34a; }
+    .dashboard-card-icon.warning { background: #fffbeb; color: #d97706; }
+    .dashboard-card-icon.slate { background: #f1f5f9; color: #475569; }
+    .dashboard-card-title { font-size: 1.125rem; font-weight: 600; color: #1e293b; margin-bottom: 0.35rem; }
+    .dashboard-card-desc { font-size: 0.875rem; color: #64748b; margin: 0; }
+    .dashboard-obra-atual {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 2rem;
+    }
+    .dashboard-obra-atual .label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+    .dashboard-obra-atual .nome { font-size: 1.125rem; font-weight: 600; color: #1e293b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container dashboard-mapa-controle">
+    <h1 class="page-title">Mapa de Controle</h1>
+    <p class="page-subtitle">Central de suprimentos e rastreabilidade por obra</p>
+
+    {% if obra_atual %}
+    <div class="dashboard-obra-atual">
+        <div class="label">Obra em uso</div>
+        <div class="nome">{{ obra_atual.nome }}</div>
+        {% if obra_atual.codigo_sienge %}<small class="text-muted">{{ obra_atual.codigo_sienge }}</small>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="dashboard-cards">
+        <a href="{% url 'engenharia:dashboard_2' %}" class="dashboard-card">
+            <div class="dashboard-card-icon primary"><i class="bi bi-speedometer2"></i></div>
+            <h3 class="dashboard-card-title">Dashboard de Rastreabilidade</h3>
+            <p class="dashboard-card-desc">Visão por obra: plano, pedido, pátio e destino dos insumos.</p>
+        </a>
+        <a href="{% url 'engenharia:mapa' %}" class="dashboard-card">
+            <div class="dashboard-card-icon success"><i class="bi bi-table"></i></div>
+            <h3 class="dashboard-card-title">Mapa de Suprimentos</h3>
+            <p class="dashboard-card-desc">Mapa editável por obra com itens, SC, PC e recebimentos.</p>
+        </a>
+        <a href="{% url 'engenharia:importar_sienge' %}" class="dashboard-card">
+            <div class="dashboard-card-icon warning"><i class="bi bi-upload"></i></div>
+            <h3 class="dashboard-card-title">Importar Sienge</h3>
+            <p class="dashboard-card-desc">Importar dados do Sienge para a obra selecionada.</p>
+        </a>
+        {% if user.is_staff or user.is_superuser %}
+        <a href="{% url 'admin_central' %}" class="dashboard-card">
+            <div class="dashboard-card-icon slate"><i class="bi bi-gear"></i></div>
+            <h3 class="dashboard-card-title">Admin Central</h3>
+            <p class="dashboard-card-desc">Criar obras, usuários e gerenciar o sistema.</p>
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not user.groups.all %}
+    <div class="alert alert-info mt-4" role="alert">
+        <i class="bi bi-info-circle me-2"></i>
+        Você ainda não possui um grupo. Entre em contato com o administrador para ter acesso ao <strong>Dashboard</strong>, <strong>Mapa</strong> e <strong>Importar Sienge</strong>.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

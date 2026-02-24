@@ -1,0 +1,664 @@
+/* Dashboard Styles - Modern & Professional */
+
+/* Dashboard content container - VEM DEPOIS DA TOP BAR */
+.dashboard-content {
+    position: relative;
+    width: 100%;
+    z-index: 1;
+    order: 1 !important; /* Garante que vem depois da top bar */
+    margin-top: 0 !important; /* Remove qualquer margin que possa empurrar para cima */
+    padding-top: 0 !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    overflow: visible !important;
+    /* Garantir que não há underlines */
+    text-decoration: none !important;
+}
+
+/* Garantir que todos os elementos do dashboard não tenham underlines */
+.dashboard-content *,
+.dashboard-content a,
+.dashboard-content p,
+.dashboard-content h1,
+.dashboard-content h2,
+.dashboard-content h3,
+.dashboard-content span,
+.dashboard-content div {
+    text-decoration: none !important;
+    border-bottom: none !important;
+}
+
+/* KPI Cards - visual coeso, paleta neutra com um acento */
+.kpi-card {
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* Único card com destaque sutil (Relatórios = principal) */
+.kpi-card--primary:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+}
+
+.kpi-value {
+    transition: transform 0.2s ease;
+}
+
+.kpi-card:hover .kpi-value {
+    transform: none;
+}
+
+/* Ícones: monocromáticos, sem fundo — azul LPLAN no principal, cinza nos demais */
+.kpi-icon {
+    background: transparent !important;
+    transition: color 0.25s ease;
+}
+
+.kpi-icon--reports {
+    color: #1e40af;
+}
+.kpi-card--primary:hover .kpi-icon--reports {
+    color: #1d4ed8;
+}
+
+.kpi-icon--activities,
+.kpi-icon--occurrences,
+.kpi-icon--comments,
+.kpi-icon--photos,
+.kpi-icon--videos {
+    color: #475569;
+}
+.kpi-card:hover .kpi-icon--activities,
+.kpi-card:hover .kpi-icon--occurrences,
+.kpi-card:hover .kpi-icon--comments,
+.kpi-card:hover .kpi-icon--photos,
+.kpi-card:hover .kpi-icon--videos {
+    color: #334155;
+}
+
+/* FullCalendar Customization */
+.fc {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Toolbar: uma linha, visual limpo */
+.fc-header-toolbar {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background: #fafafa;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.fc .fc-toolbar-chunk {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.fc .fc-toolbar-chunk:first-child {
+    gap: 0.25rem;
+}
+
+/* Navegação: setas e Hoje - estilo outline */
+.fc .fc-toolbar-chunk:first-child .fc-button {
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    padding: 0.4rem 0.6rem !important;
+    border-radius: 0.375rem !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    transition: all 0.15s ease !important;
+}
+
+.fc .fc-toolbar-chunk:first-child .fc-button:hover {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #1e293b !important;
+}
+
+.fc-today-button {
+    background: #0f766e !important;
+    border-color: #0f766e !important;
+    color: #fff !important;
+}
+
+.fc-today-button:hover {
+    background: #115e59 !important;
+    border-color: #115e59 !important;
+    color: #fff !important;
+}
+
+.fc-prev-button, .fc-next-button {
+    min-width: 2rem !important;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.0625rem !important;
+    font-weight: 600 !important;
+    color: #1e293b !important;
+}
+
+/* Vista Mês / Semana / Lista: segmented control moderno */
+.fc .fc-toolbar-chunk:last-child {
+    background: #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.2rem;
+    gap: 0;
+}
+
+.fc .fc-toolbar-chunk:last-child .fc-button {
+    border-radius: 0.35rem !important;
+    background: transparent !important;
+    border: none !important;
+    color: #64748b !important;
+    padding: 0.4rem 0.7rem !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+}
+
+.fc .fc-toolbar-chunk:last-child .fc-button:hover {
+    background: rgba(255,255,255,0.7) !important;
+    color: #334155 !important;
+}
+
+.fc .fc-toolbar-chunk:last-child .fc-button-active,
+.fc .fc-toolbar-chunk:last-child .fc-button.fc-button-active {
+    background: #fff !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+}
+
+/* Eventos: rótulos compactos com ícone */
+.fc-event {
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 0.15rem 0.35rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none !important;
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    min-height: auto !important;
+}
+
+.fc-event:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.fc-event .fc-event-main {
+    overflow: hidden;
+}
+
+.fc-event-content-inner {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.fc-event-icon {
+    font-size: 0.6rem !important;
+    flex-shrink: 0;
+    opacity: 0.95;
+}
+
+.fc-event-title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Contraste forçado: texto e ícone sempre legíveis */
+.fc-event--atraso,
+.fc-event--atraso .fc-event-content-inner,
+.fc-event--atraso .fc-event-title-text,
+.fc-event--atraso .fc-event-icon {
+    color: #991b1b !important;
+}
+
+.fc-event--futuro,
+.fc-event--futuro .fc-event-content-inner,
+.fc-event--futuro .fc-event-title-text,
+.fc-event--futuro .fc-event-icon {
+    color: #1e40af !important;
+}
+
+.fc-event--preenchido,
+.fc-event--preenchido .fc-event-content-inner,
+.fc-event--preenchido .fc-event-title-text,
+.fc-event--preenchido .fc-event-icon {
+    color: #fff !important;
+}
+
+.fc-daygrid-day-number {
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.8125rem;
+}
+
+.fc-day-today {
+    background: #eff6ff !important;
+}
+
+.fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    background: #2563eb;
+    color: #fff;
+    border-radius: 50%;
+    font-weight: 700;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.fc-col-header-cell {
+    background: #f8fafc;
+    padding: 0.5rem 0.25rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+}
+
+.fc-col-header-cell-cushion {
+    padding: 0.25rem;
+}
+
+.fc-daygrid-day {
+    transition: background-color 0.15s ease;
+    min-height: 4.5rem;
+}
+
+.fc-daygrid-day:hover {
+    background: #f8fafc;
+}
+
+.fc-daygrid-day-events {
+    min-height: 0;
+}
+
+.fc-daygrid-event-harness {
+    margin-top: 1px;
+}
+
+/* Fins de semana: fundo suave */
+.fc-day-sun .fc-daygrid-day-frame,
+.fc-day-sat .fc-daygrid-day-frame {
+    background: #f8fafc;
+}
+
+.fc-day-sun .fc-col-header-cell-cushion,
+.fc-day-sat .fc-col-header-cell-cushion {
+    color: #64748b;
+}
+
+/* Calendar section */
+.dashboard-calendar-section {
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-calendar-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+}
+
+.dashboard-calendar-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.dashboard-calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dashboard-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+}
+
+.dashboard-legend-item i {
+    font-size: 0.65rem;
+}
+
+.dashboard-legend-filled i { color: #10b981; }
+.dashboard-legend-filled { border-color: #a7f3d0; background: #ecfdf5; }
+.dashboard-legend-future i { color: #2563eb; }
+.dashboard-legend-overdue i { color: #dc2626; }
+.dashboard-legend-overdue { border-color: #fecaca; background: #fef2f2; }
+
+.dashboard-legend-draft i { color: #b45309; }
+.dashboard-legend-draft { border-color: #fde68a; background: #fefce8; }
+
+.dashboard-calendar-wrapper {
+    padding: 1rem 1.5rem 1.5rem;
+    min-height: 380px;
+}
+
+/* Calendar container */
+#calendar,
+.dashboard-calendar-inner {
+    border-radius: 0.5rem;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+    min-height: 360px;
+}
+
+/* Garante que o FullCalendar não interfira no layout da top bar */
+.fc {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+.fc-header-toolbar {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* Stats badges */
+.stat-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.stat-badge:hover {
+    transform: scale(1.05);
+}
+
+/* Number animations */
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.kpi-value {
+    animation: countUp 0.6s ease-out;
+}
+
+/* Informações da obra: uma coluna no mobile para evitar quebra de layout */
+@media (max-width: 768px) {
+    .dashboard-project-info > div {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+    .dashboard-project-info .text-right {
+        text-align: left;
+    }
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .kpi-card {
+        margin-bottom: 1rem;
+    }
+    
+    .dashboard-calendar-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 1rem;
+    }
+    
+    .dashboard-calendar-legend {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .dashboard-calendar-wrapper {
+        padding: 0.75rem 1rem 1rem;
+        min-height: 320px;
+    }
+    
+    #calendar,
+    .dashboard-calendar-inner {
+        min-height: 300px;
+    }
+    
+    .fc-header-toolbar {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .fc-button {
+        font-size: 0.875rem !important;
+        padding: 0.375rem 0.75rem !important;
+    }
+}
+
+/* Dashboard: fotos recentes – grid com espaçamento uniforme */
+.dashboard-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    width: 100%;
+}
+
+@media (max-width: 640px) {
+    .dashboard-photos-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+}
+
+.dashboard-photo-thumb {
+    aspect-ratio: 1;
+    min-height: 0;
+    width: 100%;
+}
+
+.dashboard-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Dashboard: vídeos recentes – grid alinhado às fotos */
+.dashboard-videos-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    width: 100%;
+}
+
+@media (min-width: 1024px) {
+    .dashboard-videos-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-videos-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+}
+
+.dashboard-video-card-wrapper {
+    min-width: 0;
+}
+
+.dashboard-video-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.dashboard-video-thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #e2e8f0;
+    min-height: 0;
+}
+
+.dashboard-video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.dashboard-video-placeholder i {
+    font-size: 2rem;
+    opacity: 0.6;
+}
+
+.dashboard-video-player {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    z-index: 1;
+}
+
+.dashboard-video-info {
+    padding: 0.5rem 0.5rem 0.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+}
+
+.dashboard-video-caption {
+    font-size: 0.8125rem;
+    color: #475569;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-video-link {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #2563eb;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+
+.dashboard-video-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
+/* Loading state */
+.dashboard-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.spinner {
+    border: 3px solid #f3f4f6;
+    border-top: 3px solid #2563eb;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Enhanced table styling */
+.recent-reports-table tbody tr {
+    transition: background-color 0.15s ease;
+}
+.recent-reports-table tbody tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+.recent-reports-table tbody tr:hover {
+    background-color: #eff6ff;
+}
+
+/* Improved empty state consistency */
+.empty-state-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 2.5rem 1rem;
+    animation: fadeInUp 0.4s ease both;
+}
+.empty-state-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+.empty-state-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+.empty-state-desc {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    text-align: center;
+    max-width: 280px;
+}
+
