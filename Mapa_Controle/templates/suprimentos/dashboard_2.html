@@ -10,6 +10,9 @@
 {% block content %}
 <!-- Skip to main content (Acessibilidade) -->
 <a href="#main-content" class="skip-link">Pular para conteúdo principal</a>
+{% if obra_selecionada %}
+<a href="#itensContainer" class="skip-link skip-link-insumos">Pular para insumos</a>
+{% endif %}
 
 <!-- Header -->
 <header class="dashboard-header" role="banner">
@@ -47,14 +50,22 @@
     
     <!-- Barra de Pesquisa e Filtros (sempre visível quando há obra selecionada) -->
     {% if obra_selecionada %}
-    <div class="dashboard-filtros-bar">
+    <div class="dashboard-filtros-bar" id="dashboardFiltrosBar">
+        <button type="button" class="dashboard-filtros-bar-mobile-toggle" id="dashboardFiltrosToggle" aria-expanded="false" aria-controls="dashboardFiltrosContent" aria-label="Abrir filtros e busca">
+            <i class="bi bi-funnel"></i>
+            <span>Filtros</span>
+            {% if filtro_status or categoria_filtro or fornecedor_filtro or busca_query %}
+            <span class="dashboard-filtros-badge" id="filtrosBadge">1</span>
+            {% endif %}
+        </button>
+        <div class="dashboard-filtros-bar-content" id="dashboardFiltrosContent">
         <div class="dashboard-busca">
             <i class="bi bi-search dashboard-busca-icon"></i>
             <input type="text" 
                    class="dashboard-busca-input" 
                    id="buscaInput"
                    aria-label="Buscar por insumo, código, SC, categoria ou fornecedor"
-                   placeholder="Buscar: prego, 16072, SC95, FUNDAÇÃO..."
+                   placeholder="Buscar insumo, código, SC ou categoria..."
                    value="{{ busca_query }}"
                    onkeypress="if(event.key==='Enter') buscar()"
                    oninput="debounceBusca(this.value)">
@@ -113,6 +124,7 @@
                 {% endif %}
             </div>
         </div>
+        </div>
     </div>
     {% endif %}
 </header>
@@ -125,7 +137,7 @@
             <div class="kpi-icon-mini"><i class="bi bi-layers"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value" id="kpiTotalItens">{{ kpi_total_itens }}</span>
-                <span class="kpi-label">Total Itens</span>
+                <span class="kpi-label">Total</span>
             </div>
         </div>
         <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','com_sc')" title="Itens com Solicitação de Compra">
@@ -144,7 +156,7 @@
                 <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-info" style="width: {{ kpi_pct_recebidos }}%"></div></div>
             </div>
         </div>
-        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','nao_alocado')" title="Itens com material alocado no destino">
+        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','nao_alocado')" title="Itens já alocados no local">
             <div class="kpi-icon-mini kpi-icon-cyan"><i class="bi bi-geo-alt"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value">{{ kpi_alocados }}<span class="kpi-pct">{{ kpi_pct_alocados }}%</span></span>
@@ -221,10 +233,10 @@
                     <div class="mc-pipeline-bar"><div class="pipeline-fill {{ item.status_class }}" style="width: {{ item.pipeline_pct }}%"></div></div>
                 </div>
                 <div class="mc-metrics">
-                    <div class="mc-metric"><span class="mc-metric-label">Plano</span><span class="mc-metric-value">{{ item.coluna_1_plano|floatformat:0 }}</span></div>
-                    <div class="mc-metric"><span class="mc-metric-label">Pedido</span><span class="mc-metric-value {% if not item.coluna_2_pedido_sc %}mc-danger{% endif %}">{% if item.coluna_2_pedido_sc %}{{ item.coluna_2_pedido_qtd|floatformat:0 }}{% else %}—{% endif %}</span></div>
-                    <div class="mc-metric"><span class="mc-metric-label">Patio</span><span class="mc-metric-value">{{ item.coluna_3_patio|floatformat:0 }}</span></div>
-                    <div class="mc-metric"><span class="mc-metric-label">Destino</span><span class="mc-metric-value">{{ item.coluna_4_destino_qtd|floatformat:0 }}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Planejado</span><span class="mc-metric-value">{{ item.coluna_1_plano|floatformat:0 }}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Comprado</span><span class="mc-metric-value {% if not item.coluna_2_pedido_sc %}mc-danger{% endif %}">{% if item.coluna_2_pedido_sc %}{{ item.coluna_2_pedido_qtd|floatformat:0 }}{% else %}—{% endif %}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Recebido</span><span class="mc-metric-value">{{ item.coluna_3_patio|floatformat:0 }}</span></div>
+                    <div class="mc-metric"><span class="mc-metric-label">Saldo</span><span class="mc-metric-value">{{ item.coluna_4_destino_qtd|floatformat:0 }}</span></div>
                 </div>
                 {% if item.coluna_2_pedido_sc %}<div class="mc-sc">SC{{ item.coluna_2_pedido_sc }}</div>{% endif %}
             </div>
@@ -238,10 +250,10 @@
                     <th class="col-status-mini">STATUS</th>
                     <th class="col-insumo">Insumo</th>
                     {% if local_selecionado_id == 'todos' %}<th class="col-local">Local</th>{% endif %}
-                    <th class="col-plano">PLANO</th>
-                    <th class="col-pedido">PEDIDO</th>
-                    <th class="col-patio">PATIO</th>
-                    <th class="col-destino">DESTINO</th>
+                    <th class="col-plano">PLANEJADO</th>
+                    <th class="col-pedido">COMPRADO</th>
+                    <th class="col-patio">RECEBIDO</th>
+                    <th class="col-destino">SALDO</th>
                 </tr>
             </thead>
             <tbody>
@@ -309,7 +321,7 @@
                         </div>
                         {% endif %}
                     </td>
-                    <!-- COLUNA 5: DESTINO -->
+                    <!-- COLUNA 5: SALDO -->
                     <td class="col-destino">
                         <div class="destino-qtd mono" style="color: {% if item.coluna_4_destino_qtd > 0 %}var(--neon-cyan){% else %}var(--text-on-base-medium){% endif %};">
                             {{ item.coluna_4_destino_qtd|floatformat:0 }}
@@ -685,7 +697,7 @@ function limparBusca() {
 function aplicarFiltro(tipo, valor) {
     const params = new URLSearchParams();
     params.set('obra', '{{ obra_id }}');
-    // Só incluir local se estiver dentro de um bloco (não na home)
+    // Só incluir local se estiver dentro de um local (não na home)
     {% if local_selecionado_id %}
     params.set('local', '{{ local_selecionado_id }}');
     {% endif %}
@@ -814,6 +826,17 @@ function restaurarTema() {
 document.addEventListener('DOMContentLoaded', function() {
     // Restaurar tema primeiro
     restaurarTema();
+    
+    // Mobile: toggle da barra de filtros (prioriza insumos na tela)
+    var bar = document.getElementById('dashboardFiltrosBar');
+    var toggle = document.getElementById('dashboardFiltrosToggle');
+    var content = document.getElementById('dashboardFiltrosContent');
+    if (bar && toggle && content) {
+        toggle.addEventListener('click', function() {
+            var open = bar.classList.toggle('is-open');
+            toggle.setAttribute('aria-expanded', open);
+        });
+    }
     
     // Restaurar modo matriz
     const preferencia = localStorage.getItem('dashboard2_modo_matriz');

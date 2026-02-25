@@ -1174,7 +1174,7 @@ def dashboard_2(request):
             obra_id = str(obra_sessao.id)
     
     obra_selecionada = None
-    local_selecionado_id = request.GET.get('local', '')
+    local_selecionado_id = (request.GET.get('local') or '').strip()
     item_selecionado_id = request.GET.get('item', '')
     
     if obra_id:

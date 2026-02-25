@@ -102,9 +102,9 @@ DB_PORT=3306
 EMAIL_HOST=mail.lplan.com.br
 EMAIL_PORT=465
 EMAIL_USE_SSL=True
-EMAIL_HOST_USER=gestcontroll@lplan.com.br
+EMAIL_HOST_USER=sistema@lplan.com.br
 EMAIL_HOST_PASSWORD=...
-DEFAULT_FROM_EMAIL=gestcontroll@lplan.com.br
+DEFAULT_FROM_EMAIL=sistema@lplan.com.br
 SITE_URL=https://gestao.lplan.com.br
 ```
 

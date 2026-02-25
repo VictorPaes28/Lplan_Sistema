@@ -62,7 +62,7 @@ Mensagem automática. Não responda a este e-mail.
             EmailMessage(
                 subject=subject,
                 body=body,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@lplan.com'),
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br'),
                 to=[email_addr],
             ).send(fail_silently=False)
             logger.info("Enviado diário %s ao dono da obra %s.", diary.pk, po.user.username)
@@ -153,7 +153,7 @@ Mensagem automática. Não responda a este e-mail.
             email = EmailMessage(
                 subject=subject,
                 body=body,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@lplan.com'),
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br'),
                 to=recipients,
             )
             if pdf_bytes:

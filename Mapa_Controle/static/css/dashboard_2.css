@@ -246,6 +246,7 @@ body {
     display: flex;
     gap: 4px;
     padding: 6px 12px;
+    margin-top: 2px;
     background: var(--dark-surface);
     border-bottom: 1px solid var(--dark-border);
     overflow-x: auto;
@@ -512,6 +513,26 @@ body {
     position: relative;
     flex-wrap: nowrap;
     overflow: hidden;
+}
+
+/* Conteúdo da barra (busca + chips) - desktop sempre visível */
+.dashboard-filtros-bar-content {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex: 1;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+/* Desktop: esconder botão de toggle e manter conteúdo sempre visível */
+@media (min-width: 769px) {
+    .dashboard-filtros-bar-mobile-toggle {
+        display: none !important;
+    }
+    .dashboard-filtros-bar-content {
+        display: flex !important;
+    }
 }
 
 /* Desktop - mais espaço */
@@ -966,7 +987,7 @@ body {
     }
 }
 
-/* Mobile - Telas pequenas (até 768px) */
+/* Mobile - Telas pequenas (até 768px) - Prioridade: insumos na tela */
 @media (max-width: 768px) {
     .dashboard-header {
         padding: 10px;
@@ -974,15 +995,48 @@ body {
         gap: 10px;
     }
     
+    /* Header mais compacto: título em uma linha menor */
     .dashboard-title {
         text-align: center;
+        font-size: 12px;
+    }
+    .dashboard-title-sub {
+        font-size: 9px;
     }
     
     .dashboard-controls {
         width: 100%;
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 100%;
+    }
+    .dashboard-obra-select {
+        min-width: 0;
+        flex: 1 1 140px;
     }
     
+    /* Barra de filtros: colapsável no mobile - só insumos em destaque */
+    .dashboard-filtros-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 0;
+    }
+    .dashboard-filtros-bar-mobile-toggle {
+        display: flex;
+    }
+    .dashboard-filtros-bar-content {
+        display: none;
+        padding: 10px 12px;
+        background: var(--bg-industrial-800);
+        border-top: 1px solid var(--dark-border);
+        gap: 10px;
+        flex-direction: column;
+    }
+    .dashboard-filtros-bar.is-open .dashboard-filtros-bar-content {
+        display: flex;
+    }
     .dashboard-busca {
         max-width: 100%;
     }
@@ -1024,6 +1078,27 @@ body {
     .btn-voltar {
         min-width: 44px;
         height: 44px;
+    }
+    
+    /* KPI bar mais compacta para ganhar espaço para insumos */
+    .kpi-bar {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+    .kpi-item {
+        padding: 6px 8px;
+    }
+    .kpi-value {
+        font-size: 14px;
+    }
+    .kpi-label {
+        font-size: 10px;
+    }
+    
+    /* Local chips em uma linha mais compacta */
+    .local-chips-bar {
+        padding: 8px 10px;
+        gap: 6px;
     }
 }
 
@@ -1077,6 +1152,46 @@ body {
     top: 0;
 }
 
+/* Segundo skip link: pular para insumos (mobile) */
+.skip-link-insumos {
+    top: -80px;
+}
+.skip-link-insumos:focus {
+    top: 0;
+}
+
+/* Botão toggle da barra de filtros (só mobile) */
+.dashboard-filtros-bar-mobile-toggle {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-industrial-700);
+    border: 1px solid var(--dark-border);
+    color: var(--text-on-base-high);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+}
+.dashboard-filtros-bar-mobile-toggle:hover {
+    background: var(--bg-industrial-600);
+    border-color: var(--neon-cyan);
+}
+.dashboard-filtros-badge {
+    background: var(--neon-cyan);
+    color: var(--bg-industrial-900);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+}
+
 /* Melhorias de contraste para acessibilidade */
 @media (prefers-contrast: high) {
     .kpi-item,
@@ -1120,6 +1235,7 @@ body {
 .itens-container:not(.hidden),
 .itens-container.active {
     display: block;
+    margin-top: 12px;
 }
 
 .itens-header {

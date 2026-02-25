@@ -186,14 +186,14 @@ LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
 
 # Email settings
+# Remetente das mensagens enviadas pelo sistema (notificações, pedidos, etc.). Contato para dúvidas: suporte@lplan.com.br
 # Configuração para servidor LPLAN (mail.lplan.com.br)
-
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'mail.lplan.com.br')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'True').lower() == 'true'  # Porta 465 usa SSL
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False').lower() == 'true'  # Porta 587 usa TLS
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'gestcontroll@lplan.com.br')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'sistema@lplan.com.br')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 

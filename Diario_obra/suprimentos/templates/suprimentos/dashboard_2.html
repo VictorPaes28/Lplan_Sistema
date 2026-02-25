@@ -11,6 +11,9 @@
 {{ itens_pipeline_serializable|json_script:"dashboard-itens" }}
 <!-- Skip to main content (Acessibilidade) -->
 <a href="#main-content" class="skip-link">Pular para conteúdo principal</a>
+{% if obra_selecionada %}
+<a href="#itensContainer" class="skip-link skip-link-insumos">Pular para insumos</a>
+{% endif %}
 
 <!-- Header -->
 <header class="dashboard-header" role="banner">
@@ -58,14 +61,22 @@
     
     <!-- Barra de Pesquisa e Filtros (sempre visível quando há obra selecionada) -->
     {% if obra_selecionada %}
-    <div class="dashboard-filtros-bar">
+    <div class="dashboard-filtros-bar" id="dashboardFiltrosBar">
+        <button type="button" class="dashboard-filtros-bar-mobile-toggle" id="dashboardFiltrosToggle" aria-expanded="false" aria-controls="dashboardFiltrosContent" aria-label="Abrir filtros e busca">
+            <i class="bi bi-funnel"></i>
+            <span>Filtros</span>
+            {% if filtro_status or categoria_filtro or fornecedor_filtro or busca_query %}
+            <span class="dashboard-filtros-badge" id="filtrosBadge">1</span>
+            {% endif %}
+        </button>
+        <div class="dashboard-filtros-bar-content" id="dashboardFiltrosContent">
         <div class="dashboard-busca">
             <i class="bi bi-search dashboard-busca-icon"></i>
             <input type="text" 
                    class="dashboard-busca-input" 
                    id="buscaInput"
                    aria-label="Buscar por insumo, código, SC, categoria ou fornecedor"
-                   placeholder="Buscar: prego, 16072, SC95, FUNDAÇÃO..."
+                   placeholder="Buscar insumo, código, SC ou categoria..."
                    value="{{ busca_query }}"
                    onkeypress="if(event.key==='Enter') buscar()"
                    oninput="debounceBusca(this.value)">
@@ -136,6 +147,7 @@
             </select>
         </div>
         {% endif %}
+        </div>
     </div>
     {% endif %}
 </header>
@@ -166,7 +178,7 @@
                         <tbody>
                             <tr><td><a href="?obra={{ obra_id }}&modo=tabela&local=todos" class="dashboard-drill-link">Todos</a></td><td class="mono">{{ kpi_total_itens }}</td></tr>
                             {% for ld in locais_data %}
-                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&local={{ ld.local_id|default:'sem-local' }}" class="dashboard-drill-link">{{ ld.local_nome }}</a></td><td class="mono">{{ ld.total_itens }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&local={% if ld.local_id %}{{ ld.local_id }}{% else %}sem-local{% endif %}" class="dashboard-drill-link">{{ ld.local_nome }}</a></td><td class="mono">{{ ld.total_itens }}</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -223,10 +235,10 @@
                                 <th>Insumo</th>
                                 <th>Cód.</th>
                                 <th>Local</th>
-                                <th class="mono">Plano</th>
-                                <th class="mono">Pedido</th>
-                                <th class="mono">Pátio</th>
-                                <th class="mono">Destino</th>
+                                <th class="mono">Planejado</th>
+                                <th class="mono">Comprado</th>
+                                <th class="mono">Recebido</th>
+                                <th class="mono">Saldo</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -273,7 +285,7 @@
             <div class="kpi-icon-mini"><i class="bi bi-layers"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value" id="kpiTotalItens">{{ kpi_total_itens }}</span>
-                <span class="kpi-label">Total Itens</span>
+                <span class="kpi-label">Total</span>
             </div>
         </div>
         <!-- Pipeline: Solicitados -->
@@ -320,7 +332,7 @@
             </div>
         </div>
     </div>
-    <p class="kpi-hint">Toque num número acima para filtrar a lista.</p>
+    <p class="kpi-hint">Toque em um número acima para filtrar.</p>
 
     <!-- Atalhos de pendências (um toque – referência: dashboards mobile engenharia) -->
     {% if kpi_sem_sc > 0 or kpi_atrasados > 0 %}
@@ -339,9 +351,9 @@
     </div>
     {% endif %}
 
-    <!-- LOCAL / BLOCO: "Onde você está?" – escolher o bloco primeiro afunila a lista -->
+    <!-- LOCAL: escolher o local primeiro afunila a lista -->
     <div class="local-chips-wrapper">
-        <span class="local-chips-label">Local / Bloco:</span>
+        <span class="local-chips-label">Local:</span>
         <div class="local-chips-bar">
         <button class="local-chip {% if local_selecionado_id == 'todos' %}active{% endif %}" 
                 onclick="navegarParaLocal('todos')">
@@ -408,8 +420,8 @@
                 </div>
             </div>
             {% if local_selecionado_id == 'todos' and locais_data %}
-            <div class="itens-header-locais" aria-label="Trocar bloco sem sair da lista">
-                <span class="itens-header-locais-label">Bloco:</span>
+            <div class="itens-header-locais" aria-label="Trocar local sem sair da lista">
+                <span class="itens-header-locais-label">Local:</span>
                 <button type="button" class="itens-header-local-chip active" onclick="navegarParaLocal('todos')">Todos</button>
                 {% for local_data in locais_data %}
                 <button type="button" class="itens-header-local-chip" onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">{{ local_data.local_nome }}</button>
@@ -418,7 +430,7 @@
             {% endif %}
         </div>
         {% if itens_pipeline and local_selecionado_id == 'todos' and itens_pipeline|length > 15 %}
-        <p class="itens-muitos-hint">Muitos itens? Toque num <strong>bloco</strong> acima para ver só aquele bloco.</p>
+        <p class="itens-muitos-hint">Muitos itens? Toque num <strong>local</strong> acima para ver só aquele local.</p>
         {% endif %}
         
         {% if itens_pipeline %}
@@ -440,10 +452,10 @@
                     <th class="col-status-mini">STATUS</th>
                     <th class="col-insumo">Insumo</th>
                     {% if local_selecionado_id == 'todos' %}<th class="col-local">Local</th>{% endif %}
-                    <th class="col-plano">PLANO</th>
-                    <th class="col-pedido">PEDIDO</th>
-                    <th class="col-patio">PATIO</th>
-                    <th class="col-destino">DESTINO</th>
+                    <th class="col-plano">PLANEJADO</th>
+                    <th class="col-pedido">COMPRADO</th>
+                    <th class="col-patio">RECEBIDO</th>
+                    <th class="col-destino">SALDO</th>
                 </tr>
             </thead>
             <tbody>
@@ -518,7 +530,7 @@
                         </div>
                         {% endif %}
                     </td>
-                    <!-- COLUNA 5: DESTINO -->
+                    <!-- COLUNA 5: SALDO -->
                     <td class="col-destino">
                         <div class="destino-qtd mono" style="color: {% if item.coluna_4_destino_qtd > 0 %}var(--neon-cyan){% else %}var(--text-on-base-medium){% endif %};">
                             {{ item.coluna_4_destino_qtd|floatformat:0 }}
@@ -651,7 +663,7 @@
                 <span class="bottom-sheet-alerta-atraso" title="Prazo vencido"><i class="bi bi-clock-history"></i> Atrasado</span>
                 {% endif %}
             </div>
-            <div class="bottom-sheet-pipeline-bar" title="Pipeline: Plano → SC → Pátio → Alocado">
+            <div class="bottom-sheet-pipeline-bar" title="Pipeline: Planejado → Comprado → Recebido → Saldo">
                 <div class="bottom-sheet-pipeline-fill" style="width: {{ item_detalhes.pipeline_pct|default:0 }}%;"></div>
             </div>
             <p class="bottom-sheet-proximo-passo"><i class="bi bi-arrow-right-circle"></i> {{ item_detalhes.proximo_passo|default:"" }}</p>
@@ -735,7 +747,7 @@
         {% if item_detalhes.outros_itens_mesmo_local %}
         <div class="bottom-sheet-info-section">
             <h3 class="bottom-sheet-section-title"><i class="bi bi-layers"></i> Outros itens neste local</h3>
-            <p class="bottom-sheet-hint">No mesmo bloco ({{ item_detalhes.local_nome }}) também há:</p>
+            <p class="bottom-sheet-hint">No mesmo local ({{ item_detalhes.local_nome }}) também há:</p>
             <ul class="bottom-sheet-outros-itens">
                 {% for out in item_detalhes.outros_itens_mesmo_local %}
                 <li class="bottom-sheet-outro-item">
@@ -1017,7 +1029,7 @@ function limparBusca() {
 function aplicarFiltro(tipo, valor) {
     const params = new URLSearchParams();
     params.set('obra', '{{ obra_id }}');
-    // Só incluir local se estiver dentro de um bloco (não na home)
+    // Só incluir local se estiver dentro de um local (não na home)
     {% if local_selecionado_id %}
     params.set('local', '{{ local_selecionado_id }}');
     {% endif %}
@@ -1211,6 +1223,16 @@ function restaurarTema() {
 document.addEventListener('DOMContentLoaded', function() {
     // Restaurar tema primeiro
     restaurarTema();
+    // Mobile: toggle da barra de filtros (prioriza insumos na tela)
+    var bar = document.getElementById('dashboardFiltrosBar');
+    var toggle = document.getElementById('dashboardFiltrosToggle');
+    var content = document.getElementById('dashboardFiltrosContent');
+    if (bar && toggle && content) {
+        toggle.addEventListener('click', function() {
+            var open = bar.classList.toggle('is-open');
+            toggle.setAttribute('aria-expanded', open);
+        });
+    }
     // Aplicar modo dashboard (Tabela vs Pipeline)
     if (typeof aplicarModoDashboard === 'function') aplicarModoDashboard();
     
@@ -1675,10 +1697,10 @@ function salvarAlocacao() {
             '<div class="mc-meta"><span class="mc-code">' + esc(item.insumo_codigo || '—') + '</span>' + localHtml + '</div>' +
             '<div class="mc-pipeline"><div class="mc-pipeline-bar"><div class="pipeline-fill ' + esc(item.status_class) + '" style="width:' + (item.pipeline_pct || 0) + '%"></div></div></div>' +
             '<div class="mc-metrics">' +
-            '<div class="mc-metric"><span class="mc-metric-label">Plano</span><span class="mc-metric-value">' + fmt(item.coluna_1_plano) + '</span></div>' +
-            '<div class="mc-metric"><span class="mc-metric-label">Pedido</span><span class="mc-metric-value' + pedidoClass + '">' + pedidoVal + '</span></div>' +
-            '<div class="mc-metric"><span class="mc-metric-label">Patio</span><span class="mc-metric-value">' + fmt(item.coluna_3_patio) + '</span></div>' +
-            '<div class="mc-metric"><span class="mc-metric-label">Destino</span><span class="mc-metric-value">' + fmt(item.coluna_4_destino_qtd) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Planejado</span><span class="mc-metric-value">' + fmt(item.coluna_1_plano) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Comprado</span><span class="mc-metric-value' + pedidoClass + '">' + pedidoVal + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Recebido</span><span class="mc-metric-value">' + fmt(item.coluna_3_patio) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Saldo</span><span class="mc-metric-value">' + fmt(item.coluna_4_destino_qtd) + '</span></div>' +
             '</div>' + scHtml;
         div.onclick = function() { if (typeof abrirBottomSheet === 'function') abrirBottomSheet(item.id); };
         div.onkeydown = function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (typeof abrirBottomSheet === 'function') abrirBottomSheet(item.id); } };
