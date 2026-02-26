@@ -39,3 +39,5 @@ python manage.py collectstatic --noinput
 ```
 
 O Django e a geração de PDF (WeasyPrint 52.x) devem funcionar normalmente.
+
+**MySQL no cPanel:** O arquivo usa apenas **pymysql** (não mysqlclient). O mysqlclient exige compilação C e os headers do Python (`Python.h`) não estão disponíveis em hospedagem compartilhada. O projeto está configurado para usar PyMySQL como driver MySQL em produção (`lplan_central/__init__.py`).
