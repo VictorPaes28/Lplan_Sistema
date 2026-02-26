@@ -11,6 +11,10 @@ Este script adiciona Diario_obra ao path e carrega o Django a partir de lá.
 import os
 import sys
 
+# Limita threads do OpenBLAS/numpy em hospedagem compartilhada (evita pthread_create failed)
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+
 # Raiz do repositório (sistema_lplan no servidor)
 root = os.path.dirname(os.path.abspath(__file__))
 # Pasta onde está manage.py e lplan_central
