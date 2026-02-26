@@ -37,7 +37,10 @@ pisa = None
 if sys.platform != "win32":
     try:
         from weasyprint import HTML, CSS
-        from weasyprint.text.fonts import FontConfiguration
+        try:
+            from weasyprint.text.fonts import FontConfiguration  # WeasyPrint 53+
+        except ImportError:
+            from weasyprint.fonts import FontConfiguration  # WeasyPrint 52.x (cPanel)
         WEASYPRINT_AVAILABLE = True
         logger.info("WeasyPrint disponível - será usado preferencialmente para geração de PDF")
     except Exception as e:
