@@ -3,19 +3,17 @@ Django settings for Sistema LPLAN Central - Unificado.
 """
 from pathlib import Path
 import os
-
-# Carrega .env da pasta do projeto (Diario_obra) se existir
-_base_dir = Path(__file__).resolve().parent.parent
-_env_file = _base_dir / '.env'
-if _env_file.exists():
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(_env_file)
-    except ImportError:
-        pass
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = _base_dir
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ==============================================================================
+# CARREGAMENTO FORÇADO DO .ENV (Obrigatório para o cPanel ler as senhas e hosts)
+# ==============================================================================
+# Definimos o caminho exato e forçamos a leitura.
+env_path = os.path.join(BASE_DIR, '.env')
+load_dotenv(env_path)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-in-production')
@@ -23,9 +21,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-in-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-# ALLOWED_HOSTS: em produção defina no .env (ex: ALLOWED_HOSTS=seudominio.com.br,www.seudominio.com.br)
-_hosts = os.environ.get('ALLOWED_HOSTS', '').strip()
-ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()] if _hosts else []
+# ALLOWED_HOSTS: lido do .env; padrão evita DisallowedHost se .env não tiver a variável
+_hosts = os.environ.get('ALLOWED_HOSTS', 'sistema.lplan.com.br,localhost,127.0.0.1').strip()
+ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()]
 
 # Application definition
 INSTALLED_APPS = [

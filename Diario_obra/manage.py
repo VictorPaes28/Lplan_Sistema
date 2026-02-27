@@ -3,6 +3,10 @@
 import os
 import sys
 
+# cPanel: limita threads do OpenBLAS/numpy (evita pthread_create failed em hospedagem compartilhada)
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+
 # INÍCIO DO AJUSTE cPanel – PyMySQL como substituto de mysqlclient (não remover)
 try:
     import pymysql

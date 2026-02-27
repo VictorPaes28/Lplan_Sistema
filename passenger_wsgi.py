@@ -12,9 +12,9 @@ NÃO REMOVER o bloco pymysql – no cPanel o mysqlclient não compila (falta Pyt
 import os
 import sys
 
-# Limita threads do OpenBLAS/numpy em hospedagem compartilhada (evita pthread_create failed)
-os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
-os.environ.setdefault('OMP_NUM_THREADS', '1')
+# cPanel: limita threads do OpenBLAS/numpy (evita pthread_create failed em hospedagem compartilhada)
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
 
 # 1. Ajuste de caminho: aponta para a subpasta Diario_obra
 project_root = os.path.dirname(os.path.abspath(__file__))
