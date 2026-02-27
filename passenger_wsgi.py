@@ -23,8 +23,11 @@ if diario_obra_path not in sys.path:
     sys.path.insert(0, diario_obra_path)
 
 # 2. Truque do PyMySQL para o cPanel aceitar a conexão MySQL (não remover)
-import pymysql
-pymysql.install_as_MySQLdb()
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+except ImportError:
+    pass
 
 # 3. Importação do WSGI do Django
 from lplan_central.wsgi import application

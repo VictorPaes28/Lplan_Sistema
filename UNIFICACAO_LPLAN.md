@@ -2,6 +2,8 @@
 
 Este documento descreve a unificação dos três sistemas (Diário de Obra, Gestão de Aprovação, Mapa de Controle) em um único monolito Django e o que **não pode ser revertido** em produção (cPanel).
 
+**Regras detalhadas de deploy (cPanel/MariaDB):** ver **[REGRAS_DEPLOY_CPANEL.md](REGRAS_DEPLOY_CPANEL.md)** — contém os erros que já ocorreram e como não repeti-los.
+
 ---
 
 ## 1. Estrutura unificada (único ponto de entrada)
@@ -68,7 +70,22 @@ O servidor usa **Python 3.11** e tem restrições de compilação (sem `Python.h
 
 ---
 
-## 3. Arquivos redundantes (outros sistemas)
+## 3. Erros que já ocorreram – não repetir
+
+Durante o deploy no cPanel/MariaDB estes problemas apareceram e foram corrigidos. **Em refatorações futuras, não reverter nem remover as soluções abaixo.**
+
+| Erro | Causa | Solução (não remover) |
+|------|--------|------------------------|
+| **DisallowedHost / SQLite em produção** | `.env` não era lido (try/except engolia o erro) | Em `settings.py`: `load_dotenv(env_path)` no topo, **sem** try/except em volta; `python-dotenv` nos requirements. |
+| **OpenBLAS pthread_create failed** | Pandas/Numpy abriam muitas threads; cPanel bloqueou | No **início** de `manage.py` e `passenger_wsgi.py`: `os.environ['OPENBLAS_NUM_THREADS']='1'` e `os.environ['OMP_NUM_THREADS']='1'` **antes** de qualquer import. |
+| **MySQL 1064 na migração 0004** | SQL procedural (SET, PREPARE, EXECUTE) em um único `cursor.execute()` | Em migrações: só SQL atômico; lógica condicional em **Python** com try/except, nunca SQL procedural no MariaDB. |
+| **Migrações gestao_aprovacao vs banco** | Histórico de migrações dessincronizado do banco real | Não criar migrações para “consertar” o passado; só novas migrações para mudanças **futuras** nos models. |
+
+Detalhes e trechos de código: **[REGRAS_DEPLOY_CPANEL.md](REGRAS_DEPLOY_CPANEL.md)**.
+
+---
+
+## 4. Arquivos redundantes (outros sistemas)
 
 Estes arquivos pertencem aos projetos **standalone** Gestão de Aprovação e Mapa de Controle. No monolito eles **não são usados**; podem ficar no repositório como referência ou ser removidos depois.
 
@@ -84,7 +101,7 @@ Estes arquivos pertencem aos projetos **standalone** Gestão de Aprovação e Ma
 
 ---
 
-## 4. Como aplicar as mudanças no servidor (sem quebrar)
+## 5. Como aplicar as mudanças no servidor (sem quebrar)
 
 1. **Backup (recomendado)**  
    - Copiar `passenger_wsgi.py` e `Diario_obra/.env` do servidor (ex.: para sua máquina).
@@ -129,10 +146,10 @@ Estes arquivos pertencem aos projetos **standalone** Gestão de Aprovação e Ma
 
 ---
 
-## 5. Resumo do que foi feito no repositório
+## 6. Resumo do que foi feito no repositório
 
 - **`lplan_central/settings.py`:** inclusão de `EMAIL_DEPARTAMENTOS_APROVACAO`, variáveis `SIENGE_*`, `CSRF_TRUSTED_ORIGINS` (tudo via `.env`) e loggers para `mapa_obras` e `suprimentos`.
 - **`Diario_obra/manage.py`:** hook PyMySQL no topo (`try/except`) para uso no cPanel.
 - **`passenger_wsgi.py` (raiz):** path para `Diario_obra`, PyMySQL e import de `lplan_central.wsgi.application`.
 
-Com isso, o monolito fica alinhado ao que está em produção e você pode aplicar as mudanças no servidor seguindo a seção 4.
+Com isso, o monolito fica alinhado ao que está em produção e você pode aplicar as mudanças no servidor seguindo a **seção 5**.
