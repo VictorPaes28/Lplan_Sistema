@@ -6,7 +6,8 @@ Use este arquivo quando a "Raiz do aplicativo" no painel for sistema_lplan
   shutil.Error: Cannot move a directory '.../virtualenv/sistema_lplan/' into itself
   '.../virtualenv/sistema_lplan/Diario_obra/'
 
-Este script adiciona Diario_obra ao path e carrega o Django a partir de lá.
+Faz: (1) path para Diario_obra, (2) hook PyMySQL para cPanel, (3) carrega Django via lplan_central.wsgi.
+NÃO REMOVER o bloco pymysql – no cPanel o mysqlclient não compila (falta Python.h).
 """
 import os
 import sys
@@ -15,14 +16,15 @@ import sys
 os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 os.environ.setdefault('OMP_NUM_THREADS', '1')
 
-# Raiz do repositório (sistema_lplan no servidor)
-root = os.path.dirname(os.path.abspath(__file__))
-# Pasta onde está manage.py e lplan_central
-project_home = os.path.join(root, 'Diario_obra')
-if project_home not in sys.path:
-    sys.path.insert(0, project_home)
+# 1. Ajuste de caminho: aponta para a subpasta Diario_obra
+project_root = os.path.dirname(os.path.abspath(__file__))
+diario_obra_path = os.path.join(project_root, 'Diario_obra')
+if diario_obra_path not in sys.path:
+    sys.path.insert(0, diario_obra_path)
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lplan_central.settings')
+# 2. Truque do PyMySQL para o cPanel aceitar a conexão MySQL (não remover)
+import pymysql
+pymysql.install_as_MySQLdb()
 
-from django.core.wsgi import get_wsgi_application
-application = get_wsgi_application()
+# 3. Importação do WSGI do Django
+from lplan_central.wsgi import application

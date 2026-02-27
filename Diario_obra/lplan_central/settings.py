@@ -4,8 +4,18 @@ Django settings for Sistema LPLAN Central - Unificado.
 from pathlib import Path
 import os
 
+# Carrega .env da pasta do projeto (Diario_obra) se existir
+_base_dir = Path(__file__).resolve().parent.parent
+_env_file = _base_dir / '.env'
+if _env_file.exists():
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_env_file)
+    except ImportError:
+        pass
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = _base_dir
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-in-production')
@@ -209,6 +219,20 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br'
 # URL base do sistema (para links em e-mails). Ex.: https://sistema.empresa.com
 SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000').rstrip('/')
 
+# Gestão de Aprovação: e-mails dos departamentos para notificações (lista separada por vírgula no .env)
+_email_dept = os.environ.get('EMAIL_DEPARTAMENTOS_APROVACAO', 'luiz.henrique@lplan.com.br,luizdomingos@lplan.com.br')
+EMAIL_DEPARTAMENTOS_APROVACAO = [e.strip() for e in _email_dept.split(',') if e.strip()]
+
+# Mapa/Suprimentos: API Sienge (webhook e integração). Definir no .env em produção.
+SIENGE_API_BASE_URL = os.environ.get('SIENGE_API_BASE_URL', 'https://api.sienge.com.br')
+SIENGE_API_CLIENT_ID = os.environ.get('SIENGE_API_CLIENT_ID', '')
+SIENGE_API_CLIENT_SECRET = os.environ.get('SIENGE_API_CLIENT_SECRET', '')
+SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
+
+# CSRF: em produção defina CSRF_TRUSTED_ORIGINS no .env (ex: https://sistema.lplan.com.br,https://gestao.lplan.com.br)
+_csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+
 # Logging: arquivo + console para quem for dar suporte conseguir diagnosticar sem o desenvolvedor
 LOG_DIR = BASE_DIR / 'logs'
 LOGGING = {
@@ -272,6 +296,16 @@ LOGGING = {
             'propagate': False,
         },
         'gestao_aprovacao': {
+            'handlers': ['file', 'file_errors', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'mapa_obras': {
+            'handlers': ['file', 'file_errors', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'suprimentos': {
             'handlers': ['file', 'file_errors', 'console'],
             'level': 'INFO',
             'propagate': False,

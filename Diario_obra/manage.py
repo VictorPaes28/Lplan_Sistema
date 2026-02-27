@@ -3,6 +3,14 @@
 import os
 import sys
 
+# INÍCIO DO AJUSTE cPanel – PyMySQL como substituto de mysqlclient (não remover)
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+except ImportError:
+    pass
+# FIM DO AJUSTE cPanel
+
 
 def main():
     """Run administrative tasks."""
