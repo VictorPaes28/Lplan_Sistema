@@ -8,6 +8,10 @@ Use este arquivo quando a "Raiz do aplicativo" no painel for sistema_lplan
 
 Faz: (1) path para Diario_obra, (2) hook PyMySQL para cPanel, (3) carrega Django via lplan_central.wsgi.
 NÃO REMOVER o bloco pymysql – no cPanel o mysqlclient não compila (falta Python.h).
+
+ATENÇÃO: NUNCA use imp.load_source('wsgi', 'passenger_wsgi.py') aqui – isso carrega
+este próprio arquivo de novo e causa RecursionError (loop infinito). O correto é
+"from lplan_central.wsgi import application" no final.
 """
 import os
 import sys
