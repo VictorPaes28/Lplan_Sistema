@@ -17,32 +17,26 @@ def create_empresa_padrao_and_migrate(apps, schema_editor):
 def remove_unique_constraint_codigo(apps, schema_editor):
     """
     Remove a constraint unique do código da obra se existir.
-    Adaptado para MySQL e SQLite.
+    Usa Python try/except para compatibilidade com PyMySQL/MariaDB (cPanel),
+    que não executa bem múltiplos comandos SQL em um único execute().
     """
-    db_engine = schema_editor.connection.vendor
-    
-    if db_engine == 'mysql':
-        # Para MySQL
-        with schema_editor.connection.cursor() as cursor:
-            cursor.execute("""
-                SET @exist := (SELECT COUNT(*) FROM information_schema.statistics 
-                               WHERE table_schema = DATABASE() 
-                               AND table_name = 'gestao_aprovacao_obra' 
-                               AND index_name = 'gestao_aprovacao_obra_codigo_unique');
-                SET @sqlstmt := IF(@exist > 0, 'ALTER TABLE gestao_aprovacao_obra DROP INDEX gestao_aprovacao_obra_codigo_unique', 'SELECT 1');
-                PREPARE stmt FROM @sqlstmt;
-                EXECUTE stmt;
-                DEALLOCATE PREPARE stmt;
-            """)
-    elif db_engine == 'sqlite':
-        # Para SQLite, tenta remover o índice se existir
-        with schema_editor.connection.cursor() as cursor:
+    from django.db import connection
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        if vendor == 'sqlite':
             try:
                 cursor.execute("DROP INDEX IF EXISTS gestao_aprovacao_obra_codigo_unique")
             except Exception:
-                # Se não existir, ignora o erro
                 pass
-    # Para outros bancos, não faz nada
+        else:
+            # MySQL / MariaDB: tenta remover possíveis nomes de índice
+            for index_name in ('codigo', 'gestao_aprovacao_obra_codigo_key', 'gestao_aprovacao_obra_codigo_unique'):
+                try:
+                    cursor.execute(
+                        "ALTER TABLE gestao_aprovacao_obra DROP INDEX `{}`".format(index_name)
+                    )
+                except Exception:
+                    pass
 
 
 def reverse_remove_unique_constraint_codigo(apps, schema_editor):
