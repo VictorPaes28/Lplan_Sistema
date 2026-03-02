@@ -4,6 +4,11 @@ venv/
 .venv/
 env/
 
+# Certificados de desenvolvimento (gerados por scripts/generate_dev_cert.*)
+certs/
+cert.pem
+key.pem
+
 # Banco e mídia (desenvolvimento)
 *.sqlite3
 db.sqlite3
