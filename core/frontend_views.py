@@ -754,15 +754,31 @@ def diary_detail_view(request, pk):
     weekday_names = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo']
     weekday_name = weekday_names[diary.date.weekday()] if diary.date else ''
     
-    # Equipamentos
+    # Equipamentos: usar tabela through (DailyWorkLogEquipment) para quantidade correta; evitar colapsar por nome e perder itens
     equipment_list = []
-    for work_log in diary.work_logs.all():
-        for equipment in work_log.resources_equipment.all():
-            if equipment.name not in [e['name'] for e in equipment_list]:
+    try:
+        from .models import DailyWorkLogEquipment
+        through_rows = DailyWorkLogEquipment.objects.filter(
+            work_log__diary=diary
+        ).select_related('equipment')
+        if through_rows.exists():
+            for row in through_rows:
                 equipment_list.append({
-                    'name': equipment.name,
-                    'code': equipment.code,
+                    'name': row.equipment.name,
+                    'code': row.equipment.code,
+                    'quantity': row.quantity,
                 })
+        else:
+            # Fallback: M2M sem through (diários antigos)
+            for work_log in diary.work_logs.prefetch_related('resources_equipment').all():
+                for equipment in work_log.resources_equipment.all():
+                    equipment_list.append({
+                        'name': equipment.name,
+                        'code': equipment.code,
+                        'quantity': 1,
+                    })
+    except Exception:
+        pass
 
     # Mão de obra por categorias (DiaryLaborEntry) - preferência sobre work_log.resources_labor
     labor_entries_by_category = None
@@ -1503,6 +1519,103 @@ def equipment_histogram_view(request):
     return render(request, 'core/filters/equipment_histogram.html', context)
 
 
+def _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary=None):
+    """
+    Monta existing_diary_equipment e existing_diary_labor a partir do POST
+    para repopular o formulário quando há erro de validação (evita perda de tags de equipamentos e mão de obra).
+    """
+    import json
+    existing_diary_labor = []
+    existing_diary_equipment = []
+    try:
+        labor_json = (request.POST.get('diary_labor_data') or '').strip()
+        if labor_json and labor_json != '[]':
+            data = json.loads(labor_json)
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and ('cargo_id' in item or 'cargoId' in item):
+                        existing_diary_labor.append({
+                            'cargo_id': item.get('cargo_id') or item.get('cargoId'),
+                            'quantity': int(item.get('quantity', 1) or 1),
+                            'company': (item.get('company') or '').strip(),
+                        })
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    try:
+        eq_json = (request.POST.get('equipment_data') or '').strip()
+        if eq_json and eq_json != '[]':
+            data = json.loads(eq_json)
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and (item.get('name') or '').strip():
+                        name = (item.get('name') or '').strip()
+                        existing_diary_equipment.append({
+                            'name': name,
+                            'quantity': int(item.get('quantity', 1) or 1),
+                            'equipment_id': item.get('equipment_id'),
+                        })
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    from .models import OccurrenceTag, LaborCategory, EquipmentCategory
+    try:
+        occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
+    except Exception:
+        occurrence_tags = []
+    try:
+        labor_categories = LaborCategory.objects.prefetch_related('cargos').order_by('order')
+        labor_terceirizada_cargos = []
+        for cat in labor_categories:
+            if cat.slug == 'terceirizada':
+                labor_terceirizada_cargos = [{'id': c.id, 'name': c.name} for c in cat.cargos.all()]
+                break
+    except Exception:
+        labor_categories = []
+        labor_terceirizada_cargos = []
+    try:
+        equipment_categories = EquipmentCategory.objects.prefetch_related('items').order_by('order')
+    except Exception:
+        equipment_categories = []
+    next_report_number = None
+    if project and (not diary or not diary.pk):
+        last_d = ConstructionDiary.objects.filter(project=project).only('report_number').order_by('-report_number').first()
+        if last_d and last_d.report_number:
+            next_report_number = last_d.report_number + 1
+        else:
+            next_report_number = 1
+    last_diary_for_copy = None
+    if project:
+        qs = ConstructionDiary.objects.filter(project=project).order_by('-date', '-report_number')
+        if diary and getattr(diary, 'pk', None):
+            qs = qs.exclude(pk=diary.pk)
+        d = qs.only('pk', 'date', 'report_number').first()
+        if d:
+            try:
+                date_str = d.date.strftime('%d/%m/%Y') if d.date else ''
+            except Exception:
+                date_str = str(d.date) if d.date else ''
+            last_diary_for_copy = {'id': d.pk, 'date': date_str, 'report_number': d.report_number or '-'}
+    return {
+        'diary': diary if diary and getattr(diary, 'pk', None) else None,
+        'form': form,
+        'image_formset': image_formset,
+        'worklog_formset': worklog_formset,
+        'occurrence_formset': occurrence_formset,
+        'occurrence_tags': occurrence_tags,
+        'labor_categories': labor_categories,
+        'labor_terceirizada_cargos': labor_terceirizada_cargos,
+        'existing_diary_labor': existing_diary_labor,
+        'existing_diary_equipment': existing_diary_equipment,
+        'equipment_categories': equipment_categories,
+        'project': project,
+        'next_report_number': next_report_number,
+        'initial_contractante': request.POST.get('project_client_name') or (get_contractante_for_project(project) if project else ''),
+        'last_diary_for_copy': last_diary_for_copy,
+        'copy_from_id': '',
+        'copy_options': '',
+        'copy_source_diary': None,
+    }
+
+
 @login_required
 @project_required
 def diary_form_view(request, pk=None):
@@ -1661,22 +1774,7 @@ def diary_form_view(request, pk=None):
                     image_formset = DiaryImageFormSet()
                     worklog_formset = DailyWorkLogFormSet(form_kwargs={'diary': None}, prefix='work_logs')
                     occurrence_formset = DiaryOccurrenceFormSet(prefix='ocorrencias')
-                from .models import OccurrenceTag
-                try:
-                    occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
-                except Exception:
-                    occurrence_tags = []
-                context = {
-                    'diary': diary if diary and diary.pk else None,
-                    'form': form,
-                    'image_formset': image_formset,
-                    'worklog_formset': worklog_formset,
-                    'occurrence_formset': occurrence_formset,
-                    'occurrence_tags': occurrence_tags,
-                    'project': project,
-                    'next_report_number': None,
-                    'initial_contractante': request.POST.get('project_client_name', get_contractante_for_project(project)),
-                }
+                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
                 return render(request, 'core/daily_log_form.html', context)
             
             is_new = not diary.pk if diary else True
@@ -2168,6 +2266,8 @@ def diary_form_view(request, pk=None):
                                 processed_video_indices.add(index)
                                 
                                 video_file = preserved_files[key]
+                                if not video_file or (getattr(video_file, 'size', 0) or 0) == 0:
+                                    continue
                                 # Valida arquivo antes de processar
                                 try:
                                     from .utils.file_validators import validate_video_file
@@ -2651,22 +2751,7 @@ def diary_form_view(request, pk=None):
                 image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
                 worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
                 occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-                from .models import OccurrenceTag
-                try:
-                    occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
-                except Exception:
-                    occurrence_tags = []
-                context = {
-                    'diary': diary if diary and diary.pk else None,
-                    'form': form,
-                    'image_formset': image_formset,
-                    'worklog_formset': worklog_formset,
-                    'occurrence_formset': occurrence_formset,
-                    'occurrence_tags': occurrence_tags,
-                    'project': project,
-                    'next_report_number': None,
-                    'initial_contractante': request.POST.get('project_client_name', get_contractante_for_project(project)),
-                }
+                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
                 return render(request, 'core/daily_log_form.html', context)
             except Exception as e:
                 logger.error(f"ERRO durante processamento: {e}", exc_info=True)
@@ -2709,22 +2794,7 @@ def diary_form_view(request, pk=None):
                 image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
                 worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
                 occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-                from .models import OccurrenceTag
-                try:
-                    occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
-                except Exception:
-                    occurrence_tags = []
-                context = {
-                    'diary': diary if diary and diary.pk else None,
-                    'form': form,
-                    'image_formset': image_formset,
-                    'worklog_formset': worklog_formset,
-                    'occurrence_formset': occurrence_formset,
-                    'occurrence_tags': occurrence_tags,
-                    'project': project,
-                    'next_report_number': None,
-                    'initial_contractante': request.POST.get('project_client_name', get_contractante_for_project(project)),
-                }
+                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
                 return render(request, 'core/daily_log_form.html', context)
             
             # Mensagem de sucesso ou aviso
@@ -2764,22 +2834,7 @@ def diary_form_view(request, pk=None):
                 image_formset = DiaryImageFormSet(normalized_post, files_for_retry, instance=diary)
                 worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
                 occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-                from .models import OccurrenceTag
-                try:
-                    occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
-                except Exception:
-                    occurrence_tags = []
-                context = {
-                    'diary': diary,
-                    'form': form,
-                    'image_formset': image_formset,
-                    'worklog_formset': worklog_formset,
-                    'occurrence_formset': occurrence_formset,
-                    'occurrence_tags': occurrence_tags,
-                    'project': project,
-                    'next_report_number': None,
-                    'initial_contractante': request.POST.get('project_client_name', get_contractante_for_project(project)),
-                }
+                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
                 return render(request, 'core/daily_log_form.html', context)
         else:
             # Form principal inválido - coleta erros
@@ -2852,22 +2907,7 @@ def diary_form_view(request, pk=None):
             image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
             worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
             occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-            from .models import OccurrenceTag
-            try:
-                occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
-            except Exception:
-                occurrence_tags = []
-            context = {
-                'diary': diary if diary and getattr(diary, 'pk', None) else None,
-                'form': form,
-                'image_formset': image_formset,
-                'worklog_formset': worklog_formset,
-                'occurrence_formset': occurrence_formset,
-                'occurrence_tags': occurrence_tags,
-                'project': project,
-                'next_report_number': None,
-                'initial_contractante': request.POST.get('project_client_name', get_contractante_for_project(project)),
-            }
+            context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
             return render(request, 'core/daily_log_form.html', context)
     else:
         # GET request - mostra formulário
@@ -2928,7 +2968,7 @@ def diary_form_view(request, pk=None):
         if project and copy_from_id and copy_options_raw:
             copy_opts = [x.strip().lower() for x in copy_options_raw.split(',') if x.strip()]
             if 'all' in copy_opts:
-                copy_opts = ['climate', 'labor', 'equipment', 'activities', 'ocorrencias']
+                copy_opts = ['climate', 'labor', 'equipment', 'activities', 'ocorrencias', 'interrupcoes']
             try:
                 from .models import ConstructionDiary as CD
                 src = CD.objects.filter(project=project, pk=copy_from_id).select_related('project').prefetch_related(
@@ -2938,37 +2978,61 @@ def diary_form_view(request, pk=None):
                     copy_source_diary = src
                     copy_opts_list = copy_opts
                     # Form initial a partir do relatório fonte
-                    if any(o in copy_opts for o in ('climate',)):
-                        climate_fields = ('weather_conditions', 'weather_morning_condition', 'weather_morning_workable',
-                                         'weather_afternoon_condition', 'weather_afternoon_workable',
-                                         'weather_night_enabled', 'weather_night_type', 'weather_night_workable',
-                                         'pluviometric_index', 'rain_occurrence', 'rain_observations')
-                        for f in climate_fields:
-                            if f in form.fields and hasattr(src, f):
-                                form.initial[f] = getattr(src, f)
-                    # Atividades e ocorrências: preencher formsets iniciais (só para novo diário)
-                    if not diary and 'activities' in copy_opts and src.work_logs.exists():
-                        worklog_initial = []
-                        for wl in src.work_logs.prefetch_related('activity').all():
-                            worklog_initial.append({
-                                'location': wl.location or '',
-                                'work_stage': getattr(wl, 'work_stage', 'AN') or 'AN',
-                                'percentage_executed_today': wl.percentage_executed_today,
-                                'accumulated_progress_snapshot': wl.accumulated_progress_snapshot,
-                                'notes': wl.notes or '',
-                                'activity_description': wl.activity.name if wl.activity else '',
-                            })
-                        if worklog_initial:
-                            worklog_formset = DailyWorkLogFormSet(initial=worklog_initial, form_kwargs={'diary': None}, prefix='work_logs')
-                    if not diary and 'ocorrencias' in copy_opts and src.occurrences.exists():
-                        occ_initial = []
-                        for o in src.occurrences.prefetch_related('tags').all():
-                            occ_initial.append({
-                                'description': o.description or '',
-                                'tags': list(o.tags.values_list('pk', flat=True)),
-                            })
-                        if occ_initial:
-                            occurrence_formset = DiaryOccurrenceFormSet(initial=occ_initial, prefix='ocorrencias')
+                    try:
+                        if any(o in copy_opts for o in ('climate',)):
+                            climate_fields = ('weather_conditions', 'weather_morning_condition', 'weather_morning_workable',
+                                             'weather_afternoon_condition', 'weather_afternoon_workable',
+                                             'weather_night_enabled', 'weather_night_type', 'weather_night_workable',
+                                             'pluviometric_index', 'rain_occurrence', 'rain_observations')
+                            for f in climate_fields:
+                                if f in form.fields and hasattr(src, f):
+                                    form.initial[f] = getattr(src, f)
+                        if any(o in copy_opts for o in ('interrupcoes',)):
+                            try:
+                                interrupcoes_fields = (
+                                    'accidents', 'stoppages', 'imminent_risks', 'incidents',
+                                    'inspections', 'dds', 'general_notes',
+                                )
+                                for f in interrupcoes_fields:
+                                    if f in form.fields and hasattr(src, f):
+                                        val = getattr(src, f)
+                                        form.initial[f] = val if val is not None else ''
+                            except Exception:
+                                pass
+                        # Atividades e ocorrências: preencher formsets iniciais (só para novo diário)
+                        if not diary and 'activities' in copy_opts and src.work_logs.exists():
+                            worklog_initial = []
+                            for wl in src.work_logs.prefetch_related('activity').all():
+                                worklog_initial.append({
+                                    'location': wl.location or '',
+                                    'work_stage': getattr(wl, 'work_stage', 'AN') or 'AN',
+                                    'percentage_executed_today': wl.percentage_executed_today,
+                                    'accumulated_progress_snapshot': wl.accumulated_progress_snapshot,
+                                    'notes': wl.notes or '',
+                                    'activity_description': wl.activity.name if wl.activity else '',
+                                })
+                            if worklog_initial:
+                                worklog_formset = DailyWorkLogFormSet(
+                                    initial=worklog_initial,
+                                    form_kwargs={'diary': None},
+                                    prefix='work_logs',
+                                    extra=len(worklog_initial),
+                                )
+                        if not diary and 'ocorrencias' in copy_opts and src.occurrences.exists():
+                            occ_initial = []
+                            for o in src.occurrences.prefetch_related('tags').all():
+                                occ_initial.append({
+                                    'description': o.description or '',
+                                    'tags': list(o.tags.values_list('pk', flat=True)),
+                                })
+                            if occ_initial:
+                                occurrence_formset = DiaryOccurrenceFormSet(
+                                    initial=occ_initial,
+                                    prefix='ocorrencias',
+                                    extra=len(occ_initial),
+                                )
+                    except Exception:
+                        pass  # não perder copy_source_diary se preenchimento falhar
             except Exception:
                 copy_source_diary = None
     
