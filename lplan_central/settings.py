@@ -221,9 +221,15 @@ LOGIN_REDIRECT_URL = '/select-system/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 # E-mail (recuperação de senha): em desenvolvimento o link sai no console do servidor
-# Em produção, configure SMTP (EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+# Em produção, configure no .env: EMAIL_BACKEND, EMAIL_HOST, EMAIL_PORT, EMAIL_USE_SSL/EMAIL_USE_TLS, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
 # Remetente das mensagens enviadas pelo sistema (notificações, diários, etc.). Contato para dúvidas: suporte@lplan.com.br
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '25'))
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 'yes')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('true', '1', 'yes')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br')
 # URL base do sistema (para links em e-mails). Ex.: https://sistema.empresa.com
 SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000').rstrip('/')
