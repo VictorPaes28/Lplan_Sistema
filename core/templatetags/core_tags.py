@@ -58,6 +58,25 @@ def report_status_css(diary):
 
 
 @register.filter
+def report_status_style(diary):
+    """
+    Retorna string de estilo inline para o badge de status (cor que não pode ser sobrescrita por CSS).
+    Uso: <span class="report-status" style="{{ diary|report_status_style }}">...
+    """
+    if not diary or not hasattr(diary, 'status'):
+        return 'background-color:#d1fae5;color:#047857'
+    from core.models import DiaryStatus
+    status_key = getattr(diary.status, 'value', diary.status)
+    styles = {
+        DiaryStatus.SALVAMENTO_PARCIAL.value: 'background-color:#ffedd5;color:#c2410c',
+        DiaryStatus.PREENCHENDO.value: 'background-color:#d1fae5;color:#047857',
+        DiaryStatus.REVISAR.value: 'background-color:#fef3c7;color:#b45309',
+        DiaryStatus.APROVADO.value: 'background-color:#d1fae5;color:#047857',
+    }
+    return styles.get(status_key, 'background-color:#d1fae5;color:#047857')
+
+
+@register.filter
 def get_item(dictionary, key):
     """Obtém um item de um dicionário."""
     if dictionary and isinstance(dictionary, dict):

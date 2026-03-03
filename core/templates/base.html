@@ -309,20 +309,20 @@
                 <span class="font-medium">Diário de Obras</span>
             </a>
             {% endif %}
-            {% if has_gestao %}
-            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/gestao/' in request.path %}text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            {% if has_gestao and '/gestao/' not in request.path %}
+            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-clipboard-list w-5 mr-3"></i>
                 <span class="font-medium">GestControll</span>
             </a>
             {% endif %}
-            {% if has_mapa %}
-            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/mapa/' in request.path or '/engenharia/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            {% if has_mapa and '/mapa/' not in request.path and '/engenharia/' not in request.path %}
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-map-marked-alt w-5 mr-3"></i>
                 <span class="font-medium">Mapa de Suprimentos</span>
             </a>
             {% endif %}
-            {% if has_central %}
-            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            {% if has_central and '/accounts/admin-central' not in request.path %}
+            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Painel do sistema</span>
             </a>
@@ -375,7 +375,7 @@
             <!-- Top Bar - Primeiro elemento, no topo -->
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
                 <div class="flex flex-col gap-1">
-                    <a href="#" onclick="window.history.back(); return false;" 
+                    <a href="#" onclick="return window.LPLAN_smartBack(event);" 
                        class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 -ml-1 transition-all duration-200"
                        aria-label="Voltar à página anterior">
                         <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
@@ -544,6 +544,46 @@
     <script>
         (function() {
             'use strict';
+            
+            // ============================================
+            // VOLTAR INTELIGENTE - não volta para formulários já enviados
+            // ============================================
+            window.LPLAN_smartBack = function(event) {
+                if (event) event.preventDefault();
+                var ref = typeof document.referrer === 'string' ? document.referrer : '';
+                var path = typeof location.pathname === 'string' ? location.pathname : '';
+                var origin = typeof location.origin === 'string' ? location.origin : (location.protocol + '//' + location.host);
+                
+                function isFormReferrer() {
+                    if (!ref) return false;
+                    try {
+                        var refUrl = new URL(ref);
+                        if (refUrl.origin !== location.origin) return false;
+                        var r = refUrl.pathname;
+                        if (r.indexOf('diaries/new') !== -1) return true;
+                        if (r.indexOf('/diaries/') !== -1 && r.indexOf('/edit') !== -1) return true;
+                        if (r.indexOf('usuarios/criar') !== -1) return true;
+                        if (r.indexOf('/usuarios/') !== -1 && r.indexOf('/editar') !== -1) return true;
+                    } catch (e) { return false; }
+                    return false;
+                }
+                
+                function getSafeBackUrl() {
+                    if (path.indexOf('/diaries/') !== -1 || path.indexOf('/reports/') !== -1) return origin + '/reports/';
+                    if (path.indexOf('/dashboard') !== -1) return origin + '/dashboard/';
+                    if (path.indexOf('/gestao/') !== -1) return origin + '/gestao/';
+                    if (path.indexOf('/central/usuarios') !== -1) return origin + '/central/usuarios/';
+                    if (path.indexOf('admin-central') !== -1) return origin + '/accounts/admin-central/';
+                    return null;
+                }
+                
+                if (isFormReferrer()) {
+                    var safe = getSafeBackUrl();
+                    if (safe) { location.href = safe; return false; }
+                }
+                window.history.back();
+                return false;
+            };
             
             // ============================================
             // SIDEBAR - Desktop e Mobile

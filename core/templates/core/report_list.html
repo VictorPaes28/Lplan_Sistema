@@ -97,7 +97,7 @@
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">#{{ diary.report_number|default:"-" }}</span>
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap">
-                        <span class="report-status {{ diary|report_status_css }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
+                        <span class="report-status {{ diary|report_status_css }}" style="{{ diary|report_status_style }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         <span class="inline-flex items-center gap-1 text-sm text-slate-600">
@@ -159,7 +159,7 @@
                             <p class="text-xs text-slate-500">N° {{ diary.report_number|default:"-" }} · {{ diary.images.count }} foto{{ diary.images.count|pluralize }}</p>
                         </div>
                     </div>
-                    <span class="report-status {{ diary|report_status_css }} flex-shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
+                    <span class="report-status {{ diary|report_status_css }} flex-shrink-0" style="{{ diary|report_status_style }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
                 </div>
                 <div class="flex items-center gap-2 pt-3 border-t border-slate-100" onclick="event.preventDefault(); event.stopPropagation();">
                     <a href="{% url 'diary-pdf' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200" onclick="event.stopPropagation();"><i class="fas fa-file-pdf mr-1"></i>PDF</a>

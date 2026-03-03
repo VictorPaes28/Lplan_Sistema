@@ -178,7 +178,7 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             <a href="{% url 'diary-detail' report.id %}" class="block">
-                                <span class="report-status {{ report|report_status_css }} px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center"><i class="fas fa-circle report-status-bullet" style="font-size:0.35rem;vertical-align:middle;margin-right:0.25rem" aria-hidden="true"></i>{{ report|report_status_label }}</span>
+                                <span class="report-status {{ report|report_status_css }} px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center" style="{{ report|report_status_style }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.35rem;vertical-align:middle;margin-right:0.25rem" aria-hidden="true"></i>{{ report|report_status_label }}</span>
                             </a>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">

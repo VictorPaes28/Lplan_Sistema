@@ -83,7 +83,7 @@
 
     <!-- Status Badge -->
     <div class="mb-6 flex items-center justify-between">
-        <span class="report-status {{ diary|report_status_css }} inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full">
+        <span class="report-status {{ diary|report_status_css }} inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full" style="{{ diary|report_status_style }}">
             <i class="fas fa-circle mr-2" style="font-size:0.4rem;vertical-align:middle"></i>{{ diary|report_status_label }}
         </span>
         <div class="text-sm text-gray-600">
