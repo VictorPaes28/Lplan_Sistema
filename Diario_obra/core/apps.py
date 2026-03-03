@@ -3,9 +3,7 @@ from django.apps import AppConfig
 
 class CoreConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'core'
-    
-    def ready(self):
-        """Registra os sinais quando a app é carregada."""
-        import core.signals  # noqa
+    name = 'Diario_obra.core'
 
+    def ready(self):
+        import Diario_obra.core.signals
