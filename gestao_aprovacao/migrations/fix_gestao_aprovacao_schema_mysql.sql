@@ -85,8 +85,8 @@ CREATE TABLE IF NOT EXISTS `gestao_aprovacao_emaillog` (
   CONSTRAINT `ga_emaillog_work_order_fk` FOREIGN KEY (`work_order_id`) REFERENCES `gestao_aprovacao_workorder` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 0018: obra.project_id (FK para core.Project)
+-- 0018: obra.project_id (FK para core.Project) — core_project.id é BIGINT
 -- Se der erro "Table 'core_project' doesn't exist", comente o bloco abaixo até as migrações do app core estarem aplicadas.
 ALTER TABLE `gestao_aprovacao_obra`
-  ADD COLUMN `project_id` INT NULL,
+  ADD COLUMN `project_id` BIGINT NULL,
   ADD CONSTRAINT `ga_obra_project_fk` FOREIGN KEY (`project_id`) REFERENCES `core_project` (`id`) ON DELETE SET NULL;
