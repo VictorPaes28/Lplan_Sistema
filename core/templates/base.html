@@ -264,6 +264,9 @@
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Diário de Obras</p>
+            </div>
             <a href="{% url 'dashboard' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
@@ -300,8 +303,8 @@
             <div class="mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
             </div>
-            {% if has_diario %}
-            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name != 'select-system' and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/accounts/admin-central' not in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            {% if has_diario and request.resolver_match.url_name == 'select-system' or has_diario and '/gestao/' in request.path or has_diario and '/mapa/' in request.path or has_diario and '/engenharia/' in request.path or has_diario and '/accounts/admin-central' in request.path %}
+            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-file-alt w-5 mr-3"></i>
                 <span class="font-medium">Diário de Obras</span>
             </a>
