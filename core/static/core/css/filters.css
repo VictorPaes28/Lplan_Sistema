@@ -332,3 +332,26 @@
     font-weight: 500;
     color: #1e293b;
 }
+
+/* Badges de status na lista de relatórios – forçar cores */
+.page-content-wrapper .report-list-table .report-status--approved,
+.report-list-table .report-status--approved {
+    background-color: #d1fae5 !important;
+    color: #047857 !important;
+}
+.page-content-wrapper .report-list-table .report-status--draft,
+.report-list-table .report-status--draft {
+    background-color: #ffedd5 !important;
+    color: #c2410c !important;
+}
+.page-content-wrapper .report-list-table .report-status--review,
+.report-list-table .report-status--review {
+    background-color: #fef3c7 !important;
+    color: #b45309 !important;
+}
+.report-list-table .report-status--approved .report-status-bullet,
+.report-list-table .report-status--approved i { color: #047857 !important; }
+.report-list-table .report-status--draft .report-status-bullet,
+.report-list-table .report-status--draft i { color: #c2410c !important; }
+.report-list-table .report-status--review .report-status-bullet,
+.report-list-table .report-status--review i { color: #b45309 !important; }
