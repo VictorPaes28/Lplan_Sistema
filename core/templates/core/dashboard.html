@@ -14,15 +14,21 @@
 
 {% block content %}
 <div class="dashboard-content">
-<!-- Botão Criar Obras (tela inicial do diário) -->
-{% if user.is_staff or user.is_superuser %}
-<div class="mb-6 flex justify-end">
-    <a href="{% url 'project-new' %}" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
+<!-- Botões: Criar relatório (quando tem obra) e Criar Obra (staff) -->
+<div class="mb-6 flex flex-wrap items-center justify-end gap-3">
+    {% if request.session.selected_project_id %}
+    <a href="{% url 'diary-new' %}" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
+        <i class="fas fa-plus-circle mr-2"></i>
+        Criar relatório
+    </a>
+    {% endif %}
+    {% if user.is_staff or user.is_superuser %}
+    <a href="{% url 'project-new' %}" class="inline-flex items-center px-4 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 shadow-sm font-medium">
         <i class="fas fa-plus-circle mr-2"></i>
         Criar Obra
     </a>
+    {% endif %}
 </div>
-{% endif %}
 <!-- ========== MODO VISUAL (cards, calendário, fotos, vídeos) ========== -->
 <div id="dashboard-view-visual" class="dashboard-view dashboard-view--visual">
 <!-- KPIs Cards - visual coeso e profissional -->

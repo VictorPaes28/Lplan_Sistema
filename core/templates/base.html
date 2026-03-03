@@ -133,7 +133,7 @@
             </div>
         </div>
         
-        <!-- Navegação: um único bloco padronizado (Home + Trocar Obra + Sistemas + demais itens) -->
+        <!-- Navegação: Home + Trocar Obra + menu do app + Sistemas embaixo -->
         <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
             <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
@@ -144,37 +144,6 @@
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
             </a>
-            {% endif %}
-
-            <!-- Links para os sistemas (apps) -->
-            {% if has_diario or has_gestao or has_mapa or has_central %}
-            <div class="mt-2 mb-2 px-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
-            </div>
-            {% if has_diario %}
-            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name != 'select-system' and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/accounts/admin-central' not in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-file-alt w-5 mr-3"></i>
-                <span class="font-medium">Diário de Obras</span>
-            </a>
-            {% endif %}
-            {% if has_gestao %}
-            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/gestao/' in request.path %}text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-clipboard-list w-5 mr-3"></i>
-                <span class="font-medium">GestControll</span>
-            </a>
-            {% endif %}
-            {% if has_mapa %}
-            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/mapa/' in request.path or '/engenharia/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-map-marked-alt w-5 mr-3"></i>
-                <span class="font-medium">Mapa de Suprimentos</span>
-            </a>
-            {% endif %}
-            {% if has_central %}
-            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-cog w-5 mr-3"></i>
-                <span class="font-medium">Painel do sistema</span>
-            </a>
-            {% endif %}
             {% endif %}
 
             <div class="my-3 border-t border-slate-600"></div>
@@ -321,6 +290,38 @@
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
                 <span class="font-medium">Obras</span>
+            </a>
+            {% endif %}
+            {% endif %}
+
+            <div class="my-3 border-t border-slate-600"></div>
+            <!-- Sistemas (troca de app) - embaixo do menu do app -->
+            {% if has_diario or has_gestao or has_mapa or has_central %}
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
+            </div>
+            {% if has_diario %}
+            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name != 'select-system' and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/accounts/admin-central' not in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-file-alt w-5 mr-3"></i>
+                <span class="font-medium">Diário de Obras</span>
+            </a>
+            {% endif %}
+            {% if has_gestao %}
+            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/gestao/' in request.path %}text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-clipboard-list w-5 mr-3"></i>
+                <span class="font-medium">GestControll</span>
+            </a>
+            {% endif %}
+            {% if has_mapa %}
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/mapa/' in request.path or '/engenharia/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-map-marked-alt w-5 mr-3"></i>
+                <span class="font-medium">Mapa de Suprimentos</span>
+            </a>
+            {% endif %}
+            {% if has_central %}
+            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-cog w-5 mr-3"></i>
+                <span class="font-medium">Painel do sistema</span>
             </a>
             {% endif %}
             {% endif %}

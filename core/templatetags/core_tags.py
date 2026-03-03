@@ -29,12 +29,13 @@ def report_status_label(diary):
         return 'Indefinido'
     from core.models import DiaryStatus
     labels = {
-        DiaryStatus.SALVAMENTO_PARCIAL: 'Rascunho',
-        DiaryStatus.PREENCHENDO: 'Preenchido',
-        DiaryStatus.REVISAR: 'Em revisão',
-        DiaryStatus.APROVADO: 'Aprovado',
+        DiaryStatus.SALVAMENTO_PARCIAL.value: 'Rascunho',
+        DiaryStatus.PREENCHENDO.value: 'Preenchido',
+        DiaryStatus.REVISAR.value: 'Em revisão',
+        DiaryStatus.APROVADO.value: 'Aprovado',
     }
-    return labels.get(diary.status, 'Indefinido')
+    status_key = getattr(diary.status, 'value', diary.status)
+    return labels.get(status_key, 'Indefinido')
 
 
 @register.filter
@@ -47,12 +48,13 @@ def report_status_css(diary):
         return 'report-status--approved'
     from core.models import DiaryStatus
     classes = {
-        DiaryStatus.SALVAMENTO_PARCIAL: 'report-status--draft',
-        DiaryStatus.PREENCHENDO: 'report-status--approved',
-        DiaryStatus.REVISAR: 'report-status--review',
-        DiaryStatus.APROVADO: 'report-status--approved',
+        DiaryStatus.SALVAMENTO_PARCIAL.value: 'report-status--draft',
+        DiaryStatus.PREENCHENDO.value: 'report-status--approved',
+        DiaryStatus.REVISAR.value: 'report-status--review',
+        DiaryStatus.APROVADO.value: 'report-status--approved',
     }
-    return classes.get(diary.status, 'report-status--approved')
+    status_key = getattr(diary.status, 'value', diary.status)
+    return classes.get(status_key, 'report-status--approved')
 
 
 @register.filter
