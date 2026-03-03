@@ -1237,6 +1237,8 @@
                             </div>
                         </button>
                         <div id="section-comentarios-content" class="section-content p-6 border-t border-slate-200 section-collapsed">
+                            <input type="hidden" name="inspection_responsible" value="">
+                            <input type="hidden" name="production_responsible" value="">
                             <div class="space-y-6">
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-900 mb-2 flex items-center">
@@ -1283,37 +1285,6 @@
                                             </p>
                                         {% endif %}
                                         <p class="text-xs text-slate-500 mt-1.5">Registre o DDS realizado no dia</p>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-200">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-900 mb-2 flex items-center">
-                                            <div class="w-6 h-6 rounded bg-slate-100 flex items-center justify-center mr-2">
-                                                <i class="fas fa-clipboard-check text-slate-600 text-xs"></i>
-                                            </div>
-                                            Responsável pela Inspeção
-                                        </label>
-                                        {{ form.inspection_responsible }}
-                                        {% if form.inspection_responsible.errors %}
-                                            <p class="text-red-600 text-xs mt-1.5 flex items-center">
-                                                <i class="fas fa-exclamation-circle mr-1.5"></i>{{ form.inspection_responsible.errors }}
-                                            </p>
-                                        {% endif %}
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-slate-900 mb-2 flex items-center">
-                                            <div class="w-6 h-6 rounded bg-slate-100 flex items-center justify-center mr-2">
-                                                <i class="fas fa-industry text-slate-600 text-xs"></i>
-                                            </div>
-                                            Responsável pela Produção
-                                        </label>
-                                        {{ form.production_responsible }}
-                                        {% if form.production_responsible.errors %}
-                                            <p class="text-red-600 text-xs mt-1.5 flex items-center">
-                                                <i class="fas fa-exclamation-circle mr-1.5"></i>{{ form.production_responsible.errors }}
-                                            </p>
-                                        {% endif %}
                                     </div>
                                 </div>
                             </div>
@@ -1371,6 +1342,28 @@
                         </nav>
                     </div>
                 </div>
+            </div>
+
+            <!-- Barra inferior: Salvar relatório (repetida para acesso fácil ao rolar a página) -->
+            <div class="sticky bottom-0 z-40 bg-white border-t border-slate-200 shadow-lg mt-8 py-4 px-4 sm:px-6 flex flex-wrap items-center justify-center gap-3">
+                <button type="button"
+                        id="save-draft-btn-bottom"
+                        class="diary-form-btn bg-amber-500 hover:bg-amber-600 text-white border-0"
+                        title="Salva sem assinatura para continuar depois">
+                    <i class="fas fa-file-alt mr-1.5"></i>
+                    <span>Salvar rascunho</span>
+                </button>
+                <button type="submit"
+                        id="save-diary-btn-bottom"
+                        class="diary-form-btn bg-blue-600 hover:bg-blue-700 text-white border-0">
+                    <i class="fas fa-save mr-1.5" id="save-icon-bottom"></i>
+                    <span id="save-text-bottom">Salvar Diário</span>
+                    <span id="save-spinner-bottom" class="hidden ml-1"><i class="fas fa-spinner fa-spin"></i></span>
+                </button>
+                <a href="{% url 'report-list' %}"
+                   class="diary-form-btn diary-form-btn-secondary">
+                    <i class="fas fa-times mr-1.5"></i>Cancelar
+                </a>
             </div>
         </form>
     </div>
@@ -4146,17 +4139,23 @@ function saveSignature(canvasId) {
             if (typeof window.getDiaryLaborPayload === 'function') {
                 var payload = window.getDiaryLaborPayload();
                 var diaryLaborInput = document.getElementById('diary_labor_data');
-                if (diaryLaborInput) diaryLaborInput.value = JSON.stringify(payload);
+                if (diaryLaborInput) diaryLaborInput.value = JSON.stringify(Array.isArray(payload) ? payload : []);
+            } else {
+                var diaryLaborInput = document.getElementById('diary_labor_data');
+                if (diaryLaborInput) diaryLaborInput.value = '[]';
             }
             
             // Serializa equipamentos (novo UX: por categorias + outros)
             if (typeof window.getEquipmentPayload === 'function') {
                 var equipmentPayload = window.getEquipmentPayload();
                 var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = JSON.stringify(equipmentPayload);
+                if (equipmentInput) equipmentInput.value = JSON.stringify(Array.isArray(equipmentPayload) ? equipmentPayload : []);
             } else if (typeof equipmentList !== 'undefined' && equipmentList && equipmentList.length > 0) {
                 var equipmentInput = document.getElementById('equipment_data');
                 if (equipmentInput) equipmentInput.value = JSON.stringify(equipmentList);
+            } else {
+                var equipmentInput = document.getElementById('equipment_data');
+                if (equipmentInput) equipmentInput.value = '[]';
             }
             
             var oldLaborData = document.getElementById('labor_data');
@@ -4294,7 +4293,10 @@ function saveSignature(canvasId) {
                 var equipmentPayload = window.getEquipmentPayload();
                 console.log('[DIARY_DEBUG] equipment_data (getEquipmentPayload) no submit:', JSON.stringify(equipmentPayload));
                 var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = JSON.stringify(equipmentPayload);
+                if (equipmentInput) equipmentInput.value = JSON.stringify(Array.isArray(equipmentPayload) ? equipmentPayload : []);
+            } else {
+                var equipmentInput = document.getElementById('equipment_data');
+                if (equipmentInput) equipmentInput.value = '[]';
             }
             
             // Reabilita após timeout de segurança (10 segundos)
