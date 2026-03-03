@@ -319,22 +319,174 @@
 
 /* Mão de Obra e Equipamentos: botões +/− tocáveis em mobile (44px) */
 @media (max-width: 768px) {
+    /* Evitar overflow horizontal: formulário e seções cabem na tela */
+    .diary-form-page,
+    #diary-form {
+        overflow-x: hidden;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    #diary-form .section-content,
+    #section-equipamentos-content,
+    #section-maoObra-content {
+        overflow-x: hidden;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    #diary-equipment-by-category,
+    #diary-labor-by-category {
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    #diary-form .diary-equipment-category-block,
+    #diary-form .diary-labor-category-block {
+        min-width: 0;
+        max-width: 100%;
+    }
+    #diary-form .diary-equipment-item-list,
+    #diary-form .diary-labor-cargo-list {
+        min-width: 0;
+        max-width: 100%;
+    }
+    #diary-form .diary-labor-cargo-list li,
+    #diary-form .diary-equipment-item-list li {
+        min-width: 0;
+    }
     #diary-form .diary-labor-minus,
     #diary-form .diary-labor-plus,
     #diary-form .diary-equipment-minus,
     #diary-form .diary-equipment-plus {
-        min-width: 44px;
-        min-height: 44px;
+        min-width: 38px;
+        min-height: 38px;
+        width: 38px;
+        height: 38px;
+        font-size: 0.75rem;
     }
-    /* Campos de quantidade editáveis no celular: área de toque maior e fonte 16px (evita zoom iOS) */
+    /* Campos de quantidade: compactos */
     #diary-form .diary-labor-qty,
     #diary-form .diary-equipment-qty {
-        min-height: 44px;
-        min-width: 56px;
-        font-size: 16px !important;
-        padding: 0.5rem 0.25rem;
+        min-height: 38px;
+        min-width: 44px;
+        width: 48px;
+        max-width: 64px;
+        font-size: 15px !important;
+        padding: 0.35rem 0.2rem;
         -webkit-appearance: none;
         appearance: none;
+        box-sizing: border-box;
+    }
+    /* Mão de obra e Máquinas/Veículos: em mobile, linha em 2 linhas (nome em cima, controles embaixo) para não espremer o input */
+    #diary-form .diary-labor-cargo-list li,
+    #diary-form .diary-equipment-item-list li {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+    #diary-form .diary-labor-cargo-list li > span,
+    #diary-form .diary-equipment-item-list li > span {
+        width: 100%;
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+    #diary-form .diary-labor-cargo-list li > div.flex,
+    #diary-form .diary-equipment-item-list li > div.flex {
+        flex: 1 1 100%;
+        justify-content: flex-end;
+        min-width: 0;
+        flex-wrap: nowrap;
+    }
+    /* Títulos das seções Atividades / Ocorrências: não quebrar em vertical no mobile */
+    #section-atividades .section-toggle h3,
+    #section-ocorrencias .section-toggle h3 {
+        min-width: 8rem;
+        font-size: 0.9375rem;
+        flex-shrink: 0;
+        word-break: normal;
+        white-space: normal;
+        line-height: 1.25;
+    }
+    /* Cabeçalho das seções Atividades/Ocorrências: título legível, botão Adicionar abaixo se precisar */
+    #section-atividades > div.flex.items-center.justify-between,
+    #section-ocorrencias > div.flex.items-center.justify-between {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    #section-atividades .section-toggle,
+    #section-ocorrencias .section-toggle {
+        min-width: 0;
+        flex: 1 1 100%;
+    }
+    #section-atividades .section-toggle h3,
+    #section-ocorrencias .section-toggle h3 {
+        flex: 1 1 auto;
+    }
+    #section-atividades #btn-open-modal-activity,
+    #section-ocorrencias #btn-open-modal-occurrence {
+        min-height: 38px;
+        min-width: 38px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8125rem;
+    }
+    /* Diário: seções e títulos mais compactos */
+    #diary-form .diary-form-main-title {
+        font-size: 1.15rem;
+    }
+    #diary-form .diary-form-subtitle {
+        font-size: 0.8125rem;
+    }
+    #diary-form .diary-form-info-block {
+        padding: 0.75rem 1rem;
+    }
+    #diary-form .diary-form-block-title {
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+    #section-clima .section-toggle,
+    #section-maoObra .section-toggle,
+    #section-equipamentos .section-toggle,
+    #section-atividades .section-toggle,
+    #section-ocorrencias .section-toggle,
+    #section-fotos .section-toggle,
+    #section-videos .section-toggle,
+    #section-anexos .section-toggle,
+    #section-assinaturas .section-toggle,
+    #section-comentarios .section-toggle {
+        padding: 0.65rem 0.875rem !important;
+    }
+    #diary-form .section-content.p-6,
+    #section-equipamentos-content.p-6,
+    #section-maoObra-content {
+        padding: 0.75rem 1rem !important;
+    }
+    #diary-form .diary-subcategory-header {
+        padding: 0.35rem 0.5rem;
+    }
+    #diary-form .diary-subcategory-header h4 {
+        font-size: 0.8125rem;
+    }
+    #diary-form .diary-subcategory-body,
+    #diary-form .diary-labor-cargo-list.diary-subcategory-body,
+    #diary-form .diary-equipment-item-list.diary-subcategory-body {
+        padding: 0.35rem 0.5rem 0.5rem;
+    }
+    #diary-form .diary-form-section-card {
+        margin-bottom: 0.5rem;
+    }
+    #diary-form .diary-form-btn {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+    .diary-form-page.py-8 {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    .sticky.bottom-0.z-40,
+    .sticky.bottom-0.bg-white.border-t {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 0.65rem !important;
     }
 }
 
