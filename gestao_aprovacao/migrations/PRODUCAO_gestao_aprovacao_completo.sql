@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `gestao_aprovacao_comment` (
   PRIMARY KEY (`id`),
   KEY `gestao_apro_work_or_1e6a2c_idx` (`work_order_id`, `created_at`),
   KEY `gestao_apro_autor_i_5aba68_idx` (`autor_id`, `created_at`),
-  CONSTRAINT `ga_comment_autor_fk` FOREIGN KEY (`autor_id`) REFERENCES `auth_user` (`id`) ON DELETE PROTECT,
+  CONSTRAINT `ga_comment_autor_fk` FOREIGN KEY (`autor_id`) REFERENCES `auth_user` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `ga_comment_work_order_fk` FOREIGN KEY (`work_order_id`) REFERENCES `gestao_aprovacao_workorder` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
