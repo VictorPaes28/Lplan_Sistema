@@ -4,6 +4,19 @@ O banco em produção está com o registro de migrações “aplicadas” mas pa
 
 ---
 
+## Opção rápida: um script só (recomendado)
+
+No servidor, depois de `git pull`:
+
+```bash
+cd ~/sistema_lplan
+mysql --force -u lplan_gestaoap2 -p lplan_Sistema < gestao_aprovacao/migrations/PRODUCAO_gestao_aprovacao_completo.sql
+```
+
+O `--force` faz o MySQL continuar mesmo quando der **Duplicate column**, **Table already exists** ou **Duplicate key** (o que já existia é ignorado). Se no final der erro em `gestao_aprovacao_obra` / `project_id` (tabela `core_project` não existe), comente no `.sql` as duas linhas do `ALTER TABLE gestao_aprovacao_obra` e rode de novo, ou rode só esse trecho depois que o app **core** tiver a tabela `core_project**.
+
+---
+
 ## 1. No servidor (SSH)
 
 ```bash
@@ -51,6 +64,7 @@ Se no passo 4 der erro na última parte (`obra.project_id` / `core_project`), é
 
 | Script | O que faz |
 |--------|-----------|
+| **`PRODUCAO_gestao_aprovacao_completo.sql`** | **Tudo em um:** notificacao, userprofile, comment, lembrete, tagerro, emaillog, colunas workorder/workorderpermission, obra.project_id. Rodar com `mysql --force ...` para ignorar erros de “já existe”. |
 | `create_notificacao_table_mysql.sql` | Cria tabela `gestao_aprovacao_notificacao`. |
 | `create_userprofile_table_mysql.sql` | Cria tabela `gestao_aprovacao_userprofile` (perfil/foto do usuário). |
 | `add_workorder_columns_mysql.sql` | Adiciona em `gestao_aprovacao_workorder`: `solicitado_exclusao`, `solicitado_exclusao_em`, `solicitado_exclusao_por_id`, `marcado_para_deletar`, `marcado_para_deletar_em`, `marcado_para_deletar_por_id`. |
