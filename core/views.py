@@ -167,7 +167,7 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
     ordering = ['-date', '-created_at']
     
     def dispatch(self, request, *args, **kwargs):
-        """Aceita /api/diario/diaries/ (lplan_central) e /api/diaries/ (diario_obra)."""
+        """Aceita /api/diario/diaries/ (Lplan Central)."""
         path = request.path
         if not (path.startswith('/api/diario/diaries') or path.startswith('/api/diaries/')):
             from django.http import HttpResponseNotFound
@@ -239,11 +239,18 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
         else:
             # Geração síncrona (para testes ou downloads imediatos)
             try:
-                from core.utils.pdf_generator import PDFGenerator, WEASYPRINT_AVAILABLE
-                
-                if not WEASYPRINT_AVAILABLE:
+                from core.utils.pdf_generator import (
+                    PDFGenerator,
+                    WEASYPRINT_AVAILABLE,
+                    XHTML2PDF_AVAILABLE,
+                    REPORTLAB_AVAILABLE,
+                )
+                PDF_AVAILABLE = WEASYPRINT_AVAILABLE or XHTML2PDF_AVAILABLE or REPORTLAB_AVAILABLE
+                if not PDF_AVAILABLE:
                     return Response(
-                        {'error': 'WeasyPrint não está disponível. No Windows, instale GTK+ ou use uma alternativa.'},
+                        {
+                            'error': 'Geração de PDF não disponível neste ambiente.',
+                        },
                         status=status.HTTP_503_SERVICE_UNAVAILABLE
                     )
                 
@@ -261,9 +268,9 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
                         {'error': 'Failed to generate PDF'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
-            except (ImportError, OSError) as e:
+            except (ImportError, OSError, RuntimeError) as e:
                 return Response(
-                    {'error': f'WeasyPrint não está disponível: {str(e)}'},
+                    {'error': 'Geração de PDF não disponível neste ambiente.'},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             except Exception as e:

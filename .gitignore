@@ -14,14 +14,12 @@ db.sqlite3
 # ========== Mídia e estáticos (gerados no servidor) ==========
 media/
 staticfiles/
-Diario_obra/staticfiles/
-Gestao_aprovacao/staticfiles/
+Gestao_aprovacao_legacy/staticfiles/
 Mapa_Controle/staticfiles/
 
 # ========== Logs ==========
 *.log
 logs/
-Diario_obra/logs/
 
 # ========== Python ==========
 __pycache__/
@@ -50,3 +48,8 @@ desktop.ini
 # ========== Debug (não versionar) ==========
 debug.log
 *.sqlite3-journal
+
+# Certificados de desenvolvimento (gerados por scripts)
+certs/
+cert.pem
+key.pem

@@ -22,4 +22,5 @@ app.autodiscover_tasks()
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):
     """Tarefa de debug para testar configuração do Celery."""
-    print(f'Request: {self.request!r}')
+    import logging
+    logging.getLogger(__name__).debug("Celery debug_task: %s", self.request)

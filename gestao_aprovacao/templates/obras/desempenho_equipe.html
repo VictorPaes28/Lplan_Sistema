@@ -300,7 +300,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (totalSolicitantesEl) {
                     const totalSolicitantes = data.dados ? data.dados.length : 0;
                     totalSolicitantesEl.textContent = totalSolicitantes;
-                    console.log(`Total de solicitantes encontrados: ${totalSolicitantes}`);
                 }
                 const taxaReprovacaoEl = document.getElementById('taxa-reprovacao-geral');
                 if (taxaReprovacaoEl) {
@@ -406,7 +405,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const tableBody = document.getElementById('solicitantes-table-body');
                 
                 if (tableBody && data.dados && data.dados.length > 0) {
-                    console.log(`[Desempenho] Exibindo ${data.dados.length} solicitantes na tabela`);
                     tableBody.innerHTML = '';
                     data.dados.forEach(item => {
                         const row = document.createElement('tr');

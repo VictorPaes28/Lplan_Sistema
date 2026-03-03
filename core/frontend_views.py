@@ -1,20 +1,6 @@
 """
 Views para frontend do LPlan - Templates Django com HTMX/Alpine.js
 """
-# #region agent log
-import json
-def _dbg(loc, msg, data, hypothesis_id=None):
-    try:
-        from django.conf import settings
-        log_path = getattr(settings, "BASE_DIR", __import__("pathlib").Path(__file__).resolve().parent.parent.parent) / "debug.log"
-        payload = {"location": loc, "message": msg, "data": data, "timestamp": __import__("time").time() * 1000}
-        if hypothesis_id:
-            payload["hypothesisId"] = hypothesis_id
-        with open(str(log_path), "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
-# #endregion
 from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -40,12 +26,15 @@ from .models import (
     ActivityStatus,
 )
 from django.core.exceptions import PermissionDenied, ValidationError
+import logging
 from accounts.groups import GRUPOS
+
+logger = logging.getLogger(__name__)
 # PDFGenerator será importado apenas quando necessário (lazy import)
-# Suporta WeasyPrint (preferencial) e xhtml2pdf (fallback para Windows)
 PDFGenerator = None
 WEASYPRINT_AVAILABLE = False
 XHTML2PDF_AVAILABLE = False
+REPORTLAB_AVAILABLE = False
 
 # Mapeamento obra → contratante para autopreencher o formulário do diário.
 # Chave: substring normalizada (lower) do nome ou código da obra.
@@ -257,12 +246,7 @@ def project_required(view_func):
 def dashboard_view(request):
     """View do dashboard com KPIs e calendário."""
     project = get_selected_project(request)
-    
-    # Debug: Log do projeto selecionado
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.debug(f'Dashboard - Projeto selecionado: {project.name} (ID: {project.id})')
-    
+
     # KPIs filtrados pela obra selecionada
     total_diaries = ConstructionDiary.objects.filter(project=project).count()
     # Relatórios em edição (status PREENCHENDO - raro, mas mantido para compatibilidade)
@@ -330,22 +314,8 @@ def dashboard_view(request):
     total_occurrences = DiaryOccurrence.objects.filter(
         diary__project=project
     ).select_related('diary', 'diary__project').count()
-    
-    # Debug: Verifica ocorrências
-    logger.debug(f'Dashboard - Projeto: {project.name} (ID: {project.id})')
-    logger.debug(f'Dashboard - Total de ocorrências: {total_occurrences}')
-    all_occurrences_debug = DiaryOccurrence.objects.filter(diary__project=project).select_related('diary', 'diary__project')
-    logger.debug(f'Dashboard - Ocorrências encontradas: {[occ.id for occ in all_occurrences_debug]}')
-    
-    # Verifica se há ocorrências em outros projetos (para debug)
-    all_occurrences_all_projects = DiaryOccurrence.objects.all().select_related('diary', 'diary__project')
-    if all_occurrences_all_projects.exists():
-        logger.debug(f'Dashboard - Total de ocorrências em TODOS os projetos: {all_occurrences_all_projects.count()}')
-        for occ in all_occurrences_all_projects[:3]:
-            logger.debug(f'Dashboard - Ocorrência ID={occ.id} está no projeto: {occ.diary.project.name} (ID: {occ.diary.project.id})')
-    
-    # Total de comentários (placeholder - pode ser implementado depois)
-    # Por enquanto, conta notas nos diários como "comentários"
+
+    # Total de comentários (notas gerais dos diários)
     total_comments = ConstructionDiary.objects.filter(
         project=project
     ).exclude(general_notes='').count()
@@ -355,19 +325,7 @@ def dashboard_view(request):
     total_videos = DiaryVideo.objects.filter(
         diary__project=project
     ).select_related('diary', 'diary__project').count()
-    
-    # Debug: Verifica vídeos
-    logger.debug(f'Dashboard - Total de vídeos: {total_videos}')
-    all_videos_debug = DiaryVideo.objects.filter(diary__project=project).select_related('diary', 'diary__project')
-    logger.debug(f'Dashboard - Vídeos encontrados: {[v.id for v in all_videos_debug]}')
-    
-    # Verifica se há vídeos em outros projetos (para debug)
-    all_videos_all_projects = DiaryVideo.objects.all().select_related('diary', 'diary__project')
-    if all_videos_all_projects.exists():
-        logger.debug(f'Dashboard - Total de vídeos em TODOS os projetos: {all_videos_all_projects.count()}')
-        for vid in all_videos_all_projects[:3]:
-            logger.debug(f'Dashboard - Vídeo ID={vid.id} está no projeto: {vid.diary.project.name} (ID: {vid.diary.project.id})')
-    
+
     # Total de anexos
     total_attachments = DiaryAttachment.objects.filter(
         diary__project=project
@@ -394,11 +352,7 @@ def dashboard_view(request):
     recent_videos = DiaryVideo.objects.filter(
         diary__project=project
     ).select_related('diary').order_by('-uploaded_at')[:6]
-    
-    # Debug: Verifica vídeos recentes
-    logger.debug(f'Dashboard - Vídeos recentes: {len(recent_videos)}')
-    logger.debug(f'Dashboard - IDs dos vídeos recentes: {[v.id for v in recent_videos]}')
-    
+
     # Cálculos para Informações da Obra
     project_days_elapsed = 0
     project_days_total = 0
@@ -672,14 +626,6 @@ def diary_detail_view(request, pk):
         ),
         pk=pk
     )
-    # #region agent log
-    _dbg("diary_detail_view:loaded", "diary from DB for detail", {
-        "diary_pk": diary.pk,
-        "occurrences_count": diary.occurrences.count(),
-        "inspections_preview": (getattr(diary, "inspections", None) or "")[:80],
-        "dds_preview": (getattr(diary, "dds", None) or "")[:80],
-    }, "H5")
-    # #endregion
     project = get_selected_project(request)
     # Se há projeto na sessão, só permite ver diário desse projeto
     if project is not None and diary.project_id != project.id:
@@ -1613,9 +1559,9 @@ def diary_form_view(request, pk=None):
         # Log específico para debug de atividades e ocorrências
         post_work_logs = [k for k in request.POST.keys() if 'work_log' in k.lower()]
         post_ocorrencias = [k for k in request.POST.keys() if 'ocorrencia' in k.lower() or (k.startswith('occurrence') and 'TOTAL' in k)]
-        logger.warning(f"[DIARY_DEBUG] POST work_logs keys ({len(post_work_logs)}): {post_work_logs[:30]}{'...' if len(post_work_logs) > 30 else ''}")
-        logger.warning(f"[DIARY_DEBUG] POST ocorrencias keys ({len(post_ocorrencias)}): {post_ocorrencias[:30]}{'...' if len(post_ocorrencias) > 30 else ''}")
-        logger.warning(f"[DIARY_DEBUG] work_logs-TOTAL_FORMS={request.POST.get('work_logs-TOTAL_FORMS', 'N/A')} | ocorrencias-TOTAL_FORMS={request.POST.get('ocorrencias-TOTAL_FORMS', 'N/A')}")
+        logger.debug(f"[DIARY_DEBUG] POST work_logs keys ({len(post_work_logs)}): {post_work_logs[:30]}{'...' if len(post_work_logs) > 30 else ''}")
+        logger.debug(f"[DIARY_DEBUG] POST ocorrencias keys ({len(post_ocorrencias)}): {post_ocorrencias[:30]}{'...' if len(post_ocorrencias) > 30 else ''}")
+        logger.debug(f"[DIARY_DEBUG] work_logs-TOTAL_FORMS={request.POST.get('work_logs-TOTAL_FORMS', 'N/A')} | ocorrencias-TOTAL_FORMS={request.POST.get('ocorrencias-TOTAL_FORMS', 'N/A')}")
         if request.FILES:
             for key, file in request.FILES.items():
                 logger.info(f"  Arquivo: {key} -> {file.name} ({file.size} bytes)")
@@ -1677,31 +1623,19 @@ def diary_form_view(request, pk=None):
             instance=diary if diary else None,
             prefix='ocorrencias'
         )
-        # #region agent log
-        post_keys_occ = [k for k in request.POST.keys() if 'occurrence' in k.lower() or 'ocorrencia' in k.lower()]
-        post_keys_ae = [k for k in request.POST.keys() if k in ('inspections', 'dds')]
-        _dbg("frontend_views:after_occurrence_formset", "POST keys occurrence/ocorrencia and inspections/dds", {
-            "post_occurrence_keys": post_keys_occ,
-            "post_inspections_dds": post_keys_ae,
-            "ocorrencias_total": request.POST.get("ocorrencias-TOTAL_FORMS"),
-            "occurrences_total": request.POST.get("occurrences-TOTAL_FORMS"),
-            "occurrence_formset_len": len(occurrence_formset.forms),
-            "occurrence_formset_valid": occurrence_formset.is_valid(),
-        }, "H1")
-        # #endregion
-        logger.warning(f"[DIARY_DEBUG] Formsets iniciais (antes de form.is_valid): worklog forms={worklog_formset.total_form_count()}, occurrence forms={occurrence_formset.total_form_count()}; worklog_valid={worklog_formset.is_valid()}, occurrence_valid={occurrence_formset.is_valid()}")
+        logger.debug(f"[DIARY_DEBUG] Formsets iniciais (antes de form.is_valid): worklog forms={worklog_formset.total_form_count()}, occurrence forms={occurrence_formset.total_form_count()}; worklog_valid={worklog_formset.is_valid()}, occurrence_valid={occurrence_formset.is_valid()}")
         if not worklog_formset.is_valid():
             for i, f in enumerate(worklog_formset.forms):
                 if f.errors:
-                    logger.warning(f"[DIARY_DEBUG] Worklog form {i} erros: {f.errors}")
+                    logger.debug(f"[DIARY_DEBUG] Worklog form {i} erros: {f.errors}")
             if worklog_formset.non_form_errors():
-                logger.warning(f"[DIARY_DEBUG] Worklog non_form_errors: {worklog_formset.non_form_errors()}")
+                logger.debug(f"[DIARY_DEBUG] Worklog non_form_errors: {worklog_formset.non_form_errors()}")
         if not occurrence_formset.is_valid():
             for i, f in enumerate(occurrence_formset.forms):
                 if f.errors:
-                    logger.warning(f"[DIARY_DEBUG] Ocorrência form {i} erros: {f.errors}")
+                    logger.debug(f"[DIARY_DEBUG] Ocorrência form {i} erros: {f.errors}")
             if occurrence_formset.non_form_errors():
-                logger.warning(f"[DIARY_DEBUG] Ocorrência non_form_errors: {occurrence_formset.non_form_errors()}")
+                logger.debug(f"[DIARY_DEBUG] Ocorrência non_form_errors: {occurrence_formset.non_form_errors()}")
 
         # Valida o form primeiro
         import logging
@@ -1712,13 +1646,6 @@ def diary_form_view(request, pk=None):
             # Se o form for válido, salva o diário primeiro (mesmo que seja None)
             # Isso é necessário para que o formset tenha uma instância válida
             diary = form.save(commit=False)
-            # #region agent log
-            _dbg("frontend_views:after_form_save_commit_false", "diary inspections/dds from form", {
-                "diary_pk": getattr(diary, "pk", None),
-                "inspections_preview": (getattr(diary, "inspections", None) or "")[:100],
-                "dds_preview": (getattr(diary, "dds", None) or "")[:100],
-            }, "H3")
-            # #endregion
 
             # Valida que diary foi criado corretamente (não deve ser None)
             if diary is None:
@@ -1877,13 +1804,6 @@ def diary_form_view(request, pk=None):
                     # IMPORTANTE: Persiste sempre (novo ou edição) para gravar dados do form e status (ex.: Salvamento Parcial)
                     if diary:
                         try:
-                            # #region agent log
-                            _dbg("frontend_views:before_diary_save", "diary right before save", {
-                                "diary_pk": diary.pk,
-                                "inspections_preview": (getattr(diary, "inspections", None) or "")[:80],
-                                "dds_preview": (getattr(diary, "dds", None) or "")[:80],
-                            }, "H4")
-                            # #endregion
                             diary.save()
                             logger.info(f"Diário salvo (id={diary.pk}) para validação de formsets e processamento de dados.")
                         except Exception as e:
@@ -1914,7 +1834,7 @@ def diary_form_view(request, pk=None):
                         total_image_forms = int(normalized_post.get('diaryimage_set-TOTAL_FORMS', '0'))
                         total_worklog_forms = int(normalized_post.get('work_logs-TOTAL_FORMS', '0'))
                         total_occurrence_forms = int(normalized_post.get('ocorrencias-TOTAL_FORMS', '0'))
-                        logger.warning(f"[DIARY_DEBUG] Dentro da transação (diary.pk={diary.pk}): total_worklog_forms={total_worklog_forms}, total_occurrence_forms={total_occurrence_forms}; normalized_post work_logs-TOTAL_FORMS={normalized_post.get('work_logs-TOTAL_FORMS')}, ocorrencias-TOTAL_FORMS={normalized_post.get('ocorrencias-TOTAL_FORMS')}")
+                        logger.debug(f"[DIARY_DEBUG] Dentro da transação (diary.pk={diary.pk}): total_worklog_forms={total_worklog_forms}, total_occurrence_forms={total_occurrence_forms}; normalized_post work_logs-TOTAL_FORMS={normalized_post.get('work_logs-TOTAL_FORMS')}, ocorrencias-TOTAL_FORMS={normalized_post.get('ocorrencias-TOTAL_FORMS')}")
                         
                         if total_image_forms == 0:
                             image_valid_final = True
@@ -1968,12 +1888,12 @@ def diary_form_view(request, pk=None):
                                 worklog_valid_final = worklog_formset.is_valid()
                                 # Log detalhado se falhar
                                 if not worklog_valid_final:
-                                    logger.warning(f"Formset de worklogs inválido. Erros: {worklog_formset.errors}")
+                                    logger.debug(f"Formset de worklogs inválido. Erros: {worklog_formset.errors}")
                                     for i, form in enumerate(worklog_formset.forms):
                                         if form.errors:
-                                            logger.warning(f"  Form {i} erros: {form.errors}")
+                                            logger.debug(f"  Form {i} erros: {form.errors}")
                                     if worklog_formset.non_form_errors():
-                                        logger.warning(f"  Erros não-form: {worklog_formset.non_form_errors()}")
+                                        logger.debug(f"  Erros não-form: {worklog_formset.non_form_errors()}")
                         
                         if total_occurrence_forms == 0:
                             occurrence_valid_final = True
@@ -1991,26 +1911,21 @@ def diary_form_view(request, pk=None):
                                     has_occurrence_data = True
                                     break
                             occurrence_valid_final = True if not has_occurrence_data else occurrence_formset.is_valid()
-                            # #region agent log
-                            if not occurrence_valid_final and has_occurrence_data:
-                                errs = [(i, f.errors) for i, f in enumerate(occurrence_formset.forms) if f.errors]
-                                _dbg("frontend_views:occurrence_formset_invalid", "formset invalid with data", {"errors": errs, "non_form_errors": occurrence_formset.non_form_errors()}, "H2")
-                            # #endregion
 
                         logger.info(f"Re-validação dos formsets (com PK): imagens={image_valid_final}, worklogs={worklog_valid_final}, ocorrências={occurrence_valid_final}")
-                        logger.warning(f"[DIARY_DEBUG] Validação final: worklog_valid_final={worklog_valid_final}, occurrence_valid_final={occurrence_valid_final}; worklog_formset.forms={len(worklog_formset.forms)}, occurrence_formset.forms={len(occurrence_formset.forms)}")
+                        logger.debug(f"[DIARY_DEBUG] Validação final: worklog_valid_final={worklog_valid_final}, occurrence_valid_final={occurrence_valid_final}; worklog_formset.forms={len(worklog_formset.forms)}, occurrence_formset.forms={len(occurrence_formset.forms)}")
                         if not worklog_valid_final and total_worklog_forms > 0:
                             for i, f in enumerate(worklog_formset.forms):
                                 if f.errors:
-                                    logger.warning(f"[DIARY_DEBUG] [FINAL] Worklog form {i} erros: {f.errors}")
+                                    logger.debug(f"[DIARY_DEBUG] [FINAL] Worklog form {i} erros: {f.errors}")
                             if worklog_formset.non_form_errors():
-                                logger.warning(f"[DIARY_DEBUG] [FINAL] Worklog non_form_errors: {worklog_formset.non_form_errors()}")
+                                logger.debug(f"[DIARY_DEBUG] [FINAL] Worklog non_form_errors: {worklog_formset.non_form_errors()}")
                         if not occurrence_valid_final and total_occurrence_forms > 0:
                             for i, f in enumerate(occurrence_formset.forms):
                                 if f.errors:
-                                    logger.warning(f"[DIARY_DEBUG] [FINAL] Ocorrência form {i} erros: {f.errors}")
+                                    logger.debug(f"[DIARY_DEBUG] [FINAL] Ocorrência form {i} erros: {f.errors}")
                             if occurrence_formset.non_form_errors():
-                                logger.warning(f"[DIARY_DEBUG] [FINAL] Ocorrência non_form_errors: {occurrence_formset.non_form_errors()}")
+                                logger.debug(f"[DIARY_DEBUG] [FINAL] Ocorrência non_form_errors: {occurrence_formset.non_form_errors()}")
                         
                         # Se o formset de worklogs é crítico e falhou com dados, coleta erros antes de fazer rollback
                         if not worklog_valid_final and total_worklog_forms > 0:
@@ -2046,7 +1961,7 @@ def diary_form_view(request, pk=None):
                         image_valid = True
                         worklog_valid = True
                         occurrence_valid = True
-                        logger.warning("Diário não existe ou não tem PK, considerando formsets vazios como válidos")
+                        logger.debug("Diário não existe ou não tem PK, considerando formsets vazios como válidos")
                     
                     # Se for edição de diário existente, registra no log
                     if diary and diary.pk and not is_new:
@@ -2059,7 +1974,7 @@ def diary_form_view(request, pk=None):
                                 notes=f"Diário editado via formulário web"
                             )
                         except Exception as e:
-                            logger.warning(f"Erro ao criar DiaryEditLog: {e}")
+                            logger.debug(f"Erro ao criar DiaryEditLog: {e}")
                     
                     # 1. PROCESSAMENTO DE FOTOS
                     from core.models import DiaryImage
@@ -2090,7 +2005,7 @@ def diary_form_view(request, pk=None):
                         saved_images = []
                         formset_saved_ids = set()
                         formset_processed_indices = set()
-                        logger.warning("Formset de imagens inválido, processando manualmente...")
+                        logger.debug("Formset de imagens inválido, processando manualmente...")
                     
                     # Processa fotos manualmente APENAS se:
                     # 1. Formset falhou (image_valid = False), OU
@@ -2275,7 +2190,7 @@ def diary_form_view(request, pk=None):
                                 saved_videos.append(video)
                                 logger.info(f"Vídeo novo salvo: ID={video.id}")
                             except (ValueError, IndexError) as e:
-                                logger.warning(f"Erro ao processar vídeo {key}: {e}")
+                                logger.debug(f"Erro ao processar vídeo {key}: {e}")
                     
                     logger.info(f"Vídeos salvos: {len(saved_videos)} vídeos")
                     
@@ -2365,7 +2280,7 @@ def diary_form_view(request, pk=None):
                                 saved_attachments.append(attachment)
                                 logger.info(f"Anexo novo salvo: ID={attachment.id}")
                             except (ValueError, IndexError) as e:
-                                logger.warning(f"Erro ao processar anexo {key}: {e}")
+                                logger.debug(f"Erro ao processar anexo {key}: {e}")
                     
                     logger.info(f"Anexos salvos: {len(saved_attachments)} anexos")
                     
@@ -2394,7 +2309,7 @@ def diary_form_view(request, pk=None):
                             logger.info(f"DiaryLaborEntry: {len(diary_labor_data)} itens salvos")
                             request._labor_objects = []
                         except (json.JSONDecodeError, ValueError, TypeError) as e:
-                            logger.warning(f"Erro ao processar diary_labor_data: {e}")
+                            logger.debug(f"Erro ao processar diary_labor_data: {e}")
                             request._labor_objects = []
                     else:
                         # Legado: labor_data (nome/role/quantidade)
@@ -2427,14 +2342,14 @@ def diary_form_view(request, pk=None):
                             
                             request._labor_objects = labor_objects
                         except (json.JSONDecodeError, ValueError) as e:
-                            logger.warning(f"Erro ao processar dados de mão de obra: {e}")
+                            logger.debug(f"Erro ao processar dados de mão de obra: {e}")
                             request._labor_objects = []
                     
                     equipment_data_json = request.POST.get('equipment_data', '[]')
                     try:
                         equipment_data = json.loads(equipment_data_json) if equipment_data_json else []
                         logger.info(f"Dados de equipamentos recebidos: {len(equipment_data)} itens")
-                        logger.warning("[DIARY_DEBUG] equipment_data no POST: len=%s, payload (300 chars)=%s", len(equipment_data), (equipment_data_json or '')[:300])
+                        logger.debug("[DIARY_DEBUG] equipment_data no POST: len=%s, payload (300 chars)=%s", len(equipment_data), (equipment_data_json or '')[:300])
                         
                         equipment_items = []  # lista de (equipment, quantity) para through
                         for equipment_item in equipment_data:
@@ -2460,7 +2375,7 @@ def diary_form_view(request, pk=None):
                         
                         request._equipment_items = equipment_items
                     except (json.JSONDecodeError, ValueError) as e:
-                        logger.warning(f"Erro ao processar dados de equipamentos: {e}")
+                        logger.debug(f"Erro ao processar dados de equipamentos: {e}")
                         request._equipment_items = []
                     
                     # 5. PROCESSAMENTO DE WORKLOGS (prioridade: JSON > formset)
@@ -2470,7 +2385,7 @@ def diary_form_view(request, pk=None):
                     # Só usa JSON quando o payload tem conteúdo; [] ou vazio evita apagar dados por engano
                     use_worklogs_json = 'work_logs_json' in request.POST and work_logs_json_str not in ('', '[]')
                     use_occurrences_json = 'occurrences_json' in request.POST and occurrences_json_str not in ('', '[]')
-                    logger.warning(
+                    logger.debug(
                         "[DIARY_DEBUG] Antes de salvar: worklog_valid=%s, occurrence_valid=%s; "
                         "use_worklogs_json=%s (len=%s), use_occurrences_json=%s (len=%s); request.user.pk=%s",
                         worklog_valid, occurrence_valid,
@@ -2478,7 +2393,7 @@ def diary_form_view(request, pk=None):
                         use_occurrences_json, len(occurrences_json_str),
                         getattr(request.user, 'pk', None),
                     )
-                    logger.warning(
+                    logger.debug(
                         "[DIARY_DEBUG] POST keys: work_logs_json=%s, occurrences_json=%s (se use_*=False com payload, checar nome da chave/encoding)",
                         "work_logs_json" in request.POST,
                         "occurrences_json" in request.POST,
@@ -2491,7 +2406,7 @@ def diary_form_view(request, pk=None):
                     elif worklog_valid:
                         saved_worklogs = worklog_formset.save()
                         logger.info(f"Worklogs salvos pelo formset: {len(saved_worklogs)} worklogs")
-                        logger.warning(f"[DIARY_DEBUG] Worklogs salvos: {len(saved_worklogs)} itens")
+                        logger.debug(f"[DIARY_DEBUG] Worklogs salvos: {len(saved_worklogs)} itens")
                     else:
                         logger.warning("Formset de worklogs inválido, pulando processamento")
                     
@@ -2551,7 +2466,7 @@ def diary_form_view(request, pk=None):
                                     logger.info(f"Worklog padrão já existe (ID={default_worklog.id}), reutilizando")
                             except IntegrityError as e:
                                 # Se ainda assim houver erro de integridade, tenta buscar novamente
-                                logger.warning(f"Erro de integridade ao criar worklog padrão: {e}. Tentando buscar existente...")
+                                logger.debug(f"Erro de integridade ao criar worklog padrão: {e}. Tentando buscar existente...")
                                 try:
                                     default_worklog = DailyWorkLog.objects.get(
                                         diary=diary,
@@ -2601,9 +2516,9 @@ def diary_form_view(request, pk=None):
                                     try:
                                         ProgressService.calculate_rollup_progress(wl.activity_id)
                                     except Exception as e:
-                                        logger.warning(f"Erro ao recalcular progresso da atividade {wl.activity_id}: {e}", exc_info=True)
+                                        logger.debug(f"Erro ao recalcular progresso da atividade {wl.activity_id}: {e}", exc_info=True)
                         except Exception as e:
-                            logger.warning(f"Erro ao recalcular progresso (JSON): {e}", exc_info=True)
+                            logger.debug(f"Erro ao recalcular progresso (JSON): {e}", exc_info=True)
                     elif worklog_valid:
                         for form_obj in worklog_formset.forms:
                             if form_obj.instance.pk and form_obj.instance.activity:
@@ -2611,32 +2526,22 @@ def diary_form_view(request, pk=None):
                                     from .services import ProgressService
                                     ProgressService.calculate_rollup_progress(form_obj.instance.activity_id)
                                 except Exception as e:
-                                    logger.warning(f"Erro ao recalcular progresso da atividade {form_obj.instance.activity_id}: {e}", exc_info=True)
+                                    logger.debug(f"Erro ao recalcular progresso da atividade {form_obj.instance.activity_id}: {e}", exc_info=True)
                     
                     # 6. PROCESSAMENTO DE OCORRÊNCIAS (prioridade: JSON > formset)
-                    # #region agent log
-                    _dbg("frontend_views:before_occurrence_save", "occurrence_valid and formset state", {
-                        "occurrence_valid": occurrence_valid,
-                        "occurrence_formset_forms_len": len(occurrence_formset.forms),
-                        "use_occurrences_json": use_occurrences_json,
-                    }, "H2")
-                    # #endregion
                     if use_occurrences_json:
                         from core.diary_json_services import create_occurrences_from_json
                         created_occurrences = create_occurrences_from_json(diary, occurrences_json_str, request.user)
                         logger.info("Ocorrências criadas a partir de JSON: %s itens (diary_id=%s)", len(created_occurrences), diary.pk)
                     elif occurrence_valid:
                         occurrences = occurrence_formset.save(commit=False)
-                        # #region agent log
-                        _dbg("frontend_views:after_occurrence_save", "occurrences saved", {"count": len(occurrences)}, "H2")
-                        # #endregion
                         for occurrence in occurrences:
                             if not occurrence.pk:
                                 occurrence.created_by = request.user
                             occurrence.save()
                         occurrence_formset.save_m2m()
                         logger.info(f"Ocorrências salvas: {len(occurrences)} ocorrências")
-                        logger.warning(f"[DIARY_DEBUG] Ocorrências salvas: {len(occurrences)} itens")
+                        logger.debug(f"[DIARY_DEBUG] Ocorrências salvas: {len(occurrences)} itens")
                     else:
                         logger.warning("Formset de ocorrências inválido, pulando processamento")
                     
@@ -2765,7 +2670,7 @@ def diary_form_view(request, pk=None):
                 return render(request, 'core/daily_log_form.html', context)
             except Exception as e:
                 logger.error(f"ERRO durante processamento: {e}", exc_info=True)
-                logger.warning(f"[DIARY_DEBUG] Exceção durante salvamento do diário: {type(e).__name__}: {e}")
+                logger.warning(f"Exceção durante salvamento do diário: {type(e).__name__}: {e}")
                 messages.error(request, f'Erro ao processar dados: {str(e)}')
                 # A transação fará rollback automaticamente, então o diário não será salvo
                 # Se for um diário novo que foi criado na transação, será revertido
@@ -2881,7 +2786,7 @@ def diary_form_view(request, pk=None):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Form principal INVÁLIDO. Erros: {form.errors}")
-            logger.warning(f"[DIARY_DEBUG] Form principal inválido; form.errors={dict(form.errors)}")
+            logger.warning(f"Form principal inválido; form.errors={dict(form.errors)}")
             
             errors = []
             error_details = []
@@ -3107,7 +3012,7 @@ def diary_form_view(request, pk=None):
                     'company': e.company or '',
                 })
         except Exception as e:
-            logger.warning("[DIARY_DEBUG] Erro ao montar existing_diary_labor (cópia): %s", e, exc_info=True)
+            logger.warning("Erro ao montar existing_diary_labor (cópia): %s", e, exc_info=True)
     
     # Equipamentos já salvos no diário (para edição ou cópia) – agregados por nome e quantity
     existing_diary_equipment = []
@@ -3141,7 +3046,7 @@ def diary_form_view(request, pk=None):
                 })
             logger.info("[DIARY_DEBUG] existing_diary_equipment montado: %s itens (copy_source=%s)", len(existing_diary_equipment), bool(copy_source_diary and 'equipment' in copy_opts_list))
         except Exception as e:
-            logger.warning("[DIARY_DEBUG] Erro ao montar existing_diary_equipment (cópia): %s", e, exc_info=True)
+            logger.warning("Erro ao montar existing_diary_equipment (cópia): %s", e, exc_info=True)
     
     # Calcula próximo número do relatório se for novo diário (otimizado)
     next_report_number = None
@@ -3205,39 +3110,33 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
     pdf_type: 'normal', 'detailed', 'no_photos'
     """
     # Importação lazy do PDFGenerator
-    global PDFGenerator, WEASYPRINT_AVAILABLE, XHTML2PDF_AVAILABLE
+    global PDFGenerator, WEASYPRINT_AVAILABLE, XHTML2PDF_AVAILABLE, REPORTLAB_AVAILABLE
     
     if PDFGenerator is None:
         try:
             from .utils.pdf_generator import (
-                PDFGenerator as PDFGen, 
+                PDFGenerator as PDFGen,
                 WEASYPRINT_AVAILABLE as WP_AVAILABLE,
-                XHTML2PDF_AVAILABLE as XP_AVAILABLE
+                XHTML2PDF_AVAILABLE as XP_AVAILABLE,
+                REPORTLAB_AVAILABLE as RL_AVAILABLE,
             )
             PDFGenerator = PDFGen
             WEASYPRINT_AVAILABLE = WP_AVAILABLE
             XHTML2PDF_AVAILABLE = XP_AVAILABLE
+            REPORTLAB_AVAILABLE = RL_AVAILABLE
         except Exception as e:
-            # Qualquer falha (Cairo, dependências do xhtml2pdf, etc.) → mensagem amigável
             WEASYPRINT_AVAILABLE = False
             XHTML2PDF_AVAILABLE = False
-            messages.error(
-                request,
-                "Geração de PDF temporariamente indisponível (dependências do sistema). "
-                "No Windows, instale: pip install xhtml2pdf e reinicie o servidor."
-            )
+            REPORTLAB_AVAILABLE = False
+            messages.error(request, "Geração de PDF não disponível neste ambiente.")
             return redirect('diary-detail', pk=pk)
     
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
     
     # Verifica se pelo menos uma biblioteca está disponível
-    if not WEASYPRINT_AVAILABLE and not XHTML2PDF_AVAILABLE:
-        messages.error(
-            request,
-            "Geração de PDF indisponível. No Windows: 1) pip install xhtml2pdf  2) Reinicie o servidor. "
-            "Se ainda falhar (erro de Cairo), instale o GTK3 Runtime: https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases"
-        )
+    if not WEASYPRINT_AVAILABLE and not XHTML2PDF_AVAILABLE and not REPORTLAB_AVAILABLE:
+        messages.error(request, "Geração de PDF não disponível neste ambiente.")
         return redirect('diary-detail', pk=pk)
     
     try:

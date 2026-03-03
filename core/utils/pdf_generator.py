@@ -50,7 +50,7 @@ if sys.platform != "win32":
 if not WEASYPRINT_AVAILABLE:
     class HTML:
         def __init__(self, *args, **kwargs):
-            raise RuntimeError("WeasyPrint não está disponível. Use xhtml2pdf: pip install xhtml2pdf")
+            raise RuntimeError("WeasyPrint não está disponível.")
     class CSS:
         def __init__(self, *args, **kwargs):
             raise RuntimeError("WeasyPrint não está disponível.")
@@ -69,7 +69,21 @@ except Exception as e:
     # ImportError, OSError (Cairo/lib não encontrada em dependências como svglib), etc.
     XHTML2PDF_AVAILABLE = False
     if not WEASYPRINT_AVAILABLE:
-        logger.warning("xhtml2pdf não disponível (%s). Instale: pip install xhtml2pdf", str(e)[:100])
+        logger.warning("xhtml2pdf não disponível (%s). Usando ReportLab como fallback.", str(e)[:80])
+
+# ReportLab (já no requirements; funciona em cPanel - substituto quando WeasyPrint/xhtml2pdf não estão disponíveis)
+REPORTLAB_AVAILABLE = False
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    REPORTLAB_AVAILABLE = True
+    logger.info("ReportLab disponível - será usado para PDF quando WeasyPrint/xhtml2pdf não estiverem disponíveis")
+except ImportError:
+    pass
 
 
 class ImageOptimizer:
@@ -526,10 +540,213 @@ class PDFGenerator:
                 return pdf_bytes
         
         else:
+            # Fallback: ReportLab (funciona em cPanel, já está no requirements)
+            if REPORTLAB_AVAILABLE:
+                logger.info("Gerando PDF com ReportLab (fallback para cPanel)")
+                pdf_buffer = BytesIO()
+                PDFGenerator._generate_diary_pdf_reportlab(
+                    pdf_buffer, diary, context,
+                    work_logs=work_logs,
+                    labor_by_type=labor_by_type,
+                    labor_entries_by_category=labor_entries_by_category,
+                    equipment_count=equipment_count,
+                    total_indirect=total_indirect,
+                    total_direct=total_direct,
+                    total_third_party=total_third_party,
+                    total_labor=total_labor,
+                    total_equipment=total_equipment,
+                    images_with_paths=images_with_paths,
+                    attachments=context.get('attachments', []),
+                    occurrences=occurrences,
+                    pdf_type=pdf_type,
+                )
+                if output_path:
+                    with open(output_path, 'wb') as f:
+                        f.write(pdf_buffer.getvalue())
+                    logger.info(f"PDF gerado com ReportLab: {output_path}")
+                    return None
+                pdf_buffer.seek(0)
+                return pdf_buffer
             raise RuntimeError(
                 "Nenhuma biblioteca de PDF disponível. "
-                "Instale WeasyPrint (pip install weasyprint) ou xhtml2pdf (pip install xhtml2pdf)."
+                "Instale WeasyPrint, xhtml2pdf ou use ReportLab (já em requirements)."
             )
+    
+    @staticmethod
+    def _generate_diary_pdf_reportlab(
+        buffer_io,
+        diary,
+        context,
+        work_logs=None,
+        labor_by_type=None,
+        labor_entries_by_category=None,
+        equipment_count=None,
+        total_indirect=0,
+        total_direct=0,
+        total_third_party=0,
+        total_labor=0,
+        total_equipment=0,
+        images_with_paths=None,
+        attachments=None,
+        occurrences=None,
+        pdf_type='normal',
+    ):
+        """
+        Gera PDF do diário usando apenas ReportLab (sem WeasyPrint/xhtml2pdf).
+        Usado em cPanel onde essas libs não estão disponíveis. ReportLab já está no requirements.
+        """
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+        doc = SimpleDocTemplate(
+            buffer_io, pagesize=A4,
+            leftMargin=1.2*cm, rightMargin=1.2*cm,
+            topMargin=1*cm, bottomMargin=1*cm,
+        )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            name='RDOTitle', parent=styles['Heading1'],
+            fontSize=12, alignment=TA_CENTER, spaceAfter=6,
+        )
+        heading_style = ParagraphStyle(
+            name='Section', parent=styles['Heading2'],
+            fontSize=9, spaceBefore=8, spaceAfter=4,
+        )
+        normal_style = styles['Normal']
+        normal_style.fontSize = 8
+
+        story = []
+        # Título
+        story.append(Paragraph("RQ-10 RELATÓRIO DIÁRIO DE OBRA (RDO)", title_style))
+        story.append(Paragraph(f"{diary.project.code} - {diary.project.name}", ParagraphStyle(name='Sub', parent=normal_style, alignment=TA_CENTER, fontSize=9)))
+        story.append(Paragraph(f"Data: {diary.date.strftime('%d/%m/%Y')}", ParagraphStyle(name='Date', parent=normal_style, alignment=TA_CENTER)))
+        story.append(Spacer(1, 0.4*cm))
+
+        # Atividades
+        story.append(Paragraph("ATIVIDADES / SERVIÇOS", heading_style))
+        if work_logs:
+            for wl in work_logs:
+                text = f"• {wl.activity.code} - {wl.activity.name}"
+                if wl.notes:
+                    text += f" <i>({wl.notes})</i>"
+                story.append(Paragraph(text, normal_style))
+        else:
+            story.append(Paragraph("Nenhuma atividade registrada.", normal_style))
+        story.append(Spacer(1, 0.3*cm))
+
+        # Fotos (apenas se pdf_type != 'no_photos' e houver imagens)
+        if pdf_type != 'no_photos' and images_with_paths:
+            story.append(Paragraph("REGISTRO FOTOGRÁFICO", heading_style))
+            for item in images_with_paths[:6]:  # Máximo 6 fotos para não estourar página
+                path = item.get('absolute_path')
+                if not path and item.get('image'):
+                    img_obj = item['image']
+                    if getattr(img_obj, 'pdf_optimized', None) and img_obj.pdf_optimized:
+                        path = img_obj.pdf_optimized.path
+                    elif getattr(img_obj, 'image', None) and img_obj.image:
+                        path = img_obj.image.path
+                if path and isinstance(path, str) and os.path.exists(path):
+                    try:
+                        story.append(RLImage(path, width=4*cm, height=3*cm))
+                        cap = (item.get('image') and getattr(item['image'], 'caption', None)) or "Foto"
+                        story.append(Paragraph(str(cap)[:80], ParagraphStyle(name='Cap', parent=normal_style, fontSize=7)))
+                    except Exception:
+                        pass
+            story.append(Spacer(1, 0.3*cm))
+
+        # Efetivo (tabela)
+        if labor_entries_by_category or (labor_by_type and (labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T'))):
+            story.append(Paragraph("EFETIVO", heading_style))
+            data = [["Função", "Empresa", "Qtd"]]
+            if labor_entries_by_category:
+                for item in labor_entries_by_category.get('indireta', []):
+                    data.append([item['cargo_name'], "LPLAN", str(item['quantity'])])
+                data.append(["TOTAL INDIRETO", "", str(total_indirect)])
+                for item in labor_entries_by_category.get('direta', []):
+                    data.append([item['cargo_name'], "-", str(item['quantity'])])
+                data.append(["TOTAL DIRETO", "", str(total_direct)])
+                for block in labor_entries_by_category.get('terceirizada', []):
+                    for item in block['items']:
+                        data.append([item['cargo_name'], block['company'], str(item['quantity'])])
+                data.append(["TOTAL TERCEIROS", "", str(total_third_party)])
+                data.append(["EFETIVO TOTAL", "", str(total_labor)])
+            else:
+                for k, label in [('I', 'Indireto'), ('D', 'Direto'), ('T', 'Terceiros')]:
+                    for item in (labor_by_type.get(k) or {}).values():
+                        lab = item['labor']
+                        grd = getattr(lab, 'get_role_display', None)
+                        name = (grd() if callable(grd) else getattr(lab, 'name', None)) or "-"
+                        company = getattr(lab, 'company', None) or ("LPLAN" if k == 'I' else "-")
+                        data.append([name, company, str(item['count'])])
+                    if k == 'I':
+                        data.append(["TOTAL INDIRETO", "", str(total_indirect)])
+                    elif k == 'D':
+                        data.append(["TOTAL DIRETO", "", str(total_direct)])
+                    else:
+                        data.append(["TOTAL TERCEIROS", "", str(total_third_party)])
+                data.append(["EFETIVO TOTAL", "", str(total_labor)])
+            t = Table(data, colWidths=[8*cm, 4*cm, 2*cm])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 7),
+                ('ALIGN', (2, 0), (2, -1), TA_CENTER),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 0.3*cm))
+
+        # Equipamentos
+        if equipment_count:
+            story.append(Paragraph("EQUIPAMENTOS", heading_style))
+            data = [["Equipamento", "Qtd"]]
+            for item in equipment_count.values():
+                eq = item['equipment']
+                data.append([f"{getattr(eq, 'code', '')} - {getattr(eq, 'name', '')}", str(item['count'])])
+            data.append(["TOTAL", str(total_equipment)])
+            t = Table(data, colWidths=[10*cm, 2*cm])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTSIZE', (0, 0), (-1, -1), 7),
+                ('ALIGN', (1, 0), (1, -1), TA_CENTER),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 0.3*cm))
+
+        # Chuva
+        story.append(Paragraph("OCORRÊNCIA DE CHUVAS", heading_style))
+        rain = getattr(diary, 'rain_occurrence', None)
+        rain_label = {'F': 'Fraca', 'M': 'Média', 'S': 'Forte'}.get(rain, 'Nenhuma')
+        text = f"Intensidade: {rain_label}"
+        if getattr(diary, 'pluviometric_index', None):
+            text += f" | Índice pluviométrico: {diary.pluviometric_index} mm"
+        story.append(Paragraph(text, normal_style))
+        if getattr(diary, 'rain_observations', None) and diary.rain_observations.strip():
+            story.append(Paragraph(f"Observações: {diary.rain_observations[:200]}", normal_style))
+        story.append(Spacer(1, 0.3*cm))
+
+        # Deliberações
+        if getattr(diary, 'deliberations', None) and diary.deliberations.strip():
+            story.append(Paragraph("DELIBERAÇÕES", heading_style))
+            story.append(Paragraph(diary.deliberations.replace('\n', '<br/>')[:1500], normal_style))
+            story.append(Spacer(1, 0.3*cm))
+
+        # Assinatura
+        story.append(Spacer(1, 0.5*cm))
+        story.append(Paragraph("RESPONSÁVEL PELO PREENCHIMENTO:", ParagraphStyle(name='Sig', parent=normal_style, fontSize=7)))
+        story.append(Paragraph("_________________________", normal_style))
+        story.append(Spacer(1, 0.3*cm))
+        story.append(Paragraph("Documento gerado pelo Sistema LPlan - Gestão de Obras", ParagraphStyle(name='Foot', parent=normal_style, fontSize=6, alignment=TA_CENTER)))
+
+        doc.build(story)
     
     
     @staticmethod

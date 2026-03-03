@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'django_filters',
     'treebeard',
     # LPLAN Apps
-    'core',  # Diario_obra
+    'core',
     'gestao_aprovacao',  # Gestao_aprovacao (renomeado de obras)
     'mapa_obras',  # Mapa_Controle/obras (renomeado)
     'accounts',  # Mapa_Controle/accounts

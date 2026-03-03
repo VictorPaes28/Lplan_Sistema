@@ -904,9 +904,6 @@ window.alternarRotacao = function() {
             tabela.style.display = 'table';
             tabela.style.visibility = 'visible';
             tabela.style.opacity = '1';
-            console.log('Tabela encontrada e forçada a aparecer');
-        } else {
-            console.error('Tabela .matriz-table não encontrada dentro do container!');
         }
     } else {
         // Restaurar estado normal
@@ -936,8 +933,6 @@ window.alternarRotacao = function() {
         if (icon) {
             icon.innerHTML = '<i class="bi bi-phone"></i>';
         }
-        
-        console.log('Modo matriz tatica ATIVADO');
     } else {
         if (btnVoltar) {
             btnVoltar.style.display = 'none';
@@ -946,8 +941,6 @@ window.alternarRotacao = function() {
         if (icon) {
             icon.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
         }
-        
-        console.log('Modo matriz tatica DESATIVADO');
     }
     
     localStorage.setItem('dashboard2_modo_matriz', isAtivo ? 'ativa' : 'inativa');

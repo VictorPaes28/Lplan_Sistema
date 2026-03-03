@@ -1267,8 +1267,6 @@
             const quantidadeInput = document.getElementById('alocar_quantidade');
             const quantidade = quantidadeInput.value;
             
-            console.log('Tentando alocar:', { itemId, quantidade });
-            
             // Normalizar número (aceita vírgula ou ponto)
             const qtdNum = normalizarNumero(quantidade);
             if (!quantidade || qtdNum <= 0) {
@@ -1292,7 +1290,6 @@
             
             // Obter CSRF token
             const csrftoken = getCookie('csrftoken');
-            console.log('CSRF Token:', csrftoken ? 'OK' : 'FALTANDO');
             
             // Mostrar loading no botão
             const submitBtn = this.querySelector('button[type="submit"]');
@@ -1301,7 +1298,6 @@
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Alocando...';
             
             const url = `{% url 'suprimentos:item_alocar' 0 %}`.replace('0', itemId);
-            console.log('URL da requisição:', url);
             
             // Enviar como string para preservar precisão decimal
             // IMPORTANTE: Usar numeroParaString para garantir precisão
@@ -1317,10 +1313,8 @@
                 })
             })
             .then(response => {
-                console.log('Response status:', response.status);
                 if (!response.ok) {
-                    return response.json().then(err => { 
-                        console.log('Erro:', err);
+                    return response.json().then(err => {
                         throw err; 
                     });
                 }

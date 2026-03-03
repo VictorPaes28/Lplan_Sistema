@@ -1,5 +1,5 @@
 """
-Testes de fluxo completo do Diário de Obra (Diario_obra).
+Testes de fluxo completo do Diário de Obra.
 
 Cobre:
 - Cópia do relatório anterior (cópia total e parcial)
