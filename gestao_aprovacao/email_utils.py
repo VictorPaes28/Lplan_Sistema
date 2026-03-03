@@ -260,23 +260,29 @@ def enviar_email_credenciais_novo_usuario(email_destino, username, senha_plana, 
             "Configure EMAIL_HOST_USER e EMAIL_HOST_PASSWORD."
         )
         return False
-    url = site_url or getattr(settings, 'SITE_URL', None) or 'https://lplan.com.br'
+    url = site_url or getattr(settings, 'SITE_URL', None) or 'http://sistema.lplan.com.br'
     nome = (nome_completo or username).strip()
-    assunto = 'Acesso ao sistema LPlan - seus dados de login'
-    corpo = f"""Olá, {nome}.
+    assunto = 'Acesso ao sistema LPLAN - seus dados de login'
+    corpo = f"""Olá, {nome},
 
-Foi criada uma conta de acesso ao sistema LPlan para você.
+Seu acesso ao sistema da LPLAN já está liberado. Abaixo estão as informações para o seu primeiro login:
 
-DADOS DE ACESSO:
-----------------
-Login:    {username}
-Senha:    {senha_plana}
 
-URL do sistema: {url}
 
-Recomendamos que você altere sua senha no primeiro acesso (Perfil ou Configurações).
+Link de acesso: {url}
 
-Este é um e-mail automático. Em caso de dúvidas, entre em contato com o administrador do sistema.
+Usuário: {username}
+
+Senha temporária: {senha_plana}
+
+
+Importante: Por questões de segurança, recomendamos que você altere sua senha logo no primeiro acesso através do menu de Perfil ou Configurações.
+
+Se encontrar qualquer dificuldade técnica ou tiver dúvidas sobre o uso das ferramentas, pode entrar em contato diretamente com o suporte interno.
+
+Bom trabalho,
+
+LPLAN
 """
     try:
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or settings.EMAIL_HOST_USER
