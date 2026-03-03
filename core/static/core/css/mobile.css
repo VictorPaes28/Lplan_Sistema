@@ -1,0 +1,530 @@
+/* ============================================
+   MOBILE.CSS - Compatibilidade com celular e tablets
+   Formulários, tabelas e listagens em telas pequenas
+   ============================================ */
+
+/* Botão menu (hamburger) no topo mobile: visual claro, não só 3 barras soltas */
+.mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+.mobile-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+.mobile-menu-btn .fas.fa-bars {
+    font-size: 1.125rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
+}
+
+/* Breakpoint principal: até 768px = mobile/tablet portrait */
+@media (max-width: 768px) {
+    /* --- Containers --- */
+    .page-container,
+    .form-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 100%;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .dashboard-content .page-container,
+    .main-content .page-container {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+
+    /* --- Cabeçalho de listagem: título e botão em coluna --- */
+    .list-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .list-header .list-title {
+        font-size: 1.35rem;
+        margin: 0;
+    }
+
+    .list-header .btn,
+    .list-header a.btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0.75rem 1rem;
+    }
+
+    /* --- Filtros: sempre em coluna, inputs full width --- */
+    .filters-form,
+    .filters-card form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .filter-group,
+    .filters-form .filter-group {
+        width: 100%;
+        margin-bottom: 0;
+    }
+
+    .filter-group .filter-input,
+    .filter-group .filter-select,
+    .filter-group input,
+    .filter-group select {
+        width: 100% !important;
+        max-width: 100% !important;
+        font-size: 16px !important; /* evita zoom no iOS */
+        min-height: 48px;
+        padding: 0.75rem;
+        box-sizing: border-box;
+    }
+
+    .filters-form .btn,
+    .filters-form .btn-secondary,
+    .filters-card .btn {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+
+    /* --- Tabelas: scroll horizontal com toque --- */
+    .table-container,
+    .card.table-container,
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        box-sizing: border-box;
+    }
+
+    .table-container .data-table,
+    .card.table-container .data-table {
+        min-width: 600px; /* força scroll em vez de espremer */
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* Botões de ação na tabela: não quebrar linha */
+    .action-btns {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .action-btns .btn-edit,
+    .action-btns .btn-delete,
+    .action-btns a {
+        min-height: 44px;
+        padding: 0.5rem 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* --- Formulários genéricos (create_user, obra_form, etc.) --- */
+    .card {
+        padding: 1.25rem 1rem;
+        border-radius: 12px;
+    }
+
+    .form-title {
+        font-size: 1.35rem;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea,
+    .form-control {
+        width: 100% !important;
+        max-width: 100% !important;
+        font-size: 16px !important;
+        min-height: 48px;
+        padding: 0.75rem 1rem;
+        box-sizing: border-box;
+    }
+
+    .form-group textarea {
+        min-height: 100px;
+    }
+
+    input[type="file"].form-control {
+        min-height: 52px;
+        padding: 0.75rem;
+    }
+
+    /* Checkboxes e radios: área de toque maior */
+    .form-check {
+        padding: 0.5rem 0;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .form-check-input {
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .form-check-label {
+        flex: 1;
+    }
+
+    /* Bloco de obras/projetos (lista com scroll) */
+    .form-group [style*="max-height"] {
+        max-height: 200px !important;
+    }
+
+    /* Ações do formulário: botões em coluna, full width --- */
+    .form-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+    }
+
+    .form-actions .btn,
+    .form-actions .btn-secondary,
+    .form-actions a.btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0.875rem 1rem;
+        font-size: 1rem;
+    }
+
+    /* Breadcrumb: quebra de linha */
+    .breadcrumb-list {
+        flex-wrap: wrap;
+    }
+}
+
+/* Telas muito pequenas (< 480px) */
+@media (max-width: 480px) {
+    .page-container,
+    .form-container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .card {
+        padding: 1rem 0.75rem;
+    }
+
+    .list-title,
+    .form-title {
+        font-size: 1.2rem;
+    }
+
+    .table-container .data-table,
+    .card.table-container .data-table {
+        min-width: 520px;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.5rem 0.35rem;
+        font-size: 0.8125rem;
+    }
+}
+
+/* Garantir que botões em formulários não tenham min-width que quebra layout */
+@media (max-width: 768px) {
+    .form-actions .btn,
+    .form-actions .btn-secondary,
+    .filters-form .btn,
+    .list-header .btn {
+        min-width: 0;
+    }
+}
+
+/* ========== Tabela de pedidos (list_workorders) ========== */
+@media (max-width: 768px) {
+    .table-container .workorders-table,
+    .card.table-container .workorders-table {
+        min-width: 640px;
+    }
+    .workorders-table th,
+    .workorders-table td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* ========== Detalhe de pedido / obra (detail_workorder, detail_obra) ========== */
+@media (max-width: 768px) {
+    .detail-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .detail-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+    .detail-actions .btn,
+    .detail-actions a.btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0.75rem 1rem;
+    }
+    .detail-actions .back-link,
+    .detail-container .back-link {
+        width: 100%;
+        justify-content: center;
+    }
+    .detail-container > div[style*="flex-wrap"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .detail-container .back-link {
+        margin-bottom: 0.5rem;
+    }
+    .alert-exclusao-solicitada,
+    .exclusao-actions {
+        width: 100%;
+    }
+    .exclusao-actions .btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+    }
+}
+
+/* ========== Relatórios (report_list): filtros e header ========== */
+@media (max-width: 768px) {
+    .filter-page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+    .filter-page-header .report-list-add-btn,
+    .filter-page-header button {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+    .filter-form-card .filter-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .filter-form-card .filter-form > div {
+        width: 100%;
+    }
+    .filter-form-card .filter-form input,
+    .filter-form-card .filter-form select {
+        width: 100% !important;
+        max-width: 100% !important;
+        font-size: 16px !important;
+        min-height: 48px;
+        padding: 0.75rem;
+        box-sizing: border-box;
+    }
+    .filter-form-card .filter-submit-wrap,
+    .filter-form-card .filter-submit {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+    .filter-form-card .filter-submit {
+        display: flex;
+        align-items: center;
+    }
+}
+
+/* ========== Dashboard core: grid de KPIs e conteúdo ========== */
+@media (max-width: 768px) {
+    .dashboard-content {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    .dashboard-content .grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem;
+    }
+    .dashboard-content .mb-6.flex.justify-end a {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+    }
+}
+
+/* ========== Modais: largura e margem no mobile ========== */
+@media (max-width: 768px) {
+    [role="dialog"].fixed.inset-0 .bg-white.rounded-xl,
+    .modal-content,
+    #modal-new-report .bg-white {
+        max-width: calc(100vw - 2rem) !important;
+        width: 100% !important;
+        margin: 1rem !important;
+    }
+    [role="dialog"] .p-4 {
+        padding: 1rem !important;
+    }
+}
+
+/* ========== Email logs (gestão) ========== */
+@media (max-width: 768px) {
+    .email-logs-table-wrap,
+    .email-logs-table-inner {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .email-logs-table,
+    .email-logs-table-inner table {
+        min-width: 560px;
+    }
+}
+
+/* ========== Paginação ========== */
+@media (max-width: 768px) {
+    .pagination {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        justify-content: center;
+        padding: 1rem !important;
+    }
+    .pagination a,
+    .pagination span {
+        min-height: 44px;
+        min-width: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+/* ========== Seleção de sistema / projeto (select_system, select_project) ========== */
+@media (max-width: 768px) {
+    .support-card,
+    .project-card,
+    [class*="system-card"],
+    [class*="project-card"] {
+        width: 100%;
+        min-height: 48px;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    .support-card button,
+    .project-card button {
+        min-height: 48px;
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* ========== Gerenciar permissões obra (manage_obra_permissions) ========== */
+@media (max-width: 768px) {
+    .page-container[style*="max-width"] {
+        max-width: 100% !important;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .detail-section {
+        padding: 1rem !important;
+    }
+}
+
+/* ========== Empty state e mensagens ========== */
+@media (max-width: 768px) {
+    .empty-state {
+        padding: 2rem 1rem !important;
+    }
+    .empty-state .empty-message {
+        font-size: 0.9375rem;
+    }
+}
+
+/* ========== Garantir que imagens e mídia não estourem ========== */
+@media (max-width: 768px) {
+    .main-content img,
+    .dashboard-content img,
+    .detail-container img,
+    .card img {
+        max-width: 100%;
+        height: auto;
+    }
+    .main-content video,
+    .dashboard-content video {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* ========== Desempenho equipe e tabelas detalhadas ========== */
+@media (max-width: 768px) {
+    .detailed-table-container,
+    .table-header {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .detailed-table-container table {
+        min-width: 500px;
+    }
+}
+
+/* ========== Aprovação / reprovação (approval_form, etc.) ========== */
+@media (max-width: 768px) {
+    .approval-actions,
+    .form-actions.approval-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .approval-actions .btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+    }
+}
+
+/* ========== Central (hub, listagens) ========== */
+@media (max-width: 768px) {
+    .central-action-card {
+        min-height: 48px;
+        padding: 1rem 1.25rem;
+    }
+    .central-hub-grid,
+    .central-cards-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem;
+    }
+}
+
+/* ========== Overflow genérico para tabelas em divs ========== */
+@media (max-width: 768px) {
+    .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+    }
+}
+

@@ -326,6 +326,16 @@
         min-width: 44px;
         min-height: 44px;
     }
+    /* Campos de quantidade editáveis no celular: área de toque maior e fonte 16px (evita zoom iOS) */
+    #diary-form .diary-labor-qty,
+    #diary-form .diary-equipment-qty {
+        min-height: 44px;
+        min-width: 56px;
+        font-size: 16px !important;
+        padding: 0.5rem 0.25rem;
+        -webkit-appearance: none;
+        appearance: none;
+    }
 }
 
 /* Mão de Obra e Equipamentos: títulos de subcategorias com hierarquia visual */

@@ -84,9 +84,9 @@
                                     <input type="text" 
                                            name="project_responsible" 
                                            id="project_responsible"
-                                           value="{{ project.responsible|default:'' }}" 
-                                           readonly
-                                           class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm text-slate-700 bg-slate-100 cursor-not-allowed">
+                                           value=""
+                                           placeholder="Preencha o responsável"
+                                           class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 </div>
                             </div>
                         </div>
@@ -519,7 +519,7 @@
                                                 <button type="button" class="diary-labor-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors" data-cargo-id="{{ cargo.id }}" data-company="" aria-label="Diminuir quantidade">
                                                     <i class="fas fa-minus text-xs"></i>
                                                 </button>
-                                                <input type="number" min="0" value="0" class="diary-labor-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm font-medium" data-cargo-id="{{ cargo.id }}" data-company="" readonly>
+                                                <input type="number" min="0" value="0" class="diary-labor-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm font-medium" data-cargo-id="{{ cargo.id }}" data-company="" inputmode="numeric" aria-label="Quantidade {{ cargo.name }}">
                                                 <button type="button" class="diary-labor-plus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors" data-cargo-id="{{ cargo.id }}" data-company="" aria-label="Aumentar quantidade">
                                                     <i class="fas fa-plus text-xs"></i>
                                                 </button>
@@ -573,7 +573,7 @@
                                                 <button type="button" class="diary-equipment-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors" data-equipment-id="{{ item.id }}" data-equipment-name="{{ item.name|escapejs }}" aria-label="Diminuir quantidade">
                                                     <i class="fas fa-minus text-xs"></i>
                                                 </button>
-                                                <input type="number" min="0" value="0" name="equipment_qty_std_{{ item.id }}" id="equipment_qty_std_{{ item.id }}" class="diary-equipment-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm font-medium" data-equipment-id="{{ item.id }}" data-equipment-name="{{ item.name|escapejs }}" readonly aria-label="Quantidade {{ item.name }}">
+                                                <input type="number" min="0" value="0" name="equipment_qty_std_{{ item.id }}" id="equipment_qty_std_{{ item.id }}" class="diary-equipment-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm font-medium" data-equipment-id="{{ item.id }}" data-equipment-name="{{ item.name|escapejs }}" inputmode="numeric" aria-label="Quantidade {{ item.name }}">
                                                 <button type="button" class="diary-equipment-plus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors" data-equipment-id="{{ item.id }}" data-equipment-name="{{ item.name|escapejs }}" aria-label="Aumentar quantidade">
                                                     <i class="fas fa-plus text-xs"></i>
                                                 </button>
