@@ -62,7 +62,7 @@ function updatePrioridadeClass(selectElement, value) {
 
 // Atualizar campo via AJAX
 function updateItemField(itemId, field, value, url) {
-    const csrftoken = getCookie('csrftoken');
+    const csrftoken = getCsrfToken();
     if (!csrftoken) {
         showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
         return;
@@ -176,7 +176,11 @@ function initAlocacaoForm(itemId) {
         
         const formData = new FormData(form);
         const url = form.getAttribute('action');
-        const csrftoken = getCookie('csrftoken');
+        const csrftoken = getCsrfToken();
+        if (!csrftoken) {
+            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+            return;
+        }
         
         fetch(url, {
             method: 'POST',
@@ -224,6 +228,15 @@ function getCookie(name) {
         }
     }
     return cookieValue;
+}
+
+/** Obtém o token CSRF: cookie primeiro, depois meta tag (fallback quando cookie não está disponível). */
+function getCsrfToken() {
+    let token = getCookie('csrftoken');
+    if (token) return token;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) token = meta.getAttribute('content');
+    return token || null;
 }
 
 function showMessage(message, type) {
@@ -339,7 +352,11 @@ function initDeleteItem() {
         const ok = window.confirm('Excluir este item?\n\nEssa ação não pode ser desfeita.');
         if (!ok) return;
 
-        const csrftoken = getCookie('csrftoken');
+        const csrftoken = getCsrfToken();
+        if (!csrftoken) {
+            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+            return;
+        }
         fetch(url, {
             method: 'POST',
             headers: {
@@ -420,8 +437,13 @@ function criarInsumo() {
     }
     
     const formData = new FormData(form);
-    const csrftoken = getCookie('csrftoken');
+    const csrftoken = getCsrfToken();
     const submitBtn = form.querySelector('button[type="submit"]');
+    
+    if (!csrftoken) {
+        showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+        return;
+    }
     
     // Desabilitar botão e mostrar loading
     if (submitBtn) {
@@ -524,8 +546,13 @@ function loadLocaisCriar(obraId) {
 function criarItem() {
     const form = document.getElementById('formCriarItem');
     const formData = new FormData(form);
-    const csrftoken = getCookie('csrftoken');
+    const csrftoken = getCsrfToken();
     const submitBtn = form.querySelector('button[type="submit"]');
+    
+    if (!csrftoken) {
+        showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+        return;
+    }
     
     // Desabilitar botão e mostrar loading
     if (submitBtn) {
