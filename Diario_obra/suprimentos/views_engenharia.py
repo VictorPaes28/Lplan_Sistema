@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
 from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
@@ -39,6 +40,7 @@ def get_obra_da_sessao(request):
 
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
+@ensure_csrf_cookie
 def mapa_engenharia(request):
     """Mapa editável para Engenharia. Só exibe obras às quais o usuário está vinculado."""
     from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
@@ -48,11 +50,13 @@ def mapa_engenharia(request):
     obra_id = request.GET.get('obra')
     if obra_id:
         try:
-            obra = Obra.objects.get(id=int(obra_id), ativa=True)
+            oid = int(obra_id)
+            obra = Obra.objects.get(id=oid, ativa=True)
             if _user_can_access_obra(request, obra):
-                request.session['obra_id'] = obra.id
+                request.session['obra_id'] = oid
+                obra_id = str(oid)
         except (Obra.DoesNotExist, ValueError):
-            pass
+            obra_id = None
     else:
         # Usar obra da sessão
         obra_sessao = get_obra_da_sessao(request)
@@ -238,8 +242,9 @@ def mapa_engenharia(request):
             )
         ).order_by('ordem_categoria', 'categoria', 'insumo__descricao'),
         'kpis': kpis,
+        # filtros: obra_id sempre string para o template (comparação com option value)
         'filtros': {
-            'obra_id': obra_id,
+            'obra_id': str(obra_id) if obra_id else None,
             'categoria': categoria,
             'local_id': local_id,
             'prioridade': prioridade,

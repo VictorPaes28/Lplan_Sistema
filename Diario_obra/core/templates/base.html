@@ -132,20 +132,50 @@
             </div>
         </div>
         
-        <!-- Navegação: um único bloco padronizado (Trocar Sistema + Trocar Obra + demais itens) -->
+        <!-- Navegação: um único bloco padronizado (Home + Trocar Obra + Sistemas + demais itens) -->
         <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
-            {% if request.resolver_match.url_name != 'select-system' %}
-            <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 text-gray-300 rounded-lg mb-2 transition-all duration-200">
-                <i class="fas fa-th-large w-5 mr-3"></i>
-                <span class="font-medium">Trocar Sistema</span>
+            <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}bg-blue-600 text-white shadow-md{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-home w-5 mr-3"></i>
+                <span class="font-medium">Home</span>
             </a>
-            {% endif %}
-            {% if request.session.selected_project_id and '/gestao/' not in request.path %}
+            {% if request.session.selected_project_id and '/gestao/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
             </a>
             {% endif %}
+
+            <!-- Links para os sistemas (apps) -->
+            {% if has_diario or has_gestao or has_mapa or has_central %}
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
+            </div>
+            {% if has_diario %}
+            <a href="{% url 'select-project' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name != 'select-system' and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/accounts/admin-central' not in request.path %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-file-alt w-5 mr-3"></i>
+                <span class="font-medium">Diário de Obras</span>
+            </a>
+            {% endif %}
+            {% if has_gestao %}
+            <a href="{% url 'gestao:home' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/gestao/' in request.path %}bg-blue-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-clipboard-list w-5 mr-3"></i>
+                <span class="font-medium">GestControll</span>
+            </a>
+            {% endif %}
+            {% if has_mapa %}
+            <a href="{% url 'mapa_obras:home' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/mapa/' in request.path or '/engenharia/' in request.path %}bg-emerald-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-map-marked-alt w-5 mr-3"></i>
+                <span class="font-medium">Mapa de Suprimentos</span>
+            </a>
+            {% endif %}
+            {% if has_central %}
+            <a href="{% url 'accounts:admin_central' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-amber-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}bg-amber-600 text-white shadow-md{% endif %}">
+                <i class="fas fa-cog w-5 mr-3"></i>
+                <span class="font-medium">Painel do sistema</span>
+            </a>
+            {% endif %}
+            {% endif %}
+
             {% if '/accounts/admin-central' in request.path %}
             <!-- ═══════ MENU: Painel do sistema (hub único) ═══════ -->
             <a href="{% url 'accounts:admin_central' %}" 
@@ -225,12 +255,22 @@
             {% endif %}
 
             {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
-            <!-- ═══════ MENU: Mapa de Suprimentos ═══════ -->
-            <a href="{% url 'mapa_obras:home' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' and '/mapa/' in request.path %}bg-emerald-600 text-white shadow-md{% endif %}">
+            <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
+            {% if obra_atual %}
+            <div class="mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obra atual</p>
+            </div>
+            <div class="px-4 py-2 mx-1 bg-emerald-900 bg-opacity-50 rounded-lg border border-emerald-700 mb-3">
+                <p class="text-sm font-medium text-emerald-300">{{ obra_atual.nome }}</p>
+                <p class="text-xs text-gray-400">Cod: {{ obra_atual.codigo_sienge }}</p>
+            </div>
+            {% endif %}
+            {% if request.resolver_match.url_name != 'home' or '/engenharia/' in request.path %}
+            <a href="{% url 'mapa_obras:home' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' and '/mapa/' in request.path %}bg-emerald-600 text-white shadow-md{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
-                <span class="font-medium">Selecionar Obra</span>
+                <span class="font-medium">{% if obra_atual %}Trocar Obra{% else %}Selecionar Obra{% endif %}</span>
             </a>
+            {% endif %}
             <a href="{% url 'engenharia:dashboard_2' %}" 
                class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}bg-emerald-600 text-white shadow-md{% endif %}">
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
@@ -246,25 +286,9 @@
                 <i class="fas fa-upload w-5 mr-3"></i>
                 <span class="font-medium">Importar Sienge</span>
             </a>
-            {% if obra_atual %}
-            <div class="mt-3 mb-2 px-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obra Atual</p>
-            </div>
-            <div class="px-4 py-2 mx-1 bg-emerald-900 bg-opacity-50 rounded-lg border border-emerald-700">
-                <p class="text-sm font-medium text-emerald-300">{{ obra_atual.nome }}</p>
-                <p class="text-xs text-gray-400">Cod: {{ obra_atual.codigo_sienge }}</p>
-            </div>
-            {% endif %}
 
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
-            <!-- ═══════ MENU: Seleção (só "Selecionar Sistema" quando estiver na página select-system) ═══════ -->
-            {% if request.resolver_match.url_name == 'select-system' %}
-            <a href="{% url 'select-system' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 bg-blue-600 text-white shadow-md">
-                <i class="fas fa-th-large w-5 mr-3"></i>
-                <span class="font-medium">Selecionar Sistema</span>
-            </a>
-            {% endif %}
+            <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->

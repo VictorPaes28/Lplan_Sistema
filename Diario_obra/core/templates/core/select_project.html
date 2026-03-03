@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Selecionar Obra{% endblock %}
-{% block page_subtitle %}Escolha a obra que deseja gerenciar{% endblock %}
+{% block page_title %}Diário de Obras{% endblock %}
+{% block page_subtitle %}Selecionar obra para gerenciar{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/select_project.css' %}">
@@ -147,7 +147,13 @@
 
     <div class="mb-8">
         <h2 class="text-2xl font-bold text-slate-900 mb-2">Selecione uma Obra</h2>
-        <p class="text-gray-600">Escolha a obra que deseja visualizar e gerenciar no sistema.</p>
+        <p class="text-gray-600 mb-4">Escolha a obra que deseja visualizar e gerenciar no sistema.</p>
+        {% if user.is_staff or user.is_superuser %}
+        <a href="{% url 'project-new' %}" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium mb-4">
+            <i class="fas fa-plus-circle mr-2"></i>
+            Criar Obra
+        </a>
+        {% endif %}
     </div>
 
     {% if projects %}

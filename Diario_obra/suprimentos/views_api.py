@@ -294,7 +294,13 @@ def item_atualizar_campo(request):
         # Validar que o item pertence à obra da sessão
         obra_sessao_id = request.session.get('obra_id')
         if not request.user.is_superuser:
-            if not obra_sessao_id or int(obra_sessao_id) != item.obra_id:
+            if not obra_sessao_id:
+                return JsonResponse({'success': False, 'error': 'Selecione uma obra no Mapa de Suprimentos antes de editar.'}, status=403)
+            try:
+                obra_id_int = int(obra_sessao_id)
+            except (TypeError, ValueError):
+                return JsonResponse({'success': False, 'error': 'Obra da sessão inválida. Troque de obra e tente novamente.'}, status=403)
+            if obra_id_int != item.obra_id:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para editar itens desta obra.'}, status=403)
         
         # Campos permitidos para edição

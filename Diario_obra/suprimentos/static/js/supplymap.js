@@ -63,7 +63,11 @@ function updatePrioridadeClass(selectElement, value) {
 // Atualizar campo via AJAX
 function updateItemField(itemId, field, value, url) {
     const csrftoken = getCookie('csrftoken');
-    
+    if (!csrftoken) {
+        showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+        return;
+    }
+
     fetch(url, {
         method: 'POST',
         headers: {
@@ -76,12 +80,21 @@ function updateItemField(itemId, field, value, url) {
             value: value
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        return response.text().then(function(text) {
+            var data;
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+            if (!response.ok) {
+                var msg = (data && data.error) ? data.error : ('Erro ' + response.status);
+                throw { status: response.status, message: msg };
+            }
+            return data;
+        });
+    })
     .then(data => {
         if (data.success) {
             showSaveFeedback(itemId);
             showMessage('✓ Salvo', 'success');
-            // Atualizar status visual se necessário
             if (data.status_css) {
                 updateRowStatus(itemId, data.status_css);
             }
@@ -91,7 +104,8 @@ function updateItemField(itemId, field, value, url) {
     })
     .catch(error => {
         console.error('Error:', error);
-        showMessage('Erro ao atualizar', 'error');
+        var msg = (error && error.message) ? error.message : 'Erro ao atualizar. Verifique se a obra está selecionada e tente novamente.';
+        showMessage(msg, 'error');
     });
 }
 

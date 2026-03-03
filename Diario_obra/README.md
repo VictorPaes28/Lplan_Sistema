@@ -88,6 +88,8 @@ python manage.py setup_superuser --noinput --username admin --email admin@lplan.
 python manage.py runserver
 ```
 
+Acesse no navegador: **http://127.0.0.1:8000** (use `http`, não `https`; o servidor de desenvolvimento é só HTTP).
+
 ### 8. Inicie o Celery (em outro terminal)
 
 ```bash

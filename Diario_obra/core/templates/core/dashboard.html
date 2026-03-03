@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Dashboard{% endblock %}
+{% block page_title %}Diário de Obras{% endblock %}
 {% block page_subtitle %}Visão geral das obras e relatórios{% endblock %}
 
 {% block extra_css %}
@@ -13,6 +13,15 @@
 
 {% block content %}
 <div class="dashboard-content">
+<!-- Botão Criar Obras (tela inicial do diário) -->
+{% if user.is_staff or user.is_superuser %}
+<div class="mb-6 flex justify-end">
+    <a href="{% url 'project-new' %}" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
+        <i class="fas fa-plus-circle mr-2"></i>
+        Criar Obra
+    </a>
+</div>
+{% endif %}
 <!-- ========== MODO VISUAL (cards, calendário, fotos, vídeos) ========== -->
 <div id="dashboard-view-visual" class="dashboard-view dashboard-view--visual">
 <!-- KPIs Cards - visual coeso e profissional -->

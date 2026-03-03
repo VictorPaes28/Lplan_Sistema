@@ -11,6 +11,42 @@ from .models import (
 )
 
 
+def _get_system_access(user):
+    """Retorna has_diario, has_gestao, has_mapa, has_central para o usuário."""
+    if not user or not user.is_authenticated:
+        return False, False, False, False
+    from accounts.groups import GRUPOS
+    user_groups = set(user.groups.values_list('name', flat=True))
+    has_diario = user.is_superuser or user.is_staff or GRUPOS.GERENTES in user_groups
+    has_gestao = user.is_superuser or user.is_staff or bool(
+        user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
+    )
+    has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    has_central = user.is_superuser or user.is_staff
+    return has_diario, has_gestao, has_mapa, has_central
+
+
+def sidebar_systems(request):
+    """
+    Disponibiliza has_diario, has_gestao, has_mapa, has_central em todos os templates
+    para exibir os links dos sistemas na sidebar.
+    """
+    if not request.user.is_authenticated:
+        return {
+            'has_diario': False,
+            'has_gestao': False,
+            'has_mapa': False,
+            'has_central': False,
+        }
+    has_diario, has_gestao, has_mapa, has_central = _get_system_access(request.user)
+    return {
+        'has_diario': has_diario,
+        'has_gestao': has_gestao,
+        'has_mapa': has_mapa,
+        'has_central': has_central,
+    }
+
+
 def sidebar_counters(request):
     """
     Context processor para adicionar contadores da sidebar em todas as páginas.

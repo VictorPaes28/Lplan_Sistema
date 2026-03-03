@@ -193,7 +193,7 @@
 
 <!-- Filtros -->
 <div class="filtros-container">
-    <form id="filtro-form" method="get">
+    <form id="filtro-form" method="get" action="{% url 'engenharia:mapa' %}">
         <div class="filtros-row">
             <div class="filtro-item">
                 <label for="obra" class="form-label">Obra:</label>
@@ -208,7 +208,7 @@
             </div>
             <div class="filtro-item">
                 <label for="categoria" class="form-label">Categoria:</label>
-                <select name="categoria" id="categoria" class="form-select">
+                <select name="categoria" id="categoria" class="form-select" onchange="this.form.submit()">
                     <option value="">Todas</option>
                     {% for val,label in categorias_opcoes %}
                         <option value="{{ val }}" {% if filtros.categoria == val %}selected{% endif %}>{{ label }}</option>
@@ -224,7 +224,7 @@
             </div>
             <div class="filtro-item">
                 <label for="local" class="form-label">Local:</label>
-                <select name="local" id="local" class="form-select">
+                <select name="local" id="local" class="form-select" onchange="this.form.submit()">
                     <option value="">Todos</option>
                     {% for local in locais %}
                         <option value="{{ local.id }}" {% if filtros.local_id == local.id|stringformat:"s" %}selected{% endif %}>
@@ -235,7 +235,7 @@
             </div>
             <div class="filtro-item">
                 <label for="prioridade" class="form-label">Prioridade:</label>
-                <select name="prioridade" id="prioridade" class="form-select">
+                <select name="prioridade" id="prioridade" class="form-select" onchange="this.form.submit()">
                     <option value="">Todas</option>
                     <option value="URGENTE" {% if filtros.prioridade == "URGENTE" %}selected{% endif %}>Urgente</option>
                     <option value="ALTA" {% if filtros.prioridade == "ALTA" %}selected{% endif %}>Alta</option>
@@ -245,7 +245,7 @@
             </div>
             <div class="filtro-item">
                 <label for="status" class="form-label">Status:</label>
-                <select name="status" id="status" class="form-select">
+                <select name="status" id="status" class="form-select" onchange="this.form.submit()">
                     <option value="">Todos</option>
                     <option value="LEVANTAMENTO" {% if filtros.status == "LEVANTAMENTO" %}selected{% endif %}>1) Levantamento</option>
                     <option value="AGUARDANDO_COMPRA" {% if filtros.status == "AGUARDANDO_COMPRA" %}selected{% endif %}>2) Aguardando Compra</option>
@@ -263,6 +263,13 @@
             </div>
             <div class="filtro-item">
                 <button type="submit" class="btn btn-primary">Filtrar</button>
+            </div>
+            <div class="filtro-item">
+                <a href="{% url 'engenharia:mapa' %}{% if filtros.obra_id %}?obra={{ filtros.obra_id }}{% endif %}" 
+                   class="btn btn-outline-secondary" 
+                   title="Limpar todos os filtros (mantém apenas a obra selecionada)">
+                    <i class="bi bi-x-circle"></i> Limpar filtros
+                </a>
             </div>
             <div class="filtro-item">
                 <a href="{% url 'engenharia:exportar_excel' %}?{{ request.GET.urlencode }}" 

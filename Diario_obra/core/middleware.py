@@ -11,6 +11,9 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
     """
     
     def process_response(self, request, response):
+        # Não alterar respostas de arquivos estáticos/media (evita interferência no carregamento)
+        if request.path.startswith(('/static/', '/media/')):
+            return response
         # Remove X-XSS-Protection header (not needed in modern browsers)
         if 'X-XSS-Protection' in response:
             del response['X-XSS-Protection']
