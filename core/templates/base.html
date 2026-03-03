@@ -135,7 +135,7 @@
         
         <!-- Navegação: um único bloco padronizado (Home + Trocar Obra + Sistemas + demais itens) -->
         <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
-            <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}bg-blue-600 text-white shadow-md{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Home</span>
             </a>
@@ -152,25 +152,25 @@
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
             </div>
             {% if has_diario %}
-            <a href="{% url 'select-project' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name != 'select-system' and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/accounts/admin-central' not in request.path %}bg-blue-600 text-white shadow-md{% endif %}">
+            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name != 'select-system' and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/accounts/admin-central' not in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-file-alt w-5 mr-3"></i>
                 <span class="font-medium">Diário de Obras</span>
             </a>
             {% endif %}
             {% if has_gestao %}
-            <a href="{% url 'gestao:home' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/gestao/' in request.path %}bg-blue-600 text-white shadow-md{% endif %}">
+            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/gestao/' in request.path %}text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-clipboard-list w-5 mr-3"></i>
                 <span class="font-medium">GestControll</span>
             </a>
             {% endif %}
             {% if has_mapa %}
-            <a href="{% url 'mapa_obras:home' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/mapa/' in request.path or '/engenharia/' in request.path %}bg-emerald-600 text-white shadow-md{% endif %}">
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/mapa/' in request.path or '/engenharia/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-map-marked-alt w-5 mr-3"></i>
                 <span class="font-medium">Mapa de Suprimentos</span>
             </a>
             {% endif %}
             {% if has_central %}
-            <a href="{% url 'accounts:admin_central' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-amber-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}bg-amber-600 text-white shadow-md{% endif %}">
+            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Painel do sistema</span>
             </a>
@@ -180,7 +180,7 @@
             {% if '/accounts/admin-central' in request.path %}
             <!-- ═══════ MENU: Painel do sistema (hub único) ═══════ -->
             <a href="{% url 'accounts:admin_central' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-amber-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'admin_central' %}bg-amber-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'admin_central' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Início</span>
             </a>
@@ -188,12 +188,12 @@
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mapa de Suprimentos</p>
             </div>
             <a href="{% url 'accounts:criar_obra' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-green-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'criar_obra' %}bg-green-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'criar_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-plus-circle w-5 mr-3"></i>
                 <span class="font-medium">Criar obra (Mapa)</span>
             </a>
             <a href="{% url 'accounts:gerenciar_obras' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'gerenciar_obras' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'gerenciar_obras' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
                 <span class="font-medium">Gerenciar obras (Mapa)</span>
             </a>
@@ -201,24 +201,24 @@
             {% elif '/gestao/' in request.path %}
             <!-- ═══════ MENU: GestControll ═══════ -->
             <a href="{% url 'gestao:home' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Visão Geral</span>
             </a>
             <a href="{% url 'gestao:list_workorders' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'detail_workorder' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'detail_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-clipboard-list w-5 mr-3"></i>
                 <span class="font-medium">Pedidos</span>
             </a>
             {% if pode_criar_pedido %}
             <a href="{% url 'gestao:create_workorder' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-orange-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'create_workorder' %}bg-orange-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'create_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-plus-circle w-5 mr-3"></i>
                 <span class="font-medium">Novo Pedido</span>
             </a>
             {% endif %}
             <a href="{% url 'gestao:list_notificacoes' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_notificacoes' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_notificacoes' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-bell w-5 mr-3"></i>
                 <span class="font-medium">Notificações</span>
                 {% if notificacoes_count and notificacoes_count > 0 %}
@@ -230,26 +230,26 @@
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
             </div>
             <a href="{% url 'gestao:list_obras' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_obras' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_obras' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
                 <span class="font-medium">Obras</span>
             </a>
             <a href="{% url 'gestao:list_empresas' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_empresas' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_empresas' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-briefcase w-5 mr-3"></i>
                 <span class="font-medium">Empresas</span>
             </a>
             {% endif %}
             {% if is_admin %}
             <a href="{% if user.is_staff or user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_users' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_users' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-users-cog w-5 mr-3"></i>
                 <span class="font-medium">Usuários</span>
             </a>
             {% endif %}
             {% if is_admin or is_responsavel_empresa %}
             <a href="{% url 'gestao:desempenho_equipe' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'desempenho_equipe' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'desempenho_equipe' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-chart-line w-5 mr-3"></i>
                 <span class="font-medium">Desempenho</span>
             </a>
@@ -267,23 +267,23 @@
             </div>
             {% endif %}
             {% if request.resolver_match.url_name != 'home' or '/engenharia/' in request.path %}
-            <a href="{% url 'mapa_obras:home' %}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' and '/mapa/' in request.path %}bg-emerald-600 text-white shadow-md{% endif %}">
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' and '/mapa/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
                 <span class="font-medium">{% if obra_atual %}Trocar Obra{% else %}Selecionar Obra{% endif %}</span>
             </a>
             {% endif %}
             <a href="{% url 'engenharia:dashboard_2' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}bg-emerald-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
             <a href="{% url 'engenharia:mapa' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' %}bg-emerald-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-table w-5 mr-3"></i>
                 <span class="font-medium">Mapa</span>
             </a>
             <a href="{% url 'engenharia:importar_sienge' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-emerald-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_sienge_upload' %}bg-emerald-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_sienge_upload' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-upload w-5 mr-3"></i>
                 <span class="font-medium">Importar Sienge</span>
             </a>
@@ -294,14 +294,14 @@
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->
             <a href="{% url 'dashboard' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Visão geral</span>
             </a>
             
             {% if request.session.selected_project_id %}
             <a href="{% url 'report-list' %}" 
-               class="flex items-center justify-between px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'report-list' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center justify-between px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'report-list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <div class="flex items-center">
                     <i class="fas fa-file-alt w-5 mr-3"></i>
                     <span class="font-medium">Relatórios</span>
@@ -387,18 +387,18 @@
             <!-- Obras - Lista de projetos (core), apenas para Admin/Staff -->
             {% if user.is_staff or user.is_superuser %}
             <a href="/projects/" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
                 <span class="font-medium">Obras</span>
             </a>
             {% endif %}
             <a href="{% url 'analytics' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analytics' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analytics' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-chart-line w-5 mr-3"></i>
                 <span class="font-medium">Análise de dados</span>
             </a>
             <a href="{% url 'profile' %}" 
-               class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'profile' %}bg-blue-600 text-white shadow-md{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'profile' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-user w-5 mr-3"></i>
                 <span class="font-medium">Perfil</span>
             </a>
@@ -408,12 +408,12 @@
             {% if user.is_staff or user.is_superuser %}
             <div class="mt-3 pt-3 border-t border-slate-700">
                 <a href="{% url 'central_ajuda' %}" 
-                   class="flex items-center px-4 py-3 text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}bg-blue-600 text-white shadow-md{% endif %}">
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                     <i class="fas fa-question-circle w-5 mr-3"></i>
                     <span class="font-medium">Ajuda</span>
                 </a>
                 <a href="{% url 'accounts:admin_central' %}" 
-                   class="flex items-center px-4 py-3 text-gray-300 hover:bg-amber-600 hover:text-white rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}bg-amber-600 text-white shadow-md{% endif %}">
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                     <i class="fas fa-cog w-5 mr-3"></i>
                     <span class="font-medium">Painel do sistema</span>
                 </a>
