@@ -298,6 +298,17 @@ button[data-sidebar-close] {
     background: rgba(51, 65, 85, 0.85) !important;
     border-left-color: #93c5fd;
 }
+/* Todos os itens selecionados da sidebar: só a barra lateral (como Home), sem fundo sólido */
+#sidebar .sidebar-nav a.bg-blue-600,
+#sidebar .sidebar-nav a.bg-amber-600,
+#sidebar .sidebar-nav a.bg-emerald-600,
+#sidebar .sidebar-nav a.bg-green-600,
+#sidebar .sidebar-nav a.bg-orange-600 {
+    background: transparent !important;
+    border-left: 3px solid #60a5fa;
+    padding-left: calc(1rem - 3px) !important;
+    box-shadow: none !important;
+}
 #sidebar .sidebar-nav .sidebar-switch-system .fa-th-large {
     color: #93c5fd;
 }

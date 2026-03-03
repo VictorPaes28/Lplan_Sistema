@@ -83,11 +83,22 @@ def create_empresa_and_obras():
     inicio = hoje - timedelta(days=180)
     fim = hoje + timedelta(days=365)
 
+    # Responsável para a empresa (evita erro se a coluna responsavel_id for NOT NULL no MySQL)
+    responsavel = User.objects.filter(username='ricardo.empresa').first() or User.objects.filter(is_superuser=True).first()
+
     # Empresa
     empresa, _ = Empresa.objects.get_or_create(
         codigo='LPLAN',
-        defaults={'nome': 'LPLAN Construções', 'email': 'contato@lplan.com.br', 'ativo': True}
+        defaults={
+            'nome': 'LPLAN Construções',
+            'email': 'contato@lplan.com.br',
+            'ativo': True,
+            **({'responsavel': responsavel} if responsavel else {}),
+        }
     )
+    if responsavel and not empresa.responsavel_id:
+        empresa.responsavel = responsavel
+        empresa.save(update_fields=['responsavel'])
 
     obras_data = [
         ('OBRA-2024-001', 'Edificação Residencial Alto Padrão - Bloco A', 'Rua das Flores, 100 - Centro', 'Construtora Alpha Ltda'),
