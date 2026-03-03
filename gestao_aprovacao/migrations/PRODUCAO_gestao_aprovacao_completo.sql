@@ -54,6 +54,9 @@ ALTER TABLE `gestao_aprovacao_workorder` ADD COLUMN `motivo_exclusao` LONGTEXT N
 -- 5) workorderpermission.updated_at (0005)
 ALTER TABLE `gestao_aprovacao_workorderpermission` ADD COLUMN `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6);
 
+-- 5b) attachment.versao_reaprovacao (0009)
+ALTER TABLE `gestao_aprovacao_attachment` ADD COLUMN `versao_reaprovacao` INT NOT NULL DEFAULT 0;
+
 -- 6) Tabela comment
 CREATE TABLE IF NOT EXISTS `gestao_aprovacao_comment` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
