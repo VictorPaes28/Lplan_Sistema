@@ -21,6 +21,6 @@ CREATE TABLE IF NOT EXISTS `gestao_aprovacao_notificacao` (
   KEY `gestao_apro_usuario_097a75_idx` (`usuario_id`, `lida`, `created_at`),
   KEY `gestao_aprovacao_notificacao_usuario_id_52d78518` (`usuario_id`),
   KEY `gestao_aprovacao_notificacao_work_order_id_b7599d79` (`work_order_id`),
-  CONSTRAINT `gestao_aprovacao_notificacao_usuario_id_52d78518_fk_auth_user_id` FOREIGN KEY (`usuario_id`) REFERENCES `auth_user` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `gestao_aprovacao_notificacao_work_order_id_b7599d79_fk_gestao_aprovacao_workorder_id` FOREIGN KEY (`work_order_id`) REFERENCES `gestao_aprovacao_workorder` (`id`) ON DELETE CASCADE
+  CONSTRAINT `ga_notif_usuario_fk` FOREIGN KEY (`usuario_id`) REFERENCES `auth_user` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `ga_notif_work_order_fk` FOREIGN KEY (`work_order_id`) REFERENCES `gestao_aprovacao_workorder` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
