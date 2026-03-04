@@ -148,8 +148,8 @@ class Command(BaseCommand):
         # Mapear colunas (ordem de prioridade: variações mais comuns primeiro)
         col_mapping = {
             'item_sc': ['ITEM', 'Nº ITEM', 'N ITEM', 'NUMERO ITEM', 'NÚMERO ITEM', 'N. ITEM'],
-            'codigo_obra': ['CÓD. OBRA', 'COD OBRA', 'CODIGO OBRA', 'CODIGO_DA_OBRA', 'COD_OBRA', 'OBRA', 'COD OBRA', 'CÓD OBRA'],
-            'codigo_insumo': ['CÓD. INSUMO', 'COD INSUMO', 'CODIGO INSUMO', 'CODIGO_DO_INSUMO', 'COD_INSUMO', 'CÓD INSUMO'],
+            'codigo_obra': ['CÓD. OBRA', 'COD. OBRA', 'COD OBRA', 'CODIGO OBRA', 'CODIGO_DA_OBRA', 'COD_OBRA', 'OBRA', 'CÓD OBRA'],
+            'codigo_insumo': ['CÓD. INSUMO', 'COD. INSUMO', 'COD INSUMO', 'CODIGO INSUMO', 'CODIGO_DO_INSUMO', 'COD_INSUMO', 'CÓD INSUMO'],
             'descricao_insumo': ['DESCRIÇÃO DO INSUMO', 'DESCRICAO DO INSUMO', 'DESCRIÇÃO', 'DESCRICAO', 'DESC INSUMO', 'DESCRIÇÃO DO INSUMO', 'DESC. INSUMO'],
             'quantidade_solicitada': ['QT. SOLICITADA', 'QT SOLICITADA', 'QUANTIDADE SOLICITADA', 'QTD SOLICITADA', 'QUANT SOLICITADA', 'QT SOLICITADA'],
             'data_sc': ['DATA DA SC', 'DATA SC', 'DATA_SOLICITACAO', 'DATA SC'],
@@ -200,12 +200,32 @@ class Command(BaseCommand):
         insumos_cache = {}
         
         def get_obra(codigo):
+            """Busca obra por código Sienge. Normaliza: strip; 224 e 0224 considerados iguais."""
             codigo_str = str(codigo).strip()
+            if not codigo_str or codigo_str.lower() == 'nan':
+                return None
             if codigo_str not in obras_cache:
                 try:
                     obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=codigo_str)
                 except Obra.DoesNotExist:
                     obras_cache[codigo_str] = None
+                if obras_cache[codigo_str] is None and codigo_str.isdigit():
+                    # CSV "224" vs BD "0224" ou vice-versa: tentar forma normalizada
+                    normalizado = str(int(codigo_str))
+                    try:
+                        obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=normalizado)
+                    except Obra.DoesNotExist:
+                        pass
+                if obras_cache[codigo_str] is None and codigo_str.isdigit() and len(codigo_str) < 6:
+                    # Tentar com zeros à esquerda (ex.: BD "0224", CSV "224")
+                    for width in (4, 5):
+                        padded = codigo_str.zfill(width)
+                        if padded != codigo_str:
+                            try:
+                                obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=padded)
+                                break
+                            except Obra.DoesNotExist:
+                                continue
             return obras_cache[codigo_str]
         
         def get_insumo(codigo):
@@ -226,71 +246,78 @@ class Command(BaseCommand):
 
         def get_insumo_ou_none(codigo, descricao):
             """
-            Busca insumo existente. NÃO cria automaticamente.
-            - Se já existir por código: retorna (atualizando descrição se necessário)
-            - Se não existir, tenta "reconciliar" um insumo criado no Levantamento (SM-LEV-*) pelo NOME
-            - Se não achar, retorna None (insumo deve ser criado manualmente)
+            Busca insumo existente ou CRIA se não existir (para permitir import sem cadastro prévio).
+            - Se já existir por código: retorna (insumo, False) atualizando descrição se necessário
+            - Se não existir, tenta reconciliar com insumo criado no Levantamento (SM-LEV-*) pelo NOME
+            - Se não achar, CRIA novo Insumo com código e descrição do arquivo para armazenar o recebimento
             """
             codigo_str = str(codigo).strip()
             if not codigo_str or codigo_str == 'nan':
-                return None
+                return None, False
 
             desc_norm = normalizar_desc(descricao)
 
             existente = get_insumo(codigo_str)
             if existente:
-                # Atualizar descrição se mudou
                 if desc_norm and (existente.descricao or '').strip() != desc_norm:
                     existente.descricao = desc_norm[:500]
                     existente.save(update_fields=['descricao', 'updated_at'])
-                # Atualizar identificação de macroelemento se necessário
-                if desc_norm and desc_norm != existente.descricao:
+                if desc_norm:
                     novo_eh_macroelemento = existente.identificar_eh_macroelemento()
                     if novo_eh_macroelemento != existente.eh_macroelemento:
                         existente.eh_macroelemento = novo_eh_macroelemento
                         existente.save(update_fields=['eh_macroelemento', 'updated_at'])
-                return existente
+                return existente, False
 
-            # Reconciliar insumo criado no levantamento (código provisório) pelo nome
-            # Isso permite que insumos criados manualmente no levantamento sejam vinculados ao código do Sienge
             if desc_norm:
                 candidato = Insumo.objects.filter(
                     descricao__iexact=desc_norm,
                     codigo_sienge__startswith='SM-LEV-'
                 ).first()
                 if candidato:
-                    # Atualizar código provisório para o código real do Sienge
                     candidato.codigo_sienge = codigo_str
                     candidato.descricao = desc_norm[:500]
-                    # [!] UNIDADE: Não tentar ler do CSV - deve ser definida manualmente no cadastro do insumo
-                    # Se não tiver unidade definida, usar 'UND' apenas como fallback temporário
-                    # O usuário deve ajustar manualmente no cadastro do insumo
                     if not candidato.unidade or candidato.unidade.strip() == '':
-                        candidato.unidade = 'UND'  # Fallback temporário - ajustar manualmente
-                    # Identificar automaticamente se é macroelemento
+                        candidato.unidade = 'UND'
                     candidato.eh_macroelemento = candidato.identificar_eh_macroelemento()
                     candidato.save()
                     insumos_cache[codigo_str] = candidato
-                    return candidato
+                    return candidato, False
 
-            # IMPORTANTE: Não criar insumo automaticamente
-            # Insumos devem ser criados manualmente antes da importação
-            return None
+            # Criar insumo para armazenar o recebimento e permitir vínculo depois no mapa
+            descricao_final = desc_norm[:500] if desc_norm else f'Insumo {codigo_str}'
+            novo = Insumo.objects.create(
+                codigo_sienge=codigo_str,
+                descricao=descricao_final,
+                unidade='UND',
+                eh_macroelemento=True,
+            )
+            novo.eh_macroelemento = novo.identificar_eh_macroelemento()
+            novo.save(update_fields=['eh_macroelemento'])
+            insumos_cache[codigo_str] = novo
+            return novo, True
         
         # NOVA LÓGICA: Agrupar por (obra, numero_sc, insumo) e capturar MÁXIMO quantidade_entregue
         # IMPORTANTE: Uma mesma SC pode ter diferentes insumos, então usamos SC + código do insumo como chave
         # A quantidade entregue vem repetida no CSV para o mesmo insumo, então pegamos apenas o maior valor
         grupos_sc = {}  # Chave: (obra, numero_sc, codigo_insumo) -> dados consolidados
         obras_ignoradas = set()
-        insumos_nao_encontrados = set()
+        insumos_criados_agora = set()  # Códigos de insumos criados neste import
         
         for idx, row in df.iterrows():
             # Limpar e validar número da SC
             numero_sc_raw = row[colunas_encontradas['numero_sc']]
             numero_sc = str(numero_sc_raw).strip() if pd.notna(numero_sc_raw) else ''
             
-            # Remover espaços e caracteres inválidos
-            numero_sc = numero_sc.replace(' ', '').replace('.', '').replace('-', '').replace('_', '')
+            numero_sc = numero_sc.replace(' ', '').replace('-', '').replace('_', '')
+            # Normalizar numérico antes de remover ponto: 85.0 -> 85, 085 -> 85 (igual à API)
+            if numero_sc and numero_sc.replace('.', '', 1).replace(',', '', 1).isdigit():
+                try:
+                    numero_sc = str(int(float(numero_sc.replace(',', '.'))))
+                except (ValueError, TypeError):
+                    numero_sc = numero_sc.replace('.', '').replace(',', '')
+            else:
+                numero_sc = numero_sc.replace('.', '').replace(',', '')
             
             if not numero_sc or numero_sc.lower() == 'nan' or numero_sc == '':
                 continue
@@ -304,6 +331,12 @@ class Command(BaseCommand):
                 codigo_obra = str(row[colunas_encontradas['codigo_obra']]).strip()
                 if not codigo_obra or codigo_obra == 'nan':
                     codigo_obra = obra_codigo_fallback or ''
+                # Normalizar "224.0" (Excel) para "224"
+                if codigo_obra and codigo_obra.replace('.', '', 1).isdigit():
+                    try:
+                        codigo_obra = str(int(float(codigo_obra)))
+                    except (ValueError, TypeError):
+                        pass
             else:
                 codigo_obra = obra_codigo_fallback or ''
             
@@ -315,26 +348,28 @@ class Command(BaseCommand):
                 obras_ignoradas.add(codigo_obra)
                 continue
             
-            # Código do insumo - OBRIGATÓRIO para a nova estrutura
+            # Código do insumo - obrigatório para criar recebimento (vem do arquivo)
             insumo_obj = None
             codigo_insumo = ''
             if tem_coluna_insumo:
                 codigo_insumo = str(row[colunas_encontradas['codigo_insumo']]).strip()
                 if codigo_insumo and codigo_insumo != 'nan':
-                    desc_insumo = ''
-                    if 'descricao_insumo' in colunas_encontradas:
-                        desc_insumo = row[colunas_encontradas['descricao_insumo']]
-                    insumo_obj = get_insumo_ou_none(codigo_insumo, desc_insumo)
-                    if not insumo_obj:
-                        insumos_nao_encontrados.add(f"{codigo_insumo} ({desc_insumo[:30] if desc_insumo else 'sem descrição'})")
-                        continue
-            
+                    # Normalizar: 15666.0 (Excel) -> 15666
+                    if codigo_insumo.replace('.', '', 1).replace(',', '', 1).isdigit():
+                        try:
+                            codigo_insumo = str(int(float(codigo_insumo.replace(',', '.'))))
+                        except (ValueError, TypeError):
+                            pass
+                    desc_insumo = row[colunas_encontradas['descricao_insumo']] if 'descricao_insumo' in colunas_encontradas else ''
+                    desc_insumo = str(desc_insumo).strip() if desc_insumo is not None and not (isinstance(desc_insumo, float) and pd.isna(desc_insumo)) else ''
+                    insumo_obj, foi_criado = get_insumo_ou_none(codigo_insumo, desc_insumo)
+                    if insumo_obj is None:
+                        continue  # Código vazio ou inválido
+                    if foi_criado:
+                        insumos_criados_agora.add(f"{codigo_insumo} ({str(desc_insumo)[:30] if desc_insumo else 'sem descricao'})")
+
             if not insumo_obj:
-                continue  # Precisa do insumo para criar o recebimento
-            
-            # FILTRO: Pular insumos pequenos/cimentos se não foi solicitado incluir
-            if not incluir_pequenos and not insumo_obj.eh_macroelemento:
-                continue  # Não incluir insumos pequenos no mapa de suprimentos
+                continue  # Sem coluna de insumo ou código vazio
             
             # Chave de agrupamento: (obra, numero_sc, codigo_insumo)
             # IMPORTANTE: Uma mesma SC pode ter diferentes insumos, então cada insumo é tratado separadamente
@@ -363,7 +398,8 @@ class Command(BaseCommand):
             
             # Atualizar descrição se disponível
             if 'descricao_insumo' in colunas_encontradas:
-                desc_val = str(row[colunas_encontradas['descricao_insumo']]).strip()
+                desc_val = row[colunas_encontradas['descricao_insumo']]
+                desc_val = str(desc_val).strip() if desc_val is not None and not (isinstance(desc_val, float) and pd.isna(desc_val)) else ''
                 if desc_val and desc_val != 'nan' and not grupos_sc[chave]['descricao_insumo']:
                     grupos_sc[chave]['descricao_insumo'] = desc_val
             
@@ -388,15 +424,8 @@ class Command(BaseCommand):
             # IMPORTANTE: Quantidade solicitada - usar primeira encontrada (geralmente é a mesma)
             if 'quantidade_solicitada' in colunas_encontradas:
                 qtd_sol = self.parse_decimal(row[colunas_encontradas['quantidade_solicitada']])
-                # Debug: logar valores para verificar se está parseando corretamente
                 if qtd_sol > Decimal('0.00') and grupos_sc[chave]['quantidade_solicitada'] == Decimal('0.00'):
                     grupos_sc[chave]['quantidade_solicitada'] = qtd_sol
-                    # Log para debug (apenas primeira vez que encontra)
-                    valor_original = str(row[colunas_encontradas['quantidade_solicitada']])
-                    if qtd_sol != Decimal(valor_original.replace(',', '.').replace('.', '', valor_original.count('.') - 1) if '.' in valor_original and ',' in valor_original else valor_original.replace(',', '.')):
-                        self.stdout.write(
-                            f'   [DATA] [{codigo_obra}] SC {numero_sc}: Quantidade solicitada parseada: "{valor_original}" -> {qtd_sol}'
-                        )
             
             # IMPORTANTE: Quantidade entregue - capturar o MÁXIMO (não somar!)
             # PROBLEMA DO SIENGE: O Sienge exporta múltiplas linhas para o mesmo insumo na mesma SC,
@@ -441,26 +470,28 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 f'   [!] Obras não cadastradas: {", ".join(sorted(obras_ignoradas))}'
             ))
+            self.stdout.write(self.style.WARNING(
+                '   Dica: Cadastre essas obras em Mapa de Obras com código Sienge igual ao do arquivo (ex.: 224, 242, 259).'
+            ))
         
         if not incluir_pequenos:
             self.stdout.write(self.style.SUCCESS(
-                f'   [OK] Filtro ativo: Apenas macroelementos serão incluídos no mapa'
+                f'   [OK] Todas as linhas do arquivo serão registradas (insumos não cadastrados são criados automaticamente).'
             ))
         else:
             self.stdout.write(self.style.WARNING(
                 f'   [!] Modo inclusivo: Todos os insumos serão incluídos (incluindo pequenos e cimentos)'
             ))
         
-        if insumos_nao_encontrados:
-            self.stdout.write(self.style.WARNING(
-                f'   [!] Insumos não encontrados (devem ser criados manualmente): {len(insumos_nao_encontrados)} códigos'
+        if insumos_criados_agora:
+            self.stdout.write(self.style.SUCCESS(
+                f'   [NEW] Insumos criados automaticamente para este import: {len(insumos_criados_agora)} código(s)'
             ))
-            # Mostrar alguns exemplos
-            exemplos = list(insumos_nao_encontrados)[:5]
+            exemplos = list(insumos_criados_agora)[:5]
             for exemplo in exemplos:
-                self.stdout.write(self.style.WARNING(f'      - {exemplo}'))
-            if len(insumos_nao_encontrados) > 5:
-                self.stdout.write(self.style.WARNING(f'      ... e mais {len(insumos_nao_encontrados) - 5} insumo(s)'))
+                self.stdout.write(self.style.SUCCESS(f'      - {exemplo}'))
+            if len(insumos_criados_agora) > 5:
+                self.stdout.write(self.style.SUCCESS(f'      ... e mais {len(insumos_criados_agora) - 5} insumo(s)'))
         
         self.stdout.write(f'   [KEY] Grupos únicos processados (obra, SC, código_insumo): {len(grupos_sc)}')
         self.stdout.write(f'   [!] NOTA: Múltiplas linhas do mesmo insumo na mesma SC foram consolidadas.')
@@ -468,11 +499,11 @@ class Command(BaseCommand):
         self.stdout.write(f'      Exemplo: SC 12345 pode ter 4 linhas de Cimento (4000 cada) + 1 linha de Tijolo (500).')
         self.stdout.write(f'      Resultado: 1 RecebimentoObra para Cimento (4000) + 1 RecebimentoObra para Tijolo (500).')
         
-        # Debug: mostrar algumas linhas processadas
+        # Exemplos de linhas processadas
         if len(grupos_sc) > 0:
             exemplos = list(grupos_sc.items())[:3]
             for (cod_obra, sc, cod_ins), dados in exemplos:
-                insumo_desc = dados['insumo'].descricao[:40] if dados['insumo'] else 'N/A'
+                insumo_desc = (dados['insumo'].descricao or '')[:40] if dados['insumo'] else 'N/A'
                 self.stdout.write(
                     f'   [NOTE] Exemplo: Obra {cod_obra}, SC {sc}, Insumo {cod_ins} ({insumo_desc}) '
                     f'-> Solicitado: {dados["quantidade_solicitada"]}, Entregue (MÁX consolidado): {dados["quantidade_entregue"]}'
@@ -483,6 +514,7 @@ class Command(BaseCommand):
         total_recebimentos_atualizados = 0
         total_itens_atualizados = 0
         total_itens_nao_encontrados = 0
+        grupos_sem_qtd_solicitada = 0  # Grupos ignorados porque quantidade_solicitada == 0
         erros = []
         obras_processadas = set()
         
@@ -505,36 +537,33 @@ class Command(BaseCommand):
                 
                 try:
                     # === 1. CRIAR/ATUALIZAR RecebimentoObra ===
-                    # IMPORTANTE: Criar apenas UM RecebimentoObra por (obra, numero_sc, insumo)
-                    # Uma mesma SC pode ter diferentes insumos, então cada insumo tem seu próprio RecebimentoObra
-                    # Usar item_sc vazio para consolidar, usando a quantidade MÁXIMA entregue
-                    # IMPORTANTE: Criar/atualizar SEMPRE que houver quantidade_solicitada > 0
-                    # Isso permite calcular o saldo_a_entregar mesmo quando ainda não recebeu nada
-                    if insumo and dados['quantidade_solicitada'] > Decimal('0.00'):
+                    # Registrar todas as linhas do arquivo (obra + SC + insumo) para vínculo posterior no mapa
+                    if insumo:
                         recebimento, created = RecebimentoObra.objects.update_or_create(
                             obra=obra,
                             numero_sc=numero_sc,
                             insumo=insumo,
-                            item_sc='',  # Item_sc vazio para consolidar todas as linhas
+                            item_sc='',
                             defaults={
                                 'data_sc': dados['data_sc'],
                                 'numero_pc': dados['numero_pc'],
                                 'data_pc': dados['data_emissao_pc'],
                                 'empresa_fornecedora': dados['empresa_fornecedora'],
                                 'prazo_recebimento': dados['previsao_entrega'],
-                                'descricao_item': (dados.get('descricao_insumo') or '')[:500],
-                                'quantidade_solicitada': dados['quantidade_solicitada'],  # Ex: 20000.00 (do CSV)
-                                'quantidade_recebida': dados['quantidade_entregue'],  # Pode ser 0 se ainda não chegou
+                                'descricao_item': (str(dados.get('descricao_insumo') or '')[:500]),
+                                'quantidade_solicitada': dados['quantidade_solicitada'],
+                                'quantidade_recebida': dados['quantidade_entregue'],
                                 'saldo_a_entregar': saldo_final,
                                 'numero_nf': dados['numero_nf'],
                                 'data_nf': dados['data_nf'],
                             }
                         )
-                        
                         if created:
                             total_recebimentos_criados += 1
                         else:
                             total_recebimentos_atualizados += 1
+                    if insumo and dados['quantidade_solicitada'] == Decimal('0.00'):
+                        grupos_sem_qtd_solicitada += 1
                     
                     # === 2. BUSCAR ItemMapa por numero_sc + insumo e atualizar ===
                     # NOVA LÓGICA: Buscar ItemMapa criado manualmente por (numero_sc + insumo)
@@ -544,12 +573,13 @@ class Command(BaseCommand):
                     # Isso permite mostrar o saldo_a_entregar mesmo quando ainda não recebeu nada
                     # [!] NÃO FAZER ALOCAÇÃO AUTOMÁTICA - apenas armazenar no RecebimentoObra para alocação manual posterior
                     if insumo and numero_sc and dados['quantidade_solicitada'] > Decimal('0.00'):
-                        # DEBUG: Verificar quantos ItemMapa existem para este insumo
-                        total_itens_insumo = ItemMapa.objects.filter(obra=obra, insumo=insumo).count()
-                        self.stdout.write(
-                            f'   [SEARCH] [{codigo_obra}] SC {numero_sc}, Insumo {insumo.codigo_sienge} ({insumo.descricao[:40]}): '
-                            f'Total de ItemMapa para este insumo: {total_itens_insumo}'
-                        )
+                        # Log detalhado apenas com -v 2
+                        if options.get('verbosity', 1) >= 2:
+                            total_itens_insumo = ItemMapa.objects.filter(obra=obra, insumo=insumo).count()
+                            self.stdout.write(
+                                f'   [SEARCH] [{codigo_obra}] SC {numero_sc}, Insumo {insumo.codigo_sienge} ({(insumo.descricao or "")[:40]}): '
+                                f'Total de ItemMapa para este insumo: {total_itens_insumo}'
+                            )
                         
                         # Buscar ItemMapa criado manualmente para esta SC+Insumo específico
                         # IMPORTANTE: Buscar por insumo (código deve bater) e SC
@@ -565,9 +595,10 @@ class Command(BaseCommand):
                             models.Q(criado_por__isnull=True)
                         ))
                         
-                        self.stdout.write(
-                            f'      -> Busca com SC {numero_sc}: encontrou {len(itens_manuais)} ItemMapa(s)'
-                        )
+                        if options.get('verbosity', 1) >= 2:
+                            self.stdout.write(
+                                f'      -> Busca com SC {numero_sc}: encontrou {len(itens_manuais)} ItemMapa(s)'
+                            )
                         
                         # Se não encontrou com SC, buscar sem SC (itens criados manualmente que ainda não têm SC)
                         # Isso permite vincular itens criados manualmente que ainda não têm SC preenchida
@@ -583,22 +614,23 @@ class Command(BaseCommand):
                                 models.Q(criado_por__isnull=True)
                             ))
                             
-                            self.stdout.write(
-                                f'      -> Busca sem SC: encontrou {len(itens_manuais)} ItemMapa(s)'
-                            )
+                            if options.get('verbosity', 1) >= 2:
+                                self.stdout.write(
+                                    f'      -> Busca sem SC: encontrou {len(itens_manuais)} ItemMapa(s)'
+                                )
                             
-                            # DEBUG: Se ainda não encontrou, listar todos os ItemMapa deste insumo para debug
-                            if not itens_manuais:
+                            # Detalhe de debug só com -v 2
+                            if not itens_manuais and options.get('verbosity', 1) >= 2:
                                 todos_itens_insumo = ItemMapa.objects.filter(obra=obra, insumo=insumo)
                                 self.stdout.write(
-                                    f'      [!] DEBUG: Listando todos os ItemMapa do insumo {insumo.codigo_sienge}:'
+                                    f'      [!] ItemMapa do insumo {insumo.codigo_sienge} (primeiros 5):'
                                 )
-                                for item_debug in todos_itens_insumo[:5]:  # Mostrar até 5
+                                for item_debug in todos_itens_insumo[:5]:
                                     self.stdout.write(
                                         f'         - ID {item_debug.id}: SC="{item_debug.numero_sc}", '
                                         f'Categoria="{item_debug.categoria}", '
-                                        f'Local={item_debug.local_aplicacao_id if item_debug.local_aplicacao else "None"}, '
-                                        f'Criado_por={item_debug.criado_por_id if item_debug.criado_por else "None"}'
+                                        f'Local={item_debug.local_aplicacao_id or "None"}, '
+                                        f'Criado_por={item_debug.criado_por_id or "None"}'
                                     )
                         
                         # Atualizar TODOS os itens manuais encontrados
@@ -642,18 +674,19 @@ class Command(BaseCommand):
                                 item_mapa.save()
                                 total_itens_atualizados += 1
                             
-                            self.stdout.write(
-                                self.style.SUCCESS(
-                                    f'   [OK] [{codigo_obra}] SC {numero_sc}, Insumo {insumo.codigo_sienge} ({insumo.descricao[:40]}): '
-                                    f'{len(itens_manuais)} ItemMapa(s) atualizado(s)'
+                            if options.get('verbosity', 1) >= 2:
+                                self.stdout.write(
+                                    self.style.SUCCESS(
+                                        f'   [OK] [{codigo_obra}] SC {numero_sc}, Insumo {insumo.codigo_sienge}: '
+                                        f'{len(itens_manuais)} ItemMapa(s) atualizado(s)'
+                                    )
                                 )
-                            )
                         else:
                             # Item não encontrado - não criar placeholder
                             total_itens_nao_encontrados += 1
                             self.stdout.write(
                                 self.style.WARNING(
-                                    f'   [!] [{codigo_obra}] SC {numero_sc}, Insumo {insumo.codigo_sienge} ({insumo.descricao[:40]}): '
+                                    f'   [!] [{codigo_obra}] SC {numero_sc}, Insumo {insumo.codigo_sienge} ({(insumo.descricao or "")[:40]}): '
                                     f'ItemMapa não encontrado (não será criado automaticamente)'
                                 )
                             )
@@ -670,13 +703,20 @@ class Command(BaseCommand):
             f'   [NEW] RecebimentoObra criados: {total_recebimentos_criados}\n'
             f'   [UPD] RecebimentoObra atualizados: {total_recebimentos_atualizados}\n'
             f'   [INFO] ItemMapa atualizados: {total_itens_atualizados}\n'
-            f'   [SKIP] SC sem ItemMapa encontrado: {total_itens_nao_encontrados}'
+            f'   [SKIP] SC sem ItemMapa encontrado: {total_itens_nao_encontrados}\n'
+            f'   [SKIP] Grupos com quantidade solicitada = 0 (não criam RecebimentoObra): {grupos_sem_qtd_solicitada}'
         ))
         
         if total_itens_nao_encontrados > 0:
             self.stdout.write(self.style.WARNING(
                 f'\n[TIP] DICA: {total_itens_nao_encontrados} SC(s) não foram encontradas no Mapa (ItemMapa).\n'
                 f'   Os dados estão no RecebimentoObra e serão vinculados quando a Engenharia criar os itens manualmente no Levantamento.'
+            ))
+        
+        if grupos_sem_qtd_solicitada > 0:
+            self.stdout.write(self.style.WARNING(
+                f'\n[INFO] {grupos_sem_qtd_solicitada} grupo(s) obra+SC+insumo tinham quantidade solicitada = 0 no arquivo.\n'
+                f'   RecebimentoObra foi criado/atualizado mesmo assim (dados armazenados para vínculo posterior).'
             ))
         
         if erros:

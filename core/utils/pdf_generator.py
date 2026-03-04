@@ -464,122 +464,108 @@ class PDFGenerator:
         # Renderiza template HTML
         html_string = render_to_string('core/pdf_template.html', context)
         
-        # Gera PDF usando WeasyPrint (preferencial) ou xhtml2pdf (fallback)
+        # Gera PDF: tenta WeasyPrint → xhtml2pdf → ReportLab (fallback igual ao GestControll)
+        last_error = None
+        
         if WEASYPRINT_AVAILABLE:
-            # Usa WeasyPrint (melhor qualidade, mais recursos CSS)
-            font_config = FontConfiguration()
-            css_string = PDFGenerator._get_print_css()
-            
-            html = HTML(string=html_string, base_url=settings.MEDIA_ROOT)
-            css = CSS(string=css_string)
-            
-            if output_path:
-                html.write_pdf(output_path, stylesheets=[css], font_config=font_config)
-                logger.info(f"PDF gerado com WeasyPrint: {output_path}")
-                return None
-            else:
+            try:
+                font_config = FontConfiguration()
+                css_string = PDFGenerator._get_print_css()
+                html = HTML(string=html_string, base_url=settings.MEDIA_ROOT)
+                css = CSS(string=css_string)
+                if output_path:
+                    html.write_pdf(output_path, stylesheets=[css], font_config=font_config)
+                    logger.info(f"PDF gerado com WeasyPrint: {output_path}")
+                    return None
                 pdf_bytes = html.write_pdf(stylesheets=[css], font_config=font_config)
                 return BytesIO(pdf_bytes)
+            except Exception as e:
+                last_error = e
+                logger.warning("WeasyPrint falhou (%s), tentando fallback.", str(e)[:100])
         
-        elif XHTML2PDF_AVAILABLE:
-            # Usa xhtml2pdf como alternativa (funciona no Windows sem dependências)
-            logger.info("Gerando PDF com xhtml2pdf (alternativa)")
-            
-            # Prepara contexto com caminhos absolutos para xhtml2pdf
-            context_xhtml2pdf = {
-                'diary': diary,
-                'images_with_paths': [
-                    {
-                        'image': img['image'],
-                        'file_url': img['absolute_path'] or img['file_url'],  # Usa caminho absoluto
-                    }
-                    for img in images_with_paths
-                ],
-                'videos_with_paths': [
-                    {
-                        'video': vid['video'],
-                        'thumbnail_url': vid['thumbnail_absolute_path'] or vid['thumbnail_url'],
-                    }
-                    for vid in videos_with_paths
-                ],
-                'attachments': attachments,
-                'occurrences': occurrences,
-                'project': diary.project,
-                'work_logs': work_logs,
-                'labor_entries_by_category': labor_entries_by_category,
-                'total_indirect': total_indirect,
-                'total_direct': total_direct,
-                'total_third_party': total_third_party,
-                'total_labor': total_labor,
-                'total_equipment': total_equipment,
-                'equipment_count': equipment_count,
-                'days_elapsed': days_elapsed,
-                'days_remaining': days_remaining,
-                'logo_path': logo_absolute_path or logo_path,  # Para xhtml2pdf usa caminho absoluto
-                'logo_absolute_path': logo_absolute_path,
-                'labor_by_type': labor_by_type,
-                'labor_indirect': labor_by_type.get('I') or {},
-                'labor_direct': labor_by_type.get('D') or {},
-                'labor_third_party': labor_by_type.get('T') or {},
-            }
-            
-            # Renderiza template HTML com caminhos absolutos
-            html_string = render_to_string('core/pdf_template.html', context_xhtml2pdf)
-            
-            # Converte file:// URIs restantes para caminhos absolutos (se houver)
-            html_string = PDFGenerator._convert_file_uris_to_paths(html_string)
-            
-            pdf_bytes = BytesIO()
-            result = pisa.CreatePDF(
-                html_string,
-                dest=pdf_bytes,
-                encoding='utf-8'
-            )
-            
-            if result.err:
-                raise RuntimeError(f"Erro ao gerar PDF com xhtml2pdf: {result.err}")
-            
-            if output_path:
-                with open(output_path, 'wb') as f:
-                    f.write(pdf_bytes.getvalue())
-                logger.info(f"PDF gerado com xhtml2pdf: {output_path}")
-                return None
-            else:
-                pdf_bytes.seek(0)
-                return pdf_bytes
-        
-        else:
-            # Fallback: ReportLab (funciona em cPanel, já está no requirements)
-            if REPORTLAB_AVAILABLE:
-                logger.info("Gerando PDF com ReportLab (fallback para cPanel)")
-                pdf_buffer = BytesIO()
-                PDFGenerator._generate_diary_pdf_reportlab(
-                    pdf_buffer, diary, context,
-                    work_logs=work_logs,
-                    labor_by_type=labor_by_type,
-                    labor_entries_by_category=labor_entries_by_category,
-                    equipment_count=equipment_count,
-                    total_indirect=total_indirect,
-                    total_direct=total_direct,
-                    total_third_party=total_third_party,
-                    total_labor=total_labor,
-                    total_equipment=total_equipment,
-                    images_with_paths=images_with_paths,
-                    attachments=context.get('attachments', []),
-                    occurrences=occurrences,
-                    pdf_type=pdf_type,
-                )
+        if XHTML2PDF_AVAILABLE:
+            try:
+                logger.info("Gerando PDF com xhtml2pdf (alternativa)")
+                context_xhtml2pdf = {
+                    'diary': diary,
+                    'images_with_paths': [
+                        {'image': img['image'], 'file_url': img['absolute_path'] or img['file_url']}
+                        for img in images_with_paths
+                    ],
+                    'videos_with_paths': [
+                        {'video': vid['video'], 'thumbnail_url': vid['thumbnail_absolute_path'] or vid['thumbnail_url']}
+                        for vid in videos_with_paths
+                    ],
+                    'attachments': attachments,
+                    'occurrences': occurrences,
+                    'project': diary.project,
+                    'work_logs': work_logs,
+                    'labor_entries_by_category': labor_entries_by_category,
+                    'total_indirect': total_indirect,
+                    'total_direct': total_direct,
+                    'total_third_party': total_third_party,
+                    'total_labor': total_labor,
+                    'total_equipment': total_equipment,
+                    'equipment_count': equipment_count,
+                    'days_elapsed': days_elapsed,
+                    'days_remaining': days_remaining,
+                    'logo_path': logo_absolute_path or logo_path,
+                    'logo_absolute_path': logo_absolute_path,
+                    'labor_by_type': labor_by_type,
+                    'labor_indirect': labor_by_type.get('I') or {},
+                    'labor_direct': labor_by_type.get('D') or {},
+                    'labor_third_party': labor_by_type.get('T') or {},
+                }
+                html_string_x = render_to_string('core/pdf_template.html', context_xhtml2pdf)
+                html_string_x = PDFGenerator._convert_file_uris_to_paths(html_string_x)
+                pdf_bytes = BytesIO()
+                result = pisa.CreatePDF(html_string_x, dest=pdf_bytes, encoding='utf-8')
+                if result.err:
+                    raise RuntimeError(f"xhtml2pdf: {result.err}")
                 if output_path:
                     with open(output_path, 'wb') as f:
-                        f.write(pdf_buffer.getvalue())
-                    logger.info(f"PDF gerado com ReportLab: {output_path}")
+                        f.write(pdf_bytes.getvalue())
+                    logger.info(f"PDF gerado com xhtml2pdf: {output_path}")
                     return None
-                pdf_buffer.seek(0)
-                return pdf_buffer
-            raise RuntimeError(
-                "Nenhuma biblioteca de PDF disponível. "
-                "Instale WeasyPrint, xhtml2pdf ou use ReportLab (já em requirements)."
+                pdf_bytes.seek(0)
+                return pdf_bytes
+            except Exception as e:
+                last_error = e
+                logger.warning("xhtml2pdf falhou (%s), tentando ReportLab.", str(e)[:100])
+        
+        if REPORTLAB_AVAILABLE:
+            logger.info("Gerando PDF com ReportLab (mesmo padrão do GestControll)")
+            pdf_buffer = BytesIO()
+            PDFGenerator._generate_diary_pdf_reportlab(
+                pdf_buffer, diary, context,
+                work_logs=work_logs,
+                labor_by_type=labor_by_type,
+                labor_entries_by_category=labor_entries_by_category,
+                equipment_count=equipment_count,
+                total_indirect=total_indirect,
+                total_direct=total_direct,
+                total_third_party=total_third_party,
+                total_labor=total_labor,
+                total_equipment=total_equipment,
+                images_with_paths=images_with_paths,
+                attachments=context.get('attachments', []),
+                occurrences=occurrences,
+                pdf_type=pdf_type,
             )
+            if output_path:
+                with open(output_path, 'wb') as f:
+                    f.write(pdf_buffer.getvalue())
+                logger.info(f"PDF gerado com ReportLab: {output_path}")
+                return None
+            pdf_buffer.seek(0)
+            return pdf_buffer
+        
+        err_msg = "Nenhuma biblioteca de PDF disponível."
+        if last_error:
+            raise RuntimeError(f"{err_msg} (último erro: {last_error})")
+        raise RuntimeError(
+            err_msg + " Instale WeasyPrint, xhtml2pdf ou use ReportLab (já em requirements)."
+        )
     
     @staticmethod
     def _generate_diary_pdf_reportlab(

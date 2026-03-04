@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
@@ -15,6 +16,8 @@ from uuid import uuid4
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 import pandas as pd
+import numpy as np
+import re
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
@@ -54,6 +57,7 @@ def mapa_engenharia(request):
             obra = Obra.objects.get(id=oid, ativa=True)
             if _user_can_access_obra(request, obra):
                 request.session['obra_id'] = oid
+                request.session.modified = True  # Garantir que a sessão seja salva (ex.: em produção)
                 obra_id = str(oid)
         except (Obra.DoesNotExist, ValueError):
             obra_id = None
@@ -62,6 +66,8 @@ def mapa_engenharia(request):
         obra_sessao = get_obra_da_sessao(request)
         if obra_sessao:
             obra_id = str(obra_sessao.id)
+            request.session['obra_id'] = obra_sessao.id
+            request.session.modified = True
     
     categoria = request.GET.get('categoria', '')
     local_id = request.GET.get('local', '')
@@ -870,7 +876,7 @@ def criar_levantamento_rapido(request):
     )
 
     messages.success(request, f'Levantamento criado: {insumo.descricao}')
-    return redirect(f"{redirect('engenharia:mapa').url}?obra={obra_id}")
+    return redirect(reverse('engenharia:mapa') + f'?obra={obra_id}')
 
 
 @login_required
@@ -956,8 +962,8 @@ def importar_sienge_upload(request):
                             return s.strip().upper()
 
                         sc_headers = {norm_xlsx(x) for x in ['Nº DA SC', 'N DA SC', 'NUMERO SC', 'NUMERO_DA_SC', 'SC', 'NSC']}
-                        obra_headers = {norm_xlsx(x) for x in ['CÓD. OBRA', 'COD OBRA', 'CODIGO OBRA', 'CODIGO_DA_OBRA', 'COD_OBRA', 'OBRA']}
-                        insumo_headers = {norm_xlsx(x) for x in ['CÓD. INSUMO', 'COD INSUMO', 'CODIGO INSUMO', 'COD_INSUMO']}
+                        obra_headers = {norm_xlsx(x) for x in ['CÓD. OBRA', 'COD. OBRA', 'COD OBRA', 'CODIGO OBRA', 'CODIGO_DA_OBRA', 'COD_OBRA', 'OBRA']}
+                        insumo_headers = {norm_xlsx(x) for x in ['CÓD. INSUMO', 'COD. INSUMO', 'COD INSUMO', 'CODIGO INSUMO', 'COD_INSUMO']}
 
                         def detectar_header_em_raw(raw_df):
                             for i in range(0, min(120, len(raw_df))):
@@ -976,6 +982,7 @@ def importar_sienge_upload(request):
                         best_score = -1
                         best_sheet = None
                         best_header_row = None
+                        best_removidas_header = 0
 
                         xls = None
                         df = None
@@ -990,27 +997,40 @@ def importar_sienge_upload(request):
                                 df_try = raw.iloc[header_row + 1:].copy()
                                 df_try.columns = raw.iloc[header_row].tolist()
                                 df_try = df_try.dropna(how='all')
+                                # Remover rodapé do Sienge (ex.: "16/12/2025 - 12:21:17" na primeira coluna)
+                                col0 = df_try.iloc[:, 0]
+                                mask_rodape = col0.astype(str).str.strip().str.match(r'^\d{1,2}/\d{1,2}/\d{4}\s*[-–]\s*\d{1,2}:\d{2}', na=False)
+                                df_try = df_try.loc[~mask_rodape]
                                 df_try = df_try.loc[:, [c for c in df_try.columns if str(c).strip() not in ('', 'nan')]]
 
                                 # identificar colunas principais
                                 cols_norm = {c: norm_xlsx(c) for c in df_try.columns}
                                 sc_col = next((c for c, cn in cols_norm.items() if cn in sc_headers), None)
+                                obra_col = next((c for c, cn in cols_norm.items() if cn in obra_headers), None)
                                 insumo_col = next((c for c, cn in cols_norm.items() if cn in insumo_headers), None)
                                 if not sc_col or not insumo_col:
                                     continue
 
-                                # Remover linhas de cabeçalho repetido no meio do arquivo
-                                df_try = df_try[~df_try[sc_col].apply(lambda v: norm_xlsx(v) in sc_headers)]
+                                # Remover apenas linhas que são claramente cabeçalho repetido (rótulos longos),
+                                # não valores curtos como "SC" que poderiam ser dados
+                                sc_headers_remover = {norm_xlsx(x) for x in ['Nº DA SC', 'N DA SC', 'NUMERO SC', 'NUMERO_DA_SC', 'N. DA SC', 'N. SC']}
+                                antes_remover = len(df_try)
+                                df_try = df_try[~df_try[sc_col].apply(lambda v: norm_xlsx(v) in sc_headers_remover)]
+                                removidas_header = antes_remover - len(df_try)
 
                                 # Forward-fill para evitar perder linhas quando Excel deixa SC/Obra/Insumo em branco nas quebras
-                                # Também forward-fill no Item se existir
+                                # Também forward-fill no Item se existir (tratar NaN, '', 'nan' e None como vazio)
                                 item_col = next((c for c, cn in cols_norm.items() if norm_xlsx(c) in {'ITEM', 'N. ITEM', 'N ITEM', 'NUMERO ITEM'}), None)
-                                for col_ff in (sc_col, insumo_col, item_col):
+                                for col_ff in (sc_col, obra_col, insumo_col, item_col):
                                     if col_ff:
-                                        df_try[col_ff] = df_try[col_ff].replace({'': pd.NA, 'nan': pd.NA, None: pd.NA}).ffill()
+                                        df_try[col_ff] = (
+                                            df_try[col_ff]
+                                            .replace([np.nan, None, '', 'nan', 'NaN'], pd.NA)
+                                            .ffill()
+                                        )
                                 
-                                # Garantir que todas as linhas com dados sejam mantidas
-                                df_try = df_try.dropna(subset=[sc_col], how='all')
+                                # Não dropar linhas com SC vazia: manter todas e deixar o import pular as inválidas
+                                # (evita perder linhas quando o Excel tem 106 e o log mostrava 100)
 
                                 score = int(df_try[sc_col].notna().sum())
                                 if score > best_score:
@@ -1018,20 +1038,24 @@ def importar_sienge_upload(request):
                                     best = df_try
                                     best_sheet = sheet
                                     best_header_row = header_row
+                                    best_removidas_header = removidas_header
 
                             if best is None:
                                 raise Exception('Não consegui detectar o cabeçalho do Sienge no Excel (aba/colunas).')
 
                             df = best.copy()  # Criar cópia para evitar referência ao Excel
 
+                            msg_linhas = f'Linhas lidas: {len(df)}.'
+                            if best_removidas_header:
+                                msg_linhas += f' (Removidas {best_removidas_header} linhas de cabeçalho repetido na coluna SC.)'
                             messages.info(
                                 request,
-                                f'Excel detectado: aba "{best_sheet}", header na linha {best_header_row + 1}. Linhas lidas: {len(df)}.'
+                                f'Excel detectado: aba "{best_sheet}", header na linha {best_header_row + 1}. {msg_linhas}'
                             )
 
                             # Garantir que todas as colunas sejam convertidas para string antes de salvar
                             for col in df.columns:
-                                df[col] = df[col].astype(str).replace('nan', '', regex=False)
+                                df[col] = df[col].astype(str).replace('nan', '', regex=False).replace('<NA>', '', regex=False)
                             
                             csv_path = os.path.join(tmpdir, 'MAPA_CONTROLE.csv')
                             df.to_csv(csv_path, sep=';', index=False, encoding='utf-8-sig')

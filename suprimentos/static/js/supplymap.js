@@ -16,9 +16,12 @@ function initInlineEdit() {
     const inputs = document.querySelectorAll('.input-inline[data-update-url]');
     
     inputs.forEach(input => {
-        // Para selects, usar 'change' em vez de 'blur'
-        const eventType = input.tagName === 'SELECT' ? 'change' : 'blur';
+        // Guardar valor inicial ao ganhar foco (para não enviar POST se não mudou)
+        input.addEventListener('focus', function() {
+            this.setAttribute('data-initial-value', this.value || '');
+        });
         
+        const eventType = input.tagName === 'SELECT' ? 'change' : 'blur';
         input.addEventListener(eventType, function() {
             const url = this.getAttribute('data-update-url');
             const field = this.getAttribute('data-field');
@@ -27,7 +30,11 @@ function initInlineEdit() {
             
             if (!url || !field || !itemId) return;
             
-            // Atualizar classe visual para campo prioridade
+            const initial = this.getAttribute('data-initial-value') || '';
+            if (String(value).trim() === String(initial).trim()) {
+                return; // Valor não mudou, não enviar requisição
+            }
+            
             if (field === 'prioridade') {
                 updatePrioridadeClass(this, value);
             }
@@ -35,7 +42,6 @@ function initInlineEdit() {
             updateItemField(itemId, field, value, url);
         });
         
-        // Inicializar classe correta para prioridade
         if (input.getAttribute('data-field') === 'prioridade') {
             updatePrioridadeClass(input, input.value);
         }
@@ -94,21 +100,33 @@ function updateItemField(itemId, field, value, url) {
         });
     })
     .then(data => {
+        setRowSaving(itemId, false);
         if (data.success) {
             showSaveFeedback(itemId);
-            showMessage('✓ Salvo', 'success');
+            showMessage('Salvo', 'success');
             if (data.status_css) {
                 updateRowStatus(itemId, data.status_css);
             }
+            // Dados do Sienge (PC, prazo, empresa, quantidade) foram preenchidos no servidor;
+            // recarregar a página para exibir todas as colunas atualizadas.
+            if (data.filled_from_sienge) {
+                setTimeout(function() { window.location.reload(); }, 600);
+            }
+            if (data.debug_no_recebimento) {
+                showMessage('Nenhum recebimento do Sienge para esta obra + SC + insumo. Reimporte o MAPA_CONTROLE com a obra correta ou confira em Admin > Recebimentos na Obra.', 'error');
+            }
         } else {
-            showMessage('Erro ao atualizar: ' + (data.error || 'Erro desconhecido'), 'error');
+            showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
         }
     })
     .catch(error => {
+        setRowSaving(itemId, false);
         console.error('Error:', error);
         var msg = (error && error.message) ? error.message : 'Erro ao atualizar. Verifique se a obra está selecionada e tente novamente.';
         showMessage(msg, 'error');
     });
+    
+    setRowSaving(itemId, true);
 }
 
 // Atualizar status visual da linha
@@ -119,6 +137,13 @@ function updateRowStatus(itemId, statusCss) {
         if (statusCell) {
             statusCell.className = 'status-cell ' + statusCss;
         }
+    }
+}
+
+function setRowSaving(itemId, saving) {
+    const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
+    if (row) {
+        if (saving) row.classList.add('row-saving'); else row.classList.remove('row-saving');
     }
 }
 
@@ -245,21 +270,21 @@ function getCsrfToken() {
 }
 
 function showMessage(message, type) {
-    // Criar toast/alert simples
+    const id = 'mapa-toast-' + Date.now();
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+    alertDiv.id = id;
+    alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show mapa-toast-fixo`;
     alertDiv.setAttribute('role', 'alert');
     alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <i class="bi bi-${type === 'success' ? 'check-circle-fill' : 'exclamation-circle-fill'} me-2"></i>
+        <span>${message}</span>
+        <button type="button" class="btn-close ${type === 'success' ? '' : 'btn-close-white'}" data-bs-dismiss="alert" aria-label="Fechar"></button>
     `;
-    
-    const container = document.querySelector('.container-fluid') || document.body;
-    container.insertBefore(alertDiv, container.firstChild);
-    
+    document.body.appendChild(alertDiv);
     setTimeout(() => {
-        alertDiv.remove();
-    }, 3000);
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }, 4000);
 }
 
 // Inicializar tooltips Bootstrap
@@ -370,11 +395,20 @@ function initDeleteItem() {
             },
             body: JSON.stringify({ item_id: itemId })
         })
-        .then(r => r.json())
+        .then(function(r) {
+            return r.text().then(function(text) {
+                var data = {};
+                try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+                if (!r.ok) {
+                    var msg = (data && data.error) ? data.error : ('Erro ' + r.status + (r.status === 403 ? ': selecione a obra no topo da página e recarregue.' : ''));
+                    return Promise.reject({ message: msg });
+                }
+                return data;
+            });
+        })
         .then(data => {
             if (data.success) {
                 showMessage(data.message || '✅ Item excluído', 'success');
-                // Recarregar para manter agrupamentos/contagens consistentes
                 setTimeout(() => window.location.reload(), 400);
             } else {
                 showMessage('❌ ' + (data.error || 'Erro ao excluir'), 'error');
@@ -382,7 +416,8 @@ function initDeleteItem() {
         })
         .catch(err => {
             console.error(err);
-            showMessage('❌ Erro ao excluir', 'error');
+            var msg = (err && err.message) ? err.message : 'Erro ao excluir. Verifique se a obra está selecionada no topo da página e recarregue.';
+            showMessage('❌ ' + msg, 'error');
         });
     });
 }
@@ -565,7 +600,7 @@ function criarItem() {
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Criando...';
         
-        fetch('/engenharia/mapa/criar-item/', {
+        fetch(form.action, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrftoken

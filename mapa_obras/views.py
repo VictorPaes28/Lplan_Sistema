@@ -64,6 +64,7 @@ def selecionar_obra(request, obra_id):
     
     # Armazenar na sessão
     request.session['obra_id'] = obra.id
+    request.session.modified = True
     
     # Se for requisição AJAX, retornar JSON
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

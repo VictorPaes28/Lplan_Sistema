@@ -371,11 +371,6 @@ def dashboard_view(request):
             if project_days_total > 0:
                 project_progress_percent = min(100, max(0, (project_days_elapsed / project_days_total) * 100))
     
-    # Debug: Verifica se recent_videos é um QuerySet ou lista
-    logger.debug(f'Dashboard - Tipo de recent_videos: {type(recent_videos)}')
-    if hasattr(recent_videos, '__iter__'):
-        logger.debug(f'Dashboard - recent_videos é iterável, length: {len(list(recent_videos))}')
-    
     from django.conf import settings
     context = {
         'project': project,
@@ -409,7 +404,6 @@ def dashboard_view(request):
         'total_occurrences_count': total_occurrences,
         'total_comments_count': total_comments,
         'total_attachments_count': total_attachments,
-        # Debug
         'DEBUG': settings.DEBUG,
     }
     
@@ -1679,17 +1673,6 @@ def diary_form_view(request, pk=None):
             return redirect('select-project')
         
         form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
-        # Debug: Verifica arquivos recebidos
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"=== PROCESSANDO FORMULÁRIO DE DIÁRIO ===")
-        logger.info(f"POST keys: {list(request.POST.keys())}")
-        logger.info(f"FILES keys: {list(request.FILES.keys())}")
-        # Log específico para debug de atividades e ocorrências
-        post_work_logs = [k for k in request.POST.keys() if 'work_log' in k.lower()]
-        post_ocorrencias = [k for k in request.POST.keys() if 'ocorrencia' in k.lower() or (k.startswith('occurrence') and 'TOTAL' in k)]
-        logger.debug(f"[DIARY_DEBUG] POST work_logs keys ({len(post_work_logs)}): {post_work_logs[:30]}{'...' if len(post_work_logs) > 30 else ''}")
-        logger.debug(f"[DIARY_DEBUG] POST ocorrencias keys ({len(post_ocorrencias)}): {post_ocorrencias[:30]}{'...' if len(post_ocorrencias) > 30 else ''}")
         logger.debug(f"[DIARY_DEBUG] work_logs-TOTAL_FORMS={request.POST.get('work_logs-TOTAL_FORMS', 'N/A')} | ocorrencias-TOTAL_FORMS={request.POST.get('ocorrencias-TOTAL_FORMS', 'N/A')}")
         if request.FILES:
             for key, file in request.FILES.items():
@@ -3220,12 +3203,13 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
         return redirect('diary-detail', pk=pk)
     
     try:
-        # Gera PDF baseado no tipo
-        pdf_bytes = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
+        # Gera PDF (mesmo padrão do GestControll: WeasyPrint/xhtml2pdf com fallback para ReportLab)
+        pdf_buffer = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
         
-        if pdf_bytes:
+        if pdf_buffer:
+            pdf_buffer.seek(0)
             response = HttpResponse(
-                pdf_bytes.getvalue(),
+                pdf_buffer.read(),
                 content_type='application/pdf'
             )
             type_suffix = {
@@ -3234,14 +3218,14 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
                 'no_photos': '_sem_fotos'
             }.get(pdf_type, '')
             filename = f"diario_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            # Nome seguro para Content-Disposition (mesmo padrão do GestControll)
+            safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
+            response['Content-Disposition'] = f'attachment; filename="{safe_name}"'
             return response
         else:
             messages.error(request, "Erro ao gerar PDF. Tente novamente.")
             return redirect('diary-detail', pk=pk)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Erro ao gerar PDF do diário {diary.id}: {str(e)}", exc_info=True)
         messages.error(request, f"Erro ao gerar PDF: {str(e)}")
         return redirect('diary-detail', pk=pk)

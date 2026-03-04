@@ -283,6 +283,14 @@
 </div>
 
 <!-- Tabela -->
+{% if not filtros.obra_id %}
+<div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <div>
+        <strong>Selecione uma obra</strong> no filtro acima para ver e editar os itens do mapa. Sem obra selecionada, a edição dos campos será bloqueada.
+    </div>
+</div>
+{% endif %}
 <div class="table-responsive">
     <table class="tabela-mapa">
         <thead>
@@ -637,7 +645,10 @@
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="18" class="text-center">Nenhum item encontrado.</td>
+                <td colspan="18" class="text-center py-4 text-muted">
+                    <p class="mb-1">Nenhum item encontrado.</p>
+                    <small>Selecione uma obra no filtro acima ou crie um novo levantamento para começar.</small>
+                </td>
             </tr>
             {% endif %}
         </tbody>
@@ -659,7 +670,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form id="formCriarItem">
+            <form id="formCriarItem" method="post" action="{% url 'engenharia:criar_item' %}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="criar_obra" class="form-label">Obra <span class="text-danger">*</span></label>
@@ -1158,8 +1169,14 @@
         // Função para carregar alocações existentes
         function carregarAlocacoesExistentes(itemId, unidade) {
             // Buscar alocações do item através do endpoint JSON
-            fetch(`{% url 'suprimentos:item_alocacoes_json' 0 %}`.replace('0', itemId))
-                .then(response => response.json())
+            fetch(`{% url 'suprimentos:item_alocacoes_json' 0 %}`.replace('0', itemId), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+                .then(response => {
+                    if (!response.ok) return response.json().then(d => Promise.reject(d)).catch(() => Promise.reject({ error: 'Erro ao carregar alocações.' }));
+                    return response.json();
+                })
                 .then(data => {
                     const container = document.getElementById('alocacoes_existentes');
                     const lista = document.getElementById('lista_alocacoes');
@@ -1216,21 +1233,27 @@
         
         // Função para remover alocação
         function removerAlocacao(itemId, removerTodas = false, alocacaoId = null) {
-            const csrftoken = getCookie('csrftoken');
+            const csrftoken = getCsrfToken();
             const url = `{% url 'suprimentos:item_remover_alocacao' 0 %}`.replace('0', itemId);
             
             fetch(url, {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     remover_todas: removerTodas,
                     alocacao_id: alocacaoId
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) return response.json().then(d => Promise.reject(d)).catch(() => Promise.reject({ error: 'Erro ao remover alocação.' }));
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     showToast('success', data.message);
@@ -1289,7 +1312,7 @@
             }
             
             // Obter CSRF token
-            const csrftoken = getCookie('csrftoken');
+            const csrftoken = getCsrfToken();
             
             // Mostrar loading no botão
             const submitBtn = this.querySelector('button[type="submit"]');
@@ -1304,9 +1327,12 @@
             const qtdString = numeroParaString(qtdNum);
             fetch(url, {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     quantidade_alocada: qtdString // Enviar como string para preservar decimais
@@ -1314,9 +1340,21 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    return response.json().then(err => {
-                        throw err; 
-                    });
+                    return response.text()
+                        .then(text => {
+                            let err = { error: 'Erro na resposta do servidor. Tente novamente.' };
+                            try {
+                                const parsed = JSON.parse(text);
+                                if (parsed && typeof parsed.error === 'string') err = parsed;
+                            } catch (_) {
+                                if (text && text.length) err = { error: `Erro ${response.status}: ${text.slice(0, 120)}` };
+                            }
+                            return Promise.reject(err);
+                        })
+                        .catch(err => {
+                            if (err && err.error) return Promise.reject(err);
+                            return Promise.reject({ error: 'Erro na resposta do servidor. Tente novamente.' });
+                        });
                 }
                 return response.json();
             })
@@ -1420,7 +1458,7 @@
         input.classList.add('ghost-input');
     });
     
-    // Função auxiliar para obter cookie CSRF
+    // Função auxiliar para obter cookie CSRF (com fallback para meta quando cookie é HttpOnly)
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -1434,6 +1472,11 @@
             }
         }
         return cookieValue;
+    }
+    function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
+        return getCookie('csrftoken');
     }
     
     // Novo Levantamento - Toggle suave com Bootstrap Collapse
@@ -1511,7 +1554,7 @@
             if (!url || !field || !itemId) return;
             
             // Obter CSRF token
-            const csrftoken = getCookie('csrftoken');
+            const csrftoken = getCsrfToken();
             
             // Fazer requisição AJAX
             fetch(url, {

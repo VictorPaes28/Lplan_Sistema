@@ -1,12 +1,11 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.db import transaction
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.core.exceptions import ValidationError
-from accounts.decorators import require_group
+from accounts.decorators import require_group, login_required
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
 from .models import ItemMapa, NotaFiscalEntrada, AlocacaoRecebimento, Insumo, RecebimentoObra, HistoricoAlteracao
@@ -14,6 +13,87 @@ from django.db.models import Q, Sum
 from decimal import Decimal
 from uuid import uuid4
 import json
+
+
+def _normalizar_numero_sc(valor):
+    """Normaliza o número da SC como no import (remove espaços, pontos, hífens, underscores).
+    Se for só dígitos, remove zeros à esquerda para bater com o import (ex.: 085 -> 85).
+    """
+    if not valor:
+        return ''
+    s = str(valor).strip().replace(' ', '').replace('.', '').replace('-', '').replace('_', '')
+    if s.isdigit():
+        return str(int(s))
+    return s
+
+
+def _normalizar_codigo_insumo(valor):
+    """Normaliza código do insumo para comparação: 15666.0 -> 15666 (igual ao import)."""
+    if not valor:
+        return ''
+    s = str(valor).strip().replace(' ', '').replace(',', '.')
+    if s.replace('.', '', 1).isdigit():
+        try:
+            return str(int(float(s)))
+        except (ValueError, TypeError):
+            return s
+    return s
+
+
+def _aplicar_dados_recebimento_obra(item):
+    """
+    Preenche ItemMapa com dados do RecebimentoObra (obra + numero_sc normalizado + insumo).
+    Usado ao editar numero_sc ou insumo_codigo para que o restante dos dados seja atualizado.
+    Retorna True se encontrou RecebimentoObra e preencheu pelo menos um campo.
+    Busca tolerante: numero_sc (85, 085, 85.0) e codigo_insumo (15666, 15666.0) normalizados.
+    """
+    from .models import RecebimentoObra
+    numero_sc = _normalizar_numero_sc(item.numero_sc)
+    if not numero_sc or not item.insumo_id:
+        return False
+    codigo_insumo_item = _normalizar_codigo_insumo(item.insumo.codigo_sienge if item.insumo else '')
+    # Buscar por obra e filtrar em Python por numero_sc e codigo_insumo normalizados
+    # (aceita 85/085 e 15666/15666.0 no banco)
+    candidatos = RecebimentoObra.objects.filter(obra=item.obra).select_related('insumo')
+    recebimentos_todos = [
+        r for r in candidatos
+        if _normalizar_numero_sc(r.numero_sc) == numero_sc
+        and _normalizar_codigo_insumo(r.insumo.codigo_sienge if r.insumo else '') == codigo_insumo_item
+    ]
+    if not recebimentos_todos:
+        return False
+    pc_consolidado = ''
+    prazo_consolidado = None
+    empresa_consolidada = ''
+    data_sc_consolidada = None
+    data_pc_consolidada = None
+    for rec in recebimentos_todos:
+        if not pc_consolidado and rec.numero_pc:
+            pc_consolidado = rec.numero_pc
+        if not prazo_consolidado and rec.prazo_recebimento:
+            prazo_consolidado = rec.prazo_recebimento
+        if not empresa_consolidada and rec.empresa_fornecedora:
+            empresa_consolidada = rec.empresa_fornecedora
+        if not data_sc_consolidada and rec.data_sc:
+            data_sc_consolidada = rec.data_sc
+        if not data_pc_consolidada and rec.data_pc:
+            data_pc_consolidada = rec.data_pc
+    if pc_consolidado:
+        item.numero_pc = pc_consolidado
+    if data_pc_consolidada:
+        item.data_pc = data_pc_consolidada
+    if prazo_consolidado:
+        item.prazo_recebimento = prazo_consolidado
+    if (not item.empresa_fornecedora or item.empresa_fornecedora.strip() == '') and empresa_consolidada:
+        item.empresa_fornecedora = empresa_consolidada
+    if data_sc_consolidada:
+        item.data_sc = data_sc_consolidada
+    total_recebido = sum(r.quantidade_recebida for r in recebimentos_todos)
+    total_solicitado = sum(r.quantidade_solicitada for r in recebimentos_todos)
+    item.quantidade_recebida = total_recebido
+    saldo_calc = total_solicitado - total_recebido
+    item.saldo_a_entregar = max(saldo_calc, Decimal('0.00'))
+    return True
 
 
 @login_required
@@ -212,8 +292,16 @@ def item_excluir(request, item_id):
     # Segregação: só permitir excluir itens da obra atual da sessão (exceto superuser)
     obra_sessao_id = request.session.get('obra_id')
     if not request.user.is_superuser:
-        if not obra_sessao_id or int(obra_sessao_id) != item.obra_id:
-            return JsonResponse({'success': False, 'error': 'Obra inválida para exclusão.'}, status=403)
+        if not obra_sessao_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Selecione uma obra no dropdown do Mapa (canto superior) e recarregue a página antes de excluir.'
+            }, status=403)
+        try:
+            if int(obra_sessao_id) != item.obra_id:
+                return JsonResponse({'success': False, 'error': 'Obra inválida para exclusão. Selecione a obra correta no topo da página.'}, status=403)
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Obra da sessão inválida. Recarregue a página e selecione a obra novamente.'}, status=403)
 
     # Capturar contexto antes de deletar
     desc = item.descricao_override or (item.insumo.descricao if item.insumo else 'Item')
@@ -247,8 +335,11 @@ def item_excluir(request, item_id):
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 def item_alocacoes_json(request, item_id):
-    """Retorna alocações do item em formato JSON."""
-    item = get_object_or_404(ItemMapa, id=item_id)
+    """Retorna alocações do item em formato JSON. Sempre retorna JSON."""
+    try:
+        item = ItemMapa.objects.get(id=item_id)
+    except ItemMapa.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Item não encontrado.'}, status=404)
     
     # Validar que o item pertence à obra da sessão
     obra_sessao_id = request.session.get('obra_id')
@@ -295,7 +386,10 @@ def item_atualizar_campo(request):
         obra_sessao_id = request.session.get('obra_id')
         if not request.user.is_superuser:
             if not obra_sessao_id:
-                return JsonResponse({'success': False, 'error': 'Selecione uma obra no Mapa de Suprimentos antes de editar.'}, status=403)
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Selecione uma obra no dropdown do Mapa (canto superior) e recarregue a página antes de editar.'
+                }, status=403)
             try:
                 obra_id_int = int(obra_sessao_id)
             except (TypeError, ValueError):
@@ -341,6 +435,7 @@ def item_atualizar_campo(request):
         
         # Atualizar campo
         valor_novo = value
+        filled_from_sienge = False  # True quando preenchemos PC/prazo/empresa/quantidades do RecebimentoObra
         
         # IMPORTANTE: Garantir que value seja tratado corretamente para campos ForeignKey
         # Se o campo for local_aplicacao, processar primeiro para evitar atribuição incorreta
@@ -438,6 +533,8 @@ def item_atualizar_campo(request):
                     insumo_atual.codigo_sienge = codigo_novo
                     insumo_atual.save(update_fields=['codigo_sienge', 'updated_at'])
                     valor_novo = codigo_novo
+            # Vincular aos dados do Sienge: se já tiver numero_sc, preencher PC, datas, quantidades, etc.
+            filled_from_sienge = _aplicar_dados_recebimento_obra(item)
         elif field == 'insumo_unidade':
             # Editar unidade do insumo
             if not item.insumo:
@@ -510,47 +607,41 @@ def item_atualizar_campo(request):
             valor_novo = valor
         elif field == 'numero_sc':
             # Permitir edição do número SC pela engenharia
-            item.numero_sc = value.strip() if value else ''
+            # Usar mesma normalização do import (remove espaços, pontos, hífens) para vincular ao RecebimentoObra
+            valor_raw = (value or '').strip()
+            item.numero_sc = _normalizar_numero_sc(valor_raw)
             valor_novo = item.numero_sc or '(vazio)'
             # Auto-vincular a linha correta do Sienge quando:
             # - o insumo ainda é provisório (SM-LEV-*) OU
             # - existe ambiguidade de múltiplas linhas na mesma SC
-            numero_sc_atual = (item.numero_sc or '').strip()
+            numero_sc_atual = _normalizar_numero_sc(item.numero_sc or '')
             if numero_sc_atual:
                 try:
+                    # Busca tolerante ao numero_sc (85, 085, 85.0 no banco)
+                    todos_obra = RecebimentoObra.objects.filter(obra=item.obra).select_related('insumo')
+                    recebimentos_obra_sc = [r for r in todos_obra if _normalizar_numero_sc(r.numero_sc) == numero_sc_atual]
+                    
                     alvo_desc = (item.descricao_override or item.insumo.descricao or '').strip()
-                    # Buscar recebimentos dessa SC na obra
-                    receb_qs = RecebimentoObra.objects.filter(
-                        obra=item.obra,
-                        numero_sc=numero_sc_atual
-                    ).select_related('insumo')
                     if alvo_desc:
-                        match = receb_qs.filter(descricao_item__iexact=alvo_desc).first()
+                        match = next((r for r in recebimentos_obra_sc if (r.descricao_item or '').strip().lower() == alvo_desc.lower()), None)
                         if match:
                             # Ajustar insumo (se era provisório) e item_sc
                             if (item.insumo.codigo_sienge or '').startswith('SM-LEV-') or item.insumo_id != match.insumo_id:
                                 item.insumo = match.insumo
                             item.item_sc = match.item_sc or ''
                             valor_novo = numero_sc_atual
-                    # Se só existe 1 recebimento para a SC+insumo, podemos setar item_sc automaticamente
+                    # Se só existe 1 recebimento para a SC+insumo (código normalizado), podemos setar item_sc automaticamente
                     if not item.item_sc and item.insumo_id:
-                        cand = RecebimentoObra.objects.filter(
-                            obra=item.obra,
-                            numero_sc=numero_sc_atual,
-                            insumo=item.insumo
-                        )
-                        if cand.count() == 1:
-                            item.item_sc = cand.first().item_sc or ''
+                        codigo_item = _normalizar_codigo_insumo(item.insumo.codigo_sienge if item.insumo else '')
+                        cand = [r for r in recebimentos_obra_sc if r.insumo and _normalizar_codigo_insumo(r.insumo.codigo_sienge) == codigo_item]
+                        if len(cand) == 1:
+                            item.item_sc = cand[0].item_sc or ''
                     
                     # IMPORTANTE: Atualizar campos consolidados do Sienge (PC, Prazo, Empresa, Quantidades)
-                    # Buscar TODOS os RecebimentoObra desta SC+Insumo para consolidar dados
-                    recebimentos_todos = RecebimentoObra.objects.filter(
-                        obra=item.obra,
-                        numero_sc=numero_sc_atual,
-                        insumo=item.insumo
-                    )
+                    codigo_item = _normalizar_codigo_insumo(item.insumo.codigo_sienge if item.insumo else '')
+                    recebimentos_todos = [r for r in recebimentos_obra_sc if r.insumo and _normalizar_codigo_insumo(r.insumo.codigo_sienge) == codigo_item]
                     
-                    if recebimentos_todos.exists():
+                    if recebimentos_todos:
                         # Consolidar dados: usar primeiro valor não vazio de cada campo
                         pc_consolidado = ''
                         prazo_consolidado = None
@@ -594,8 +685,9 @@ def item_atualizar_campo(request):
                         # Limpar item_sc para itens manuais (permitir múltiplos RecebimentoObra)
                         # Mas manter item_sc se foi setado acima (linha específica encontrada)
                         # Apenas limpar se não foi encontrada linha específica
-                        if not item.item_sc or (alvo_desc and not receb_qs.filter(descricao_item__iexact=alvo_desc).exists()):
+                        if not item.item_sc or (alvo_desc and not any((r.descricao_item or '').strip().lower() == alvo_desc.lower() for r in recebimentos_obra_sc)):
                             item.item_sc = ''  # Permitir vinculação com múltiplos RecebimentoObra
+                        filled_from_sienge = True  # Front deve recarregar para mostrar PC, prazo, quantidade, etc.
                             
                 except Exception as e:
                     # Logar erro mas continuar (não bloquear a atualização do SC)
@@ -677,7 +769,9 @@ def item_atualizar_campo(request):
         
         return JsonResponse({
             'success': True,
-            'status_css': item.status_css
+            'status_css': item.status_css,
+            'filled_from_sienge': filled_from_sienge,
+            'debug_no_recebimento': (field in ('insumo_codigo', 'numero_sc') and not filled_from_sienge and bool((item.numero_sc or '').strip()) and bool(item.insumo_id)),
         })
     
     except Exception as e:
@@ -692,14 +786,28 @@ def item_atualizar_campo(request):
 @require_http_methods(["POST"])
 @ensure_csrf_cookie
 def item_alocar(request, item_id):
-    """Realiza alocação de recebimento para um item."""
-    item = get_object_or_404(ItemMapa, id=item_id)
+    """Realiza alocação de recebimento para um item. Sempre retorna JSON."""
+    def json_error(message, status=400):
+        return JsonResponse(
+            {'success': False, 'error': message},
+            status=status,
+            content_type='application/json',
+        )
+    try:
+        item = ItemMapa.objects.get(id=item_id)
+    except ItemMapa.DoesNotExist:
+        return json_error('Item não encontrado.', 404)
     
-    # Validar que o item pertence à obra da sessão
     obra_sessao_id = request.session.get('obra_id')
     if not request.user.is_superuser:
         if not obra_sessao_id or int(obra_sessao_id) != item.obra_id:
-            return JsonResponse({'success': False, 'error': 'Sem permissão para alocar itens desta obra.'}, status=403)
+            return json_error('Sem permissão para alocar itens desta obra.', 403)
+    
+    if not item.local_aplicacao_id:
+        return json_error(
+            'Defina o local de aplicação deste item antes de alocar. '
+            'Edite o item e selecione um local (ex.: Bloco A, Pavimento).'
+        )
     
     try:
         data = json.loads(request.body)
@@ -709,35 +817,21 @@ def item_alocar(request, item_id):
         quantidade = Decimal(str(quantidade_str))
         
         if quantidade <= 0:
-            return JsonResponse({
-                'success': False,
-                'error': 'Quantidade deve ser maior que zero'
-            }, status=400)
+            return json_error('Quantidade deve ser maior que zero')
         
-        # CORREÇÃO PRIORIDADE 1: Validar DENTRO da transação com SELECT FOR UPDATE
-        # Isso evita race conditions quando múltiplos usuários alocam simultaneamente
         with transaction.atomic():
-            # Buscar recebimento vinculado
             recebimento = item.recebimento_vinculado
             if not recebimento:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Não há material recebido na obra para o insumo "{item.insumo.descricao}". Aguarde a importação do Sienge ou cadastre um recebimento manualmente.'
-                }, status=400)
+                return json_error(
+                    f'Não há material recebido na obra para o insumo "{item.insumo.descricao}". '
+                    'Aguarde a importação do Sienge ou cadastre um recebimento manualmente.'
+                )
             
-            # Lock no recebimento para evitar race condition
-            # SELECT FOR UPDATE bloqueia a linha até o fim da transação
             recebimento = RecebimentoObra.objects.select_for_update().get(id=recebimento.id)
             
-            # Verificar se há quantidade recebida
             if recebimento.quantidade_recebida <= 0:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Não há material recebido na obra para o insumo "{item.insumo.descricao}".'
-                }, status=400)
+                return json_error(f'Não há material recebido na obra para o insumo "{item.insumo.descricao}".')
             
-            # Calcular disponível DENTRO da transação (com lock)
-            # Isso garante que o cálculo seja feito com dados consistentes
             total_alocado = AlocacaoRecebimento.objects.filter(
                 recebimento=recebimento
             ).aggregate(total=Sum('quantidade_alocada'))['total'] or Decimal('0.00')
@@ -745,16 +839,12 @@ def item_alocar(request, item_id):
             disponivel = recebimento.quantidade_recebida - total_alocado
             
             if disponivel <= 0:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Não há material disponível para alocar. Todo o material recebido já foi alocado.'
-                }, status=400)
+                return json_error('Não há material disponível para alocar. Todo o material recebido já foi alocado.')
             
             if quantidade > disponivel:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Quantidade ({quantidade}) excede o disponível ({disponivel} {item.insumo.unidade}). Informe um valor menor.'
-                }, status=400)
+                return json_error(
+                    f'Quantidade ({quantidade}) excede o disponível ({disponivel} {item.insumo.unidade}). Informe um valor menor.'
+                )
             alocacao = AlocacaoRecebimento(
                 obra=item.obra,
                 insumo=item.insumo,
@@ -767,8 +857,7 @@ def item_alocar(request, item_id):
             )
             alocacao.save()
             
-            # Registrar histórico de alocação
-            local_nome = item.local_aplicacao.nome if item.local_aplicacao else 'local não definido'
+            local_nome = item.local_aplicacao.nome if item.local_aplicacao else 'este local'
             HistoricoAlteracao.registrar(
                 obra=item.obra,
                 usuario=request.user,
@@ -783,27 +872,18 @@ def item_alocar(request, item_id):
         
         return JsonResponse({
             'success': True,
-            'message': f'Alocado {quantidade} {item.insumo.unidade} para {item.local_aplicacao.nome if item.local_aplicacao else "este local"}',
+            'message': f'Alocado {quantidade} {item.insumo.unidade} para {item.local_aplicacao.nome}',
             'nova_quantidade_alocada': str(item.quantidade_alocada_local),
             'saldo_restante': str(item.saldo_a_alocar_local),
             'status_css': item.status_css
-        })
+        }, content_type='application/json')
         
     except (ValueError, TypeError) as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'Valor inválido: {str(e)}'
-        }, status=400)
+        return json_error(f'Valor inválido: {str(e)}')
     except ValidationError as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=400)
+        return json_error(str(e))
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return json_error(str(e), status=500)
 
 
 @login_required
@@ -811,8 +891,17 @@ def item_alocar(request, item_id):
 @require_http_methods(["POST"])
 @ensure_csrf_cookie
 def item_remover_alocacao(request, item_id):
-    """Remove a última alocação de um item."""
-    item = get_object_or_404(ItemMapa, id=item_id)
+    """Remove a última alocação de um item. Sempre retorna JSON."""
+    try:
+        item = ItemMapa.objects.get(id=item_id)
+    except ItemMapa.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Item não encontrado.'}, status=404)
+    
+    # Validar que o item pertence à obra da sessão
+    obra_sessao_id = request.session.get('obra_id')
+    if not request.user.is_superuser:
+        if not obra_sessao_id or int(obra_sessao_id) != item.obra_id:
+            return JsonResponse({'success': False, 'error': 'Sem permissão para este item.'}, status=403)
     
     try:
         data = json.loads(request.body)
@@ -1158,7 +1247,7 @@ def listar_scs_disponiveis(request):
                 'quantidade_recebida': str(rec.quantidade_recebida),
                 'status': rec.status_recebimento,
                 'itens_vinculados': itens_vinculados,
-                'display': f"SC {rec.numero_sc} - {rec.insumo.descricao[:40]}{'...' if len(rec.insumo.descricao) > 40 else ''}"
+                'display': f"SC {rec.numero_sc} - {(rec.insumo.descricao or '')[:40]}{'...' if len(rec.insumo.descricao or '') > 40 else ''}"
             })
         
         return JsonResponse({'scs': result})
@@ -1308,7 +1397,7 @@ def busca_rapida_mobile(request):
                 'status_css': item.status_css,
                 'status_label': item.status_etapa,
                 'prazo': prazo.strftime('%d/%m') if prazo else '-',
-                'fornecedor': fornecedor[:25] if fornecedor else '-',
+                'fornecedor': str(fornecedor)[:25] if fornecedor else '-',
                 'sc': item.numero_sc or '-',
                 'pc': item.numero_pc or (recebimento.numero_pc if recebimento else '-') or '-',
                 'is_atrasado': item.is_atrasado,

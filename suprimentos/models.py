@@ -8,6 +8,29 @@ from django.contrib.auth.models import User
 from django.db.models import Sum
 
 
+def _normalizar_numero_sc_model(valor):
+    """Normaliza número da SC para comparação (85, 085, 85.0 -> 85). Usado em recebimento_vinculado."""
+    if not valor:
+        return ''
+    s = str(valor).strip().replace(' ', '').replace('.', '').replace('-', '').replace('_', '')
+    if s.isdigit():
+        return str(int(s))
+    return s
+
+
+def _normalizar_codigo_insumo_model(valor):
+    """Normaliza código do insumo para comparação (15666.0 -> 15666). Usado em recebimento_vinculado."""
+    if not valor:
+        return ''
+    s = str(valor).strip().replace(' ', '').replace(',', '.')
+    if s.replace('.', '', 1).isdigit():
+        try:
+            return str(int(float(s)))
+        except (ValueError, TypeError):
+            return s
+    return s
+
+
 class Insumo(models.Model):
     """
     Catálogo de insumos - Importado do Sienge.
@@ -459,28 +482,26 @@ class ItemMapa(models.Model):
     def recebimento_vinculado(self):
         """
         Busca o RecebimentoObra vinculado a este item pela SC + Insumo.
-        SIMPLES: Prioriza o consolidado (item_sc='') que é criado na importação.
+        Busca tolerante: numero_sc (85, 085, 85.0) e codigo_insumo (15666, 15666.0) normalizados.
+        Prioriza o consolidado (item_sc='') que é criado na importação.
         """
-        if not self.numero_sc:
+        if not self.numero_sc or not self.insumo_id:
             return None
-        
-        # Priorizar o consolidado (item_sc='') que é criado na importação
-        recebimento = RecebimentoObra.objects.filter(
-            obra=self.obra,
-            numero_sc=self.numero_sc,
-            insumo=self.insumo,
-            item_sc=''  # Consolidado da importação
-        ).first()
-        
-        if recebimento:
-            return recebimento
-        
-        # Se não encontrou consolidado, buscar qualquer um (fallback)
-        return RecebimentoObra.objects.filter(
-            obra=self.obra,
-            numero_sc=self.numero_sc,
-            insumo=self.insumo
-        ).first()
+        chave_sc = _normalizar_numero_sc_model(self.numero_sc)
+        chave_insumo = _normalizar_codigo_insumo_model(self.insumo.codigo_sienge if self.insumo else '')
+        if not chave_sc:
+            return None
+        candidatos = list(RecebimentoObra.objects.filter(obra=self.obra).select_related('insumo'))
+        # Priorizar consolidado (item_sc vazio), matching por SC e código insumo normalizados
+        for rec in candidatos:
+            if (rec.insumo and _normalizar_codigo_insumo_model(rec.insumo.codigo_sienge) == chave_insumo
+                    and _normalizar_numero_sc_model(rec.numero_sc) == chave_sc and (rec.item_sc or '') == ''):
+                return rec
+        for rec in candidatos:
+            if (rec.insumo and _normalizar_codigo_insumo_model(rec.insumo.codigo_sienge) == chave_insumo
+                    and _normalizar_numero_sc_model(rec.numero_sc) == chave_sc):
+                return rec
+        return None
 
     @property
     def quantidade_alocada_local(self):
@@ -1082,7 +1103,7 @@ class HistoricoAlteracao(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.data_hora.strftime('%d/%m %H:%M')} - {self.usuario} - {self.descricao[:50]}"
+        return f"{self.data_hora.strftime('%d/%m %H:%M')} - {self.usuario} - {(self.descricao or '')[:50]}"
     
     @classmethod
     def registrar(cls, obra, usuario, tipo, descricao, item_mapa=None, 
@@ -1096,7 +1117,7 @@ class HistoricoAlteracao(models.Model):
             valor_anterior=str(valor_anterior) if valor_anterior else '',
             valor_novo=str(valor_novo) if valor_novo else '',
             descricao=descricao,
-            insumo_nome=item_mapa.insumo.descricao[:200] if item_mapa and item_mapa.insumo else '',
+            insumo_nome=(item_mapa.insumo.descricao or '')[:200] if item_mapa and item_mapa.insumo else '',
             local_nome=item_mapa.local_aplicacao.nome if item_mapa and item_mapa.local_aplicacao else '',
             usuario=usuario,
             ip_address=ip_address

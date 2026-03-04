@@ -190,9 +190,10 @@ SECURE_SSL_REDIRECT = _use_https
 SESSION_COOKIE_SECURE = _use_https
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_AGE = 1209600
-SESSION_SAVE_EVERY_REQUEST = True
+# Sessão corporativa: 30 min de inatividade, renovação a cada uso, logout ao fechar o navegador
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True   # Cookie sem data de expiração: ao fechar o navegador o cookie some e exige novo login
+SESSION_COOKIE_AGE = 30 * 60              # 30 min: no servidor a sessão expira após esse tempo sem requisições (renovado a cada request)
+SESSION_SAVE_EVERY_REQUEST = True         # A cada requisição a sessão é salva e o prazo de 30 min é renovado (usuário ativo não é deslogado)
 CSRF_COOKIE_SECURE = _use_https
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
@@ -248,6 +249,8 @@ SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
 # CSRF: em produção defina CSRF_TRUSTED_ORIGINS no .env (ex: https://sistema.lplan.com.br,https://gestao.lplan.com.br)
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+# Requisições AJAX que falharem na CSRF recebem JSON 403 em vez de HTML
+CSRF_FAILURE_VIEW = 'core.csrf_views.csrf_failure_json'
 
 # Logging: arquivo + console para quem for dar suporte conseguir diagnosticar sem o desenvolvedor
 LOG_DIR = BASE_DIR / 'logs'

@@ -165,7 +165,7 @@ class Command(BaseCommand):
                     
                     if created:
                         total_criados += 1
-                        self.stdout.write(f'   ✅ CRIADO: {codigo} - {dados["descricao"][:50]}...')
+                        self.stdout.write(f'   ✅ CRIADO: {codigo} - {str(dados.get("descricao") or "")[:50]}...')
                     else:
                         # Já existe
                         if atualizar_descricao:
