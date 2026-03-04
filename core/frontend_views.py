@@ -970,6 +970,22 @@ def diary_add_owner_comment_view(request, pk):
 
 
 @login_required
+@project_required
+@require_http_methods(["POST"])
+def diary_delete_view(request, pk):
+    """Exclui um relatório (diário) de obra. Apenas superuser pode excluir."""
+    diary = get_object_or_404(ConstructionDiary.objects.select_related('project'), pk=pk)
+    if diary.project_id != get_selected_project(request).id:
+        raise Http404()
+    if not request.user.is_superuser:
+        raise PermissionDenied("Apenas administradores podem excluir relatórios.")
+    date_str = diary.date.strftime('%d/%m/%Y')
+    diary.delete()
+    messages.success(request, f"Relatório de {date_str} foi excluído.")
+    return redirect('report-list')
+
+
+@login_required
 @require_http_methods(["POST"])
 def client_diary_add_comment_view(request, pk):
     """POST: adiciona comentário ao diário (apenas dono da obra, dentro da janela de 24h)."""
