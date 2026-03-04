@@ -61,6 +61,8 @@ function updatePrioridadeClass(selectElement, value) {
 }
 
 // Atualizar campo via AJAX
+// CSRF: o token vem de 1) cookie csrftoken, 2) meta name="csrf-token", 3) input name="csrfmiddlewaretoken".
+// O backend (Django) exige X-CSRFToken no header em POSTs. Sem o context_processors.csrf no settings, {{ csrf_token }} fica vazio.
 function updateItemField(itemId, field, value, url) {
     const csrftoken = getCsrfToken();
     if (!csrftoken) {
@@ -230,12 +232,15 @@ function getCookie(name) {
     return cookieValue;
 }
 
-/** Obtém o token CSRF: cookie primeiro, depois meta tag (fallback quando cookie não está disponível). */
+/** Obtém o token CSRF: cookie primeiro, depois meta tag, depois input hidden (formulários com {% csrf_token %}). */
 function getCsrfToken() {
     let token = getCookie('csrftoken');
     if (token) return token;
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) token = meta.getAttribute('content');
+    if (token) return token;
+    const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (input) token = input.value;
     return token || null;
 }
 

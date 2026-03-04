@@ -788,7 +788,7 @@
             </tbody>
         </table>
     </div>
-    {% elif work_logs and (labor_by_type.I or labor_by_type.D or labor_by_type.T) %}
+    {% elif work_logs and (labor_indirect or labor_direct or labor_third_party) %}
     <div class="section">
         <div class="section-title">EFETIVO</div>
         <table class="data-table">
@@ -803,8 +803,8 @@
                 <tr class="section-header">
                     <td colspan="3">EFETIVO INDIRETO (LPLAN)</td>
                 </tr>
-                {% if labor_by_type.I %}
-                    {% for item in labor_by_type.I.values %}
+                {% if labor_indirect %}
+                    {% for item in labor_indirect.values %}
                     <tr>
                         <td>{% if item.labor.role %}{{ item.labor.get_role_display }}{% if item.labor.name %} ({{ item.labor.name }}){% endif %}{% else %}{{ item.labor.name|default:"-" }}{% endif %}</td>
                         <td>LPLAN</td>
@@ -822,8 +822,8 @@
                 <tr class="section-header">
                     <td colspan="3">EFETIVO DIRETO</td>
                 </tr>
-                {% if labor_by_type.D %}
-                    {% for item in labor_by_type.D.values %}
+                {% if labor_direct %}
+                    {% for item in labor_direct.values %}
                     <tr>
                         <td>{% if item.labor.role %}{{ item.labor.get_role_display }}{% if item.labor.name %} ({{ item.labor.name }}){% endif %}{% else %}{{ item.labor.name|default:"-" }}{% endif %}</td>
                         <td>-</td>
@@ -841,8 +841,8 @@
                 <tr class="section-header">
                     <td colspan="3">EFETIVO TERCEIROS</td>
                 </tr>
-                {% if labor_by_type.T %}
-                    {% for item in labor_by_type.T.values %}
+                {% if labor_third_party %}
+                    {% for item in labor_third_party.values %}
                     <tr>
                         <td>{% if item.labor.role %}{{ item.labor.get_role_display }}{% if item.labor.name %} ({{ item.labor.name }}){% endif %}{% else %}{{ item.labor.name|default:"-" }}{% endif %}</td>
                         <td>{{ item.labor.company|default:"-" }}</td>

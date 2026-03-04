@@ -445,6 +445,9 @@ class PDFGenerator:
             'project': diary.project,
             'work_logs': work_logs,
             'labor_by_type': labor_by_type,  # Dados agrupados de mão de obra (legado)
+            'labor_indirect': labor_by_type.get('I') or {},
+            'labor_direct': labor_by_type.get('D') or {},
+            'labor_third_party': labor_by_type.get('T') or {},
             'labor_entries_by_category': labor_entries_by_category,  # Novo: por categorias/cargos
             'equipment_count': equipment_count,  # Dados agrupados de equipamentos
             'total_indirect': total_indirect,
@@ -503,15 +506,21 @@ class PDFGenerator:
                 'occurrences': occurrences,
                 'project': diary.project,
                 'work_logs': work_logs,
+                'labor_entries_by_category': labor_entries_by_category,
                 'total_indirect': total_indirect,
                 'total_direct': total_direct,
                 'total_third_party': total_third_party,
                 'total_labor': total_labor,
                 'total_equipment': total_equipment,
+                'equipment_count': equipment_count,
                 'days_elapsed': days_elapsed,
                 'days_remaining': days_remaining,
                 'logo_path': logo_absolute_path or logo_path,  # Para xhtml2pdf usa caminho absoluto
                 'logo_absolute_path': logo_absolute_path,
+                'labor_by_type': labor_by_type,
+                'labor_indirect': labor_by_type.get('I') or {},
+                'labor_direct': labor_by_type.get('D') or {},
+                'labor_third_party': labor_by_type.get('T') or {},
             }
             
             # Renderiza template HTML com caminhos absolutos
