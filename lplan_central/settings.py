@@ -52,14 +52,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'core.middleware.ProxyHeadersMiddleware',  # cPanel: fallback X-Forwarded-Proto quando Apache não envia
+    'core.middleware.ProxyHeadersMiddleware',  # cPanel: fallback X-Forwarded-Proto
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'core.csrf_middleware.CsrfViewMiddleware',  # Aceita origem quando host está em ALLOWED_HOSTS (cPanel)
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    # 'core.middleware.SecurityHeadersMiddleware',  # Desativado: usar Django padrão (HTTP, sem CSP extra)
+    # 'core.middleware.SecurityHeadersMiddleware',  # Desativado
 ]
 
 ROOT_URLCONF = 'lplan_central.urls'
