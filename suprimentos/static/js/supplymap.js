@@ -1,9 +1,9 @@
 // SupplyMap - JavaScript principal
-// Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa (ex.: 7)
-var __LPLAN_JS_VER__ = '7';
+// Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa (ex.: 8)
+var __LPLAN_JS_VER__ = '8';
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.warn('[LPLAN] SupplyMap v' + __LPLAN_JS_VER__ + ' carregado. Se não aparecer "v7" em produção, o JS está em cache ou collectstatic não foi executado.');
+    console.warn('[LPLAN] SupplyMap v' + __LPLAN_JS_VER__ + ' carregado. Se não aparecer "v8" em produção, o JS está em cache ou collectstatic não foi executado.');
     // Diagnóstico CSRF no F12 (Console): filtrar por [LPLAN]
     try {
         var w = typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__ ? 'sim' : 'não';
@@ -323,24 +323,24 @@ function getCsrfToken() {
         return window.__LPLAN_CSRF_TOKEN__;
     }
     if (document.body) {
-        var t = document.body.getAttribute('data-csrf-token');
-        if (t) {
+        var bodyToken = document.body.getAttribute('data-csrf-token');
+        if (bodyToken) {
             _logCsrf('CSRF token: obtido de body[data-csrf-token]');
-            return t;
+            return bodyToken;
         }
     }
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) {
-        const t = meta.getAttribute('content');
-        if (t) {
+        var metaToken = meta.getAttribute('content');
+        if (metaToken) {
             _logCsrf('CSRF token: obtido de meta[name=csrf-token]');
-            return t;
+            return metaToken;
         }
     }
-    const t = getCookie('csrftoken');
-    if (t) {
+    var cookieToken = getCookie('csrftoken');
+    if (cookieToken) {
         _logCsrf('CSRF token: obtido de cookie csrftoken');
-        return t;
+        return cookieToken;
     }
     const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
     if (input && input.value) {
