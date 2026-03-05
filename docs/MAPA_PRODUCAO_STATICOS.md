@@ -4,6 +4,23 @@ Quando o Mapa funciona localmente mas **em produção** os dados não persistem 
 
 ---
 
+## 0. 404 em supplymap.js / "initCriarItem is not defined"
+
+Se o Console mostrar **404** em `supplymap.js` e **Refused to execute script... MIME type 'text/html'**, o arquivo estático não está sendo encontrado. O projeto está configurado para o **Django servir `/static/` em produção** (quando `DEBUG=False`), mas os arquivos precisam estar em `STATIC_ROOT`.
+
+**No servidor, obrigatório após cada deploy:**
+
+```bash
+python manage.py collectstatic --noinput
+```
+
+- Isso copia todos os estáticos (incluindo `suprimentos/static/js/supplymap.js`) para a pasta `staticfiles/` (ou o `STATIC_ROOT` do seu `.env`).
+- Sem rodar `collectstatic`, a URL `/static/js/supplymap.js` (ou o nome com hash) continua retornando 404 e o Mapa não funciona.
+
+Se o cPanel/servidor já tiver **Alias /static/** apontando para outra pasta, você pode usar essa pasta como `STATIC_ROOT` e rodar o `collectstatic` para ela, ou deixar o Django servir (já configurado em `lplan_central/urls.py` em produção).
+
+---
+
 ## 1. Arquivos estáticos (obrigatório após cada deploy)
 
 Em produção o Django usa `STATICFILES_STORAGE = ManifestStaticFilesStorage`. O navegador pode estar carregando uma **versão antiga** do `supplymap.js` se o comando abaixo não for executado após cada deploy:

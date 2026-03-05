@@ -46,6 +46,14 @@ urlpatterns = [
 
 # Em DEBUG: servir /static/ e /media/ ANTES do path('', include('core.urls'))
 # senão o core engole /static/... e devolve 404 (CSS e imagens não carregam)
+# Em produção: também servir /static/ a partir de STATIC_ROOT para o Mapa (supplymap.js etc.)
+# rodar: python manage.py collectstatic --noinput
 if settings.DEBUG:
     urlpatterns = static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + urlpatterns
     urlpatterns = static(settings.STATIC_URL, document_root=settings.STATIC_ROOT) + urlpatterns
+else:
+    # Produção: servir estáticos para evitar 404 em supplymap.js (cPanel nem sempre configura Alias /static/)
+    from django.views.static import serve
+    urlpatterns = [
+        path(settings.STATIC_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
+    ] + urlpatterns
