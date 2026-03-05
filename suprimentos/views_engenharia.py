@@ -68,6 +68,13 @@ def mapa_engenharia(request):
             obra_id = str(obra_sessao.id)
             request.session['obra_id'] = obra_sessao.id
             request.session.modified = True
+            # Garantir que a URL tenha ?obra= para que ao recarregar a página a mesma obra seja exibida
+            if not request.GET.get('obra'):
+                from django.urls import reverse
+                base = reverse('engenharia:mapa')
+                qs = request.GET.copy()
+                qs['obra'] = obra_id
+                return redirect(base + '?' + qs.urlencode())
     
     categoria = request.GET.get('categoria', '')
     local_id = request.GET.get('local', '')

@@ -7,6 +7,7 @@ from django.shortcuts import redirect, get_object_or_404, render
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.urls import reverse
 from .models import Obra, LocalObra
 
 
@@ -80,13 +81,13 @@ def selecionar_obra(request, obra_id):
     
     messages.success(request, f'Obra "{obra.nome}" selecionada com sucesso!')
     
-    # Se o usuário estava em uma página de engenharia, voltar para lá
+    # Sempre redirecionar para o Mapa COM ?obra= na URL, para que ao recarregar a página
+    # a mesma obra seja exibida (evita perda de sessão em produção e "dados que somem").
+    mapa_url = reverse('engenharia:mapa') + '?obra=' + str(obra.id)
     referer = request.META.get('HTTP_REFERER', '')
     if '/engenharia/' in referer:
-        return redirect(referer)
-    
-    # Caso contrário (veio da seleção de obras), ir para o Mapa
-    return redirect('engenharia:mapa')
+        return redirect(mapa_url)
+    return redirect(mapa_url)
 
 
 @login_required
