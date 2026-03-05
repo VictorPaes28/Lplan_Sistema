@@ -278,8 +278,14 @@ function getCsrfTokenAsync() {
     const sync = getCsrfToken();
     if (sync) return Promise.resolve(sync);
     return fetch('/api/csrf-token/', { method: 'GET', credentials: 'include' })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) return null;
+            var ct = r.headers.get('Content-Type') || '';
+            if (ct.indexOf('application/json') === -1) return null;
+            return r.json();
+        })
         .then(function(data) {
+            if (!data) return null;
             var t = (data && data.csrfToken) ? data.csrfToken : null;
             if (t) {
                 var meta = document.querySelector('meta[name="csrf-token"]');

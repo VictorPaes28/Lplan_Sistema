@@ -8,7 +8,6 @@ Endpoint GET /api/csrf-token/ para o frontend obter o token quando a meta tag es
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
-from django.contrib.auth.decorators import login_required
 
 
 def csrf_failure_json(request, reason=''):
@@ -45,10 +44,12 @@ def csrf_failure_json(request, reason=''):
 
 
 @require_GET
-@login_required
 @ensure_csrf_cookie
 def get_csrf_token(request):
-    """Retorna o token CSRF em JSON para o frontend (Mapa de Suprimentos, etc.) quando a meta tag está vazia."""
+    """Retorna o token CSRF em JSON para o frontend (Mapa de Suprimentos, etc.).
+    Sem @login_required: no servidor o cookie de sessão pode não ser enviado no fetch
+    (proxy/cookie), e aí o redirect para login fazia o fetch receber HTML e retornar null → "Sessão inválida".
+    Quem exige login são as views de API (item_atualizar_campo, etc.)."""
     from django.middleware.csrf import get_token
     token = get_token(request)
     return JsonResponse({'csrfToken': token or ''})
