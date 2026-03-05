@@ -13,6 +13,16 @@ from django.contrib.auth.decorators import login_required
 
 def csrf_failure_json(request, reason=''):
     """Chamada pelo Django quando a validação CSRF falha. Retorna JSON para requisições AJAX."""
+    import logging
+    logger = logging.getLogger('core')
+    referer = request.META.get('HTTP_REFERER') or '(vazio)'
+    origin = request.META.get('HTTP_ORIGIN') or '(vazio)'
+    from django.conf import settings
+    trusted = getattr(settings, 'CSRF_TRUSTED_ORIGINS', [])
+    logger.warning(
+        'CSRF 403: Referer=%s Origin=%s CSRF_TRUSTED_ORIGINS=%s path=%s',
+        referer, origin, trusted, request.path
+    )
     is_ajax = (
         request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         or 'application/json' in request.headers.get('Accept', '')

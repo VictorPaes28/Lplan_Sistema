@@ -204,6 +204,12 @@ _session_domain = os.environ.get('SESSION_COOKIE_DOMAIN', '').strip()
 CSRF_COOKIE_DOMAIN = _session_domain or None
 SESSION_COOKIE_DOMAIN = _session_domain or None
 
+# Atrás de proxy (cPanel/Apache/Nginx): Django recebe HTTP; o navegador usa HTTPS.
+# Sem isso, redirects e cookies podem usar scheme/host errados e o 403 CSRF persiste.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+
 # Remove X-XSS-Protection header (modern browsers handle this)
 # Note: We'll handle CSP via custom middleware
 SECURE_BROWSER_XSS_FILTER = False
