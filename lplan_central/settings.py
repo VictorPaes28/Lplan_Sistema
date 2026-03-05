@@ -254,10 +254,21 @@ SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
 
 # CSRF: em produção (HTTPS) defina no .env:
 #   CSRF_TRUSTED_ORIGINS=https://sistema.lplan.com.br
+# Se acessar por HTTP (ex.: sem SSL no cPanel), inclua também as origens http:
+#   CSRF_TRUSTED_ORIGINS=https://sistema.lplan.com.br,http://sistema.lplan.com.br
 # (exatamente a URL do site, sem barra no final; várias origens separadas por vírgula)
-# Sem isso, POSTs (ex.: Mapa de Suprimentos) retornam 403 "Sessão inválida".
+# Sem a origem correta (http vs https), POSTs retornam 403 "Sessão inválida".
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+# Em DEBUG, se só tiver origens https, aceitar também http para o mesmo host (evita quebrar quando acessar por HTTP)
+if DEBUG and CSRF_TRUSTED_ORIGINS:
+    _extra = []
+    for o in list(CSRF_TRUSTED_ORIGINS):
+        if o.startswith('https://'):
+            h = 'http://' + o[8:]
+            if h not in CSRF_TRUSTED_ORIGINS:
+                _extra.append(h)
+    CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + _extra
 # Requisições AJAX que falharem na CSRF recebem JSON 403 em vez de HTML
 CSRF_FAILURE_VIEW = 'core.csrf_views.csrf_failure_json'
 
