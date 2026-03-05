@@ -502,162 +502,158 @@ def exportar_mapa_excel(request):
     # Criar arquivo Excel em memória
     output = BytesIO()
     
+    # Cores alinhadas ao CSS do Mapa (supplymap.css)
+    NAVY = '1a365d'       # thead, agrupadores
+    BORDER_HEADER = '374151'
+    CATEGORIA_BG = 'd4d8dd'
+    ZEBRA_WHITE = 'ffffff'
+    ZEBRA_GRAY = 'f8f9fb'
+    STATUS_ATRASADO = 'fecaca'
+    STATUS_VERDE = 'dcfce7'
+    STATUS_LARANJA = 'ffedd5'
+    STATUS_AMARELO = 'fef3c7'
+    STATUS_VERMELHO = 'fee2e2'
+    STATUS_AZUL = 'dbeafe'
+    
     try:
         with pd.ExcelWriter(output, engine='openpyxl', mode='w') as writer:
-            # Escrever os dados começando na linha 0 (pandas criará cabeçalhos na linha 1)
             df.to_excel(writer, sheet_name='Mapa de Suprimentos', index=False, startrow=0)
-            
-            # Acessar a planilha para formatação
             workbook = writer.book
             worksheet = writer.sheets['Mapa de Suprimentos']
             
-            # Estilos
-            header_group_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-            header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
-            header_font = Font(bold=True, color='FFFFFF', size=11)
-            categoria_font = Font(bold=True, size=11)
-            border = Border(
-                left=Side(style='thin'),
-                right=Side(style='thin'),
-                top=Side(style='thin'),
-                bottom=Side(style='thin')
-            )
-            
-            # Inserir linha 1 para cabeçalhos agrupados (antes dos cabeçalhos das colunas que estão na linha 1)
+            # Inserir 2 linhas no topo: linha 1 = título da obra, linha 2 = agrupadores
+            worksheet.insert_rows(1)
             worksheet.insert_rows(1)
             
-            # Linha 1: Cabeçalhos agrupados (REQUISIÇÃO, SOLICITAÇÃO, ENTREGA)
-            worksheet.merge_cells('A1:H1')  # REQUISIÇÃO DE PRODUTO/SERVIÇO
-            worksheet.merge_cells('I1:K1')  # SOLICITAÇÃO DE COMPRA
-            worksheet.merge_cells('L1:N1')  # ENTREGA DE PRODUTO/SERVIÇO
-            worksheet.merge_cells('O1:Q1')  # Vazio (17 colunas no total)
+            # Bordas (grade como na tela)
+            border_thin = Border(
+                left=Side(style='thin', color='c0c0c0'),
+                right=Side(style='thin', color='c0c0c0'),
+                top=Side(style='thin', color='c0c0c0'),
+                bottom=Side(style='thin', color='c0c0c0')
+            )
+            border_header = Border(
+                left=Side(style='thin', color=BORDER_HEADER),
+                right=Side(style='thin', color=BORDER_HEADER),
+                top=Side(style='thin', color=BORDER_HEADER),
+                bottom=Side(style='thin', color=BORDER_HEADER)
+            )
             
-            cell_req = worksheet['A1']
-            cell_req.value = 'REQUISIÇÃO DE PRODUTO/SERVIÇO'
-            cell_req.fill = header_group_fill
-            cell_req.font = header_font
-            cell_req.alignment = Alignment(horizontal='center', vertical='center')
-            cell_req.border = border
+            # Linha 1: Título "Mapa de Suprimentos - [Obra]"
+            obra_nome = itens_lista[0].obra.nome if itens_lista else 'Nenhuma obra'
+            worksheet.merge_cells('A1:Q1')
+            cell_title = worksheet['A1']
+            cell_title.value = f'Mapa de Suprimentos - {obra_nome}'
+            cell_title.fill = PatternFill(start_color=NAVY, end_color=NAVY, fill_type='solid')
+            cell_title.font = Font(bold=True, color='FFFFFF', size=14)
+            cell_title.alignment = Alignment(horizontal='center', vertical='center')
+            cell_title.border = border_header
             
-            cell_sol = worksheet['I1']
-            cell_sol.value = 'SOLICITAÇÃO DE COMPRA'
-            cell_sol.fill = header_group_fill
-            cell_sol.font = header_font
-            cell_sol.alignment = Alignment(horizontal='center', vertical='center')
-            cell_sol.border = border
+            # Linha 2: Agrupadores (REQUISIÇÃO, SOLICITAÇÃO, ENTREGA, CONTROLE)
+            fill_navy = PatternFill(start_color=NAVY, end_color=NAVY, fill_type='solid')
+            font_header = Font(bold=True, color='FFFFFF', size=10)
+            align_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            worksheet.merge_cells('A2:H2')
+            worksheet.merge_cells('I2:K2')
+            worksheet.merge_cells('L2:N2')
+            worksheet.merge_cells('O2:Q2')
+            for cell_ref, label in [('A2', 'REQUISIÇÃO DE PRODUTO/SERVIÇO'), ('I2', 'SOLICITAÇÃO DE COMPRA'), ('L2', 'ENTREGA DE PRODUTO/SERVIÇO'), ('O2', 'CONTROLE')]:
+                c = worksheet[cell_ref]
+                c.value = label
+                c.fill = fill_navy
+                c.font = font_header
+                c.alignment = align_center
+                c.border = border_header
             
-            cell_ent = worksheet['L1']
-            cell_ent.value = 'ENTREGA DE PRODUTO/SERVIÇO'
-            cell_ent.fill = header_group_fill
-            cell_ent.font = header_font
-            cell_ent.alignment = Alignment(horizontal='center', vertical='center')
-            cell_ent.border = border
-            
-            # Linha 2: Cabeçalhos das colunas (já criada pelo pandas, agora na linha 2)
-            for col_idx, col_name in enumerate(colunas_excel, start=1):
-                cell = worksheet.cell(row=2, column=col_idx)
-                cell.fill = header_fill
-                cell.font = header_font
+            # Linha 3: Cabeçalhos das colunas (já preenchida pelo pandas, agora na linha 3)
+            for col_idx in range(1, 18):
+                cell = worksheet.cell(row=3, column=col_idx)
+                cell.fill = fill_navy
+                cell.font = Font(bold=True, color='FFFFFF', size=9)
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-                cell.border = border
+                cell.border = border_header
             
-            # Ajustar largura das colunas (aumentadas para evitar corte)
+            # Larguras das colunas (como na tela)
             column_widths = {
-                'A': 25,  # 1. CATEGORIA
-                'B': 18,  # 2. CÓDIGO DO INSUMO
-                'C': 50,  # 3. DESCRIÇÃO DO ITEM (aumentada para textos longos)
-                'D': 25,  # 4. LOCAL
-                'E': 20,  # 5. RESPONSÁVEL
-                'F': 12,  # 6. PRAZO
-                'G': 20,  # 7. QUANTITATIVO
-                'H': 10,  # 8. UND
-                'I': 18,  # 9. Nº SOLICITAÇÃO
-                'J': 18,  # 10. Nº PEDIDO DE COMPRA
-                'K': 30,  # 11. EMPRESA RESPONSÁVEL (aumentada)
-                'L': 15,  # 12. PRAZO RECEBIMENTO
-                'M': 25,  # 13. QUANTIDADE RECEBIDA (aumentada para formato alocado/solicitado)
-                'N': 20,  # 14. SALDO A SER ENTREGUE
-                'O': 30,  # 15. STATUS (aumentada)
-                'P': 15,  # 16. PRIORIDADE
-                'Q': 40,  # 17. OBSERVAÇÃO (aumentada)
+                'A': 22, 'B': 16, 'C': 42, 'D': 22, 'E': 18, 'F': 12, 'G': 14, 'H': 8,
+                'I': 16, 'J': 14, 'K': 28, 'L': 14, 'M': 22, 'N': 18, 'O': 26, 'P': 14, 'Q': 38
             }
-            
             for col, width in column_widths.items():
                 worksheet.column_dimensions[col].width = width
             
-            # Formatar linhas de dados (começando na linha 3, pois linha 1 é agrupador e linha 2 é cabeçalho)
-            for row_idx, row in enumerate(worksheet.iter_rows(min_row=3, max_row=worksheet.max_row), start=0):
-                if row_idx < len(dados_limpos):
-                    linha_dados = dados_limpos[row_idx]
-                    item = linha_dados.get('_item')
-                    is_categoria_header = linha_dados.get('_is_categoria_header', False)
+            # Altura da linha de título e cabeçalhos
+            worksheet.row_dimensions[1].height = 28
+            worksheet.row_dimensions[2].height = 22
+            worksheet.row_dimensions[3].height = 24
+            
+            # Formatar linhas de dados (a partir da linha 5, pois 1=título, 2=agrupadores, 3=colunas, 4+=dados)
+            data_start_row = 4
+            for row_idx, row in enumerate(worksheet.iter_rows(min_row=data_start_row, max_row=worksheet.max_row)):
+                if row_idx >= len(dados_limpos):
+                    break
+                linha_dados = dados_limpos[row_idx]
+                item = linha_dados.get('_item')
+                is_categoria_header = linha_dados.get('_is_categoria_header', False)
+                row_num = row[0].row
+                
+                if is_categoria_header:
+                    worksheet.merge_cells(f'A{row_num}:Q{row_num}')
+                    fill_cat = PatternFill(start_color=CATEGORIA_BG, end_color=CATEGORIA_BG, fill_type='solid')
+                    for cell in row:
+                        cell.fill = fill_cat
+                        cell.font = Font(bold=True, size=11)
+                        cell.border = border_thin
+                        cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                    worksheet.row_dimensions[row_num].height = 22
+                elif item:
+                    status_fill = None
+                    if item.is_atrasado:
+                        status_fill = PatternFill(start_color=STATUS_ATRASADO, end_color=STATUS_ATRASADO, fill_type='solid')
+                    elif item.status_css == 'status-verde':
+                        status_fill = PatternFill(start_color=STATUS_VERDE, end_color=STATUS_VERDE, fill_type='solid')
+                    elif item.status_css == 'status-laranja':
+                        status_fill = PatternFill(start_color=STATUS_LARANJA, end_color=STATUS_LARANJA, fill_type='solid')
+                    elif item.status_css == 'status-amarelo':
+                        status_fill = PatternFill(start_color=STATUS_AMARELO, end_color=STATUS_AMARELO, fill_type='solid')
+                    elif item.status_css == 'status-vermelho':
+                        status_fill = PatternFill(start_color=STATUS_VERMELHO, end_color=STATUS_VERMELHO, fill_type='solid')
+                    elif item.status_css == 'status-azul':
+                        status_fill = PatternFill(start_color=STATUS_AZUL, end_color=STATUS_AZUL, fill_type='solid')
                     
-                    if is_categoria_header:
-                        # Linha de categoria: fundo cinza e texto em negrito
-                        categoria_fill = PatternFill(start_color='E0E0E0', end_color='E0E0E0', fill_type='solid')
-                        # Mesclar todas as colunas (A até Q = 17 colunas)
-                        row_num = row[0].row
-                        worksheet.merge_cells(f'A{row_num}:Q{row_num}')
-                        # Aplicar formatação apenas na primeira célula (que agora está mesclada)
-                        cell_categoria = row[0]
-                        cell_categoria.fill = categoria_fill
-                        cell_categoria.font = categoria_font
-                        cell_categoria.border = border
-                        cell_categoria.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
-                        # Aplicar bordas nas células mescladas
+                    if status_fill:
                         for cell in row:
-                            cell.border = border
-                    elif item:
-                        # Aplicar cor de fundo baseada no status
-                        status_fill = None
-                        if item.is_atrasado:
-                            status_fill = PatternFill(start_color='FFE6E6', end_color='FFE6E6', fill_type='solid')
-                        elif item.status_css == 'status-verde':
-                            status_fill = PatternFill(start_color='E6F7E6', end_color='E6F7E6', fill_type='solid')
-                        elif item.status_css == 'status-laranja':
-                            status_fill = PatternFill(start_color='FFF4E6', end_color='FFF4E6', fill_type='solid')
-                        elif item.status_css == 'status-amarelo':
-                            status_fill = PatternFill(start_color='FFFCE6', end_color='FFFCE6', fill_type='solid')
-                        elif item.status_css == 'status-vermelho':
-                            status_fill = PatternFill(start_color='FFE6E6', end_color='FFE6E6', fill_type='solid')
-                        elif item.status_css == 'status-azul':
-                            status_fill = PatternFill(start_color='E6F0FF', end_color='E6F0FF', fill_type='solid')
-                        
-                        if status_fill:
-                            for cell in row:
-                                cell.fill = status_fill
-                                cell.border = border
-                                cell.alignment = Alignment(vertical='center', horizontal='left', wrap_text=True)
-                        else:
-                            for cell in row:
-                                cell.border = border
-                                cell.alignment = Alignment(vertical='center', horizontal='left', wrap_text=True)
-                        
-                        # Formatação especial para colunas numéricas (centralizar)
-                        # Coluna G (7. QUANTITATIVO) - centralizar
-                        if len(row) > 6:
-                            row[6].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
-                        # Coluna M (13. QUANTIDADE RECEBIDA) - centralizar
-                        if len(row) > 12:
-                            row[12].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
-                        # Coluna N (14. SALDO A SER ENTREGUE) - centralizar
-                        if len(row) > 13:
-                            row[13].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
+                            cell.fill = status_fill
                     else:
-                        # Linha sem item: apenas bordas
+                        # Zebra como na tela (branco / cinza claro)
+                        zebra = ZEBRA_GRAY if (row_idx % 2 == 1) else ZEBRA_WHITE
+                        fill_zebra = PatternFill(start_color=zebra, end_color=zebra, fill_type='solid')
                         for cell in row:
-                            cell.border = border
-                            cell.alignment = Alignment(vertical='center', wrap_text=True)
+                            cell.fill = fill_zebra
+                    
+                    for cell in row:
+                        cell.border = border_thin
+                        cell.alignment = Alignment(vertical='center', horizontal='left', wrap_text=True)
+                    # Quantitativo, Qtd recebida, Saldo: centralizar
+                    if len(row) > 6:
+                        row[6].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
+                    if len(row) > 12:
+                        row[12].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
+                    if len(row) > 13:
+                        row[13].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
+                    if len(row) > 7:
+                        row[7].alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
+                else:
+                    for cell in row:
+                        cell.border = border_thin
+                        cell.alignment = Alignment(vertical='center', wrap_text=True)
             
-            # Congelar primeira e segunda linha (cabeçalhos)
-            worksheet.freeze_panes = 'A3'
+            worksheet.freeze_panes = 'A4'
             
-            # Adicionar informações no rodapé
             if itens_lista:
                 obra_nome = itens_lista[0].obra.nome
                 data_exportacao = datetime.now().strftime('%d/%m/%Y %H:%M')
-                worksheet.cell(row=worksheet.max_row + 2, column=1, value=f'Exportado em: {data_exportacao}')
-                worksheet.cell(row=worksheet.max_row, column=1, value=f'Obra: {obra_nome}')
+                footer_row = worksheet.max_row + 2
+                worksheet.cell(row=footer_row, column=1, value=f'Exportado em: {data_exportacao} | Obra: {obra_nome}')
             else:
                 obra_nome = 'N/A'
     
