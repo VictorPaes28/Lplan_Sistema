@@ -353,8 +353,8 @@ Pedido: {workorder.codigo}
 Obra: {obra.nome} ({obra.codigo})
 Credor: {workorder.nome_credor}
 Tipo: {workorder.get_tipo_solicitacao_display()}
-Solicitante: {workorder.criado_por.get_full_name() or workorder.criado_por.username}
-E-mail do Solicitante: {workorder.criado_por.email}
+Solicitante: {workorder.criado_por.get_full_name() or workorder.criado_por.username if workorder.criado_por else '—'}
+E-mail do Solicitante: {workorder.criado_por.email if workorder.criado_por else '—'}
 Data de Envio: {workorder.data_envio.strftime('%d/%m/%Y %H:%M') if workorder.data_envio else 'N/A'}
 
 Observações:
@@ -380,7 +380,7 @@ Mensagem automática. Não responda a este e-mail.
                 </div>
                 <div class="info-row">
                     <span class="info-label">E-mail do Solicitante:</span>
-                    <span class="info-value">{workorder.criado_por.email}</span>
+                    <span class="info-value">{workorder.criado_por.email if workorder.criado_por else '—'}</span>
                 </div>
     """
     
@@ -770,8 +770,8 @@ def enviar_email_reprovacao(workorder, aprovado_por, comentario):
     
     solicitante = workorder.criado_por
     
-    if not solicitante.email:
-        logger.warning(f"Solicitante {solicitante.username} não tem email cadastrado. Email de reprovação não enviado.")
+    if not solicitante or not getattr(solicitante, 'email', None):
+        logger.warning(f"Pedido {workorder.codigo}: solicitante sem e-mail. Email de reprovação não enviado.")
         return False
     
     assunto = f'Pedido Reprovado: {workorder.codigo}'

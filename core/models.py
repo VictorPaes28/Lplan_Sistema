@@ -587,14 +587,16 @@ class ConstructionDiary(models.Model):
     )
     created_by = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='created_diaries',
         verbose_name='Criado por',
         help_text='Engenheiro de campo que criou o diário'
     )
     reviewed_by = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='reviewed_diaries',
         null=True,
         blank=True,
@@ -882,7 +884,9 @@ class DiaryComment(models.Model):
     )
     author = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='diary_comments',
         verbose_name='Autor',
     )
@@ -898,7 +902,8 @@ class DiaryComment(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.diary} — {self.author.username} ({self.created_at})"
+        autor = getattr(self.author, 'username', None) or 'Usuário removido'
+        return f"{self.diary} — {autor} ({self.created_at})"
 
 
 class DiaryEditLog(models.Model):
@@ -913,7 +918,9 @@ class DiaryEditLog(models.Model):
     )
     edited_by = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='diary_edits',
         verbose_name='Editado por'
     )
@@ -952,7 +959,8 @@ class DiaryEditLog(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"Edição de {self.diary} por {self.edited_by} em {self.edited_at}"
+        editado = self.edited_by.username if self.edited_by else 'Usuário removido'
+        return f"Edição de {self.diary} por {editado} em {self.edited_at}"
 
 
 class DiaryView(models.Model):
@@ -967,7 +975,9 @@ class DiaryView(models.Model):
     )
     viewed_by = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='diary_views',
         verbose_name='Visualizado por'
     )
@@ -991,7 +1001,8 @@ class DiaryView(models.Model):
         unique_together = [['diary', 'viewed_by', 'viewed_at']]
 
     def __str__(self) -> str:
-        return f"Visualização de {self.diary} por {self.viewed_by} em {self.viewed_at}"
+        visualizado = self.viewed_by.username if self.viewed_by else 'Usuário removido'
+        return f"Visualização de {self.diary} por {visualizado} em {self.viewed_at}"
 
 
 class DiarySignature(models.Model):
@@ -1006,7 +1017,9 @@ class DiarySignature(models.Model):
     )
     signer = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='diary_signatures',
         verbose_name='Assinante'
     )
@@ -1038,7 +1051,8 @@ class DiarySignature(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"Assinatura de {self.signer} em {self.diary} ({self.get_signature_type_display()})"
+        assinante = self.signer.username if self.signer else 'Usuário removido'
+        return f"Assinatura de {assinante} em {self.diary} ({self.get_signature_type_display()})"
 
 
 class DiaryImage(models.Model):
@@ -1566,7 +1580,9 @@ class DiaryOccurrence(models.Model):
     )
     created_by = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='created_occurrences',
         verbose_name='Criado por',
         help_text='Usuário que registrou a ocorrência'

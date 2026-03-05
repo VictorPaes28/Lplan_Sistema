@@ -42,7 +42,7 @@ class Empresa(models.Model):
     
     responsavel = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='empresas_responsavel',
         verbose_name='Responsável pela Empresa',
         help_text='Usuário responsável por gerenciar esta empresa',
@@ -309,7 +309,9 @@ class WorkOrder(models.Model):
     # Relacionamentos
     criado_por = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='work_orders_criados',
         verbose_name='Criado por (Solicitante)',
         help_text='Usuário que criou o pedido (engenheiro solicitante)'
@@ -398,6 +400,8 @@ class WorkOrder(models.Model):
         Verifica se o usuário pode editar este pedido.
         Regra: só pode editar se estiver pendente para aprovação, em reaprovação, reprovado (para reenviar), ou rascunho, e for o criador.
         """
+        if not self.criado_por_id:
+            return False
         if self.status in ['pendente', 'reaprovacao', 'rascunho']:
             return self.criado_por == user
         # Se estiver reprovado, o criador pode editar para reenviar
@@ -435,7 +439,9 @@ class Approval(models.Model):
     
     aprovado_por = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='approvals_feitas',
         verbose_name='Aprovado/Reprovado por',
         help_text='Usuário que tomou a decisão'
@@ -479,7 +485,8 @@ class Approval(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.work_order.codigo} - {self.get_decisao_display()} por {self.aprovado_por.username} em {self.created_at.strftime('%d/%m/%Y %H:%M')}"
+        aprovador = self.aprovado_por.username if self.aprovado_por else 'Usuário removido'
+        return f"{self.work_order.codigo} - {self.get_decisao_display()} por {aprovador} em {self.created_at.strftime('%d/%m/%Y %H:%M')}"
 
 
 def sanitize_filename(filename):
@@ -557,7 +564,9 @@ class Attachment(models.Model):
     
     enviado_por = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='attachments_enviados',
         verbose_name='Enviado por',
         help_text='Usuário que fez o upload do arquivo'
@@ -648,7 +657,9 @@ class StatusHistory(models.Model):
     
     alterado_por = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='status_changes',
         verbose_name='Alterado por',
         help_text='Usuário que fez a alteração'
@@ -849,7 +860,9 @@ class Comment(models.Model):
     
     autor = models.ForeignKey(
         User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='comentarios_feitos',
         verbose_name='Autor',
         help_text='Usuário que fez o comentário'
@@ -880,7 +893,8 @@ class Comment(models.Model):
         ]
     
     def __str__(self):
-        return f"Comentário de {self.autor.username} em {self.work_order.codigo}"
+        autor = self.autor.username if self.autor else 'Usuário removido'
+        return f"Comentário de {autor} em {self.work_order.codigo}"
 
 
 class Lembrete(models.Model):
@@ -899,7 +913,9 @@ class Lembrete(models.Model):
     
     enviado_para = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='lembretes_recebidos',
         verbose_name='Enviado Para',
         help_text='Aprovador que recebeu o lembrete'
@@ -945,7 +961,8 @@ class Lembrete(models.Model):
         # é feita na lógica do management command, não via unique_together
     
     def __str__(self):
-        return f"Lembrete {self.get_tipo_display()} - {self.work_order.codigo} para {self.enviado_para.username}"
+        destinatario = self.enviado_para.username if self.enviado_para else 'Usuário removido'
+        return f"Lembrete {self.get_tipo_display()} - {self.work_order.codigo} para {destinatario}"
 
 
 class Notificacao(models.Model):

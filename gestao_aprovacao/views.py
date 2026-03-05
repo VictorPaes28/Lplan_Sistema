@@ -579,8 +579,12 @@ def detail_workorder(request, pk):
             ).values_list('usuario_id', flat=True)
             
             # Se o criador está no grupo "Solicitante" ou tem permissão na obra, pode ver
-            criador_no_grupo = workorder.criado_por.groups.filter(name='Solicitante').exists()
-            criador_tem_permissao = workorder.criado_por.id in outros_solicitantes_obra
+            if workorder.criado_por_id:
+                criador_no_grupo = workorder.criado_por.groups.filter(name='Solicitante').exists()
+                criador_tem_permissao = workorder.criado_por.id in outros_solicitantes_obra
+            else:
+                criador_no_grupo = False
+                criador_tem_permissao = False
             
             if criador_no_grupo or criador_tem_permissao:
                 tem_permissao = True
@@ -2717,6 +2721,8 @@ def desempenho_equipe_api(request):
             
             for approval in approvals_list:
                 try:
+                    if not approval.aprovado_por_id:
+                        continue
                     usuario_id = approval.aprovado_por.id
                     usuario_nome = approval.aprovado_por.get_full_name() or approval.aprovado_por.username
                     
@@ -2856,7 +2862,7 @@ def desempenho_equipe_api(request):
             # Contar BMs que foram reprovadas e depois reapresentadas
             work_orders_aprovados = set()
             for approval in approvals:
-                if approval.aprovado_por.id == usuario_id and approval.decisao == 'aprovado':
+                if approval.aprovado_por_id and approval.aprovado_por.id == usuario_id and approval.decisao == 'aprovado':
                     work_orders_aprovados.add(approval.work_order.id)
             
             retrabalhos_aprovador = 0

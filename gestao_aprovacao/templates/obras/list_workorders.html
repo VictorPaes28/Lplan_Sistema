@@ -380,7 +380,7 @@
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                                     <circle cx="12" cy="7" r="4"></circle>
                                 </svg>
-                                <span>{{ workorder.criado_por.get_full_name|default:workorder.criado_por.username|truncatewords:10 }}</span>
+                                <span>{% if workorder.criado_por %}{{ workorder.criado_por.get_full_name|default:workorder.criado_por.username|truncatewords:10 }}{% else %}—{% endif %}</span>
                             </div>
                         </td>
                         <td data-label="Data Envio">

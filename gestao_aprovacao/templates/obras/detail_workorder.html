@@ -154,14 +154,14 @@
             <div>
                 <div class="detail-field-label">Solicitante:</div>
                 <p class="detail-field-value">
-                    {{ workorder.criado_por.get_full_name|default:workorder.criado_por.username }}
+                    {% if workorder.criado_por %}{{ workorder.criado_por.get_full_name|default:workorder.criado_por.username }}{% else %}—{% endif %}
                 </p>
             </div>
             
             <div>
                 <div class="detail-field-label">E-mail do Solicitante:</div>
                 <p class="detail-field-value">
-                    {{ workorder.criado_por.email|default:"Não informado" }}
+                    {% if workorder.criado_por %}{{ workorder.criado_por.email|default:"Não informado" }}{% else %}—{% endif %}
                 </p>
             </div>
             
@@ -222,9 +222,9 @@
                     <div class="comment-item">
                         <div class="comment-row">
                             <div class="comment-author-row">
-                                <div class="comment-avatar">{{ comment.autor.get_full_name|default:comment.autor.username|first|upper }}</div>
+                                <div class="comment-avatar">{% if comment.autor %}{{ comment.autor.get_full_name|default:comment.autor.username|first|upper }}{% else %}?{% endif %}</div>
                                 <div>
-                                    <div class="comment-author-name">{{ comment.autor.get_full_name|default:comment.autor.username }}</div>
+                                    <div class="comment-author-name">{% if comment.autor %}{{ comment.autor.get_full_name|default:comment.autor.username }}{% else %}Usuário removido{% endif %}</div>
                                     <div class="comment-meta">{{ comment.created_at|date:"d/m/Y H:i" }}</div>
                                 </div>
                             </div>
@@ -274,7 +274,7 @@
                                         <p class="attachment-description">{{ attachment.descricao }}</p>
                                     {% endif %}
                                     <div class="attachment-meta">
-                                        <span>{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}</span>
+                                        <span>{% if attachment.enviado_por %}{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}{% else %}—{% endif %}</span>
                                         <span class="attachment-meta-sep">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
                                         <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
                                     </div>
@@ -315,7 +315,7 @@
                                             <p class="attachment-description">{{ attachment.descricao }}</p>
                                         {% endif %}
                                         <div class="attachment-meta">
-                                            <span>{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}</span>
+                                            <span>{% if attachment.enviado_por %}{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}{% else %}—{% endif %}</span>
                                             <span class="attachment-meta-sep">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
                                             <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
                                         </div>
@@ -352,7 +352,7 @@
                         <div class="approval-header">
                             <div>
                                 <strong class="approval-decision {{ approval.decisao }}">{{ approval.get_decisao_display|upper }}</strong>
-                                <span class="approval-meta">por {{ approval.aprovado_por.get_full_name|default:approval.aprovado_por.username }}</span>
+                                <span class="approval-meta">por {% if approval.aprovado_por %}{{ approval.aprovado_por.get_full_name|default:approval.aprovado_por.username }}{% else %}—{% endif %}</span>
                             </div>
                             <span class="approval-date">{{ approval.created_at|date:"d/m/Y H:i" }}</span>
                         </div>
@@ -395,7 +395,7 @@
                                     {% endif %}
                                 </strong>
                                 <span class="approval-meta">
-                                    por {{ history.alterado_por.get_full_name|default:history.alterado_por.username }}
+                                    por {% if history.alterado_por %}{{ history.alterado_por.get_full_name|default:history.alterado_por.username }}{% else %}—{% endif %}
                                 </span>
                             </div>
                             <span class="approval-date">
