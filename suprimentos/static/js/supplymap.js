@@ -72,6 +72,9 @@ function updatePrioridadeClass(selectElement, value) {
 function updateItemField(itemId, field, value, url) {
     getCsrfTokenAsync().then(function(csrftoken) {
         if (!csrftoken) {
+            csrftoken = getCsrfToken();
+        }
+        if (!csrftoken) {
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
@@ -203,6 +206,12 @@ function initAlocacaoForm(itemId) {
         const url = form.getAttribute('action');
         getCsrfTokenAsync().then(function(csrftoken) {
             if (!csrftoken) {
+                csrftoken = getCsrfToken();
+            }
+            if (!csrftoken) {
+                csrftoken = getCsrfToken();
+            }
+            if (!csrftoken) {
                 showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
                 return;
             }
@@ -256,10 +265,14 @@ function getCookie(name) {
     return cookieValue;
 }
 
-/** Obtém o token CSRF: variável injetada pelo servidor (base_mapa), meta tag, cookie, input hidden. */
+/** Obtém o token CSRF: variável injetada pelo servidor (base_mapa), data-csrf-token no body, meta tag, cookie, input hidden. */
 function getCsrfToken() {
     if (typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__) {
         return window.__LPLAN_CSRF_TOKEN__;
+    }
+    if (document.body) {
+        var t = document.body.getAttribute('data-csrf-token');
+        if (t) return t;
     }
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) {
@@ -282,7 +295,7 @@ function getCsrfTokenAsync() {
     if (sync) return Promise.resolve(sync);
     var url = (typeof window.__LPLAN_CSRF_TOKEN_URL__ === 'string' && window.__LPLAN_CSRF_TOKEN_URL__)
         ? window.__LPLAN_CSRF_TOKEN_URL__
-        : '/api/csrf-token/';
+        : (document.body && document.body.getAttribute('data-csrf-token-url')) || '/api/csrf-token/';
     return fetch(url, { method: 'GET', credentials: 'include' })
         .then(function(r) {
             if (!r.ok) return null;
@@ -294,6 +307,8 @@ function getCsrfTokenAsync() {
             if (!data) return null;
             var t = (data && data.csrfToken) ? data.csrfToken : null;
             if (t) {
+                window.__LPLAN_CSRF_TOKEN__ = t;
+                if (document.body) document.body.setAttribute('data-csrf-token', t);
                 var meta = document.querySelector('meta[name="csrf-token"]');
                 if (!meta) {
                     meta = document.createElement('meta');
@@ -422,6 +437,12 @@ function initDeleteItem() {
 
         getCsrfTokenAsync().then(function(csrftoken) {
             if (!csrftoken) {
+                csrftoken = getCsrfToken();
+            }
+            if (!csrftoken) {
+                csrftoken = getCsrfToken();
+            }
+            if (!csrftoken) {
                 showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
                 return;
             }
@@ -521,6 +542,9 @@ function criarInsumo() {
     
     getCsrfTokenAsync().then(function(csrftoken) {
         if (!csrftoken) {
+            csrftoken = getCsrfToken();
+        }
+        if (!csrftoken) {
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
@@ -528,7 +552,7 @@ function criarInsumo() {
         submitBtn.disabled = true;
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Criando...';
-        
+
         fetch(form.action, {
             method: 'POST',
             credentials: 'include',
@@ -631,6 +655,9 @@ function criarItem() {
     
     getCsrfTokenAsync().then(function(csrftoken) {
         if (!csrftoken) {
+            csrftoken = getCsrfToken();
+        }
+        if (!csrftoken) {
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
@@ -638,7 +665,7 @@ function criarItem() {
         submitBtn.disabled = true;
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Criando...';
-        
+
         fetch(form.action, {
             method: 'POST',
             credentials: 'include',

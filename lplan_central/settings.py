@@ -100,6 +100,14 @@ USE_POSTGRES = os.environ.get('USE_POSTGRES', 'False').lower() in ('true', '1', 
 
 if USE_MYSQL:
     # MySQL (cPanel – mesmo usuário do GestControll: lplan_gestaoap2, banco lplan_Sistema)
+    # cPanel: se localhost falhar, tente DB_HOST=127.0.0.1 ou unix_socket em OPTIONS (ex.: '/var/lib/mysql/mysql.sock')
+    _mysql_opts = {
+        'charset': 'utf8mb4',
+        'init_command': "SET sql_mode='STRICT_TRANS_TABLES', default_storage_engine=INNODB",
+        'connect_timeout': 10,
+    }
+    # Opcional: no cPanel às vezes o MySQL usa socket; descomente e ajuste o path se der "Can't connect to MySQL server"
+    # _mysql_opts['unix_socket'] = '/var/lib/mysql/mysql.sock'
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
@@ -108,10 +116,8 @@ if USE_MYSQL:
             'PASSWORD': os.environ.get('DB_PASSWORD', ''),
             'HOST': os.environ.get('DB_HOST', 'localhost'),
             'PORT': os.environ.get('DB_PORT', '3306'),
-            'OPTIONS': {
-                'charset': 'utf8mb4',
-                'init_command': "SET sql_mode='STRICT_TRANS_TABLES', default_storage_engine=INNODB",
-            },
+            'OPTIONS': _mysql_opts,
+            'CONN_MAX_AGE': 0,  # cPanel: evita reutilizar conexão que o servidor pode ter fechado
         }
     }
 elif USE_POSTGRES:
