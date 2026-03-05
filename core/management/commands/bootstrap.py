@@ -167,45 +167,59 @@ class Command(BaseCommand):
 
             # 4) Empresa padrão e Obras de Gestão (gestao_aprovacao)
             try:
+                from django.contrib.auth.models import User
                 from gestao_aprovacao.models import Empresa, Obra as ObraGestao
             except ImportError:
                 self.stdout.write(self.style.WARNING('   Gestão (gestao_aprovacao) não disponível; pulando Empresa/Obra Gestão.'))
             else:
-                empresa, created_emp = Empresa.objects.get_or_create(
-                    codigo='LPLAN',
-                    defaults={
+                # Servidor pode ter responsavel_id NOT NULL; usar um usuário existente
+                responsavel_empresa = (
+                    User.objects.filter(is_superuser=True).first()
+                    or User.objects.filter(is_staff=True).first()
+                    or User.objects.filter(is_active=True).first()
+                )
+                if not responsavel_empresa:
+                    self.stdout.write(
+                        self.style.WARNING('   Nenhum usuário no sistema; pulando Empresa e Obras de Gestão (responsavel obrigatório no servidor).')
+                    )
+                else:
+                    defaults_empresa = {
                         'nome': 'LPLAN',
                         'ativo': True,
-                    },
-                )
-                if created_emp:
-                    stats['empresa_created'] += 1
-                    if not dry_run:
-                        self.stdout.write(self.style.SUCCESS(f'   [OK] Empresa: {empresa.codigo} – {empresa.nome}'))
-
-                for codigo, nome, _end, _resp in OBRAS_ESSENCIAIS:
-                    proj = Project.objects.filter(code=codigo).first()
-                    if not proj:
-                        continue
-                    og, created_og = ObraGestao.objects.get_or_create(
-                        codigo=codigo,
-                        defaults={
-                            'nome': nome,
-                            'project': proj,
-                            'empresa': empresa,
-                            'ativo': True,
-                        },
+                        'responsavel': responsavel_empresa,
+                    }
+                    empresa, created_emp = Empresa.objects.get_or_create(
+                        codigo='LPLAN',
+                        defaults=defaults_empresa,
                     )
-                    if created_og:
-                        stats['obra_gestao_created'] += 1
+                    if created_emp:
+                        stats['empresa_created'] += 1
                         if not dry_run:
-                            self.stdout.write(self.style.SUCCESS(f'   [OK] Obra (Gestão): {og.codigo}'))
-                    else:
-                        if (og.project_id != proj.id or og.nome != nome) and not dry_run:
-                            og.project = proj
-                            og.nome = nome
-                            og.save(update_fields=['project', 'nome'])
-                            stats['obra_gestao_updated'] += 1
+                            self.stdout.write(self.style.SUCCESS(f'   [OK] Empresa: {empresa.codigo} – {empresa.nome}'))
+
+                    for codigo, nome, _end, _resp in OBRAS_ESSENCIAIS:
+                        proj = Project.objects.filter(code=codigo).first()
+                        if not proj:
+                            continue
+                        og, created_og = ObraGestao.objects.get_or_create(
+                            codigo=codigo,
+                            defaults={
+                                'nome': nome,
+                                'project': proj,
+                                'empresa': empresa,
+                                'ativo': True,
+                            },
+                        )
+                        if created_og:
+                            stats['obra_gestao_created'] += 1
+                            if not dry_run:
+                                self.stdout.write(self.style.SUCCESS(f'   [OK] Obra (Gestão): {og.codigo}'))
+                        else:
+                            if (og.project_id != proj.id or og.nome != nome) and not dry_run:
+                                og.project = proj
+                                og.nome = nome
+                                og.save(update_fields=['project', 'nome'])
+                                stats['obra_gestao_updated'] += 1
 
         # Resumo
         self.stdout.write('')
