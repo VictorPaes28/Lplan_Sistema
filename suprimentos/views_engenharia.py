@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
@@ -680,6 +680,7 @@ def exportar_mapa_excel(request):
     return response
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 def criar_item_mapa(request):
@@ -737,6 +738,7 @@ def criar_item_mapa(request):
         }, status=400)
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 def criar_insumo(request):
@@ -784,6 +786,7 @@ def criar_insumo(request):
         }, status=400)
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 def criar_levantamento_rapido(request):

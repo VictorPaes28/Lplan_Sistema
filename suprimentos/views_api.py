@@ -3,7 +3,7 @@ from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.db import transaction
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.core.exceptions import ValidationError
 from accounts.decorators import require_group, login_required
 from accounts.groups import GRUPOS
@@ -281,6 +281,7 @@ def item_detalhe(request, item_id):
     return JsonResponse({'html': html})
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @require_http_methods(["POST"])
@@ -365,6 +366,7 @@ def item_alocacoes_json(request, item_id):
     })
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @require_http_methods(["POST"])
@@ -781,6 +783,7 @@ def item_atualizar_campo(request):
 ## item_toggle_nao_aplica removido (funcionalidade descontinuada)
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @require_http_methods(["POST"])
@@ -886,6 +889,7 @@ def item_alocar(request, item_id):
         return json_error(str(e), status=500)
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @require_http_methods(["POST"])
@@ -1015,6 +1019,7 @@ def item_remover_alocacao(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @require_http_methods(["POST"])

@@ -1,6 +1,16 @@
 // SupplyMap - JavaScript principal
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Diagnóstico CSRF no F12 (Console): filtrar por [LPLAN]
+    try {
+        var w = typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__ ? 'sim' : 'não';
+        var b = document.body && document.body.getAttribute('data-csrf-token') ? 'sim' : 'não';
+        var m = document.querySelector('meta[name="csrf-token"]');
+        var mVal = m && m.getAttribute('content') ? 'sim' : 'não';
+        var u = typeof window.__LPLAN_CSRF_TOKEN_URL__ === 'string' && window.__LPLAN_CSRF_TOKEN_URL__ ? window.__LPLAN_CSRF_TOKEN_URL__ : '(não definido)';
+        console.warn('[LPLAN] Diagnóstico ao carregar: token em window=', w, 'body=', b, 'meta=', mVal, '| URL API=', u);
+    } catch (e) {}
+
     // Inicialização
     initInlineEdit();
     initModals();
@@ -75,10 +85,12 @@ function updateItemField(itemId, field, value, url) {
             csrftoken = getCsrfToken();
         }
         if (!csrftoken) {
+            _logCsrf('Sessão inválida: token não obtido (nem async nem retry getCsrfToken). Verifique os logs [LPLAN] acima.');
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
         setRowSaving(itemId, true);
+        _logCsrf('POST', url);
         fetch(url, {
         method: 'POST',
         credentials: 'include',
@@ -97,6 +109,7 @@ function updateItemField(itemId, field, value, url) {
             var data;
             try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
             if (!response.ok) {
+                _logCsrf('POST falhou:', { status: response.status, url: url, error: (data && data.error) ? data.error : text ? text.substring(0, 200) : '' });
                 var msg = (data && data.error) ? data.error : ('Erro ' + response.status);
                 throw { status: response.status, message: msg };
             }
@@ -125,6 +138,7 @@ function updateItemField(itemId, field, value, url) {
     })
     .catch(error => {
         setRowSaving(itemId, false);
+        _logCsrf('POST catch:', error && error.message ? error.message : error);
         showMessage((error && error.message) ? error.message : 'Erro ao salvar. Recarregue e tente novamente.', 'error');
     });
     });
@@ -212,6 +226,7 @@ function initAlocacaoForm(itemId) {
                 csrftoken = getCsrfToken();
             }
             if (!csrftoken) {
+                _logCsrf('Sessão inválida: token não obtido (alocação).');
                 showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
                 return;
             }
@@ -265,24 +280,49 @@ function getCookie(name) {
     return cookieValue;
 }
 
+/** Log no F12 (Console) para diagnosticar CSRF/sessão. Prefixo [LPLAN] para filtrar. */
+function _logCsrf(msg, detail) {
+    try {
+        if (detail !== undefined) {
+            console.warn('[LPLAN]', msg, detail);
+        } else {
+            console.warn('[LPLAN]', msg);
+        }
+    } catch (e) {}
+}
+
 /** Obtém o token CSRF: variável injetada pelo servidor (base_mapa), data-csrf-token no body, meta tag, cookie, input hidden. */
 function getCsrfToken() {
     if (typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__) {
+        _logCsrf('CSRF token: obtido de window.__LPLAN_CSRF_TOKEN__');
         return window.__LPLAN_CSRF_TOKEN__;
     }
     if (document.body) {
         var t = document.body.getAttribute('data-csrf-token');
-        if (t) return t;
+        if (t) {
+            _logCsrf('CSRF token: obtido de body[data-csrf-token]');
+            return t;
+        }
     }
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) {
         const t = meta.getAttribute('content');
-        if (t) return t;
+        if (t) {
+            _logCsrf('CSRF token: obtido de meta[name=csrf-token]');
+            return t;
+        }
     }
     const t = getCookie('csrftoken');
-    if (t) return t;
+    if (t) {
+        _logCsrf('CSRF token: obtido de cookie csrftoken');
+        return t;
+    }
     const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
-    if (input) return input.value;
+    if (input && input.value) {
+        _logCsrf('CSRF token: obtido de input csrfmiddlewaretoken');
+        return input.value;
+    }
+    _logCsrf('CSRF token: nenhuma fonte disponível (window, body, meta, cookie, input vazios)');
     return null;
 }
 
@@ -296,11 +336,16 @@ function getCsrfTokenAsync() {
     var url = (typeof window.__LPLAN_CSRF_TOKEN_URL__ === 'string' && window.__LPLAN_CSRF_TOKEN_URL__)
         ? window.__LPLAN_CSRF_TOKEN_URL__
         : (document.body && document.body.getAttribute('data-csrf-token-url')) || '/api/csrf-token/';
+    _logCsrf('CSRF token: não encontrado na página; buscando em GET', url);
     return fetch(url, { method: 'GET', credentials: 'include' })
         .then(function(r) {
+            _logCsrf('CSRF GET resposta:', { status: r.status, ok: r.ok, contentType: r.headers.get('Content-Type') });
             if (!r.ok) return null;
             var ct = r.headers.get('Content-Type') || '';
-            if (ct.indexOf('application/json') === -1) return null;
+            if (ct.indexOf('application/json') === -1) {
+                _logCsrf('CSRF GET: resposta não é JSON (provavelmente HTML/redirect)', ct);
+                return null;
+            }
             return r.json();
         })
         .then(function(data) {
@@ -316,10 +361,16 @@ function getCsrfTokenAsync() {
                     document.head.appendChild(meta);
                 }
                 meta.setAttribute('content', t);
+                _logCsrf('CSRF token: recebido da API e salvo na página');
+                return t;
             }
-            return t;
+            _logCsrf('CSRF GET: JSON sem csrfToken', data);
+            return null;
         })
-        .catch(function() { return null; });
+        .catch(function(err) {
+            _logCsrf('CSRF GET: erro no fetch', err && err.message ? err.message : err);
+            return null;
+        });
 }
 
 function showMessage(message, type) {
@@ -443,6 +494,7 @@ function initDeleteItem() {
                 csrftoken = getCsrfToken();
             }
             if (!csrftoken) {
+                _logCsrf('Sessão inválida: token não obtido (excluir item).');
                 showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
                 return;
             }
@@ -545,6 +597,7 @@ function criarInsumo() {
             csrftoken = getCsrfToken();
         }
         if (!csrftoken) {
+            _logCsrf('Sessão inválida: token não obtido (criar insumo).');
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
@@ -658,6 +711,7 @@ function criarItem() {
             csrftoken = getCsrfToken();
         }
         if (!csrftoken) {
+            _logCsrf('Sessão inválida: token não obtido (criar insumo).');
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
