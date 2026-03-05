@@ -256,8 +256,11 @@ function getCookie(name) {
     return cookieValue;
 }
 
-/** Obtém o token CSRF: meta tag (recomendado com HTTPS/HttpOnly), depois cookie, depois input hidden. */
+/** Obtém o token CSRF: variável injetada pelo servidor (base_mapa), meta tag, cookie, input hidden. */
 function getCsrfToken() {
+    if (typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__) {
+        return window.__LPLAN_CSRF_TOKEN__;
+    }
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) {
         const t = meta.getAttribute('content');
@@ -272,12 +275,15 @@ function getCsrfToken() {
 
 /**
  * Obtém o token CSRF; se não estiver na página, busca em /api/csrf-token/ e atualiza a meta tag.
- * Retorna Promise que resolve com o token ou null.
+ * Usa window.__LPLAN_CSRF_TOKEN_URL__ se definido (injetado pelo base_mapa.html).
  */
 function getCsrfTokenAsync() {
     const sync = getCsrfToken();
     if (sync) return Promise.resolve(sync);
-    return fetch('/api/csrf-token/', { method: 'GET', credentials: 'include' })
+    var url = (typeof window.__LPLAN_CSRF_TOKEN_URL__ === 'string' && window.__LPLAN_CSRF_TOKEN_URL__)
+        ? window.__LPLAN_CSRF_TOKEN_URL__
+        : '/api/csrf-token/';
+    return fetch(url, { method: 'GET', credentials: 'include' })
         .then(function(r) {
             if (!r.ok) return null;
             var ct = r.headers.get('Content-Type') || '';

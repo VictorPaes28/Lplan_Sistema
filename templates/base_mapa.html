@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+    {% load static %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
@@ -8,6 +9,11 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>{% block title %}LPLAN{% endblock %}</title>
+    <!-- Token e URL da API injetados pelo servidor (evita "Sessão inválida" quando meta/fetch falham) -->
+    <script>
+    window.__LPLAN_CSRF_TOKEN__ = "{{ csrf_token|escapejs }}";
+    window.__LPLAN_CSRF_TOKEN_URL__ = "{% url 'api_csrf_token' %}";
+    </script>
     
     <!-- Favicon - logo LPLAN -->
     {% load static %}
