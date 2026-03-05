@@ -13,6 +13,8 @@
     <script>
     window.__LPLAN_CSRF_TOKEN__ = "{{ csrf_token|escapejs }}";
     window.__LPLAN_CSRF_TOKEN_URL__ = "{% url 'api_csrf_token' %}";
+    window.__LPLAN_API_BASE__ = "";  // Subpath do sistema (vazio = raiz). Ex.: "" ou "/lplan"
+    window.__LPLAN_SUPPLYMAP_VER__ = "7";  // Conferir no F12: deve bater com o log [LPLAN] SupplyMap v
     </script>
     
     <!-- Favicon - logo LPLAN -->
@@ -194,8 +196,8 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Custom JS (v=5: fixar ?obra= na URL após salvar para reload manter dados) -->
-    <script src="{% static 'js/supplymap.js' %}?v=5"></script>
+    <!-- Custom JS (v=7: credentials no Detalhes, diagnóstico produção) -->
+    <script src="{% static 'js/supplymap.js' %}?v=7"></script>
     
     {% block extra_js %}{% endblock %}
 </body>

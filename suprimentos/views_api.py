@@ -762,6 +762,15 @@ def item_atualizar_campo(request):
         
         item.save()
         
+        # Confirmar que persistiu: reler do banco e logar (diagnóstico em produção)
+        item.refresh_from_db()
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            'Mapa item_atualizar_campo: item_id=%s obra_id=%s field=%s valor_novo=%s (persistido)',
+            item.id, item.obra_id, field, getattr(item, field, None)
+        )
+        
         # Registrar histórico
         campo_label = campo_labels.get(field, field)
         HistoricoAlteracao.registrar(

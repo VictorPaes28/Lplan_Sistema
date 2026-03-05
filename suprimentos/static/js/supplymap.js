@@ -1,6 +1,9 @@
 // SupplyMap - JavaScript principal
+// Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa (ex.: 7)
+var __LPLAN_JS_VER__ = '7';
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.warn('[LPLAN] SupplyMap v' + __LPLAN_JS_VER__ + ' carregado. Se não aparecer "v7" em produção, o JS está em cache ou collectstatic não foi executado.');
     // Diagnóstico CSRF no F12 (Console): filtrar por [LPLAN]
     try {
         var w = typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__ ? 'sim' : 'não';
@@ -14,14 +17,22 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn('[LPLAN] Diagnóstico ao carregar: token em window=', w, wEmpty ? '(string vazia!)' : '', 'body=', b, 'meta=', mVal, '| URL API=', u, '| origin=', origin, '| fetch usará:', tokenUrlAbs);
     } catch (e) {}
 
-    // Inicialização
-    initInlineEdit();
-    initModals();
-    initFiltros();
-    initTooltips();
-    initCategoriaToggle();
-    initCriarItem();
-    initDeleteItem();
+    var inits = [
+        { name: 'initInlineEdit', fn: initInlineEdit },
+        { name: 'initModals', fn: initModals },
+        { name: 'initFiltros', fn: initFiltros },
+        { name: 'initTooltips', fn: initTooltips },
+        { name: 'initCategoriaToggle', fn: initCategoriaToggle },
+        { name: 'initCriarItem', fn: initCriarItem },
+        { name: 'initDeleteItem', fn: initDeleteItem }
+    ];
+    inits.forEach(function(init) {
+        try {
+            init.fn();
+        } catch (err) {
+            console.error('[LPLAN] Erro em ' + init.name + ':', err && err.message ? err.message : err);
+        }
+    });
 });
 
 // Edição inline (HTMX ou fetch simples)
@@ -127,20 +138,17 @@ function updateItemField(itemId, field, value, url) {
             if (data.status_css) {
                 updateRowStatus(itemId, data.status_css);
             }
-            // Garantir que a URL tenha ?obra= para que ao recarregar a página a mesma obra seja exibida
-            if (data.obra_id && window.location.search.indexOf('obra=') === -1) {
-                var params = new URLSearchParams(window.location.search);
-                params.set('obra', data.obra_id);
-                var newUrl = window.location.pathname + '?' + params.toString();
-                window.history.replaceState(null, '', newUrl);
-            }
-            // Dados do Sienge (PC, prazo, empresa, quantidade) foram preenchidos no servidor;
-            // recarregar a página para exibir todas as colunas atualizadas.
-            if (data.filled_from_sienge) {
-                setTimeout(function() { window.location.reload(); }, 600);
-            }
             if (data.debug_no_recebimento) {
                 showMessage('Nenhum recebimento do Sienge para esta obra + SC + insumo. Reimporte o MAPA_CONTROLE com a obra correta ou confira em Admin > Recebimentos na Obra.', 'error');
+            }
+            console.warn('[LPLAN] POST salvou com sucesso. Redirecionando com obra_id=', data.obra_id);
+            // Sempre recarregar a página com ?obra= na URL para os dados salvos aparecerem
+            if (data.obra_id) {
+                var params = new URLSearchParams(window.location.search);
+                params.set('obra', data.obra_id);
+                window.location.href = window.location.pathname + '?' + params.toString();
+            } else {
+                window.location.reload();
             }
         } else {
             showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
@@ -194,28 +202,35 @@ function initModals() {
 // Carregar conteúdo do modal
 function loadModalContent(modalId, itemId) {
     const modal = document.getElementById(modalId);
-    if (!modal) return;
-    
-    const url = `/api/internal/item/${itemId}/detalhe/`;
-    
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
+    if (!modal) {
+        console.warn('[LPLAN] Modal não encontrado: id=', modalId);
+        return;
+    }
+    var base = (typeof window.__LPLAN_API_BASE__ === 'string') ? window.__LPLAN_API_BASE__ : '';
+    const url = base + '/api/internal/item/' + itemId + '/detalhe/';
+    console.warn('[LPLAN] Detalhes: GET', url);
+    fetch(url, { method: 'GET', credentials: 'include' })
+        .then(function(response) {
+            if (!response.ok) {
+                console.warn('[LPLAN] Detalhes falhou:', response.status, response.statusText, url);
+                throw new Error('Erro ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(data) {
             const modalBody = modal.querySelector('.modal-body');
             if (modalBody) {
-                modalBody.innerHTML = data.html;
+                modalBody.innerHTML = (data && data.html) ? data.html : '';
             }
-            // Inicializar form de alocação se existir
             initAlocacaoForm(itemId);
         })
-        .catch(error => {
-            console.error('Error:', error);
+        .catch(function(error) {
+            console.error('[LPLAN] Detalhes catch:', error && error.message ? error.message : error);
             showMessage('Erro ao carregar detalhes', 'error');
         });
     
-    // Abrir modal (Bootstrap)
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
+    var bsModal = typeof bootstrap !== 'undefined' && bootstrap.Modal ? new bootstrap.Modal(modal) : null;
+    if (bsModal) bsModal.show(); else console.warn('[LPLAN] Bootstrap.Modal não disponível');
 }
 
 // Form de alocação
