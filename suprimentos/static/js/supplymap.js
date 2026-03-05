@@ -78,6 +78,7 @@ function updateItemField(itemId, field, value, url) {
 
     fetch(url, {
         method: 'POST',
+        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrftoken
@@ -211,6 +212,7 @@ function initAlocacaoForm(itemId) {
         
         fetch(url, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'X-CSRFToken': csrftoken
             },
@@ -257,16 +259,18 @@ function getCookie(name) {
     return cookieValue;
 }
 
-/** Obtém o token CSRF: cookie primeiro, depois meta tag, depois input hidden (formulários com {% csrf_token %}). */
+/** Obtém o token CSRF: meta tag (recomendado com HTTPS/HttpOnly), depois cookie, depois input hidden. */
 function getCsrfToken() {
-    let token = getCookie('csrftoken');
-    if (token) return token;
     const meta = document.querySelector('meta[name="csrf-token"]');
-    if (meta) token = meta.getAttribute('content');
-    if (token) return token;
+    if (meta) {
+        const t = meta.getAttribute('content');
+        if (t) return t;
+    }
+    const t = getCookie('csrftoken');
+    if (t) return t;
     const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
-    if (input) token = input.value;
-    return token || null;
+    if (input) return input.value;
+    return null;
 }
 
 function showMessage(message, type) {
@@ -389,6 +393,7 @@ function initDeleteItem() {
         }
         fetch(url, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrftoken
@@ -493,6 +498,7 @@ function criarInsumo() {
         
         fetch(form.action, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRFToken': csrftoken
@@ -602,6 +608,7 @@ function criarItem() {
         
         fetch(form.action, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'X-CSRFToken': csrftoken
             },

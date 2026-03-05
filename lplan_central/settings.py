@@ -194,9 +194,15 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True   # Cookie sem data de expiração: ao fechar o navegador o cookie some e exige novo login
 SESSION_COOKIE_AGE = 30 * 60              # 30 min: no servidor a sessão expira após esse tempo sem requisições (renovado a cada request)
 SESSION_SAVE_EVERY_REQUEST = True         # A cada requisição a sessão é salva e o prazo de 30 min é renovado (usuário ativo não é deslogado)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Sessões persistidas no banco (recomendado para produção)
 CSRF_COOKIE_SECURE = _use_https
+# CSRF_COOKIE_HTTPONLY = True impede JS de ler o cookie; o front usa meta name="csrf-token" (base_mapa.html) para AJAX
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
+# Opcional: domínio dos cookies (deixe vazio para usar o host da requisição). Use só se tiver subdomínios (ex: .lplan.com.br)
+_session_domain = os.environ.get('SESSION_COOKIE_DOMAIN', '').strip()
+CSRF_COOKIE_DOMAIN = _session_domain or None
+SESSION_COOKIE_DOMAIN = _session_domain or None
 
 # Remove X-XSS-Protection header (modern browsers handle this)
 # Note: We'll handle CSP via custom middleware
@@ -246,7 +252,10 @@ SIENGE_API_CLIENT_ID = os.environ.get('SIENGE_API_CLIENT_ID', '')
 SIENGE_API_CLIENT_SECRET = os.environ.get('SIENGE_API_CLIENT_SECRET', '')
 SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
 
-# CSRF: em produção defina CSRF_TRUSTED_ORIGINS no .env (ex: https://sistema.lplan.com.br,https://gestao.lplan.com.br)
+# CSRF: em produção (HTTPS) defina no .env:
+#   CSRF_TRUSTED_ORIGINS=https://sistema.lplan.com.br
+# (exatamente a URL do site, sem barra no final; várias origens separadas por vírgula)
+# Sem isso, POSTs (ex.: Mapa de Suprimentos) retornam 403 "Sessão inválida".
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 # Requisições AJAX que falharem na CSRF recebem JSON 403 em vez de HTML
