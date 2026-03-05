@@ -1,0 +1,35 @@
+# Exemplo de .htaccess para Django no cPanel com Passenger.
+# Copie para .htaccess na raiz da aplicacao (junto de passenger_wsgi.py).
+# Requer mod_headers ativo (em muitos cPanels ja esta).
+#
+# Objetivo: enviar X-Forwarded-Proto e X-Forwarded-Host para o Django
+# tratar a requisicao como HTTPS e aceitar a origem correta no CSRF.
+
+PassengerEnabled on
+PassengerAppRoot /home/SEU_USUARIO/public_html
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+PassengerBaseURI /
+PassengerPython /home/SEU_USUARIO/virtualenv/public_html/3.11/bin/python
+PassengerAppLogFile /home/SEU_USUARIO/passenger.log
+
+# Quando o usuario acessa por HTTPS, informar o Django (evita 403 Sessao invalida)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} on
+    RewriteRule ^ - [E=HTTPS:on]
+</IfModule>
+<IfModule mod_headers.c>
+    RequestHeader set X-Forwarded-Proto "https" env=HTTPS
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteCond %{REQUEST_URI} !^/static/
+    RewriteCond %{REQUEST_URI} !^/media/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    RewriteRule ^(.*)$ passenger_wsgi.py [QSA,L]
+</IfModule>

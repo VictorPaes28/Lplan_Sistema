@@ -4,6 +4,26 @@ Custom middleware for security headers and cache control.
 from django.utils.deprecation import MiddlewareMixin
 
 
+class ProxyHeadersMiddleware(MiddlewareMixin):
+    """
+    Em produção atrás de proxy (cPanel/Apache): se o Apache não enviar
+    X-Forwarded-Proto, define com base em SITE_URL para Django tratar
+    a requisição como HTTPS (cookies Secure, redirect, CSRF).
+    Deve rodar antes do SecurityMiddleware.
+    """
+    def process_request(self, request):
+        from django.conf import settings
+        if getattr(settings, 'DEBUG', True):
+            return None
+        if request.META.get('HTTP_X_FORWARDED_PROTO'):
+            return None
+        site_url = getattr(settings, 'SITE_URL', '') or ''
+        if not site_url.startswith('https://'):
+            return None
+        request.META['HTTP_X_FORWARDED_PROTO'] = 'https'
+        return None
+
+
 class SecurityHeadersMiddleware(MiddlewareMixin):
     """
     Middleware to add security headers and cache control.

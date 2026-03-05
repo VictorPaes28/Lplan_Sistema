@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'core.middleware.ProxyHeadersMiddleware',  # cPanel: fallback X-Forwarded-Proto quando Apache não envia
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -266,6 +267,23 @@ SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
 # Sem a origem correta (http vs https), POSTs retornam 403 "Sessão inválida".
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+# Em produção: garantir que SITE_URL está em CSRF_TRUSTED_ORIGINS (evita 403 quando .env não tem CSRF_TRUSTED_ORIGINS ou está errado)
+if not DEBUG and SITE_URL:
+    _base = SITE_URL.rstrip('/')
+    if _base not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS = [ _base ] + list(CSRF_TRUSTED_ORIGINS)
+    # Variante www: se SITE_URL é https://sistema.lplan.com.br, aceitar também https://www.sistema.lplan.com.br
+    from urllib.parse import urlparse
+    _parsed = urlparse(_base)
+    _netloc = _parsed.netloc
+    if _netloc and not _netloc.startswith('www.'):
+        _www = f"{_parsed.scheme}://www.{_netloc}"
+        if _www not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + [ _www ]
+    elif _netloc and _netloc.startswith('www.'):
+        _non_www = f"{_parsed.scheme}://{_netloc[4:]}"
+        if _non_www not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + [ _non_www ]
 # Em DEBUG, se só tiver origens https, aceitar também http para o mesmo host (evita quebrar quando acessar por HTTP)
 if DEBUG and CSRF_TRUSTED_ORIGINS:
     _extra = []
