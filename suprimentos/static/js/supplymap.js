@@ -68,15 +68,15 @@ function updatePrioridadeClass(selectElement, value) {
 
 // Atualizar campo via AJAX
 // CSRF: o token vem de 1) cookie csrftoken, 2) meta name="csrf-token", 3) input name="csrfmiddlewaretoken".
-// O backend (Django) exige X-CSRFToken no header em POSTs. Sem o context_processors.csrf no settings, {{ csrf_token }} fica vazio.
+// Se não houver, getCsrfTokenAsync() busca em /api/csrf-token/ e atualiza a meta.
 function updateItemField(itemId, field, value, url) {
-    const csrftoken = getCsrfToken();
-    if (!csrftoken) {
-        showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
-        return;
-    }
-
-    fetch(url, {
+    getCsrfTokenAsync().then(function(csrftoken) {
+        if (!csrftoken) {
+            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+            return;
+        }
+        setRowSaving(itemId, true);
+        fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -122,12 +122,9 @@ function updateItemField(itemId, field, value, url) {
     })
     .catch(error => {
         setRowSaving(itemId, false);
-        console.error('Error:', error);
-        var msg = (error && error.message) ? error.message : 'Erro ao atualizar. Verifique se a obra está selecionada e tente novamente.';
-        showMessage(msg, 'error');
+        showMessage((error && error.message) ? error.message : 'Erro ao salvar. Recarregue e tente novamente.', 'error');
     });
-    
-    setRowSaving(itemId, true);
+    });
 }
 
 // Atualizar status visual da linha
@@ -204,13 +201,12 @@ function initAlocacaoForm(itemId) {
         
         const formData = new FormData(form);
         const url = form.getAttribute('action');
-        const csrftoken = getCsrfToken();
-        if (!csrftoken) {
-            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
-            return;
-        }
-        
-        fetch(url, {
+        getCsrfTokenAsync().then(function(csrftoken) {
+            if (!csrftoken) {
+                showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+                return;
+            }
+            fetch(url, {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -233,6 +229,7 @@ function initAlocacaoForm(itemId) {
         .catch(error => {
             console.error('Error:', error);
             showMessage('Erro ao realizar alocação', 'error');
+        });
         });
     });
 }
@@ -271,6 +268,31 @@ function getCsrfToken() {
     const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
     if (input) return input.value;
     return null;
+}
+
+/**
+ * Obtém o token CSRF; se não estiver na página, busca em /api/csrf-token/ e atualiza a meta tag.
+ * Retorna Promise que resolve com o token ou null.
+ */
+function getCsrfTokenAsync() {
+    const sync = getCsrfToken();
+    if (sync) return Promise.resolve(sync);
+    return fetch('/api/csrf-token/', { method: 'GET', credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var t = (data && data.csrfToken) ? data.csrfToken : null;
+            if (t) {
+                var meta = document.querySelector('meta[name="csrf-token"]');
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.setAttribute('name', 'csrf-token');
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', t);
+            }
+            return t;
+        })
+        .catch(function() { return null; });
 }
 
 function showMessage(message, type) {
@@ -386,12 +408,12 @@ function initDeleteItem() {
         const ok = window.confirm('Excluir este item?\n\nEssa ação não pode ser desfeita.');
         if (!ok) return;
 
-        const csrftoken = getCsrfToken();
-        if (!csrftoken) {
-            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
-            return;
-        }
-        fetch(url, {
+        getCsrfTokenAsync().then(function(csrftoken) {
+            if (!csrftoken) {
+                showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+                return;
+            }
+            fetch(url, {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -423,6 +445,7 @@ function initDeleteItem() {
             console.error(err);
             var msg = (err && err.message) ? err.message : 'Erro ao excluir. Verifique se a obra está selecionada no topo da página e recarregue.';
             showMessage('❌ ' + msg, 'error');
+        });
         });
     });
 }
@@ -482,16 +505,14 @@ function criarInsumo() {
     }
     
     const formData = new FormData(form);
-    const csrftoken = getCsrfToken();
     const submitBtn = form.querySelector('button[type="submit"]');
     
-    if (!csrftoken) {
-        showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
-        return;
-    }
-    
-    // Desabilitar botão e mostrar loading
-    if (submitBtn) {
+    getCsrfTokenAsync().then(function(csrftoken) {
+        if (!csrftoken) {
+            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+            return;
+        }
+        if (submitBtn) {
         submitBtn.disabled = true;
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Criando...';
@@ -549,7 +570,8 @@ function criarInsumo() {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
         });
-    }
+        }
+    });
 }
 
 function loadLocaisCriar(obraId) {
@@ -591,17 +613,16 @@ function loadLocaisCriar(obraId) {
 
 function criarItem() {
     const form = document.getElementById('formCriarItem');
+    if (!form) return;
     const formData = new FormData(form);
-    const csrftoken = getCsrfToken();
     const submitBtn = form.querySelector('button[type="submit"]');
     
-    if (!csrftoken) {
-        showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
-        return;
-    }
-    
-    // Desabilitar botão e mostrar loading
-    if (submitBtn) {
+    getCsrfTokenAsync().then(function(csrftoken) {
+        if (!csrftoken) {
+            showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
+            return;
+        }
+        if (submitBtn) {
         submitBtn.disabled = true;
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Criando...';
@@ -642,5 +663,6 @@ function criarItem() {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
         });
-    }
+        }
+    });
 }

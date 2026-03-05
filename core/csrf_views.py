@@ -2,8 +2,13 @@
 View customizada para falha de CSRF.
 Quando a requisição é AJAX/API (X-Requested-With ou Accept: application/json),
 retorna JSON 403 em vez da página HTML padrão do Django.
+
+Endpoint GET /api/csrf-token/ para o frontend obter o token quando a meta tag estiver vazia (ex.: cache).
 """
 from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_GET
+from django.contrib.auth.decorators import login_required
 
 
 def csrf_failure_json(request, reason=''):
@@ -27,3 +32,13 @@ def csrf_failure_json(request, reason=''):
     # Fallback: usar a view padrão do Django (HTML)
     from django.views.csrf import csrf_failure as django_csrf_failure
     return django_csrf_failure(request, reason=reason)
+
+
+@require_GET
+@login_required
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    """Retorna o token CSRF em JSON para o frontend (Mapa de Suprimentos, etc.) quando a meta tag está vazia."""
+    from django.middleware.csrf import get_token
+    token = get_token(request)
+    return JsonResponse({'csrfToken': token or ''})

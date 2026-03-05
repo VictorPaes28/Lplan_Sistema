@@ -16,12 +16,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 
+from core.csrf_views import get_csrf_token
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
     # === Core (Diário de Obra) - app principal no root ===
     path('', include('core.urls')),
     path('api/diario/', include('core.api_urls')),
+    path('api/csrf-token/', get_csrf_token, name='api_csrf_token'),
 
     # === Gestão de Aprovação ===
     path('gestao/', include('gestao_aprovacao.urls')),

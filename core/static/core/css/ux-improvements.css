@@ -133,9 +133,13 @@
     box-shadow: var(--shadow-sm);
 }
 
-.btn-primary:focus {
+.btn-primary:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+}
+.btn-primary:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: inherit;
 }
 
 .btn-primary:disabled {
@@ -334,10 +338,15 @@ a:hover {
     text-decoration: none;
 }
 
-a:focus {
+/* Foco visível apenas para teclado (não mostra "grade" ao clicar com mouse) */
+a:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
     border-radius: 0.25rem;
+}
+a:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
 }
 
 /* ============================================
@@ -495,12 +504,24 @@ a:focus {
 }
 
 /* ============================================
-   FOCUS VISIBLE GLOBAL
+   FOCUS VISIBLE GLOBAL - só teclado, não no clique
    ============================================ */
 *:focus-visible {
     outline: 2px solid var(--color-primary, #3b82f6);
     outline-offset: 2px;
     border-radius: 4px;
+}
+
+/* Remove anel/grade de foco no clique (mouse); mantém só para teclado */
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+[tabindex]:focus:not(:focus-visible),
+.sidebar-link:focus:not(:focus-visible),
+.system-card:focus:not(:focus-visible),
+.support-card:focus:not(:focus-visible),
+[class*="focus:ring"]:focus:not(:focus-visible) {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 /* ============================================
