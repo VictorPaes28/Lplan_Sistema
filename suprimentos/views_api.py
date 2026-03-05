@@ -777,7 +777,7 @@ def item_atualizar_campo(request):
             obra=item.obra,
             usuario=request.user,
             tipo='EDICAO',
-            descricao=f'{campo_label} alterado: "{valor_anterior}" → "{valor_novo}"',
+            descricao=f'{campo_label} alterado: "{valor_anterior}" -> "{valor_novo}"',
             item_mapa=item,
             campo_alterado=field,
             valor_anterior=valor_anterior,
