@@ -431,12 +431,12 @@ def calendar_events_view(request):
     # Ajusta o período para considerar o período da obra
     view_start = start_date.date()
     view_end = end_date.date()
-    
-    # Se a obra tem datas definidas, limita ao período da obra
-    if project.start_date and project.end_date:
-        # Usa a interseção entre o período da obra e o período visualizado
+
+    # Início: não mostrar antes do início do projeto
+    if project.start_date:
         view_start = max(view_start, project.start_date)
-        view_end = min(view_end, project.end_date)
+    # Término previsto: não limitar view_end à data prevista, para que obras atrasadas
+    # possam exibir e registrar diários além do prazo original
     
     # Busca todos os diários no período
     diaries = ConstructionDiary.objects.filter(
@@ -492,8 +492,8 @@ def calendar_events_view(request):
         })
     
     # Adiciona eventos para dias sem relatórios (dias faltantes)
-    # Só mostra dias faltantes se a obra tem período definido
-    if project.start_date and project.end_date:
+    # Considera todo o intervalo exibido (view_start até view_end), incluindo após o término previsto
+    if view_start and view_end:
         today = timezone.now().date()
         current_date = view_start
         

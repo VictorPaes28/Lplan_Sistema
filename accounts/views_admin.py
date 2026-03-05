@@ -599,6 +599,11 @@ def analise_usuarios_export_csv(request):
 @user_passes_test(is_staff_or_superuser)
 def criar_obra(request):
     """Cria uma nova obra."""
+    # GET: evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.method == 'GET':
+        if request.session.pop('_prevent_back_criar_obra', None):
+            return redirect('accounts:admin_central')
+    
     if request.method == 'POST':
         codigo_sienge = request.POST.get('codigo_sienge')
         nome = request.POST.get('nome')
@@ -619,9 +624,14 @@ def criar_obra(request):
         )
         
         messages.success(request, f'Obra "{obra.nome}" criada!')
+        request.session['_prevent_back_criar_obra'] = True
         return redirect('accounts:admin_central')
     
-    return render(request, 'accounts/criar_obra.html')
+    response = render(request, 'accounts/criar_obra.html')
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 @login_required

@@ -254,7 +254,7 @@ class ConstructionDiaryForm(forms.ModelForm):
     def clean_date(self):
         """Valida que a data não seja futura e esteja dentro do período do projeto."""
         from datetime import date
-        
+
         date_value = self.cleaned_data.get('date')
         if date_value:
             today = date.today()
@@ -263,8 +263,8 @@ class ConstructionDiaryForm(forms.ModelForm):
                 raise forms.ValidationError(
                     "Não é possível criar um diário para uma data futura."
                 )
-            
-            # Validar que a data está dentro do período do projeto
+
+            # Validar que a data não é anterior ao início do projeto
             project = getattr(self, '_project', None) or self.cleaned_data.get('project')
             if project:
                 if project.start_date and date_value < project.start_date:
@@ -272,11 +272,15 @@ class ConstructionDiaryForm(forms.ModelForm):
                         f"A data do diário ({date_value.strftime('%d/%m/%Y')}) é anterior ao "
                         f"início do projeto ({project.start_date.strftime('%d/%m/%Y')})."
                     )
+                # Não bloquear data posterior ao término previsto: obra pode atrasar e
+                # o sistema deve permitir registrar diários normalmente. Guardar flag para
+                # exibir aviso opcional no template.
                 if project.end_date and date_value > project.end_date:
-                    raise forms.ValidationError(
-                        f"A data do diário ({date_value.strftime('%d/%m/%Y')}) é posterior ao "
-                        f"término do projeto ({project.end_date.strftime('%d/%m/%Y')})."
-                    )
+                    self._date_after_planned_end = True
+                else:
+                    self._date_after_planned_end = False
+        else:
+            self._date_after_planned_end = False
         return date_value
     
     def clean(self):

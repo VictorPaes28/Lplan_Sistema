@@ -28,6 +28,38 @@ from .forms import EmpresaForm, ObraForm, WorkOrderForm, AttachmentForm
 from .utils import get_user_profile, is_engenheiro, is_gestor, is_admin, is_responsavel_empresa, is_aprovador, gestor_required, criar_notificacao, admin_required
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from accounts.groups import GRUPOS
+
+
+# --- Evitar que o botão "Voltar" do navegador retorne a formulários já submetidos ---
+def _redirect_if_back_after_post(request, session_key, default_redirect_to, redirect_args=None):
+    """
+    Se o usuário voltou (Back) para um formulário já submetido, redireciona para evitar reenvio/duplicação.
+    default_redirect_to: nome da URL ou fallback se na sessão estiver True.
+    Na sessão pode estar True ou um nome de URL (para redirect dinâmico, ex. central vs gestao).
+    """
+    val = request.session.pop(session_key, None)
+    if val is None:
+        return None
+    to = val if isinstance(val, str) else default_redirect_to
+    if redirect_args:
+        return redirect(to, **redirect_args)
+    return redirect(to)
+
+
+def _mark_post_success_redirect(request, session_key, redirect_to=None):
+    """
+    Marca na sessão que o próximo GET neste formulário deve redirecionar (evitar Back).
+    redirect_to: se informado, guarda esse nome de URL na sessão; senão guarda True.
+    """
+    request.session[session_key] = redirect_to if redirect_to is not None else True
+
+
+def _no_cache_form_response(response):
+    """Adiciona headers para não cachear a página; ao clicar Voltar o navegador refaz o GET e cai no redirect."""
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 from core.models import Project, ProjectMember
 
 logger = logging.getLogger(__name__)
@@ -511,8 +543,13 @@ def create_workorder(request):
                         )
             
             messages.success(request, f'Pedido de obra "{workorder.codigo}" criado com sucesso!')
+            _mark_post_success_redirect(request, '_prevent_back_create_workorder')
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     else:
+        # Evitar que Voltar do navegador retorne ao formulário já submetido
+        r = _redirect_if_back_after_post(request, '_prevent_back_create_workorder', 'gestao:list_workorders')
+        if r:
+            return r
         form = WorkOrderForm(user=request.user, is_creating=True)
     
     context = {
@@ -521,7 +558,8 @@ def create_workorder(request):
         'user_profile': get_user_profile(request.user),
         'is_solicitante': is_solicitante_only,
     }
-    return render(request, 'obras/workorder_form.html', context)
+    response = render(request, 'obras/workorder_form.html', context)
+    return _no_cache_form_response(response)
 
 
 @login_required
@@ -1054,8 +1092,12 @@ def edit_workorder(request, pk):
                             )
             
             messages.success(request, f'Pedido de obra "{workorder.codigo}" atualizado com sucesso!')
+            request.session['_prevent_back_edit_workorder_pk'] = str(workorder.pk)
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     else:
+        # GET: evitar que Voltar do navegador retorne ao formulário já submetido
+        if request.session.pop('_prevent_back_edit_workorder_pk', None) == str(workorder.pk):
+            return redirect('gestao:detail_workorder', pk=workorder.pk)
         form = WorkOrderForm(instance=workorder, user=user, is_creating=False)
     
     context = {
@@ -1065,7 +1107,8 @@ def edit_workorder(request, pk):
         'user_profile': get_user_profile(user),
         'is_solicitante': is_solicitante_only,
     }
-    return render(request, 'obras/workorder_form.html', context)
+    response = render(request, 'obras/workorder_form.html', context)
+    return _no_cache_form_response(response)
 
 
 # ========== Aprovação ==========
@@ -1482,11 +1525,18 @@ def create_obra(request):
         messages.error(request, 'Apenas administradores podem criar obras.')
         return redirect('gestao:list_obras')
     
+    # Evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.method == 'GET':
+        r = _redirect_if_back_after_post(request, '_prevent_back_create_obra', 'gestao:list_obras')
+        if r:
+            return r
+    
     if request.method == 'POST':
         form = ObraForm(request.POST, user=request.user)
         if form.is_valid():
             obra = form.save()
             messages.success(request, f'Obra "{obra.codigo}" criada com sucesso!')
+            _mark_post_success_redirect(request, '_prevent_back_create_obra')
             return redirect('gestao:detail_obra', pk=obra.pk)
     else:
         form = ObraForm(user=request.user)
@@ -1496,7 +1546,8 @@ def create_obra(request):
         'title': 'Criar Nova Obra',
         'user_profile': get_user_profile(request.user),
     }
-    return render(request, 'obras/obra_form.html', context)
+    response = render(request, 'obras/obra_form.html', context)
+    return _no_cache_form_response(response)
 
 
 @login_required
@@ -1540,11 +1591,17 @@ def edit_obra(request, pk):
         messages.error(request, 'Você não tem permissão para editar esta obra.')
         return redirect('gestao:list_obras')
     
+    # GET: evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.method == 'GET':
+        if request.session.pop('_prevent_back_edit_obra_pk', None) == str(obra.pk):
+            return redirect('gestao:detail_obra', pk=obra.pk)
+    
     if request.method == 'POST':
         form = ObraForm(request.POST, instance=obra, user=request.user)
         if form.is_valid():
-            obra = form.save()
+            form.save()
             messages.success(request, f'Obra "{obra.codigo}" atualizada com sucesso!')
+            request.session['_prevent_back_edit_obra_pk'] = str(obra.pk)
             return redirect('gestao:detail_obra', pk=obra.pk)
     else:
         form = ObraForm(instance=obra, user=request.user)
@@ -1557,7 +1614,8 @@ def edit_obra(request, pk):
         'title': f'Editar Obra: {obra.codigo}',
         'user_profile': get_user_profile(request.user),
     }
-    return render(request, 'obras/obra_form.html', context)
+    response = render(request, 'obras/obra_form.html', context)
+    return _no_cache_form_response(response)
 
 
 # ========== GERENCIAMENTO DE USUÁRIOS (central em /central/usuarios/) ==========
@@ -1777,7 +1835,17 @@ def create_user(request):
                 messages.warning(request, 'E-mail não informado: o usuário não receberá as credenciais por e-mail.')
             
             messages.success(request, f'Usuário "{username}" criado com sucesso!')
+            _mark_post_success_redirect(
+                request, '_prevent_back_create_user',
+                'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
+            )
             return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+    
+    # GET: evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.method == 'GET':
+        r = _redirect_if_back_after_post(request, '_prevent_back_create_user', 'gestao:list_users')
+        if r:
+            return r
     
     # Filtrar empresas baseado no usuário
     if is_responsavel_empresa(request.user) and not is_admin(request.user):
@@ -1802,7 +1870,8 @@ def create_user(request):
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
         'use_central_urls': getattr(request, '_central_redirect', False),
     }
-    return render(request, 'obras/create_user.html', context)
+    response = render(request, 'obras/create_user.html', context)
+    return _no_cache_form_response(response)
 
 
 @login_required
@@ -1903,6 +1972,11 @@ def edit_user(request, pk):
             perfil.save()
         
         messages.success(request, f'Usuário "{user.username}" atualizado com sucesso!')
+        request.session['_prevent_back_edit_user_pk'] = str(user.pk)
+        return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+    
+    # GET: evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.session.pop('_prevent_back_edit_user_pk', None) == str(user.pk):
         return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
     
     # Obter empresas disponíveis baseado no usuário
@@ -1956,7 +2030,8 @@ def edit_user(request, pk):
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
         'use_central_urls': getattr(request, '_central_redirect', False),
     }
-    return render(request, 'obras/edit_user.html', context)
+    response = render(request, 'obras/edit_user.html', context)
+    return _no_cache_form_response(response)
 
 
 @login_required
@@ -2235,11 +2310,18 @@ def create_empresa(request):
         messages.error(request, 'Apenas administradores podem criar empresas.')
         return redirect('gestao:list_empresas')
     
+    # Evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.method == 'GET':
+        r = _redirect_if_back_after_post(request, '_prevent_back_create_empresa', 'gestao:list_empresas')
+        if r:
+            return r
+    
     if request.method == 'POST':
         form = EmpresaForm(request.POST, user=request.user)
         if form.is_valid():
             empresa = form.save()
             messages.success(request, f'Empresa "{empresa.codigo}" criada com sucesso!')
+            _mark_post_success_redirect(request, '_prevent_back_create_empresa')
             return redirect('gestao:detail_empresa', pk=empresa.pk)
     else:
         form = EmpresaForm(user=request.user)
@@ -2249,7 +2331,8 @@ def create_empresa(request):
         'title': 'Criar Nova Empresa',
         'user_profile': get_user_profile(request.user),
     }
-    return render(request, 'obras/empresa_form.html', context)
+    response = render(request, 'obras/empresa_form.html', context)
+    return _no_cache_form_response(response)
 
 
 @login_required
@@ -2293,11 +2376,17 @@ def edit_empresa(request, pk):
     
     empresa = get_object_or_404(Empresa, pk=pk)
     
+    # GET: evitar que Voltar do navegador retorne ao formulário já submetido
+    if request.method == 'GET':
+        if request.session.pop('_prevent_back_edit_empresa_pk', None) == str(empresa.pk):
+            return redirect('gestao:detail_empresa', pk=empresa.pk)
+    
     if request.method == 'POST':
         form = EmpresaForm(request.POST, instance=empresa, user=request.user)
         if form.is_valid():
             empresa = form.save()
             messages.success(request, f'Empresa "{empresa.codigo}" atualizada com sucesso!')
+            request.session['_prevent_back_edit_empresa_pk'] = str(empresa.pk)
             return redirect('gestao:detail_empresa', pk=empresa.pk)
     else:
         form = EmpresaForm(instance=empresa, user=request.user)
@@ -2308,7 +2397,8 @@ def edit_empresa(request, pk):
         'title': f'Editar Empresa: {empresa.codigo}',
         'user_profile': get_user_profile(request.user),
     }
-    return render(request, 'obras/empresa_form.html', context)
+    response = render(request, 'obras/empresa_form.html', context)
+    return _no_cache_form_response(response)
 
 
 # ========== GERENCIAMENTO DE PERMISSÕES POR OBRA ==========

@@ -22,6 +22,11 @@
                 {% for err in form.non_field_errors %}<p>{{ err }}</p>{% endfor %}
             </div>
             {% endif %}
+            {% if form._date_after_planned_end %}
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="status">
+                <p><strong>Data além do término previsto:</strong> A data do diário é posterior ao término planejado da obra. O registro é permitido para acompanhar o andamento e possíveis atrasos. Se desejar, você pode atualizar as datas do projeto em Configurações da obra.</p>
+            </div>
+            {% endif %}
             
             <!-- Header Principal -->
             <div class="diary-form-header-card">
