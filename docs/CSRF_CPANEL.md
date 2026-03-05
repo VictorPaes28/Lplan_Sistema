@@ -2,6 +2,40 @@
 
 Quando o Mapa de Suprimentos (ou qualquer POST) retorna **"Sessão inválida"** ou **403** no servidor mas funciona em desenvolvimento, a causa é quase sempre **origem (Referer/Origin) não confiável** ou **proxy não informando HTTPS** ao Django.
 
+## Diferença entre as duas "Sessão inválida"
+
+A mensagem **"Sessão inválida. Recarregue a página e tente novamente."** pode ter duas origens:
+
+1. **No navegador (JavaScript)**  
+   O token CSRF **não foi obtido** no cliente (nem na página nem via GET `/api/csrf-token/`). Nesse caso o POST nem chega a ser enviado com token, ou o fetch do token retornou redirect/HTML em vez de JSON.  
+   → Use o **diagnóstico no navegador** abaixo.
+
+2. **Resposta 403 do servidor**  
+   O Django rejeitou o POST por falha na validação CSRF (origem/referer não confiável, etc.).  
+   → Veja a seção **Ver o que o Django está recebendo** e os ajustes de `.env` / Apache.
+
+## Diagnóstico no navegador (produção)
+
+Faça isso **no servidor**, com F12 aberto (aba Console), na tela do Mapa de Suprimentos:
+
+1. **Ao carregar a página**  
+   Procure no console a linha que começa com `[LPLAN] Diagnóstico ao carregar:`.  
+   - Se aparecer `token em window= não` e `(string vazia!)`, o HTML foi servido **sem** o token (possível cache de página ou template sem `csrf_token`).  
+   - Anote `origin=` e `fetch usará=` (a URL usada para buscar o token).
+
+2. **Ao tentar salvar um campo (edição inline)**  
+   - Se aparecer `[LPLAN] CSRF token: não encontrado na página; buscando em GET` ou `usando URL absoluta para fetch`, o script está tentando obter o token via GET.  
+   - Em seguida deve aparecer `[LPLAN] CSRF GET resposta:` com `status`, `ok`, `url`, `contentType`.  
+     - Se `ok: false` e `status: 302` (ou 200 com `contentType` não JSON), a requisição está sendo **redirecionada** ou está retornando **HTML** (ex.: página de login). Isso indica que o cookie de sessão não está sendo enviado no fetch ou que a URL do token está errada.  
+   - Se aparecer `[LPLAN] CSRF GET body (primeiros 400 chars):`, copie esse trecho; se for HTML (ex.: `<!DOCTYPE` ou formulário de login), confirma que o GET está recebendo página em vez de JSON.
+
+3. **Aba Network (Rede)**  
+   - Filtre por `csrf-token` ou `atualizar` (ou o path do POST).  
+   - Ao salvar, verifique se existe uma requisição **GET** para `/api/csrf-token/` (ou a URL absoluta) e qual o **status** e o **tipo** da resposta (JSON vs HTML).  
+   - Verifique se a requisição **POST** de salvamento foi enviada e com qual status (403 = servidor rejeitou CSRF).
+
+Com isso dá para saber se o problema é **token não disponível no cliente** (cache, cookie não enviado, redirect no GET) ou **403 no servidor** (origem/referer).
+
 ## O que o código já faz (após as alterações)
 
 1. **`lplan_central/settings.py`**

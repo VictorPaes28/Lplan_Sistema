@@ -4,11 +4,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Diagnóstico CSRF no F12 (Console): filtrar por [LPLAN]
     try {
         var w = typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__ ? 'sim' : 'não';
+        var wEmpty = (typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__ === '');
         var b = document.body && document.body.getAttribute('data-csrf-token') ? 'sim' : 'não';
         var m = document.querySelector('meta[name="csrf-token"]');
         var mVal = m && m.getAttribute('content') ? 'sim' : 'não';
         var u = typeof window.__LPLAN_CSRF_TOKEN_URL__ === 'string' && window.__LPLAN_CSRF_TOKEN_URL__ ? window.__LPLAN_CSRF_TOKEN_URL__ : '(não definido)';
-        console.warn('[LPLAN] Diagnóstico ao carregar: token em window=', w, 'body=', b, 'meta=', mVal, '| URL API=', u);
+        var origin = typeof window.location !== 'undefined' ? window.location.origin : '(não disponível)';
+        var tokenUrlAbs = (u && u.indexOf('http') !== 0 && origin !== '(não disponível)') ? (origin.replace(/\/$/, '') + (u.indexOf('/') === 0 ? u : '/' + u)) : u;
+        console.warn('[LPLAN] Diagnóstico ao carregar: token em window=', w, wEmpty ? '(string vazia!)' : '', 'body=', b, 'meta=', mVal, '| URL API=', u, '| origin=', origin, '| fetch usará:', tokenUrlAbs);
     } catch (e) {}
 
     // Inicialização
@@ -329,6 +332,7 @@ function getCsrfToken() {
 /**
  * Obtém o token CSRF; se não estiver na página, busca em /api/csrf-token/ e atualiza a meta tag.
  * Usa window.__LPLAN_CSRF_TOKEN_URL__ se definido (injetado pelo base_mapa.html).
+ * Em produção usa URL absoluta (origin + path) para evitar falhas quando o path base difere.
  */
 function getCsrfTokenAsync() {
     const sync = getCsrfToken();
@@ -336,14 +340,28 @@ function getCsrfTokenAsync() {
     var url = (typeof window.__LPLAN_CSRF_TOKEN_URL__ === 'string' && window.__LPLAN_CSRF_TOKEN_URL__)
         ? window.__LPLAN_CSRF_TOKEN_URL__
         : (document.body && document.body.getAttribute('data-csrf-token-url')) || '/api/csrf-token/';
-    _logCsrf('CSRF token: não encontrado na página; buscando em GET', url);
+    if (url.indexOf('http') !== 0 && typeof window.location !== 'undefined' && window.location.origin) {
+        url = window.location.origin.replace(/\/$/, '') + (url.indexOf('/') === 0 ? url : '/' + url);
+        _logCsrf('CSRF token: usando URL absoluta para fetch', url);
+    } else {
+        _logCsrf('CSRF token: não encontrado na página; buscando em GET', url);
+    }
     return fetch(url, { method: 'GET', credentials: 'include' })
         .then(function(r) {
-            _logCsrf('CSRF GET resposta:', { status: r.status, ok: r.ok, contentType: r.headers.get('Content-Type') });
-            if (!r.ok) return null;
+            _logCsrf('CSRF GET resposta:', { status: r.status, ok: r.ok, url: r.url, contentType: r.headers.get('Content-Type') });
+            if (!r.ok) {
+                _logCsrf('CSRF GET: status não OK (pode ser redirect para login ou 403). Status=', r.status);
+                r.text().then(function(body) {
+                    _logCsrf('CSRF GET body (primeiros 400 chars):', body ? body.substring(0, 400) : '(vazio)');
+                }).catch(function() {});
+                return null;
+            }
             var ct = r.headers.get('Content-Type') || '';
             if (ct.indexOf('application/json') === -1) {
-                _logCsrf('CSRF GET: resposta não é JSON (provavelmente HTML/redirect)', ct);
+                _logCsrf('CSRF GET: resposta não é JSON (provavelmente HTML/redirect). Content-Type=', ct);
+                r.text().then(function(body) {
+                    _logCsrf('CSRF GET body (primeiros 400 chars):', body ? body.substring(0, 400) : '(vazio)');
+                }).catch(function() {});
                 return null;
             }
             return r.json();
