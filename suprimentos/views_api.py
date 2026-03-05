@@ -384,9 +384,16 @@ def item_atualizar_campo(request):
         
         item = get_object_or_404(ItemMapa, id=item_id)
         
-        # Validar que o item pertence à obra da sessão
+        # Sincronizar sessão: se POST veio sem obra_id (ex.: cookie de sessão não enviado em produção),
+        # usar a obra do item para não rejeitar o salvamento e para o próximo request ter a obra certa.
         obra_sessao_id = request.session.get('obra_id')
         if not request.user.is_superuser:
+            if not obra_sessao_id and item.obra_id:
+                from mapa_obras.views import _user_can_access_obra
+                if _user_can_access_obra(request, item.obra):
+                    request.session['obra_id'] = item.obra_id
+                    request.session.modified = True
+                    obra_sessao_id = item.obra_id
             if not obra_sessao_id:
                 return JsonResponse({
                     'success': False,
@@ -771,6 +778,7 @@ def item_atualizar_campo(request):
         
         return JsonResponse({
             'success': True,
+            'obra_id': item.obra_id,
             'status_css': item.status_css,
             'filled_from_sienge': filled_from_sienge,
             'debug_no_recebimento': (field in ('insumo_codigo', 'numero_sc') and not filled_from_sienge and bool((item.numero_sc or '').strip()) and bool(item.insumo_id)),

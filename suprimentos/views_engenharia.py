@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.views.decorators.cache import cache_control
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
@@ -44,6 +45,7 @@ def get_obra_da_sessao(request):
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @ensure_csrf_cookie
+@cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_engenharia(request):
     """Mapa editável para Engenharia. Só exibe obras às quais o usuário está vinculado."""
     from mapa_obras.views import _get_obras_for_user, _user_can_access_obra

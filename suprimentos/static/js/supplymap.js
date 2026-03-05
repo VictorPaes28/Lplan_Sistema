@@ -127,6 +127,13 @@ function updateItemField(itemId, field, value, url) {
             if (data.status_css) {
                 updateRowStatus(itemId, data.status_css);
             }
+            // Garantir que a URL tenha ?obra= para que ao recarregar a página a mesma obra seja exibida
+            if (data.obra_id && window.location.search.indexOf('obra=') === -1) {
+                var params = new URLSearchParams(window.location.search);
+                params.set('obra', data.obra_id);
+                var newUrl = window.location.pathname + '?' + params.toString();
+                window.history.replaceState(null, '', newUrl);
+            }
             // Dados do Sienge (PC, prazo, empresa, quantidade) foram preenchidos no servidor;
             // recarregar a página para exibir todas as colunas atualizadas.
             if (data.filled_from_sienge) {
