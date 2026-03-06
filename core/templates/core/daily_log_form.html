@@ -22,7 +22,7 @@
                 {% for err in form.non_field_errors %}<p>{{ err }}</p>{% endfor %}
             </div>
             {% endif %}
-            {% if form._date_after_planned_end %}
+            {% if form.date_after_planned_end %}
             <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="status">
                 <p><strong>Data além do término previsto:</strong> A data do diário é posterior ao término planejado da obra. O registro é permitido para acompanhar o andamento e possíveis atrasos. Se desejar, você pode atualizar as datas do projeto em Configurações da obra.</p>
             </div>
@@ -164,13 +164,13 @@
                                            title="Dia da semana"
                                            class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all">
                                         <option value="">Selecione...</option>
-                                        <option value="Domingo" {% if form.instance.date and form.instance.date|weekday_name == "Domingo" %}selected{% endif %}>Domingo</option>
-                                        <option value="Segunda-Feira" {% if form.instance.date and form.instance.date|weekday_name == "Segunda-Feira" %}selected{% endif %}>Segunda-Feira</option>
-                                        <option value="Terça-Feira" {% if form.instance.date and form.instance.date|weekday_name == "Terça-Feira" %}selected{% endif %}>Terça-Feira</option>
-                                        <option value="Quarta-Feira" {% if form.instance.date and form.instance.date|weekday_name == "Quarta-Feira" %}selected{% endif %}>Quarta-Feira</option>
-                                        <option value="Quinta-Feira" {% if form.instance.date and form.instance.date|weekday_name == "Quinta-Feira" %}selected{% endif %}>Quinta-Feira</option>
-                                        <option value="Sexta-Feira" {% if form.instance.date and form.instance.date|weekday_name == "Sexta-Feira" %}selected{% endif %}>Sexta-Feira</option>
-                                        <option value="Sábado" {% if form.instance.date and form.instance.date|weekday_name == "Sábado" %}selected{% endif %}>Sábado</option>
+                                        <option value="Domingo" {% if diary_date_display and diary_date_display|weekday_name == "Domingo" %}selected{% endif %}>Domingo</option>
+                                        <option value="Segunda-Feira" {% if diary_date_display and diary_date_display|weekday_name == "Segunda-Feira" %}selected{% endif %}>Segunda-Feira</option>
+                                        <option value="Terça-Feira" {% if diary_date_display and diary_date_display|weekday_name == "Terça-Feira" %}selected{% endif %}>Terça-Feira</option>
+                                        <option value="Quarta-Feira" {% if diary_date_display and diary_date_display|weekday_name == "Quarta-Feira" %}selected{% endif %}>Quarta-Feira</option>
+                                        <option value="Quinta-Feira" {% if diary_date_display and diary_date_display|weekday_name == "Quinta-Feira" %}selected{% endif %}>Quinta-Feira</option>
+                                        <option value="Sexta-Feira" {% if diary_date_display and diary_date_display|weekday_name == "Sexta-Feira" %}selected{% endif %}>Sexta-Feira</option>
+                                        <option value="Sábado" {% if diary_date_display and diary_date_display|weekday_name == "Sábado" %}selected{% endif %}>Sábado</option>
                                     </select>
                                 </div>
                             </div>
@@ -2092,7 +2092,6 @@ var equipmentList = [];
         if (!el) return;
         try {
             var data = JSON.parse(el.textContent || '[]');
-            console.log('[DIARY_DEBUG] existing-diary-equipment-data (parsed):', JSON.stringify(data));
             var allInputs = document.querySelectorAll('.diary-equipment-qty[data-equipment-id][data-equipment-name]');
             for (var i = 0; i < data.length; i++) {
                 var item = data[i];
@@ -2108,7 +2107,6 @@ var equipmentList = [];
                 }
                 if (!found) addCustomEquipment(name, qty);
             }
-            console.log('[DIARY_DEBUG] after initEquipmentFromExisting diaryEquipmentState (snapshot):', JSON.stringify(diaryEquipmentState));
         } catch (err) { console.warn('initEquipmentFromExisting:', err); }
     }
     function initEquipmentUI() {
@@ -4041,12 +4039,8 @@ function saveSignature(canvasId) {
             }
             occurrences.push({ description: occDesc, tag_ids: tagIds });
         }
-        // [DIARY_DEBUG] Diagnóstico: itens coletados e payload (confirmar no Network que work_logs_json e occurrences_json estão no POST)
         var wlStr = JSON.stringify(workLogs);
         var occStr = JSON.stringify(occurrences);
-        console.log('[DIARY_DEBUG] buildAndSetDiaryJsonPayload: descInputs.length=', descInputs.length, 'occDescInputs.length=', occDescInputs.length, 'workLogs.length=', workLogs.length, 'occurrences.length=', occurrences.length);
-        console.log('[DIARY_DEBUG] work_logs_json length=', wlStr.length, '(500 chars):', wlStr.substring(0, 500));
-        console.log('[DIARY_DEBUG] occurrences_json length=', occStr.length, '(300 chars):', occStr.substring(0, 300));
         var wlInput = document.getElementById('work_logs_json_input');
         var occInput = document.getElementById('occurrences_json_input');
         if (!wlInput && form) {
@@ -4297,7 +4291,6 @@ function saveSignature(canvasId) {
             // Garante que equipamentos (e quantidades) são enviados: atualiza equipment_data no último momento
             if (typeof window.getEquipmentPayload === 'function') {
                 var equipmentPayload = window.getEquipmentPayload();
-                console.log('[DIARY_DEBUG] equipment_data (getEquipmentPayload) no submit:', JSON.stringify(equipmentPayload));
                 var equipmentInput = document.getElementById('equipment_data');
                 if (equipmentInput) equipmentInput.value = JSON.stringify(Array.isArray(equipmentPayload) ? equipmentPayload : []);
             } else {

@@ -1673,7 +1673,6 @@ def diary_form_view(request, pk=None):
             return redirect('select-project')
         
         form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
-        logger.debug(f"[DIARY_DEBUG] work_logs-TOTAL_FORMS={request.POST.get('work_logs-TOTAL_FORMS', 'N/A')} | ocorrencias-TOTAL_FORMS={request.POST.get('ocorrencias-TOTAL_FORMS', 'N/A')}")
         if request.FILES:
             for key, file in request.FILES.items():
                 logger.info(f"  Arquivo: {key} -> {file.name} ({file.size} bytes)")
@@ -1735,19 +1734,10 @@ def diary_form_view(request, pk=None):
             instance=diary if diary else None,
             prefix='ocorrencias'
         )
-        logger.debug(f"[DIARY_DEBUG] Formsets iniciais (antes de form.is_valid): worklog forms={worklog_formset.total_form_count()}, occurrence forms={occurrence_formset.total_form_count()}; worklog_valid={worklog_formset.is_valid()}, occurrence_valid={occurrence_formset.is_valid()}")
         if not worklog_formset.is_valid():
-            for i, f in enumerate(worklog_formset.forms):
-                if f.errors:
-                    logger.debug(f"[DIARY_DEBUG] Worklog form {i} erros: {f.errors}")
-            if worklog_formset.non_form_errors():
-                logger.debug(f"[DIARY_DEBUG] Worklog non_form_errors: {worklog_formset.non_form_errors()}")
+            pass  # erros em worklog_formset.errors
         if not occurrence_formset.is_valid():
-            for i, f in enumerate(occurrence_formset.forms):
-                if f.errors:
-                    logger.debug(f"[DIARY_DEBUG] Ocorrência form {i} erros: {f.errors}")
-            if occurrence_formset.non_form_errors():
-                logger.debug(f"[DIARY_DEBUG] Ocorrência non_form_errors: {occurrence_formset.non_form_errors()}")
+            pass  # erros em occurrence_formset.errors
 
         # Valida o form primeiro
         import logging
@@ -1931,7 +1921,6 @@ def diary_form_view(request, pk=None):
                         total_image_forms = int(normalized_post.get('diaryimage_set-TOTAL_FORMS', '0'))
                         total_worklog_forms = int(normalized_post.get('work_logs-TOTAL_FORMS', '0'))
                         total_occurrence_forms = int(normalized_post.get('ocorrencias-TOTAL_FORMS', '0'))
-                        logger.debug(f"[DIARY_DEBUG] Dentro da transação (diary.pk={diary.pk}): total_worklog_forms={total_worklog_forms}, total_occurrence_forms={total_occurrence_forms}; normalized_post work_logs-TOTAL_FORMS={normalized_post.get('work_logs-TOTAL_FORMS')}, ocorrencias-TOTAL_FORMS={normalized_post.get('ocorrencias-TOTAL_FORMS')}")
                         
                         if total_image_forms == 0:
                             image_valid_final = True
@@ -2010,19 +1999,10 @@ def diary_form_view(request, pk=None):
                             occurrence_valid_final = True if not has_occurrence_data else occurrence_formset.is_valid()
 
                         logger.info(f"Re-validação dos formsets (com PK): imagens={image_valid_final}, worklogs={worklog_valid_final}, ocorrências={occurrence_valid_final}")
-                        logger.debug(f"[DIARY_DEBUG] Validação final: worklog_valid_final={worklog_valid_final}, occurrence_valid_final={occurrence_valid_final}; worklog_formset.forms={len(worklog_formset.forms)}, occurrence_formset.forms={len(occurrence_formset.forms)}")
                         if not worklog_valid_final and total_worklog_forms > 0:
-                            for i, f in enumerate(worklog_formset.forms):
-                                if f.errors:
-                                    logger.debug(f"[DIARY_DEBUG] [FINAL] Worklog form {i} erros: {f.errors}")
-                            if worklog_formset.non_form_errors():
-                                logger.debug(f"[DIARY_DEBUG] [FINAL] Worklog non_form_errors: {worklog_formset.non_form_errors()}")
+                            pass  # erros em worklog_formset
                         if not occurrence_valid_final and total_occurrence_forms > 0:
-                            for i, f in enumerate(occurrence_formset.forms):
-                                if f.errors:
-                                    logger.debug(f"[DIARY_DEBUG] [FINAL] Ocorrência form {i} erros: {f.errors}")
-                            if occurrence_formset.non_form_errors():
-                                logger.debug(f"[DIARY_DEBUG] [FINAL] Ocorrência non_form_errors: {occurrence_formset.non_form_errors()}")
+                            pass  # erros em occurrence_formset
                         
                         # Se o formset de worklogs é crítico e falhou com dados, coleta erros antes de fazer rollback
                         if not worklog_valid_final and total_worklog_forms > 0:
@@ -2448,7 +2428,6 @@ def diary_form_view(request, pk=None):
                     try:
                         equipment_data = json.loads(equipment_data_json) if equipment_data_json else []
                         logger.info(f"Dados de equipamentos recebidos: {len(equipment_data)} itens")
-                        logger.debug("[DIARY_DEBUG] equipment_data no POST: len=%s, payload (300 chars)=%s", len(equipment_data), (equipment_data_json or '')[:300])
                         
                         equipment_items = []  # lista de (equipment, quantity) para through
                         for equipment_item in equipment_data:
@@ -2484,19 +2463,6 @@ def diary_form_view(request, pk=None):
                     # Só usa JSON quando o payload tem conteúdo; [] ou vazio evita apagar dados por engano
                     use_worklogs_json = 'work_logs_json' in request.POST and work_logs_json_str not in ('', '[]')
                     use_occurrences_json = 'occurrences_json' in request.POST and occurrences_json_str not in ('', '[]')
-                    logger.debug(
-                        "[DIARY_DEBUG] Antes de salvar: worklog_valid=%s, occurrence_valid=%s; "
-                        "use_worklogs_json=%s (len=%s), use_occurrences_json=%s (len=%s); request.user.pk=%s",
-                        worklog_valid, occurrence_valid,
-                        use_worklogs_json, len(work_logs_json_str),
-                        use_occurrences_json, len(occurrences_json_str),
-                        getattr(request.user, 'pk', None),
-                    )
-                    logger.debug(
-                        "[DIARY_DEBUG] POST keys: work_logs_json=%s, occurrences_json=%s (se use_*=False com payload, checar nome da chave/encoding)",
-                        "work_logs_json" in request.POST,
-                        "occurrences_json" in request.POST,
-                    )
                     if use_worklogs_json:
                         from core.diary_json_services import create_worklogs_from_json
                         create_worklogs_from_json(diary, project, work_logs_json_str)
@@ -2505,7 +2471,6 @@ def diary_form_view(request, pk=None):
                     elif worklog_valid:
                         saved_worklogs = worklog_formset.save()
                         logger.info(f"Worklogs salvos pelo formset: {len(saved_worklogs)} worklogs")
-                        logger.debug(f"[DIARY_DEBUG] Worklogs salvos: {len(saved_worklogs)} itens")
                     else:
                         logger.warning("Formset de worklogs inválido, pulando processamento")
                     
@@ -2640,7 +2605,6 @@ def diary_form_view(request, pk=None):
                             occurrence.save()
                         occurrence_formset.save_m2m()
                         logger.info(f"Ocorrências salvas: {len(occurrences)} ocorrências")
-                        logger.debug(f"[DIARY_DEBUG] Ocorrências salvas: {len(occurrences)} itens")
                     else:
                         logger.warning("Formset de ocorrências inválido, pulando processamento")
                     
@@ -2933,22 +2897,25 @@ def diary_form_view(request, pk=None):
             if default_cli and (getattr(project, 'client_name', None) or '').strip() != default_cli:
                 project.client_name = default_cli
                 project.save(update_fields=['client_name'])
-        # Verifica se há data passada via GET
-        initial_date = request.GET.get('date')
+        # Verifica se há data passada via GET; para novo diário, preenche data (e dia da semana) automaticamente
+        get_date_str = request.GET.get('date')
         form = ConstructionDiaryForm(instance=diary, user=request.user, project=project)
         
-        # Se houver data no GET e for um novo diário, preenche o campo
-        if initial_date and not diary:
-            try:
-                from datetime import datetime
-                # Tenta converter a data do formato dd/mm/yyyy para yyyy-mm-dd
-                if '/' in initial_date:
-                    date_obj = datetime.strptime(initial_date, '%d/%m/%Y').date()
-                else:
-                    date_obj = datetime.strptime(initial_date, '%Y-%m-%d').date()
-                form.initial['date'] = date_obj
-            except (ValueError, TypeError):
-                pass  # Se não conseguir converter, deixa o formulário usar o padrão
+        initial_date_obj = None
+        if not diary:
+            from datetime import date as date_type
+            if get_date_str:
+                try:
+                    from datetime import datetime
+                    if '/' in get_date_str:
+                        initial_date_obj = datetime.strptime(get_date_str, '%d/%m/%Y').date()
+                    else:
+                        initial_date_obj = datetime.strptime(get_date_str, '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    pass
+            if initial_date_obj is None:
+                initial_date_obj = date_type.today()
+            form.initial['date'] = initial_date_obj
         
         if diary and diary.pk:
             image_formset = DiaryImageFormSet(instance=diary)
@@ -3107,7 +3074,6 @@ def diary_form_view(request, pk=None):
                     'quantity': qty,
                     'equipment_id': equipment_ids.get(name),
                 })
-            logger.info("[DIARY_DEBUG] existing_diary_equipment montado: %s itens (copy_source=%s)", len(existing_diary_equipment), bool(copy_source_diary and 'equipment' in copy_opts_list))
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_equipment (cópia): %s", e, exc_info=True)
     
@@ -3160,6 +3126,9 @@ def diary_form_view(request, pk=None):
         'copy_from_id': copy_from_id,
         'copy_options': copy_options_raw if copy_source_diary else '',
         'copy_source_diary': copy_source_diary,
+        # Data e dia da semana: para novo diário preenchidos automaticamente (hoje ou GET ?date=)
+        'initial_date': initial_date_obj,
+        'diary_date_display': (diary.date if diary and diary.pk else initial_date_obj),
     }
     
     return render(request, 'core/daily_log_form.html', context)
