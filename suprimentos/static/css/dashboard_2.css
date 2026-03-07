@@ -1034,7 +1034,7 @@ main#main-content {
     font-size: 11px;
     font-weight: 600;
 }
-.drill-status-badge.status-empty { background: var(--bg-industrial-600); color: var(--text-on-base-medium); }
+.drill-status-badge.status-empty { background: rgba(241, 194, 27, 0.25); color: #b38600; font-weight: 600; }
 .drill-status-badge.status-plan { background: #dbeafe; color: #1e40af; }
 .drill-status-badge.status-ordered { background: #fef3c7; color: #92400e; }
 .drill-status-badge.status-received { background: #d1fae5; color: #065f46; }
@@ -1667,6 +1667,14 @@ main#main-content {
 
 .mc-metric-value.mc-danger {
     color: var(--text-status-critical);
+}
+.mc-metric-value.mc-saldo-linha {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: inline-block;
 }
 
 .mc-sc {
@@ -2487,8 +2495,9 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
 }
 
 .pipeline-badge.status-empty {
-    background: var(--bg-industrial-700);
-    color: var(--text-on-base-low);
+    background: rgba(241, 194, 27, 0.2);
+    color: #b38600;
+    font-weight: 600;
 }
 
 .pipeline-badge.status-plan {
@@ -2830,6 +2839,24 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
     letter-spacing: 0.5px;
 }
 
+/* Saldo em uma linha só (evita duplicação "6 6 UND UND" no mobile) */
+.destino-linha-unica {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+@media (max-width: 768px) {
+    .destino-linha-unica {
+        font-size: 12px;
+        white-space: normal;
+        word-break: break-word;
+    }
+}
+
 .destino-gap {
     font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
     font-size: 12px;
@@ -2989,11 +3016,13 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
 }
 
 .plano-zero {
-    font-size: 10px;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--text-status-warning);
     font-style: italic;
-    margin-top: 4px;
+    margin-top: 0;
 }
+/* Quando plano = 0, a célula mostra só "Sem planejamento" — sem "0 UND" em cima */
 
 .pedido-gap i,
 .patio-gap i,

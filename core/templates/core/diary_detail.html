@@ -11,8 +11,9 @@
     <div class="flex items-center min-w-0">
         <a href="{% url 'report-list' %}" 
            class="diary-detail-back-link text-slate-600 hover:text-slate-900 mr-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg p-2 -ml-2 transition-colors hover:bg-slate-100"
-           aria-label="Voltar para lista de relatórios"
-           title="Voltar">
+           aria-label="Voltar"
+           title="Voltar"
+           id="diary-detail-back-link">
             <i class="fas fa-arrow-left text-lg" aria-hidden="true"></i>
         </a>
         <div class="min-w-0">
@@ -880,6 +881,20 @@
                 printButton.classList.remove('bg-gray-700');
                 printButton.classList.add('bg-gray-800');
                 printChevron.style.transform = 'rotate(0deg)';
+            }
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    // Botão Voltar: voltar para a página anterior quando houver histórico (ex.: dashboard/calendário)
+    var backLink = document.getElementById('diary-detail-back-link');
+    if (backLink) {
+        backLink.addEventListener('click', function(e) {
+            if (window.history.length > 1) {
+                e.preventDefault();
+                window.history.back();
             }
         });
     }

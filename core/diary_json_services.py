@@ -83,9 +83,7 @@ def create_worklogs_from_json(diary, project, work_logs_json_str):
         return []
     valid_count = sum(1 for item in data if isinstance(item, dict) and (item.get('activity_description') or '').strip())
     if valid_count == 0:
-        logger.info("[DIARY_DEBUG] create_worklogs_from_json: nenhum item válido, não altera work logs (diary_id=%s)", diary.pk)
         return []
-    logger.info("[DIARY_DEBUG] create_worklogs_from_json: recebidos %s itens, %s válidos (diary_id=%s)", len(data), valid_count, diary.pk)
     # Substituição: remove todos os work_logs atuais do diário
     deleted_count, _ = diary.work_logs.all().delete()
     if deleted_count:
@@ -144,7 +142,6 @@ def create_worklogs_from_json(diary, project, work_logs_json_str):
                     existing.notes = notes
                     existing.save()
                     saved.append(existing)
-    logger.info("[DIARY_DEBUG] create_worklogs_from_json: criados/atualizados %s worklogs", len(saved))
     return saved
 
 
@@ -179,9 +176,7 @@ def create_occurrences_from_json(diary, occurrences_json_str, created_by):
         return []
     valid_count = sum(1 for item in data if isinstance(item, dict) and (item.get('description') or '').strip())
     if valid_count == 0:
-        logger.info("[DIARY_DEBUG] create_occurrences_from_json: nenhum item válido, não altera ocorrências (diary_id=%s)", diary.pk)
         return []
-    logger.info("[DIARY_DEBUG] create_occurrences_from_json: recebidos %s itens, %s válidos (diary_id=%s)", len(data), valid_count, diary.pk)
     # Substituição: remove todas as ocorrências atuais do diário
     deleted_count, _ = diary.occurrences.all().delete()
     if deleted_count:
@@ -203,5 +198,4 @@ def create_occurrences_from_json(diary, occurrences_json_str, created_by):
             tags = OccurrenceTag.objects.filter(pk__in=tag_ids, is_active=True)
             occ.tags.set(tags)
         saved.append(occ)
-    logger.info("[DIARY_DEBUG] create_occurrences_from_json: criadas %s ocorrências", len(saved))
     return saved

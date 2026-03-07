@@ -551,7 +551,7 @@
                 <!-- 14. SALDO (Readonly - Sienge se tiver SC, senão Local) -->
                 <td class="input-readonly campo-sienge" 
                     data-bs-toggle="tooltip" 
-                    title="{% if item.numero_sc %}Saldo do Sienge: Solicitado - Recebido{% else %}Saldo do LOCAL: Planejado - Alocado{% endif %}">
+                    title="{% if item.numero_sc %}Saldo Sienge: Quantidade solicitada − Quantidade já alocada (total){% else %}Saldo do LOCAL: Planejado − Alocado{% endif %}">
                     {% if item.numero_sc %}
                         {# Se tem SC, mostrar saldo do Sienge (solicitado - recebido) #}
                         {# IMPORTANTE: Mostra o total mesmo quando ainda não recebeu nada #}

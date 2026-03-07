@@ -1486,7 +1486,7 @@ def dashboard_2(request):
             
             # Status textual para badge
             if pipeline_steps == 0:
-                status_label = 'Sem Plano'
+                status_label = 'Sem planejamento'
                 status_class = 'status-empty'
             elif pipeline_steps == 1:
                 status_label = 'Levantamento'
@@ -1640,7 +1640,7 @@ def dashboard_2(request):
                                 pipeline_steps = 4
                 pipeline_pct = pipeline_steps * 25
                 if pipeline_steps == 0:
-                    status_label, status_class = 'Sem Plano', 'status-empty'
+                    status_label, status_class = 'Sem planejamento', 'status-empty'
                 elif pipeline_steps == 1:
                     status_label, status_class = 'Levantamento', 'status-plan'
                 elif pipeline_steps == 2:

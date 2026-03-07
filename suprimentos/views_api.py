@@ -895,6 +895,7 @@ def item_alocar(request, item_id):
             'message': f'Alocado {quantidade} {item.insumo.unidade} para {item.local_aplicacao.nome}',
             'nova_quantidade_alocada': str(item.quantidade_alocada_local),
             'saldo_restante': str(item.saldo_a_alocar_local),
+            'saldo_a_ser_entregue': str(item.saldo_a_entregar_sienge),
             'status_css': item.status_css
         }, content_type='application/json')
         

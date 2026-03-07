@@ -65,6 +65,28 @@ class EmpresaForm(forms.ModelForm):
                 raise forms.ValidationError('Já existe uma empresa com este código.')
         return codigo
 
+    def clean_telefone(self):
+        """Valida telefone: DDD (2 dígitos) + 9 dígitos; primeiro dígito após DDD deve ser 9; só números; mínimo 11 caracteres."""
+        telefone = self.cleaned_data.get('telefone')
+        if not telefone:
+            return telefone
+        # Mantém só dígitos
+        numeros = ''.join(c for c in str(telefone).strip() if c.isdigit())
+        if len(numeros) < 11:
+            raise forms.ValidationError(
+                'Telefone deve ter pelo menos 11 dígitos (DDD + número). Ex.: 81 999626863.'
+            )
+        if len(numeros) > 11:
+            raise forms.ValidationError(
+                'Telefone deve ter no máximo 11 dígitos (2 de DDD + 9 do número).'
+            )
+        # Primeiro dígito após o DDD (3º dígito) deve ser 9
+        if numeros[2] != '9':
+            raise forms.ValidationError(
+                'O primeiro dígito do número (após o DDD) deve ser 9. Ex.: 81 999626863.'
+            )
+        return numeros  # pode retornar só números ou formatar; o modelo aceita CharField
+
 
 class ObraForm(forms.ModelForm):
     """

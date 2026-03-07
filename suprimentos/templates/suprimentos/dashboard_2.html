@@ -469,8 +469,8 @@
                     onkeypress="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); abrirBottomSheet({{ item.id }}); }">
                     <!-- COLUNA 0: STATUS PIPELINE -->
                     <td class="col-status-mini">
-                        <div class="pipeline-mini" title="{{ item.status_label }} ({{ item.pipeline_pct }}%)">
-                            <span class="pipeline-badge {{ item.status_class }}">{{ item.status_label }}</span>
+                        <div class="pipeline-mini" title="{% if item.status_label == 'Sem planejamento' %}Quantidade planejada não informada — cadastre no Mapa de Suprimentos{% else %}{{ item.status_label }} ({{ item.pipeline_pct }}%){% endif %}">
+                            <span class="pipeline-badge {{ item.status_class }}" aria-label="{{ item.status_label }}">{{ item.status_label }}</span>
                             <div class="pipeline-bar">
                                 <div class="pipeline-fill {{ item.status_class }}" style="width: {{ item.pipeline_pct }}%"></div>
                             </div>
@@ -495,10 +495,11 @@
                     {% endif %}
                     <!-- COLUNA 2: PLANO -->
                     <td class="col-plano">
+                        {% if item.coluna_1_plano == 0 %}
+                        <div class="plano-zero" title="Nenhuma quantidade planejada cadastrada para este item">Sem planejamento</div>
+                        {% else %}
                         <div class="plano-valor mono">{{ item.coluna_1_plano|floatformat:0 }}</div>
                         <div class="plano-unidade">{{ item.insumo_unidade }}</div>
-                        {% if item.coluna_1_plano == 0 %}
-                        <div class="plano-zero">Sem planejamento</div>
                         {% endif %}
                     </td>
                     <!-- COLUNA 3: PEDIDO -->
@@ -532,11 +533,9 @@
                     </td>
                     <!-- COLUNA 5: SALDO -->
                     <td class="col-destino">
-                        <div class="destino-qtd mono" style="color: {% if item.coluna_4_destino_qtd > 0 %}var(--neon-cyan){% else %}var(--text-on-base-medium){% endif %};">
-                            {{ item.coluna_4_destino_qtd|floatformat:0 }}
+                        <div class="destino-linha-unica mono" style="color: {% if item.coluna_4_destino_qtd > 0 %}var(--neon-cyan){% else %}var(--text-on-base-medium){% endif %};">
+                            {{ item.coluna_4_destino_qtd|floatformat:0 }} {{ item.insumo_unidade }}{% if item.coluna_4_destino_local %} · {{ item.coluna_4_destino_local }}{% else %} · Sem local{% endif %}
                         </div>
-                        <div class="destino-unidade">{{ item.insumo_unidade }}</div>
-                        <div class="destino-local">{{ item.coluna_4_destino_local|default:"Sem local" }}</div>
                         {% if item.gap_alocado > 0 %}
                         <div class="destino-gap mono" title="Falta alocar {{ item.gap_alocado|floatformat:0 }} {{ item.insumo_unidade }}">
                             <i class="bi bi-box-seam"></i> -{{ item.gap_alocado|floatformat:0 }}
@@ -1674,6 +1673,8 @@ function salvarAlocacao() {
         var pedidoVal = item.coluna_2_pedido_sc ? fmt(item.coluna_2_pedido_qtd) : '—';
         var pedidoClass = item.coluna_2_pedido_sc ? '' : ' mc-danger';
         var scHtml = item.coluna_2_pedido_sc ? '<div class="mc-sc">SC' + esc(String(item.coluna_2_pedido_sc)) + '</div>' : '';
+        var planoVal = (item.coluna_1_plano == null || item.coluna_1_plano === 0) ? 'Sem planej.' : fmt(item.coluna_1_plano);
+        var saldoTexto = fmt(item.coluna_4_destino_qtd) + (item.insumo_unidade ? ' ' + esc(item.insumo_unidade) : '') + (item.coluna_4_destino_local ? ' · ' + esc(item.coluna_4_destino_local) : '');
         var div = document.createElement('div');
         div.className = 'mobile-card ' + alertClass;
         div.setAttribute('role', 'button');
@@ -1690,10 +1691,10 @@ function salvarAlocacao() {
             '<div class="mc-meta"><span class="mc-code">' + esc(item.insumo_codigo || '—') + '</span>' + localHtml + '</div>' +
             '<div class="mc-pipeline"><div class="mc-pipeline-bar"><div class="pipeline-fill ' + esc(item.status_class) + '" style="width:' + (item.pipeline_pct || 0) + '%"></div></div></div>' +
             '<div class="mc-metrics">' +
-            '<div class="mc-metric"><span class="mc-metric-label">Planejado</span><span class="mc-metric-value">' + fmt(item.coluna_1_plano) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Planejado</span><span class="mc-metric-value">' + planoVal + '</span></div>' +
             '<div class="mc-metric"><span class="mc-metric-label">Comprado</span><span class="mc-metric-value' + pedidoClass + '">' + pedidoVal + '</span></div>' +
             '<div class="mc-metric"><span class="mc-metric-label">Recebido</span><span class="mc-metric-value">' + fmt(item.coluna_3_patio) + '</span></div>' +
-            '<div class="mc-metric"><span class="mc-metric-label">Saldo</span><span class="mc-metric-value">' + fmt(item.coluna_4_destino_qtd) + '</span></div>' +
+            '<div class="mc-metric"><span class="mc-metric-label">Saldo</span><span class="mc-metric-value mc-saldo-linha" title="' + esc(item.coluna_4_destino_local || 'Sem local') + '">' + saldoTexto + '</span></div>' +
             '</div>' + scHtml;
         div.onclick = function() { if (typeof abrirBottomSheet === 'function') abrirBottomSheet(item.id); };
         div.onkeydown = function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (typeof abrirBottomSheet === 'function') abrirBottomSheet(item.id); } };

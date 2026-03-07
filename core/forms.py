@@ -1,7 +1,7 @@
 """
 Forms Django para Diário de Obra V2.0 - LPLAN
 """
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django import forms
 from django.forms import inlineformset_factory
 from django.contrib.auth import get_user_model
@@ -221,6 +221,8 @@ class ConstructionDiaryForm(forms.ModelForm):
         
         # Armazena o projeto para uso posterior
         self._project = project
+        # Flag acessível no template (Django não permite atributos com underscore)
+        self.date_after_planned_end = False
         
         # Se projeto foi passado, usa ele e oculta o campo
         if project:
@@ -274,13 +276,13 @@ class ConstructionDiaryForm(forms.ModelForm):
                     )
                 # Não bloquear data posterior ao término previsto: obra pode atrasar e
                 # o sistema deve permitir registrar diários normalmente. Guardar flag para
-                # exibir aviso opcional no template.
+                # exibir aviso opcional no template. (Nome sem underscore para uso no template.)
                 if project.end_date and date_value > project.end_date:
-                    self._date_after_planned_end = True
+                    self.date_after_planned_end = True
                 else:
-                    self._date_after_planned_end = False
+                    self.date_after_planned_end = False
         else:
-            self._date_after_planned_end = False
+            self.date_after_planned_end = False
         return date_value
     
     def clean(self):
@@ -602,6 +604,21 @@ class DailyWorkLogForm(forms.ModelForm):
         
         percentage_executed = cleaned_data.get('percentage_executed_today')
         accumulated_progress = cleaned_data.get('accumulated_progress_snapshot')
+        # Normalizar string vazia para None (evita erro ao salvar rascunho com campo vazio)
+        if percentage_executed is not None and percentage_executed != '':
+            try:
+                percentage_executed = Decimal(str(percentage_executed))
+            except (ValueError, TypeError, InvalidOperation):
+                percentage_executed = None
+        else:
+            percentage_executed = None
+        if accumulated_progress is not None and accumulated_progress != '':
+            try:
+                accumulated_progress = Decimal(str(accumulated_progress))
+            except (ValueError, TypeError, InvalidOperation):
+                accumulated_progress = None
+        else:
+            accumulated_progress = None
         
         # Valida que activity_description não esteja vazio
         if not activity_description:
