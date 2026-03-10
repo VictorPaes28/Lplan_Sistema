@@ -52,8 +52,9 @@ if settings.DEBUG:
     urlpatterns = static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + urlpatterns
     urlpatterns = static(settings.STATIC_URL, document_root=settings.STATIC_ROOT) + urlpatterns
 else:
-    # Produção: servir estáticos para evitar 404 em supplymap.js (cPanel nem sempre configura Alias /static/)
+    # Produção: servir estáticos e mídia (imagens/vídeos do diário) para evitar 404
     from django.views.static import serve
     urlpatterns = [
         path(settings.STATIC_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
+        path(settings.MEDIA_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
     ] + urlpatterns
