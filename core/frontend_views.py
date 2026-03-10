@@ -443,7 +443,7 @@ def calendar_events_view(request):
         project=project,
         date__gte=view_start,
         date__lte=view_end
-    ).select_related('project')
+    ).select_related('project', 'created_by')
     
     # Cria um conjunto de datas que já têm relatórios
     dates_with_diaries = set(diary.date for diary in diaries)
@@ -473,8 +473,12 @@ def calendar_events_view(request):
             title = f"RDO #{diary.report_number} - {title_status}"
             short_title = f"RDO #{diary.report_number}"
         else:
-            creator_name = diary.created_by.get_full_name() or diary.created_by.username
-            title = f"{creator_name[:15]}... - {title_status}"
+            creator = getattr(diary, 'created_by', None)
+            if creator:
+                creator_name = creator.get_full_name() or creator.username
+                title = f"{creator_name[:15]}... - {title_status}"
+            else:
+                title = f"RDO - {title_status}"
             short_title = "RDO"
         
         events.append({

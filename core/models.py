@@ -1122,6 +1122,10 @@ class DiaryImage(models.Model):
         
         A versão otimizada é salva no campo pdf_optimized.
         """
+        # Sanitiza nome do arquivo para evitar 404/500 com espaços ou caracteres especiais na URL
+        if self.image and getattr(self.image, 'name', None):
+            from core.utils.file_validators import sanitize_filename
+            self.image.name = sanitize_filename(self.image.name)
         # Salva primeiro para garantir que o arquivo existe
         is_new = self.pk is None
         super().save(*args, **kwargs)
@@ -1369,6 +1373,13 @@ class DiaryVideo(models.Model):
     def __str__(self) -> str:
         return f"Vídeo {self.diary} - {self.caption[:50] if self.caption else 'Sem legenda'}"
 
+    def save(self, *args, **kwargs):
+        # Sanitiza nome do arquivo para evitar 404/500 com espaços ou caracteres especiais na URL
+        if self.video and getattr(self.video, 'name', None):
+            from core.utils.file_validators import sanitize_filename
+            self.video.name = sanitize_filename(self.video.name)
+        super().save(*args, **kwargs)
+
 
 class DiaryAttachment(models.Model):
     """
@@ -1429,6 +1440,9 @@ class DiaryAttachment(models.Model):
     def save(self, *args, **kwargs):
         """Atualiza file_type e file_size automaticamente."""
         if self.file and self.file.name:
+            # Sanitiza nome do arquivo para evitar 404/500 com espaços ou caracteres especiais
+            from core.utils.file_validators import sanitize_filename
+            self.file.name = sanitize_filename(self.file.name)
             # Detecta tipo MIME
             import mimetypes
             mime_type, _ = mimetypes.guess_type(self.file.name)
