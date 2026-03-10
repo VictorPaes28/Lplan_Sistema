@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Count, Avg, Sum
+from django.db import IntegrityError
 from django.utils import timezone
 from datetime import datetime, timedelta
 from .models import (
@@ -2111,8 +2112,10 @@ def diary_form_view(request, pk=None):
                             caption_key = f'diaryimage_set-{i}-caption'
                             approved_key = f'diaryimage_set-{i}-is_approved_for_report'
                             
-                            if delete_key in request.POST and request.POST[delete_key] == 'on':
-                                if id_key in request.POST:
+                            if delete_key in request.POST:
+                                delete_val = request.POST.get(delete_key, '').strip().lower()
+                                if delete_val in ('on', 'true', '1', 'yes'):
+                                    if id_key in request.POST:
                                     image_id = request.POST.get(id_key, '').strip()
                                     if image_id and image_id not in formset_saved_ids:
                                         try:
@@ -2211,6 +2214,8 @@ def diary_form_view(request, pk=None):
                             caption_key = f'video_caption_{video_id}'
                             
                             if delete_key in request.POST:
+                                if video.diary_id != diary.pk:
+                                    continue
                                 logger.info(f"Deletando vídeo ID={video_id}")
                                 video.delete()
                                 continue
@@ -2711,6 +2716,66 @@ def diary_form_view(request, pk=None):
                                 new_key = key.replace('dailyworklog_set-', 'work_logs-', 1)
                                 normalized_post[new_key] = value
                     # Normaliza occurrences -> ocorrencias
+                    if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
+                        for key, value in request.POST.items():
+                            if key.startswith('occurrences-'):
+                                normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
+                image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
+                worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
+                occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
+                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
+                return render(request, 'core/daily_log_form.html', context)
+            except (ValidationError, PermissionDenied) as e:
+                logger.warning(f"Validação/permissão durante salvamento do diário: {type(e).__name__}: {e}")
+                messages.error(request, str(e) if str(e) else 'Dados inválidos ou sem permissão.')
+                if diary and diary.pk:
+                    try:
+                        diary.refresh_from_db()
+                    except Exception:
+                        diary = None
+                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
+                files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
+                if 'normalized_post' not in locals():
+                    from copy import deepcopy
+                    normalized_post = deepcopy(request.POST)
+                    if hasattr(normalized_post, '_mutable'):
+                        normalized_post._mutable = True
+                    if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
+                        normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
+                        normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
+                        for key, value in request.POST.items():
+                            if key.startswith('dailyworklog_set-'):
+                                normalized_post[key.replace('dailyworklog_set-', 'work_logs-', 1)] = value
+                    if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
+                        for key, value in request.POST.items():
+                            if key.startswith('occurrences-'):
+                                normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
+                image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
+                worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
+                occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
+                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
+                return render(request, 'core/daily_log_form.html', context)
+            except IntegrityError as e:
+                logger.error(f"Erro de integridade ao salvar diário: {e}", exc_info=True)
+                messages.error(request, 'Erro de consistência dos dados. Verifique duplicidades ou dependências.')
+                if diary and diary.pk:
+                    try:
+                        diary.refresh_from_db()
+                    except Exception:
+                        diary = None
+                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
+                files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
+                if 'normalized_post' not in locals():
+                    from copy import deepcopy
+                    normalized_post = deepcopy(request.POST)
+                    if hasattr(normalized_post, '_mutable'):
+                        normalized_post._mutable = True
+                    if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
+                        normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
+                        normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
+                        for key, value in request.POST.items():
+                            if key.startswith('dailyworklog_set-'):
+                                normalized_post[key.replace('dailyworklog_set-', 'work_logs-', 1)] = value
                     if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
                         for key, value in request.POST.items():
                             if key.startswith('occurrences-'):

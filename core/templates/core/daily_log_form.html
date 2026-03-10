@@ -2796,10 +2796,7 @@ function removePhotoItem(button) {
     var photoCard = button.closest('.photo-item');
     var formIndex = photoCard.getAttribute('data-form-index');
     
-    // Remove o card de preview
-    photoCard.remove();
-    
-    // Marca como DELETE no formset oculto
+    // Marca como DELETE no formset (antes de remover o card) para garantir que o POST envie
     var hiddenForms = document.querySelectorAll('.image-form-row');
     if (hiddenForms[formIndex]) {
         var deleteInput = hiddenForms[formIndex].querySelector('input[name$="-DELETE"]');
@@ -2809,8 +2806,15 @@ function removePhotoItem(button) {
             deleteInput.name = 'diaryimage_set-' + formIndex + '-DELETE';
             hiddenForms[formIndex].appendChild(deleteInput);
         }
-        deleteInput.value = 'on';
+        if (deleteInput.type === 'checkbox') {
+            deleteInput.checked = true;
+        } else {
+            deleteInput.value = 'on';
+        }
     }
+    
+    // Remove o card de preview
+    photoCard.remove();
     
     // Verifica se ainda há fotos
     var previewGrid = document.getElementById('photos-preview-grid');

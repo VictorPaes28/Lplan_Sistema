@@ -170,6 +170,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Upload: limite do corpo da requisição e de arquivos (evita 413 com vídeos grandes)
+# Vídeos no diário até 100MB (core.utils.file_validators.MAX_VIDEO_SIZE). Em produção configure também o servidor web (ver docs/upload_413.md).
+FILE_UPLOAD_MAX_MEMORY_SIZE = 150 * 1024 * 1024   # 150MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 150 * 1024 * 1024   # 150MB
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
