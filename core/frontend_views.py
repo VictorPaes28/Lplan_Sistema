@@ -2116,14 +2116,14 @@ def diary_form_view(request, pk=None):
                                 delete_val = request.POST.get(delete_key, '').strip().lower()
                                 if delete_val in ('on', 'true', '1', 'yes'):
                                     if id_key in request.POST:
-                                    image_id = request.POST.get(id_key, '').strip()
-                                    if image_id and image_id not in formset_saved_ids:
-                                        try:
-                                            existing_image = DiaryImage.objects.get(id=image_id, diary=diary)
-                                            existing_image.delete()
-                                            logger.info(f"Imagem deletada manualmente: ID={image_id}")
-                                        except DiaryImage.DoesNotExist:
-                                            pass
+                                        image_id = request.POST.get(id_key, '').strip()
+                                        if image_id and image_id not in formset_saved_ids:
+                                            try:
+                                                existing_image = DiaryImage.objects.get(id=image_id, diary=diary)
+                                                existing_image.delete()
+                                                logger.info(f"Imagem deletada manualmente: ID={image_id}")
+                                            except DiaryImage.DoesNotExist:
+                                                pass
                                 continue
                             
                             # Processa apenas se há arquivo E não foi processado pelo formset
