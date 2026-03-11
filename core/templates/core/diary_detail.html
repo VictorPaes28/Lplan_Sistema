@@ -37,15 +37,15 @@
                  style="display: none;"
                  class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
                 <div class="py-2">
-                    <a href="{% url 'diary-pdf' diary.id %}" 
+                    <a href="{% url 'diary-pdf' diary.id %}" target="_blank" rel="noopener noreferrer"
                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
                         <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório (PDF)
                     </a>
-                    <a href="{% url 'diary-pdf-detailed' diary.id %}" 
+                    <a href="{% url 'diary-pdf-detailed' diary.id %}" target="_blank" rel="noopener noreferrer"
                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
                         <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório detalhado (PDF)
                     </a>
-                    <a href="{% url 'diary-pdf-no-photos' diary.id %}" 
+                    <a href="{% url 'diary-pdf-no-photos' diary.id %}" target="_blank" rel="noopener noreferrer"
                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
                         <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório sem fotos (PDF)
                     </a>

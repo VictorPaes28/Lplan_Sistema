@@ -181,15 +181,15 @@ class ImageOptimizer:
         if not image_field or not image_field.name:
             return None
         
-        # Verifica se já existe versão otimizada
+        # Verifica se já existe versão otimizada (path seguro para storages sem .path)
         if hasattr(image_field.instance, 'pdf_optimized') and image_field.instance.pdf_optimized:
-            optimized_path = image_field.instance.pdf_optimized.path
-            if os.path.exists(optimized_path):
+            optimized_path = getattr(image_field.instance.pdf_optimized, 'path', None)
+            if optimized_path and os.path.exists(optimized_path):
                 return optimized_path
         
         # Se não existe, otimiza a imagem original
-        original_path = image_field.path
-        if not os.path.exists(original_path):
+        original_path = getattr(image_field, 'path', None)
+        if not original_path or not os.path.exists(original_path):
             return None
         
         # Otimiza e salva no campo pdf_optimized
@@ -262,28 +262,27 @@ class PDFGenerator:
         else:
             images = diary.images.filter(is_approved_for_report=True).order_by('uploaded_at')
         
-        # Prepara imagens com caminhos
-        # Para WeasyPrint: file:// URIs
-        # Para xhtml2pdf: caminhos absolutos
+        # Prepara imagens com caminhos (usa getattr(..., 'path', None) para storages sem .path, ex.: S3)
         images_with_paths = []
         for image in images:
             image_path = None
             image_absolute_path = None
+            pdf_opt_path = getattr(image.pdf_optimized, 'path', None) if image.pdf_optimized else None
+            orig_path = getattr(image.image, 'path', None) if image.image else None
             
-            if image.pdf_optimized and os.path.exists(image.pdf_optimized.path):
-                image_path = Path(image.pdf_optimized.path).as_uri()  # Para WeasyPrint
-                image_absolute_path = image.pdf_optimized.path  # Para xhtml2pdf
-            elif image.image and os.path.exists(image.image.path):
-                # Se não existe otimizada, otimiza agora
+            if pdf_opt_path and os.path.exists(pdf_opt_path):
+                image_path = Path(pdf_opt_path).as_uri()
+                image_absolute_path = pdf_opt_path
+            elif orig_path and os.path.exists(orig_path):
                 optimized_path = ImageOptimizer.get_optimized_image_path(image.image)
                 if optimized_path and os.path.exists(optimized_path):
-                    image_path = Path(optimized_path).as_uri()  # Para WeasyPrint
-                    image_absolute_path = optimized_path  # Para xhtml2pdf
+                    image_path = Path(optimized_path).as_uri()
+                    image_absolute_path = optimized_path
             
             images_with_paths.append({
                 'image': image,
-                'file_url': image_path or '',  # file:// URI para WeasyPrint
-                'absolute_path': image_absolute_path or '',  # Caminho absoluto para xhtml2pdf
+                'file_url': image_path or '',
+                'absolute_path': image_absolute_path or '',
             })
         
         # Prepara work_logs com relacionamentos
@@ -409,17 +408,17 @@ class PDFGenerator:
                 logo_path = logo_file_url
                 break
         
-        # Prepara vídeos com thumbnails
+        # Prepara vídeos com thumbnails (path seguro para storages sem .path)
         videos_with_paths = []
         if pdf_type != 'no_photos':
             videos = diary.videos.filter(is_approved_for_report=True).order_by('uploaded_at')
             for video in videos:
                 thumbnail_path = None
                 thumbnail_absolute_path = None
-                
-                if video.thumbnail and os.path.exists(video.thumbnail.path):
-                    thumbnail_path = Path(video.thumbnail.path).as_uri()
-                    thumbnail_absolute_path = video.thumbnail.path
+                thumb_path = getattr(video.thumbnail, 'path', None) if video.thumbnail else None
+                if thumb_path and os.path.exists(thumb_path):
+                    thumbnail_path = Path(thumb_path).as_uri()
+                    thumbnail_absolute_path = thumb_path
                 
                 videos_with_paths.append({
                     'video': video,
@@ -471,7 +470,8 @@ class PDFGenerator:
             try:
                 font_config = FontConfiguration()
                 css_string = PDFGenerator._get_print_css()
-                html = HTML(string=html_string, base_url=settings.MEDIA_ROOT)
+                base_url = str(settings.MEDIA_ROOT) if settings.MEDIA_ROOT else str(settings.BASE_DIR)
+                html = HTML(string=html_string, base_url=base_url)
                 css = CSS(string=css_string)
                 if output_path:
                     html.write_pdf(output_path, stylesheets=[css], font_config=font_config)
@@ -641,9 +641,9 @@ class PDFGenerator:
                 if not path and item.get('image'):
                     img_obj = item['image']
                     if getattr(img_obj, 'pdf_optimized', None) and img_obj.pdf_optimized:
-                        path = img_obj.pdf_optimized.path
-                    elif getattr(img_obj, 'image', None) and img_obj.image:
-                        path = img_obj.image.path
+                        path = getattr(img_obj.pdf_optimized, 'path', None)
+                    if not path and getattr(img_obj, 'image', None) and img_obj.image:
+                        path = getattr(img_obj.image, 'path', None)
                 if path and isinstance(path, str) and os.path.exists(path):
                     try:
                         story.append(RLImage(path, width=4*cm, height=3*cm))

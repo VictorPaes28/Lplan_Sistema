@@ -3246,19 +3246,17 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
         
         if pdf_buffer:
             pdf_buffer.seek(0)
-            response = HttpResponse(
-                pdf_buffer.read(),
-                content_type='application/pdf'
-            )
+            pdf_bytes = pdf_buffer.read()
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
             type_suffix = {
                 'normal': '',
                 'detailed': '_detalhado',
                 'no_photos': '_sem_fotos'
             }.get(pdf_type, '')
             filename = f"diario_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
-            # Nome seguro para Content-Disposition (mesmo padrão do GestControll)
             safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
             response['Content-Disposition'] = f'attachment; filename="{safe_name}"'
+            response['Content-Length'] = len(pdf_bytes)
             return response
         else:
             messages.error(request, "Erro ao gerar PDF. Tente novamente.")
