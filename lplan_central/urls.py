@@ -54,8 +54,7 @@ if settings.DEBUG:
 else:
     # Produção: servir estáticos e mídia (imagens/vídeos do diário) para evitar 404
     from django.views.static import serve
-    from core.views_media import serve_media_safe
     urlpatterns = [
         path(settings.STATIC_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
-        path(settings.MEDIA_URL.strip('/') + '/<path:path>', serve_media_safe, {'document_root': settings.MEDIA_ROOT}),
+        path(settings.MEDIA_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
     ] + urlpatterns
