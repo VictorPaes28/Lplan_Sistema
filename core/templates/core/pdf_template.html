@@ -788,7 +788,7 @@
             </tbody>
         </table>
     </div>
-    {% elif work_logs and (labor_indirect or labor_direct or labor_third_party) %}
+    {% elif work_logs and has_labor_breakdown %}
     <div class="section">
         <div class="section-title">EFETIVO</div>
         <table class="data-table">

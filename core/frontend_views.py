@@ -1123,8 +1123,8 @@ def filter_videos_view(request):
         'total_videos': total_videos,
         'videos_by_date': videos_by_date,
         'search': search,
-        'date_start': date_start,
-        'date_end': date_end,
+        'date_start': date_start or '',
+        'date_end': date_end or '',
         'diary_id': diary_id,
     }
     

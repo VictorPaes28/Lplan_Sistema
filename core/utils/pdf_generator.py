@@ -447,6 +447,7 @@ class PDFGenerator:
             'labor_indirect': labor_by_type.get('I') or {},
             'labor_direct': labor_by_type.get('D') or {},
             'labor_third_party': labor_by_type.get('T') or {},
+            'has_labor_breakdown': bool(labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T')),
             'labor_entries_by_category': labor_entries_by_category,  # Novo: por categorias/cargos
             'equipment_count': equipment_count,  # Dados agrupados de equipamentos
             'total_indirect': total_indirect,
@@ -515,6 +516,7 @@ class PDFGenerator:
                     'labor_indirect': labor_by_type.get('I') or {},
                     'labor_direct': labor_by_type.get('D') or {},
                     'labor_third_party': labor_by_type.get('T') or {},
+                    'has_labor_breakdown': bool(labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T')),
                 }
                 html_string_x = render_to_string('core/pdf_template.html', context_xhtml2pdf)
                 html_string_x = PDFGenerator._convert_file_uris_to_paths(html_string_x)

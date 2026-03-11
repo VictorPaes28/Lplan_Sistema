@@ -17,11 +17,11 @@
         </div>
         <div>
             <label for="filter-video-date-start">Data início</label>
-            <input type="date" id="filter-video-date-start" name="date_start" value="{{ date_start }}">
+            <input type="date" id="filter-video-date-start" name="date_start" value="{{ date_start|default:'' }}">
         </div>
         <div>
             <label for="filter-video-date-end">Data fim</label>
-            <input type="date" id="filter-video-date-end" name="date_end" value="{{ date_end }}">
+            <input type="date" id="filter-video-date-end" name="date_end" value="{{ date_end|default:'' }}">
         </div>
         <div class="filter-submit-wrap">
             <button type="submit" class="filter-submit">

@@ -1373,12 +1373,8 @@ class DiaryVideo(models.Model):
     def __str__(self) -> str:
         return f"Vídeo {self.diary} - {self.caption[:50] if self.caption else 'Sem legenda'}"
 
-    def save(self, *args, **kwargs):
-        # Sanitiza nome do arquivo para evitar 404/500 com espaços ou caracteres especiais na URL
-        if self.video and getattr(self.video, 'name', None):
-            from core.utils.file_validators import sanitize_filename
-            self.video.name = sanitize_filename(self.video.name)
-        super().save(*args, **kwargs)
+    # Nome do arquivo é sanitizado no upload (validate_video_file) antes de criar o registro.
+    # Não alterar .name no save() para não quebrar vídeos já gravados no disco com outro nome (404).
 
 
 class DiaryAttachment(models.Model):
