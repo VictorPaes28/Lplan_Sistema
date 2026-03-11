@@ -2,14 +2,42 @@
 Envio de diários de obra por e-mail (envio diário para os e-mails cadastrados por obra).
 Envia o PDF do diário em anexo; se a geração do PDF falhar, envia apenas o link.
 Usado pelo comando enviar_diarios_por_email e opcionalmente por tarefa Celery.
+
+Se EMAIL_RDO_FROM e EMAIL_RDO_HOST_USER estiverem configurados, os e-mails do RDO
+são enviados por essa conta (ex.: rdo@lplan.com.br); caso contrário usa DEFAULT_FROM_EMAIL.
 """
 import logging
 from datetime import date
 from django.conf import settings
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage, get_connection
 from django.urls import reverse
 
 logger = logging.getLogger(__name__)
+
+
+def _get_rdo_connection_and_from():
+    """
+    Retorna (connection, from_email) para envio de e-mails do RDO.
+    Se EMAIL_RDO_FROM e EMAIL_RDO_HOST_USER estiverem definidos, usa conexão SMTP
+    específica do RDO; senão retorna (None, DEFAULT_FROM_EMAIL) para usar o backend padrão.
+    """
+    rdo_from = getattr(settings, 'EMAIL_RDO_FROM', '').strip()
+    rdo_user = getattr(settings, 'EMAIL_RDO_HOST_USER', '').strip()
+    rdo_pass = getattr(settings, 'EMAIL_RDO_HOST_PASSWORD', '')
+    if rdo_from and rdo_user and rdo_pass:
+        conn = get_connection(
+            backend=getattr(settings, 'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend'),
+            host=getattr(settings, 'EMAIL_RDO_HOST', None) or getattr(settings, 'EMAIL_HOST', 'localhost'),
+            port=getattr(settings, 'EMAIL_RDO_PORT', None) or getattr(settings, 'EMAIL_PORT', 25),
+            username=rdo_user,
+            password=rdo_pass,
+            use_tls=getattr(settings, 'EMAIL_RDO_USE_TLS', getattr(settings, 'EMAIL_USE_TLS', False)),
+            use_ssl=getattr(settings, 'EMAIL_RDO_USE_SSL', getattr(settings, 'EMAIL_USE_SSL', False)),
+            fail_silently=False,
+        )
+        return conn, rdo_from
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br')
+    return None, from_email
 
 
 def get_diary_url(diary):
@@ -52,22 +80,26 @@ Atenciosamente,
 LPLAN - Diário de Obra
 Mensagem automática. Não responda a este e-mail.
 """
-
-    from django.core.mail import EmailMessage
-    for po in owners:
-        email_addr = po.user.email
-        if not email_addr:
-            continue
-        try:
-            EmailMessage(
-                subject=subject,
-                body=body,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br'),
-                to=[email_addr],
-            ).send(fail_silently=False)
-            logger.info("Enviado diário %s ao dono da obra %s.", diary.pk, po.user.username)
-        except Exception as e:
-            logger.exception("Erro ao enviar diário ao dono %s: %s", po.user.username, e)
+    connection, from_email = _get_rdo_connection_and_from()
+    try:
+        for po in owners:
+            email_addr = po.user.email
+            if not email_addr:
+                continue
+            try:
+                EmailMessage(
+                    subject=subject,
+                    body=body,
+                    from_email=from_email,
+                    to=[email_addr],
+                    connection=connection,
+                ).send(fail_silently=False)
+                logger.info("Enviado diário %s ao dono da obra %s.", diary.pk, po.user.username)
+            except Exception as e:
+                logger.exception("Erro ao enviar diário ao dono %s: %s", po.user.username, e)
+    finally:
+        if connection:
+            connection.close()
 
 
 def _generate_diary_pdf(diary):
@@ -150,16 +182,20 @@ Mensagem automática. Não responda a este e-mail.
 """
 
         try:
+            connection, from_email = _get_rdo_connection_and_from()
             email = EmailMessage(
                 subject=subject,
                 body=body,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br'),
+                from_email=from_email,
                 to=recipients,
+                connection=connection,
             )
             if pdf_bytes:
                 filename = f"Diario_{project.code}_{target_date.strftime('%Y-%m-%d')}.pdf"
                 email.attach(filename, pdf_bytes.getvalue(), 'application/pdf')
             email.send(fail_silently=False)
+            if connection:
+                connection.close()
             enviados += len(recipients)
             logger.info(
                 "Enviado diário obra %s (%s) para %d e-mail(s)%s.",

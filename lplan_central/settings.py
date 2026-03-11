@@ -252,6 +252,16 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('true', '1'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sistema@lplan.com.br')
+
+# RDO (Relatório Diário de Obras): e-mail específico para envio dos diários (opcional)
+# Se definido, os e-mails de diário de obra saem deste endereço; caso contrário usam DEFAULT_FROM_EMAIL
+EMAIL_RDO_FROM = os.environ.get('EMAIL_RDO_FROM', '')
+EMAIL_RDO_HOST = os.environ.get('EMAIL_RDO_HOST', EMAIL_HOST)
+EMAIL_RDO_PORT = int(os.environ.get('EMAIL_RDO_PORT', str(EMAIL_PORT)))
+EMAIL_RDO_USE_SSL = os.environ.get('EMAIL_RDO_USE_SSL', str(EMAIL_USE_SSL)).lower() in ('true', '1', 'yes')
+EMAIL_RDO_USE_TLS = os.environ.get('EMAIL_RDO_USE_TLS', str(EMAIL_USE_TLS)).lower() in ('true', '1', 'yes')
+EMAIL_RDO_HOST_USER = os.environ.get('EMAIL_RDO_HOST_USER', '')
+EMAIL_RDO_HOST_PASSWORD = os.environ.get('EMAIL_RDO_HOST_PASSWORD', '')
 # URL base do sistema (para links em e-mails). Ex.: https://sistema.empresa.com
 SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000').rstrip('/')
 
