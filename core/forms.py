@@ -984,19 +984,31 @@ class ProjectForm(forms.ModelForm):
                 'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
                 'placeholder': 'Ex.: Eng. Carlos Silva'
             }),
-            'start_date': forms.TextInput(attrs={
-                'type': 'text',
-                'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none flatpickr-input',
-                'placeholder': 'dd/mm/aaaa',
-                'readonly': True
-            }),
-            'end_date': forms.TextInput(attrs={
-                'type': 'text',
-                'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none flatpickr-input',
-                'placeholder': 'dd/mm/aaaa',
-                'readonly': True
-            }),
+            'start_date': forms.DateInput(
+                format='%d/%m/%Y',
+                attrs={
+                    'type': 'text',
+                    'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none flatpickr-input',
+                    'placeholder': 'dd/mm/aaaa',
+                    'readonly': True,
+                },
+            ),
+            'end_date': forms.DateInput(
+                format='%d/%m/%Y',
+                attrs={
+                    'type': 'text',
+                    'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none flatpickr-input',
+                    'placeholder': 'dd/mm/aaaa',
+                    'readonly': True,
+                },
+            ),
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Aceitar datas no formato do Flatpickr (dd/mm/aaaa) e ISO para garantir que o POST seja interpretado
+        self.fields['start_date'].input_formats = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y']
+        self.fields['end_date'].input_formats = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y']
     
     def clean_code(self):
         code = self.cleaned_data.get('code')

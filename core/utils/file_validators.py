@@ -82,6 +82,10 @@ def sanitize_filename(filename):
     if not filename or filename == ext:
         filename = 'arquivo' + (ext if ext else '')
     
+    # Evita path traversal: nunca retornar apenas . ou .. ou sequência de pontos
+    if filename in ('.', '..') or filename.strip('.') == '':
+        filename = 'arquivo' + (ext if ext else '')
+    
     return filename
 
 
