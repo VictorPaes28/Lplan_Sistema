@@ -1,253 +1,288 @@
 """
 Módulo de Geração de PDF para Diário de Obra V2.0 - LPLAN
 
-Implementa geração robusta de PDFs usando:
-- WeasyPrint (preferencial em Linux/macOS - melhor qualidade, mais recursos CSS)
-- xhtml2pdf (usado no Windows e como fallback - sem dependências nativas)
+Redesign com Design System: paleta institucional, hierarquia tipográfica,
+header azul, cards de efetivo, seções com borda esquerda, ocorrências em destaque
+laranja, galeria com legendas, assinaturas em grid, rodapé paginado.
 
-Recursos:
-- Otimização de imagens para reduzir uso de memória
-- Regras CSS para evitar quebras de página
-- No Windows não tenta WeasyPrint (evita aviso de Cairo/GTK) e usa xhtml2pdf direto
+Gerado exclusivamente com ReportLab (compatível cPanel/Servihost).
 """
 import os
-import sys
+import tempfile
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from io import BytesIO
 from django.conf import settings
-from django.template.loader import render_to_string
 from django.core.files.base import ContentFile
-from PIL import Image
 import logging
+
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    Image = None
 
 logger = logging.getLogger(__name__)
 
-# Importação opcional do WeasyPrint (não usado no Windows - evita aviso de libcairo/libgobject)
-WEASYPRINT_AVAILABLE = False
-HTML = None
-CSS = None
-FontConfiguration = None
 
-# Importação opcional do xhtml2pdf (recomendado no Windows)
-XHTML2PDF_AVAILABLE = False
-pisa = None
-
-# No Windows não importamos WeasyPrint (exige Cairo/GTK); usa só xhtml2pdf
-if sys.platform != "win32":
+def _safe_int(value, default=0):
+    """Converte para int sem lançar; evita int(None) e tipos incompatíveis."""
+    if value is None:
+        return default
     try:
-        from weasyprint import HTML, CSS
-        try:
-            from weasyprint.text.fonts import FontConfiguration  # WeasyPrint 53+
-        except ImportError:
-            from weasyprint.fonts import FontConfiguration  # WeasyPrint 52.x (cPanel)
-        WEASYPRINT_AVAILABLE = True
-        logger.info("WeasyPrint disponível - será usado preferencialmente para geração de PDF")
-    except Exception as e:
-        WEASYPRINT_AVAILABLE = False
-        logger.info("WeasyPrint não disponível - será usado xhtml2pdf se instalado.")
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
-if not WEASYPRINT_AVAILABLE:
-    class HTML:
-        def __init__(self, *args, **kwargs):
-            raise RuntimeError("WeasyPrint não está disponível.")
-    class CSS:
-        def __init__(self, *args, **kwargs):
-            raise RuntimeError("WeasyPrint não está disponível.")
-    class FontConfiguration:
-        pass
 
-# Tenta importar xhtml2pdf (fallback para Windows; dependências podem tentar carregar Cairo)
-try:
-    from xhtml2pdf import pisa
-    XHTML2PDF_AVAILABLE = True
-    if WEASYPRINT_AVAILABLE:
-        logger.info("xhtml2pdf também disponível - será usado como fallback se necessário")
-    else:
-        logger.info("xhtml2pdf disponível - será usado para geração de PDF (WeasyPrint não disponível)")
-except Exception as e:
-    # ImportError, OSError (Cairo/lib não encontrada em dependências como svglib), etc.
-    XHTML2PDF_AVAILABLE = False
-    if not WEASYPRINT_AVAILABLE:
-        logger.warning("xhtml2pdf não disponível (%s). Usando ReportLab como fallback.", str(e)[:80])
-
-# ReportLab (já no requirements; funciona em cPanel - substituto quando WeasyPrint/xhtml2pdf não estão disponíveis)
-REPORTLAB_AVAILABLE = False
+# ReportLab (única dependência de PDF; já no requirements, funciona em cPanel)
 try:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+    from reportlab.lib.units import cm, mm
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Table,
+        TableStyle,
+        Image as RLImage,
+        PageBreak,
+    )
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.pdfgen import canvas
     REPORTLAB_AVAILABLE = True
-    logger.info("ReportLab disponível - será usado para PDF quando WeasyPrint/xhtml2pdf não estiverem disponíveis")
+
+    # Design system (cores) — disponível apenas com ReportLab
+    COLOR_PRIMARY = colors.HexColor('#1A3A5C')
+    COLOR_PRIMARY_LIGHT = colors.HexColor('#2E6DA4')
+    COLOR_ACCENT = colors.HexColor('#E8F0F8')
+    COLOR_SUCCESS = colors.HexColor('#2E7D32')
+    COLOR_WARNING = colors.HexColor('#F57C00')
+    COLOR_TEXT = colors.HexColor('#1C1C1C')
+    COLOR_TEXT_SECONDARY = colors.HexColor('#5A5A5A')
+    COLOR_BORDER = colors.HexColor('#D0D9E3')
+    COLOR_SURFACE = colors.HexColor('#F7F9FC')
+    COLOR_OCCURRENCE_BG = colors.HexColor('#FFF3E0')
+
+    class _RDOCanvas(canvas.Canvas):
+        """Canvas para rodapé com numeração. Usa getPageNumber() (API pública) e tamanho da página."""
+        def __init__(self, *args, generated_date_str='', **kwargs):
+            self._generated_date = generated_date_str
+            super().__init__(*args, **kwargs)
+
+        def showPage(self):
+            self.saveState()
+            try:
+                ps = getattr(self, '_pagesize', None)
+                if ps and len(ps) >= 2 and ps[0] is not None and ps[1] is not None:
+                    w, h = float(ps[0]), float(ps[1])
+                else:
+                    w, h = 595.28, 841.89
+
+                try:
+                    pn = self.getPageNumber()
+                except Exception:
+                    pn = None
+
+                pn = _safe_int(pn, 1)  # nunca int(None)
+
+                self.setStrokeColor(COLOR_BORDER)
+                self.setFillColor(COLOR_TEXT_SECONDARY)
+                self.setFont('Helvetica', 7.5)
+                self.line(20 * mm, 14 * mm, w - 20 * mm, 14 * mm)
+                footer = "LPlan – Gestão de Obras  |  Documento gerado em %s  |  Página %s" % (
+                    self._generated_date,
+                    pn,
+                )
+                self.drawCentredString(w / 2, 10 * mm, footer)
+            except Exception as footer_err:
+                logger.debug("Erro no rodapé do PDF: %s", footer_err)
+            finally:
+                self.restoreState()
+                super().showPage()
+
 except ImportError:
-    pass
+    REPORTLAB_AVAILABLE = False
+    canvas = None
+
+# Compatibilidade: views importam esses nomes (sempre False — usamos só ReportLab)
+WEASYPRINT_AVAILABLE = False
+XHTML2PDF_AVAILABLE = False
 
 
 class ImageOptimizer:
     """
-    Classe para otimização de imagens para geração de PDF.
-    
-    Redimensiona imagens para max-width 800px, converte para JPEG
-    (qualidade 80%, RGB) e remove dados EXIF para evitar bugs de rotação.
+    Otimização de imagens para PDF: redimensiona (max 800px), converte para RGB/JPEG,
+    remove EXIF. Usa nomes temporários únicos para evitar conflitos em geração simultânea.
     """
-    
+
     MAX_WIDTH = 800
     JPEG_QUALITY = 80
-    
+
     @classmethod
     def optimize_image_for_pdf(
         cls,
         image_path: str,
-        output_path: Optional[str] = None
+        output_path: Optional[str] = None,
     ) -> str:
         """
         Otimiza uma imagem para inclusão em PDF.
-        
-        Processo:
-        1. Abre a imagem original
-        2. Converte para RGB (se necessário)
-        3. Redimensiona mantendo proporção (max-width 800px)
-        4. Remove dados EXIF
-        5. Salva como JPEG com qualidade 80%
-        
-        Args:
-            image_path: Caminho absoluto para a imagem original
-            output_path: Caminho opcional para salvar a imagem otimizada.
-                        Se None, cria um arquivo temporário.
-        
-        Returns:
-            str: Caminho absoluto da imagem otimizada
+        Se output_path for None, grava em arquivo temporário com nome único (thread-safe).
+        Sem Pillow (PIL), retorna o path original sem otimizar.
         """
+        if not PIL_AVAILABLE or not Image:
+            return image_path
         try:
-            # Abre a imagem original
             with Image.open(image_path) as img:
-                # Converte para RGB se necessário (remove canal alpha se existir)
                 if img.mode in ('RGBA', 'LA', 'P'):
-                    # Cria fundo branco para imagens com transparência
                     rgb_img = Image.new('RGB', img.size, (255, 255, 255))
                     if img.mode == 'P':
                         img = img.convert('RGBA')
-                    rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                    rgb_img.paste(
+                        img,
+                        mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None,
+                    )
                     img = rgb_img
                 elif img.mode != 'RGB':
                     img = img.convert('RGB')
-                
-                # Calcula novo tamanho mantendo proporção
+
                 width, height = img.size
+                if width is None or height is None:
+                    return image_path
                 if width > cls.MAX_WIDTH:
-                    ratio = cls.MAX_WIDTH / width
-                    new_width = cls.MAX_WIDTH
-                    new_height = int(height * ratio)
-                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                
-                # Determina caminho de saída
+                    ratio = cls.MAX_WIDTH / float(width)
+                    new_height = _safe_int(height * ratio, cls.MAX_WIDTH)
+                    if new_height <= 0:
+                        new_height = 1
+                    img = img.resize(
+                        (cls.MAX_WIDTH, new_height),
+                        Image.Resampling.LANCZOS,
+                    )
+
                 if output_path is None:
-                    # Cria arquivo temporário no mesmo diretório
-                    base_path = Path(image_path)
-                    output_path = str(base_path.parent / f"{base_path.stem}_pdf_opt.jpg")
-                
-                # Salva como JPEG sem dados EXIF
+                    fd, output_path = tempfile.mkstemp(
+                        suffix='.jpg',
+                        prefix='lplan_pdf_',
+                    )
+                    os.close(fd)
+
                 img.save(
                     output_path,
                     'JPEG',
                     quality=cls.JPEG_QUALITY,
                     optimize=True,
-                    exif=b''  # Remove dados EXIF
+                    exif=b'',
                 )
-                
-                logger.info(f"Imagem otimizada: {image_path} -> {output_path}")
+                logger.debug("Imagem otimizada: %s -> %s", image_path, output_path)
                 return output_path
-                
         except Exception as e:
-            logger.error(f"Erro ao otimizar imagem {image_path}: {e}")
-            # Em caso de erro, retorna o caminho original
+            logger.error("Erro ao otimizar imagem %s: %s", image_path, e)
             return image_path
-    
+
     @classmethod
     def get_optimized_image_path(cls, image_field) -> Optional[str]:
         """
-        Retorna o caminho da imagem otimizada se existir, caso contrário
-        otimiza e retorna o caminho.
-        
-        Args:
-            image_field: Campo ImageField do modelo DiaryImage
-        
-        Returns:
-            str: Caminho absoluto da imagem otimizada ou None se não houver imagem
+        Retorna o caminho da imagem otimizada (pdf_optimized se existir, senão otimiza).
+        Retorna None se não houver arquivo local (ex.: storage remoto S3).
         """
         if not image_field or not image_field.name:
             return None
-        
-        # Verifica se já existe versão otimizada (path seguro para storages sem .path)
+
         if hasattr(image_field.instance, 'pdf_optimized') and image_field.instance.pdf_optimized:
             optimized_path = getattr(image_field.instance.pdf_optimized, 'path', None)
             if optimized_path and os.path.exists(optimized_path):
                 return optimized_path
-        
-        # Se não existe, otimiza a imagem original
+
         original_path = getattr(image_field, 'path', None)
         if not original_path or not os.path.exists(original_path):
             return None
-        
-        # Otimiza e salva no campo pdf_optimized
+
         optimized_path = cls.optimize_image_for_pdf(original_path)
-        
-        # Atualiza o campo pdf_optimized do modelo (se existir)
+        if not optimized_path or not os.path.exists(optimized_path):
+            return None
+
         if hasattr(image_field.instance, 'pdf_optimized'):
-            with open(optimized_path, 'rb') as f:
-                image_field.instance.pdf_optimized.save(
-                    os.path.basename(optimized_path),
-                    ContentFile(f.read()),
-                    save=False
-                )
-        
+            try:
+                with open(optimized_path, 'rb') as f:
+                    image_field.instance.pdf_optimized.save(
+                        os.path.basename(optimized_path),
+                        ContentFile(f.read()),
+                        save=False,
+                    )
+            except Exception as e:
+                logger.debug("Não foi possível salvar pdf_optimized: %s", e)
+
         return optimized_path
+
+
+def _get_logo_absolute_path() -> Optional[str]:
+    """Retorna o caminho absoluto da logo LPLAN (static/core/images/lplan_logo.png)."""
+    base = Path(settings.BASE_DIR)
+    logo_dir = base / 'core' / 'static' / 'core' / 'images'
+    for name in ('lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg'):
+        p = logo_dir / name
+        if p.exists():
+            return str(p)
+    return None
+
+
+def get_rdo_pdf_filename(project, date_obj, suffix='') -> str:
+    """
+    Nome padrão do arquivo PDF do RDO: RDO_[CODIGO]_[DATA]_[NOME_DA_OBRA].pdf
+    date_obj: date do diário; suffix: opcional (ex: '_detalhado', '_sem_fotos').
+    """
+    import re
+    code = (project.code or '').strip() or 'RDO'
+    data_str = date_obj.strftime('%Y%m%d')
+    name = (project.name or '').strip()
+    name_safe = re.sub(r'[^\w\s-]', '', name)
+    name_safe = re.sub(r'[\s]+', '_', name_safe).strip('_') or 'OBRA'
+    return "RDO_%s_%s_%s%s.pdf" % (code, data_str, name_safe[:80], suffix)
 
 
 class PDFGenerator:
     """
-    Classe principal para geração de PDFs de Diários de Obra.
-    
-    Usa WeasyPrint com:
-    - Caminhos de arquivo locais (file://) em vez de URLs HTTP
-    - Regras CSS para evitar quebras de página
-    - Otimização de imagens pré-processada
+    Geração de PDF de Diário de Obra exclusivamente com ReportLab (padrão RQ-10 / GesttControl).
     """
-    
+
+    # Cores institucionais (azul marinho / cinza escuro, sem emojis)
+    COLOR_HEADER = colors.HexColor('#1e293b')
+    COLOR_HEADER_TEXT = colors.white
+    COLOR_ROW_ALT = colors.HexColor('#f8fafc')
+    COLOR_TEXT = colors.HexColor('#334155')
+    COLOR_SUBTITLE = colors.HexColor('#64748b')
+
     @staticmethod
     def generate_diary_pdf(
         diary_id: int,
         output_path: Optional[str] = None,
-        pdf_type: str = 'normal'
-    ) -> BytesIO:
+        pdf_type: str = 'normal',
+    ) -> Optional[BytesIO]:
         """
-        Gera PDF de um Diário de Obra.
-        
-        Args:
-            diary_id: ID do ConstructionDiary
-            output_path: Caminho opcional para salvar o PDF. Se None, retorna BytesIO.
-        
-        Returns:
-            BytesIO: Conteúdo do PDF em memória ou salva em arquivo
-        
-        Raises:
-            ConstructionDiary.DoesNotExist: Se o diário não existir
+        Gera o PDF do diário (ReportLab puro).
+        Retorna BytesIO com o PDF ou None se output_path for informado (grava em arquivo).
         """
-        from core.models import ConstructionDiary, DiaryImage
-        
+        if not REPORTLAB_AVAILABLE:
+            logger.error("ReportLab não disponível. Instale: pip install reportlab")
+            raise RuntimeError("Geração de PDF requer a biblioteca ReportLab.")
+
+        from core.models import ConstructionDiary, DiaryLaborEntry
+
         try:
             diary = ConstructionDiary.objects.select_related(
                 'project',
                 'created_by',
-                'reviewed_by'
+                'reviewed_by',
             ).prefetch_related(
                 'images',
                 'videos',
                 'attachments',
                 'work_logs__activity',
+                'work_logs__resources_labor',
+                'work_logs__resources_equipment',
                 'occurrences',
                 'occurrences__tags',
             ).get(pk=diary_id)
@@ -255,101 +290,64 @@ class PDFGenerator:
             raise ConstructionDiary.DoesNotExist(
                 f"Diário com ID {diary_id} não encontrado."
             )
-        
-        # Filtra imagens baseado no tipo de PDF
+
         if pdf_type == 'no_photos':
-            images = diary.images.none()  # Sem fotos
+            images = diary.images.none()
         else:
             images = diary.images.filter(is_approved_for_report=True).order_by('uploaded_at')
-        
-        # Prepara imagens com caminhos (usa getattr(..., 'path', None) para storages sem .path, ex.: S3)
-        images_with_paths = []
-        for image in images:
-            image_path = None
-            image_absolute_path = None
-            pdf_opt_path = getattr(image.pdf_optimized, 'path', None) if image.pdf_optimized else None
-            orig_path = getattr(image.image, 'path', None) if image.image else None
-            
-            if pdf_opt_path and os.path.exists(pdf_opt_path):
-                image_path = Path(pdf_opt_path).as_uri()
-                image_absolute_path = pdf_opt_path
-            elif orig_path and os.path.exists(orig_path):
-                optimized_path = ImageOptimizer.get_optimized_image_path(image.image)
-                if optimized_path and os.path.exists(optimized_path):
-                    image_path = Path(optimized_path).as_uri()
-                    image_absolute_path = optimized_path
-            
-            images_with_paths.append({
-                'image': image,
-                'file_url': image_path or '',
-                'absolute_path': image_absolute_path or '',
-            })
-        
-        # Prepara work_logs com relacionamentos
-        work_logs = diary.work_logs.select_related('activity').prefetch_related(
-            'resources_labor',
-            'resources_equipment'
-        ).all()
-        
-        # Agrupa mão de obra por tipo e nome (para contar corretamente)
-        labor_by_type = {
-            'I': {},  # Indireto
-            'D': {},  # Direto
-            'T': {},  # Terceiros
-        }
-        
-        # Agrupa equipamentos por nome (para contar corretamente)
-        equipment_count = {}
-        
-        for work_log in work_logs:
-            # Conta mão de obra por tipo e nome
-            for labor in work_log.resources_labor.all():
-                labor_type = labor.labor_type
-                # Cria chave única: nome + role + company
-                labor_key = f"{labor.name or ''}_{labor.role or ''}_{labor.company or ''}"
-                
-                if labor_type == 'I':
-                    if labor_key not in labor_by_type['I']:
-                        labor_by_type['I'][labor_key] = {
-                            'labor': labor,
-                            'count': 0
-                        }
-                    labor_by_type['I'][labor_key]['count'] += 1
-                elif labor_type == 'D':
-                    if labor_key not in labor_by_type['D']:
-                        labor_by_type['D'][labor_key] = {
-                            'labor': labor,
-                            'count': 0
-                        }
-                    labor_by_type['D'][labor_key]['count'] += 1
-                elif labor_type == 'T':
-                    if labor_key not in labor_by_type['T']:
-                        labor_by_type['T'][labor_key] = {
-                            'labor': labor,
-                            'count': 0
-                        }
-                    labor_by_type['T'][labor_key]['count'] += 1
-            
-            # Conta equipamentos por nome
-            for equipment in work_log.resources_equipment.all():
-                equipment_key = f"{equipment.code}_{equipment.name}"
-                if equipment_key not in equipment_count:
-                    equipment_count[equipment_key] = {
-                        'equipment': equipment,
-                        'count': 0
-                    }
-                equipment_count[equipment_key]['count'] += 1
-        
-        # Calcula totais (legado: work_log.resources_labor)
-        total_indirect = sum(item['count'] for item in labor_by_type['I'].values())
-        total_direct = sum(item['count'] for item in labor_by_type['D'].values())
-        total_third_party = sum(item['count'] for item in labor_by_type['T'].values())
-        total_labor = total_indirect + total_direct + total_third_party
 
-        # Mão de obra por categorias (DiaryLaborEntry) - preferência quando existir
+        images_with_paths: List[Dict[str, Any]] = []
+        for image in images:
+            path = None
+            pdf_opt = getattr(image.pdf_optimized, 'path', None) if image.pdf_optimized else None
+            orig = getattr(image.image, 'path', None) if image.image else None
+            if pdf_opt and os.path.exists(pdf_opt):
+                path = pdf_opt
+            elif orig and os.path.exists(orig):
+                try:
+                    path = ImageOptimizer.get_optimized_image_path(image.image)
+                except Exception as e:
+                    logger.debug("Imagem %s sem path local, omitindo do PDF: %s", image.pk, e)
+            if path and os.path.exists(path):
+                images_with_paths.append({
+                    'image': image,
+                    'absolute_path': path,
+                })
+            else:
+                images_with_paths.append({'image': image, 'absolute_path': ''})
+
+        work_logs = list(
+            diary.work_logs.select_related('activity')
+            .prefetch_related('resources_labor', 'resources_equipment', 'equipment_through__equipment')
+            .all()
+        )
+
+        labor_by_type = {'I': {}, 'D': {}, 'T': {}}
+        equipment_count = {}
+        for wl in work_logs:
+            for labor in wl.resources_labor.all():
+                labor_type = labor.labor_type
+                key = f"{labor.name or ''}_{labor.role or ''}_{labor.company or ''}"
+                if labor_type in labor_by_type:
+                    if key not in labor_by_type[labor_type]:
+                        labor_by_type[labor_type][key] = {'labor': labor, 'count': 0}
+                    labor_by_type[labor_type][key]['count'] += 1
+            for thru in wl.equipment_through.all():
+                eq = thru.equipment
+                qty = _safe_int(getattr(thru, 'quantity', 1), 1)
+                key = f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
+                if key not in equipment_count:
+                    equipment_count[key] = {'equipment': eq, 'count': 0}
+                equipment_count[key]['count'] += qty
+
+        total_indirect = sum(i['count'] for i in labor_by_type['I'].values())
+        total_direct = sum(i['count'] for i in labor_by_type['D'].values())
+        total_third_party = sum(i['count'] for i in labor_by_type['T'].values())
+        total_labor = total_indirect + total_direct + total_third_party
+        total_equipment = sum(i['count'] for i in equipment_count.values())
+
         labor_entries_by_category = None
         try:
-            from core.models import DiaryLaborEntry
             entries = DiaryLaborEntry.objects.filter(diary=diary).select_related(
                 'cargo', 'cargo__category'
             ).order_by('cargo__category__order', 'company', 'cargo__name')
@@ -357,7 +355,11 @@ class PDFGenerator:
                 labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': {}}
                 for e in entries:
                     slug = e.cargo.category.slug
-                    item = {'cargo_name': e.cargo.name, 'quantity': e.quantity}
+                    try:
+                        qty = _safe_int(e.quantity, 0)
+                    except Exception:
+                        qty = 0
+                    item = {'cargo_name': e.cargo.name, 'quantity': qty}
                     if slug == 'terceirizada':
                         company = e.company or '(Sem empresa)'
                         if company not in labor_entries_by_category['terceirizada']:
@@ -366,585 +368,643 @@ class PDFGenerator:
                     elif slug in labor_entries_by_category:
                         labor_entries_by_category[slug].append(item)
                 labor_entries_by_category['terceirizada'] = [
-                    {'company': k, 'items': v} for k, v in labor_entries_by_category['terceirizada'].items()
+                    {'company': k, 'items': v}
+                    for k, v in labor_entries_by_category['terceirizada'].items()
                 ]
-                total_indirect = sum(e['quantity'] for e in labor_entries_by_category['indireta'])
-                total_direct = sum(e['quantity'] for e in labor_entries_by_category['direta'])
+                total_indirect = sum((x.get('quantity') or 0) for x in labor_entries_by_category['indireta'])
+                total_direct = sum((x.get('quantity') or 0) for x in labor_entries_by_category['direta'])
                 total_third_party = sum(
-                    item['quantity'] for block in labor_entries_by_category['terceirizada'] for item in block['items']
+                    (x.get('quantity') or 0)
+                    for block in labor_entries_by_category['terceirizada']
+                    for x in block['items']
                 )
                 total_labor = total_indirect + total_direct + total_third_party
         except Exception:
             pass
 
-        total_equipment = sum(item['count'] for item in equipment_count.values())
-        
-        # Calcula dias corridos e restantes
+        occurrences = list(
+            diary.occurrences.select_related('created_by')
+            .prefetch_related('tags')
+            .order_by('created_at')
+        )
+
         days_elapsed = None
         days_remaining = None
-        if diary.project.start_date and diary.project.end_date:
-            from datetime import date
+        if getattr(diary.project, 'start_date', None) and getattr(diary.project, 'end_date', None):
             if diary.date >= diary.project.start_date:
-                delta = diary.date - diary.project.start_date
-                days_elapsed = delta.days
+                days_elapsed = (diary.date - diary.project.start_date).days
             if diary.date <= diary.project.end_date:
-                delta = diary.project.end_date - diary.date
-                days_remaining = delta.days
-        
-        # Prepara caminho da logo LPLAN (procura em vários formatos)
-        logo_path = None
-        logo_absolute_path = None
-        logo_file_url = None
-        
-        # Tenta encontrar a logo em diferentes formatos
-        logo_formats = ['lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg', 'lplan_logo.svg']
-        logo_static_dir = Path(settings.BASE_DIR) / 'core' / 'static' / 'core' / 'images'
-        
-        for logo_filename in logo_formats:
-            logo_static_path = logo_static_dir / logo_filename
-            if logo_static_path.exists():
-                logo_absolute_path = str(logo_static_path)
-                logo_file_url = Path(logo_absolute_path).as_uri()
-                logo_path = logo_file_url
-                break
-        
-        # Prepara vídeos com thumbnails (path seguro para storages sem .path)
-        videos_with_paths = []
-        if pdf_type != 'no_photos':
-            videos = diary.videos.filter(is_approved_for_report=True).order_by('uploaded_at')
-            for video in videos:
-                thumbnail_path = None
-                thumbnail_absolute_path = None
-                thumb_path = getattr(video.thumbnail, 'path', None) if video.thumbnail else None
-                if thumb_path and os.path.exists(thumb_path):
-                    thumbnail_path = Path(thumb_path).as_uri()
-                    thumbnail_absolute_path = thumb_path
-                
-                videos_with_paths.append({
-                    'video': video,
-                    'thumbnail_url': thumbnail_path or '',
-                    'thumbnail_absolute_path': thumbnail_absolute_path or '',
-                })
-        
-        # Prepara anexos
-        attachments = []
-        if hasattr(diary, 'attachments'):
-            attachments = diary.attachments.all().order_by('uploaded_at')
-        
-        # Ocorrências do diário (modelo DiaryOccurrence)
-        occurrences = list(diary.occurrences.select_related('created_by').prefetch_related('tags').order_by('created_at'))
+                days_remaining = (diary.project.end_date - diary.date).days
 
-        # Prepara contexto para template
-        context = {
-            'diary': diary,
-            'images_with_paths': images_with_paths,
-            'videos_with_paths': videos_with_paths,
-            'attachments': attachments,
-            'occurrences': occurrences,
-            'project': diary.project,
-            'work_logs': work_logs,
-            'labor_by_type': labor_by_type,  # Dados agrupados de mão de obra (legado)
-            'labor_indirect': labor_by_type.get('I') or {},
-            'labor_direct': labor_by_type.get('D') or {},
-            'labor_third_party': labor_by_type.get('T') or {},
-            'has_labor_breakdown': bool(labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T')),
-            'labor_entries_by_category': labor_entries_by_category,  # Novo: por categorias/cargos
-            'equipment_count': equipment_count,  # Dados agrupados de equipamentos
-            'total_indirect': total_indirect,
-            'total_direct': total_direct,
-            'total_third_party': total_third_party,
-            'total_labor': total_labor,
-            'total_equipment': total_equipment,
-            'days_elapsed': days_elapsed,
-            'days_remaining': days_remaining,
-            'logo_path': logo_path,
-            'logo_absolute_path': logo_absolute_path,
-        }
-        
-        # Renderiza template HTML
-        html_string = render_to_string('core/pdf_template.html', context)
-        
-        # Gera PDF: tenta WeasyPrint → xhtml2pdf → ReportLab (fallback igual ao GestControll)
-        last_error = None
-        
-        if WEASYPRINT_AVAILABLE:
-            try:
-                font_config = FontConfiguration()
-                css_string = PDFGenerator._get_print_css()
-                base_url = str(settings.MEDIA_ROOT) if settings.MEDIA_ROOT else str(settings.BASE_DIR)
-                html = HTML(string=html_string, base_url=base_url)
-                css = CSS(string=css_string)
-                if output_path:
-                    html.write_pdf(output_path, stylesheets=[css], font_config=font_config)
-                    logger.info(f"PDF gerado com WeasyPrint: {output_path}")
-                    return None
-                pdf_bytes = html.write_pdf(stylesheets=[css], font_config=font_config)
-                return BytesIO(pdf_bytes)
-            except Exception as e:
-                last_error = e
-                logger.warning("WeasyPrint falhou (%s), tentando fallback.", str(e)[:100])
-        
-        if XHTML2PDF_AVAILABLE:
-            try:
-                logger.info("Gerando PDF com xhtml2pdf (alternativa)")
-                context_xhtml2pdf = {
-                    'diary': diary,
-                    'images_with_paths': [
-                        {'image': img['image'], 'file_url': img['absolute_path'] or img['file_url']}
-                        for img in images_with_paths
-                    ],
-                    'videos_with_paths': [
-                        {'video': vid['video'], 'thumbnail_url': vid['thumbnail_absolute_path'] or vid['thumbnail_url']}
-                        for vid in videos_with_paths
-                    ],
-                    'attachments': attachments,
-                    'occurrences': occurrences,
-                    'project': diary.project,
-                    'work_logs': work_logs,
-                    'labor_entries_by_category': labor_entries_by_category,
-                    'total_indirect': total_indirect,
-                    'total_direct': total_direct,
-                    'total_third_party': total_third_party,
-                    'total_labor': total_labor,
-                    'total_equipment': total_equipment,
-                    'equipment_count': equipment_count,
-                    'days_elapsed': days_elapsed,
-                    'days_remaining': days_remaining,
-                    'logo_path': logo_absolute_path or logo_path,
-                    'logo_absolute_path': logo_absolute_path,
-                    'labor_by_type': labor_by_type,
-                    'labor_indirect': labor_by_type.get('I') or {},
-                    'labor_direct': labor_by_type.get('D') or {},
-                    'labor_third_party': labor_by_type.get('T') or {},
-                    'has_labor_breakdown': bool(labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T')),
-                }
-                html_string_x = render_to_string('core/pdf_template.html', context_xhtml2pdf)
-                html_string_x = PDFGenerator._convert_file_uris_to_paths(html_string_x)
-                pdf_bytes = BytesIO()
-                result = pisa.CreatePDF(html_string_x, dest=pdf_bytes, encoding='utf-8')
-                if result.err:
-                    raise RuntimeError(f"xhtml2pdf: {result.err}")
-                if output_path:
-                    with open(output_path, 'wb') as f:
-                        f.write(pdf_bytes.getvalue())
-                    logger.info(f"PDF gerado com xhtml2pdf: {output_path}")
-                    return None
-                pdf_bytes.seek(0)
-                return pdf_bytes
-            except Exception as e:
-                last_error = e
-                logger.warning("xhtml2pdf falhou (%s), tentando ReportLab.", str(e)[:100])
-        
-        if REPORTLAB_AVAILABLE:
-            logger.info("Gerando PDF com ReportLab (mesmo padrão do GestControll)")
-            pdf_buffer = BytesIO()
-            PDFGenerator._generate_diary_pdf_reportlab(
-                pdf_buffer, diary, context,
+        logo_path = _get_logo_absolute_path()
+
+        pdf_buffer = BytesIO()
+        try:
+            PDFGenerator._build_diary_pdf_reportlab(
+                pdf_buffer,
+                diary=diary,
                 work_logs=work_logs,
                 labor_by_type=labor_by_type,
                 labor_entries_by_category=labor_entries_by_category,
-                equipment_count=equipment_count,
                 total_indirect=total_indirect,
                 total_direct=total_direct,
                 total_third_party=total_third_party,
                 total_labor=total_labor,
+                equipment_count=equipment_count,
                 total_equipment=total_equipment,
                 images_with_paths=images_with_paths,
-                attachments=context.get('attachments', []),
                 occurrences=occurrences,
                 pdf_type=pdf_type,
+                logo_absolute_path=logo_path,
+                days_elapsed=days_elapsed,
+                days_remaining=days_remaining,
             )
-            if output_path:
-                with open(output_path, 'wb') as f:
-                    f.write(pdf_buffer.getvalue())
-                logger.info(f"PDF gerado com ReportLab: {output_path}")
-                return None
-            pdf_buffer.seek(0)
-            return pdf_buffer
-        
-        err_msg = "Nenhuma biblioteca de PDF disponível."
-        if last_error:
-            raise RuntimeError(f"{err_msg} (último erro: {last_error})")
-        raise RuntimeError(
-            err_msg + " Instale WeasyPrint, xhtml2pdf ou use ReportLab (já em requirements)."
-        )
-    
+        except Exception as e:
+            import traceback
+            logger.error(
+                "Erro COMPLETO ao gerar PDF do diário %s:\n%s",
+                diary_id,
+                traceback.format_exc(),
+            )
+            raise
+
+        if output_path:
+            with open(output_path, 'wb') as f:
+                f.write(pdf_buffer.getvalue())
+            logger.info("PDF gerado com sucesso: %s", output_path)
+            return None
+
+        pdf_buffer.seek(0)
+        logger.info("PDF do diário %s gerado com sucesso (ReportLab).", diary_id)
+        return pdf_buffer
+
     @staticmethod
-    def _generate_diary_pdf_reportlab(
-        buffer_io,
+    def _build_diary_pdf_reportlab(
+        buffer_io: BytesIO,
         diary,
-        context,
-        work_logs=None,
-        labor_by_type=None,
-        labor_entries_by_category=None,
-        equipment_count=None,
-        total_indirect=0,
-        total_direct=0,
-        total_third_party=0,
-        total_labor=0,
-        total_equipment=0,
-        images_with_paths=None,
-        attachments=None,
-        occurrences=None,
-        pdf_type='normal',
-    ):
-        """
-        Gera PDF do diário usando apenas ReportLab (sem WeasyPrint/xhtml2pdf).
-        Usado em cPanel onde essas libs não estão disponíveis. ReportLab já está no requirements.
-        """
+        work_logs,
+        labor_by_type: Dict,
+        labor_entries_by_category: Optional[Dict],
+        total_indirect: int,
+        total_direct: int,
+        total_third_party: int,
+        total_labor: int,
+        equipment_count: Dict,
+        total_equipment: int,
+        images_with_paths: List[Dict],
+        occurrences: List,
+        pdf_type: str,
+        logo_absolute_path: Optional[str] = None,
+        days_elapsed: Optional[int] = None,
+        days_remaining: Optional[int] = None,
+    ) -> None:
+        """Monta o documento PDF com ReportLab (redesign RDO: design system, header azul, cards, seções com borda)."""
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+        from reportlab.lib.units import cm, mm
+        from reportlab.platypus import (
+            SimpleDocTemplate,
+            Paragraph,
+            Spacer,
+            Table,
+            TableStyle,
+            Image as RLImage,
+        )
         from reportlab.lib import colors
-        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
+        # Margens A4: 20mm lateral, 18mm topo/rodapé (espaço para rodapé fixo)
         doc = SimpleDocTemplate(
-            buffer_io, pagesize=A4,
-            leftMargin=1.2*cm, rightMargin=1.2*cm,
-            topMargin=1*cm, bottomMargin=1*cm,
+            buffer_io,
+            pagesize=A4,
+            leftMargin=20 * mm,
+            rightMargin=20 * mm,
+            topMargin=18 * mm,
+            bottomMargin=18 * mm,
         )
         styles = getSampleStyleSheet()
+        # Hierarquia tipográfica (Inter → Helvetica como fallback)
         title_style = ParagraphStyle(
-            name='RDOTitle', parent=styles['Heading1'],
-            fontSize=12, alignment=TA_CENTER, spaceAfter=6,
+            name='RDOTitle',
+            parent=styles['Normal'],
+            fontSize=18,
+            alignment=TA_LEFT,
+            spaceAfter=2,
+            textColor=COLOR_PRIMARY,
+            fontName='Helvetica-Bold',
         )
         heading_style = ParagraphStyle(
-            name='Section', parent=styles['Heading2'],
-            fontSize=9, spaceBefore=8, spaceAfter=4,
+            name='Section',
+            parent=styles['Normal'],
+            fontSize=10,
+            spaceBefore=8,
+            spaceAfter=4,
+            alignment=TA_LEFT,
+            textColor=COLOR_PRIMARY,
+            fontName='Helvetica-Bold',
         )
-        normal_style = styles['Normal']
-        normal_style.fontSize = 8
-
+        normal_style = ParagraphStyle(
+            name='NormalRDO',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_LEFT,
+            textColor=COLOR_TEXT,
+            spaceAfter=2,
+            leading=11,
+        )
+        label_style = ParagraphStyle(
+            name='Label',
+            parent=normal_style,
+            fontSize=8.5,
+            textColor=COLOR_TEXT_SECONDARY,
+            fontName='Helvetica',
+        )
+        table_header_style = ParagraphStyle(
+            name='TableHeader',
+            parent=normal_style,
+            textColor=colors.white,
+            fontName='Helvetica-Bold',
+            fontSize=8,
+        )
         story = []
-        # Título
-        story.append(Paragraph("RQ-10 RELATÓRIO DIÁRIO DE OBRA (RDO)", title_style))
-        story.append(Paragraph(f"{diary.project.code} - {diary.project.name}", ParagraphStyle(name='Sub', parent=normal_style, alignment=TA_CENTER, fontSize=9)))
-        story.append(Paragraph(f"Data: {diary.date.strftime('%d/%m/%Y')}", ParagraphStyle(name='Date', parent=normal_style, alignment=TA_CENTER)))
-        story.append(Spacer(1, 0.4*cm))
 
-        # Atividades
-        story.append(Paragraph("ATIVIDADES / SERVIÇOS", heading_style))
+        # —— HEADER AZUL INSTITUCIONAL ——
+        proj = diary.project
+        try:
+            weekday = diary.date.strftime('%A')
+            wd_pt = {'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira', 'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'}.get(weekday, weekday)
+        except Exception:
+            wd_pt = ''
+        report_num = getattr(diary, 'report_number', None)
+        start_d = getattr(proj, 'start_date', None)
+        end_d = getattr(proj, 'end_date', None)
+        contratante = getattr(proj, 'client_name', None) and proj.client_name.strip()
+        resp_tec = getattr(proj, 'responsible', None) and proj.responsible.strip()
+        endereco = getattr(proj, 'address', None) and proj.address.strip()
+
+        header_title = Paragraph(
+            "<font color='white' size='14'><b>RELATÓRIO DIÁRIO DE OBRA</b></font>",
+            ParagraphStyle(name='H1', fontName='Helvetica-Bold', fontSize=14, textColor=colors.white),
+        )
+        header_sub = Paragraph(
+            "<font color='white' size='9'>RDO n° %s · Código %s · %s · %s</font>" % (
+                report_num if report_num is not None else '—',
+                proj.code or '—',
+                diary.date.strftime('%d/%m/%Y'),
+                wd_pt,
+            ),
+            ParagraphStyle(name='H2', fontName='Helvetica', fontSize=9, textColor=colors.white),
+        )
+        if logo_absolute_path and os.path.exists(logo_absolute_path):
+            try:
+                logo_img = RLImage(logo_absolute_path, width=1.8 * cm, height=0.8 * cm)
+                header_rows = [[logo_img, header_title], [header_sub, Paragraph(' ', ParagraphStyle(name='E', fontSize=1))]]
+                col_widths = [2 * cm, 15 * cm]
+            except Exception:
+                header_rows = [[header_title], [header_sub]]
+                col_widths = [17 * cm]
+        else:
+            header_rows = [[header_title], [header_sub]]
+            col_widths = [17 * cm]
+        tbl_header = Table(header_rows, colWidths=col_widths)
+        tbl_header.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARY),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(tbl_header)
+
+        # Linha separadora e bloco de dados da obra (fundo azul)
+        obra_line = Paragraph(
+            "<font color='white' size='9'><b>OBRA:</b> %s</font>" % ((proj.name or '—')[:50],),
+            ParagraphStyle(name='ObraH', fontName='Helvetica', fontSize=9, textColor=colors.white),
+        )
+        line2 = Paragraph(
+            "<font color='white' size='8'>Contratante: %s &nbsp;&nbsp; Resp. Técnico: %s</font>" % (
+                (contratante or '—')[:40],
+                (resp_tec or '—')[:35],
+            ),
+            ParagraphStyle(name='Line2', fontName='Helvetica', fontSize=8, textColor=colors.white),
+        )
+        line3 = Paragraph(
+            "<font color='white' size='8'>Local: %s</font>" % ((endereco or '—')[:90]),
+            ParagraphStyle(name='Line3', fontName='Helvetica', fontSize=8, textColor=colors.white),
+        )
+        line4 = Paragraph(
+            "<font color='white' size='8'>Início: %s &nbsp;&nbsp; Término: %s &nbsp;&nbsp; Dias corridos: %s</font>" % (
+                start_d.strftime('%d/%m/%y') if start_d else '—',
+                end_d.strftime('%d/%m/%y') if end_d else '—',
+                str(days_elapsed) if days_elapsed is not None else '—',
+            ),
+            ParagraphStyle(name='Line4', fontName='Helvetica', fontSize=8, textColor=colors.white),
+        )
+        sep_row = Table([[Paragraph(' ', ParagraphStyle(name='Sep', fontSize=1))]], colWidths=[17 * cm])
+        sep_row.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (0, 0), 0.5, colors.HexColor('#FFFFFF')),
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+            ('TOPPADDING', (0, 0), (0, 0), 4),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 4),
+        ]))
+        header_block2 = Table([
+            [obra_line],
+            [line2],
+            [line3],
+            [line4],
+        ], colWidths=[17 * cm])
+        header_block2.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARY),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(sep_row)
+        story.append(header_block2)
+        story.append(Spacer(1, 0.35 * cm))
+
+        # Atividades / Serviços — seção com borda esquerda; conteúdo em tabela aninhada (1 flowable por célula)
+        act_title = Paragraph(
+            "<font color='#1A3A5C'><b>ATIVIDADES / SERVIÇOS</b></font>",
+            ParagraphStyle(name='SecTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
+        )
+        act_rows = [[act_title], [Spacer(1, 0.08 * cm)]]
         if work_logs:
             for wl in work_logs:
-                text = f"• {wl.activity.code} - {wl.activity.name}"
-                if wl.notes:
-                    text += f" <i>({wl.notes})</i>"
-                story.append(Paragraph(text, normal_style))
+                text = "• %s – %s" % (
+                    getattr(wl.activity, 'code', '') or '',
+                    getattr(wl.activity, 'name', '') or '',
+                )
+                if getattr(wl, 'notes', None) and wl.notes.strip():
+                    text += " <i>(%s)</i>" % (wl.notes[:100].replace('\n', ' ') if wl.notes else '')
+                act_rows.append([Paragraph(text, normal_style)])
         else:
-            story.append(Paragraph("Nenhuma atividade registrada.", normal_style))
-        story.append(Spacer(1, 0.3*cm))
+            act_rows.append([Paragraph("Nenhuma atividade registrada.", normal_style)])
+        content_width = 17 * cm - 3 * mm
+        # Largura interna menor que a célula para evitar availWidth negativo no ReportLab (padding da célula)
+        inner_width = content_width - 0.6 * cm
+        inner_act = Table(act_rows, colWidths=[inner_width])
+        inner_act.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_ACCENT),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        sect_act = Table([[Paragraph(' ', ParagraphStyle(name='Bar', fontSize=1)), inner_act]], colWidths=[3 * mm, content_width])
+        sect_act.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+            ('LEFTPADDING', (0, 0), (0, -1), 0),
+            ('RIGHTPADDING', (0, 0), (0, -1), 0),
+        ]))
+        story.append(sect_act)
+        story.append(Spacer(1, 0.2 * cm))
 
-        # Fotos (apenas se pdf_type != 'no_photos' e houver imagens)
-        if pdf_type != 'no_photos' and images_with_paths:
-            story.append(Paragraph("REGISTRO FOTOGRÁFICO", heading_style))
-            for item in images_with_paths[:6]:  # Máximo 6 fotos para não estourar página
-                path = item.get('absolute_path')
-                if not path and item.get('image'):
-                    img_obj = item['image']
-                    if getattr(img_obj, 'pdf_optimized', None) and img_obj.pdf_optimized:
-                        path = getattr(img_obj.pdf_optimized, 'path', None)
-                    if not path and getattr(img_obj, 'image', None) and img_obj.image:
-                        path = getattr(img_obj.image, 'path', None)
-                if path and isinstance(path, str) and os.path.exists(path):
-                    try:
-                        story.append(RLImage(path, width=4*cm, height=3*cm))
-                        cap = (item.get('image') and getattr(item['image'], 'caption', None)) or "Foto"
-                        story.append(Paragraph(str(cap)[:80], ParagraphStyle(name='Cap', parent=normal_style, fontSize=7)))
-                    except Exception:
-                        pass
-            story.append(Spacer(1, 0.3*cm))
-
-        # Efetivo (tabela)
-        if labor_entries_by_category or (labor_by_type and (labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T'))):
-            story.append(Paragraph("EFETIVO", heading_style))
-            data = [["Função", "Empresa", "Qtd"]]
-            if labor_entries_by_category:
-                for item in labor_entries_by_category.get('indireta', []):
-                    data.append([item['cargo_name'], "LPLAN", str(item['quantity'])])
-                data.append(["TOTAL INDIRETO", "", str(total_indirect)])
-                for item in labor_entries_by_category.get('direta', []):
-                    data.append([item['cargo_name'], "-", str(item['quantity'])])
-                data.append(["TOTAL DIRETO", "", str(total_direct)])
-                for block in labor_entries_by_category.get('terceirizada', []):
-                    for item in block['items']:
-                        data.append([item['cargo_name'], block['company'], str(item['quantity'])])
-                data.append(["TOTAL TERCEIROS", "", str(total_third_party)])
-                data.append(["EFETIVO TOTAL", "", str(total_labor)])
+        # Gestão de Efetivo: UMA tabela com 3 colunas (Indireto | Direto | Terceiros) como no RQ-10
+        has_efetivo = (
+            (labor_entries_by_category and (
+                labor_entries_by_category.get('indireta')
+                or labor_entries_by_category.get('direta')
+                or labor_entries_by_category.get('terceirizada')
+            ))
+            or (labor_by_type and (labor_by_type.get('I') or labor_by_type.get('D') or labor_by_type.get('T')))
+        )
+        if has_efetivo:
+            # Monta listas de células por coluna (cada célula = um Paragraph)
+            def _lab_name(lab):
+                n = getattr(lab, 'name', None)
+                if n:
+                    return str(n)
+                if hasattr(lab, 'get_role_display') and callable(getattr(lab, 'get_role_display')):
+                    return str(lab.get_role_display() or '—')
+                return '—'
+            col_i = [Paragraph('EFETIVO INDIRETO (LPLAN)', table_header_style)]
+            indireta_rows = labor_entries_by_category.get('indireta', []) if labor_entries_by_category else []
+            if not indireta_rows and labor_by_type.get('I'):
+                for item in labor_by_type['I'].values():
+                    col_i.append(Paragraph(_lab_name(item['labor']) + ' ' + str(item['count']), normal_style))
             else:
-                for k, label in [('I', 'Indireto'), ('D', 'Direto'), ('T', 'Terceiros')]:
-                    for item in (labor_by_type.get(k) or {}).values():
-                        lab = item['labor']
-                        grd = getattr(lab, 'get_role_display', None)
-                        name = (grd() if callable(grd) else getattr(lab, 'name', None)) or "-"
-                        company = getattr(lab, 'company', None) or ("LPLAN" if k == 'I' else "-")
-                        data.append([name, company, str(item['count'])])
-                    if k == 'I':
-                        data.append(["TOTAL INDIRETO", "", str(total_indirect)])
-                    elif k == 'D':
-                        data.append(["TOTAL DIRETO", "", str(total_direct)])
-                    else:
-                        data.append(["TOTAL TERCEIROS", "", str(total_third_party)])
-                data.append(["EFETIVO TOTAL", "", str(total_labor)])
-            t = Table(data, colWidths=[8*cm, 4*cm, 2*cm])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+                for item in indireta_rows:
+                    col_i.append(Paragraph((item.get('cargo_name') or '—') + ' ' + str(item['quantity']), normal_style))
+            col_i.append(Paragraph('TOTAL ' + str(total_indirect), normal_style))
+
+            col_d = [Paragraph('EFETIVO DIRETO', table_header_style)]
+            direta_rows = labor_entries_by_category.get('direta', []) if labor_entries_by_category else []
+            if not direta_rows and labor_by_type.get('D'):
+                for item in labor_by_type['D'].values():
+                    col_d.append(Paragraph(_lab_name(item['labor']) + ' ' + str(item['count']), normal_style))
+            else:
+                for item in direta_rows:
+                    col_d.append(Paragraph((item.get('cargo_name') or '—') + ' ' + str(item['quantity']), normal_style))
+            col_d.append(Paragraph('TOTAL ' + str(total_direct), normal_style))
+
+            col_t = [Paragraph('EFETIVO TERCEIROS', table_header_style)]
+            terceiros_rows = []
+            if labor_entries_by_category and labor_entries_by_category.get('terceirizada'):
+                for block in labor_entries_by_category['terceirizada']:
+                    for item in block['items']:
+                        col_t.append(Paragraph((block.get('company') or '—') + ' ' + (item.get('cargo_name') or '') + ' ' + str(item['quantity']), normal_style))
+            elif labor_by_type.get('T'):
+                for item in labor_by_type['T'].values():
+                    lab = item['labor']
+                    col_t.append(Paragraph((getattr(lab, 'company', None) or '—') + ' ' + _lab_name(lab) + ' ' + str(item['count']), normal_style))
+            col_t.append(Paragraph('TOTAL ' + str(total_third_party), normal_style))
+
+            n = max(len(col_i), len(col_d), len(col_t))
+            empty = Paragraph(' ', normal_style)
+            for i in range(len(col_i), n):
+                col_i.append(empty)
+            for i in range(len(col_d), n):
+                col_d.append(empty)
+            for i in range(len(col_t), n):
+                col_t.append(empty)
+            efetivo_data = [[col_i[r], col_d[r], col_t[r]] for r in range(n)]
+            t_efetivo = Table(efetivo_data, colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm])
+            t_efetivo.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+                ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),
+                ('BACKGROUND', (2, 0), (2, 0), COLOR_PRIMARY),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 7),
-                ('ALIGN', (2, 0), (2, -1), TA_CENTER),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                ('INNERGRID', (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, COLOR_ACCENT]),
+                ('BACKGROUND', (0, n - 1), (0, n - 1), COLOR_ACCENT),
+                ('BACKGROUND', (1, n - 1), (1, n - 1), COLOR_ACCENT),
+                ('BACKGROUND', (2, n - 1), (2, n - 1), COLOR_ACCENT),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
             ]))
-            story.append(t)
-            story.append(Spacer(1, 0.3*cm))
+            story.append(t_efetivo)
+            story.append(Spacer(1, 0.12 * cm))
+            total_row = Table([[Paragraph(
+                "EFETIVO TOTAL GERAL: %s" % total_labor,
+                ParagraphStyle(name='EfetivoTotal', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=TA_CENTER),
+            )]], colWidths=[17 * cm])
+            total_row.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARY),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTRE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            story.append(total_row)
+            story.append(Spacer(1, 0.25 * cm))
 
         # Equipamentos
         if equipment_count:
             story.append(Paragraph("EQUIPAMENTOS", heading_style))
-            data = [["Equipamento", "Qtd"]]
+            data = [[Paragraph('Equipamento', table_header_style), Paragraph('Qtd', table_header_style)]]
             for item in equipment_count.values():
                 eq = item['equipment']
-                data.append([f"{getattr(eq, 'code', '')} - {getattr(eq, 'name', '')}", str(item['count'])])
-            data.append(["TOTAL", str(total_equipment)])
-            t = Table(data, colWidths=[10*cm, 2*cm])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+                data.append([
+                    Paragraph('%s – %s' % (getattr(eq, 'code', '') or '', getattr(eq, 'name', '') or ''), normal_style),
+                    Paragraph(str(item['count']), normal_style),
+                ])
+            data.append([Paragraph('TOTAL', normal_style), Paragraph(str(total_equipment), normal_style)])
+            t_eq = Table(data, colWidths=[10 * cm, 2 * cm])
+            t_eq.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), COLOR_PRIMARY),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('FONTSIZE', (0, 0), (-1, -1), 7),
-                ('ALIGN', (1, 0), (1, -1), TA_CENTER),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_ACCENT]),
             ]))
-            story.append(t)
-            story.append(Spacer(1, 0.3*cm))
+            story.append(t_eq)
+            story.append(Spacer(1, 0.25 * cm))
 
-        # Chuva
+        # Ocorrência de Chuvas (como no RQ-10)
         story.append(Paragraph("OCORRÊNCIA DE CHUVAS", heading_style))
         rain = getattr(diary, 'rain_occurrence', None)
         rain_label = {'F': 'Fraca', 'M': 'Média', 'S': 'Forte'}.get(rain, 'Nenhuma')
-        text = f"Intensidade: {rain_label}"
-        if getattr(diary, 'pluviometric_index', None):
-            text += f" | Índice pluviométrico: {diary.pluviometric_index} mm"
+        text = "Intensidade da Chuva: %s" % rain_label
+        if getattr(diary, 'pluviometric_index', None) is not None:
+            text += " | Índice Pluviométrico: %s mm" % diary.pluviometric_index
         story.append(Paragraph(text, normal_style))
         if getattr(diary, 'rain_observations', None) and diary.rain_observations.strip():
-            story.append(Paragraph(f"Observações: {diary.rain_observations[:200]}", normal_style))
-        story.append(Spacer(1, 0.3*cm))
+            story.append(Paragraph(
+                "OBSERVAÇÕES: %s" % diary.rain_observations[:300].replace('\n', '<br/>'),
+                normal_style,
+            ))
+        story.append(Spacer(1, 0.2 * cm))
 
-        # Deliberações
-        if getattr(diary, 'deliberations', None) and diary.deliberations.strip():
-            story.append(Paragraph("DELIBERAÇÕES", heading_style))
-            story.append(Paragraph(diary.deliberations.replace('\n', '<br/>')[:1500], normal_style))
-            story.append(Spacer(1, 0.3*cm))
+        # Condições climáticas detalhadas (quando preenchidas)
+        weather_parts = []
+        if getattr(diary, 'weather_conditions', None) and diary.weather_conditions.strip():
+            weather_parts.append(Paragraph("<b>Condições climáticas:</b> %s" % diary.weather_conditions[:400].replace('\n', '<br/>'), normal_style))
+        w_morn_c = getattr(diary, 'weather_morning_condition', None)
+        w_morn_w = getattr(diary, 'weather_morning_workable', None)
+        if w_morn_c or w_morn_w:
+            cond = {'B': 'Bom', 'R': 'Ruim'}.get(w_morn_c, '—')
+            trab = {'T': 'Trabalhável', 'N': 'Não Trabalhável'}.get(w_morn_w, '—')
+            weather_parts.append(Paragraph("Clima Manhã: %s / %s" % (cond, trab), normal_style))
+        w_aft_c = getattr(diary, 'weather_afternoon_condition', None)
+        w_aft_w = getattr(diary, 'weather_afternoon_workable', None)
+        if w_aft_c or w_aft_w:
+            cond = {'B': 'Bom', 'R': 'Ruim'}.get(w_aft_c, '—')
+            trab = {'T': 'Trabalhável', 'N': 'Não Trabalhável'}.get(w_aft_w, '—')
+            weather_parts.append(Paragraph("Clima Tarde: %s / %s" % (cond, trab), normal_style))
+        if getattr(diary, 'weather_night_enabled', False) and (getattr(diary, 'weather_night_type', None) or getattr(diary, 'weather_night_workable', None)):
+            t = {'C': 'Claro', 'N': 'Nublado', 'CH': 'Chuvoso'}.get(getattr(diary, 'weather_night_type', None), '—')
+            p = {'P': 'Praticável', 'I': 'Impraticável'}.get(getattr(diary, 'weather_night_workable', None), '—')
+            weather_parts.append(Paragraph("Clima Noite: %s / %s" % (t, p), normal_style))
+        if weather_parts:
+            story.append(Paragraph("CONDIÇÕES CLIMÁTICAS DETALHADAS", heading_style))
+            for p in weather_parts:
+                story.append(p)
+            story.append(Spacer(1, 0.15 * cm))
 
-        # Assinatura
-        story.append(Spacer(1, 0.5*cm))
-        story.append(Paragraph("RESPONSÁVEL PELO PREENCHIMENTO:", ParagraphStyle(name='Sig', parent=normal_style, fontSize=7)))
-        story.append(Paragraph("_________________________", normal_style))
-        story.append(Spacer(1, 0.3*cm))
-        story.append(Paragraph("Documento gerado pelo Sistema LPlan - Gestão de Obras", ParagraphStyle(name='Foot', parent=normal_style, fontSize=6, alignment=TA_CENTER)))
+        # Horas trabalhadas
+        if getattr(diary, 'work_hours', None) is not None:
+            story.append(Paragraph("<b>Horas trabalhadas:</b> %s h" % diary.work_hours, normal_style))
+            story.append(Spacer(1, 0.1 * cm))
 
-        doc.build(story)
-    
-    
-    @staticmethod
-    def _get_print_css() -> str:
-        """
-        Retorna CSS customizado para impressão com regras de quebra de página.
-        
-        Regras críticas:
-        - page-break-inside: avoid no contêiner .image-card
-        - Margens e espaçamento adequados
-        - Tipografia otimizada para impressão
-        """
-        return """
-        @page {
-            size: A4;
-            margin: 2cm;
-        }
-        
-        body {
-            font-family: 'Arial', 'Helvetica', sans-serif;
-            font-size: 10pt;
-            line-height: 1.4;
-            color: #333;
-        }
-        
-        .header {
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .header h1 {
-            margin: 0;
-            font-size: 18pt;
-            color: #000;
-        }
-        
-        .header .project-info {
-            font-size: 9pt;
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .diary-info {
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f5f5f5;
-            border-radius: 4px;
-        }
-        
-        .diary-info table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .diary-info td {
-            padding: 5px;
-            font-size: 9pt;
-        }
-        
-        .diary-info td:first-child {
-            font-weight: bold;
-            width: 30%;
-        }
-        
-        .images-section {
-            margin-top: 30px;
-        }
-        
-        .images-section h2 {
-            font-size: 14pt;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-        }
-        
-        .image-card {
-            margin-bottom: 20px;
-            page-break-inside: avoid;
-            break-inside: avoid;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            background-color: #fff;
-        }
-        
-        .image-card img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 0 auto 10px;
-            border-radius: 4px;
-        }
-        
-        .image-caption {
-            font-size: 9pt;
-            color: #666;
-            text-align: center;
-            font-style: italic;
-            padding: 5px;
-        }
-        
-        .work-logs-section {
-            margin-top: 30px;
-        }
-        
-        .work-logs-section h2 {
-            font-size: 14pt;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-        }
-        
-        .work-log-item {
-            margin-bottom: 15px;
-            padding: 10px;
-            border-left: 3px solid #007bff;
-            background-color: #f8f9fa;
-            page-break-inside: avoid;
-            break-inside: avoid;
-        }
-        
-        .work-log-item h3 {
-            font-size: 11pt;
-            margin: 0 0 5px 0;
-            color: #007bff;
-        }
-        
-        .work-log-item .activity-code {
-            font-weight: bold;
-            color: #000;
-        }
-        
-        .work-log-item .progress-info {
-            font-size: 9pt;
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .notes-section {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        .notes-section h4 {
-            font-size: 10pt;
-            margin: 0 0 5px 0;
-            color: #333;
-        }
-        
-        .notes-section p {
-            font-size: 9pt;
-            margin: 0;
-            color: #666;
-        }
-        
-        .footer {
-            margin-top: 30px;
-            padding-top: 10px;
-            border-top: 1px solid #ccc;
-            font-size: 8pt;
-            color: #999;
-            text-align: center;
-        }
-        
-        /* Evita quebra de página em elementos críticos */
-        .no-break {
-            page-break-inside: avoid;
-            break-inside: avoid;
-        }
-        """
-    
-    @staticmethod
-    def _convert_file_uris_to_paths(html_string: str) -> str:
-        """
-        Converte URIs file:// para caminhos absolutos para xhtml2pdf.
-        xhtml2pdf não suporta file:// URIs, precisa de caminhos absolutos.
-        """
-        import re
-        from urllib.parse import unquote
-        
-        def replace_file_uri(match):
-            file_uri = match.group(1)
-            # Remove file:// e decodifica
-            if file_uri.startswith('file:///'):
-                # Windows: file:///C:/path
-                path = unquote(file_uri[8:])
-            elif file_uri.startswith('file://'):
-                # Unix: file:///path
-                path = unquote(file_uri[7:])
+        # Acidentes, Paralisações, Riscos, Incidentes, Fiscalizações, DDS, Observações gerais (só se preenchidos)
+        def _sec(title, value, max_len=1200):
+            if not value or not str(value).strip():
+                return
+            story.append(Paragraph("<b>%s</b>" % title, normal_style))
+            story.append(Paragraph(str(value).replace('\n', '<br/>')[:max_len], normal_style))
+            story.append(Spacer(1, 0.12 * cm))
+        _sec("Acidentes:", getattr(diary, 'accidents', None))
+        _sec("Paralisações:", getattr(diary, 'stoppages', None))
+        _sec("Riscos Eminentes:", getattr(diary, 'imminent_risks', None))
+        _sec("Outros Incidentes:", getattr(diary, 'incidents', None))
+        _sec("Fiscalizações:", getattr(diary, 'inspections', None))
+        _sec("DDS (Discurso Diário de Segurança):", getattr(diary, 'dds', None))
+        _sec("Observações Gerais:", getattr(diary, 'general_notes', None))
+
+        # Ocorrências e Observações — tabela aninhada (1 flowable por célula); destaque laranja se houver ocorrências
+        if occurrences or (getattr(diary, 'deliberations', None) and diary.deliberations.strip()):
+            occ_title = Paragraph(
+                "<font color='#1A3A5C'><b>OCORRÊNCIAS E OBSERVAÇÕES</b></font>" + (
+                    " &nbsp; <font color='#F57C00' size='8'><b>⚠ OCORRÊNCIA</b></font>" if occurrences else ""
+                ),
+                ParagraphStyle(name='OccTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
+            )
+            occ_rows = [[occ_title], [Spacer(1, 0.08 * cm)]]
+            if occurrences:
+                for occ in occurrences:
+                    desc = getattr(occ, 'description', '') or ''
+                    desc = desc.replace('\n', '<br/>')[:800]
+                    tags = list(occ.tags.values_list('name', flat=True)[:5])
+                    tag_str = (' | '.join(tags)) if tags else ''
+                    if tag_str:
+                        occ_rows.append([Paragraph("<b>%s</b> %s" % (tag_str, desc), normal_style)])
+                    else:
+                        occ_rows.append([Paragraph(desc or '—', normal_style)])
+            if getattr(diary, 'deliberations', None) and diary.deliberations.strip():
+                occ_rows.append([Paragraph("<b>DELIBERAÇÕES:</b>", normal_style)])
+                occ_rows.append([Paragraph(
+                    diary.deliberations.replace('\n', '<br/>')[:1500],
+                    normal_style,
+                )])
+            border_color = COLOR_WARNING if occurrences else COLOR_PRIMARY
+            bg_color = COLOR_OCCURRENCE_BG if occurrences else COLOR_ACCENT
+            inner_width = content_width - 0.6 * cm
+            inner_occ = Table(occ_rows, colWidths=[inner_width])
+            inner_occ.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), bg_color),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            sect_occ = Table([[Paragraph(' ', ParagraphStyle(name='Bar2', fontSize=1)), inner_occ]], colWidths=[3 * mm, content_width])
+            sect_occ.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), border_color),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (0, -1), 0),
+                ('RIGHTPADDING', (0, 0), (0, -1), 0),
+                ('LEFTPADDING', (1, 0), (1, 0), 10),
+                ('RIGHTPADDING', (1, 0), (1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+            ]))
+            story.append(sect_occ)
+            story.append(Spacer(1, 0.25 * cm))
+
+        # Registro Fotográfico — tabela aninhada; incluir imagem só se o arquivo for válido (PIL)
+        if pdf_type != 'no_photos':
+            photo_title = Paragraph(
+                "<font color='#1A3A5C'><b>REGISTRO FOTOGRÁFICO</b></font>",
+                ParagraphStyle(name='PhotoTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
+            )
+            content_width = 17 * cm - 3 * mm
+            img_w, img_h = 6.5 * cm, 4.9 * cm
+            photo_rows = [[photo_title], [Spacer(1, 0.12 * cm)]]
+            valid = [i for i in images_with_paths if i.get('absolute_path') and os.path.exists(i['absolute_path'])]
+            if valid:
+                photo_cells = []
+                for row_start in range(0, len(valid), 2):
+                    row_images = valid[row_start: row_start + 2]
+                    row_cells = []
+                    for item in row_images:
+                        path = item['absolute_path']
+                        cap = (item.get('image') and getattr(item['image'], 'caption', None)) or 'Foto'
+                        uploaded_at = item.get('image') and getattr(item['image'], 'uploaded_at', None)
+                        if uploaded_at:
+                            try:
+                                dt_str = uploaded_at.strftime('%d/%m/%Y %H:%M')
+                                cap = "%s – %s" % (dt_str, (cap or 'Foto')[:35])
+                            except Exception:
+                                cap = str(cap)[:50]
+                        else:
+                            cap = str(cap)[:50]
+                        cap_para = Paragraph(
+                            "<i>%s</i>" % cap,
+                            ParagraphStyle(name='Cap', parent=normal_style, fontSize=8, textColor=COLOR_TEXT_SECONDARY),
+                        )
+                        img_flowable = None
+                        if PIL_AVAILABLE and Image:
+                            try:
+                                with Image.open(path) as pil_img:
+                                    pil_img.verify()
+                                img_flowable = RLImage(path, width=img_w, height=img_h)
+                            except Exception as e:
+                                logger.debug("Imagem inválida ou inacessível para PDF: %s", e)
+                        if img_flowable is None:
+                            try:
+                                img_flowable = RLImage(path, width=img_w, height=img_h)
+                            except Exception as e:
+                                logger.debug("RLImage falhou para %s: %s", path, e)
+                                img_flowable = Paragraph("Imagem indisponível", label_style)
+                        cell_content = Table([[img_flowable], [cap_para]], colWidths=[img_w + 0.3 * cm])
+                        cell_content.setStyle(TableStyle([
+                            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                            ('BACKGROUND', (0, 0), (-1, -1), COLOR_SURFACE),
+                            ('TOPPADDING', (0, 0), (-1, -1), 4),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ]))
+                        row_cells.append(cell_content)
+                    if len(row_cells) == 1:
+                        row_cells.append(Paragraph(' ', ParagraphStyle(name='E2', fontSize=1)))
+                    if row_cells:
+                        photo_cells.append(row_cells)
+                if photo_cells:
+                    t_photo = Table(photo_cells, colWidths=[img_w + 0.5 * cm] * 2)
+                    t_photo.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ]))
+                    photo_rows.append([t_photo])
+                else:
+                    photo_rows.append([Paragraph("Nenhum registro fotográfico.", label_style)])
             else:
-                return match.group(0)
-            
-            # Converte para caminho absoluto
-            return f'src="{path}"'
-        
-        # Substitui file:// URIs em tags img
-        html_string = re.sub(r'src="(file://[^"]+)"', replace_file_uri, html_string)
-        
-        return html_string
+                photo_rows.append([Paragraph("Nenhum registro fotográfico.", label_style)])
+            inner_width = content_width - 0.6 * cm
+            inner_photo = Table(photo_rows, colWidths=[inner_width])
+            inner_photo.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), COLOR_SURFACE),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            sect_photo = Table([[Paragraph(' ', ParagraphStyle(name='BarP', fontSize=1)), inner_photo]], colWidths=[3 * mm, content_width])
+            sect_photo.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                ('LEFTPADDING', (0, 0), (0, -1), 0),
+                ('RIGHTPADDING', (0, 0), (0, -1), 0),
+            ]))
+            story.append(sect_photo)
+            story.append(Spacer(1, 0.2 * cm))
 
+        # Assinaturas — cada coluna é uma tabela de 3 linhas (linha, nome, cargo) para evitar lista em célula
+        story.append(Spacer(1, 0.4 * cm))
+        insp = getattr(diary, 'inspection_responsible', None) and diary.inspection_responsible.strip()
+        prod = getattr(diary, 'production_responsible', None) and diary.production_responsible.strip()
+        resp_obra = getattr(diary.project, 'responsible', None) and diary.project.responsible.strip()
+        sig_style = ParagraphStyle(name='Sig', parent=normal_style, fontSize=9.5, fontName='Helvetica-Bold', textColor=COLOR_TEXT)
+        sig_cargo_style = ParagraphStyle(name='SigCargo', parent=normal_style, fontSize=8.5, textColor=COLOR_TEXT_SECONDARY)
+
+        def _sig_block(name, cargo):
+            line_t = Table([['']], colWidths=[4 * cm])
+            line_t.setStyle(TableStyle([('LINEBELOW', (0, 0), (0, 0), 1, COLOR_TEXT_SECONDARY)]))
+            return Table([
+                [line_t],
+                [Paragraph(name or '_________________________', sig_style)],
+                [Paragraph(cargo or '', sig_cargo_style)],
+            ], colWidths=[5.5 * cm])
+
+        c1 = _sig_block(insp, "Resp. Inspeção Diária")
+        c2 = _sig_block(prod, "Mestre de Obras / Resp. Produção")
+        c3 = _sig_block(resp_obra, "Resp. Técnico (Obra)")
+        sig_table = Table([[c1, c2, c3]], colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm])
+        sig_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(sig_table)
+
+        # Rodapé com numeração: canvasmaker via functools.partial para preservar assinatura esperada pelo ReportLab
+        import functools
+        from datetime import date
+        generated_date_str = date.today().strftime('%d/%m/%Y')
+        canvas_class = functools.partial(_RDOCanvas, generated_date_str=generated_date_str)
+        doc.build(story, canvasmaker=canvas_class)

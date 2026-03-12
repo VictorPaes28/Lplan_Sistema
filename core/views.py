@@ -244,6 +244,7 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
                     WEASYPRINT_AVAILABLE,
                     XHTML2PDF_AVAILABLE,
                     REPORTLAB_AVAILABLE,
+                    get_rdo_pdf_filename,
                 )
                 PDF_AVAILABLE = WEASYPRINT_AVAILABLE or XHTML2PDF_AVAILABLE or REPORTLAB_AVAILABLE
                 if not PDF_AVAILABLE:
@@ -260,7 +261,7 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
                         pdf_bytes.getvalue(),
                         content_type='application/pdf'
                     )
-                    filename = f"diario_{diary.project.code}_{diary.date.strftime('%Y%m%d')}.pdf"
+                    filename = get_rdo_pdf_filename(diary.project, diary.date)
                     response['Content-Disposition'] = f'attachment; filename="{filename}"'
                     return response
                 else:
@@ -269,6 +270,11 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
             except (ImportError, OSError, RuntimeError) as e:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Geração de PDF falhou (ImportError/OSError/RuntimeError): %s",
+                    e,
+                )
                 return Response(
                     {'error': 'Geração de PDF não disponível neste ambiente.'},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE

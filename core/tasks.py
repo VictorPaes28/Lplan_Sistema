@@ -68,9 +68,10 @@ def generate_diary_pdf_task(self, diary_id: int, output_filename: str = None):
             logger.error(f"Diário {diary_id} não encontrado para geração de PDF")
             raise
         
-        # Gera nome do arquivo se não fornecido
+        # Gera nome do arquivo se não fornecido (padrão RDO_CODIGO_DATA_NOME_OBRA.pdf)
         if output_filename is None:
-            output_filename = f"diario_{diary.project.code}_{diary.date.strftime('%Y%m%d')}.pdf"
+            from core.utils.pdf_generator import get_rdo_pdf_filename
+            output_filename = get_rdo_pdf_filename(diary.project, diary.date)
         
         # Cria diretório de saída se não existir
         output_dir = Path(settings.MEDIA_ROOT) / 'pdfs' / str(diary.date.year) / str(diary.date.month)

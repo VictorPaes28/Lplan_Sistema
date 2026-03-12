@@ -1551,7 +1551,7 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
                     if isinstance(item, dict) and ('cargo_id' in item or 'cargoId' in item):
                         existing_diary_labor.append({
                             'cargo_id': item.get('cargo_id') or item.get('cargoId'),
-                            'quantity': int(item.get('quantity', 1) or 1),
+                            'quantity': int(item.get('quantity') or 1),
                             'company': (item.get('company') or '').strip(),
                         })
     except (json.JSONDecodeError, TypeError, ValueError):
@@ -1566,7 +1566,7 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
                         name = (item.get('name') or '').strip()
                         existing_diary_equipment.append({
                             'name': name,
-                            'quantity': int(item.get('quantity', 1) or 1),
+                            'quantity': int(item.get('quantity') or 1),
                             'equipment_id': item.get('equipment_id'),
                         })
     except (json.JSONDecodeError, TypeError, ValueError):
@@ -2384,7 +2384,7 @@ def diary_form_view(request, pk=None):
                             DiaryLaborEntry.objects.filter(diary=diary).delete()
                             for item in diary_labor_data:
                                 cargo_id = item.get('cargo_id')
-                                quantity = max(1, int(item.get('quantity', 1)))
+                                quantity = max(1, int(item.get('quantity') or 1))
                                 company = (item.get('company') or '').strip()
                                 if not cargo_id or not LaborCargo.objects.filter(pk=cargo_id).exists():
                                     continue
@@ -2410,7 +2410,7 @@ def diary_form_view(request, pk=None):
                             for labor_item in labor_data:
                                 labor_name = labor_item.get('name', '').strip()
                                 labor_role = labor_item.get('role', '')
-                                labor_quantity = int(labor_item.get('quantity', 1))
+                                labor_quantity = int(labor_item.get('quantity') or 1)
                                 
                                 if not labor_name or not labor_role:
                                     continue
@@ -2441,7 +2441,7 @@ def diary_form_view(request, pk=None):
                         equipment_items = []  # lista de (equipment, quantity) para through
                         for equipment_item in equipment_data:
                             equipment_name = equipment_item.get('name', '').strip()
-                            equipment_quantity = int(equipment_item.get('quantity', 1))
+                            equipment_quantity = int(equipment_item.get('quantity') or 1)
                             
                             if not equipment_name:
                                 continue
@@ -2576,7 +2576,7 @@ def diary_form_view(request, pk=None):
                                         DailyWorkLogEquipment.objects.create(
                                             work_log=worklog,
                                             equipment=equipment,
-                                            quantity=max(1, int(qty)),
+                                            quantity=max(1, int(qty or 1)),
                                         )
                                     logger.info(f"Equipamentos associados ao worklog {worklog.id}: {len(request._equipment_items)} itens (com quantidade)")
                     
@@ -2667,168 +2667,52 @@ def diary_form_view(request, pk=None):
                             }
                         )
                     
-            except ValueError as e:
-                # Erro específico de validação de formset - rollback automático
-                logger.error(f"Erro de validação: {e}", exc_info=True)
-                # Usa a mensagem detalhada da exceção (já contém os erros específicos)
-                messages.error(request, str(e))
-                # A transação fará rollback automaticamente, então o diário não será salvo
-                # Recria o diário sem PK para o formulário
-                if diary and diary.pk:
-                    try:
-                        # Tenta refresh do banco, mas se não existir (rollback), recria instância
-                        diary.refresh_from_db()
-                        # Se após refresh ainda tem PK, significa que era um diário existente
-                        # Se não tem PK, foi revertido pelo rollback
-                        if not diary.pk:
-                            # Recria a instância do form
-                            form_temp = ConstructionDiaryForm(request.POST, user=request.user, project=project)
-                            if form_temp.is_valid():
-                                diary = form_temp.save(commit=False)
-                            else:
-                                diary = None
-                    except Exception:
-                        # Se não existe mais no banco (rollback de diário novo), recria instância
-                        try:
-                            form_temp = ConstructionDiaryForm(request.POST, user=request.user, project=project)
-                            if form_temp.is_valid():
-                                diary = form_temp.save(commit=False)
-                            else:
-                                diary = None
-                        except Exception:
-                            diary = None
-                
-                # Retorna para o formulário com erros
-                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
-                files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
-                # Garante que normalized_post está definido (pode não estar se exceção ocorreu antes)
-                if 'normalized_post' not in locals():
-                    from copy import deepcopy
-                    normalized_post = deepcopy(request.POST)
-                    if hasattr(normalized_post, '_mutable'):
-                        normalized_post._mutable = True
-                    # Normaliza prefixo de worklogs só se o POST veio com dailyworklog_set (não sobrescrever work_logs)
-                    if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
-                        normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
-                        normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
-                        for key, value in request.POST.items():
-                            if key.startswith('dailyworklog_set-'):
-                                new_key = key.replace('dailyworklog_set-', 'work_logs-', 1)
-                                normalized_post[new_key] = value
-                    # Normaliza occurrences -> ocorrencias
-                    if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
-                        for key, value in request.POST.items():
-                            if key.startswith('occurrences-'):
-                                normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
-                image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
-                worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
-                occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
-                return render(request, 'core/daily_log_form.html', context)
-            except (ValidationError, PermissionDenied) as e:
-                logger.warning(f"Validação/permissão durante salvamento do diário: {type(e).__name__}: {e}")
-                messages.error(request, str(e) if str(e) else 'Dados inválidos ou sem permissão.')
-                if diary and diary.pk:
-                    try:
-                        diary.refresh_from_db()
-                    except Exception:
-                        diary = None
-                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
-                files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
-                if 'normalized_post' not in locals():
-                    from copy import deepcopy
-                    normalized_post = deepcopy(request.POST)
-                    if hasattr(normalized_post, '_mutable'):
-                        normalized_post._mutable = True
-                    if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
-                        normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
-                        normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
-                        for key, value in request.POST.items():
-                            if key.startswith('dailyworklog_set-'):
-                                normalized_post[key.replace('dailyworklog_set-', 'work_logs-', 1)] = value
-                    if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
-                        for key, value in request.POST.items():
-                            if key.startswith('occurrences-'):
-                                normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
-                image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
-                worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
-                occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
-                return render(request, 'core/daily_log_form.html', context)
-            except IntegrityError as e:
-                logger.error(f"Erro de integridade ao salvar diário: {e}", exc_info=True)
-                messages.error(request, 'Erro de consistência dos dados. Verifique duplicidades ou dependências.')
-                if diary and diary.pk:
-                    try:
-                        diary.refresh_from_db()
-                    except Exception:
-                        diary = None
-                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
-                files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
-                if 'normalized_post' not in locals():
-                    from copy import deepcopy
-                    normalized_post = deepcopy(request.POST)
-                    if hasattr(normalized_post, '_mutable'):
-                        normalized_post._mutable = True
-                    if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
-                        normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
-                        normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
-                        for key, value in request.POST.items():
-                            if key.startswith('dailyworklog_set-'):
-                                normalized_post[key.replace('dailyworklog_set-', 'work_logs-', 1)] = value
-                    if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
-                        for key, value in request.POST.items():
-                            if key.startswith('occurrences-'):
-                                normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
-                image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
-                worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
-                occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
-                context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
-                return render(request, 'core/daily_log_form.html', context)
             except Exception as e:
-                logger.error(f"ERRO durante processamento: {e}", exc_info=True)
-                logger.warning(f"Exceção durante salvamento do diário: {type(e).__name__}: {e}")
-                messages.error(request, f'Erro ao processar dados: {str(e)}')
-                # A transação fará rollback automaticamente, então o diário não será salvo
-                # Se for um diário novo que foi criado na transação, será revertido
-                # Se for edição, as mudanças serão revertidas
-                
-                # Recria o diário sem PK para o formulário (após rollback)
+                # 1. Mensagem específica por tipo de erro
+                if isinstance(e, ValueError):
+                    messages.error(request, str(e))
+                elif isinstance(e, (ValidationError, PermissionDenied)):
+                    messages.error(request, str(e) if str(e) else 'Dados inválidos ou sem permissão.')
+                elif isinstance(e, IntegrityError):
+                    messages.error(request, 'Erro de consistência dos dados. Verifique duplicidades ou dependências.')
+                else:
+                    messages.error(request, f'Erro ao processar dados: {str(e)}')
+
+                logger.error("Erro ao salvar diário: %s", e, exc_info=True)
+
+                # 2. Reconstrução do form uma única vez
                 if diary and diary.pk:
                     try:
                         diary.refresh_from_db()
                     except Exception:
-                        # Se não existe mais no banco (rollback), recria instância
                         diary = None
-                
-                # Retorna para o formulário com erros
+
                 form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
                 files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
-                # Garante que normalized_post está definido (pode não estar se exceção ocorreu antes)
-                if 'normalized_post' not in locals():
-                    from copy import deepcopy
-                    normalized_post = deepcopy(request.POST)
-                    if hasattr(normalized_post, '_mutable'):
-                        normalized_post._mutable = True
-                    # Normaliza prefixo de worklogs só se o POST veio com dailyworklog_set (não sobrescrever work_logs)
-                    if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
-                        normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
-                        normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
-                        for key, value in request.POST.items():
-                            if key.startswith('dailyworklog_set-'):
-                                new_key = key.replace('dailyworklog_set-', 'work_logs-', 1)
-                                normalized_post[new_key] = value
-                    # Normaliza occurrences -> ocorrencias
-                    if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
-                        for key, value in request.POST.items():
-                            if key.startswith('occurrences-'):
-                                normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
+
+                from copy import deepcopy
+                normalized_post = deepcopy(request.POST)
+                if hasattr(normalized_post, '_mutable'):
+                    normalized_post._mutable = True
+
+                if 'dailyworklog_set-TOTAL_FORMS' in request.POST and 'work_logs-TOTAL_FORMS' not in request.POST:
+                    normalized_post['work_logs-TOTAL_FORMS'] = request.POST.get('dailyworklog_set-TOTAL_FORMS', '0')
+                    normalized_post['work_logs-INITIAL_FORMS'] = request.POST.get('dailyworklog_set-INITIAL_FORMS', '0')
+                    for key, value in request.POST.items():
+                        if key.startswith('dailyworklog_set-'):
+                            normalized_post[key.replace('dailyworklog_set-', 'work_logs-', 1)] = value
+
+                if 'occurrences-TOTAL_FORMS' in request.POST and 'ocorrencias-TOTAL_FORMS' not in normalized_post:
+                    for key, value in request.POST.items():
+                        if key.startswith('occurrences-'):
+                            normalized_post[key.replace('occurrences-', 'ocorrencias-', 1)] = value
+
                 image_formset = DiaryImageFormSet(request.POST, files_for_formset, instance=diary)
                 worklog_formset = DailyWorkLogFormSet(normalized_post, instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
                 occurrence_formset = DiaryOccurrenceFormSet(normalized_post, instance=diary, prefix='ocorrencias')
                 context = _diary_form_context_from_post(request, project, form, image_formset, worklog_formset, occurrence_formset, diary)
                 return render(request, 'core/daily_log_form.html', context)
-            
+
             # Mensagem de sucesso ou aviso
             # Se chegou aqui, a transação foi commitada com sucesso
             if image_valid and worklog_valid and occurrence_valid:
@@ -3226,6 +3110,11 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
             XHTML2PDF_AVAILABLE = XP_AVAILABLE
             REPORTLAB_AVAILABLE = RL_AVAILABLE
         except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Falha ao importar gerador de PDF: %s. Instale reportlab e Pillow: pip install reportlab Pillow",
+                e,
+            )
             WEASYPRINT_AVAILABLE = False
             XHTML2PDF_AVAILABLE = False
             REPORTLAB_AVAILABLE = False
@@ -3253,7 +3142,11 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
                 'detailed': '_detalhado',
                 'no_photos': '_sem_fotos'
             }.get(pdf_type, '')
-            filename = f"diario_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
+            try:
+                from .utils.pdf_generator import get_rdo_pdf_filename
+                filename = get_rdo_pdf_filename(diary.project, diary.date, suffix=type_suffix)
+            except Exception:
+                filename = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
             safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
             response['Content-Disposition'] = f'attachment; filename="{safe_name}"'
             response['Content-Length'] = len(pdf_bytes)
@@ -3262,7 +3155,13 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
             messages.error(request, "Erro ao gerar PDF. Tente novamente.")
             return redirect('diary-detail', pk=pk)
     except Exception as e:
-        logger.error(f"Erro ao gerar PDF do diário {diary.id}: {str(e)}", exc_info=True)
+        import traceback
+        from django.conf import settings
+        tb = traceback.format_exc()
+        logger.error("Erro ao gerar PDF do diário %s: %s\n%s", diary.id, e, tb, exc_info=False)
+        if getattr(settings, 'DEBUG', False):
+            import sys
+            print(tb, file=sys.stderr)
         messages.error(request, f"Erro ao gerar PDF: {str(e)}")
         return redirect('diary-detail', pk=pk)
 

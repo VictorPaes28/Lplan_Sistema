@@ -191,7 +191,8 @@ Mensagem automática. Não responda a este e-mail.
                 connection=connection,
             )
             if pdf_bytes:
-                filename = f"Diario_{project.code}_{target_date.strftime('%Y-%m-%d')}.pdf"
+                from core.utils.pdf_generator import get_rdo_pdf_filename
+                filename = get_rdo_pdf_filename(project, target_date)
                 email.attach(filename, pdf_bytes.getvalue(), 'application/pdf')
             email.send(fail_silently=False)
             if connection:
