@@ -1794,7 +1794,9 @@ def diary_form_view(request, pk=None):
                     # Salvar diário = aprovado (sem fluxo de revisar/aprovar). Envio ao dono da obra após salvar.
                     diary.status = DiaryStatus.APROVADO
                     diary.approved_at = timezone.now()
-                    diary.sent_to_owner_at = timezone.now()
+                    # Prazo de 24h para comentários começa só na primeira aprovação (não reinicia ao re-salvar)
+                    if not diary.sent_to_owner_at:
+                        diary.sent_to_owner_at = timezone.now()
                     diary.reviewed_by = request.user
                     logger.info("Salvar diário: status definido como APROVADO (envio ao dono após commit)")
             
@@ -2720,8 +2722,9 @@ def diary_form_view(request, pk=None):
                 # Salvar diário (não rascunho) = diário aprovado → enviar e-mail ao dono da obra
                 if not is_partial_save and diary and diary.status == DiaryStatus.APROVADO:
                     try:
-                        from .diary_email import send_diary_to_owners
+                        from .diary_email import send_diary_to_owners, send_diary_pdf_to_recipients
                         send_diary_to_owners(diary)
+                        send_diary_pdf_to_recipients(diary)
                     except Exception as e:
                         logger.exception("Erro ao enviar diário aos donos da obra: %s", e)
                 if is_partial_save:

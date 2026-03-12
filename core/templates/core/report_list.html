@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load core_tags %}
 
+{% block back_url %}{% url 'dashboard' %}{% endblock %}
 {% block page_title %}Diário de Obras — Relatórios{% endblock %}
 {% block page_subtitle %}Gerencie e visualize todos os relatórios de obra{% endblock %}
 

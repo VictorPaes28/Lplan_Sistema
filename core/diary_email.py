@@ -102,13 +102,77 @@ Mensagem automática. Não responda a este e-mail.
             connection.close()
 
 
-def _generate_diary_pdf(diary):
+def send_diary_pdf_to_recipients(diary):
     """
-    Gera o PDF do diário em memória. Retorna BytesIO ou None se falhar.
+    Envia o PDF detalhado do diário para os e-mails cadastrados na obra (diary_recipients).
+    Chamado quando o diário é aprovado; usa o mesmo SMTP do RDO se configurado.
+    """
+    recipients = list(diary.project.diary_recipients.values_list('email', flat=True))
+    if not recipients:
+        return
+    project = diary.project
+    target_date = diary.date
+    link = get_diary_url(diary)
+    subject = f"Diário de Obra (detalhado) - {project.name} - {target_date.strftime('%d/%m/%Y')}"
+    pdf_bytes = _generate_diary_pdf(diary, pdf_type='detailed')
+    if pdf_bytes:
+        body = f"""Prezado(a) senhor(a),
+
+Segue em anexo o diário de obra detalhado referente ao dia {target_date.strftime('%d/%m/%Y')} da obra {project.name} ({project.code or ''}).
+
+Para visualizar no sistema: {link}
+
+Atenciosamente,
+
+LPLAN - Diário de Obra
+Mensagem automática. Não responda a este e-mail.
+"""
+    else:
+        body = f"""Prezado(a) senhor(a),
+
+O diário de obra referente ao dia {target_date.strftime('%d/%m/%Y')} da obra {project.name} ({project.code or ''}) está disponível.
+
+Acesse o sistema (faça login se necessário): {link}
+
+Atenciosamente,
+
+LPLAN - Diário de Obra
+Mensagem automática. Não responda a este e-mail.
+"""
+    connection, from_email = _get_rdo_connection_and_from()
+    try:
+        email = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=recipients,
+            connection=connection,
+        )
+        if pdf_bytes:
+            from core.utils.pdf_generator import get_rdo_pdf_filename
+            filename = get_rdo_pdf_filename(project, target_date)
+            email.attach(filename, pdf_bytes.getvalue(), 'application/pdf')
+        email.send(fail_silently=False)
+        logger.info(
+            "Enviado PDF detalhado diário %s (obra %s) para %d e-mail(s) cadastrado(s).",
+            diary.pk, project.code, len(recipients),
+        )
+    except Exception as e:
+        logger.exception("Erro ao enviar PDF aos e-mails da obra %s: %s", project.code, e)
+    finally:
+        if connection:
+            connection.close()
+
+
+def _generate_diary_pdf(diary, pdf_type='detailed'):
+    """
+    Gera o PDF do diário em memória (por padrão: detalhado).
+    pdf_type: 'normal', 'detailed' ou 'no_photos'.
+    Retorna BytesIO ou None se falhar.
     """
     try:
         from core.utils.pdf_generator import PDFGenerator
-        pdf_bytes = PDFGenerator.generate_diary_pdf(diary.pk)
+        pdf_bytes = PDFGenerator.generate_diary_pdf(diary.pk, pdf_type=pdf_type)
         if pdf_bytes and pdf_bytes.getvalue():
             return pdf_bytes
     except Exception as e:
@@ -119,12 +183,13 @@ def _generate_diary_pdf(diary):
 def send_diary_email_for_date(target_date=None):
     """
     Para cada obra que tem e-mails cadastrados, verifica se existe diário na data,
-    gera o PDF do diário e envia um e-mail com o PDF em anexo (e o link no corpo).
+    gera o PDF detalhado do diário e envia um e-mail com o PDF em anexo (e o link no corpo).
     Se a geração do PDF falhar, envia o e-mail apenas com o link.
 
     target_date: date ou None (usa hoje).
     Retorna: (enviados, erros) contagem.
     """
+    from django.db.models import Count
     from core.models import Project, ConstructionDiary
 
     if target_date is None:
@@ -134,9 +199,8 @@ def send_diary_email_for_date(target_date=None):
     erros = 0
 
     projects_with_recipients = Project.objects.filter(
-        diary_recipients__isnull=False,
         is_active=True,
-    ).distinct()
+    ).annotate(rcpt_count=Count('diary_recipients')).filter(rcpt_count__gt=0)
 
     for project in projects_with_recipients:
         recipients = list(project.diary_recipients.values_list('email', flat=True))
@@ -154,7 +218,7 @@ def send_diary_email_for_date(target_date=None):
 
         link = get_diary_url(diary)
         subject = f"Diário de Obra - {project.name} - {target_date.strftime('%d/%m/%Y')}"
-        pdf_bytes = _generate_diary_pdf(diary)
+        pdf_bytes = _generate_diary_pdf(diary, pdf_type='detailed')
 
         if pdf_bytes:
             body = f"""Prezado(a) senhor(a),

@@ -2,6 +2,7 @@
 {% load static %}
 {% load core_tags %}
 
+{% block back_url %}{% url 'report-list' %}{% endblock %}
 {% block page_title %}Diário de Obras — Detalhes do Relatório{% endblock %}
 {% block page_subtitle %}Relatório Diário de Obra{% endblock %}
 
@@ -881,20 +882,6 @@
                 printButton.classList.remove('bg-gray-700');
                 printButton.classList.add('bg-gray-800');
                 printChevron.style.transform = 'rotate(0deg)';
-            }
-        });
-    }
-})();
-</script>
-<script>
-(function() {
-    // Botão Voltar: voltar para a página anterior quando houver histórico (ex.: dashboard/calendário)
-    var backLink = document.getElementById('diary-detail-back-link');
-    if (backLink) {
-        backLink.addEventListener('click', function(e) {
-            if (window.history.length > 1) {
-                e.preventDefault();
-                window.history.back();
             }
         });
     }

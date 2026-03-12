@@ -379,9 +379,9 @@
             <!-- Top Bar - Primeiro elemento, no topo -->
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
                 <div class="flex flex-col gap-1">
-                    <a href="#" onclick="return window.LPLAN_smartBack(event);" 
+                    <a href="{% block back_url %}#{% endblock %}" id="top-bar-back-link"
                        class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 -ml-1 transition-all duration-200"
-                       aria-label="Voltar à página anterior">
+                       aria-label="Voltar">
                         <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
                         <span>Voltar</span>
                     </a>
@@ -588,6 +588,17 @@
                 window.history.back();
                 return false;
             };
+            // Só usar smartBack no link da top-bar quando o href for # (página não definiu back_url)
+            (function() {
+                var el = document.getElementById('top-bar-back-link');
+                if (el && (el.getAttribute('href') === '#' || el.getAttribute('href') === '')) {
+                    el.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        window.LPLAN_smartBack(e);
+                        return false;
+                    });
+                }
+            })();
             
             // ============================================
             // SIDEBAR - Desktop e Mobile

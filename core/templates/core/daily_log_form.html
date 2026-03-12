@@ -2,6 +2,7 @@
 {% load static %}
 {% load core_tags %}
 
+{% block back_url %}{% url 'report-list' %}{% endblock %}
 {% block page_title %}Diário de Obra - {{ diary.date|default:"Novo" }}{% endblock %}
 {% block page_subtitle %}Preencha os dados do relatório diário{% endblock %}
 
