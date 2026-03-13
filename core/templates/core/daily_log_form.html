@@ -329,10 +329,14 @@
                     if (!fromId) { alert('Relatório de origem não disponível.'); return; }
                     var selected = getSelectedValues();
                     if (selected.length === 0) { alert('Selecione ao menos um item para copiar.'); return; }
-                    var url = new URL(window.location.href);
-                    url.searchParams.set('copy_from', fromId);
-                    url.searchParams.set('copy', selected.join(','));
-                    window.location.href = url.toString();
+                    var params = new URLSearchParams();
+                    params.set('copy_from', fromId);
+                    params.set('copy', selected.join(','));
+                    try {
+                        var cur = new URL(window.location.href);
+                        if (cur.searchParams.get('date')) params.set('date', cur.searchParams.get('date'));
+                    } catch (e) {}
+                    window.location.href = window.location.origin + window.location.pathname + '?' + params.toString();
                 });
 
                 updateApplyButton();
@@ -678,12 +682,6 @@
                                                 {% endif %}
                                         </div>
                                             <div class="flex items-center gap-4 text-xs text-slate-600">
-                                                {% if form.percentage_executed_today.value %}
-                                                <span class="flex items-center">
-                                                    <i class="fas fa-percentage mr-1"></i>
-                                                    {{ form.percentage_executed_today.value }}%
-                                                </span>
-                                                {% endif %}
                                                 {% if form.location.value %}
                                                 <span class="flex items-center">
                                                     <i class="fas fa-map-marker-alt mr-1"></i>
@@ -2431,10 +2429,7 @@ function addWorkLogRow() {
         '<label class="block text-sm font-semibold text-slate-900 mb-2" for="' + workLogPrefix + '-' + formNum + '-activity_description">Descrição <span class="text-red-500">*</span></label>' +
         '<textarea name="' + workLogPrefix + '-' + formNum + '-activity_description" id="id_' + workLogPrefix + '-' + formNum + '-activity_description" rows="2" style="height: 4rem; max-height: 5.5rem;" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 placeholder:text-slate-400 transition-all resize-y" aria-label="Descreva a atividade executada" placeholder="Descreva a atividade executada..." required></textarea>' +
         '</div>' +
-        '<div class="mb-4">' +
-        '<div><label class="block text-sm font-medium text-slate-700 mb-1.5" for="' + workLogPrefix + '-' + formNum + '-percentage_executed_today">Porcentagem (%)</label>' +
-        '<input type="number" name="' + workLogPrefix + '-' + formNum + '-percentage_executed_today" id="id_' + workLogPrefix + '-' + formNum + '-percentage_executed_today" step="0.01" min="0" max="100" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 transition-all" aria-label="Progresso executado hoje em percentual" placeholder="0.00"></div>' +
-        '</div>' +
+        '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-percentage_executed_today" value="0">' +
         '<div class="mb-4">' +
         '<label class="block text-sm font-medium text-slate-700 mb-1.5" for="' + workLogPrefix + '-' + formNum + '-work_stage">Status</label>' +
         '<select name="' + workLogPrefix + '-' + formNum + '-work_stage" id="id_' + workLogPrefix + '-' + formNum + '-work_stage" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 transition-all" aria-label="Status da atividade">' +
@@ -3259,8 +3254,6 @@ function saveActivity(event) {
         
         var formNum = parseInt(totalForms.value, 10) || container.querySelectorAll('.activity-item').length || 0;
         
-        var percentageEl = document.getElementById('activity-percentage');
-        var percentage = percentageEl ? (percentageEl.value || '').trim() : '';
         var workStageSelect = document.getElementById('activity-work-stage');
         var workStage = workStageSelect ? (workStageSelect.value || 'AN') : 'AN';
         var workStageLabels = { 'IN': 'Iniciada', 'AN': 'Em andamento', 'TE': 'Finalizada' };
@@ -3270,11 +3263,7 @@ function saveActivity(event) {
         newItem.className = 'activity-item border border-slate-200 rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors';
         newItem.setAttribute('data-form-index', String(formNum));
         
-        var infoHtml = '';
-        if (percentage) {
-            infoHtml += '<span class="flex items-center"><i class="fas fa-percentage mr-1"></i>' + percentage + '%</span>';
-        }
-        infoHtml += '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">' + workStageLabel + '</span>';
+        var infoHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">' + workStageLabel + '</span>';
         
         var descEscaped = description.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         newItem.innerHTML = '<div class="flex items-start justify-between">' +
@@ -3293,7 +3282,7 @@ function saveActivity(event) {
             '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-activity_description" value="' + descEscaped + '">' +
             '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-location" value="">' +
             '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-work_stage" value="' + workStage + '">' +
-            '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-percentage_executed_today" value="' + percentage + '">' +
+            '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-percentage_executed_today" value="0">' +
             '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-accumulated_progress_snapshot" value="">' +
             '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-quantity_done" value="">' +
             '<input type="hidden" name="' + workLogPrefix + '-' + formNum + '-unit" value="">' +
@@ -3306,7 +3295,6 @@ function saveActivity(event) {
         
         // activity-form é um div, não um <form>, então limpamos os campos manualmente
         if (descriptionInput) descriptionInput.value = '';
-        if (percentageEl) percentageEl.value = '';
         if (workStageSelect) workStageSelect.value = 'AN';
         var moreOptions = document.getElementById('activity-more-options');
         if (moreOptions) moreOptions.classList.add('hidden');
@@ -4408,26 +4396,14 @@ function saveSignature(canvasId) {
                                   class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 placeholder:text-slate-400 transition-all resize-y"
                                   placeholder="Descreva a atividade executada..."></textarea>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-900 mb-2">Porcentagem (%)</label>
-                            <input type="number"
-                                   id="activity-percentage"
-                                   step="0.01"
-                                   min="0"
-                                   max="100"
-                                   class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 transition-all"
-                                   placeholder="0.00">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-900 mb-2">Status</label>
-                            <select id="activity-work-stage"
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-900 mb-2">Status</label>
+                        <select id="activity-work-stage"
                                     class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 transition-all">
                                 <option value="IN">Iniciada</option>
                                 <option value="AN" selected>Em andamento</option>
                                 <option value="TE">Finalizada</option>
                             </select>
-                        </div>
                     </div>
                 </div>
             </div>
