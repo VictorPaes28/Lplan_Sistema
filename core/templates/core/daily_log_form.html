@@ -18,6 +18,18 @@
             <input type="hidden" name="partial_save" id="partial_save_flag" value="">
             <input type="hidden" name="work_logs_json" id="work_logs_json_input" value="">
             <input type="hidden" name="occurrences_json" id="occurrences_json_input" value="">
+            {# Preserva campos do ModelForm que não têm UI dedicada neste template,
+               evitando sobrescrever valores existentes com vazio em edições. #}
+            {{ form.weather_conditions.as_hidden }}
+            {{ form.weather_night_enabled.as_hidden }}
+            {{ form.weather_night_type.as_hidden }}
+            {{ form.weather_night_workable.as_hidden }}
+            {{ form.rain_occurrence.as_hidden }}
+            {{ form.rain_observations.as_hidden }}
+            {{ form.deliberations.as_hidden }}
+            {{ form.work_hours.as_hidden }}
+            {{ form.inspection_responsible.as_hidden }}
+            {{ form.production_responsible.as_hidden }}
             {% if form.non_field_errors %}
             <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
                 {% for err in form.non_field_errors %}<p>{{ err }}</p>{% endfor %}
@@ -93,7 +105,7 @@
                                     <input type="text" 
                                            name="project_responsible" 
                                            id="project_responsible"
-                                           value=""
+                                           value="{{ project_responsible_initial|default:'' }}"
                                            placeholder="Preencha o responsável"
                                            class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 </div>
@@ -342,6 +354,28 @@
                 updateApplyButton();
             })();
             </script>
+            {% if copy_source_diary %}
+            <script>
+            (function() {
+                document.addEventListener('DOMContentLoaded', function() {
+                    var opts = ('{{ copy_options|escapejs }}' || '').toLowerCase().split(',').map(function(s) { return s.trim(); });
+                    var sectionIds = [];
+                    if (opts.indexOf('climate') !== -1 || opts.indexOf('all') !== -1) sectionIds.push('clima');
+                    if (opts.indexOf('labor') !== -1 || opts.indexOf('all') !== -1) sectionIds.push('maoObra');
+                    if (opts.indexOf('equipment') !== -1 || opts.indexOf('all') !== -1) sectionIds.push('equipamentos');
+                    if (opts.indexOf('activities') !== -1 || opts.indexOf('all') !== -1) sectionIds.push('atividades');
+                    if (opts.indexOf('ocorrencias') !== -1 || opts.indexOf('all') !== -1) sectionIds.push('ocorrencias');
+                    if (opts.indexOf('interrupcoes') !== -1 || opts.indexOf('all') !== -1) sectionIds.push('comentarios');
+                    sectionIds.forEach(function(sectionId) {
+                        var btn = document.querySelector('[data-toggle-section="' + sectionId + '"]');
+                        if (btn && btn.classList.contains('section-collapsed')) {
+                            setTimeout(function() { btn.click(); }, 150);
+                        }
+                    });
+                });
+            })();
+            </script>
+            {% endif %}
             {% endif %}
 
             <!-- Layout Principal com Sidebar -->
@@ -1245,8 +1279,6 @@
                             </div>
                         </button>
                         <div id="section-comentarios-content" class="section-content p-6 border-t border-slate-200 section-collapsed">
-                            <input type="hidden" name="inspection_responsible" value="">
-                            <input type="hidden" name="production_responsible" value="">
                             <div class="space-y-6">
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-900 mb-2 flex items-center">
@@ -1260,6 +1292,46 @@
                                         </p>
                                     {% endif %}
                                     <p class="text-xs text-slate-500 mt-1.5">Adicione observações, comentários ou informações complementares sobre o dia de trabalho</p>
+                                </div>
+
+                                <p class="text-sm font-semibold text-slate-700 pt-6 border-t border-slate-200 mt-6">Interrupções e segurança</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-900 mb-2">Acidentes</label>
+                                        {{ form.accidents }}
+                                        {% if form.accidents.errors %}
+                                            <p class="text-red-600 text-xs mt-1.5 flex items-center">
+                                                <i class="fas fa-exclamation-circle mr-1.5"></i>{{ form.accidents.errors }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-900 mb-2">Paralisações / Interrupções</label>
+                                        {{ form.stoppages }}
+                                        {% if form.stoppages.errors %}
+                                            <p class="text-red-600 text-xs mt-1.5 flex items-center">
+                                                <i class="fas fa-exclamation-circle mr-1.5"></i>{{ form.stoppages.errors }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-900 mb-2">Riscos iminentes</label>
+                                        {{ form.imminent_risks }}
+                                        {% if form.imminent_risks.errors %}
+                                            <p class="text-red-600 text-xs mt-1.5 flex items-center">
+                                                <i class="fas fa-exclamation-circle mr-1.5"></i>{{ form.imminent_risks.errors }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-900 mb-2">Incidentes</label>
+                                        {{ form.incidents }}
+                                        {% if form.incidents.errors %}
+                                            <p class="text-red-600 text-xs mt-1.5 flex items-center">
+                                                <i class="fas fa-exclamation-circle mr-1.5"></i>{{ form.incidents.errors }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
                                 </div>
 
                                 <p class="text-sm font-semibold text-slate-700 pt-6 border-t border-slate-200 mt-6">Atividades executadas</p>

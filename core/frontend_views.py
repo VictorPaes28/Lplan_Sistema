@@ -2622,18 +2622,13 @@ def diary_form_view(request, pk=None):
                     # 7. ATUALIZA INFORMAÇÕES DO PROJETO
                     if project:
                         project_updated = False
-                        if 'project_name' in request.POST and request.POST['project_name']:
-                            project.name = request.POST['project_name']
-                            project_updated = True
-                        if 'project_client_name' in request.POST:
-                            project.client_name = request.POST['project_client_name']
-                            project_updated = True
-                        if 'project_address' in request.POST:
-                            project.address = request.POST['project_address']
-                            project_updated = True
+                        # Segurança: nesta tela os campos estruturais da obra não são editáveis.
+                        # Não confiar em valores de POST para nome/cliente/endereço.
                         if 'project_responsible' in request.POST:
-                            project.responsible = request.POST['project_responsible']
-                            project_updated = True
+                            responsible_value = (request.POST.get('project_responsible') or '').strip()
+                            if (project.responsible or '') != responsible_value:
+                                project.responsible = responsible_value
+                                project_updated = True
                         
                         if project_updated:
                             project.save()
@@ -2938,7 +2933,6 @@ def diary_form_view(request, pk=None):
                                     initial=worklog_initial,
                                     form_kwargs={'diary': None},
                                     prefix='work_logs',
-                                    extra=len(worklog_initial),
                                 )
                         if not diary and 'ocorrencias' in copy_opts and src.occurrences.exists():
                             occ_initial = []
@@ -2951,7 +2945,6 @@ def diary_form_view(request, pk=None):
                                 occurrence_formset = DiaryOccurrenceFormSet(
                                     initial=occ_initial,
                                     prefix='ocorrencias',
-                                    extra=len(occ_initial),
                                 )
                     except Exception:
                         pass  # não perder copy_source_diary se preenchimento falhar
@@ -3078,6 +3071,7 @@ def diary_form_view(request, pk=None):
         'project': project,  # Adiciona projeto ao contexto
         'next_report_number': next_report_number,  # Próximo número do relatório
         'initial_contractante': get_contractante_for_project(project),
+        'project_responsible_initial': getattr(project, 'responsible', '') if project else '',
         'last_diary_for_copy': last_diary_for_copy,
         'copy_from_id': copy_from_id,
         'copy_options': copy_options_raw if copy_source_diary else '',
