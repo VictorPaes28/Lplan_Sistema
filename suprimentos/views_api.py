@@ -554,26 +554,38 @@ def item_atualizar_campo(request):
             
             insumo_atual = item.insumo
             valor_anterior = insumo_atual.unidade
-            
-            # Verificar se outros itens usam esse insumo
-            outros_itens = ItemMapa.objects.filter(insumo=insumo_atual).exclude(id=item.id)
-            
-            if outros_itens.exists():
-                # Se outros itens usam esse insumo, criar um novo insumo com a unidade editada
-                novo_insumo = Insumo.objects.create(
-                    codigo_sienge=insumo_atual.codigo_sienge,
-                    descricao=insumo_atual.descricao,
-                    unidade=unidade_nova,
-                    ativo=True,
-                    eh_macroelemento=insumo_atual.eh_macroelemento
-                )
-                item.insumo = novo_insumo
+            if (insumo_atual.unidade or '') == unidade_nova:
                 valor_novo = unidade_nova
             else:
-                # Se só este item usa, atualizar a unidade do insumo existente
-                insumo_atual.unidade = unidade_nova
-                insumo_atual.save(update_fields=['unidade', 'updated_at'])
-                valor_novo = unidade_nova
+                # Verificar se outros itens usam esse insumo
+                outros_itens = ItemMapa.objects.filter(insumo=insumo_atual).exclude(id=item.id)
+                
+                if outros_itens.exists():
+                    # Se outros itens usam esse insumo, criar um novo insumo com código único
+                    base_codigo = (insumo_atual.codigo_sienge or f'SM-LEV-{uuid4().hex[:8].upper()}').strip()
+                    sufixo_un = unidade_nova if unidade_nova else 'VAZIO'
+                    codigo_base_novo = f"{base_codigo}-UN-{sufixo_un}"[:100]
+                    codigo_novo = codigo_base_novo
+                    seq = 2
+                    while Insumo.objects.filter(codigo_sienge=codigo_novo).exists():
+                        tail = f"-{seq}"
+                        codigo_novo = f"{codigo_base_novo[:max(1, 100 - len(tail))]}{tail}"
+                        seq += 1
+                    
+                    novo_insumo = Insumo.objects.create(
+                        codigo_sienge=codigo_novo,
+                        descricao=insumo_atual.descricao,
+                        unidade=unidade_nova,
+                        ativo=True,
+                        eh_macroelemento=insumo_atual.eh_macroelemento
+                    )
+                    item.insumo = novo_insumo
+                    valor_novo = unidade_nova
+                else:
+                    # Se só este item usa, atualizar a unidade do insumo existente
+                    insumo_atual.unidade = unidade_nova
+                    insumo_atual.save(update_fields=['unidade', 'updated_at'])
+                    valor_novo = unidade_nova
         elif field == 'insumo':
             insumo = get_object_or_404(Insumo, id=value)
             item.insumo = insumo
@@ -754,7 +766,7 @@ def item_atualizar_campo(request):
             # Empresa responsável (pode ser editada manualmente, não é sobrescrita na importação)
             item.empresa_fornecedora = value.strip() if value else ''
             valor_novo = item.empresa_fornecedora or '(vazio)'
-        elif field not in ['local_aplicacao', 'insumo_codigo']:
+        elif field in ['responsavel', 'prioridade', 'observacao_eng', 'descricao_override']:
             # Para outros campos (exceto local_aplicacao e insumo_codigo que já foram processados), usar setattr genérico
             setattr(item, field, value)
             valor_novo = value or '(vazio)'

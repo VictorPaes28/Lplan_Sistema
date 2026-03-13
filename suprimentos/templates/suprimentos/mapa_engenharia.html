@@ -1524,55 +1524,8 @@
         }
     }
     
-    // Atualizar unidade quando selecionada (select) - AJAX
-    document.querySelectorAll('select[data-field="insumo_unidade"]').forEach(select => {
-        select.addEventListener('change', function() {
-            const url = this.getAttribute('data-update-url');
-            const field = this.getAttribute('data-field');
-            const value = this.value;
-            const itemId = this.getAttribute('data-item-id');
-            
-            if (!url || !field || !itemId) return;
-            
-            // Obter CSRF token
-            const csrftoken = getCsrfToken();
-            
-            // Fazer requisição AJAX
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken
-                },
-                body: JSON.stringify({
-                    item_id: itemId,
-                    field: field,
-                    value: value
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Feedback visual de sucesso
-                    this.classList.add('is-valid');
-                    setTimeout(() => {
-                        this.classList.remove('is-valid');
-                    }, 2000);
-                } else {
-                    // Feedback visual de erro
-                    this.classList.add('is-invalid');
-                    alert('Erro ao atualizar unidade: ' + (data.error || 'Erro desconhecido'));
-                    setTimeout(() => {
-                        this.classList.remove('is-invalid');
-                    }, 3000);
-                }
-            })
-            .catch(error => {
-                console.error('Erro:', error);
-                alert('Erro ao atualizar unidade');
-            });
-        });
-    });
+    // A edição inline (inclusive unidade) é tratada em supplymap.js via updateItemField.
+    // Mantemos um único handler para evitar requisições duplicadas e falsos erros visuais.
 </script>
 {% endblock %}
 
