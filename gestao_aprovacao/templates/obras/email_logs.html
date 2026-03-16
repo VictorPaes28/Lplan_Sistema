@@ -161,98 +161,100 @@
                                     </div>
                                 </td>
                             </tr>
-
-                            <!-- Modal de Detalhes -->
-                            <div class="modal fade" id="modalDetalhes{{ log.pk }}" tabindex="-1">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Detalhes do Email</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <table class="table table-sm">
-                                                <tr>
-                                                    <th width="30%">Status:</th>
-                                                    <td>
-                                                        {% if log.status == 'enviado' %}
-                                                            <span class="badge bg-success">Enviado</span>
-                                                        {% elif log.status == 'falhou' %}
-                                                            <span class="badge bg-danger">Falhou</span>
-                                                        {% else %}
-                                                            <span class="badge bg-warning">Pendente</span>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th>Tipo:</th>
-                                                    <td>{{ log.get_tipo_email_display }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th>Assunto:</th>
-                                                    <td>{{ log.assunto }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th>Destinatários:</th>
-                                                    <td>{{ log.destinatarios }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th>Pedido:</th>
-                                                    <td>
-                                                        {% if log.work_order %}
-                                                            <a href="{% url 'gestao:detail_workorder' log.work_order.pk %}">
-                                                                {{ log.work_order.codigo }}
-                                                            </a>
-                                                        {% else %}
-                                                            N/A
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th>Tentativas:</th>
-                                                    <td>{{ log.tentativas }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th>Criado em:</th>
-                                                    <td>{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
-                                                </tr>
-                                                {% if log.enviado_em %}
-                                                <tr>
-                                                    <th>Enviado em:</th>
-                                                    <td>{{ log.enviado_em|date:"d/m/Y H:i:s" }}</td>
-                                                </tr>
-                                                {% endif %}
-                                                {% if log.mensagem_erro %}
-                                                <tr>
-                                                    <th>Erro:</th>
-                                                    <td>
-                                                        <div class="alert alert-danger mb-0">
-                                                            <small>{{ log.mensagem_erro }}</small>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                {% endif %}
-                                            </table>
-                                        </div>
-                                        <div class="modal-footer">
-                                            {% if log.tipo_email in reenviar_tipos_suportados %}
-                                                {% if log.status == 'falhou' or log.status == 'pendente' %}
-                                                    <a href="{% url 'gestao:reenviar_email' log.pk %}" 
-                                                       class="btn btn-warning"
-                                                       onclick="return confirm('Deseja realmente reenviar este email?');">
-                                                        <i class="fas fa-redo"></i> Reenviar
-                                                    </a>
-                                                {% endif %}
-                                            {% endif %}
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Modais de Detalhes (fora da tabela para evitar quebra de renderização) -->
+                {% for log in page_obj %}
+                <div class="modal fade" id="modalDetalhes{{ log.pk }}" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Detalhes do Email</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th width="30%">Status:</th>
+                                        <td>
+                                            {% if log.status == 'enviado' %}
+                                                <span class="badge bg-success">Enviado</span>
+                                            {% elif log.status == 'falhou' %}
+                                                <span class="badge bg-danger">Falhou</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Pendente</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Tipo:</th>
+                                        <td>{{ log.get_tipo_email_display }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Assunto:</th>
+                                        <td>{{ log.assunto }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Destinatários:</th>
+                                        <td>{{ log.destinatarios }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Pedido:</th>
+                                        <td>
+                                            {% if log.work_order %}
+                                                <a href="{% url 'gestao:detail_workorder' log.work_order.pk %}">
+                                                    {{ log.work_order.codigo }}
+                                                </a>
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Tentativas:</th>
+                                        <td>{{ log.tentativas }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Criado em:</th>
+                                        <td>{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
+                                    </tr>
+                                    {% if log.enviado_em %}
+                                    <tr>
+                                        <th>Enviado em:</th>
+                                        <td>{{ log.enviado_em|date:"d/m/Y H:i:s" }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if log.mensagem_erro %}
+                                    <tr>
+                                        <th>Erro:</th>
+                                        <td>
+                                            <div class="alert alert-danger mb-0">
+                                                <small>{{ log.mensagem_erro }}</small>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                </table>
+                            </div>
+                            <div class="modal-footer">
+                                {% if log.tipo_email in reenviar_tipos_suportados %}
+                                    {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                        <a href="{% url 'gestao:reenviar_email' log.pk %}"
+                                           class="btn btn-warning"
+                                           onclick="return confirm('Deseja realmente reenviar este email?');">
+                                            <i class="fas fa-redo"></i> Reenviar
+                                        </a>
+                                    {% endif %}
+                                {% endif %}
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
 
                 <!-- Paginação -->
                 {% if page_obj.has_other_pages %}
