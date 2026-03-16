@@ -4259,6 +4259,8 @@ def list_email_logs(request):
         'falhados': falhados,
         'pendentes': pendentes,
         'taxa_sucesso': taxa_sucesso,
+        'email_type_choices': EmailLog.TIPO_EMAIL_CHOICES,
+        'reenviar_tipos_suportados': ['novo_pedido', 'aprovacao', 'reprovacao'],
     }
     
     return render(request, 'obras/email_logs.html', context)

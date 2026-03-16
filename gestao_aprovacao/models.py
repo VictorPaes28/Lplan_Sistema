@@ -1125,6 +1125,9 @@ class EmailLog(models.Model):
         ('novo_pedido', 'Novo Pedido'),
         ('aprovacao', 'Aprovação'),
         ('reprovacao', 'Reprovação'),
+        ('credenciais_usuario', 'Credenciais de Usuário'),
+        ('diario_dono_obra', 'Diário para Dono da Obra'),
+        ('diario_obra', 'Diário de Obra'),
     ]
     
     # Status do envio

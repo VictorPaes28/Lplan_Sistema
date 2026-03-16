@@ -80,6 +80,8 @@ Atenciosamente,
 LPLAN - Diário de Obra
 Mensagem automática. Não responda a este e-mail.
 """
+    from gestao_aprovacao.email_utils import _criar_log_email, _enviar_email_com_retry
+
     connection, from_email = _get_rdo_connection_and_from()
     try:
         for po in owners:
@@ -87,14 +89,19 @@ Mensagem automática. Não responda a este e-mail.
             if not email_addr:
                 continue
             try:
-                EmailMessage(
+                email_obj = EmailMessage(
                     subject=subject,
                     body=body,
                     from_email=from_email,
                     to=[email_addr],
                     connection=connection,
-                ).send(fail_silently=False)
-                logger.info("Enviado diário %s ao dono da obra %s.", diary.pk, po.user.username)
+                )
+                email_log = _criar_log_email('diario_dono_obra', None, [email_addr], subject)
+                sucesso = _enviar_email_com_retry(email_obj, email_log)
+                if sucesso:
+                    logger.info("Enviado diário %s ao dono da obra %s.", diary.pk, po.user.username)
+                else:
+                    logger.warning("Falha no envio diário %s ao dono %s.", diary.pk, po.user.username)
             except Exception as e:
                 logger.exception("Erro ao enviar diário ao dono %s: %s", po.user.username, e)
     finally:
@@ -139,6 +146,8 @@ Atenciosamente,
 LPLAN - Diário de Obra
 Mensagem automática. Não responda a este e-mail.
 """
+    from gestao_aprovacao.email_utils import _criar_log_email, _enviar_email_com_retry
+
     connection, from_email = _get_rdo_connection_and_from()
     try:
         email = EmailMessage(
@@ -152,11 +161,18 @@ Mensagem automática. Não responda a este e-mail.
             from core.utils.pdf_generator import get_rdo_pdf_filename
             filename = get_rdo_pdf_filename(project, target_date)
             email.attach(filename, pdf_bytes.getvalue(), 'application/pdf')
-        email.send(fail_silently=False)
-        logger.info(
-            "Enviado PDF detalhado diário %s (obra %s) para %d e-mail(s) cadastrado(s).",
-            diary.pk, project.code, len(recipients),
-        )
+        email_log = _criar_log_email('diario_obra', None, recipients, subject)
+        sucesso = _enviar_email_com_retry(email, email_log)
+        if sucesso:
+            logger.info(
+                "Enviado PDF detalhado diário %s (obra %s) para %d e-mail(s) cadastrado(s).",
+                diary.pk, project.code, len(recipients),
+            )
+        else:
+            logger.warning(
+                "Falha ao enviar PDF diário %s (obra %s) para %d destinatário(s).",
+                diary.pk, project.code, len(recipients),
+            )
     except Exception as e:
         logger.exception("Erro ao enviar PDF aos e-mails da obra %s: %s", project.code, e)
     finally:
@@ -245,6 +261,9 @@ LPLAN - Diário de Obra
 Mensagem automática. Não responda a este e-mail.
 """
 
+        from gestao_aprovacao.email_utils import _criar_log_email, _enviar_email_com_retry
+
+        connection = None
         try:
             connection, from_email = _get_rdo_connection_and_from()
             email = EmailMessage(
@@ -258,17 +277,26 @@ Mensagem automática. Não responda a este e-mail.
                 from core.utils.pdf_generator import get_rdo_pdf_filename
                 filename = get_rdo_pdf_filename(project, target_date)
                 email.attach(filename, pdf_bytes.getvalue(), 'application/pdf')
-            email.send(fail_silently=False)
-            if connection:
-                connection.close()
-            enviados += len(recipients)
-            logger.info(
-                "Enviado diário obra %s (%s) para %d e-mail(s)%s.",
-                project.code, target_date, len(recipients),
-                " (com PDF em anexo)" if pdf_bytes else " (apenas link)",
-            )
+            email_log = _criar_log_email('diario_obra', None, recipients, subject)
+            sucesso = _enviar_email_com_retry(email, email_log)
+            if sucesso:
+                enviados += len(recipients)
+                logger.info(
+                    "Enviado diário obra %s (%s) para %d e-mail(s)%s.",
+                    project.code, target_date, len(recipients),
+                    " (com PDF em anexo)" if pdf_bytes else " (apenas link)",
+                )
+            else:
+                erros += len(recipients)
+                logger.warning(
+                    "Falha no envio do diário obra %s (%s) para %d e-mail(s).",
+                    project.code, target_date, len(recipients),
+                )
         except Exception as e:
             erros += len(recipients)
             logger.exception("Erro ao enviar diário obra %s para %s: %s", project.code, recipients, e)
+        finally:
+            if connection:
+                connection.close()
 
     return enviados, erros

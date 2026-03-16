@@ -4,7 +4,7 @@
 {% block title %}Logs de E-mail - GestControll{% endblock %}
 
 {% block page_title %}Logs de E-mail{% endblock %}
-{% block page_subtitle %}Acompanhe envios, falhas e reenvie e-mails de pedidos e aprovações{% endblock %}
+{% block page_subtitle %}Acompanhe envios e falhas de e-mails do sistema inteiro{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4 email-logs-page">
@@ -16,7 +16,7 @@
 
     <header class="email-logs-page-header mb-4">
         <h1 class="email-logs-page-title">Logs de E-mail</h1>
-        <p class="email-logs-page-desc">Histórico de envios do GestControll. Filtre por status e tipo; reenvie os que falharam.</p>
+        <p class="email-logs-page-desc">Histórico de envios do sistema. Filtre por status e tipo; reenvio disponível para tipos suportados.</p>
     </header>
 
     <section class="email-logs-stats mb-4" aria-label="Resumo">
@@ -59,9 +59,9 @@
                 <label for="tipo" class="email-logs-label">Tipo</label>
                 <select name="tipo" id="tipo" class="email-logs-select">
                     <option value="">Todos</option>
-                    <option value="novo_pedido" {% if tipo_filter == 'novo_pedido' %}selected{% endif %}>Novo Pedido</option>
-                    <option value="aprovacao" {% if tipo_filter == 'aprovacao' %}selected{% endif %}>Aprovação</option>
-                    <option value="reprovacao" {% if tipo_filter == 'reprovacao' %}selected{% endif %}>Reprovação</option>
+                    {% for value, label in email_type_choices %}
+                        <option value="{{ value }}" {% if tipo_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="email-logs-form-row email-logs-form-search">
@@ -148,13 +148,15 @@
                                                 title="Ver detalhes">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        {% if log.status == 'falhou' or log.status == 'pendente' %}
-                                            <a href="{% url 'gestao:reenviar_email' log.pk %}" 
-                                               class="btn btn-sm btn-warning"
-                                               onclick="return confirm('Deseja realmente reenviar este email?');"
-                                               title="Reenviar">
-                                                <i class="fas fa-redo"></i>
-                                            </a>
+                                        {% if log.tipo_email in reenviar_tipos_suportados %}
+                                            {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                                <a href="{% url 'gestao:reenviar_email' log.pk %}" 
+                                                   class="btn btn-sm btn-warning"
+                                                   onclick="return confirm('Deseja realmente reenviar este email?');"
+                                                   title="Reenviar">
+                                                    <i class="fas fa-redo"></i>
+                                                </a>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -233,12 +235,14 @@
                                             </table>
                                         </div>
                                         <div class="modal-footer">
-                                            {% if log.status == 'falhou' or log.status == 'pendente' %}
-                                                <a href="{% url 'gestao:reenviar_email' log.pk %}" 
-                                                   class="btn btn-warning"
-                                                   onclick="return confirm('Deseja realmente reenviar este email?');">
-                                                    <i class="fas fa-redo"></i> Reenviar
-                                                </a>
+                                            {% if log.tipo_email in reenviar_tipos_suportados %}
+                                                {% if log.status == 'falhou' or log.status == 'pendente' %}
+                                                    <a href="{% url 'gestao:reenviar_email' log.pk %}" 
+                                                       class="btn btn-warning"
+                                                       onclick="return confirm('Deseja realmente reenviar este email?');">
+                                                        <i class="fas fa-redo"></i> Reenviar
+                                                    </a>
+                                                {% endif %}
                                             {% endif %}
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                                         </div>

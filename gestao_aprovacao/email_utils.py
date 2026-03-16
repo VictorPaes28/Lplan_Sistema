@@ -5,7 +5,7 @@ import logging
 import threading
 import os
 import time
-from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
+from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.conf import settings
 from django.utils.html import strip_tags
 from django.utils import timezone
@@ -284,18 +284,28 @@ Bom trabalho,
 
 LPLAN
 """
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or settings.EMAIL_HOST_USER
+    destinatarios = [email_destino.strip()]
+    email_log = _criar_log_email('credenciais_usuario', None, destinatarios, assunto)
     try:
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or settings.EMAIL_HOST_USER
-        send_mail(
-            assunto,
-            corpo,
-            from_email,
-            [email_destino.strip()],
-            fail_silently=True,
+        email = EmailMessage(
+            subject=assunto,
+            body=corpo,
+            from_email=from_email,
+            to=destinatarios,
         )
-        logger.info(f"E-mail com credenciais enviado para {email_destino} (usuário: {username}).")
-        return True
+        sucesso = _enviar_email_com_retry(email, email_log)
+        if sucesso:
+            logger.info(f"E-mail com credenciais enviado para {email_destino} (usuário: {username}).")
+        else:
+            logger.warning(f"Falha ao enviar e-mail de credenciais para {email_destino} (usuário: {username}).")
+        return sucesso
     except Exception as e:
+        if email_log:
+            try:
+                email_log.marcar_como_falhou(str(e))
+            except Exception:
+                pass
         logger.warning(f"Falha ao enviar e-mail de credenciais para {email_destino}: {e}")
         return False
 
