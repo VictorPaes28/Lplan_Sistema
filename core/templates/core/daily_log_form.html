@@ -553,9 +553,14 @@
                                     </div>
                                     {% if category.slug == 'terceirizada' %}
                                     <div class="diary-subcategory-body">
-                                        <button type="button" id="btn-add-terceirizada-empresa" class="diary-btn-add-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
-                                            <i class="fas fa-building mr-1.5"></i>Adicionar empresa terceirizada
-                                        </button>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button type="button" id="btn-add-terceirizada-empresa" class="diary-btn-add-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
+                                                <i class="fas fa-building mr-1.5"></i>Adicionar empresa terceirizada
+                                            </button>
+                                            <button type="button" id="btn-add-terceirizada-cargo" class="diary-btn-add-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
+                                                <i class="fas fa-briefcase mr-1.5"></i>Adicionar profissão terceirizada
+                                            </button>
+                                        </div>
                                         <div id="terceirizada-empresas" class="mt-3 space-y-3"></div>
                                     </div>
                                     {% else %}
@@ -1827,29 +1832,187 @@ window.updateLaborQuantity = updateLaborQuantity;
 // --- Mão de obra por categorias/cargos (novo UX) ---
 (function() {
     var diaryLaborState = {};
-    function key(cargoId, company) { return company ? cargoId + '|' + company : String(cargoId); }
+    var terceirizadaDynamicCargos = [];
+
+    function key(cargoRef, company) {
+        return company ? String(cargoRef) + '|' + company : String(cargoRef);
+    }
+    function splitStateKey(rawKey) {
+        var idx = rawKey.indexOf('|');
+        if (idx === -1) return { cargoRef: rawKey, company: '' };
+        return { cargoRef: rawKey.slice(0, idx), company: rawKey.slice(idx + 1) };
+    }
+    function cargoRefFromId(id) { return 'id:' + String(id); }
+    function cargoRefFromName(name) { return 'name:' + String(name || '').trim(); }
+    function parseCargoRef(cargoRef) {
+        if (!cargoRef) return {};
+        if (cargoRef.indexOf('id:') === 0) {
+            return { cargo_id: parseInt(cargoRef.slice(3), 10) };
+        }
+        if (cargoRef.indexOf('name:') === 0) {
+            return { cargo_name: cargoRef.slice(5) };
+        }
+        // Compatibilidade com versões antigas que salvavam apenas número
+        if (/^\d+$/.test(cargoRef)) return { cargo_id: parseInt(cargoRef, 10) };
+        return { cargo_name: cargoRef };
+    }
+    function normalizeCargoName(name) {
+        return String(name || '').trim().toLowerCase();
+    }
+    function getElementCargoRef(el) {
+        if (!el) return '';
+        var cargoRef = el.getAttribute('data-cargo-ref') || '';
+        if (cargoRef) return cargoRef;
+        var cargoId = el.getAttribute('data-cargo-id');
+        return cargoId ? cargoRefFromId(cargoId) : '';
+    }
+    function findQtyInput(cargoRef, company) {
+        var all = document.querySelectorAll('.diary-labor-qty');
+        for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            var elCargoRef = getElementCargoRef(el);
+            var elCompany = el.getAttribute('data-company') || '';
+            if (elCargoRef === String(cargoRef) && elCompany === (company || '')) return el;
+        }
+        return null;
+    }
+    function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+    function upsertDynamicCargo(cargo) {
+        if (!cargo) return false;
+        if (cargo.id) {
+            var parsedId = parseInt(cargo.id, 10);
+            if (!parsedId) return false;
+            for (var i = 0; i < terceirizadaDynamicCargos.length; i++) {
+                if (parseInt(terceirizadaDynamicCargos[i].id, 10) === parsedId) return false;
+            }
+            terceirizadaDynamicCargos.push({ id: parsedId, name: String(cargo.name || '') });
+            return true;
+        }
+        var name = String(cargo.name || '').trim();
+        if (!name) return false;
+        var normalized = normalizeCargoName(name);
+        for (var j = 0; j < terceirizadaDynamicCargos.length; j++) {
+            var c = terceirizadaDynamicCargos[j];
+            if ((c.id && normalizeCargoName(c.name) === normalized) || (!c.id && normalizeCargoName(c.name) === normalized)) {
+                return false;
+            }
+        }
+        terceirizadaDynamicCargos.push({ name: name });
+        return true;
+    }
+    function loadTerceirizadaCargos() {
+        var el = document.getElementById('terceirizada-cargos-data');
+        var cargos = [];
+        if (el) {
+            try { cargos = JSON.parse(el.textContent || '[]'); } catch (e) { cargos = []; }
+        }
+        for (var i = 0; i < cargos.length; i++) {
+            upsertDynamicCargo(cargos[i]);
+        }
+    }
+    function buildCompanyCardHtml(companyName) {
+        var html = '<div class="flex items-center justify-between mb-3"><strong class="text-slate-800">' + escapeHtml(companyName) + '</strong><button type="button" class="terceirizada-remove-empresa text-red-600 hover:text-red-800 text-sm" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-times mr-1"></i>Remover</button></div><ul class="space-y-2">';
+        for (var j = 0; j < terceirizadaDynamicCargos.length; j++) {
+            var cargo = terceirizadaDynamicCargos[j];
+            var cargoName = String(cargo.name || '').trim();
+            if (!cargoName) continue;
+            var cargoRef = cargo.id ? cargoRefFromId(cargo.id) : cargoRefFromName(cargoName);
+            var q = diaryLaborState[key(cargoRef, companyName)] || 0;
+            html += '<li class="flex items-center justify-between gap-2 py-1"><span class="text-sm text-slate-700">' + escapeHtml(cargoName) + '</span>';
+            html += '<div class="flex items-center gap-1"><button type="button" class="diary-labor-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-minus text-xs"></i></button>';
+            html += '<input type="number" min="0" value="' + q + '" class="diary-labor-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '">';
+            html += '<button type="button" class="diary-labor-plus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-plus text-xs"></i></button></div></li>';
+        }
+        html += '</ul>';
+        return html;
+    }
+    function wireCompanyCard(card) {
+        if (!card) return;
+        var btn = card.querySelector('.terceirizada-remove-empresa');
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            var cn = this.getAttribute('data-company');
+            var qs = card.querySelectorAll('.diary-labor-qty[data-company="' + cn + '"]');
+            for (var i = 0; i < qs.length; i++) {
+                var ref = getElementCargoRef(qs[i]);
+                if (ref) setQuantity(ref, cn, 0);
+            }
+            card.remove();
+            updateTerceirizadaCargoButtonState();
+        });
+    }
+    function createCompanyCard(companyName) {
+        var container = document.getElementById('terceirizada-empresas');
+        if (!container || !companyName) return null;
+        var card = document.createElement('div');
+        card.className = 'terceirizada-empresa-card rounded-lg border border-amber-200 bg-amber-50/50 p-4';
+        card.setAttribute('data-company', companyName);
+        card.innerHTML = buildCompanyCardHtml(companyName);
+        container.appendChild(card);
+        wireCompanyCard(card);
+        updateTerceirizadaCargoButtonState();
+        return card;
+    }
+    function rerenderAllCompanyCards() {
+        var container = document.getElementById('terceirizada-empresas');
+        if (!container) return;
+        var cards = container.querySelectorAll('.terceirizada-empresa-card[data-company]');
+        for (var i = 0; i < cards.length; i++) {
+            var companyName = cards[i].getAttribute('data-company') || '';
+            cards[i].innerHTML = buildCompanyCardHtml(companyName);
+            wireCompanyCard(cards[i]);
+        }
+    }
+    function hasAnyTerceirizadaCompany() {
+        var container = document.getElementById('terceirizada-empresas');
+        if (!container) return false;
+        return container.querySelectorAll('.terceirizada-empresa-card[data-company]').length > 0;
+    }
+    function updateTerceirizadaCargoButtonState() {
+        var btn = document.getElementById('btn-add-terceirizada-cargo');
+        if (!btn) return;
+        var enabled = hasAnyTerceirizadaCompany();
+        btn.disabled = !enabled;
+        btn.classList.toggle('opacity-50', !enabled);
+        btn.classList.toggle('cursor-not-allowed', !enabled);
+        btn.title = enabled
+            ? 'Adicionar profissão terceirizada'
+            : 'Cadastre uma empresa terceirizada antes';
+    }
+
     function getDiaryLaborPayload() {
         var out = [];
         for (var k in diaryLaborState) {
             if (diaryLaborState[k] <= 0) continue;
-            var parts = k.split('|');
-            out.push({ cargo_id: parseInt(parts[0], 10), quantity: diaryLaborState[k], company: parts[1] || '' });
+            var split = splitStateKey(k);
+            var parsed = parseCargoRef(split.cargoRef);
+            var row = {
+                quantity: diaryLaborState[k],
+                company: split.company || ''
+            };
+            if (parsed.cargo_id) row.cargo_id = parsed.cargo_id;
+            if (parsed.cargo_name) row.cargo_name = parsed.cargo_name;
+            if (row.cargo_id || row.cargo_name) out.push(row);
         }
         return out;
     }
     window.getDiaryLaborPayload = getDiaryLaborPayload;
 
-    function setQuantity(cargoId, company, qty) {
-        var k = key(cargoId, company);
+    function setQuantity(cargoRef, company, qty) {
+        var k = key(cargoRef, company);
         diaryLaborState[k] = Math.max(0, parseInt(qty, 10) || 0);
-        var inp = document.querySelector('.diary-labor-qty[data-cargo-id="' + cargoId + '"][data-company="' + (company || '') + '"]');
+        var inp = findQtyInput(cargoRef, company || '');
         if (inp) inp.value = diaryLaborState[k];
     }
-    function changeQty(cargoId, company, delta) {
-        var k = key(cargoId, company);
+    function changeQty(cargoRef, company, delta) {
+        var k = key(cargoRef, company);
         diaryLaborState[k] = (diaryLaborState[k] || 0) + delta;
         if (diaryLaborState[k] < 0) diaryLaborState[k] = 0;
-        var inp = document.querySelector('.diary-labor-qty[data-cargo-id="' + cargoId + '"][data-company="' + (company || '') + '"]');
+        var inp = findQtyInput(cargoRef, company || '');
         if (inp) inp.value = diaryLaborState[k];
     }
 
@@ -1860,52 +2023,38 @@ window.updateLaborQuantity = updateLaborQuantity;
             var data = JSON.parse(el.textContent || '[]');
             for (var i = 0; i < data.length; i++) {
                 var e = data[i];
-                setQuantity(e.cargo_id, e.company || '', e.quantity);
+                var existingRef = e.cargo_id ? cargoRefFromId(e.cargo_id) : cargoRefFromName(e.cargo_name || '');
+                if (!existingRef) continue;
+                if (e.cargo_id || e.cargo_name) {
+                    upsertDynamicCargo({
+                        id: e.cargo_id || null,
+                        name: e.cargo_name || ''
+                    });
+                }
+                setQuantity(existingRef, e.company || '', e.quantity);
             }
             var companies = [];
             for (var k in diaryLaborState) {
                 if (k.indexOf('|') !== -1 && diaryLaborState[k] > 0) {
-                    var company = k.split('|').slice(1).join('|');
+                    var company = splitStateKey(k).company;
                     if (companies.indexOf(company) === -1) companies.push(company);
                 }
             }
-            var cargosEl = document.getElementById('terceirizada-cargos-data');
-            var cargos = [];
-            if (cargosEl) try { cargos = JSON.parse(cargosEl.textContent || '[]'); } catch (e) {}
-            var container = document.getElementById('terceirizada-empresas');
             for (var c = 0; c < companies.length; c++) {
                 var companyName = companies[c];
-                if (!container || !companyName) continue;
-                var card = document.createElement('div');
-                card.className = 'terceirizada-empresa-card rounded-lg border border-amber-200 bg-amber-50/50 p-4';
-                card.setAttribute('data-company', companyName);
-                var html = '<div class="flex items-center justify-between mb-3"><strong class="text-slate-800">' + escapeHtml(companyName) + '</strong><button type="button" class="terceirizada-remove-empresa text-red-600 hover:text-red-800 text-sm" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-times mr-1"></i>Remover</button></div><ul class="space-y-2">';
-                for (var j = 0; j < cargos.length; j++) {
-                    var cargo = cargos[j];
-                    var q = diaryLaborState[key(cargo.id, companyName)] || 0;
-                    html += '<li class="flex items-center justify-between gap-2 py-1"><span class="text-sm text-slate-700">' + escapeHtml(cargo.name) + '</span>';
-                    html += '<div class="flex items-center gap-1"><button type="button" class="diary-labor-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-id="' + cargo.id + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-minus text-xs"></i></button>';
-                    html += '<input type="number" min="0" value="' + q + '" class="diary-labor-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm" data-cargo-id="' + cargo.id + '" data-company="' + escapeHtml(companyName) + '">';
-                    html += '<button type="button" class="diary-labor-plus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-id="' + cargo.id + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-plus text-xs"></i></button></div></li>';
-                }
-                html += '</ul>';
-                card.innerHTML = html;
-                container.appendChild(card);
-                card.querySelector('.terceirizada-remove-empresa') && card.querySelector('.terceirizada-remove-empresa').addEventListener('click', function() {
-                    var cn = this.getAttribute('data-company');
-                    var qs = document.querySelectorAll('.diary-labor-qty[data-company="' + cn + '"]');
-                    for (var i = 0; i < qs.length; i++) setQuantity(parseInt(qs[i].getAttribute('data-cargo-id'), 10), cn, 0);
-                    card.remove();
-                });
+                if (!companyName) continue;
+                createCompanyCard(companyName);
             }
             var allInputs = document.querySelectorAll('.diary-labor-qty');
-            for (var i = 0; i < allInputs.length; i++) {
-                var inpx = allInputs[i];
+            for (var x = 0; x < allInputs.length; x++) {
+                var inpx = allInputs[x];
                 var cid = inpx.getAttribute('data-cargo-id');
+                var cref = getElementCargoRef(inpx);
                 var comp = (inpx.getAttribute('data-company') || '').trim();
-                if (cid) {
-                    var k = key(parseInt(cid, 10), comp);
-                    if (diaryLaborState.hasOwnProperty(k)) inpx.value = diaryLaborState[k];
+                if (cid && !cref) cref = cargoRefFromId(cid);
+                if (cref) {
+                    var sk = key(cref, comp);
+                    if (diaryLaborState.hasOwnProperty(sk)) inpx.value = diaryLaborState[sk];
                 }
             }
         } catch (err) {}
@@ -1914,69 +2063,72 @@ window.updateLaborQuantity = updateLaborQuantity;
         document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('click', function(ev) {
             var plus = ev.target.closest('.diary-labor-plus');
             var minus = ev.target.closest('.diary-labor-minus');
-            var cargoId = (plus && plus.getAttribute('data-cargo-id')) || (minus && minus.getAttribute('data-cargo-id'));
+            var source = plus || minus;
+            var cargoRef = getElementCargoRef(source);
             var company = (plus && plus.getAttribute('data-company')) || (minus && minus.getAttribute('data-company')) || '';
-            if (!cargoId) return;
-            if (plus) changeQty(parseInt(cargoId, 10), company, 1);
-            if (minus) changeQty(parseInt(cargoId, 10), company, -1);
+            if (!cargoRef) return;
+            if (plus) changeQty(cargoRef, company, 1);
+            if (minus) changeQty(cargoRef, company, -1);
         });
         document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('change', function(ev) {
             var inp = ev.target;
             if (inp && inp.classList && inp.classList.contains('diary-labor-qty')) {
                 var cid = inp.getAttribute('data-cargo-id');
+                var cref = getElementCargoRef(inp);
                 var company = inp.getAttribute('data-company') || '';
-                if (cid) setQuantity(parseInt(cid, 10), company, parseInt(inp.value, 10) || 0);
+                if (cid && !cref) cref = cargoRefFromId(cid);
+                if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0);
             }
         });
     }
     function addTerceirizadaEmpresa() {
-        var el = document.getElementById('terceirizada-cargos-data');
-        if (!el) return;
-        var cargos;
-        try { cargos = JSON.parse(el.textContent || '[]'); } catch (e) { return; }
         var companyName = prompt('Nome da empresa terceirizada:', '');
         if (companyName === null || !companyName.trim()) return;
         companyName = companyName.trim();
-        var container = document.getElementById('terceirizada-empresas');
-        if (!container) return;
-        var card = document.createElement('div');
-        card.className = 'terceirizada-empresa-card rounded-lg border border-amber-200 bg-amber-50/50 p-4';
-        card.setAttribute('data-company', companyName);
-        var html = '<div class="flex items-center justify-between mb-3"><strong class="text-slate-800">' + escapeHtml(companyName) + '</strong><button type="button" class="terceirizada-remove-empresa text-red-600 hover:text-red-800 text-sm" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-times mr-1"></i>Remover</button></div><ul class="space-y-2">';
-        for (var j = 0; j < cargos.length; j++) {
-            var c = cargos[j];
-            html += '<li class="flex items-center justify-between gap-2 py-1"><span class="text-sm text-slate-700">' + escapeHtml(c.name) + '</span>';
-            html += '<div class="flex items-center gap-1"><button type="button" class="diary-labor-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-id="' + c.id + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-minus text-xs"></i></button>';
-            html += '<input type="number" min="0" value="0" class="diary-labor-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm" data-cargo-id="' + c.id + '" data-company="' + escapeHtml(companyName) + '">';
-            html += '<button type="button" class="diary-labor-plus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-id="' + c.id + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-plus text-xs"></i></button></div></li>';
+        var existingCards = document.querySelectorAll('.terceirizada-empresa-card[data-company]');
+        for (var i = 0; i < existingCards.length; i++) {
+            var exName = existingCards[i].getAttribute('data-company') || '';
+            if (normalizeCargoName(exName) === normalizeCargoName(companyName)) {
+                alert('Essa empresa já foi adicionada.');
+                return;
+            }
         }
-        html += '</ul>';
-        card.innerHTML = html;
-        container.appendChild(card);
-        card.querySelector('.terceirizada-remove-empresa') && card.querySelector('.terceirizada-remove-empresa').addEventListener('click', function() {
-            var cn = this.getAttribute('data-company');
-            var qs = document.querySelectorAll('.diary-labor-qty[data-company="' + cn + '"]');
-            for (var i = 0; i < qs.length; i++) setQuantity(parseInt(qs[i].getAttribute('data-cargo-id'), 10), cn, 0);
-            card.remove();
-        });
+        createCompanyCard(companyName);
     }
-    function escapeHtml(s) {
-        var div = document.createElement('div');
-        div.textContent = s;
-        return div.innerHTML;
+    function addTerceirizadaCargo() {
+        if (!hasAnyTerceirizadaCompany()) {
+            alert('Cadastre uma empresa terceirizada antes de adicionar uma profissão.');
+            return;
+        }
+        var cargoName = prompt('Nome da nova profissão terceirizada:', '');
+        if (cargoName === null || !cargoName.trim()) return;
+        cargoName = cargoName.trim();
+        if (!upsertDynamicCargo({ name: cargoName })) {
+            alert('Essa profissão já existe na lista.');
+            return;
+        }
+        rerenderAllCompanyCards();
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
+            loadTerceirizadaCargos();
             initFromExisting();
             bindPlusMinus();
+            updateTerceirizadaCargoButtonState();
             var btn = document.getElementById('btn-add-terceirizada-empresa');
             if (btn) btn.addEventListener('click', addTerceirizadaEmpresa);
+            var btnCargo = document.getElementById('btn-add-terceirizada-cargo');
+            if (btnCargo) btnCargo.addEventListener('click', addTerceirizadaCargo);
         });
     } else {
+        loadTerceirizadaCargos();
         initFromExisting();
         bindPlusMinus();
+        updateTerceirizadaCargoButtonState();
         var btn = document.getElementById('btn-add-terceirizada-empresa');
         if (btn) btn.addEventListener('click', addTerceirizadaEmpresa);
+        var btnCargo = document.getElementById('btn-add-terceirizada-cargo');
+        if (btnCargo) btnCargo.addEventListener('click', addTerceirizadaCargo);
     }
 })();
 

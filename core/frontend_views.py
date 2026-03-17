@@ -1548,9 +1548,12 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
             data = json.loads(labor_json)
             if isinstance(data, list):
                 for item in data:
-                    if isinstance(item, dict) and ('cargo_id' in item or 'cargoId' in item):
+                    if isinstance(item, dict) and (
+                        'cargo_id' in item or 'cargoId' in item or 'cargo_name' in item or 'cargoName' in item
+                    ):
                         existing_diary_labor.append({
                             'cargo_id': item.get('cargo_id') or item.get('cargoId'),
+                            'cargo_name': (item.get('cargo_name') or item.get('cargoName') or '').strip(),
                             'quantity': int(item.get('quantity') or 1),
                             'company': (item.get('company') or '').strip(),
                         })
@@ -2376,7 +2379,7 @@ def diary_form_view(request, pk=None):
                     
                     # 4. PROCESSAMENTO DE MÃO DE OBRA E EQUIPAMENTOS (sempre processa)
                     import json
-                    from core.models import Labor, Equipment, DiaryLaborEntry, LaborCargo
+                    from core.models import Labor, Equipment, DiaryLaborEntry, LaborCargo, LaborCategory
                     
                     # Novo sistema: mão de obra por categorias/cargos (diary_labor_data)
                     diary_labor_json = request.POST.get('diary_labor_data', '')
@@ -2384,15 +2387,35 @@ def diary_form_view(request, pk=None):
                         try:
                             diary_labor_data = json.loads(diary_labor_json) if diary_labor_json else []
                             DiaryLaborEntry.objects.filter(diary=diary).delete()
+                            terceirizada_category = LaborCategory.objects.filter(slug='terceirizada').first()
                             for item in diary_labor_data:
                                 cargo_id = item.get('cargo_id')
+                                cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
                                 quantity = max(1, int(item.get('quantity') or 1))
                                 company = (item.get('company') or '').strip()
-                                if not cargo_id or not LaborCargo.objects.filter(pk=cargo_id).exists():
+
+                                selected_cargo_id = None
+                                if cargo_id and LaborCargo.objects.filter(pk=cargo_id).exists():
+                                    selected_cargo_id = int(cargo_id)
+                                elif cargo_name and terceirizada_category:
+                                    existing_cargo = LaborCargo.objects.filter(
+                                        category=terceirizada_category,
+                                        name__iexact=cargo_name
+                                    ).only('id').first()
+                                    if existing_cargo:
+                                        selected_cargo_id = existing_cargo.id
+                                    else:
+                                        selected_cargo_id = LaborCargo.objects.create(
+                                            category=terceirizada_category,
+                                            name=cargo_name,
+                                            order=0
+                                        ).id
+
+                                if not selected_cargo_id:
                                     continue
                                 DiaryLaborEntry.objects.create(
                                     diary=diary,
-                                    cargo_id=cargo_id,
+                                    cargo_id=selected_cargo_id,
                                     quantity=quantity,
                                     company=company
                                 )
@@ -2987,6 +3010,7 @@ def diary_form_view(request, pk=None):
             for e in DiaryLaborEntry.objects.filter(diary=labor_source).select_related('cargo'):
                 existing_diary_labor.append({
                     'cargo_id': e.cargo_id,
+                    'cargo_name': getattr(e.cargo, 'name', ''),
                     'quantity': e.quantity,
                     'company': e.company or '',
                 })
