@@ -40,6 +40,16 @@
                 <label for="password" class="form-label">Senha *</label>
                 <input type="password" id="password" name="password" class="form-control" required>
             </div>
+
+            <div class="form-group">
+                <div class="form-check">
+                    <input type="checkbox" id="create_as_pending" name="create_as_pending" class="form-check-input">
+                    <label for="create_as_pending" class="form-check-label">
+                        Criar como pendente de aprovação (não cria usuário agora)
+                    </label>
+                </div>
+                <small class="form-text text-muted">Quando marcado, a solicitação vai para aprovação no Central e o usuário só é criado após aprovação.</small>
+            </div>
             
             <div class="form-group">
                 <label for="first_name" class="form-label">Nome</label>
@@ -73,7 +83,7 @@
                 <label class="form-label">Obras (Diário de Obra e GestControll)</label>
                 <div class="form-help">Selecione as obras em que o usuário pode atuar. É a <strong>mesma lista</strong> para todo o sistema: quem for vinculado aqui terá acesso ao Diário de Obra e ao GestControll (pedidos) nessas obras. Empresas são derivadas automaticamente.</div>
                 {% if projects %}
-                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
+                    <div style="max-height: 40vh; min-height: 120px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
                         {% for project in projects %}
                         <div class="form-check">
                             <input type="checkbox" id="project_{{ project.id }}" name="projects" value="{{ project.id }}" class="form-check-input">
@@ -87,10 +97,32 @@
             </div>
             
             <div class="form-actions">
-                <button type="submit" class="btn">Criar Usuário</button>
+                <button type="submit" class="btn" id="submit-create-user">Criar Usuário</button>
                 <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary">Cancelar</a>
             </div>
         </form>
     </div>
 </div>
+<script>
+(function() {
+    var toggle = document.getElementById('create_as_pending');
+    var password = document.getElementById('password');
+    var submit = document.getElementById('submit-create-user');
+    if (!toggle || !password || !submit) return;
+    function syncPendingMode() {
+        var pending = toggle.checked;
+        password.required = !pending;
+        if (pending) {
+            password.value = '';
+            password.setAttribute('placeholder', 'Não necessário para cadastro pendente');
+            submit.textContent = 'Enviar para aprovação';
+        } else {
+            password.setAttribute('placeholder', '');
+            submit.textContent = 'Criar Usuário';
+        }
+    }
+    toggle.addEventListener('change', syncPendingMode);
+    syncPendingMode();
+})();
+</script>
 {% endblock %}

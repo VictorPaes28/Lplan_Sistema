@@ -1,0 +1,628 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .cc-container { max-width: 56rem; margin: 0 auto; }
+
+    /* ── Alertas ── */
+    .cc-alert {
+        padding: 0.7rem 1rem; border-radius: 8px; font-size: 0.87rem;
+        margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cc-alert-success { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+    .cc-alert-error   { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+    .cc-alert-info    { background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; }
+    .cc-alert-warning { background:#fefce8; color:#854d0e; border:1px solid #fde68a; }
+
+    /* ── Painel de instruções ── */
+    .cc-info-panel {
+        background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%);
+        border: 1px solid #c7d2fe; border-radius: 12px;
+        padding: 1.25rem; margin-bottom: 1.5rem;
+    }
+    .cc-info-panel h3 { font-size: 0.92rem; font-weight: 700; color: #1e40af; margin-bottom: 0.5rem; }
+    .cc-info-steps {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+    .cc-step {
+        background: #fff; border-radius: 8px; padding: 0.75rem;
+        text-align: center; font-size: 0.8rem; color: #334155;
+        border: 1px solid #e0e7ff;
+    }
+    .cc-step-num {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 26px; height: 26px; border-radius: 50%;
+        background: #4f46e5; color: #fff; font-weight: 700; font-size: 0.75rem;
+        margin-bottom: 0.35rem;
+    }
+    .cc-step-title { font-weight: 600; display: block; margin-bottom: 0.15rem; color: #1e293b; }
+
+    /* ── Card de formulário ── */
+    .cc-form-card {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 1.5rem; margin-bottom: 1.5rem;
+    }
+    .cc-form-title {
+        font-size: 1.05rem; font-weight: 700; color: #1e293b;
+        margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cc-form-desc { font-size: 0.82rem; color: #64748b; margin-bottom: 1.15rem; line-height: 1.5; }
+    .cc-form-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.85rem;
+    }
+    .cc-form-grid .full { grid-column: 1 / -1; }
+    .cc-label {
+        display: block; font-size: 0.8rem; font-weight: 600;
+        color: #475569; margin-bottom: 0.25rem;
+    }
+    .cc-input {
+        width: 100%; padding: 0.55rem 0.75rem;
+        border: 1px solid #cbd5e1; border-radius: 8px;
+        font-size: 0.9rem; transition: border-color 0.15s;
+        background: #fff;
+    }
+    .cc-input:focus {
+        outline: none; border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .cc-password-wrap {
+        position: relative;
+    }
+    .cc-password-wrap .cc-input { padding-right: 2.5rem; }
+    .cc-password-toggle {
+        position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%);
+        background: none; border: none; cursor: pointer; color: #94a3b8;
+        padding: 0.25rem; font-size: 0.9rem;
+    }
+    .cc-password-toggle:hover { color: #475569; }
+    .cc-projects-box {
+        max-height: 32vh; min-height: 90px; overflow-y: auto;
+        border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem;
+    }
+    .cc-projects-box label {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-weight: 400; font-size: 0.84rem; color: #334155;
+        padding: 0.3rem 0.25rem; cursor: pointer; border-radius: 4px;
+        transition: background 0.1s;
+    }
+    .cc-projects-box label:hover { background: #f8fafc; }
+    .cc-projects-box input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
+    .cc-btn-primary {
+        background: #3b82f6; color: #fff; padding: 0.6rem 1.5rem;
+        border: none; border-radius: 8px; font-weight: 600;
+        cursor: pointer; font-size: 0.88rem; transition: background 0.15s;
+        display: inline-flex; align-items: center; gap: 0.4rem;
+    }
+    .cc-btn-primary:hover { background: #2563eb; }
+    .cc-btn-secondary {
+        background: #f1f5f9; color: #475569; padding: 0.6rem 1.25rem;
+        border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 500;
+        cursor: pointer; font-size: 0.88rem; text-decoration: none;
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        transition: background 0.15s;
+    }
+    .cc-btn-secondary:hover { background: #e2e8f0; }
+
+    /* ── Seção de listagem ── */
+    .cc-section-header {
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 0.75rem;
+        margin: 1.75rem 0 1rem; padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .cc-section-title {
+        font-size: 1rem; font-weight: 700; color: #1e293b;
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cc-search {
+        padding: 0.45rem 0.75rem 0.45rem 2.2rem;
+        border: 1px solid #cbd5e1; border-radius: 8px;
+        font-size: 0.85rem; width: 240px; max-width: 100%;
+        background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 0.7rem center;
+    }
+    .cc-search:focus { outline: none; border-color: #3b82f6; }
+
+    /* ── Card de cliente ── */
+    .cc-client {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 1.15rem; margin-bottom: 0.85rem; transition: box-shadow 0.15s;
+    }
+    .cc-client:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+    .cc-client.inactive { opacity: 0.6; background: #fafafa; }
+    .cc-client-top {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 0.75rem; margin-bottom: 0.65rem;
+    }
+    .cc-client-info { display: flex; align-items: center; gap: 0.65rem; flex: 1; min-width: 0; }
+    .cc-avatar {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: #e0e7ff; color: #4f46e5;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.95rem; flex-shrink: 0;
+    }
+    .cc-client-name { font-weight: 600; color: #1e293b; font-size: 0.93rem; }
+    .cc-client-meta { font-size: 0.78rem; color: #64748b; }
+    .cc-badge-inactive {
+        display: inline-block; background: #fef2f2; color: #dc2626;
+        font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.45rem;
+        border-radius: 4px; margin-left: 0.35rem;
+    }
+    .cc-actions-menu {
+        position: relative; flex-shrink: 0;
+    }
+    .cc-actions-btn {
+        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+        padding: 0.35rem 0.5rem; cursor: pointer; color: #64748b;
+        font-size: 0.85rem; transition: all 0.15s;
+    }
+    .cc-actions-btn:hover { background: #f1f5f9; color: #334155; }
+    .cc-dropdown {
+        display: none; position: absolute; right: 0; top: 100%; margin-top: 4px;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 50;
+        min-width: 180px; overflow: hidden;
+    }
+    .cc-dropdown.show { display: block; }
+    .cc-dropdown-item {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.6rem 0.85rem; font-size: 0.82rem; color: #334155;
+        cursor: pointer; border: none; background: none; width: 100%;
+        text-align: left; transition: background 0.1s;
+    }
+    .cc-dropdown-item:hover { background: #f8fafc; }
+    .cc-dropdown-item.danger { color: #dc2626; }
+    .cc-dropdown-item.danger:hover { background: #fef2f2; }
+    .cc-dropdown-divider { border-top: 1px solid #f1f5f9; margin: 0.2rem 0; }
+
+    /* ── Badges de obras ── */
+    .cc-projects-row {
+        display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+    }
+    .cc-proj-badge {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd;
+        padding: 0.25rem 0.55rem; border-radius: 6px;
+        font-size: 0.78rem; font-weight: 500;
+    }
+    .cc-proj-badge .cc-proj-rm {
+        background: none; border: none; cursor: pointer;
+        color: #94a3b8; font-size: 0.78rem; padding: 0; line-height: 1;
+        transition: color 0.1s;
+    }
+    .cc-proj-badge .cc-proj-rm:hover { color: #ef4444; }
+    .cc-add-proj {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+    }
+    .cc-add-proj select {
+        font-size: 0.78rem; padding: 0.2rem 0.4rem;
+        border: 1px solid #cbd5e1; border-radius: 5px;
+        max-width: 180px; background: #fff;
+    }
+    .cc-add-proj button {
+        font-size: 0.72rem; padding: 0.2rem 0.45rem;
+        background: #dbeafe; color: #2563eb; border: 1px solid #bfdbfe;
+        border-radius: 5px; cursor: pointer; font-weight: 600;
+    }
+    .cc-add-proj button:hover { background: #bfdbfe; }
+
+    /* ── Modais ── */
+    .cc-modal-overlay {
+        display: none; position: fixed; inset: 0; z-index: 100;
+        background: rgba(0,0,0,0.4); align-items: center; justify-content: center;
+        padding: 1rem;
+    }
+    .cc-modal-overlay.show { display: flex; }
+    .cc-modal {
+        background: #fff; border-radius: 12px; width: 100%; max-width: 440px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.15); overflow: hidden;
+    }
+    .cc-modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9;
+    }
+    .cc-modal-header h3 { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+    .cc-modal-close {
+        background: none; border: none; cursor: pointer; color: #94a3b8;
+        font-size: 1.1rem; padding: 0.25rem;
+    }
+    .cc-modal-close:hover { color: #475569; }
+    .cc-modal-body { padding: 1.25rem; }
+    .cc-modal-body .cc-label { margin-top: 0.65rem; }
+    .cc-modal-body .cc-label:first-child { margin-top: 0; }
+    .cc-modal-footer {
+        display: flex; justify-content: flex-end; gap: 0.5rem;
+        padding: 0.85rem 1.25rem; border-top: 1px solid #f1f5f9;
+    }
+    .cc-btn-sm {
+        padding: 0.4rem 0.9rem; font-size: 0.82rem; border-radius: 6px;
+        border: none; cursor: pointer; font-weight: 500;
+    }
+    .cc-btn-sm.primary { background: #3b82f6; color: #fff; }
+    .cc-btn-sm.primary:hover { background: #2563eb; }
+    .cc-btn-sm.cancel { background: #f1f5f9; color: #475569; }
+    .cc-btn-sm.cancel:hover { background: #e2e8f0; }
+    .cc-btn-sm.danger { background: #ef4444; color: #fff; }
+    .cc-btn-sm.danger:hover { background: #dc2626; }
+
+    /* ── Login info box ── */
+    .cc-login-box {
+        background: #fafafa; border: 1px dashed #d1d5db; border-radius: 8px;
+        padding: 0.65rem 0.85rem; margin-top: 0.75rem;
+        font-size: 0.82rem; color: #475569;
+    }
+    .cc-login-box code {
+        background: #e2e8f0; padding: 0.1rem 0.35rem; border-radius: 3px;
+        font-size: 0.82rem; color: #1e293b; font-weight: 600;
+    }
+
+    /* ── Empty ── */
+    .cc-empty {
+        text-align: center; padding: 2.5rem 1rem;
+        color: #94a3b8; font-size: 0.9rem;
+    }
+    .cc-empty i { font-size: 2.5rem; margin-bottom: 0.65rem; display: block; color: #c7d2fe; }
+
+    @media (max-width: 768px) {
+        .cc-form-grid { grid-template-columns: 1fr; }
+        .cc-info-steps { grid-template-columns: 1fr; }
+        .cc-client-top { flex-direction: column; }
+        .cc-search { width: 100%; }
+        .cc-section-header { flex-direction: column; align-items: stretch; }
+        .cc-add-proj { width: 100%; }
+        .cc-add-proj select { flex: 1; max-width: none; }
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Clientes (Donos da Obra){% endblock %}
+{% block page_subtitle %}Central - Cadastro e vínculos{% endblock %}
+
+{% block content %}
+<div class="cc-container">
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="cc-alert cc-alert-{{ message.tags }}">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'info' %}fa-info-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- ═══ Como funciona ═══ -->
+    <div class="cc-info-panel">
+        <h3><i class="fas fa-lightbulb"></i> Como funciona o acesso do cliente</h3>
+        <p style="font-size: 0.82rem; color: #334155; line-height: 1.5;">
+            O cliente (dono da obra) é um usuário com acesso restrito. Ao fazer login, ele só vê os diários aprovados das obras dele e pode comentar dentro de <strong>24 horas</strong> após o envio.
+        </p>
+        <div class="cc-info-steps">
+            <div class="cc-step">
+                <div class="cc-step-num">1</div>
+                <span class="cc-step-title">Cadastre aqui</span>
+                Crie o cliente e vincule às obras
+            </div>
+            <div class="cc-step">
+                <div class="cc-step-num">2</div>
+                <span class="cc-step-title">Você define a senha</span>
+                Cadastro direto com usuário e senha
+            </div>
+            <div class="cc-step">
+                <div class="cc-step-num">3</div>
+                <span class="cc-step-title">Cliente comenta</span>
+                Login no sistema, 24h para responder
+            </div>
+        </div>
+        <div class="cc-login-box" style="margin-top: 1rem;">
+            <i class="fas fa-link"></i> Link de login para enviar ao cliente: <code>{{ login_url }}</code>
+        </div>
+    </div>
+
+    <!-- ═══ Formulário de cadastro ═══ -->
+    <div class="cc-form-card">
+        <div class="cc-form-title"><i class="fas fa-user-plus" style="color: #3b82f6;"></i> Cadastrar novo cliente</div>
+        <form method="post" id="createForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+
+            <div class="cc-form-grid">
+                <div>
+                    <label class="cc-label" for="username">Username *</label>
+                    <input class="cc-input" type="text" id="username" name="username" required placeholder="ex: cliente.silva" autocomplete="off">
+                </div>
+                <div>
+                    <label class="cc-label" for="email">E-mail</label>
+                    <input class="cc-input" type="email" id="email" name="email" placeholder="cliente@empresa.com">
+                    <small style="font-size:0.72rem;color:#64748b;">Opcional (usado para comunicação, não envia convite automático).</small>
+                </div>
+                <div>
+                    <label class="cc-label" for="first_name">Nome</label>
+                    <input class="cc-input" type="text" id="first_name" name="first_name" placeholder="João">
+                </div>
+                <div>
+                    <label class="cc-label" for="last_name">Sobrenome</label>
+                    <input class="cc-input" type="text" id="last_name" name="last_name" placeholder="Silva">
+                </div>
+                <div>
+                    <label class="cc-label" for="password">Senha * <small style="font-weight:400;color:#94a3b8;">(mín. 8 caracteres)</small></label>
+                    <div class="cc-password-wrap">
+                        <input class="cc-input" type="password" id="password" name="password" required minlength="8" placeholder="Senha do cliente" autocomplete="new-password">
+                        <button type="button" class="cc-password-toggle" onclick="togglePw(this)"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <small style="font-size:0.72rem;color:#64748b;">Você informa essa senha ao cliente.</small>
+                </div>
+                <div></div>
+
+                <div class="full">
+                    <label class="cc-label">Obras que este cliente será dono *</label>
+                    {% if projects %}
+                    <div class="cc-projects-box">
+                        {% for project in projects %}
+                        <label>
+                            <input type="checkbox" name="projects" value="{{ project.id }}">
+                            <strong>{{ project.code }}</strong> — {{ project.name }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="color: #94a3b8; font-size: 0.85rem;">Nenhuma obra ativa. Cadastre obras primeiro.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="margin-top: 1.15rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <button type="submit" class="cc-btn-primary">
+                    <i class="fas fa-check"></i> Cadastrar Cliente
+                </button>
+                <a href="{% url 'central_hub' %}" class="cc-btn-secondary">Voltar</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- ═══ Listagem ═══ -->
+    <div class="cc-section-header">
+        <div class="cc-section-title">
+            <i class="fas fa-users" style="color: #6366f1;"></i>
+            Clientes cadastrados ({{ clients|length }})
+        </div>
+        {% if clients %}
+        <input type="text" class="cc-search" id="clientSearch" placeholder="Buscar cliente..." oninput="filterClients()">
+        {% endif %}
+    </div>
+
+    {% if clients %}
+        {% for client in clients %}
+        <div class="cc-client {% if not client.user.is_active %}inactive{% endif %}" data-search="{{ client.user.get_full_name|lower }} {{ client.user.username|lower }} {{ client.user.email|lower }}">
+            <div class="cc-client-top">
+                <div class="cc-client-info">
+                    <div class="cc-avatar">{{ client.user.first_name|default:client.user.username|make_list|first|upper }}</div>
+                    <div style="min-width: 0;">
+                        <div class="cc-client-name">
+                            {{ client.user.get_full_name|default:client.user.username }}
+                            {% if not client.user.is_active %}<span class="cc-badge-inactive">Inativo</span>{% endif %}
+                        </div>
+                        <div class="cc-client-meta">
+                            @{{ client.user.username }}
+                            {% if client.user.email %} · {{ client.user.email }}{% endif %}
+                            · {{ client.projects|length }} obra{{ client.projects|length|pluralize:"s" }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cc-actions-menu">
+                    <button class="cc-actions-btn" onclick="toggleDropdown(this)" type="button">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="cc-dropdown">
+                        <button class="cc-dropdown-item" onclick="openEditModal({{ client.user.id }}, '{{ client.user.first_name|escapejs }}', '{{ client.user.last_name|escapejs }}', '{{ client.user.email|escapejs }}')">
+                            <i class="fas fa-pen" style="width:14px;"></i> Editar dados
+                        </button>
+                        <button class="cc-dropdown-item" onclick="openPasswordModal({{ client.user.id }}, '{{ client.user.get_full_name|default:client.user.username|escapejs }}')">
+                            <i class="fas fa-key" style="width:14px;"></i> Redefinir senha
+                        </button>
+                        <div class="cc-dropdown-divider"></div>
+                        <form method="post" style="margin:0;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="toggle_active">
+                            <input type="hidden" name="user_id" value="{{ client.user.id }}">
+                            <button type="submit" class="cc-dropdown-item">
+                                <i class="fas fa-{% if client.user.is_active %}ban{% else %}check-circle{% endif %}" style="width:14px;"></i>
+                                {% if client.user.is_active %}Desativar acesso{% else %}Reativar acesso{% endif %}
+                            </button>
+                        </form>
+                        <div class="cc-dropdown-divider"></div>
+                        <button class="cc-dropdown-item danger" onclick="openDeleteModal({{ client.user.id }}, '{{ client.user.get_full_name|default:client.user.username|escapejs }}')">
+                            <i class="fas fa-trash-alt" style="width:14px;"></i> Excluir cliente
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cc-projects-row">
+                {% for owner in client.projects %}
+                <span class="cc-proj-badge">
+                    <i class="fas fa-building" style="font-size: 0.65rem;"></i>
+                    {{ owner.project.code }} — {{ owner.project.name }}
+                    <form method="post" action="{% url 'central_client_remove_owner' owner.pk %}" style="display:inline;"
+                          onsubmit="return confirm('Remover vínculo de {{ client.user.get_full_name|default:client.user.username|escapejs }} com {{ owner.project.code }}?');">
+                        {% csrf_token %}
+                        <button type="submit" class="cc-proj-rm" title="Remover vínculo"><i class="fas fa-times"></i></button>
+                    </form>
+                </span>
+                {% endfor %}
+
+                <form method="post" class="cc-add-proj" style="display:inline-flex;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_project">
+                    <input type="hidden" name="user_id" value="{{ client.user.id }}">
+                    <select name="project_id" required>
+                        <option value="">+ Vincular obra...</option>
+                        {% for project in projects %}
+                        <option value="{{ project.id }}">{{ project.code }} — {{ project.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit"><i class="fas fa-plus"></i></button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="cc-empty">
+            <i class="fas fa-user-shield"></i>
+            Nenhum cliente cadastrado ainda.<br>
+            <span style="font-size: 0.82rem;">Use o formulário acima para cadastrar o primeiro.</span>
+        </div>
+    {% endif %}
+
+    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+        <a href="{% url 'central_hub' %}" class="central-nav-link">
+            <i class="fas fa-arrow-left"></i> Voltar ao Painel
+        </a>
+    </div>
+</div>
+
+<!-- ═══ Modal: Editar dados ═══ -->
+<div class="cc-modal-overlay" id="editModal">
+    <div class="cc-modal" onclick="event.stopPropagation()">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit">
+            <input type="hidden" name="user_id" id="edit_user_id">
+            <div class="cc-modal-header">
+                <h3><i class="fas fa-pen" style="color:#3b82f6;"></i> Editar cliente</h3>
+                <button type="button" class="cc-modal-close" onclick="closeModal('editModal')">&times;</button>
+            </div>
+            <div class="cc-modal-body">
+                <label class="cc-label">Nome</label>
+                <input class="cc-input" type="text" name="edit_first_name" id="edit_first_name">
+                <label class="cc-label">Sobrenome</label>
+                <input class="cc-input" type="text" name="edit_last_name" id="edit_last_name">
+                <label class="cc-label">E-mail</label>
+                <input class="cc-input" type="email" name="edit_email" id="edit_email">
+            </div>
+            <div class="cc-modal-footer">
+                <button type="button" class="cc-btn-sm cancel" onclick="closeModal('editModal')">Cancelar</button>
+                <button type="submit" class="cc-btn-sm primary">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══ Modal: Redefinir senha ═══ -->
+<div class="cc-modal-overlay" id="passwordModal">
+    <div class="cc-modal" onclick="event.stopPropagation()">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reset_password">
+            <input type="hidden" name="user_id" id="pw_user_id">
+            <div class="cc-modal-header">
+                <h3><i class="fas fa-key" style="color:#f59e0b;"></i> Redefinir senha</h3>
+                <button type="button" class="cc-modal-close" onclick="closeModal('passwordModal')">&times;</button>
+            </div>
+            <div class="cc-modal-body">
+                <p style="font-size:0.85rem; color:#64748b; margin-bottom:0.75rem;" id="pw_label"></p>
+                <label class="cc-label">Nova senha (mín. 8 caracteres)</label>
+                <div class="cc-password-wrap">
+                    <input class="cc-input" type="password" name="new_password" required minlength="8" placeholder="Nova senha" id="pw_new_input" autocomplete="new-password">
+                    <button type="button" class="cc-password-toggle" onclick="togglePw(this)"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <div class="cc-modal-footer">
+                <button type="button" class="cc-btn-sm cancel" onclick="closeModal('passwordModal')">Cancelar</button>
+                <button type="submit" class="cc-btn-sm primary">Redefinir</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══ Modal: Excluir ═══ -->
+<div class="cc-modal-overlay" id="deleteModal">
+    <div class="cc-modal" onclick="event.stopPropagation()">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="user_id" id="del_user_id">
+            <div class="cc-modal-header">
+                <h3><i class="fas fa-trash-alt" style="color:#ef4444;"></i> Excluir cliente</h3>
+                <button type="button" class="cc-modal-close" onclick="closeModal('deleteModal')">&times;</button>
+            </div>
+            <div class="cc-modal-body">
+                <p style="font-size:0.88rem; color:#334155;">Tem certeza que deseja excluir <strong id="del_name"></strong>?</p>
+                <p style="font-size:0.82rem; color:#dc2626; margin-top:0.5rem;">
+                    <i class="fas fa-exclamation-triangle"></i> Esta ação é irreversível. O usuário e todos os vínculos serão removidos permanentemente.
+                </p>
+            </div>
+            <div class="cc-modal-footer">
+                <button type="button" class="cc-btn-sm cancel" onclick="closeModal('deleteModal')">Cancelar</button>
+                <button type="submit" class="cc-btn-sm danger">Excluir</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function togglePw(btn) {
+    var input = btn.previousElementSibling;
+    var icon = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+function filterClients() {
+    var q = document.getElementById('clientSearch').value.toLowerCase();
+    document.querySelectorAll('.cc-client').forEach(function(card) {
+        card.style.display = card.dataset.search.includes(q) ? '' : 'none';
+    });
+}
+
+function toggleDropdown(btn) {
+    var dd = btn.nextElementSibling;
+    var wasOpen = dd.classList.contains('show');
+    document.querySelectorAll('.cc-dropdown.show').forEach(function(d) { d.classList.remove('show'); });
+    if (!wasOpen) dd.classList.add('show');
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.cc-actions-menu')) {
+        document.querySelectorAll('.cc-dropdown.show').forEach(function(d) { d.classList.remove('show'); });
+    }
+});
+
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+document.querySelectorAll('.cc-modal-overlay').forEach(function(overlay) {
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.classList.remove('show');
+    });
+});
+
+function openEditModal(userId, firstName, lastName, email) {
+    document.getElementById('edit_user_id').value = userId;
+    document.getElementById('edit_first_name').value = firstName;
+    document.getElementById('edit_last_name').value = lastName;
+    document.getElementById('edit_email').value = email;
+    openModal('editModal');
+}
+
+function openPasswordModal(userId, name) {
+    document.getElementById('pw_user_id').value = userId;
+    document.getElementById('pw_label').textContent = 'Definir nova senha para: ' + name;
+    document.getElementById('pw_new_input').value = '';
+    openModal('passwordModal');
+}
+
+function openDeleteModal(userId, name) {
+    document.getElementById('del_user_id').value = userId;
+    document.getElementById('del_name').textContent = name;
+    openModal('deleteModal');
+}
+</script>
+{% endblock %}

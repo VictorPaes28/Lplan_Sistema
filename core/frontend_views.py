@@ -4,6 +4,7 @@ Views para frontend do LPlan - Templates Django com HTMX/Alpine.js
 from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, Http404
@@ -11,6 +12,7 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Count, Avg, Sum
 from django.db import IntegrityError
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import datetime, timedelta
 from .models import (
     Project,
@@ -29,6 +31,13 @@ from .models import (
 from django.core.exceptions import PermissionDenied, ValidationError
 import logging
 from accounts.groups import GRUPOS
+from accounts.models import UserSignupRequest
+from accounts.signup_services import (
+    create_signup_request,
+    is_allowed_signup_email,
+    notify_signup_request_created,
+    get_allowed_signup_domains,
+)
 
 logger = logging.getLogger(__name__)
 # PDFGenerator será importado apenas quando necessário (lazy import)
@@ -45,6 +54,66 @@ OBRA_CONTRATANTE_MAP = {
     'marghot': 'Antonina Hotéis',
     'sunrise': 'Rpontes',
 }
+
+
+@require_http_methods(['GET', 'POST'])
+def signup_request_view(request):
+    """Tela pública para solicitar cadastro com aprovação manual."""
+    groups = []
+    for group_name in GRUPOS.TODOS:
+        group = Group.objects.filter(name=group_name).first()
+        if group:
+            groups.append(group)
+
+    projects = Project.objects.filter(is_active=True).order_by('name')
+    allowed_domains = get_allowed_signup_domains()
+
+    selected_groups = []
+    selected_projects = []
+    if request.method == 'POST':
+        first_name = (request.POST.get('first_name') or '').strip()
+        last_name = (request.POST.get('last_name') or '').strip()
+        full_name = f'{first_name} {last_name}'.strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        username_suggestion = (request.POST.get('username_suggestion') or '').strip()
+        notes = (request.POST.get('notes') or '').strip()
+        selected_projects = request.POST.getlist('projects')
+
+        if not first_name or not last_name or not email:
+            messages.error(request, 'Nome, sobrenome e e-mail são obrigatórios.')
+        elif not is_allowed_signup_email(email):
+            domains = ', '.join(allowed_domains) if allowed_domains else 'domínios permitidos'
+            messages.error(request, f'Este e-mail não é permitido para cadastro. Use um domínio autorizado ({domains}).')
+        elif UserSignupRequest.objects.filter(email__iexact=email, status=UserSignupRequest.STATUS_PENDENTE).exists():
+            messages.info(request, 'Já existe uma solicitação pendente para este e-mail. Aguarde a análise.')
+        else:
+            create_signup_request(
+                full_name=full_name,
+                email=email,
+                username_suggestion=username_suggestion,
+                notes=notes,
+                requested_groups=[],
+                requested_project_ids=selected_projects,
+                origem=UserSignupRequest.ORIGEM_AUTO,
+                requested_by=request.user if request.user.is_authenticated else None,
+            )
+            signup_req = UserSignupRequest.objects.filter(email=email).order_by('-created_at').first()
+            if signup_req:
+                notify_signup_request_created(signup_req)
+            messages.success(request, 'Solicitação enviada com sucesso! Assim que aprovada, você receberá os dados de acesso por e-mail.')
+            return redirect('signup-request')
+
+    return render(
+        request,
+        'core/signup_request_form.html',
+        {
+            'groups': groups,
+            'projects': projects,
+            'allowed_domains': allowed_domains,
+            'selected_groups': selected_groups,
+            'selected_projects': [str(p) for p in selected_projects],
+        },
+    )
 
 
 def get_contractante_for_project(project):
@@ -66,12 +135,14 @@ def login_view(request):
     if request.user.is_authenticated:
         # Sempre redireciona para seleção de sistema (não redireciona automaticamente)
         return redirect('select-system')
-    
+
+    next_url = (request.POST.get('next') or request.GET.get('next') or '').strip()
+
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
-        
+
         if user is not None:
             login(request, user)
             # Limpa obra selecionada anterior (se houver) para forçar nova seleção
@@ -81,11 +152,17 @@ def login_view(request):
                 del request.session['selected_project_name']
             if 'selected_project_code' in request.session:
                 del request.session['selected_project_code']
+            if next_url and url_has_allowed_host_and_scheme(
+                url=next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                return redirect(next_url)
             return redirect('select-system')
         else:
-            return render(request, 'core/login.html', {'error': 'Credenciais inválidas'})
-    
-    return render(request, 'core/login.html')
+            return render(request, 'core/login.html', {'error': 'Credenciais inválidas', 'next': next_url})
+
+    return render(request, 'core/login.html', {'next': next_url})
 
 
 @login_required
@@ -132,6 +209,27 @@ def central_hub_view(request):
         raise PermissionDenied('Acesso restrito.')
     from django.shortcuts import redirect
     return redirect('accounts:admin_central')
+
+
+@login_required
+def teams_chat_embed_view(request):
+    """
+    Tela para chat do Teams embutido no LPLAN.
+    Suporta:
+    - acs_iframe: embute uma app web ACS hospedada pela empresa.
+    - embedded_sdk: usa SDK JS (quando configurado no tenant).
+    """
+    from django.conf import settings
+
+    mode = (getattr(settings, 'TEAMS_CHAT_EMBED_MODE', 'acs_iframe') or 'acs_iframe').strip()
+    context = {
+        'teams_chat_enabled': bool(getattr(settings, 'TEAMS_CHAT_EMBED_ENABLED', False)),
+        'teams_chat_mode': mode,
+        'teams_chat_app_url': (getattr(settings, 'TEAMS_CHAT_APP_URL', '') or '').strip(),
+        'teams_embedded_sdk_url': (getattr(settings, 'TEAMS_EMBEDDED_SDK_URL', '') or '').strip(),
+        'teams_chat_entity_prefix': (getattr(settings, 'TEAMS_CHAT_ENTITY_PREFIX', 'LPLAN') or 'LPLAN').strip(),
+    }
+    return render(request, 'core/teams_chat_embed.html', context)
 
 
 def _is_work_owner(user):
@@ -858,13 +956,28 @@ def _client_can_comment(diary):
     return timezone.now() <= deadline
 
 
+def _client_comment_rate_limited(request, diary_id, window_seconds=12):
+    """
+    Limite simples anti-spam por sessão/diário.
+    Evita múltiplos envios em sequência muito rápida.
+    """
+    now_ts = int(timezone.now().timestamp())
+    key = f'client_comment_last_{diary_id}'
+    last_ts = request.session.get(key)
+    if last_ts and now_ts - int(last_ts) < window_seconds:
+        return True
+    request.session[key] = now_ts
+    return False
+
+
 @login_required
 def client_diary_list_view(request):
     """Lista de diários disponíveis para o dono da obra (só obras que ele possui)."""
     if not _is_work_owner(request.user):
         raise Http404("Acesso restrito.")
     projects = _get_projects_for_user(request)
-    # Diários aprovados já enviados ao dono (com sent_to_owner_at)
+    from datetime import timedelta
+    now = timezone.now()
     diaries_by_project = []
     for project in projects:
         diaries = (
@@ -875,8 +988,17 @@ def client_diary_list_view(request):
             )
             .order_by('-date')[:10]
         )
-        if diaries:
-            diaries_by_project.append({'project': project, 'diaries': list(diaries)})
+        enriched = []
+        for d in diaries:
+            deadline = d.sent_to_owner_at + timedelta(hours=24)
+            enriched.append({
+                'diary': d,
+                'can_comment': now <= deadline,
+                'deadline': deadline,
+                'comment_count': d.owner_comments.count(),
+            })
+        if enriched:
+            diaries_by_project.append({'project': project, 'diaries': enriched})
     context = {
         'diaries_by_project': diaries_by_project,
         'user': request.user,
@@ -991,8 +1113,13 @@ def client_diary_add_comment_view(request, pk):
     diary = get_object_or_404(ConstructionDiary.objects.select_related('project'), pk=pk)
     if not _client_can_access_diary(request.user, diary):
         raise PermissionDenied("Você não tem acesso a este diário.")
+    if diary.status != DiaryStatus.APROVADO:
+        raise PermissionDenied("Diário não disponível para comentário.")
     if not _client_can_comment(diary):
         messages.error(request, "O prazo de 24 horas para enviar comentários foi encerrado.")
+        return redirect('client-diary-detail', pk=pk)
+    if _client_comment_rate_limited(request, diary.pk):
+        messages.warning(request, "Aguarde alguns segundos antes de enviar outro comentário.")
         return redirect('client-diary-detail', pk=pk)
     text = (request.POST.get('text') or '').strip()
     if not text:

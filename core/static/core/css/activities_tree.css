@@ -192,3 +192,66 @@
     padding: 10px;
 }
 
+/* ── Mobile (< 768px) ── */
+@media (max-width: 768px) {
+    .container {
+        padding: 14px 10px;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .header {
+        padding-bottom: 10px;
+        margin-bottom: 16px;
+    }
+    .header h1 {
+        font-size: 18px;
+    }
+    .activity-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .activity-item {
+        padding: 10px;
+    }
+    .activity-meta {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .progress-bar-container {
+        width: 100%;
+        max-width: 200px;
+    }
+    .children-container {
+        margin-left: 12px;
+        padding-left: 10px;
+    }
+    .no-children {
+        margin-left: 12px;
+    }
+    .expand-btn {
+        padding: 6px 14px;
+        min-height: 36px;
+    }
+}
+
+/* ── Telas muito pequenas (< 480px) ── */
+@media (max-width: 480px) {
+    .container {
+        padding: 10px 6px;
+    }
+    .header h1 {
+        font-size: 16px;
+    }
+    .activity-code {
+        font-size: 14px;
+    }
+    .children-container {
+        margin-left: 8px;
+        padding-left: 8px;
+    }
+    .no-children {
+        margin-left: 8px;
+    }
+}
+

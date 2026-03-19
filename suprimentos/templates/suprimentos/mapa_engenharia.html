@@ -196,12 +196,21 @@
     <form id="filtro-form" method="get" action="{% url 'engenharia:mapa' %}">
         <div class="filtros-row">
             <div class="filtro-item">
+                <label for="obra_search" class="form-label">Buscar Obra:</label>
+                <input type="text"
+                       id="obra_search"
+                       class="form-control"
+                       placeholder="Digite nome ou código da obra...">
+            </div>
+            <div class="filtro-item">
                 <label for="obra" class="form-label">Obra:</label>
                 <select name="obra" id="obra" class="form-select" onchange="this.form.submit()">
-                    <option value="">Todas</option>
+                    <option value="">Selecione uma obra</option>
                     {% for obra in obras %}
-                        <option value="{{ obra.id }}" {% if filtros.obra_id == obra.id|stringformat:"s" %}selected{% endif %}>
-                            {{ obra.nome }}
+                        <option value="{{ obra.id }}"
+                                data-search="{{ obra.nome|lower }} {{ obra.codigo_sienge|default:''|lower }}"
+                                {% if filtros.obra_id == obra.id|stringformat:"s" %}selected{% endif %}>
+                            {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
                         </option>
                     {% endfor %}
                 </select>
@@ -1526,6 +1535,49 @@
     
     // A edição inline (inclusive unidade) é tratada em supplymap.js via updateItemField.
     // Mantemos um único handler para evitar requisições duplicadas e falsos erros visuais.
+
+    // Busca local no seletor de obra (padrão similar ao Diário: nome/código)
+    const obraSelect = document.getElementById('obra');
+    const obraSearch = document.getElementById('obra_search');
+    if (obraSelect && obraSearch) {
+        const placeholderOption = obraSelect.querySelector('option[value=""]');
+        const obraOptions = Array.from(obraSelect.querySelectorAll('option'))
+            .filter(opt => opt.value !== '')
+            .map(opt => ({
+                value: opt.value,
+                label: opt.textContent.trim(),
+                search: (opt.dataset.search || opt.textContent || '').toLowerCase()
+            }));
+
+        function renderObraOptions(searchTerm) {
+            const currentValue = obraSelect.value;
+            const term = (searchTerm || '').trim().toLowerCase();
+
+            obraSelect.innerHTML = '';
+            if (placeholderOption) {
+                obraSelect.appendChild(placeholderOption.cloneNode(true));
+            } else {
+                const fallback = document.createElement('option');
+                fallback.value = '';
+                fallback.textContent = 'Selecione uma obra';
+                obraSelect.appendChild(fallback);
+            }
+
+            obraOptions.forEach(item => {
+                if (!term || item.search.includes(term)) {
+                    const option = document.createElement('option');
+                    option.value = item.value;
+                    option.textContent = item.label;
+                    option.selected = item.value === currentValue;
+                    obraSelect.appendChild(option);
+                }
+            });
+        }
+
+        obraSearch.addEventListener('input', function() {
+            renderObraOptions(this.value);
+        });
+    }
 </script>
 {% endblock %}
 

@@ -6,6 +6,9 @@
 {% block extra_css %}
 <style>
     .project-form-container { max-width: 650px; margin: 0 auto; }
+    @media (max-width: 768px) {
+        .project-form-container { max-width: 100%; padding-left: 0; padding-right: 0; }
+    }
 </style>
 {% endblock %}
 
@@ -55,7 +58,7 @@
                 </div>
                 
                 <!-- Data Início / Previsão de Término -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="form-group">
                         <label for="{{ form.start_date.id_for_label }}">
                             Data início <span class="text-red-500">*</span>
@@ -128,8 +131,8 @@
             {% endif %}
             
             <!-- Botões -->
-            <div class="flex justify-end space-x-3 pt-6 mt-6 border-t border-gray-200">
-                <a href="{% url 'central_project_list' %}" class="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors">
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-6 mt-6 border-t border-gray-200">
+                <a href="{% url 'central_project_list' %}" class="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors text-center">
                     Fechar
                 </a>
                 <button type="submit" class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors">

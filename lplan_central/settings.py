@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'mapa_obras',  # Mapa_Controle/obras (renomeado)
     'accounts',  # Mapa_Controle/accounts
     'suprimentos',  # Mapa_Controle/suprimentos
+    # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 
 MIDDLEWARE = [
@@ -264,6 +265,48 @@ EMAIL_RDO_HOST_USER = os.environ.get('EMAIL_RDO_HOST_USER', '')
 EMAIL_RDO_HOST_PASSWORD = os.environ.get('EMAIL_RDO_HOST_PASSWORD', '')
 # URL base do sistema (para links em e-mails). Ex.: https://sistema.empresa.com
 SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000').rstrip('/')
+
+# Cadastro com aprovação
+_signup_domains = os.environ.get('SIGNUP_ALLOWED_EMAIL_DOMAINS', 'lplan.com.br')
+SIGNUP_ALLOWED_EMAIL_DOMAINS = [d.strip().lower() for d in _signup_domains.split(',') if d.strip()]
+SIGNUP_APPROVER_EMAIL = os.environ.get('SIGNUP_APPROVER_EMAIL', '').strip().lower()
+
+# ──────────────────────────────────────────────
+# Integracoes Azure/Teams e ecossistema (PAUSADO)
+# Descomentar quando for ativar Teams/Azure.
+# ──────────────────────────────────────────────
+# INTEGRATIONS_ENABLED = os.environ.get('INTEGRATIONS_ENABLED', 'True').lower() in ('true', '1', 'yes')
+# AZURE_TENANT_ID = os.environ.get('AZURE_TENANT_ID', '').strip()
+# AZURE_CLIENT_ID = os.environ.get('AZURE_CLIENT_ID', '').strip()
+# AZURE_CLIENT_SECRET = os.environ.get('AZURE_CLIENT_SECRET', '').strip()
+# AZURE_BOT_APP_ID = os.environ.get('AZURE_BOT_APP_ID', AZURE_CLIENT_ID).strip()
+# AZURE_BOT_APP_SECRET = os.environ.get('AZURE_BOT_APP_SECRET', AZURE_CLIENT_SECRET).strip()
+# TEAMS_ENABLED = os.environ.get('TEAMS_ENABLED', 'False').lower() in ('true', '1', 'yes')
+# TEAMS_TEAM_ID = os.environ.get('TEAMS_TEAM_ID', '').strip()
+# TEAMS_CHANNEL_ID = os.environ.get('TEAMS_CHANNEL_ID', '').strip()
+# TEAMS_DEFAULT_MESSAGE_PREFIX = os.environ.get('TEAMS_DEFAULT_MESSAGE_PREFIX', '[LPLAN]').strip()
+# POWERBI_ENABLED = os.environ.get('POWERBI_ENABLED', 'False').lower() in ('true', '1', 'yes')
+# POWERBI_WORKSPACE_ID = os.environ.get('POWERBI_WORKSPACE_ID', '').strip()
+# POWERBI_DATASET_ID = os.environ.get('POWERBI_DATASET_ID', '').strip()
+# SHAREPOINT_ENABLED = os.environ.get('SHAREPOINT_ENABLED', 'False').lower() in ('true', '1', 'yes')
+# SHAREPOINT_SITE_ID = os.environ.get('SHAREPOINT_SITE_ID', '').strip()
+# SHAREPOINT_DRIVE_ID = os.environ.get('SHAREPOINT_DRIVE_ID', '').strip()
+# SIGNATURE_ENABLED = os.environ.get('SIGNATURE_ENABLED', 'False').lower() in ('true', '1', 'yes')
+# SIGNATURE_PROVIDER = os.environ.get('SIGNATURE_PROVIDER', 'clicksign').strip()
+# SIGNATURE_API_KEY = os.environ.get('SIGNATURE_API_KEY', '').strip()
+# SIGNATURE_WEBHOOK_SECRET = os.environ.get('SIGNATURE_WEBHOOK_SECRET', '').strip()
+# OPERATIONS_ENABLED = os.environ.get('OPERATIONS_ENABLED', 'False').lower() in ('true', '1', 'yes')
+# PONTO_API_URL = os.environ.get('PONTO_API_URL', '').strip()
+# PONTO_API_TOKEN = os.environ.get('PONTO_API_TOKEN', '').strip()
+# ERP_API_URL = os.environ.get('ERP_API_URL', '').strip()
+# ERP_API_TOKEN = os.environ.get('ERP_API_TOKEN', '').strip()
+# GEO_PROVIDER = os.environ.get('GEO_PROVIDER', 'azure_maps').strip()
+# GEO_API_KEY = os.environ.get('GEO_API_KEY', '').strip()
+# TEAMS_CHAT_EMBED_ENABLED = os.environ.get('TEAMS_CHAT_EMBED_ENABLED', 'False').lower() in ('true', '1', 'yes')
+# TEAMS_CHAT_EMBED_MODE = os.environ.get('TEAMS_CHAT_EMBED_MODE', 'acs_iframe').strip()
+# TEAMS_CHAT_APP_URL = os.environ.get('TEAMS_CHAT_APP_URL', '').strip()
+# TEAMS_EMBEDDED_SDK_URL = os.environ.get('TEAMS_EMBEDDED_SDK_URL', '').strip()
+# TEAMS_CHAT_ENTITY_PREFIX = os.environ.get('TEAMS_CHAT_ENTITY_PREFIX', 'LPLAN').strip()
 
 # Gestão de Aprovação: e-mails dos departamentos para notificações (lista separada por vírgula no .env)
 _email_dept = os.environ.get('EMAIL_DEPARTAMENTOS_APROVACAO', 'luiz.henrique@lplan.com.br,luizdomingos@lplan.com.br')

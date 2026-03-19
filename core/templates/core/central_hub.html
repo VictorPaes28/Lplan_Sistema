@@ -38,6 +38,22 @@
             <p class="central-action-desc">Criar usuários e vincular às obras. O vínculo vale para o Diário de Obra e o sistema de Pedidos.</p>
             <span class="central-action-link">Ver usuários <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
         </a>
+        <a href="{% url 'central_signup_requests' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#fef3c7;color:#b45309;">
+                <i class="fas fa-user-check" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Solicitações de cadastro</h2>
+            <p class="central-action-desc">Aprove ou rejeite pedidos de acesso enviados por auto cadastro e por cadastro interno pendente.</p>
+            <span class="central-action-link">Abrir solicitações <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+        <a href="{% url 'central_clients' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#ede9fe;color:#7c3aed;">
+                <i class="fas fa-user-tie" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Clientes (Donos da Obra)</h2>
+            <p class="central-action-desc">Cadastrar clientes que visualizam o diário e comentam em 24h. Acesso restrito por obra.</p>
+            <span class="central-action-link">Gerenciar clientes <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
         <a href="{% url 'central_manutencao' %}" class="central-action-card">
             <div class="central-action-icon" style="background:#fef3c7;color:#d97706;">
                 <i class="fas fa-sync-alt" aria-hidden="true"></i>

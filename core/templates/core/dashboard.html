@@ -228,6 +228,7 @@
                aria-label="Ver detalhes do relatório com foto">
                 <img src="{{ photo.image.url }}" 
                      alt="{{ photo.caption|default:'Foto' }}"
+                     loading="lazy"
                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200">
             </a>
             {% endfor %}
@@ -262,7 +263,7 @@
                     <div class="dashboard-video-thumb">
                         <video class="dashboard-video-player"
                                controls
-                               controlsList="play pause volume fullscreen"
+                               controlsList="nodownload"
                                preload="metadata"
                                onclick="event.preventDefault(); event.stopPropagation();"
                                onplay="event.stopPropagation()"
@@ -412,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const calendarEl = document.getElementById('calendar');
         if (!calendarEl) return;
         
-        const isMobile = window.innerWidth < 768;
+        let isMobile = window.innerWidth < 768;
         
         const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'pt-br',
@@ -571,31 +572,28 @@ document.addEventListener('DOMContentLoaded', function() {
         window.addEventListener('resize', function() {
             const newIsMobile = window.innerWidth < 768;
             if (newIsMobile !== isMobile) {
+                isMobile = newIsMobile;
                 calendar.changeView(newIsMobile ? 'listWeek' : 'dayGridMonth');
             }
         });
     }, 100); // Delay de 100ms para garantir que a top bar esteja renderizada
     
     // Previne que cliques nos vídeos sejam capturados por elementos pais
-    document.addEventListener('DOMContentLoaded', function() {
-        const videos = document.querySelectorAll('video');
-        videos.forEach(function(video) {
-            // Previne propagação de eventos de clique nos controles do vídeo
-            video.addEventListener('click', function(e) {
+    const videos = document.querySelectorAll('video');
+    videos.forEach(function(video) {
+        video.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        video.addEventListener('play', function(e) {
+            e.stopPropagation();
+        });
+        video.addEventListener('pause', function(e) {
+            e.stopPropagation();
+        });
+        const controls = video.querySelectorAll('*');
+        controls.forEach(function(control) {
+            control.addEventListener('click', function(e) {
                 e.stopPropagation();
-            });
-            video.addEventListener('play', function(e) {
-                e.stopPropagation();
-            });
-            video.addEventListener('pause', function(e) {
-                e.stopPropagation();
-            });
-            // Previne que cliques nos controles sejam capturados
-            const controls = video.querySelectorAll('*');
-            controls.forEach(function(control) {
-                control.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                });
             });
         });
     });

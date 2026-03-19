@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Solicitações de cadastro{% endblock %}
+{% block page_subtitle %}Aprovação manual de novos usuários{% endblock %}
+
+{% block extra_css %}
+<style>
+    .signup-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04); }
+    .signup-card + .signup-card { margin-top: 1rem; }
+    .signup-grid { display: grid; grid-template-columns: 1.2fr 1fr 1.2fr; gap: 1rem; }
+    .signup-box { border: 1px solid #e2e8f0; border-radius: 10px; padding: .65rem .75rem; background: #f8fafc; }
+    .signup-scroll { max-height: 170px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: .5rem .65rem; background: #fff; }
+    .signup-label { font-size: .75rem; font-weight: 600; color: #475569; margin-bottom: .35rem; display: block; }
+    .signup-muted { font-size: .75rem; color: #64748b; }
+    @media (max-width: 980px) { .signup-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">
+        <form method="get" class="flex items-end gap-3 flex-wrap">
+            <div>
+                <label class="block text-sm text-slate-600 mb-1">Status</label>
+                <select name="status" class="border border-slate-300 rounded-lg px-3 py-2">
+                    <option value="">Todos</option>
+                    <option value="pendente" {% if status_filter == 'pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="aprovado" {% if status_filter == 'aprovado' %}selected{% endif %}>Aprovado</option>
+                    <option value="rejeitado" {% if status_filter == 'rejeitado' %}selected{% endif %}>Rejeitado</option>
+                </select>
+            </div>
+            <button class="btn btn-primary-cta" type="submit">Filtrar</button>
+            <a href="{% url 'central_signup_requests' %}" class="btn btn-secondary">Limpar</a>
+        </form>
+    </div>
+
+    {% for req in requests_qs %}
+    <div class="signup-card p-4">
+        <div class="flex items-start justify-between gap-3 mb-3">
+            <div>
+                <div class="font-semibold text-slate-900">{{ req.full_name }}</div>
+                <div class="text-sm text-slate-600">{{ req.email }}</div>
+                {% if req.username_suggestion %}<div class="signup-muted">Usuário sugerido: {{ req.username_suggestion }}</div>{% endif %}
+            </div>
+            <div class="text-right">
+                {% if req.status == 'pendente' %}
+                    <span class="inline-flex px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">Pendente</span>
+                {% elif req.status == 'aprovado' %}
+                    <span class="inline-flex px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-700">Aprovado</span>
+                {% else %}
+                    <span class="inline-flex px-2 py-1 rounded-full text-xs bg-rose-100 text-rose-700">Rejeitado</span>
+                {% endif %}
+                <div class="signup-muted mt-1">{{ req.created_at|date:"d/m/Y H:i" }}</div>
+            </div>
+        </div>
+
+        <div class="signup-grid">
+            <div class="signup-box">
+                <div class="signup-label">Resumo da solicitação</div>
+                <p class="text-sm text-slate-700 mb-1"><strong>Origem:</strong> {% if req.origem == 'auto' %}Auto cadastro{% else %}Cadastro interno{% endif %}</p>
+                {% if req.requested_project_ids %}
+                    <p class="text-sm text-slate-700 mb-1"><strong>Projetos:</strong> {{ req.requested_project_ids|join:", " }}</p>
+                {% endif %}
+                {% if req.notes %}
+                    <p class="text-sm text-slate-700 mb-1"><strong>Obs:</strong> {{ req.notes }}</p>
+                {% endif %}
+                {% if req.status == 'aprovado' and req.approved_user %}
+                    <p class="signup-muted mt-2">Usuário criado: {{ req.approved_user.username }}</p>
+                {% endif %}
+                {% if req.status == 'rejeitado' and req.rejection_reason %}
+                    <p class="signup-muted mt-2">Motivo da rejeição: {{ req.rejection_reason }}</p>
+                {% endif %}
+            </div>
+
+            {% if req.status == 'pendente' %}
+            <form method="post" action="{% url 'central_signup_request_approve' req.pk %}" class="signup-box" id="approve-form-{{ req.pk }}">
+                {% csrf_token %}
+                <label class="signup-label">Permissões (grupos)</label>
+                <div class="signup-scroll mb-2">
+                    {% for g in groups %}
+                    <label class="flex items-center gap-2 text-sm mb-1">
+                        <input type="checkbox" name="approved_groups" value="{{ g.name }}">
+                        <span>{{ g.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </form>
+
+            <div class="signup-box">
+                <label class="signup-label">Obras</label>
+                <div class="signup-scroll mb-2">
+                    {% for p in projects %}
+                    <label class="flex items-center gap-2 text-sm mb-1">
+                        <input type="checkbox" form="approve-form-{{ req.pk }}" name="approved_projects" value="{{ p.id }}" {% if p.id in req.requested_project_ids %}checked{% endif %}>
+                        <span>{{ p.code }} - {{ p.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <form method="post" action="{% url 'central_signup_request_reject' req.pk %}" id="reject-form-{{ req.pk }}">
+                    {% csrf_token %}
+                    <input type="text" name="rejection_reason" class="border border-slate-300 rounded-lg px-2 py-1 w-full mb-2" placeholder="Motivo da rejeição" required>
+                </form>
+                <div class="flex items-center gap-2">
+                    <button type="submit" form="approve-form-{{ req.pk }}" class="btn btn-primary-cta">Aprovar</button>
+                    <button type="submit" form="reject-form-{{ req.pk }}" class="btn btn-secondary">Rejeitar</button>
+                </div>
+            </div>
+            {% else %}
+            <div class="signup-box">
+                <div class="signup-label">Ações</div>
+                <p class="signup-muted">Esta solicitação já foi processada.</p>
+            </div>
+            <div class="signup-box">
+                <div class="signup-label">Detalhes</div>
+                <p class="signup-muted">Sem ações pendentes.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-lg border border-slate-200 px-4 py-6 text-center text-slate-500">
+        Nenhuma solicitação encontrada.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

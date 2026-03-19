@@ -28,6 +28,12 @@ from .forms import EmpresaForm, ObraForm, WorkOrderForm, AttachmentForm
 from .utils import get_user_profile, is_engenheiro, is_gestor, is_admin, is_responsavel_empresa, is_aprovador, gestor_required, criar_notificacao, admin_required
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from accounts.groups import GRUPOS
+from accounts.models import UserSignupRequest
+from accounts.signup_services import (
+    create_signup_request,
+    is_allowed_signup_email,
+    notify_signup_request_created,
+)
 
 
 # --- Evitar que o botão "Voltar" do navegador retorne a formulários já submetidos ---
@@ -1750,14 +1756,45 @@ def create_user(request):
         first_name = request.POST.get('first_name', '')
         last_name = request.POST.get('last_name', '')
         grupo = request.POST.get('grupo')
+        create_as_pending = request.POST.get('create_as_pending') == 'on'
+        grupos_selecionados = request.POST.getlist('grupos')
+        project_ids = request.POST.getlist('projects')
         
-        if not username or not password:
+        if create_as_pending and not email:
+            messages.error(request, 'Para cadastro pendente, informe o e-mail corporativo.')
+        elif create_as_pending and not is_allowed_signup_email(email):
+            messages.error(request, 'E-mail fora dos domínios permitidos para auto cadastro/aprovação.')
+        elif not create_as_pending and (not username or not password):
             messages.error(request, 'Username e senha são obrigatórios.')
-        elif not request.POST.getlist('grupos'):
+        elif not grupos_selecionados:
             messages.error(request, 'Selecione pelo menos um grupo para o usuário acessar algum sistema.')
-        elif User.objects.filter(username=username).exists():
+        elif not create_as_pending and User.objects.filter(username=username).exists():
             messages.error(request, 'Já existe um usuário com este username.')
         else:
+            if create_as_pending:
+                if UserSignupRequest.objects.filter(email__iexact=(email or '').strip(), status=UserSignupRequest.STATUS_PENDENTE).exists():
+                    messages.info(request, 'Já existe uma solicitação pendente para este e-mail.')
+                    return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+
+                full_name = f"{first_name} {last_name}".strip() or username or (email or '').split('@')[0]
+                signup_req = create_signup_request(
+                    full_name=full_name,
+                    email=(email or '').strip().lower(),
+                    username_suggestion=(username or '').strip(),
+                    notes='Solicitação criada pelo cadastro interno (pendente de aprovação).',
+                    requested_groups=grupos_selecionados,
+                    requested_project_ids=project_ids,
+                    origem=UserSignupRequest.ORIGEM_INTERNO,
+                    requested_by=request.user,
+                )
+                notify_signup_request_created(signup_req)
+                messages.success(request, 'Solicitação criada como pendente. O aprovador foi alertado no sistema.')
+                _mark_post_success_redirect(
+                    request, '_prevent_back_create_user',
+                    'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
+                )
+                return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+
             user = User.objects.create_user(
                 username=username,
                 email=email,
@@ -1767,7 +1804,6 @@ def create_user(request):
             )
             
             # Adicionar aos grupos selecionados (usuário pode ter vários: Gestão + Mapa + Diário)
-            grupos_selecionados = request.POST.getlist('grupos')
             for grupo_name in grupos_selecionados:
                 if grupo_name not in GRUPOS.TODOS:
                     continue
@@ -1778,8 +1814,6 @@ def create_user(request):
                     pass
             
             # Lista única de obras = core.Project. Vincular ao Diário (ProjectMember) e ao GestControll (WorkOrderPermission quando Obra.project existe).
-            grupos_selecionados = request.POST.getlist('grupos')
-            project_ids = request.POST.getlist('projects')
             for pid in project_ids:
                 try:
                     project_id = int(pid)

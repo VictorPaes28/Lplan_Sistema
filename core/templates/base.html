@@ -20,8 +20,12 @@
     <link rel="stylesheet" href="{% static 'core/css/filters.css' %}">
     <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}">
     
-    <!-- Font Awesome - Carregado antes dos scripts para garantir ícones disponíveis -->
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Preload fonte principal para evitar FOUT -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">

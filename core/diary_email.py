@@ -71,7 +71,7 @@ def send_diary_to_owners(diary):
 
 Informamos que o diário de obra referente ao dia {target_date.strftime('%d/%m/%Y')} da obra {project.name} ({project.code}) foi aprovado e está disponível para visualização.
 
-Para acessar o documento e enviar comentários (prazo de 24 horas a partir do recebimento deste e-mail), utilize o link abaixo:
+Para acessar o documento e enviar comentários (prazo de até 24 horas após o envio do diário), utilize o link abaixo:
 
 {link}
 

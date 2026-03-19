@@ -8,8 +8,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -65,7 +65,7 @@
     .form-control {
         min-height: 42px;
         padding: 0.5rem 0.75rem;
-        font-size: 15px !important;
+        font-size: 16px !important;
     }
     .form-group textarea {
         min-height: 80px;
@@ -228,7 +228,7 @@
     .form-control {
         width: 100% !important;
         max-width: 100% !important;
-        font-size: 15px !important;
+        font-size: 16px !important;
         min-height: 42px;
         padding: 0.5rem 0.75rem;
         box-sizing: border-box;
@@ -597,6 +597,435 @@
 @media (max-width: 768px) {
     .overflow-x-auto {
         -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* ============================================
+   ADMIN CENTRAL (admin_central.html)
+   KPI grid, action cards, system cards, tabelas
+   ============================================ */
+@media (max-width: 768px) {
+    .admin-page {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.75rem;
+    }
+    .kpi-card {
+        padding: 0.9rem 1rem;
+    }
+    .kpi-value {
+        font-size: 1.4rem;
+    }
+    .kpi-top {
+        gap: 0.65rem;
+    }
+    .kpi-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+    .two-col,
+    .bottom-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .action-card {
+        padding: 0.75rem 0.9rem;
+        gap: 0.75rem;
+    }
+    .action-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 0.95rem;
+    }
+    .action-title {
+        font-size: 0.85rem;
+    }
+    .action-desc {
+        font-size: 0.73rem;
+    }
+    .system-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    .admin-table {
+        min-width: 560px;
+    }
+    .admin-table th,
+    .admin-table td {
+        padding: 0.5rem 0.65rem;
+        font-size: 0.78rem;
+    }
+    .admin-section {
+        border-radius: 8px;
+    }
+    .admin-section-header {
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
+    .obras-grid {
+        grid-template-columns: 1fr !important;
+        padding: 0.75rem;
+    }
+    .email-logs-panel-header {
+        flex-direction: column;
+        padding: 1rem;
+    }
+    .email-logs-panel-stats {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .group-row {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    .group-desc {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .kpi-value {
+        font-size: 1.25rem;
+    }
+}
+
+/* ============================================
+   ANÁLISE DE USUÁRIOS (admin_analise_usuarios.html)
+   Toolbar, tabela gigante, prod-grid, charts
+   ============================================ */
+@media (max-width: 768px) {
+    .analise-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.65rem;
+        padding: 0.85rem;
+    }
+    .analise-toolbar > div {
+        width: 100%;
+    }
+    .analise-toolbar label {
+        min-width: 0;
+    }
+    .analise-toolbar select,
+    .toolbar-busca {
+        width: 100% !important;
+        min-height: 42px;
+        font-size: 16px !important;
+    }
+    .analise-toolbar .btn-apply,
+    .analise-toolbar .btn-export,
+    .analise-toolbar .btn-link {
+        width: 100%;
+        justify-content: center;
+        min-height: 42px;
+        text-align: center;
+    }
+    .prod-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.65rem;
+    }
+    .prod-card {
+        padding: 0.75rem 0.9rem;
+    }
+    .prod-value {
+        font-size: 1.35rem;
+    }
+    .desempenho-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .charts-row,
+    .charts-row.two-col {
+        grid-template-columns: 1fr !important;
+    }
+    .distrib-bar {
+        flex-wrap: wrap;
+    }
+    .distrib-bar label {
+        width: 100% !important;
+        font-size: 0.82rem;
+    }
+    .analise-hero {
+        font-size: 0.88rem;
+        padding: 0.75rem 0.9rem;
+    }
+    .analise-hero-meta {
+        font-size: 0.75rem;
+    }
+    .alert-section div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .prod-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .desempenho-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ============================================
+   DESEMPENHO EQUIPE (desempenho_equipe.html)
+   Filtros inline, tabelas com min-width
+   ============================================ */
+@media (max-width: 768px) {
+    .period-selector-container,
+    [class*="period-selector-container"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.75rem !important;
+    }
+    .period-selector-container > div,
+    [class*="period-selector-container"] > div {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+    .period-selector-container select,
+    .period-selector-container input {
+        min-height: 42px;
+        font-size: 16px !important;
+    }
+    .performance-card {
+        padding: 0.75rem !important;
+    }
+    .performance-card .table-container,
+    .performance-card .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .performance-card table {
+        min-width: 500px;
+    }
+    .desempenho-content-wrap {
+        padding: 0;
+    }
+    .desempenho-section-title {
+        font-size: 1rem;
+    }
+}
+
+/* ============================================
+   PERFIL E PERMISSÕES
+   edit_my_profile, manage_obra_permissions
+   ============================================ */
+@media (max-width: 768px) {
+    .profile-avatar-container,
+    [class*="profile-avatar"] {
+        width: 100px !important;
+        height: 100px !important;
+    }
+    input[type="file"][style*="width: 150px"],
+    .form-container input[type="file"],
+    .form-group input[type="file"] {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    .page-container[style*="max-width: 900px"],
+    .page-container[style*="max-width: 960px"],
+    .page-container[style*="max-width:900px"],
+    .page-container[style*="max-width:960px"] {
+        max-width: 100% !important;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    .detail-section [style*="min-width: 200px"],
+    .form-group [style*="min-width: 200px"] {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+}
+
+/* ============================================
+   DAILY LOG FORM - Header de botões
+   ============================================ */
+@media (max-width: 480px) {
+    .diary-form-header,
+    .diary-form-actions,
+    .form-header-actions {
+        flex-direction: column !important;
+        gap: 0.5rem;
+    }
+    .diary-form-header .btn,
+    .diary-form-actions .btn,
+    .form-header-actions .btn,
+    .form-header-actions a.btn {
+        width: 100% !important;
+        min-height: 42px;
+        justify-content: center;
+        font-size: 0.85rem;
+    }
+}
+
+/* ============================================
+   TOP BAR - Ajustes mobile
+   ============================================ */
+@media (max-width: 768px) {
+    .top-bar-container {
+        padding: 0.75rem 0.75rem 0.5rem;
+    }
+    .top-bar-title {
+        font-size: 1.1rem;
+    }
+    .top-bar-subtitle {
+        font-size: 0.78rem;
+    }
+}
+
+/* ============================================
+   TOAST NOTIFICATIONS - Mobile
+   ============================================ */
+@media (max-width: 768px) {
+    #messages-container {
+        max-width: calc(100vw - 1rem) !important;
+        left: 0.5rem !important;
+        right: 0.5rem !important;
+    }
+}
+
+/* ============================================
+   GENÉRICO: Qualquer inline grid 2+ cols → 1 col
+   ============================================ */
+@media (max-width: 768px) {
+    [style*="grid-template-columns: repeat(4"],
+    [style*="grid-template-columns: repeat(6"],
+    [style*="grid-template-columns: repeat(3"],
+    [style*="grid-template-columns:repeat(4"],
+    [style*="grid-template-columns:repeat(6"],
+    [style*="grid-template-columns:repeat(3"] {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    [style*="grid-template-columns: 1fr 280px"],
+    [style*="grid-template-columns: 1fr 2fr"],
+    [style*="grid-template-columns:1fr 280px"],
+    [style*="grid-template-columns:1fr 2fr"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 480px) {
+    [style*="grid-template-columns: repeat(4"],
+    [style*="grid-template-columns: repeat(6"],
+    [style*="grid-template-columns: repeat(3"],
+    [style*="grid-template-columns: repeat(2"],
+    [style*="grid-template-columns:repeat(4"],
+    [style*="grid-template-columns:repeat(6"],
+    [style*="grid-template-columns:repeat(3"],
+    [style*="grid-template-columns:repeat(2"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ============================================
+   CENTRAL PAGES (central_hub, central_signup_requests)
+   ============================================ */
+@media (max-width: 768px) {
+    .central-help-card {
+        padding: 1rem;
+    }
+    .central-help-btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+    .central-action-card {
+        padding: 0.9rem;
+    }
+    .central-action-title {
+        font-size: 0.95rem;
+    }
+    .central-action-desc {
+        font-size: 0.78rem;
+    }
+}
+
+/* ============================================
+   GESTCONTROLL: detail_workorder botões de ação
+   ============================================ */
+@media (max-width: 768px) {
+    .detail-actions .btn,
+    .detail-actions a.btn,
+    .attachment-download,
+    .attachment-delete,
+    .btn-aprovar-exclusao,
+    .btn-rejeitar-exclusao {
+        min-height: 44px;
+        padding: 0.5rem 1rem;
+        display: inline-flex;
+        align-items: center;
+    }
+}
+
+/* ============================================
+   GESTCONTROLL: list_workorders checkbox
+   ============================================ */
+@media (max-width: 768px) {
+    .checkbox-analisado {
+        min-height: 44px !important;
+        min-width: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    .checkbox-analisado input[type="checkbox"] {
+        width: 22px !important;
+        height: 22px !important;
+    }
+    .quick-filter-btn {
+        min-height: 44px;
+    }
+}
+
+/* ============================================
+   EMAIL LOGS: paginação e botões
+   ============================================ */
+@media (max-width: 768px) {
+    .email-logs-btn,
+    .email-logs-pagination-link {
+        min-height: 44px;
+        padding: 0.5rem 1rem;
+    }
+    .email-logs-page .btn.btn-sm {
+        min-height: 44px;
+        padding: 0.5rem 0.75rem;
+    }
+    .email-logs-stats-inner {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .email-logs-form {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .email-logs-form-row {
+        width: 100%;
+    }
+    .email-logs-select {
+        width: 100% !important;
+        min-height: 42px;
+        font-size: 16px !important;
+    }
+}
+
+/* ============================================
+   MAPA SUPRIMENTOS / DASHBOARD_2 (dentro do base.html)
+   Garante scroll horizontal em tabelas grandes
+   ============================================ */
+@media (max-width: 768px) {
+    .mapa-table-wrapper,
+    .table-scroll-container,
+    #tabelaContainer,
+    .tabela-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100vw;
     }
 }
 

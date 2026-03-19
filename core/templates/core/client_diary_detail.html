@@ -4,125 +4,350 @@
 {% block page_title %}Diário de Obra — {{ diary.date|date:"d/m/Y" }}{% endblock %}
 {% block page_subtitle %}{{ project.name }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .cdd-container { max-width: 52rem; margin: 0 auto; }
+    .cdd-back {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        color: #475569; font-size: 0.85rem; text-decoration: none;
+        padding: 0.4rem 0.6rem; border-radius: 6px; transition: background 0.15s;
+    }
+    .cdd-back:hover { background: #f1f5f9; color: #1e293b; }
+    .cdd-header {
+        text-align: center; padding: 1.5rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 1.5rem;
+    }
+    .cdd-logo { height: 48px; object-contain: contain; }
+    .cdd-title { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-top: 0.5rem; }
+    .cdd-card {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        overflow: hidden; margin-bottom: 1.25rem;
+    }
+    .cdd-card-body { padding: 1.25rem; }
+    .cdd-section-title {
+        font-size: 0.92rem; font-weight: 700; color: #1e293b;
+        margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cdd-info-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+    }
+    .cdd-info-box {
+        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem;
+    }
+    .cdd-info-label { font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
+    .cdd-info-value { font-size: 0.92rem; font-weight: 700; color: #1e293b; }
+    .cdd-labor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    .cdd-labor-box { border-radius: 8px; padding: 0.6rem; text-align: center; }
+    .cdd-labor-box.direct { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .cdd-labor-box.indirect { background: #eff6ff; border: 1px solid #bfdbfe; }
+    .cdd-labor-box.third { background: #faf5ff; border: 1px solid #e9d5ff; }
+    .cdd-labor-num { font-size: 1.3rem; font-weight: 700; }
+    .cdd-labor-box.direct .cdd-labor-num { color: #15803d; }
+    .cdd-labor-box.indirect .cdd-labor-num { color: #1d4ed8; }
+    .cdd-labor-box.third .cdd-labor-num { color: #7c3aed; }
+    .cdd-labor-label { font-size: 0.72rem; color: #64748b; }
+    .cdd-equip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .cdd-equip-tag {
+        background: #f1f5f9; color: #475569; padding: 0.3rem 0.65rem;
+        border-radius: 999px; font-size: 0.8rem; border: 1px solid #e2e8f0;
+    }
+    .cdd-notes {
+        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+        padding: 0.85rem; font-size: 0.88rem; color: #334155; white-space: pre-wrap; line-height: 1.6;
+    }
+
+    /* ── Comentários ── */
+    .cdd-comments-card {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        overflow: hidden; margin-bottom: 1.25rem;
+    }
+    .cdd-comments-header {
+        padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9;
+        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .cdd-comments-header h3 {
+        font-size: 0.95rem; font-weight: 700; color: #1e293b;
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cdd-deadline-badge {
+        font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 999px; font-weight: 600;
+    }
+    .cdd-deadline-badge.open { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .cdd-deadline-badge.closed { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+    .cdd-chat { padding: 1.25rem; max-height: 420px; overflow-y: auto; }
+    .cdd-chat-empty {
+        text-align: center; padding: 1.5rem; color: #94a3b8; font-size: 0.88rem;
+    }
+    .cdd-chat-empty i { font-size: 1.5rem; display: block; margin-bottom: 0.4rem; color: #c7d2fe; }
+    .cdd-msg { display: flex; margin-bottom: 0.85rem; }
+    .cdd-msg.mine { justify-content: flex-end; }
+    .cdd-msg.theirs { justify-content: flex-start; }
+    .cdd-bubble {
+        max-width: 80%; border-radius: 12px; padding: 0.65rem 0.85rem;
+        position: relative;
+    }
+    .cdd-msg.mine .cdd-bubble {
+        background: #dbeafe; color: #1e3a5f;
+        border-bottom-right-radius: 4px;
+    }
+    .cdd-msg.theirs .cdd-bubble {
+        background: #f1f5f9; color: #1e293b;
+        border-bottom-left-radius: 4px;
+    }
+    .cdd-bubble-author { font-size: 0.75rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .cdd-msg.mine .cdd-bubble-author { color: #1d4ed8; }
+    .cdd-msg.theirs .cdd-bubble-author { color: #64748b; }
+    .cdd-bubble-text { font-size: 0.87rem; white-space: pre-wrap; line-height: 1.5; }
+    .cdd-bubble-time { font-size: 0.68rem; color: #94a3b8; margin-top: 0.35rem; text-align: right; }
+
+    .cdd-comment-form {
+        padding: 1rem 1.25rem; border-top: 1px solid #f1f5f9;
+        background: #fafbfc;
+    }
+    .cdd-comment-form textarea {
+        width: 100%; border: 1px solid #d1d5db; border-radius: 8px;
+        padding: 0.65rem 0.85rem; font-size: 0.88rem; resize: vertical;
+        min-height: 70px; transition: border-color 0.15s;
+    }
+    .cdd-comment-form textarea:focus {
+        outline: none; border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .cdd-comment-form .cdd-form-row {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 0.65rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .cdd-comment-form .cdd-deadline-text {
+        font-size: 0.78rem; color: #92400e;
+        display: flex; align-items: center; gap: 0.3rem;
+    }
+    .cdd-send-btn {
+        background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+        padding: 0.5rem 1.25rem; font-size: 0.85rem; font-weight: 600;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;
+        transition: background 0.15s;
+    }
+    .cdd-send-btn:hover { background: #2563eb; }
+    .cdd-closed-msg {
+        padding: 1rem 1.25rem; border-top: 1px solid #f1f5f9;
+        background: #fafafa; font-size: 0.85rem; color: #64748b;
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+
+    .cdd-footer {
+        display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+        padding-top: 0.5rem;
+    }
+    .cdd-footer a {
+        color: #64748b; font-size: 0.85rem; text-decoration: none;
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        transition: color 0.15s;
+    }
+    .cdd-footer a:hover { color: #1e293b; }
+
+    @media (max-width: 768px) {
+        .cdd-info-grid { grid-template-columns: 1fr; }
+        .cdd-labor-grid { grid-template-columns: 1fr; }
+        .cdd-bubble { max-width: 90%; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="mb-6 flex items-center justify-between flex-wrap gap-3">
-    <div class="flex items-center min-w-0">
-        <a href="{% url 'client-diary-list' %}" class="text-slate-600 hover:text-slate-900 mr-3 p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors" aria-label="Voltar">
-            <i class="fas fa-arrow-left text-lg"></i>
-        </a>
-        <div>
-            <h1 class="text-xl font-bold text-slate-800">Diário de Obra</h1>
-            <p class="text-sm text-slate-500">{{ diary.date|date:"d/m/Y" }}{% if diary.report_number %} · #{{ diary.report_number }}{% endif %} · {{ project.name }}</p>
-        </div>
-    </div>
-</div>
+<div class="cdd-container">
 
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <div class="text-center mb-6 pb-6 border-b border-slate-200">
-        <div class="flex items-center justify-center mb-4">
-            <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="h-16 object-contain">
-            <span class="ml-4 text-2xl font-bold text-blue-900">LPLAN</span>
+    {% if messages %}
+        {% for message in messages %}
+        <div style="padding: 0.7rem 1rem; border-radius: 8px; font-size: 0.87rem; margin-bottom: 0.75rem;
+            {% if message.tags == 'success' %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;{% elif message.tags == 'error' %}background:#fef2f2;color:#991b1b;border:1px solid #fecaca;{% else %}background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;{% endif %}">
+            {{ message }}
         </div>
-        <h2 class="text-lg font-bold text-slate-800">Relatório Diário de Obra (RDO)</h2>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Data</p>
-            <p class="text-lg font-bold text-slate-800">{{ diary.date|date:"d/m/Y" }} · {{ weekday_name }}</p>
-        </div>
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Obra</p>
-            <p class="text-base font-semibold text-slate-800">{{ project.name }}{% if project.code %} ({{ project.code }}){% endif %}</p>
-        </div>
-        {% if project_days_total > 0 %}
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Prazo</p>
-            <p class="text-base font-semibold text-slate-800">{{ project_days_elapsed }} / {{ project_days_total }} dias</p>
-        </div>
-        {% endif %}
-    </div>
-
-    {% if diary.weather_conditions or diary.pluviometric_index %}
-    <div class="mb-6">
-        <h3 class="text-base font-semibold text-slate-800 mb-3"><i class="fas fa-cloud-sun text-blue-600 mr-2"></i>Clima</h3>
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            {% if diary.weather_conditions %}<p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.weather_conditions }}</p>{% endif %}
-            {% if diary.pluviometric_index %}<p class="text-sm text-slate-600 mt-2">Índice pluviométrico: {{ diary.pluviometric_index }} mm</p>{% endif %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if total_direct_labor > 0 or total_indirect_labor > 0 or total_third_party_labor > 0 %}
-    <div class="mb-6">
-        <h3 class="text-base font-semibold text-slate-800 mb-3"><i class="fas fa-users text-blue-600 mr-2"></i>Mão de Obra</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {% if total_direct_labor > 0 %}<div class="bg-green-50 rounded-lg p-3 border border-green-200 text-center"><p class="text-xs text-gray-600">Direto</p><p class="text-xl font-bold text-green-700">{{ total_direct_labor }}</p></div>{% endif %}
-            {% if total_indirect_labor > 0 %}<div class="bg-blue-50 rounded-lg p-3 border border-blue-200 text-center"><p class="text-xs text-gray-600">Indireto</p><p class="text-xl font-bold text-blue-700">{{ total_indirect_labor }}</p></div>{% endif %}
-            {% if total_third_party_labor > 0 %}<div class="bg-purple-50 rounded-lg p-3 border border-purple-200 text-center"><p class="text-xs text-gray-600">Terceiros</p><p class="text-xl font-bold text-purple-700">{{ total_third_party_labor }}</p></div>{% endif %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if equipment_list %}
-    <div class="mb-6">
-        <h3 class="text-base font-semibold text-slate-800 mb-3"><i class="fas fa-tools text-blue-600 mr-2"></i>Equipamentos</h3>
-        <div class="flex flex-wrap gap-2">
-            {% for e in equipment_list %}<span class="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm">{{ e.name }}{% if e.code %} ({{ e.code }}){% endif %}</span>{% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if diary.general_notes %}
-    <div class="mb-6">
-        <h3 class="text-base font-semibold text-slate-800 mb-3"><i class="fas fa-sticky-note text-blue-600 mr-2"></i>Observações gerais</h3>
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200"><p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.general_notes }}</p></div>
-    </div>
-    {% endif %}
-</div>
-
-<!-- Comentários (chat dono da obra ↔ LPLAN) -->
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4"><i class="fas fa-comments text-blue-600 mr-2"></i>Comentários</h3>
-
-    {% if comments %}
-    <ul class="space-y-4 mb-6">
-        {% for c in comments %}
-        <li class="flex {% if c.author == user %}justify-end{% else %}justify-start{% endif %}">
-            <div class="max-w-[85%] rounded-lg px-4 py-2 {% if c.author == user %}bg-blue-100 text-blue-900{% else %}bg-slate-100 text-slate-800{% endif %}">
-                <p class="text-sm font-medium">{{ c.author.get_full_name|default:c.author.username }}</p>
-                <p class="text-sm whitespace-pre-wrap mt-1">{{ c.text }}</p>
-                <p class="text-xs text-slate-500 mt-2">{{ c.created_at|date:"d/m/Y H:i" }}</p>
-            </div>
-        </li>
         {% endfor %}
-    </ul>
-    {% else %}
-    <p class="text-sm text-slate-500 mb-6">Nenhum comentário ainda.</p>
     {% endif %}
 
-    {% if can_comment %}
-    <p class="text-xs text-amber-700 mb-3"><i class="fas fa-clock mr-1"></i>Você pode enviar comentários até {{ comment_deadline|date:"d/m/Y H:i" }} (24h após o envio do diário).</p>
-    <form action="{% url 'client-diary-add-comment' diary.pk %}" method="post" class="flex flex-col gap-3">
-        {% csrf_token %}
-        <textarea name="text" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Escreva seu comentário..." required></textarea>
-        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium w-fit">
-            <i class="fas fa-paper-plane mr-2"></i>Enviar comentário
-        </button>
-    </form>
-    {% else %}
-    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-slate-600 text-sm">
-        {% if comment_deadline %}
-        <i class="fas fa-lock mr-2"></i>O prazo de 24 horas para enviar novos comentários foi encerrado em {{ comment_deadline|date:"d/m/Y H:i" }}. Os comentários acima permanecem como histórico.
-        {% else %}
-        <i class="fas fa-info-circle mr-2"></i>Os comentários estão disponíveis apenas após o envio do diário ao dono da obra.
-        {% endif %}
+    <div style="margin-bottom: 1rem;">
+        <a href="{% url 'client-diary-list' %}" class="cdd-back">
+            <i class="fas fa-arrow-left"></i> Voltar aos diários
+        </a>
+    </div>
+
+    <!-- ═══ Cabeçalho ═══ -->
+    <div class="cdd-card">
+        <div class="cdd-header">
+            <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="cdd-logo" loading="lazy">
+            <div class="cdd-title">Relatório Diário de Obra (RDO)</div>
+        </div>
+        <div class="cdd-card-body">
+            <div class="cdd-info-grid">
+                <div class="cdd-info-box">
+                    <div class="cdd-info-label">Data</div>
+                    <div class="cdd-info-value">{{ diary.date|date:"d/m/Y" }}</div>
+                    <div style="font-size: 0.78rem; color: #64748b;">{{ weekday_name }}</div>
+                </div>
+                <div class="cdd-info-box">
+                    <div class="cdd-info-label">Obra</div>
+                    <div class="cdd-info-value">{{ project.name }}</div>
+                    {% if project.code %}<div style="font-size: 0.78rem; color: #64748b;">{{ project.code }}</div>{% endif %}
+                </div>
+                {% if project_days_total > 0 %}
+                <div class="cdd-info-box">
+                    <div class="cdd-info-label">Prazo</div>
+                    <div class="cdd-info-value">{{ project_days_elapsed }} / {{ project_days_total }} dias</div>
+                    {% if project_days_remaining > 0 %}<div style="font-size: 0.78rem; color: #64748b;">{{ project_days_remaining }} restante{{ project_days_remaining|pluralize:"s" }}</div>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Clima ═══ -->
+    {% if diary.weather_conditions or diary.pluviometric_index %}
+    <div class="cdd-card">
+        <div class="cdd-card-body">
+            <div class="cdd-section-title"><i class="fas fa-cloud-sun" style="color: #0ea5e9;"></i> Clima</div>
+            <div class="cdd-notes">
+                {% if diary.weather_conditions %}{{ diary.weather_conditions }}{% endif %}
+                {% if diary.pluviometric_index %}
+                {% if diary.weather_conditions %}<br>{% endif %}Índice pluviométrico: {{ diary.pluviometric_index }} mm{% endif %}
+            </div>
+        </div>
     </div>
     {% endif %}
+
+    <!-- ═══ Mão de Obra ═══ -->
+    {% if total_direct_labor > 0 or total_indirect_labor > 0 or total_third_party_labor > 0 %}
+    <div class="cdd-card">
+        <div class="cdd-card-body">
+            <div class="cdd-section-title"><i class="fas fa-users" style="color: #0ea5e9;"></i> Mão de Obra</div>
+            <div class="cdd-labor-grid">
+                {% if total_direct_labor > 0 %}
+                <div class="cdd-labor-box direct">
+                    <div class="cdd-labor-num">{{ total_direct_labor }}</div>
+                    <div class="cdd-labor-label">Direto</div>
+                </div>
+                {% endif %}
+                {% if total_indirect_labor > 0 %}
+                <div class="cdd-labor-box indirect">
+                    <div class="cdd-labor-num">{{ total_indirect_labor }}</div>
+                    <div class="cdd-labor-label">Indireto</div>
+                </div>
+                {% endif %}
+                {% if total_third_party_labor > 0 %}
+                <div class="cdd-labor-box third">
+                    <div class="cdd-labor-num">{{ total_third_party_labor }}</div>
+                    <div class="cdd-labor-label">Terceiros</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ Equipamentos ═══ -->
+    {% if equipment_list %}
+    <div class="cdd-card">
+        <div class="cdd-card-body">
+            <div class="cdd-section-title"><i class="fas fa-tools" style="color: #0ea5e9;"></i> Equipamentos</div>
+            <div class="cdd-equip-list">
+                {% for e in equipment_list %}
+                <span class="cdd-equip-tag">{{ e.name }}{% if e.code %} ({{ e.code }}){% endif %}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ Observações gerais ═══ -->
+    {% if diary.general_notes %}
+    <div class="cdd-card">
+        <div class="cdd-card-body">
+            <div class="cdd-section-title"><i class="fas fa-sticky-note" style="color: #0ea5e9;"></i> Observações gerais</div>
+            <div class="cdd-notes">{{ diary.general_notes }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ Fotos ═══ -->
+    {% if diary.images.all %}
+    <div class="cdd-card">
+        <div class="cdd-card-body">
+            <div class="cdd-section-title"><i class="fas fa-camera" style="color: #0ea5e9;"></i> Fotos ({{ diary.images.count }})</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                {% for image in diary.images.all %}
+                <div style="border-radius: 8px; overflow: hidden; cursor: pointer; aspect-ratio: 1;" onclick="window.open('{{ image.image.url }}', '_blank')">
+                    <img src="{{ image.image.url }}" alt="{{ image.caption|default:'Foto' }}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ Comentários ═══ -->
+    <div class="cdd-comments-card">
+        <div class="cdd-comments-header">
+            <h3><i class="fas fa-comments" style="color: #3b82f6;"></i> Comentários</h3>
+            {% if can_comment %}
+            <span class="cdd-deadline-badge open"><i class="fas fa-clock"></i> Aberto até {{ comment_deadline|date:"d/m/Y H:i" }}</span>
+            {% elif comment_deadline %}
+            <span class="cdd-deadline-badge closed"><i class="fas fa-lock"></i> Encerrado em {{ comment_deadline|date:"d/m/Y H:i" }}</span>
+            {% endif %}
+        </div>
+
+        <div class="cdd-chat" id="chatArea">
+            {% if comments %}
+                {% for c in comments %}
+                <div class="cdd-msg {% if c.author == user %}mine{% else %}theirs{% endif %}">
+                    <div class="cdd-bubble">
+                        <div class="cdd-bubble-author">{{ c.author.get_full_name|default:c.author.username }}</div>
+                        <div class="cdd-bubble-text">{{ c.text }}</div>
+                        <div class="cdd-bubble-time">{{ c.created_at|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="cdd-chat-empty">
+                    <i class="fas fa-comment-dots"></i>
+                    Nenhum comentário ainda.
+                    {% if can_comment %}Seja o primeiro a comentar.{% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if can_comment %}
+        <form action="{% url 'client-diary-add-comment' diary.pk %}" method="post" class="cdd-comment-form">
+            {% csrf_token %}
+            <textarea name="text" placeholder="Escreva seu comentário aqui..." required></textarea>
+            <div class="cdd-form-row">
+                <span class="cdd-deadline-text">
+                    <i class="fas fa-clock"></i> Prazo: {{ comment_deadline|date:"d/m/Y H:i" }}
+                </span>
+                <button type="submit" class="cdd-send-btn">
+                    <i class="fas fa-paper-plane"></i> Enviar
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <div class="cdd-closed-msg">
+            {% if comment_deadline %}
+            <i class="fas fa-lock"></i> O prazo de 24 horas para comentários encerrou em {{ comment_deadline|date:"d/m/Y H:i" }}. O histórico acima permanece visível.
+            {% else %}
+            <i class="fas fa-info-circle"></i> Comentários serão habilitados após o envio do diário.
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="cdd-footer">
+        <a href="{% url 'client-diary-list' %}"><i class="fas fa-list"></i> Todos os diários</a>
+        <a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt"></i> Sair</a>
+    </div>
 </div>
 
-<div class="flex items-center gap-4">
-    <a href="{% url 'client-diary-list' %}" class="text-slate-600 hover:text-slate-800 text-sm"><i class="fas fa-list mr-1"></i>Ver todos os diários</a>
-    <a href="{% url 'logout' %}" class="text-slate-500 hover:text-slate-700 text-sm"><i class="fas fa-sign-out-alt mr-1"></i>Sair</a>
-</div>
+<script>
+(function() {
+    var chat = document.getElementById('chatArea');
+    if (chat) chat.scrollTop = chat.scrollHeight;
+})();
+</script>
 {% endblock %}

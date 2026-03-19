@@ -39,6 +39,7 @@ urlpatterns = [
     path('engenharia/', include('suprimentos.urls_engenharia')),
     path('api/internal/', include('suprimentos.urls_api')),
     path('api/webhook/sienge/', include('suprimentos.urls_webhook')),
+    # path('api/integrations/', include('integrations.urls')),  # Pausado — retomar quando ativar Teams/Azure
 
     # Redirect legado: /diario/xxx -> /xxx
     path('diario/', RedirectView.as_view(url='/', permanent=True)),

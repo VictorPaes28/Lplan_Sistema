@@ -6,7 +6,7 @@ A configuração de admin customizada está em views_admin.py (Admin Central).
 """
 
 from django.contrib import admin
-from .models import UserLoginLog
+from .models import UserLoginLog, UserSignupRequest
 
 
 @admin.register(UserLoginLog)
@@ -23,4 +23,13 @@ class UserLoginLogAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(UserSignupRequest)
+class UserSignupRequestAdmin(admin.ModelAdmin):
+    list_display = ('full_name', 'email', 'status', 'origem', 'created_at', 'approved_by')
+    list_filter = ('status', 'origem', 'created_at')
+    search_fields = ('full_name', 'email', 'username_suggestion')
+    readonly_fields = ('created_at', 'updated_at', 'approved_at', 'rejected_at')
+    ordering = ('-created_at',)
 

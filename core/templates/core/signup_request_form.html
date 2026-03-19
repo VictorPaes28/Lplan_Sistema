@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitar cadastro - LPLAN</title>
+    {% load static %}
+    <link rel="icon" type="image/png" href="{% static 'core/images/lplan-logo2.png' %}">
+    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; margin: 0; padding: 24px; color: #e2e8f0; }
+        .wrap { max-width: 760px; margin: 0 auto; }
+        .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 24px; }
+        .title { margin: 0 0 8px; font-size: 1.5rem; }
+        .desc { margin: 0 0 20px; color: #cbd5e1; font-size: 0.92rem; }
+        .group { margin-bottom: 14px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: #cbd5e1; }
+        input, textarea { width: 100%; box-sizing: border-box; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+        textarea { min-height: 90px; resize: vertical; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .box { border: 1px solid #334155; border-radius: 10px; padding: 10px; max-height: 180px; overflow: auto; background: #0b1220; }
+        .opt { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .opt input { width: auto; }
+        .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-secondary { background: #1e293b; color: #e2e8f0; text-decoration: none; display: inline-flex; align-items: center; }
+        .msg { border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.88rem; }
+        .msg-success { background: rgba(22,163,74,0.15); border: 1px solid rgba(22,163,74,0.5); }
+        .msg-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.5); }
+        .msg-info { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.5); }
+        .small { font-size: 0.8rem; color: #94a3b8; }
+        @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+        <h1 class="title">Solicitar cadastro</h1>
+        <p class="desc">Preencha seus dados. Após sua aprovação, você receberá o acesso por e-mail.</p>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="msg {% if message.tags == 'success' %}msg-success{% elif message.tags == 'error' %}msg-error{% else %}msg-info{% endif %}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="grid">
+                <div class="group">
+                    <label for="first_name">Nome *</label>
+                    <input id="first_name" name="first_name" required value="{{ request.POST.first_name|default:'' }}">
+                </div>
+                <div class="group">
+                    <label for="last_name">Sobrenome *</label>
+                    <input id="last_name" name="last_name" required value="{{ request.POST.last_name|default:'' }}">
+                </div>
+            </div>
+
+            <div class="group">
+                <label for="email">E-mail corporativo *</label>
+                <input id="email" type="email" name="email" required value="{{ request.POST.email|default:'' }}">
+                {% if allowed_domains %}
+                    <div class="small">Domínios permitidos: {{ allowed_domains|join:", " }}</div>
+                {% endif %}
+            </div>
+
+            <div class="group">
+                <label for="username_suggestion">Nome de usuário</label>
+                <input id="username_suggestion" name="username_suggestion" value="{{ request.POST.username_suggestion|default:'' }}">
+            </div>
+
+            <div class="group">
+                <label>Obras solicitadas</label>
+                <div class="box">
+                    {% for project in projects %}
+                    <label class="opt">
+                        <input type="checkbox" name="projects" value="{{ project.id }}" {% if project.id|stringformat:"s" in selected_projects %}checked{% endif %}>
+                        <span>{{ project.code }} - {{ project.name }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="small">Nenhuma obra ativa cadastrada.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="group">
+                <label for="notes">Observações</label>
+                <textarea id="notes" name="notes" placeholder="Descreva rapidamente para qual obra/projeto você precisa acesso.">{{ request.POST.notes|default:'' }}</textarea>
+            </div>
+
+            <div class="actions">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Enviar solicitação</button>
+                <a href="{% url 'login' %}" class="btn btn-secondary">Voltar para login</a>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

@@ -7,6 +7,7 @@ from . import central_views
 from .frontend_views import (
     login_view,
     logout_view,
+    signup_request_view,
     select_system_view,
     select_project_view,
     central_hub_view,
@@ -45,6 +46,7 @@ from .frontend_views import (
     client_diary_detail_view,
     client_diary_add_comment_view,
     diary_add_owner_comment_view,
+    # teams_chat_embed_view,  # Pausado — retomar quando ativar Teams/Azure
 )
 
 urlpatterns = [
@@ -52,6 +54,7 @@ urlpatterns = [
     path('', RedirectView.as_view(pattern_name='select-system', permanent=False), name='home'),
     # Frontend views (devem vir ANTES do router para ter prioridade)
     path('login/', login_view, name='login'),
+    path('cadastro/solicitar/', signup_request_view, name='signup-request'),
     path('logout/', logout_view, name='logout'),
     # Recuperação de senha
     path('password-reset/', auth_views.PasswordResetView.as_view(
@@ -78,11 +81,17 @@ urlpatterns = [
     path('central/usuarios/criar/', central_views.central_create_user, name='central_create_user'),
     path('central/usuarios/<int:pk>/editar/', central_views.central_edit_user, name='central_edit_user'),
     path('central/usuarios/<int:pk>/excluir/', central_views.central_delete_user, name='central_delete_user'),
+    path('central/cadastros/', central_views.central_signup_requests_list, name='central_signup_requests'),
+    path('central/cadastros/<int:pk>/aprovar/', central_views.central_signup_request_approve, name='central_signup_request_approve'),
+    path('central/cadastros/<int:pk>/rejeitar/', central_views.central_signup_request_reject, name='central_signup_request_reject'),
     path('central/ajuda/', central_views.central_ajuda_view, name='central_ajuda'),
     path('central/manutencao/', central_views.central_manutencao_view, name='central_manutencao'),
+    path('central/clientes/', central_views.central_clients_view, name='central_clients'),
+    path('central/clientes/<int:pk>/remover-vinculo/', central_views.central_client_remove_owner, name='central_client_remove_owner'),
     path('projects/<int:project_id>/diario-emails/', central_views.central_diary_emails_view, name='central_diary_emails'),
     path('projects/<int:project_id>/diario-emails/<int:pk>/remover/', central_views.central_diary_email_remove_view, name='central_diary_email_remove'),
     path('dashboard/', dashboard_view, name='dashboard'),
+    # path('integracoes/teams/chat/', teams_chat_embed_view, name='teams-chat-embed'),  # Pausado
     path('profile/', profile_view, name='profile'),
     path('analytics/', analytics_view, name='analytics'),
     path('calendar-events/', calendar_events_view, name='calendar-events'),

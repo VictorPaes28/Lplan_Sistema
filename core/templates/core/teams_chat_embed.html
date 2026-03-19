@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Teams Chat{% endblock %}
+{% block page_subtitle %}Chat integrado ao LPLAN{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="bg-white border border-slate-200 rounded-xl p-5 mb-4">
+        <h2 class="text-lg font-semibold text-slate-800 mb-2">Microsoft Teams no sistema</h2>
+        <p class="text-sm text-slate-600 leading-relaxed mb-2">
+            Esta tela permite manter o usuário no LPLAN enquanto conversa no Teams.
+            Para navegador, o caminho recomendado é usar uma aplicação de chat baseada em Azure Communication Services (ACS) e embutir aqui.
+        </p>
+        <p class="text-xs text-slate-500">
+            Modo atual: <strong>{{ teams_chat_mode }}</strong>
+        </p>
+    </div>
+
+    {% if not teams_chat_enabled %}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
+        O chat embutido está desativado. Ative <code>TEAMS_CHAT_EMBED_ENABLED=True</code> no <code>.env</code>.
+    </div>
+    {% elif teams_chat_mode == 'acs_iframe' %}
+        {% if teams_chat_app_url %}
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <iframe
+                title="Teams Chat Embed"
+                src="{{ teams_chat_app_url }}"
+                style="width: 100%; min-height: 760px; border: 0;"
+                allow="camera; microphone; clipboard-read; clipboard-write; fullscreen"
+                referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        {% else %}
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
+            Defina <code>TEAMS_CHAT_APP_URL</code> para embutir a aplicação ACS.
+        </div>
+        {% endif %}
+    {% else %}
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-sm text-slate-700 mb-3">
+            Modo <code>embedded_sdk</code> habilitado. Se o script do SDK estiver configurado, ele será carregado abaixo.
+        </p>
+        <div id="teams-embed-container" class="border border-slate-200 rounded-lg min-h-[520px] p-3 text-sm text-slate-500">
+            Carregando componente de chat...
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'accounts:admin_central' %}" class="text-sm text-blue-600 hover:text-blue-700">
+            <i class="fas fa-arrow-left"></i> Voltar ao Painel
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% if teams_chat_enabled and teams_chat_mode == 'embedded_sdk' and teams_embedded_sdk_url %}
+<script>
+(() => {
+    const container = document.getElementById('teams-embed-container');
+    if (!container) return;
+
+    const script = document.createElement('script');
+    script.src = "{{ teams_embedded_sdk_url|escapejs }}";
+    script.async = true;
+    script.onload = function () {
+        try {
+            if (window.teamsEmbeddedChat && typeof window.teamsEmbeddedChat.renderEmbed === 'function') {
+                const entityId = "{{ teams_chat_entity_prefix|escapejs }}" + "-chat";
+                window.teamsEmbeddedChat.renderEmbed(container, {
+                    entityId: entityId,
+                    topicName: "LPLAN Chat"
+                });
+            } else {
+                container.textContent = 'SDK carregado, mas a API teamsEmbeddedChat.renderEmbed não foi encontrada.';
+            }
+        } catch (err) {
+            container.textContent = 'Falha ao inicializar chat embutido: ' + (err && err.message ? err.message : err);
+        }
+    };
+    script.onerror = function () {
+        container.textContent = 'Não foi possível carregar o script do Teams Embedded Chat.';
+    };
+    document.head.appendChild(script);
+})();
+</script>
+{% elif teams_chat_enabled and teams_chat_mode == 'embedded_sdk' %}
+<script>
+(() => {
+    const container = document.getElementById('teams-embed-container');
+    if (container) {
+        container.textContent = 'Configure TEAMS_EMBEDDED_SDK_URL para carregar o SDK de chat embutido.';
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}
+
