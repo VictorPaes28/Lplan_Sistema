@@ -308,24 +308,35 @@
         text-decoration: none;
         cursor: pointer;
         transition: all 0.18s ease;
+        opacity: 1 !important;
     }
     .support-card-btn-primary {
-        background: #0f172a;
-        color: #fff;
+        background: #0f172a !important;
+        color: #fff !important;
+        border-color: #0f172a !important;
+        -webkit-text-fill-color: #fff !important;
     }
     .support-card-btn-primary:hover {
-        background: #1e293b;
-        color: #fff;
+        background: #1e293b !important;
+        color: #fff !important;
+        border-color: #1e293b !important;
+        -webkit-text-fill-color: #fff !important;
     }
     .support-card-btn-secondary {
-        background: #fff;
-        color: #334155;
-        border-color: #cbd5e1;
+        background: #ffffff !important;
+        color: #334155 !important;
+        border-color: #cbd5e1 !important;
+        -webkit-text-fill-color: #334155 !important;
     }
     .support-card-btn-secondary:hover {
-        background: #f8fafc;
-        border-color: #94a3b8;
-        color: #0f172a;
+        background: #f8fafc !important;
+        border-color: #94a3b8 !important;
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+    }
+    .support-card-btn:disabled {
+        opacity: 0.65 !important;
+        cursor: not-allowed;
     }
     @media (prefers-reduced-motion: reduce) {
         .support-card { transition: none; }
@@ -602,9 +613,6 @@
                    class="support-card-btn support-card-btn-primary">
                     <i class="fas fa-envelope"></i>Enviar e-mail
                 </a>
-                <button type="button" id="copy-support-email-btn" class="support-card-btn support-card-btn-secondary">
-                    <i class="fas fa-copy"></i>Copiar e-mail
-                </button>
             </div>
         </div>
         <span class="support-card-link">Resposta rápida <i class="fas fa-clock" style="font-size:0.75rem"></i></span>
@@ -699,7 +707,6 @@
 document.addEventListener('DOMContentLoaded', function () {
     var supportEmail = 'suporte@lplan.com.br';
     var emailLink = document.getElementById('support-email-link');
-    var copyBtn = document.getElementById('copy-support-email-btn');
     var openModalBtn = document.getElementById('open-support-modal-btn');
     var modalOverlay = document.getElementById('support-modal-overlay');
     var closeModalBtn = document.getElementById('close-support-modal-btn');
@@ -740,16 +747,6 @@ document.addEventListener('DOMContentLoaded', function () {
             'Anexo: print do erro (se possível).';
         emailLink.href = 'mailto:' + supportEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + body;
     }
-    if (copyBtn && navigator.clipboard) {
-        copyBtn.addEventListener('click', function () {
-            navigator.clipboard.writeText(supportEmail).then(function () {
-                var prev = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i class="fas fa-check"></i>Copiado';
-                setTimeout(function () { copyBtn.innerHTML = prev; }, 1200);
-            });
-        });
-    }
-
     if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
