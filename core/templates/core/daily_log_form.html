@@ -18,8 +18,6 @@
             <input type="hidden" name="partial_save" id="partial_save_flag" value="">
             <input type="hidden" name="work_logs_json" id="work_logs_json_input" value="">
             <input type="hidden" name="occurrences_json" id="occurrences_json_input" value="">
-            {# Preserva campos do ModelForm que não têm UI dedicada neste template,
-               evitando sobrescrever valores existentes com vazio em edições. #}
             {{ form.weather_conditions.as_hidden }}
             {{ form.weather_night_enabled.as_hidden }}
             {{ form.weather_night_type.as_hidden }}
@@ -56,7 +54,7 @@
                     <div class="flex items-center gap-3">
                         <button type="button" 
                                 id="save-draft-btn"
-                                class="diary-form-btn bg-amber-500 hover:bg-amber-600 text-white border-0"
+                                class="diary-form-btn diary-form-btn-draft"
                                 title="Salva sem assinatura para continuar depois">
                             <i class="fas fa-file-alt mr-1.5"></i>
                             <span>Salvar rascunho</span>
@@ -377,17 +375,6 @@
             </script>
             {% endif %}
             {% endif %}
-
-            <!-- Navegação rápida (mobile) -->
-            <div class="diary-mobile-quicknav lg:hidden" aria-label="Navegação rápida do diário">
-                <a href="#section-clima" class="diary-mobile-quicknav-link">Clima</a>
-                <a href="#section-maoObra" class="diary-mobile-quicknav-link">Mão de obra</a>
-                <a href="#section-equipamentos" class="diary-mobile-quicknav-link">Equipamentos</a>
-                <a href="#section-atividades" class="diary-mobile-quicknav-link">Atividades</a>
-                <a href="#section-ocorrencias" class="diary-mobile-quicknav-link">Ocorrências</a>
-                <a href="#section-fotos" class="diary-mobile-quicknav-link">Fotos</a>
-                <a href="#section-comentarios" class="diary-mobile-quicknav-link">Informações</a>
-            </div>
 
             <!-- Layout Principal com Sidebar -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -1458,7 +1445,7 @@
             <div class="sticky bottom-0 z-40 bg-white border-t border-slate-200 shadow-lg mt-8 py-4 px-4 sm:px-6 flex flex-wrap items-center justify-center gap-3">
                 <button type="button"
                         id="save-draft-btn-bottom"
-                        class="diary-form-btn bg-amber-500 hover:bg-amber-600 text-white border-0"
+                        class="diary-form-btn diary-form-btn-draft"
                         title="Salva sem assinatura para continuar depois">
                     <i class="fas fa-file-alt mr-1.5"></i>
                     <span>Salvar rascunho</span>
@@ -4262,7 +4249,12 @@ function saveSignature(canvasId) {
         if (!form) return;
         var workLogs = [];
         var seenIndexes = {};
-        var descInputs = form.querySelectorAll('input[name^="work_logs-"][name$="-activity_description"], input[name*="work_logs-"][name*="-activity_description"]');
+        var descInputs = form.querySelectorAll(
+            'input[name^="work_logs-"][name$="-activity_description"], ' +
+            'input[name*="work_logs-"][name*="-activity_description"], ' +
+            'textarea[name^="work_logs-"][name$="-activity_description"], ' +
+            'textarea[name*="work_logs-"][name*="-activity_description"]'
+        );
         for (var d = 0; d < descInputs.length; d++) {
             var name = descInputs[d].name || '';
             var match = name.match(/work_logs-(\d+)-/);
@@ -4288,7 +4280,12 @@ function saveSignature(canvasId) {
         }
         var occurrences = [];
         seenIndexes = {};
-        var occDescInputs = form.querySelectorAll('input[name^="ocorrencias-"][name$="-description"], input[name*="ocorrencias-"][name*="-description"], textarea[name^="ocorrencias-"][name$="-description"]');
+        var occDescInputs = form.querySelectorAll(
+            'input[name^="ocorrencias-"][name$="-description"], ' +
+            'input[name*="ocorrencias-"][name*="-description"], ' +
+            'textarea[name^="ocorrencias-"][name$="-description"], ' +
+            'textarea[name*="ocorrencias-"][name*="-description"]'
+        );
         for (var o = 0; o < occDescInputs.length; o++) {
             var oname = occDescInputs[o].name || '';
             var omatch = oname.match(/ocorrencias-(\d+)-/);

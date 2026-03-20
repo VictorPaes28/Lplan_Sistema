@@ -40,11 +40,7 @@
                 <div class="py-2">
                     <a href="{% url 'diary-pdf' diary.id %}" target="_blank" rel="noopener noreferrer"
                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório (PDF)
-                    </a>
-                    <a href="{% url 'diary-pdf-detailed' diary.id %}" target="_blank" rel="noopener noreferrer"
-                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório detalhado (PDF)
+                        <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório (PDF com fotos)
                     </a>
                     <a href="{% url 'diary-pdf-no-photos' diary.id %}" target="_blank" rel="noopener noreferrer"
                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
@@ -79,12 +75,12 @@
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
     <!-- Logo e Título -->
     <div class="text-center mb-6 pb-6 border-b border-slate-200">
-        <div class="flex items-center justify-center mb-6 mt-4 gap-4">
-            <div class="logo-white-box w-14 h-14 md:w-20 md:h-20 bg-white rounded-lg flex items-center justify-center p-1.5 flex-shrink-0">
+        <div class="flex items-center justify-center mb-5 mt-3 gap-3">
+            <div class="logo-white-box w-10 h-10 md:w-14 md:h-14 bg-white rounded-lg flex items-center justify-center p-1.5 flex-shrink-0">
                 <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" loading="lazy">
             </div>
             <div class="text-left">
-                <h1 class="text-2xl md:text-3xl font-bold text-blue-900 mb-1">LPLAN</h1>
+                <h1 class="text-xl md:text-2xl font-bold text-blue-900 mb-1">LPLAN</h1>
                 <p class="text-sm text-gray-600">Gestão de Obras</p>
             </div>
         </div>

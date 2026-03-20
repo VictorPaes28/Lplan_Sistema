@@ -622,6 +622,28 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
+.diary-form-btn-draft {
+    background: #f59e0b;
+    color: #ffffff !important;
+    border: 1px solid #d97706;
+    -webkit-text-fill-color: #ffffff;
+}
+
+.diary-form-btn-draft:hover {
+    background: #d97706;
+    border-color: #b45309;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff;
+}
+
+.diary-form-btn-draft:disabled {
+    background: #fde68a;
+    border-color: #fcd34d;
+    color: #78350f !important;
+    -webkit-text-fill-color: #78350f;
+    opacity: 1 !important;
+}
+
 .diary-form-btn-secondary {
     color: #475569;
     text-decoration: none;

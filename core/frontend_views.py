@@ -3086,8 +3086,9 @@ def diary_form_view(request, pk=None):
                                         form.initial[f] = val if val is not None else ''
                             except Exception:
                                 pass
-                        # Atividades e ocorrências: preencher formsets iniciais (só para novo diário)
-                        if not diary and 'activities' in copy_opts and src.work_logs.exists():
+                        # Atividades e ocorrências: preencher formsets iniciais
+                        # (também em edição, para permitir sobrescrever com dados do relatório fonte).
+                        if 'activities' in copy_opts and src.work_logs.exists():
                             worklog_initial = []
                             for wl in src.work_logs.prefetch_related('activity').all():
                                 worklog_initial.append({
@@ -3101,10 +3102,10 @@ def diary_form_view(request, pk=None):
                             if worklog_initial:
                                 worklog_formset = DailyWorkLogFormSet(
                                     initial=worklog_initial,
-                                    form_kwargs={'diary': None},
+                                    form_kwargs={'diary': diary if diary and diary.pk else None},
                                     prefix='work_logs',
                                 )
-                        if not diary and 'ocorrencias' in copy_opts and src.occurrences.exists():
+                        if 'ocorrencias' in copy_opts and src.occurrences.exists():
                             occ_initial = []
                             for o in src.occurrences.prefetch_related('tags').all():
                                 occ_initial.append({

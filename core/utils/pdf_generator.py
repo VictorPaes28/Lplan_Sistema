@@ -9,6 +9,7 @@ Gerado exclusivamente com ReportLab (compatível cPanel/Servihost).
 """
 import os
 import tempfile
+import base64
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from io import BytesIO
@@ -222,7 +223,7 @@ def _get_logo_absolute_path() -> Optional[str]:
     """Retorna o caminho absoluto da logo LPLAN (static/core/images/lplan_logo.png)."""
     base = Path(settings.BASE_DIR)
     logo_dir = base / 'core' / 'static' / 'core' / 'images'
-    for name in ('lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg'):
+    for name in ('lplan-logo2.png', 'lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg'):
         p = logo_dir / name
         if p.exists():
             return str(p)
@@ -557,9 +558,40 @@ class PDFGenerator:
         )
         if logo_absolute_path and os.path.exists(logo_absolute_path):
             try:
-                logo_img = RLImage(logo_absolute_path, width=1.8 * cm, height=0.8 * cm)
-                header_rows = [[logo_img, header_title], [header_sub, Paragraph(' ', ParagraphStyle(name='E', fontSize=1))]]
-                col_widths = [2 * cm, 15 * cm]
+                # Ajuste fino de proporção para o header do PDF:
+                # mantém destaque discreto sem "engolir" o título.
+                max_logo_w = 2.5 * cm
+                max_logo_h = 1.15 * cm
+                logo_w = max_logo_w
+                logo_h = max_logo_h
+
+                # Mantém proporção real da logo para evitar deformação no PDF.
+                try:
+                    if PIL_AVAILABLE and Image:
+                        with Image.open(logo_absolute_path) as pil_logo:
+                            src_w, src_h = pil_logo.size
+                    else:
+                        from reportlab.lib.utils import ImageReader
+                        src_w, src_h = ImageReader(logo_absolute_path).getSize()
+
+                    if src_w and src_h:
+                        scale = min(max_logo_w / float(src_w), max_logo_h / float(src_h))
+                        logo_w = max(0.95 * cm, float(src_w) * scale)
+                        logo_h = max(0.45 * cm, float(src_h) * scale)
+                except Exception as logo_size_err:
+                    logger.debug("Não foi possível medir logo para escala proporcional: %s", logo_size_err)
+
+                logo_img = RLImage(logo_absolute_path, width=logo_w, height=logo_h)
+                text_block = Table([[header_title], [header_sub]], colWidths=[14.5 * cm])
+                text_block.setStyle(TableStyle([
+                    ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                    ('TOPPADDING', (0, 0), (-1, -1), 0),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                ]))
+
+                header_rows = [[logo_img, text_block]]
+                col_widths = [2.5 * cm, 14.5 * cm]
             except Exception:
                 header_rows = [[header_title], [header_sub]]
                 col_widths = [17 * cm]
@@ -973,22 +1005,83 @@ class PDFGenerator:
             story.append(sect_photo)
             story.append(Spacer(1, 0.2 * cm))
 
-        # Assinatura — bloco único de responsável pelo preenchimento
+        # Assinatura — bloco único de responsável pelo preenchimento (nome + assinatura desenhada)
         story.append(Spacer(1, 0.4 * cm))
         insp = getattr(diary, 'inspection_responsible', None) and diary.inspection_responsible.strip()
+        inspection_signature = diary.signatures.filter(signature_type='inspection').order_by('-signed_at').first()
+        insp_name = insp
+        if not insp_name and inspection_signature and inspection_signature.signer:
+            insp_name = (
+                inspection_signature.signer.get_full_name().strip()
+                or inspection_signature.signer.username
+            )
+        if not insp_name and getattr(diary, 'created_by', None):
+            insp_name = (
+                (diary.created_by.get_full_name() or '').strip()
+                or getattr(diary.created_by, 'username', None)
+            )
+
         sig_style = ParagraphStyle(name='Sig', parent=normal_style, fontSize=9.5, fontName='Helvetica-Bold', textColor=COLOR_TEXT)
         sig_cargo_style = ParagraphStyle(name='SigCargo', parent=normal_style, fontSize=8.5, textColor=COLOR_TEXT_SECONDARY)
+        sig_line_style = ParagraphStyle(name='SigLine', parent=normal_style, fontSize=8, textColor=COLOR_TEXT_SECONDARY, alignment=TA_CENTER)
 
-        def _sig_block(name, cargo):
-            line_t = Table([['']], colWidths=[4 * cm])
+        signature_image_flowable = None
+        if inspection_signature and inspection_signature.signature_data:
+            try:
+                raw_data = inspection_signature.signature_data.strip()
+                if 'base64,' in raw_data:
+                    raw_data = raw_data.split('base64,', 1)[1]
+                decoded = base64.b64decode(raw_data)
+                signature_stream = BytesIO(decoded)
+
+                max_sig_w = 6.2 * cm
+                max_sig_h = 1.8 * cm
+                sig_w = max_sig_w
+                sig_h = max_sig_h
+
+                if PIL_AVAILABLE and Image:
+                    with Image.open(signature_stream) as sig_img:
+                        if sig_img.mode not in ('RGB', 'RGBA'):
+                            sig_img = sig_img.convert('RGBA')
+                        sw, sh = sig_img.size
+                        if sw and sh:
+                            scale = min(max_sig_w / float(sw), max_sig_h / float(sh))
+                            sig_w = max(2.0 * cm, float(sw) * scale)
+                            sig_h = max(0.6 * cm, float(sh) * scale)
+                        prepared = BytesIO()
+                        sig_img.save(prepared, format='PNG')
+                        prepared.seek(0)
+                        signature_image_flowable = RLImage(prepared, width=sig_w, height=sig_h)
+                else:
+                    signature_stream.seek(0)
+                    signature_image_flowable = RLImage(signature_stream, width=sig_w, height=sig_h)
+            except Exception as sig_err:
+                logger.debug("Não foi possível renderizar assinatura no PDF: %s", sig_err)
+
+        def _sig_block(name, cargo, signature_img=None):
+            line_t = Table([['']], colWidths=[7 * cm])
             line_t.setStyle(TableStyle([('LINEBELOW', (0, 0), (0, 0), 1, COLOR_TEXT_SECONDARY)]))
-            return Table([
+            rows = [
                 [line_t],
+            ]
+            if signature_img is not None:
+                rows.append([signature_img])
+            else:
+                rows.append([Paragraph('Assinatura não disponível', sig_line_style)])
+            rows.extend([
                 [Paragraph(name or '_________________________', sig_style)],
                 [Paragraph(cargo or '', sig_cargo_style)],
-            ], colWidths=[5.5 * cm])
+            ])
+            block = Table(rows, colWidths=[17 * cm])
+            block.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ]))
+            return block
 
-        c1 = _sig_block(insp, "Responsável pelo preenchimento")
+        c1 = _sig_block(insp_name, "Responsável pelo preenchimento", signature_image_flowable)
         sig_table = Table([[c1]], colWidths=[17 * cm])
         sig_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
