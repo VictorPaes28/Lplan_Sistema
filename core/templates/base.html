@@ -345,6 +345,14 @@
                     <i class="fas fa-question-circle w-5 mr-3"></i>
                     <span class="font-medium">Ajuda</span>
                 </a>
+                <a href="https://lplan.com.br/webmail"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                    <i class="fas fa-envelope w-5 mr-3"></i>
+                    <span class="font-medium">Webmail LPLAN</span>
+                    <i class="fas fa-external-link-alt ml-auto text-xs opacity-75"></i>
+                </a>
                 <a href="{% url 'accounts:admin_central' %}" 
                    class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                     <i class="fas fa-cog w-5 mr-3"></i>

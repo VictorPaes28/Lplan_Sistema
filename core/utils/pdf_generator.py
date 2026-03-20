@@ -973,11 +973,9 @@ class PDFGenerator:
             story.append(sect_photo)
             story.append(Spacer(1, 0.2 * cm))
 
-        # Assinaturas — cada coluna é uma tabela de 3 linhas (linha, nome, cargo) para evitar lista em célula
+        # Assinatura — bloco único de responsável pelo preenchimento
         story.append(Spacer(1, 0.4 * cm))
         insp = getattr(diary, 'inspection_responsible', None) and diary.inspection_responsible.strip()
-        prod = getattr(diary, 'production_responsible', None) and diary.production_responsible.strip()
-        resp_obra = getattr(diary.project, 'responsible', None) and diary.project.responsible.strip()
         sig_style = ParagraphStyle(name='Sig', parent=normal_style, fontSize=9.5, fontName='Helvetica-Bold', textColor=COLOR_TEXT)
         sig_cargo_style = ParagraphStyle(name='SigCargo', parent=normal_style, fontSize=8.5, textColor=COLOR_TEXT_SECONDARY)
 
@@ -990,10 +988,8 @@ class PDFGenerator:
                 [Paragraph(cargo or '', sig_cargo_style)],
             ], colWidths=[5.5 * cm])
 
-        c1 = _sig_block(insp, "Resp. Inspeção Diária")
-        c2 = _sig_block(prod, "Mestre de Obras / Resp. Produção")
-        c3 = _sig_block(resp_obra, "Resp. Técnico (Obra)")
-        sig_table = Table([[c1, c2, c3]], colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm])
+        c1 = _sig_block(insp, "Responsável pelo preenchimento")
+        sig_table = Table([[c1]], colWidths=[17 * cm])
         sig_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
