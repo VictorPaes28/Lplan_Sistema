@@ -10,6 +10,7 @@ pypdf2>=3.0.1
 pandas>=2.3.3
 openpyxl>=3.1.5
 Pillow>=10.4.0
+pillow-heif
 celery>=5.6.2
 redis>=7.2.1
 requests>=2.32.5

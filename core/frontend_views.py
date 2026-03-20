@@ -2282,7 +2282,7 @@ def diary_form_view(request, pk=None):
                                 # Valida arquivo antes de processar
                                 try:
                                     from .utils.file_validators import validate_image_file
-                                    validate_image_file(image_file)
+                                    image_file = validate_image_file(image_file)
                                 except ValidationError as e:
                                     logger.error(f"Erro de validação na imagem {image_key}: {e}")
                                     messages.error(request, f'Erro ao processar imagem: {e}')
@@ -2842,7 +2842,11 @@ def diary_form_view(request, pk=None):
                 else:
                     messages.error(request, f'Erro ao processar dados: {str(e)}')
 
-                logger.error("Erro ao salvar diário: %s", e, exc_info=True)
+                if isinstance(e, ValueError):
+                    # Erro de validação funcional (ex.: assinatura obrigatória), não falha interna do servidor.
+                    logger.warning("Validação ao salvar diário: %s", e)
+                else:
+                    logger.error("Erro ao salvar diário: %s", e, exc_info=True)
 
                 # 2. Reconstrução do form uma única vez
                 if diary and diary.pk:
@@ -2921,7 +2925,6 @@ def diary_form_view(request, pk=None):
             # Form principal inválido - coleta erros
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Form principal INVÁLIDO. Erros: {form.errors}")
             logger.warning(f"Form principal inválido; form.errors={dict(form.errors)}")
             
             errors = []
@@ -2935,7 +2938,7 @@ def diary_form_view(request, pk=None):
                     filtered_errors = [e for e in field_errors if unique_error_msg not in str(e)]
                     if filtered_errors:
                         error_details.append(f'{field}: {", ".join(filtered_errors)}')
-                        logger.error(f"Erro no campo {field}: {', '.join(filtered_errors)}")
+                        logger.warning(f"Erro no campo {field}: {', '.join(filtered_errors)}")
             
             if not image_formset.is_valid():
                 errors.append('Erros nas imagens')

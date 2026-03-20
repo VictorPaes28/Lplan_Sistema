@@ -901,7 +901,7 @@
                                            id="photo-upload-multiple" 
                                            name="photos" 
                                            multiple 
-                                           accept="image/*"
+                                           accept="image/*,.heic,.heif"
                                            class="hidden"
                                            onchange="handleMultiplePhotos(this)">
                                     <div class="flex flex-col items-center">
@@ -2899,7 +2899,7 @@ function handleMultiplePhotos(input) {
             var fileInputHidden = document.createElement('input');
             fileInputHidden.type = 'file';
             fileInputHidden.name = imageName;
-            fileInputHidden.accept = 'image/*';
+            fileInputHidden.accept = 'image/*,.heic,.heif';
             fileInputHidden.style.display = 'none';
             // Não adiciona ID para evitar duplicação
             fileInputHidden.removeAttribute('id');
@@ -2930,7 +2930,7 @@ function handleMultiplePhotos(input) {
                     var newInput = document.createElement('input');
                     newInput.type = 'file';
                     newInput.name = imageName;
-                    newInput.accept = 'image/*';
+                    newInput.accept = 'image/*,.heic,.heif';
                     newInput.style.display = 'none';
                     newInput.removeAttribute('id');
                     

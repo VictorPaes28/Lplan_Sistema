@@ -3,7 +3,9 @@ Validações de segurança para uploads de arquivo.
 """
 import os
 import re
+from io import BytesIO
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import InMemoryUploadedFile
 import logging
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,14 @@ ALLOWED_ATTACHMENT_EXTENSIONS = [
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.zip', '.rar'
 ] + ALLOWED_IMAGE_EXTENSIONS + ALLOWED_VIDEO_EXTENSIONS
 
+HEIC_IMAGE_TYPES = {
+    'image/heic',
+    'image/heif',
+    'image/heic-sequence',
+    'image/heif-sequence',
+}
+HEIC_EXTENSIONS = {'.heic', '.heif'}
+
 
 def sanitize_filename(filename):
     """
@@ -89,6 +99,72 @@ def sanitize_filename(filename):
     return filename
 
 
+def normalize_uploaded_image(file):
+    """
+    Converte uploads HEIC/HEIF para JPEG para compatibilidade com Pillow/PDF.
+
+    Retorna o próprio arquivo quando não é HEIC/HEIF.
+    """
+    if not file:
+        return file
+
+    filename = getattr(file, 'name', '') or ''
+    ext = os.path.splitext(filename.lower())[1]
+    content_type = (getattr(file, 'content_type', '') or '').lower()
+    is_heic = ext in HEIC_EXTENSIONS or content_type in HEIC_IMAGE_TYPES
+
+    if not is_heic:
+        return file
+
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise ValidationError(
+            'Não foi possível processar imagem HEIC: Pillow não está disponível no servidor.'
+        ) from exc
+
+    try:
+        from pillow_heif import register_heif_opener
+        register_heif_opener()
+    except Exception as exc:
+        raise ValidationError(
+            'Imagem HEIC/HEIF detectada, mas o servidor não possui suporte de conversão. '
+            'Instale "pillow-heif" para conversão automática ou envie em JPG/PNG.'
+        ) from exc
+
+    try:
+        file.seek(0)
+        source_bytes = file.read()
+        file.seek(0)
+        img = Image.open(BytesIO(source_bytes))
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        output = BytesIO()
+        img.save(output, format='JPEG', quality=90, optimize=True)
+        output.seek(0)
+
+        base_name = os.path.splitext(os.path.basename(filename or 'imagem'))[0]
+        new_name = sanitize_filename(f'{base_name}.jpg')
+        converted = InMemoryUploadedFile(
+            file=output,
+            field_name=getattr(file, 'field_name', None),
+            name=new_name,
+            content_type='image/jpeg',
+            size=output.getbuffer().nbytes,
+            charset=getattr(file, 'charset', None),
+        )
+        logger.info("Imagem convertida HEIC/HEIF -> JPEG: %s -> %s", filename, new_name)
+        return converted
+    except ValidationError:
+        raise
+    except Exception as exc:
+        logger.exception("Falha ao converter imagem HEIC/HEIF: %s", filename)
+        raise ValidationError(
+            'Não foi possível converter a imagem HEIC/HEIF. Tente reenviar em JPG/PNG.'
+        ) from exc
+
+
 def validate_image_file(file, max_size=MAX_IMAGE_SIZE):
     """
     Valida arquivo de imagem.
@@ -103,6 +179,9 @@ def validate_image_file(file, max_size=MAX_IMAGE_SIZE):
     if not file:
         raise ValidationError('Nenhum arquivo fornecido.')
     
+    # Normaliza HEIC/HEIF antes das demais validações
+    file = normalize_uploaded_image(file)
+
     # Valida tamanho
     if hasattr(file, 'size') and file.size > max_size:
         size_mb = max_size / (1024 * 1024)
@@ -126,6 +205,8 @@ def validate_image_file(file, max_size=MAX_IMAGE_SIZE):
         if sanitized != filename:
             file.name = sanitized
             logger.info(f"Nome de arquivo sanitizado: {filename} -> {sanitized}")
+
+    return file
 
 
 def validate_video_file(file, max_size=MAX_VIDEO_SIZE):

@@ -451,7 +451,8 @@ class DiaryImageForm(forms.ModelForm):
         # Valida arquivo de imagem (tamanho, tipo MIME, extensão, sanitização)
         if image:
             try:
-                validate_image_file(image)
+                image = validate_image_file(image)
+                cleaned_data['image'] = image
             except ValidationError as e:
                 raise ValidationError({'image': str(e)})
         
