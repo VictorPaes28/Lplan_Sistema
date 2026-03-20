@@ -337,14 +337,9 @@
             {% endif %}
             {% endif %}
 
-            <!-- Ajuda e Painel do sistema - visíveis para staff/superuser -->
-            {% if user.is_staff or user.is_superuser %}
+            <!-- Webmail (todos autenticados) + Ajuda/Painel (staff/superuser) -->
+            {% if user.is_authenticated %}
             <div class="mt-3 pt-3 border-t border-slate-700">
-                <a href="{% url 'central_ajuda' %}" 
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                    <i class="fas fa-question-circle w-5 mr-3"></i>
-                    <span class="font-medium">Ajuda</span>
-                </a>
                 <a href="https://lplan.com.br/webmail"
                    target="_blank"
                    rel="noopener noreferrer"
@@ -353,11 +348,18 @@
                     <span class="font-medium">Webmail LPLAN</span>
                     <i class="fas fa-external-link-alt ml-auto text-xs opacity-75"></i>
                 </a>
+                {% if user.is_staff or user.is_superuser %}
+                <a href="{% url 'central_ajuda' %}" 
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                    <i class="fas fa-question-circle w-5 mr-3"></i>
+                    <span class="font-medium">Ajuda</span>
+                </a>
                 <a href="{% url 'accounts:admin_central' %}" 
                    class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                     <i class="fas fa-cog w-5 mr-3"></i>
                     <span class="font-medium">Painel do sistema</span>
                 </a>
+                {% endif %}
             </div>
             {% endif %}
         </nav>
