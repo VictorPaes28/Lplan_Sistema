@@ -1202,6 +1202,15 @@ input[type="submit"][class*="btn"]:not(:disabled) {
     filter: none !important;
 }
 
+/* Correção global adicional: qualquer botão ativo deve ter contraste normal */
+button:not(:disabled),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="reset"]:not(:disabled) {
+    opacity: 1 !important;
+    filter: none !important;
+}
+
 button[class*="btn"]:disabled,
 a[class*="btn"][aria-disabled="true"],
 input[type="button"][class*="btn"]:disabled,

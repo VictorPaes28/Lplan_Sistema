@@ -338,6 +338,19 @@
         opacity: 0.65 !important;
         cursor: not-allowed;
     }
+    #open-support-modal-btn {
+        background: #ffffff !important;
+        color: #334155 !important;
+        border-color: #cbd5e1 !important;
+        -webkit-text-fill-color: #334155 !important;
+        opacity: 1 !important;
+    }
+    #open-support-modal-btn:hover {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        border-color: #94a3b8 !important;
+        -webkit-text-fill-color: #0f172a !important;
+    }
     @media (prefers-reduced-motion: reduce) {
         .support-card { transition: none; }
     }
@@ -748,6 +761,7 @@ document.addEventListener('DOMContentLoaded', function () {
         emailLink.href = 'mailto:' + supportEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + body;
     }
     if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    if (openModalBtn) openModalBtn.disabled = false;
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
     if (modalOverlay) {
