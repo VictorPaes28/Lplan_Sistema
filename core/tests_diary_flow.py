@@ -320,3 +320,34 @@ class DiaryFlowTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
         self.assertIsNone(diary)
+
+    def test_save_draft_accepts_checkbox_on_value(self):
+        """Flag de rascunho enviada como 'on' deve manter status SALVAMENTO_PARCIAL."""
+        self._login_and_select_project()
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=False)
+        post['partial_save'] = ''
+        post['as_partial_checkbox'] = 'on'
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302)
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        self.assertEqual(diary.status, DiaryStatus.SALVAMENTO_PARCIAL)
+
+    def test_signature_value_is_preserved_on_validation_error(self):
+        """Quando houver erro de validação, a assinatura enviada deve permanecer no HTML retornado."""
+        self._login_and_select_project()
+        new_date = date.today()
+        post = _minimal_diary_post(
+            self.project,
+            new_date,
+            partial_save=False,
+            signature_inspection='data:image/png;base64,sig-preservada',
+        )
+        # Força erro de validação no form principal para re-renderizar sem perder assinatura
+        post['date'] = 'data-invalida'
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'sig-preservada')

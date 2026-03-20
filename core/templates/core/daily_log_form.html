@@ -1267,7 +1267,7 @@
                                             <i class="fas fa-info-circle mr-1.5"></i>
                                             Desenhe sua assinatura na área acima
                                         </p>
-                                        <input type="hidden" name="signature_inspection" id="signature-data-1">
+                                        <input type="hidden" name="signature_inspection" id="signature-data-1" value="{{ signature_inspection_value|default:'' }}">
                                     </div>
                                     {% if diary %}
                                         {% for sig in diary.signatures.all %}
@@ -2724,6 +2724,9 @@ function removeWorkLogRow(button) {
     updateActivityCount();
 }
 
+// Estado global de processamento de fotos (evita salvar antes de concluir preparação no cliente)
+var pendingPhotoReads = 0;
+
 // Funções para gerenciar Fotos com múltiplas seleções
 function handleMultiplePhotos(input) {
     if (!input || !input.files || input.files.length === 0) {
@@ -2859,6 +2862,7 @@ function handleMultiplePhotos(input) {
             
             // Usa FileReader para criar data URL (compatível com CSP)
             var reader = new FileReader();
+            pendingPhotoReads += 1;
             reader.onload = function(e) {
                 var img = photoCard.querySelector('img');
                 var spinner = photoCard.querySelector('.photo-loading-spinner');
@@ -2869,6 +2873,7 @@ function handleMultiplePhotos(input) {
                 if (spinner) {
                     spinner.style.display = 'none';
                 }
+                pendingPhotoReads = Math.max(0, pendingPhotoReads - 1);
             };
             reader.onerror = function() {
                 console.error('Erro ao carregar preview da imagem');
@@ -2876,6 +2881,7 @@ function handleMultiplePhotos(input) {
                 if (spinner) {
                     spinner.innerHTML = '<i class="fas fa-exclamation-triangle text-red-400 text-2xl"></i>';
                 }
+                pendingPhotoReads = Math.max(0, pendingPhotoReads - 1);
             };
             reader.readAsDataURL(file);
             
@@ -3883,15 +3889,56 @@ function updateAttachmentCount() {
 
 // Funções para gerenciar Assinaturas
 var signatureContexts = {};
+var signatureStates = {};
+
+function getSignatureCanvasHeight() {
+    return window.matchMedia('(max-width: 768px)').matches ? 180 : 220;
+}
+
+function restoreSignatureFromHidden(canvasId) {
+    try {
+        var canvas = document.getElementById('signature-canvas-' + canvasId);
+        var dataInput = document.getElementById('signature-data-' + canvasId);
+        if (!canvas || !dataInput || !dataInput.value) return;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        var rect = canvas.getBoundingClientRect();
+        if (!rect.width) return;
+        var img = new Image();
+        img.onload = function() {
+            try {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, rect.width, getSignatureCanvasHeight());
+                if (!signatureStates[canvasId]) signatureStates[canvasId] = {};
+                signatureStates[canvasId].hasInk = true;
+            } catch (drawErr) {
+                console.warn('restoreSignatureFromHidden.drawImage:', drawErr);
+            }
+        };
+        img.src = dataInput.value;
+    } catch (err) {
+        console.warn('restoreSignatureFromHidden:', err);
+    }
+}
 
 function initSignatureCanvas(canvasId) {
     var canvas = document.getElementById('signature-canvas-' + canvasId);
     if (!canvas) return;
-    
+    if (canvas.dataset.signatureInitialized === '1') {
+        // Reforça apenas o resize quando já inicializado.
+        if (typeof canvas.__signatureResize === 'function') {
+            canvas.__signatureResize();
+        }
+        return;
+    }
+
     var ctx = canvas.getContext('2d');
     var isDrawing = false;
     var lastX = 0;
     var lastY = 0;
+    var activePointerId = null;
+    var state = signatureStates[canvasId] || {};
+    signatureStates[canvasId] = state;
     
     // Ajusta tamanho do canvas de forma responsiva
     function resizeCanvas() {
@@ -3903,115 +3950,107 @@ function initSignatureCanvas(canvasId) {
         }
         var dpr = window.devicePixelRatio || 1;
         var width = rect.width;
-        var height = 150; // Altura fixa
-        
+        var height = getSignatureCanvasHeight();
+        var preserveData = '';
+        if (state.hasInk) {
+            try { preserveData = canvas.toDataURL('image/png'); } catch (e) { preserveData = ''; }
+        }
+
         canvas.width = width * dpr;
         canvas.height = height * dpr;
-        ctx.scale(dpr, dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
         
         // Reconfigura o contexto após resize
         ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+
+        if (preserveData) {
+            var img = new Image();
+            img.onload = function() {
+                try { ctx.drawImage(img, 0, 0, width, height); } catch (e) {}
+            };
+            img.src = preserveData;
+        }
     }
     
     // Tenta inicializar imediatamente
     resizeCanvas();
+    setTimeout(function() { restoreSignatureFromHidden(canvasId); }, 80);
+    canvas.__signatureResize = resizeCanvas;
     
     // Reajusta ao redimensionar a janela
     window.addEventListener('resize', resizeCanvas);
     
     // Reajusta quando a seção for expandida (observa mudanças de visibilidade)
-    var observer = new MutationObserver(function(mutations) {
+    var observer = new MutationObserver(function() {
         var content = document.getElementById('section-assinaturas-content');
-        if (content && content.style.display !== 'none') {
+        if (content && window.getComputedStyle(content).display !== 'none') {
             setTimeout(resizeCanvas, 50);
         }
     });
     
     var content = document.getElementById('section-assinaturas-content');
     if (content) {
-        observer.observe(content, { attributes: true, attributeFilter: ['style'] });
+        observer.observe(content, { attributes: true, attributeFilter: ['class', 'style'] });
     }
     
     // Configura estilo do desenho
     ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
-    // Eventos de mouse
-    canvas.addEventListener('mousedown', function(e) {
-        e.preventDefault();
+
+    function getPoint(event) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+        };
+    }
+
+    function startDraw(event) {
+        if (activePointerId !== null && activePointerId !== event.pointerId) return;
+        event.preventDefault();
+        activePointerId = event.pointerId;
         isDrawing = true;
-        var rect = canvas.getBoundingClientRect();
-        var dpr = window.devicePixelRatio || 1;
-        lastX = (e.clientX - rect.left) * dpr;
-        lastY = (e.clientY - rect.top) * dpr;
-    });
-    
-    canvas.addEventListener('mousemove', function(e) {
-        if (!isDrawing) return;
-        e.preventDefault();
-        var rect = canvas.getBoundingClientRect();
-        var dpr = window.devicePixelRatio || 1;
-        var x = (e.clientX - rect.left) * dpr;
-        var y = (e.clientY - rect.top) * dpr;
+        var p = getPoint(event);
+        lastX = p.x;
+        lastY = p.y;
+    }
+
+    function drawMove(event) {
+        if (!isDrawing || (activePointerId !== null && event.pointerId !== activePointerId)) return;
+        event.preventDefault();
+        var p = getPoint(event);
         
         ctx.beginPath();
         ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
+        ctx.lineTo(p.x, p.y);
         ctx.stroke();
-        
-        lastX = x;
-        lastY = y;
-    });
-    
-    canvas.addEventListener('mouseup', function() {
+
+        state.hasInk = true;
+        lastX = p.x;
+        lastY = p.y;
+    }
+
+    function endDraw(event) {
+        if (activePointerId !== null && event && event.pointerId !== activePointerId) return;
         isDrawing = false;
+        activePointerId = null;
         saveSignature(canvasId);
-    });
-    
-    canvas.addEventListener('mouseout', function() {
-        isDrawing = false;
-    });
-    
-    // Eventos de touch (mobile)
-    canvas.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        isDrawing = true;
-        var rect = canvas.getBoundingClientRect();
-        var dpr = window.devicePixelRatio || 1;
-        var touch = e.touches[0];
-        lastX = (touch.clientX - rect.left) * dpr;
-        lastY = (touch.clientY - rect.top) * dpr;
-    });
-    
-    canvas.addEventListener('touchmove', function(e) {
-        e.preventDefault();
-        if (!isDrawing) return;
-        var rect = canvas.getBoundingClientRect();
-        var dpr = window.devicePixelRatio || 1;
-        var touch = e.touches[0];
-        var x = (touch.clientX - rect.left) * dpr;
-        var y = (touch.clientY - rect.top) * dpr;
-        
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        
-        lastX = x;
-        lastY = y;
-    });
-    
-    canvas.addEventListener('touchend', function() {
-        isDrawing = false;
-        saveSignature(canvasId);
-    });
+    }
+
+    canvas.addEventListener('pointerdown', startDraw, { passive: false });
+    canvas.addEventListener('pointermove', drawMove, { passive: false });
+    canvas.addEventListener('pointerup', endDraw, { passive: false });
+    canvas.addEventListener('pointercancel', endDraw, { passive: false });
+    canvas.addEventListener('pointerleave', endDraw, { passive: false });
+
+    canvas.dataset.signatureInitialized = '1';
 }
 
 // Função global para limpar assinatura
@@ -4028,26 +4067,15 @@ window.clearSignature = function(canvasId) {
         return false;
     }
     
-    // Salva dimensões e transformação
-    var rect = canvas.getBoundingClientRect();
-    var dpr = window.devicePixelRatio || 1;
-    var width = rect.width;
-    var height = 150;
-    
-    // Reseta o canvas completamente (isso limpa tudo incluindo transformações)
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    
-    // Reconfigura o contexto após reset
-    ctx.scale(dpr, dpr);
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.fillStyle = '#ffffff';
-    
-    // Preenche com branco
-    ctx.fillRect(0, 0, width, height);
+    var state = signatureStates[canvasId] || {};
+    state.hasInk = false;
+    signatureStates[canvasId] = state;
+
+    if (typeof canvas.__signatureResize === 'function') {
+        canvas.__signatureResize();
+    } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
     
     // Limpa o campo hidden
     var dataInput = document.getElementById('signature-data-' + canvasId);
@@ -4062,16 +4090,8 @@ function saveSignature(canvasId) {
     try {
         var canvas = document.getElementById('signature-canvas-' + canvasId);
         if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        if (!ctx || canvas.width === 0 || canvas.height === 0) return;
-        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        var hasContent = false;
-        for (var i = 3; i < imageData.data.length; i += 4) {
-            if (imageData.data[i] > 0) {
-                hasContent = true;
-                break;
-            }
-        }
+        var state = signatureStates[canvasId] || {};
+        var hasContent = !!state.hasInk;
         var dataInput = document.getElementById('signature-data-' + canvasId);
         if (dataInput) {
             dataInput.value = hasContent ? canvas.toDataURL('image/png') : '';
@@ -4125,17 +4145,21 @@ function saveSignature(canvasId) {
     
     // Inicializa canvas de assinaturas quando a seção for expandida
     function initSignaturesWhenVisible() {
+        function isSignatureSectionVisible() {
+            var node = document.getElementById('section-assinaturas-content');
+            return !!(node && window.getComputedStyle(node).display !== 'none');
+        }
+
         var sectionContent = document.getElementById('section-assinaturas-content');
-        if (sectionContent && sectionContent.style.display !== 'none') {
+        if (isSignatureSectionVisible()) {
             // Seção já está visível, inicializa imediatamente
             setTimeout(function() {
                 initSignatureCanvas(1);
             }, 100);
         } else {
             // Observa quando a seção for expandida
-            var observer = new MutationObserver(function(mutations) {
-                var sectionContent = document.getElementById('section-assinaturas-content');
-                if (sectionContent && sectionContent.style.display !== 'none') {
+            var observer = new MutationObserver(function() {
+                if (isSignatureSectionVisible()) {
                     setTimeout(function() {
                         initSignatureCanvas(1);
                     }, 200);
@@ -4143,15 +4167,13 @@ function saveSignature(canvasId) {
                 }
             });
             
-            var sectionContent = document.getElementById('section-assinaturas-content');
             if (sectionContent) {
-                observer.observe(sectionContent, { attributes: true, attributeFilter: ['style'] });
+                observer.observe(sectionContent, { attributes: true, attributeFilter: ['class', 'style'] });
             }
             
             // Também tenta inicializar imediatamente (caso já esteja visível)
             setTimeout(function() {
-                var sectionContent = document.getElementById('section-assinaturas-content');
-                if (sectionContent && sectionContent.style.display !== 'none') {
+                if (isSignatureSectionVisible()) {
                     initSignatureCanvas(1);
                 }
             }, 500);
@@ -4414,6 +4436,13 @@ function saveSignature(canvasId) {
                 alert('Por favor, preencha a data do relatório.');
                 dateInput.focus();
                 dateInput.classList.add('border-red-500');
+                return false;
+            }
+
+            if (pendingPhotoReads > 0) {
+                e.preventDefault();
+                if (typeof restoreRequiredFromHiddenFields === 'function') restoreRequiredFromHiddenFields();
+                alert('As fotos ainda estão sendo preparadas. Aguarde alguns segundos e tente salvar novamente.');
                 return false;
             }
             

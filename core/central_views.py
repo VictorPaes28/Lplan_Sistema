@@ -13,6 +13,13 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.utils import timezone
 from django.core.mail import EmailMessage
+from django.core.paginator import Paginator
+from django.http import HttpResponse
+
+from pathlib import Path
+from datetime import datetime, timedelta
+import re
+import csv
 
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
@@ -144,6 +151,240 @@ def central_ajuda_view(request):
     resolver sozinho, sem conhecimento técnico.
     """
     return render(request, 'core/central_ajuda.html')
+
+
+def _parse_log_datetime(raw_value):
+    if not raw_value:
+        return None
+    for fmt in ('%Y-%m-%d %H:%M:%S,%f', '%Y-%m-%d %H:%M:%S'):
+        try:
+            return datetime.strptime(raw_value, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _guess_log_user(message):
+    if not message:
+        return ''
+    patterns = [
+        r'\buser(?:name)?\s*[=:]\s*([A-Za-z0-9_.@+-]+)',
+        r'\busu[aá]rio\s*[=:]\s*([A-Za-z0-9_.@+-]+)',
+        r'\bpor\s+([A-Za-z0-9_.@+-]+)\b',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, message, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return ''
+
+
+def _parse_log_lines(file_path, source_label, max_lines=6000):
+    entries = []
+    simple_re = re.compile(
+        r'^(?P<level>[A-Z]+)\s+'
+        r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:,\d+)?)\s+'
+        r'(?P<logger>[A-Za-z0-9_.-]+)\s+'
+        r'(?P<message>.*)$'
+    )
+    verbose_re = re.compile(
+        r'^(?P<level>[A-Z]+)\s+'
+        r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:,\d+)?)\s+'
+        r'(?P<logger>[A-Za-z0-9_.-]+)\s+'
+        r'(?P<process>\d+)\s+(?P<thread>\d+)\s+'
+        r'(?P<message>.*)$'
+    )
+    raw_lines = []
+    try:
+        with file_path.open('r', encoding='utf-8', errors='replace') as handle:
+            raw_lines = handle.readlines()
+    except OSError:
+        return entries
+
+    if len(raw_lines) > max_lines:
+        raw_lines = raw_lines[-max_lines:]
+
+    current_entry = None
+    for raw_line in raw_lines:
+        line = raw_line.rstrip('\n')
+        if not line.strip():
+            continue
+        parsed = verbose_re.match(line) or simple_re.match(line)
+        if parsed:
+            if current_entry:
+                entries.append(current_entry)
+            payload = parsed.groupdict()
+            message = (payload.get('message') or '').strip()
+            current_entry = {
+                'level': (payload.get('level') or 'INFO').upper(),
+                'timestamp_str': payload.get('timestamp') or '',
+                'timestamp': _parse_log_datetime(payload.get('timestamp') or ''),
+                'logger': payload.get('logger') or 'sistema',
+                'message': message,
+                'details': '',
+                'source': source_label,
+                'user_hint': _guess_log_user(message),
+            }
+        elif current_entry:
+            if current_entry['details']:
+                current_entry['details'] += '\n' + line
+            else:
+                current_entry['details'] = line
+    if current_entry:
+        entries.append(current_entry)
+    return entries
+
+
+def get_log_health_snapshot(hours=24):
+    """
+    Retorna um resumo rápido de saúde dos logs para cards do painel.
+    """
+    try:
+        log_dir = Path(getattr(settings, 'LOG_DIR', Path(settings.BASE_DIR) / 'logs'))
+        errors_file = log_dir / 'lplan_errors.log'
+        general_file = log_dir / 'lplan.log'
+        entries = []
+        if errors_file.exists():
+            entries.extend(_parse_log_lines(errors_file, source_label='Erros', max_lines=5000))
+        if general_file.exists():
+            entries.extend(_parse_log_lines(general_file, source_label='Geral', max_lines=2000))
+        now = timezone.now()
+        window_start = now - timedelta(hours=hours)
+
+        def to_aware(dt):
+            if not dt:
+                return None
+            return timezone.make_aware(dt, timezone.get_current_timezone()) if timezone.is_naive(dt) else dt
+
+        recent = []
+        for item in entries:
+            ts = to_aware(item.get('timestamp'))
+            if ts and ts >= window_start:
+                recent.append({**item, 'timestamp': ts})
+        recent_errors = [e for e in recent if e.get('level') in {'ERROR', 'CRITICAL'}]
+        recent_warnings = [e for e in recent if e.get('level') == 'WARNING']
+        recent_errors.sort(key=lambda e: e.get('timestamp') or timezone.datetime.min.replace(tzinfo=timezone.get_current_timezone()), reverse=True)
+        return {
+            'window_hours': hours,
+            'recent_errors': len(recent_errors),
+            'recent_warnings': len(recent_warnings),
+            'last_error_at': recent_errors[0]['timestamp'] if recent_errors else None,
+            'has_alert': len(recent_errors) > 0,
+        }
+    except Exception:
+        return {
+            'window_hours': hours,
+            'recent_errors': 0,
+            'recent_warnings': 0,
+            'last_error_at': None,
+            'has_alert': False,
+        }
+
+
+@login_required
+@_staff_required
+def central_system_logs_view(request):
+    """Visão centralizada dos logs de sistema (arquivo local)."""
+    log_dir = Path(getattr(settings, 'LOG_DIR', Path(settings.BASE_DIR) / 'logs'))
+    source = (request.GET.get('source') or 'all').strip().lower()
+    level = (request.GET.get('level') or '').strip().upper()
+    logger_filter = (request.GET.get('logger') or '').strip().lower()
+    search = (request.GET.get('q') or '').strip()
+    user_filter = (request.GET.get('user') or '').strip().lower()
+    date_start_raw = (request.GET.get('date_start') or '').strip()
+    date_end_raw = (request.GET.get('date_end') or '').strip()
+    page_number = request.GET.get('page')
+
+    date_start = _parse_log_datetime(f'{date_start_raw} 00:00:00') if date_start_raw else None
+    date_end = _parse_log_datetime(f'{date_end_raw} 23:59:59') if date_end_raw else None
+
+    source_map = {
+        'geral': ('lplan.log', 'Geral'),
+        'erros': ('lplan_errors.log', 'Erros'),
+    }
+    selected_sources = []
+    if source in source_map:
+        selected_sources = [source]
+    else:
+        selected_sources = ['erros', 'geral']
+
+    all_entries = []
+    for source_key in selected_sources:
+        filename, label = source_map[source_key]
+        path = log_dir / filename
+        if path.exists():
+            all_entries.extend(_parse_log_lines(path, source_label=label))
+
+    def _entry_matches(entry):
+        if level and entry.get('level') != level:
+            return False
+        if logger_filter and logger_filter not in (entry.get('logger') or '').lower():
+            return False
+        if user_filter and user_filter not in (entry.get('user_hint') or '').lower():
+            return False
+        if date_start and entry.get('timestamp') and entry['timestamp'] < date_start:
+            return False
+        if date_end and entry.get('timestamp') and entry['timestamp'] > date_end:
+            return False
+        if search:
+            haystack = ' '.join([
+                entry.get('message') or '',
+                entry.get('details') or '',
+                entry.get('logger') or '',
+                entry.get('user_hint') or '',
+            ]).lower()
+            if search.lower() not in haystack:
+                return False
+        return True
+
+    filtered = [entry for entry in all_entries if _entry_matches(entry)]
+    filtered.sort(key=lambda item: item.get('timestamp') or datetime.min, reverse=True)
+
+    if (request.GET.get('format') or '').strip().lower() == 'csv':
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="logs_sistema_filtrados.csv"'
+        response.write('\ufeff')
+        writer = csv.writer(response, delimiter=';')
+        writer.writerow(['timestamp', 'nivel', 'arquivo', 'logger', 'usuario', 'mensagem', 'detalhes'])
+        for entry in filtered:
+            writer.writerow([
+                entry.get('timestamp_str') or '',
+                entry.get('level') or '',
+                entry.get('source') or '',
+                entry.get('logger') or '',
+                entry.get('user_hint') or '',
+                (entry.get('message') or '').replace('\n', ' ').strip(),
+                entry.get('details') or '',
+            ])
+        return response
+
+    total_count = len(filtered)
+    error_count = sum(1 for e in filtered if e.get('level') in {'ERROR', 'CRITICAL'})
+    warning_count = sum(1 for e in filtered if e.get('level') == 'WARNING')
+    last_at = filtered[0]['timestamp'] if filtered and filtered[0].get('timestamp') else None
+
+    paginator = Paginator(filtered, 40)
+    page_obj = paginator.get_page(page_number)
+
+    loggers = sorted({(e.get('logger') or '').strip() for e in all_entries if e.get('logger')})
+
+    context = {
+        'page_obj': page_obj,
+        'entries': page_obj.object_list,
+        'source': source,
+        'level': level,
+        'logger_filter': logger_filter,
+        'search': search,
+        'user_filter': user_filter,
+        'date_start': date_start_raw,
+        'date_end': date_end_raw,
+        'total_count': total_count,
+        'error_count': error_count,
+        'warning_count': warning_count,
+        'last_at': last_at,
+        'available_loggers': loggers,
+    }
+    return render(request, 'core/central_system_logs.html', context)
 
 
 @login_required

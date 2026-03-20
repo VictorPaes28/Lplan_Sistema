@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Logs do sistema{% endblock %}
+{% block page_subtitle %}Erros, avisos e eventos com filtros{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="central-help-card">
+        <p class="central-help-title">Diagnóstico rápido</p>
+        <p class="central-help-desc">Veja o que aconteceu, quando aconteceu e qual módulo gerou o erro. Use os filtros para isolar um incidente específico.</p>
+    </div>
+
+    <section class="central-section">
+        <div class="central-logs-stats-grid">
+            <div class="central-logs-stat-card">
+                <span class="central-logs-stat-number">{{ total_count }}</span>
+                <span class="central-logs-stat-label">Registros encontrados</span>
+            </div>
+            <div class="central-logs-stat-card central-logs-stat-card-danger">
+                <span class="central-logs-stat-number">{{ error_count }}</span>
+                <span class="central-logs-stat-label">Erros / críticos</span>
+            </div>
+            <div class="central-logs-stat-card central-logs-stat-card-warning">
+                <span class="central-logs-stat-number">{{ warning_count }}</span>
+                <span class="central-logs-stat-label">Avisos</span>
+            </div>
+            <div class="central-logs-stat-card">
+                <span class="central-logs-stat-number central-logs-stat-date">
+                    {% if last_at %}{{ last_at|date:"d/m H:i:s" }}{% else %}--{% endif %}
+                </span>
+                <span class="central-logs-stat-label">Último evento</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-filter text-slate-500"></i> Filtros</h2>
+        <form method="get" class="central-logs-filters-grid">
+            <div>
+                <label class="central-input-label" for="source">Arquivo</label>
+                <select class="central-input" id="source" name="source">
+                    <option value="all" {% if source == 'all' or not source %}selected{% endif %}>Todos</option>
+                    <option value="geral" {% if source == 'geral' %}selected{% endif %}>lplan.log</option>
+                    <option value="erros" {% if source == 'erros' %}selected{% endif %}>lplan_errors.log</option>
+                </select>
+            </div>
+            <div>
+                <label class="central-input-label" for="level">Nível</label>
+                <select class="central-input" id="level" name="level">
+                    <option value="" {% if not level %}selected{% endif %}>Todos</option>
+                    <option value="CRITICAL" {% if level == 'CRITICAL' %}selected{% endif %}>CRITICAL</option>
+                    <option value="ERROR" {% if level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                    <option value="WARNING" {% if level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                    <option value="INFO" {% if level == 'INFO' %}selected{% endif %}>INFO</option>
+                </select>
+            </div>
+            <div>
+                <label class="central-input-label" for="logger">Módulo</label>
+                <select class="central-input" id="logger" name="logger">
+                    <option value="">Todos</option>
+                    {% for logger_name in available_loggers %}
+                        <option value="{{ logger_name }}" {% if logger_filter == logger_name %}selected{% endif %}>{{ logger_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="central-input-label" for="user">Usuário (texto)</label>
+                <input class="central-input" type="text" id="user" name="user" value="{{ user_filter }}" placeholder="ex.: vitor.silva">
+            </div>
+            <div>
+                <label class="central-input-label" for="date_start">Data inicial</label>
+                <input class="central-input" type="date" id="date_start" name="date_start" value="{{ date_start }}">
+            </div>
+            <div>
+                <label class="central-input-label" for="date_end">Data final</label>
+                <input class="central-input" type="date" id="date_end" name="date_end" value="{{ date_end }}">
+            </div>
+            <div class="central-logs-filter-search">
+                <label class="central-input-label" for="q">Busca livre</label>
+                <input class="central-input" type="text" id="q" name="q" value="{{ search }}" placeholder="mensagem, traceback, endpoint...">
+            </div>
+            <div class="central-logs-filter-actions">
+                <button type="submit" class="central-btn-primary"><i class="fas fa-search"></i>Filtrar</button>
+                <a href="?source={{ source }}&level={{ level }}&logger={{ logger_filter }}&user={{ user_filter }}&date_start={{ date_start }}&date_end={{ date_end }}&q={{ search }}&format=csv" class="central-btn-secondary">
+                    <i class="fas fa-file-csv"></i>Exportar CSV
+                </a>
+                <a href="{% url 'central_system_logs' %}" class="central-btn-secondary">Limpar</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-stream text-slate-500"></i> Eventos</h2>
+        {% if entries %}
+            <div class="central-logs-list">
+                {% for entry in entries %}
+                    <article class="central-log-item">
+                        <header class="central-log-item-header">
+                            <span class="central-log-level central-log-level-{{ entry.level|lower }}">{{ entry.level }}</span>
+                            <span class="central-log-time">{% if entry.timestamp %}{{ entry.timestamp|date:"d/m/Y H:i:s" }}{% else %}{{ entry.timestamp_str }}{% endif %}</span>
+                            <span class="central-log-source">{{ entry.source }}</span>
+                            <span class="central-log-logger">{{ entry.logger }}</span>
+                            <span class="central-log-user">{% if entry.user_hint %}{{ entry.user_hint }}{% else %}-{% endif %}</span>
+                            <button
+                                type="button"
+                                class="central-btn-secondary central-log-copy-btn"
+                                data-log-line="{% if entry.timestamp %}{{ entry.timestamp|date:'d/m/Y H:i:s' }}{% else %}{{ entry.timestamp_str }}{% endif %} | {{ entry.level }} | {{ entry.logger }} | {{ entry.message|escape }}"
+                            >
+                                <i class="fas fa-copy"></i>Copiar
+                            </button>
+                        </header>
+                        <div class="central-log-message">{{ entry.message|default:"(sem mensagem)" }}</div>
+                        {% if entry.details %}
+                            <details class="central-log-details">
+                                <summary>Ver detalhes/traceback</summary>
+                                <pre>{{ entry.details }}</pre>
+                            </details>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+
+            {% if page_obj.paginator.num_pages > 1 %}
+                <nav class="central-logs-pagination" aria-label="Paginação de logs">
+                    <span class="text-sm text-slate-500">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    <div class="flex items-center gap-2">
+                        {% if page_obj.has_previous %}
+                            <a class="central-btn-secondary" href="?page=1&source={{ source }}&level={{ level }}&logger={{ logger_filter }}&user={{ user_filter }}&date_start={{ date_start }}&date_end={{ date_end }}&q={{ search }}">Primeira</a>
+                            <a class="central-btn-secondary" href="?page={{ page_obj.previous_page_number }}&source={{ source }}&level={{ level }}&logger={{ logger_filter }}&user={{ user_filter }}&date_start={{ date_start }}&date_end={{ date_end }}&q={{ search }}">Anterior</a>
+                        {% endif %}
+                        {% if page_obj.has_next %}
+                            <a class="central-btn-secondary" href="?page={{ page_obj.next_page_number }}&source={{ source }}&level={{ level }}&logger={{ logger_filter }}&user={{ user_filter }}&date_start={{ date_start }}&date_end={{ date_end }}&q={{ search }}">Próxima</a>
+                            <a class="central-btn-secondary" href="?page={{ page_obj.paginator.num_pages }}&source={{ source }}&level={{ level }}&logger={{ logger_filter }}&user={{ user_filter }}&date_start={{ date_start }}&date_end={{ date_end }}&q={{ search }}">Última</a>
+                        {% endif %}
+                    </div>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="central-empty-state">Nenhum evento encontrado para os filtros aplicados.</div>
+        {% endif %}
+    </section>
+
+    <div class="mt-6 pt-4 border-t border-slate-100">
+        <a href="{% url 'central_hub' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao painel do sistema</a>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var buttons = document.querySelectorAll('.central-log-copy-btn');
+    buttons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var text = btn.getAttribute('data-log-line') || '';
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(function() {
+                var old = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i>Copiado';
+                setTimeout(function() { btn.innerHTML = old; }, 1200);
+            }).catch(function() {
+                alert('Não foi possível copiar automaticamente. Tente novamente.');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

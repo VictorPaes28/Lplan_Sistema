@@ -85,6 +85,7 @@ urlpatterns = [
     path('central/cadastros/<int:pk>/aprovar/', central_views.central_signup_request_approve, name='central_signup_request_approve'),
     path('central/cadastros/<int:pk>/rejeitar/', central_views.central_signup_request_reject, name='central_signup_request_reject'),
     path('central/ajuda/', central_views.central_ajuda_view, name='central_ajuda'),
+    path('central/logs/', central_views.central_system_logs_view, name='central_system_logs'),
     path('central/manutencao/', central_views.central_manutencao_view, name='central_manutencao'),
     path('central/clientes/', central_views.central_clients_view, name='central_clients'),
     path('central/clientes/<int:pk>/remover-vinculo/', central_views.central_client_remove_owner, name='central_client_remove_owner'),

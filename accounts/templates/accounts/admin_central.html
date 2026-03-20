@@ -530,6 +530,17 @@
 
 {% block content %}
 <div class="admin-page">
+    {% if stats_system_logs and stats_system_logs.has_alert %}
+    <section class="anim-1" style="margin-bottom: 1rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:0.85rem; padding:0.85rem 1rem;">
+            <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.9rem; font-weight:600;">
+                <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                Há {{ stats_system_logs.recent_errors }} erro(s) técnico(s) nas últimas {{ stats_system_logs.window_hours }}h.
+            </div>
+            <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link" style="font-size:0.82rem; white-space:nowrap;">Analisar agora <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+        </div>
+    </section>
+    {% endif %}
 
     <!-- ═══ Logs de E-mail ═══ -->
     <section class="email-logs-panel anim-1" aria-labelledby="email-logs-title">
@@ -558,6 +569,41 @@
                 <div class="email-logs-stat">
                     <span class="email-logs-stat-value">{{ stats_email_logs.taxa_sucesso }}%</span>
                     <span class="email-logs-stat-label">Taxa de sucesso</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ═══ Logs do Sistema ═══ -->
+    <section class="email-logs-panel anim-1" aria-labelledby="system-logs-title">
+        <div class="email-logs-panel-inner">
+            <header class="email-logs-panel-header">
+                <div>
+                    <p id="system-logs-title" class="email-logs-panel-label">Logs do Sistema</p>
+                    <p class="email-logs-panel-desc">Eventos técnicos do Diário, Central e integrações. Filtre por nível, módulo, data e exporte CSV.</p>
+                </div>
+                <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+            </header>
+            {% if stats_system_logs %}
+            <div class="email-logs-panel-stats">
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value {% if stats_system_logs.recent_errors > 0 %}email-logs-stat-fail{% endif %}">{{ stats_system_logs.recent_errors }}</span>
+                    <span class="email-logs-stat-label">Erros (24h)</span>
+                </div>
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value">{{ stats_system_logs.recent_warnings }}</span>
+                    <span class="email-logs-stat-label">Avisos (24h)</span>
+                </div>
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value">
+                        {% if stats_system_logs.last_error_at %}{{ stats_system_logs.last_error_at|date:"d/m H:i" }}{% else %}--{% endif %}
+                    </span>
+                    <span class="email-logs-stat-label">Último erro</span>
+                </div>
+                <div class="email-logs-stat">
+                    <span class="email-logs-stat-value">{{ stats_system_logs.window_hours }}h</span>
+                    <span class="email-logs-stat-label">Janela</span>
                 </div>
             </div>
             {% endif %}
@@ -685,6 +731,14 @@
                 <h2 class="central-action-title">Clientes (Donos da Obra)</h2>
                 <p class="central-action-desc">Cadastrar e gerenciar clientes que comentam no diário.</p>
                 <span class="central-action-link">Gerenciar <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+            <a href="{% url 'central_system_logs' %}" class="central-action-card">
+                <div class="central-action-icon" style="background:#fee2e2;color:#dc2626;">
+                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Logs do sistema</h2>
+                <p class="central-action-desc">Acompanhar erros e avisos com filtros e exportação CSV.</p>
+                <span class="central-action-link">Abrir logs <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
             </a>
         </div>
     </div>

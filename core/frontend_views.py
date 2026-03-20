@@ -130,6 +130,12 @@ def get_contractante_for_project(project):
     return ''
 
 
+def _is_truthy_flag(value):
+    """Interpreta flags vindas de forms HTML de forma resiliente."""
+    normalized = str(value or '').strip().lower()
+    return normalized in {'1', 'true', 'on', 'yes'}
+
+
 def login_view(request):
     """View de login."""
     if request.user.is_authenticated:
@@ -1739,6 +1745,15 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
             except Exception:
                 date_str = str(d.date) if d.date else ''
             last_diary_for_copy = {'id': d.pk, 'date': date_str, 'report_number': d.report_number or '-'}
+    signature_inspection_value = (request.POST.get('signature_inspection') or '').strip()
+    signature_production_value = (request.POST.get('signature_production') or '').strip()
+    if diary and getattr(diary, 'pk', None):
+        if not signature_inspection_value:
+            sig = diary.signatures.filter(signature_type='inspection').only('signature_data').first()
+            signature_inspection_value = sig.signature_data if sig else ''
+        if not signature_production_value:
+            sig_prod = diary.signatures.filter(signature_type='production').only('signature_data').first()
+            signature_production_value = sig_prod.signature_data if sig_prod else ''
     return {
         'diary': diary if diary and getattr(diary, 'pk', None) else None,
         'form': form,
@@ -1758,6 +1773,8 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
         'copy_from_id': '',
         'copy_options': '',
         'copy_source_diary': None,
+        'signature_inspection_value': signature_inspection_value,
+        'signature_production_value': signature_production_value,
     }
 
 
@@ -1908,8 +1925,8 @@ def diary_form_view(request, pk=None):
             # O diário será salvo dentro da transação atomic() após validar os formsets
             if diary:
                 is_partial_save = (
-                    request.POST.get('partial_save') == '1' or
-                    request.POST.get('as_partial_checkbox') == '1'
+                    _is_truthy_flag(request.POST.get('partial_save')) or
+                    _is_truthy_flag(request.POST.get('as_partial_checkbox'))
                 )
                 if not diary.pk:
                     diary.created_by = request.user
@@ -2787,8 +2804,8 @@ def diary_form_view(request, pk=None):
                     signature_inspection = request.POST.get('signature_inspection')
                     signature_production = request.POST.get('signature_production')
                     is_partial_save = (
-                        request.POST.get('partial_save') == '1' or
-                        request.POST.get('as_partial_checkbox') == '1'
+                        _is_truthy_flag(request.POST.get('partial_save')) or
+                        _is_truthy_flag(request.POST.get('as_partial_checkbox'))
                     )
                     
                     if not is_partial_save and (not signature_inspection or not signature_inspection.strip()):

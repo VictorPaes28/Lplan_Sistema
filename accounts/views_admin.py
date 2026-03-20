@@ -97,6 +97,14 @@ def admin_central(request):
     except Exception:
         pass
 
+    # Logs do sistema (backend) — erros recentes para ação rápida
+    stats_system_logs = None
+    try:
+        from core.central_views import get_log_health_snapshot
+        stats_system_logs = get_log_health_snapshot(hours=24)
+    except Exception:
+        pass
+
     context = {
         'total_usuarios': total_usuarios,
         'usuarios_ativos': usuarios_ativos,
@@ -110,6 +118,7 @@ def admin_central(request):
         'ultimos_usuarios': ultimos_usuarios,
         'obras_ativas': obras_ativas,
         'stats_email_logs': stats_email_logs,
+        'stats_system_logs': stats_system_logs,
     }
 
     return render(request, 'accounts/admin_central.html', context)
