@@ -378,6 +378,17 @@
             {% endif %}
             {% endif %}
 
+            <!-- Navegação rápida (mobile) -->
+            <div class="diary-mobile-quicknav lg:hidden" aria-label="Navegação rápida do diário">
+                <a href="#section-clima" class="diary-mobile-quicknav-link">Clima</a>
+                <a href="#section-maoObra" class="diary-mobile-quicknav-link">Mão de obra</a>
+                <a href="#section-equipamentos" class="diary-mobile-quicknav-link">Equipamentos</a>
+                <a href="#section-atividades" class="diary-mobile-quicknav-link">Atividades</a>
+                <a href="#section-ocorrencias" class="diary-mobile-quicknav-link">Ocorrências</a>
+                <a href="#section-fotos" class="diary-mobile-quicknav-link">Fotos</a>
+                <a href="#section-comentarios" class="diary-mobile-quicknav-link">Informações</a>
+            </div>
+
             <!-- Layout Principal com Sidebar -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <!-- Conteúdo Principal (Esquerda) -->
@@ -545,6 +556,13 @@
                         </button>
                         <div id="section-maoObra-content" class="section-content p-6 border-t border-slate-200 section-collapsed">
                             <p class="text-sm text-slate-600 mb-4">Selecione o cargo e defina a quantidade de profissionais presentes no dia usando os botões + / −.</p>
+                            <div class="diary-mobile-density-tools" data-filter-target="labor">
+                                <div class="diary-mobile-density-tools-row">
+                                    <input type="search" id="labor-mobile-search" class="diary-mobile-density-search" placeholder="Buscar cargo..." aria-label="Buscar cargo na mão de obra">
+                                    <button type="button" class="diary-mobile-density-toggle is-active" data-filter-target="labor" data-filter-mode="all">Todos</button>
+                                    <button type="button" class="diary-mobile-density-toggle" data-filter-target="labor" data-filter-mode="selected">Preenchidos</button>
+                                </div>
+                            </div>
                             <div id="diary-labor-by-category">
                                 {% for category in labor_categories %}
                                 <div class="diary-labor-category-block rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden" data-category-slug="{{ category.slug }}">
@@ -612,6 +630,13 @@
                         </button>
                         <div id="section-equipamentos-content" class="section-content p-6 border-t border-slate-200 section-collapsed">
                             <p class="text-sm text-slate-600 mb-4">Selecione o equipamento e defina a quantidade usando os botões + / −. Use "Adicionar outro equipamento" para itens que não estão na lista.</p>
+                            <div class="diary-mobile-density-tools" data-filter-target="equipment">
+                                <div class="diary-mobile-density-tools-row">
+                                    <input type="search" id="equipment-mobile-search" class="diary-mobile-density-search" placeholder="Buscar equipamento..." aria-label="Buscar equipamento">
+                                    <button type="button" class="diary-mobile-density-toggle is-active" data-filter-target="equipment" data-filter-mode="all">Todos</button>
+                                    <button type="button" class="diary-mobile-density-toggle" data-filter-target="equipment" data-filter-mode="selected">Preenchidos</button>
+                                </div>
+                            </div>
                             <div id="diary-equipment-by-category" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 {% for category in equipment_categories %}
                                 <div class="diary-equipment-category-block rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden" data-equipment-category-slug="{{ category.slug }}">
@@ -1379,7 +1404,7 @@
                 </div>
 
                 <!-- Sidebar de Detalhes (Direita) -->
-                <div class="lg:col-span-1">
+                <div class="lg:col-span-1 diary-details-sidebar">
                     <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4 sticky top-6">
                         <h3 class="text-sm font-semibold text-slate-900 mb-4 uppercase tracking-wide">Detalhes do relatório</h3>
                         <nav class="space-y-1">
@@ -4578,6 +4603,133 @@ function saveSignature(canvasId) {
         dateInput.addEventListener('change', function() {
             this.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
         });
+    }
+
+    // Mobile UX (listas longas): busca + "somente preenchidos" em mão de obra e equipamentos
+    function initMobileDensityFilter(options) {
+        var root = document.getElementById(options.rootId);
+        var search = document.getElementById(options.searchId);
+        if (!root || !search) return;
+
+        var mode = 'all';
+        var toggleSelector = '.diary-mobile-density-toggle[data-filter-target="' + options.target + '"]';
+
+        function rowMatches(row) {
+            var qtyInput = row.querySelector(options.qtySelector);
+            var labelEl = row.querySelector(options.labelSelector);
+            var text = (labelEl && labelEl.textContent ? labelEl.textContent : '').toLowerCase();
+            var query = (search.value || '').trim().toLowerCase();
+            var qty = qtyInput ? parseInt(qtyInput.value || '0', 10) : 0;
+            var okQuery = !query || text.indexOf(query) !== -1;
+            var okMode = mode !== 'selected' || qty > 0;
+            return okQuery && okMode;
+        }
+
+        function applyFilter() {
+            var rows = root.querySelectorAll(options.rowSelector);
+            rows.forEach(function(row) {
+                row.style.display = rowMatches(row) ? '' : 'none';
+            });
+
+            // Esconde categorias vazias para reduzir rolagem (exceto blocos especiais)
+            var categories = root.querySelectorAll(options.categorySelector);
+            categories.forEach(function(card) {
+                if (options.keepCategory && options.keepCategory(card)) {
+                    card.style.display = '';
+                    return;
+                }
+                var visibleRows = 0;
+                card.querySelectorAll(options.rowSelector).forEach(function(row) {
+                    if (row.style.display !== 'none') visibleRows += 1;
+                });
+                card.style.display = visibleRows > 0 ? '' : 'none';
+            });
+        }
+
+        document.querySelectorAll(toggleSelector).forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                mode = btn.getAttribute('data-filter-mode') || 'all';
+                document.querySelectorAll(toggleSelector).forEach(function(other) {
+                    other.classList.toggle('is-active', other === btn);
+                });
+                applyFilter();
+            });
+        });
+
+        search.addEventListener('input', applyFilter);
+        root.addEventListener('input', function(ev) {
+            if (ev.target && ev.target.matches(options.qtySelector)) applyFilter();
+        });
+        root.addEventListener('click', function(ev) {
+            if (ev.target && (ev.target.closest('.diary-labor-plus, .diary-labor-minus, .diary-equipment-plus, .diary-equipment-minus'))) {
+                window.requestAnimationFrame(applyFilter);
+            }
+        });
+
+        applyFilter();
+    }
+
+    initMobileDensityFilter({
+        target: 'labor',
+        rootId: 'diary-labor-by-category',
+        searchId: 'labor-mobile-search',
+        rowSelector: '.diary-labor-cargo-list li',
+        qtySelector: '.diary-labor-qty',
+        labelSelector: 'span',
+        categorySelector: '.diary-labor-category-block',
+        keepCategory: function(card) {
+            return (card.getAttribute('data-category-slug') || '') === 'terceirizada';
+        }
+    });
+
+    initMobileDensityFilter({
+        target: 'equipment',
+        rootId: 'diary-equipment-by-category',
+        searchId: 'equipment-mobile-search',
+        rowSelector: '.diary-equipment-item-list li',
+        qtySelector: '.diary-equipment-qty',
+        labelSelector: 'span',
+        categorySelector: '.diary-equipment-category-block'
+    });
+
+    // Navegação rápida no mobile: scroll suave + link ativo por seção visível
+    var quickNavLinks = Array.prototype.slice.call(document.querySelectorAll('.diary-mobile-quicknav-link'));
+    if (quickNavLinks.length) {
+        var quickNavMap = quickNavLinks
+            .map(function(link) {
+                var targetId = (link.getAttribute('href') || '').replace('#', '');
+                var target = targetId ? document.getElementById(targetId) : null;
+                return target ? { link: link, target: target } : null;
+            })
+            .filter(Boolean);
+
+        function setQuickNavActiveByTarget(target) {
+            quickNavMap.forEach(function(item) {
+                item.link.classList.toggle('is-active', item.target === target);
+            });
+        }
+
+        quickNavMap.forEach(function(item) {
+            item.link.addEventListener('click', function(event) {
+                event.preventDefault();
+                item.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                setQuickNavActiveByTarget(item.target);
+            });
+        });
+
+        if ('IntersectionObserver' in window && quickNavMap.length) {
+            var observer = new IntersectionObserver(function(entries) {
+                var visible = entries
+                    .filter(function(entry) { return entry.isIntersecting; })
+                    .sort(function(a, b) { return b.intersectionRatio - a.intersectionRatio; });
+                if (visible.length) {
+                    setQuickNavActiveByTarget(visible[0].target);
+                }
+            }, { root: null, threshold: [0.2, 0.35, 0.5], rootMargin: '-15% 0px -60% 0px' });
+
+            quickNavMap.forEach(function(item) { observer.observe(item.target); });
+            setQuickNavActiveByTarget(quickNavMap[0].target);
+        }
     }
 });
 </script>

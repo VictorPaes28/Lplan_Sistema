@@ -443,7 +443,16 @@
 }
 @media (max-width: 640px) {
   .manutencao-stats-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.65rem;
+    padding-bottom: 0.1rem;
+    scrollbar-width: thin;
+  }
+  .manutencao-stats-grid .manutencao-stat-card {
+    flex: 0 0 min(78vw, 260px);
   }
 }
 .manutencao-stat-card {

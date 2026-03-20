@@ -90,7 +90,7 @@
 </head>
 <body class="bg-slate-50">
     <!-- Mobile Topbar -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
+    <div id="mobile-app-header" class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
         <button id="mobile-sidebar-toggle" type="button" class="mobile-menu-btn text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-800 rounded-lg transition-colors" aria-label="Abrir menu de navegação" aria-expanded="false">
             <i class="fas fa-bars" aria-hidden="true"></i>
             <span class="sr-only">Menu</span>
@@ -413,7 +413,8 @@
                     <div class="relative" id="user-menu-container">
                         <button type="button" id="user-menu-button" 
                                 class="flex items-center space-x-2 focus:outline-none bg-white hover:bg-gray-50 p-1.5 md:p-2 rounded-lg transition-all duration-200 no-underline"
-                                style="background-color: white !important; border: none !important;">
+                                aria-expanded="false"
+                                aria-haspopup="true">
                             <div class="w-9 h-9 md:w-10 md:h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-105 flex-shrink-0 overflow-hidden">
                                 <span class="text-white font-semibold text-xs md:text-sm leading-none">
                                     {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
@@ -515,7 +516,7 @@
             .toast-info { border-color: #3b82f6; }
             .toast-info .toast-icon { color: #3b82f6; }
             .toast-info .toast-timer { background: #3b82f6; }
-            .top-bar-container { z-index: 50 !important; }
+            .top-bar-container { z-index: 20 !important; }
             </style>
             <script>
             // Auto-dismiss toasts after 5s with smooth exit
@@ -764,6 +765,7 @@
                         dropdown.style.display = 'block';
                         dropdown.style.visibility = 'visible';
                         dropdown.style.opacity = '1';
+                        button.setAttribute('aria-expanded', 'true');
                         if (chevron) {
                             chevron.style.transform = 'rotate(180deg)';
                         }
@@ -771,6 +773,7 @@
                         dropdown.style.display = 'none';
                         dropdown.style.visibility = 'hidden';
                         dropdown.style.opacity = '0';
+                        button.setAttribute('aria-expanded', 'false');
                         if (chevron) {
                             chevron.style.transform = 'rotate(0deg)';
                         }
@@ -786,6 +789,7 @@
                         dropdown.style.display = 'none';
                         dropdown.style.visibility = 'hidden';
                         dropdown.style.opacity = '0';
+                        button.setAttribute('aria-expanded', 'false');
                         if (chevron) {
                             chevron.style.transform = 'rotate(0deg)';
                         }

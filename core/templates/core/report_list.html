@@ -194,7 +194,7 @@
      role="dialog"
      aria-labelledby="modal-title"
      aria-modal="true">
-    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all duration-300 scale-95 opacity-0 modal-content" onclick="event.stopPropagation()" style="max-width: 28rem;">
+    <div class="report-list-modal-content bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all duration-300 scale-95 opacity-0 modal-content" onclick="event.stopPropagation()" style="max-width: 28rem;">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
             <div class="flex items-center justify-between">
@@ -270,7 +270,7 @@
                 </div>
                 
                 <!-- Botões -->
-                <div class="flex items-center justify-end gap-2 pt-6 mt-6 border-t border-slate-200">
+                <div class="report-list-modal-footer flex items-center justify-end gap-2 pt-6 mt-6 border-t border-slate-200">
                     <button type="button"
                             onclick="closeModal()"
                             aria-label="Cancelar e fechar modal"
@@ -350,6 +350,45 @@
     margin: 0 !important;
     padding: 0 !important;
     color: inherit !important;
+}
+
+@media (max-width: 640px) {
+    .report-list-add-btn {
+        width: 100%;
+        min-height: 44px;
+    }
+    .report-list-modal-content {
+        width: calc(100vw - 1.5rem) !important;
+        max-width: calc(100vw - 1.5rem) !important;
+        margin: 0.75rem;
+        border-radius: 0.9rem;
+    }
+    .report-list-modal-content .p-6 {
+        padding: 1rem;
+    }
+    .report-list-modal-footer {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .report-list-modal-footer button {
+        width: 100%;
+        min-height: 42px;
+        justify-content: center;
+    }
+    #report_date,
+    #report-list-date-start,
+    #report-list-date-end,
+    #select_project {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 390px) {
+    .report-list-modal-footer {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
@@ -464,9 +503,27 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.querySelector('.submit-loading').classList.remove('hidden');
     });
     
-    // Flatpickr para datas
-    if (typeof flatpickr !== 'undefined') {
-        var reportDatePicker = flatpickr('#report_date', {
+    // Data do relatório:
+    // - Mobile touch: usa calendário nativo (<input type="date">)
+    // - Desktop: mantém Flatpickr
+    var isMobileTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.innerWidth < 768;
+    if (isMobileTouch) {
+        dateInput.removeAttribute('readonly');
+        dateInput.type = 'date';
+        dateInput.placeholder = '';
+        dateInput.max = new Date().toISOString().split('T')[0];
+        dateInput.classList.remove('flatpickr-input');
+        dateInput.addEventListener('change', function() {
+            var hiddenInput = document.getElementById('report_date_iso');
+            if (hiddenInput) hiddenInput.value = dateInput.value || '';
+            if (dateInput.value) {
+                dateInput.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+                dateInput.setAttribute('aria-invalid', 'false');
+                dateError.classList.add('hidden');
+            }
+        });
+    } else if (typeof flatpickr !== 'undefined') {
+        flatpickr('#report_date', {
             dateFormat: 'd/m/Y',
             locale: 'pt',
             allowInput: false,
@@ -475,9 +532,8 @@ document.addEventListener('DOMContentLoaded', function() {
             altInput: true,
             altFormat: 'd/m/Y',
             onChange: function(selectedDates, dateStr, instance) {
-                // Converte para formato ISO (yyyy-MM-dd) e armazena em campo hidden
                 if (selectedDates.length > 0) {
-                    var isoDate = selectedDates[0].toISOString().split('T')[0]; // yyyy-MM-dd
+                    var isoDate = selectedDates[0].toISOString().split('T')[0];
                     var hiddenInput = document.getElementById('report_date_iso');
                     if (!hiddenInput) {
                         hiddenInput = document.createElement('input');
@@ -487,10 +543,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         instance.input.parentNode.appendChild(hiddenInput);
                     }
                     hiddenInput.value = isoDate;
-                    // Remove o name do input visual para não enviar o formato brasileiro
                     instance.input.removeAttribute('name');
-                    
-                    // Remove erro se houver
                     dateInput.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
                     dateInput.setAttribute('aria-invalid', 'false');
                     dateError.classList.add('hidden');

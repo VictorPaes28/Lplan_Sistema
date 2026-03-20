@@ -315,3 +315,29 @@
     padding: 2rem 1rem;
     text-align: center;
 }
+
+@media (max-width: 768px) {
+    .analytics-kpi-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 0.75rem;
+        padding: 0.1rem 0.15rem 0.35rem;
+        margin-bottom: 1.1rem;
+        scroll-snap-type: x mandatory;
+    }
+    .analytics-kpi-grid .analytics-kpi-card {
+        flex: 0 0 min(78vw, 280px);
+        padding: 1rem 1.05rem;
+        scroll-snap-align: start;
+    }
+    .analytics-kpi-grid .analytics-kpi-value {
+        font-size: 1.5rem;
+    }
+    .analytics-kpi-grid .analytics-kpi-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1rem;
+    }
+}

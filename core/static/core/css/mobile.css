@@ -609,20 +609,26 @@
         padding-left: 0.5rem;
         padding-right: 0.5rem;
     }
-    .kpi-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 0.75rem;
+    .admin-page .kpi-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 0.6rem;
+        padding-bottom: 0.15rem;
+        scrollbar-width: thin;
     }
-    .kpi-card {
+    .admin-page .kpi-card {
+        flex: 0 0 min(76vw, 250px);
         padding: 0.9rem 1rem;
     }
-    .kpi-value {
+    .admin-page .kpi-value {
         font-size: 1.4rem;
     }
-    .kpi-top {
+    .admin-page .kpi-top {
         gap: 0.65rem;
     }
-    .kpi-icon {
+    .admin-page .kpi-icon {
         width: 40px;
         height: 40px;
         font-size: 1rem;
@@ -689,10 +695,10 @@
 }
 
 @media (max-width: 480px) {
-    .kpi-grid {
-        grid-template-columns: 1fr !important;
+    .admin-page .kpi-card {
+        flex-basis: min(84vw, 240px);
     }
-    .kpi-value {
+    .admin-page .kpi-value {
         font-size: 1.25rem;
     }
 }
@@ -885,6 +891,7 @@
    ============================================ */
 @media (max-width: 768px) {
     #messages-container {
+        top: 4.5rem !important;
         max-width: calc(100vw - 1rem) !important;
         left: 0.5rem !important;
         right: 0.5rem !important;

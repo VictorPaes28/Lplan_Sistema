@@ -24,19 +24,19 @@
             <p class="text-sm text-slate-500 mt-0.5">RDO · {{ diary.date|date:"d/m/Y" }}{% if diary.report_number %} · #{{ diary.report_number }}{% endif %}</p>
         </div>
     </div>
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-2 diary-detail-actions">
         <!-- Dropdown de Impressão -->
         <div class="relative" id="print-dropdown-container">
             <button type="button" 
                     id="print-dropdown-button"
-                    class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 flex items-center transition-colors duration-200"
+                    class="diary-detail-action-btn px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 flex items-center transition-colors duration-200"
                     aria-expanded="false">
                 <i class="fas fa-print mr-3"></i>Imprimir
                 <i class="fas fa-chevron-down ml-2 text-xs transition-transform duration-200" id="print-dropdown-chevron"></i>
             </button>
             <div id="print-dropdown-menu"
                  style="display: none;"
-                 class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                 class="diary-detail-print-menu absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
                 <div class="py-2">
                     <a href="{% url 'diary-pdf' diary.id %}" target="_blank" rel="noopener noreferrer"
                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
@@ -60,14 +60,14 @@
         </div>
         {% if diary|can_edit:user %}
         <a href="{% url 'diary-edit' diary.id %}" 
-           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors">
+           class="diary-detail-action-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors">
             <i class="fas fa-edit mr-3"></i>Editar
         </a>
         {% endif %}
         {% if user.is_superuser %}
         <form action="{% url 'diary-delete' diary.id %}" method="post" class="inline" onsubmit="return confirm('Excluir este relatório? Esta ação não pode ser desfeita.');">
             {% csrf_token %}
-            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center transition-colors" title="Excluir relatório">
+            <button type="submit" class="diary-detail-action-btn px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center transition-colors" title="Excluir relatório">
                 <i class="fas fa-trash-alt mr-3"></i>Excluir
             </button>
         </form>
@@ -220,7 +220,8 @@
                     <i class="fas fa-sun text-yellow-500 mr-3"></i>Manhã
                 </p>
                 <div class="flex items-center">
-                    <i class="fas fa-{{ weather_morning.icon }} text-{{ weather_morning.color }}-500 text-3xl mr-5"></i>
+                    <i class="fas fa-{{ weather_morning.icon }} text-3xl mr-5"
+                       style="{% if weather_morning.color == 'yellow' %}color:#eab308;{% elif weather_morning.color == 'blue' %}color:#3b82f6;{% elif weather_morning.color == 'gray' %}color:#6b7280;{% elif weather_morning.color == 'indigo' %}color:#6366f1;{% elif weather_morning.color == 'purple' %}color:#a855f7;{% elif weather_morning.color == 'orange' %}color:#f97316;{% else %}color:#6b7280;{% endif %}"></i>
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ weather_morning.label }}</p>
                         <p class="text-sm text-gray-600">{{ weather_morning.condition }}</p>
@@ -234,7 +235,8 @@
                     <i class="fas fa-sun text-orange-500 mr-3"></i>Tarde
                 </p>
                 <div class="flex items-center">
-                    <i class="fas fa-{{ weather_afternoon.icon }} text-{{ weather_afternoon.color }}-500 text-3xl mr-5"></i>
+                    <i class="fas fa-{{ weather_afternoon.icon }} text-3xl mr-5"
+                       style="{% if weather_afternoon.color == 'yellow' %}color:#eab308;{% elif weather_afternoon.color == 'blue' %}color:#3b82f6;{% elif weather_afternoon.color == 'gray' %}color:#6b7280;{% elif weather_afternoon.color == 'indigo' %}color:#6366f1;{% elif weather_afternoon.color == 'purple' %}color:#a855f7;{% elif weather_afternoon.color == 'orange' %}color:#f97316;{% else %}color:#6b7280;{% endif %}"></i>
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ weather_afternoon.label }}</p>
                         <p class="text-sm text-gray-600">{{ weather_afternoon.condition }}</p>
@@ -248,7 +250,8 @@
                     <i class="fas fa-moon text-indigo-500 mr-3"></i>Noite
                 </p>
                 <div class="flex items-center">
-                    <i class="fas fa-{{ weather_night.icon }} text-{{ weather_night.color }}-500 text-3xl mr-5"></i>
+                    <i class="fas fa-{{ weather_night.icon }} text-3xl mr-5"
+                       style="{% if weather_night.color == 'yellow' %}color:#eab308;{% elif weather_night.color == 'blue' %}color:#3b82f6;{% elif weather_night.color == 'gray' %}color:#6b7280;{% elif weather_night.color == 'indigo' %}color:#6366f1;{% elif weather_night.color == 'purple' %}color:#a855f7;{% elif weather_night.color == 'orange' %}color:#f97316;{% else %}color:#6b7280;{% endif %}"></i>
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ weather_night.label }}</p>
                         <p class="text-sm text-gray-600">{{ weather_night.condition }}</p>
@@ -738,18 +741,18 @@
     </div>
 </div>
 
-<!-- Comentários com o dono da obra (chat LPLAN ↔ cliente) -->
+<!-- Comentários do cliente (chat LPLAN ↔ cliente) -->
 {% if diary.is_approved %}
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
     <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
         <i class="fas fa-comments text-blue-600 mr-3"></i>
-        Comentários com o dono da obra
+        Comentários do cliente
     </h3>
     {% if owner_comments %}
     <ul class="space-y-4 mb-6">
         {% for c in owner_comments %}
         <li class="flex {% if c.author == user %}justify-end{% else %}justify-start{% endif %}">
-            <div class="max-w-[85%] rounded-lg px-4 py-2 {% if c.author == user %}bg-blue-100 text-blue-900{% else %}bg-slate-100 text-slate-800{% endif %}">
+            <div class="diary-comment-bubble rounded-lg px-4 py-2 {% if c.author == user %}bg-blue-100 text-blue-900{% else %}bg-slate-100 text-slate-800{% endif %}">
                 <p class="text-sm font-medium">{{ c.author.get_full_name|default:c.author.username }}</p>
                 <p class="text-sm whitespace-pre-wrap mt-1">{{ c.text }}</p>
                 <p class="text-xs text-slate-500 mt-2">{{ c.created_at|date:"d/m/Y H:i" }}</p>
@@ -758,12 +761,12 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p class="text-sm text-slate-500 mb-6">Nenhum comentário ainda. O dono da obra pode comentar na página de visualização (link enviado por e-mail) dentro de 24h após o envio.</p>
+    <p class="text-sm text-slate-500 mb-6">Nenhum comentário ainda. O cliente pode comentar na página de visualização (link enviado por e-mail) dentro de 24h após o envio.</p>
     {% endif %}
     {% if can_add_owner_comment %}
     <form action="{% url 'diary-add-owner-comment' diary.id %}" method="post" class="flex flex-col gap-3">
         {% csrf_token %}
-        <textarea name="text" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Resposta ao dono da obra..." required></textarea>
+        <textarea name="text" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Resposta ao cliente..." required></textarea>
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium w-fit"><i class="fas fa-paper-plane mr-2"></i>Enviar resposta</button>
     </form>
     {% endif %}
@@ -774,7 +777,7 @@
 <div id="edit-logs-modal" 
      class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
      onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+    <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full overflow-hidden" style="max-height: 80vh;" onclick="event.stopPropagation()">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
             <div class="flex items-center justify-between">
@@ -791,7 +794,7 @@
         </div>
         
         <!-- Conteúdo -->
-        <div class="p-6 overflow-y-auto max-h-[60vh]">
+        <div class="p-6 overflow-y-auto" style="max-height: 60vh;">
             {% if edit_logs %}
             <div class="space-y-4">
                 {% for log in edit_logs %}
@@ -838,6 +841,58 @@
         </div>
     </div>
 </div>
+
+<style>
+.diary-comment-bubble {
+    max-width: 85%;
+}
+
+@media (max-width: 768px) {
+    .diary-detail-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+    .diary-detail-action-btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 42px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    #print-dropdown-container {
+        width: 100%;
+        grid-column: 1 / -1;
+    }
+    #print-dropdown-button {
+        width: 100%;
+        justify-content: center;
+    }
+    .diary-detail-print-menu {
+        left: 0;
+        right: 0;
+        width: auto;
+    }
+    .diary-comment-bubble {
+        max-width: 92%;
+    }
+    #edit-logs-modal .bg-white.rounded-lg.shadow-2xl.max-w-2xl {
+        max-height: 92vh;
+        width: 100%;
+    }
+    #edit-logs-modal .p-6.overflow-y-auto {
+        max-height: 66vh !important;
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .diary-detail-actions {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 
 <script>
 (function() {

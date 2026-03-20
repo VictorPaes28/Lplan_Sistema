@@ -33,7 +33,7 @@
 <!-- ========== MODO VISUAL (cards, calendário, fotos, vídeos) ========== -->
 <div id="dashboard-view-visual" class="dashboard-view dashboard-view--visual">
 <!-- KPIs Cards - visual coeso e profissional -->
-<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8 fade-in">
+<div class="dashboard-kpi-row grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8 fade-in">
     <!-- Total de Relatórios -->
     <a href="{% url 'report-list' %}" 
        class="kpi-card kpi-card--primary bg-white rounded-xl border border-slate-200 p-4 cursor-pointer block focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
@@ -417,11 +417,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'pt-br',
-        initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+        // Em mobile, abre no modo mês para manter o "calendário" visível
+        initialView: 'dayGridMonth',
+        fixedWeekCount: false,
+        dayMaxEvents: isMobile ? 2 : true,
         headerToolbar: {
-            left: 'prev,next today',
+            left: isMobile ? 'prev,next' : 'prev,next today',
             center: 'title',
-            right: isMobile ? 'listWeek' : 'dayGridMonth,timeGridWeek,listWeek'
+            right: isMobile ? 'dayGridMonth,listWeek' : 'dayGridMonth,timeGridWeek,listWeek'
         },
         buttonText: {
             today: 'Hoje',
@@ -441,10 +444,18 @@ document.addEventListener('DOMContentLoaded', function() {
             var props = arg.event.extendedProps;
             var short = (props && props.short_title) ? props.short_title : arg.event.title;
             var icon = 'fa-check-circle';
+            var compactMobile = window.innerWidth < 768 && arg.view.type === 'dayGridMonth';
             if (props && props.missing) {
                 icon = (props.status === 'Atraso') ? 'fa-exclamation-triangle' : 'fa-calendar-day';
             } else if (props && props.has_diary) {
                 icon = 'fa-check-circle';
+            }
+            if (compactMobile) {
+                return {
+                    html: '<span class="fc-event-content-inner fc-event-content-mobile">' +
+                        '<i class="fas ' + icon + ' fc-event-icon" aria-hidden="true"></i>' +
+                        '</span>'
+                };
             }
             return {
                 html: '<span class="fc-event-content-inner">' +
@@ -573,7 +584,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const newIsMobile = window.innerWidth < 768;
             if (newIsMobile !== isMobile) {
                 isMobile = newIsMobile;
-                calendar.changeView(newIsMobile ? 'listWeek' : 'dayGridMonth');
+                // Mantém a grade mensal em mobile por padrão; lista continua disponível no header
+                calendar.changeView('dayGridMonth');
             }
         });
     }, 100); // Delay de 100ms para garantir que a top bar esteja renderizada

@@ -318,7 +318,93 @@
 }
 
 /* Mão de Obra e Equipamentos: botões +/− tocáveis em mobile (44px) */
+.diary-mobile-density-tools {
+    display: none;
+}
+
 @media (max-width: 768px) {
+    .diary-mobile-density-tools {
+        display: block;
+        margin: 0 0 0.6rem;
+    }
+    .diary-mobile-density-tools-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        align-items: center;
+    }
+    .diary-mobile-density-search {
+        flex: 1 1 100%;
+        min-height: 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.6rem;
+        padding: 0.45rem 0.65rem;
+        font-size: 0.85rem;
+        color: #0f172a;
+        background: #ffffff;
+    }
+    .diary-mobile-density-toggle {
+        flex: 1 1 0;
+        min-height: 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.6rem;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.76rem;
+        font-weight: 600;
+        padding: 0.35rem 0.55rem;
+        white-space: normal;
+        text-align: center;
+    }
+    .diary-mobile-density-toggle.is-active {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #ffffff;
+    }
+
+    .diary-mobile-quicknav {
+        position: sticky;
+        top: 0.35rem;
+        z-index: 30;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(6px);
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.45rem;
+        margin-bottom: 0.6rem;
+        display: flex;
+        gap: 0.4rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .diary-mobile-quicknav-link {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0.42rem 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    .diary-mobile-quicknav-link:active {
+        background: #e2e8f0;
+    }
+    .diary-mobile-quicknav-link.is-active {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #ffffff;
+    }
+    .diary-details-sidebar {
+        display: none;
+    }
+
     /* Evitar overflow horizontal: formulário e seções cabem na tela */
     .diary-form-page,
     #diary-form {
@@ -357,21 +443,21 @@
     #diary-form .diary-labor-plus,
     #diary-form .diary-equipment-minus,
     #diary-form .diary-equipment-plus {
-        min-width: 38px;
-        min-height: 38px;
-        width: 38px;
-        height: 38px;
-        font-size: 0.75rem;
+        min-width: 42px;
+        min-height: 42px;
+        width: 42px;
+        height: 42px;
+        font-size: 0.8rem;
     }
     /* Campos de quantidade: compactos */
     #diary-form .diary-labor-qty,
     #diary-form .diary-equipment-qty {
-        min-height: 38px;
-        min-width: 44px;
-        width: 48px;
-        max-width: 64px;
+        min-height: 42px;
+        min-width: 50px;
+        width: 54px;
+        max-width: 68px;
         font-size: 15px !important;
-        padding: 0.35rem 0.2rem;
+        padding: 0.35rem 0.25rem;
         -webkit-appearance: none;
         appearance: none;
         box-sizing: border-box;
@@ -379,22 +465,29 @@
     /* Mão de obra e Máquinas/Veículos: em mobile, linha em 2 linhas (nome em cima, controles embaixo) para não espremer o input */
     #diary-form .diary-labor-cargo-list li,
     #diary-form .diary-equipment-item-list li {
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        padding-top: 0.35rem;
-        padding-bottom: 0.35rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.25rem 0.5rem;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
     }
     #diary-form .diary-labor-cargo-list li > span,
     #diary-form .diary-equipment-item-list li > span {
-        width: 100%;
-        flex: 1 1 100%;
+        width: auto;
         min-width: 0;
+        font-size: 0.85rem;
+        line-height: 1.2;
+        padding-right: 0.25rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
     #diary-form .diary-labor-cargo-list li > div.flex,
     #diary-form .diary-equipment-item-list li > div.flex {
-        flex: 1 1 100%;
         justify-content: flex-end;
-        min-width: 0;
+        min-width: max-content;
         flex-wrap: nowrap;
     }
     /* Títulos das seções Atividades / Ocorrências: não quebrar em vertical no mobile */
@@ -458,7 +551,7 @@
     #diary-form .section-content.p-6,
     #section-equipamentos-content.p-6,
     #section-maoObra-content {
-        padding: 0.75rem 1rem !important;
+        padding: 0.75rem 0.85rem !important;
     }
     #diary-form .diary-subcategory-header {
         padding: 0.35rem 0.5rem;
@@ -1556,8 +1649,8 @@ table tbody tr:hover {
         padding-bottom: 0;
     }
     .diary-form-inner {
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
         padding-bottom: 8rem;
         min-width: 0;
     }
