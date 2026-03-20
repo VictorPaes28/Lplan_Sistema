@@ -27,6 +27,16 @@ textarea {
     color-scheme: light;
 }
 
+/* Evita que o Windows/Edge force paleta escura em controles nativos. */
+@media (forced-colors: active) {
+    button,
+    input,
+    select,
+    textarea {
+        forced-color-adjust: none;
+    }
+}
+
 * {
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
