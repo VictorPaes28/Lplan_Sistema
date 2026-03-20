@@ -689,11 +689,6 @@
                     <textarea id="support-desc" required placeholder="Explique o que aconteceu de forma objetiva."></textarea>
                 </div>
 
-                <div class="support-form-field full">
-                    <label for="support-steps">Passos para reproduzir</label>
-                    <textarea id="support-steps" placeholder="1) ...&#10;2) ...&#10;3) ..."></textarea>
-                </div>
-
                 <div class="support-form-field">
                     <label for="support-expected">Resultado esperado</label>
                     <input id="support-expected" type="text" maxlength="140" placeholder="O que deveria acontecer">
@@ -730,7 +725,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var supportSeverity = document.getElementById('support-severity');
     var supportTitle = document.getElementById('support-title');
     var supportDesc = document.getElementById('support-desc');
-    var supportSteps = document.getElementById('support-steps');
     var supportExpected = document.getElementById('support-expected');
     var supportActual = document.getElementById('support-actual');
 
@@ -834,9 +828,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 '',
                 'Descricao:',
                 supportDesc.value.trim(),
-                '',
-                'Passos para reproduzir:',
-                supportSteps.value.trim() || '(nao informado)',
                 '',
                 'Resultado esperado:',
                 supportExpected.value.trim() || '(nao informado)',
