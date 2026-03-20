@@ -15,6 +15,18 @@ html, body {
     text-size-adjust: 100%;
 }
 
+/* Mantém controles nativos em tema claro (evita auto-darkening do navegador). */
+html {
+    color-scheme: light;
+}
+
+button,
+input,
+select,
+textarea {
+    color-scheme: light;
+}
+
 * {
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
