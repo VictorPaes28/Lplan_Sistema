@@ -806,6 +806,27 @@
                     }
                 });
             }
+
+            // ============================================
+            // RETRY SUAVE DE IMAGENS /media/
+            // ============================================
+            function initMediaImageRetry() {
+                const mediaImages = document.querySelectorAll('img[src*="/media/"]');
+                mediaImages.forEach(function(img) {
+                    img.addEventListener('error', function() {
+                        // Evita loop infinito: tenta apenas 1x por imagem.
+                        if (img.dataset.retryDone === '1') return;
+                        img.dataset.retryDone = '1';
+
+                        const originalSrc = img.getAttribute('src') || '';
+                        if (!originalSrc) return;
+
+                        const cacheBuster = 'retry=' + Date.now();
+                        const sep = originalSrc.includes('?') ? '&' : '?';
+                        img.setAttribute('src', originalSrc + sep + cacheBuster);
+                    });
+                });
+            }
             
             // ============================================
             // INICIALIZAÇÃO
@@ -814,6 +835,7 @@
                 initSidebar();
                 initFilterSearch();
                 initUserMenu();
+                initMediaImageRetry();
             }
             
             if (document.readyState === 'loading') {
