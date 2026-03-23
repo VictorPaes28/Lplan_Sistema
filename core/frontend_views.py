@@ -1178,23 +1178,37 @@ def filter_photos_view(request):
     if diary_id:
         photos = photos.filter(diary_id=diary_id)
     
+    # Remove itens com arquivo ausente/inacessível para evitar 404/500 no carregamento da galeria.
+    visible_photos = []
+    for photo in photos:
+        try:
+            if photo.image and photo.image.name and photo.image.storage.exists(photo.image.name):
+                visible_photos.append(photo)
+        except Exception:
+            # Se o storage falhar para um item específico, omite o card sem quebrar a página.
+            continue
+
     # Paginação
     from django.core.paginator import Paginator
-    paginator = Paginator(photos, 24)  # 24 fotos por página (grid 4x6)
+    paginator = Paginator(visible_photos, 24)  # 24 fotos por página (grid 4x6)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
     # Estatísticas
-    total_photos = photos.count()
-    photos_by_date = photos.values('diary__date').annotate(count=Count('id')).order_by('-diary__date')[:10]
+    total_photos = len(visible_photos)
+    by_date_counter = {}
+    for photo in visible_photos:
+        day = getattr(photo.diary, 'date', None)
+        by_date_counter[day] = by_date_counter.get(day, 0) + 1
+    photos_by_date = [{'diary__date': d, 'count': c} for d, c in sorted(by_date_counter.items(), key=lambda x: (x[0] is None, x[0]), reverse=True)[:10]]
     
     context = {
         'photos': page_obj,
         'total_photos': total_photos,
         'photos_by_date': photos_by_date,
         'search': search,
-        'date_start': date_start,
-        'date_end': date_end,
+        'date_start': date_start or '',
+        'date_end': date_end or '',
         'diary_id': diary_id,
     }
     

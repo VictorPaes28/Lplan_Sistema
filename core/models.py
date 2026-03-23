@@ -1122,10 +1122,17 @@ class DiaryImage(models.Model):
         
         A versão otimizada é salva no campo pdf_optimized.
         """
-        # Sanitiza nome do arquivo para evitar 404/500 com espaços ou caracteres especiais na URL
+        # Sanitiza o nome preservando diretórios relativos (ex.: diary_images/2026/03/...)
+        # para evitar quebrar referências existentes ao remover acidentalmente o upload_to.
         if self.image and getattr(self.image, 'name', None):
             from core.utils.file_validators import sanitize_filename
-            self.image.name = sanitize_filename(self.image.name)
+            normalized_name = str(self.image.name).replace('\\', '/')
+            if '/' in normalized_name:
+                folder, filename = normalized_name.rsplit('/', 1)
+                sanitized_filename = sanitize_filename(filename)
+                self.image.name = f"{folder}/{sanitized_filename}" if folder else sanitized_filename
+            else:
+                self.image.name = sanitize_filename(normalized_name)
         # Salva primeiro para garantir que o arquivo existe
         is_new = self.pk is None
         super().save(*args, **kwargs)

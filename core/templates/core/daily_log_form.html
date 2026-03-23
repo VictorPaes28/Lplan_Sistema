@@ -1797,7 +1797,7 @@ function renderLaborList() {
         html += '<button type="button" onclick="updateLaborQuantity(' + i + ', -1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700 transition-colors">';
         html += '<i class="fas fa-minus text-xs"></i>';
         html += '</button>';
-        html += '<input type="number" value="' + (item.quantity || 1) + '" min="1" onchange="updateLaborQuantity(' + i + ', 0, this.value)" class="w-16 px-2 py-1 text-center text-sm font-semibold border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none">';
+        html += '<input type="number" value="' + (item.quantity || 1) + '" min="0" onchange="updateLaborQuantity(' + i + ', 0, this.value)" class="w-16 px-2 py-1 text-center text-sm font-semibold border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none">';
         html += '<button type="button" onclick="updateLaborQuantity(' + i + ', 1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700 transition-colors">';
         html += '<i class="fas fa-plus text-xs"></i>';
         html += '</button>';
@@ -1819,11 +1819,14 @@ function updateLaborQuantity(index, delta, value) {
     if (index < 0 || index >= laborList.length) return;
     
     if (value !== null && value !== undefined) {
-        laborList[index].quantity = Math.max(1, parseInt(value) || 1);
+        laborList[index].quantity = Math.max(0, parseInt(value, 10) || 0);
     } else {
-        laborList[index].quantity = Math.max(1, laborList[index].quantity + delta);
+        laborList[index].quantity = Math.max(0, (parseInt(laborList[index].quantity, 10) || 0) + delta);
     }
-    
+    if (laborList[index].quantity === 0) {
+        laborList.splice(index, 1);
+    }
+
     renderLaborList();
     updateLaborTotals();
 }
@@ -2016,16 +2019,55 @@ window.updateLaborQuantity = updateLaborQuantity;
 
     function setQuantity(cargoRef, company, qty) {
         var k = key(cargoRef, company);
-        diaryLaborState[k] = Math.max(0, parseInt(qty, 10) || 0);
+        var normalized = Math.max(0, parseInt(qty, 10) || 0);
+        if (normalized <= 0) {
+            delete diaryLaborState[k];
+        } else {
+            diaryLaborState[k] = normalized;
+        }
         var inp = findQtyInput(cargoRef, company || '');
-        if (inp) inp.value = diaryLaborState[k];
+        if (inp) inp.value = normalized;
     }
     function changeQty(cargoRef, company, delta) {
         var k = key(cargoRef, company);
-        diaryLaborState[k] = (diaryLaborState[k] || 0) + delta;
-        if (diaryLaborState[k] < 0) diaryLaborState[k] = 0;
         var inp = findQtyInput(cargoRef, company || '');
-        if (inp) inp.value = diaryLaborState[k];
+        var currentInputValue = inp ? (parseInt(inp.value, 10) || 0) : 0;
+        var currentStateValue = parseInt(diaryLaborState[k], 10) || 0;
+        var current = Math.max(currentInputValue, currentStateValue);
+        var next = current + delta;
+        if (next < 0) next = 0;
+        if (next <= 0) {
+            delete diaryLaborState[k];
+        } else {
+            diaryLaborState[k] = next;
+        }
+        if (inp) inp.value = next;
+    }
+    function syncLaborInputToState(inp) {
+        if (!inp || !inp.classList || !inp.classList.contains('diary-labor-qty')) return;
+        var cid = inp.getAttribute('data-cargo-id');
+        var cref = getElementCargoRef(inp);
+        var company = inp.getAttribute('data-company') || '';
+        if (cid && !cref) cref = cargoRefFromId(cid);
+        if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0);
+    }
+    function bindPlusMinus() {
+        document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('click', function(ev) {
+            var plus = ev.target.closest('.diary-labor-plus');
+            var minus = ev.target.closest('.diary-labor-minus');
+            var source = plus || minus;
+            var cargoRef = getElementCargoRef(source);
+            var company = (plus && plus.getAttribute('data-company')) || (minus && minus.getAttribute('data-company')) || '';
+            if (!cargoRef) return;
+            if (plus) changeQty(cargoRef, company, 1);
+            if (minus) changeQty(cargoRef, company, -1);
+        });
+        document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('change', function(ev) {
+            syncLaborInputToState(ev.target);
+        });
+        document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('input', function(ev) {
+            syncLaborInputToState(ev.target);
+        });
     }
 
     function initFromExisting() {
@@ -2070,28 +2112,6 @@ window.updateLaborQuantity = updateLaborQuantity;
                 }
             }
         } catch (err) {}
-    }
-    function bindPlusMinus() {
-        document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('click', function(ev) {
-            var plus = ev.target.closest('.diary-labor-plus');
-            var minus = ev.target.closest('.diary-labor-minus');
-            var source = plus || minus;
-            var cargoRef = getElementCargoRef(source);
-            var company = (plus && plus.getAttribute('data-company')) || (minus && minus.getAttribute('data-company')) || '';
-            if (!cargoRef) return;
-            if (plus) changeQty(cargoRef, company, 1);
-            if (minus) changeQty(cargoRef, company, -1);
-        });
-        document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('change', function(ev) {
-            var inp = ev.target;
-            if (inp && inp.classList && inp.classList.contains('diary-labor-qty')) {
-                var cid = inp.getAttribute('data-cargo-id');
-                var cref = getElementCargoRef(inp);
-                var company = inp.getAttribute('data-company') || '';
-                if (cid && !cref) cref = cargoRefFromId(cid);
-                if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0);
-            }
-        });
     }
     function addTerceirizadaEmpresa() {
         var companyName = prompt('Nome da empresa terceirizada:', '');
@@ -2236,16 +2256,29 @@ var equipmentList = [];
 
     function setEquipmentQty(id, name, qty) {
         var k = 'std-' + id;
-        diaryEquipmentState[k] = Math.max(0, parseInt(qty, 10) || 0);
+        var normalized = Math.max(0, parseInt(qty, 10) || 0);
+        if (normalized <= 0) {
+            delete diaryEquipmentState[k];
+        } else {
+            diaryEquipmentState[k] = normalized;
+        }
         var inp = document.querySelector('.diary-equipment-qty[data-equipment-id="' + id + '"]');
-        if (inp) inp.value = diaryEquipmentState[k];
+        if (inp) inp.value = normalized;
     }
     function changeEquipmentQty(id, name, delta) {
         var k = 'std-' + id;
-        diaryEquipmentState[k] = (parseInt(diaryEquipmentState[k], 10) || 0) + delta;
-        if (diaryEquipmentState[k] < 0) diaryEquipmentState[k] = 0;
         var inp = document.querySelector('.diary-equipment-qty[data-equipment-id="' + id + '"]');
-        if (inp) inp.value = diaryEquipmentState[k];
+        var currentInputValue = inp ? (parseInt(inp.value, 10) || 0) : 0;
+        var currentStateValue = parseInt(diaryEquipmentState[k], 10) || 0;
+        var current = Math.max(currentInputValue, currentStateValue);
+        var next = current + delta;
+        if (next < 0) next = 0;
+        if (next <= 0) {
+            delete diaryEquipmentState[k];
+        } else {
+            diaryEquipmentState[k] = next;
+        }
+        if (inp) inp.value = next;
     }
 
     function bindEquipmentButtons() {
@@ -2259,6 +2292,15 @@ var equipmentList = [];
             if (!id || !name) return;
             if (plus) changeEquipmentQty(id, name, 1);
             if (minus) changeEquipmentQty(id, name, -1);
+        });
+
+        // Mantém estado interno sincronizado quando o usuário digita direto no campo.
+        container.addEventListener('input', function(ev) {
+            var input = ev.target.closest('.diary-equipment-qty[data-equipment-id]');
+            if (!input) return;
+            var id = input.getAttribute('data-equipment-id');
+            if (!id) return;
+            setEquipmentQty(id, input.getAttribute('data-equipment-name') || '', input.value);
         });
     }
     function addCustomEquipment(name, quantity) {
@@ -2446,7 +2488,7 @@ function renderEquipmentList() {
                 '</button>' +
                 '<input type="number" ' +
                 'value="' + (item.quantity || 1) + '" ' +
-                'min="1" ' +
+                'min="0" ' +
                 'onchange="updateEquipmentQuantity(' + i + ', 0, this.value)" ' +
                 'class="w-16 px-2 py-1 text-center text-sm font-semibold border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none">' +
                 '<button type="button" ' +
@@ -2480,11 +2522,14 @@ function updateEquipmentQuantity(index, delta, value) {
     if (index < 0 || index >= equipmentList.length) return;
     
     if (value !== undefined && value !== null) {
-        equipmentList[index].quantity = Math.max(1, parseInt(value) || 1);
+        equipmentList[index].quantity = Math.max(0, parseInt(value, 10) || 0);
     } else {
-        equipmentList[index].quantity = Math.max(1, equipmentList[index].quantity + delta);
+        equipmentList[index].quantity = Math.max(0, (parseInt(equipmentList[index].quantity, 10) || 0) + delta);
     }
-    
+    if (equipmentList[index].quantity === 0) {
+        equipmentList.splice(index, 1);
+    }
+
     renderEquipmentList();
     updateEquipmentTotals();
     updateEquipmentCount();
