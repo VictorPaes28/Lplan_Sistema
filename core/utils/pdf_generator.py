@@ -339,7 +339,10 @@ class PDFGenerator:
                 key = f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
                 if key not in equipment_count:
                     equipment_count[key] = {'equipment': eq, 'count': 0}
-                equipment_count[key]['count'] += qty
+                # Equipamentos são coletados no formulário em nível de diário.
+                # Usa o maior valor encontrado por equipamento para evitar dupla contagem
+                # quando, por legado, o mesmo payload foi associado a múltiplos worklogs.
+                equipment_count[key]['count'] = max(equipment_count[key]['count'], qty)
 
         total_indirect = sum(i['count'] for i in labor_by_type['I'].values())
         total_direct = sum(i['count'] for i in labor_by_type['D'].values())

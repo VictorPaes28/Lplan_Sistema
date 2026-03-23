@@ -2750,18 +2750,33 @@ def diary_form_view(request, pk=None):
                     
                     if hasattr(request, '_equipment_items') and request._equipment_items is not None and saved_worklogs:
                         from .models import DailyWorkLogEquipment
+                        # A UI atual coleta equipamentos no nível do diário (não por atividade).
+                        # Para evitar multiplicação indevida no PDF quando existem vários worklogs,
+                        # mantém os equipamentos em um único worklog "alvo" e limpa os demais.
+                        target_worklog = None
+                        for wl in saved_worklogs:
+                            if wl.pk and getattr(getattr(wl, 'activity', None), 'code', '') == 'GEN-MAO-OBRA-EQUIP':
+                                target_worklog = wl
+                                break
+                        if target_worklog is None:
+                            target_worklog = next((wl for wl in saved_worklogs if wl.pk), None)
+
                         for worklog in saved_worklogs:
                             if worklog.pk:
-                                # Payload é a fonte da verdade: substitui equipamentos do worklog via through (com quantidade)
                                 DailyWorkLogEquipment.objects.filter(work_log=worklog).delete()
-                                if request._equipment_items:
-                                    for equipment, qty in request._equipment_items:
-                                        DailyWorkLogEquipment.objects.create(
-                                            work_log=worklog,
-                                            equipment=equipment,
-                                            quantity=max(1, int(qty or 1)),
-                                        )
-                                    logger.info(f"Equipamentos associados ao worklog {worklog.id}: {len(request._equipment_items)} itens (com quantidade)")
+
+                        if target_worklog and request._equipment_items:
+                            for equipment, qty in request._equipment_items:
+                                DailyWorkLogEquipment.objects.create(
+                                    work_log=target_worklog,
+                                    equipment=equipment,
+                                    quantity=max(1, int(qty or 1)),
+                                )
+                            logger.info(
+                                "Equipamentos associados ao worklog %s (alvo): %s itens (com quantidade)",
+                                target_worklog.id,
+                                len(request._equipment_items),
+                            )
                     
                     # Recalcula progresso quando worklogs foram salvos (JSON ou formset)
                     if use_worklogs_json and saved_worklogs:

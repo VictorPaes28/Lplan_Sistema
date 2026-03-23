@@ -4634,12 +4634,18 @@ function saveSignature(canvasId) {
             } catch (err) {
                 console.error('Erro no envio do diário:', err);
                 isSubmitting = false;
-                alert('Ocorreu um erro ao preparar o envio. O formulário será enviado mesmo assim para validação no servidor.');
-                // Não chama preventDefault: deixa o formulário submeter
+                e.preventDefault();
+                if (typeof restoreRequiredFromHiddenFields === 'function') restoreRequiredFromHiddenFields();
+                alert('Ocorreu um erro ao preparar o envio. O formulário NÃO foi enviado para evitar perda de dados. Tente novamente.');
+                return false;
             }
             } catch (outerErr) {
                 console.error('Erro no handler de submit:', outerErr);
-                // Não chama preventDefault para o formulário poder submeter
+                e.preventDefault();
+                if (typeof restoreRequiredFromHiddenFields === 'function') restoreRequiredFromHiddenFields();
+                isSubmitting = false;
+                alert('Falha ao validar o envio no navegador. O formulário não foi enviado para preservar seus dados. Atualize a página apenas se necessário.');
+                return false;
             }
         });
     }
