@@ -24,6 +24,19 @@ class ProxyHeadersMiddleware(MiddlewareMixin):
         return None
 
 
+class ClearLegacyMessagesCookieMiddleware(MiddlewareMixin):
+    """
+    Remove cookie legado "messages" (usado por CookieStorage/FallbackStorage).
+    Ajuda a recuperar rapidamente casos de header/cookie grande após mudanças
+    para armazenamento de mensagens em sessão.
+    """
+
+    def process_response(self, request, response):
+        if request.COOKIES.get('messages') is not None:
+            response.delete_cookie('messages')
+        return response
+
+
 class SecurityHeadersMiddleware(MiddlewareMixin):
     """
     Middleware to add security headers and cache control.

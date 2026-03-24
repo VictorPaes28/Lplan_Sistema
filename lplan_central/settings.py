@@ -52,6 +52,10 @@ INSTALLED_APPS = [
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 
+# Evita estouro de cookies por mensagens longas (ex.: erros com texto grande).
+# Com SessionStorage, mensagens ficam na sessão (DB) em vez de cookie.
+MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
+
 MIDDLEWARE = [
     'core.middleware.ProxyHeadersMiddleware',  # cPanel: fallback X-Forwarded-Proto
     'django.middleware.security.SecurityMiddleware',
@@ -60,6 +64,7 @@ MIDDLEWARE = [
     'core.csrf_middleware.CsrfViewMiddleware',  # Aceita origem quando host está em ALLOWED_HOSTS (cPanel)
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'core.middleware.ClearLegacyMessagesCookieMiddleware',  # Limpa cookie "messages" legado para evitar header/cookie grande
     # 'core.middleware.SecurityHeadersMiddleware',  # Desativado
 ]
 
