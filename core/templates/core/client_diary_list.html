@@ -78,7 +78,7 @@
 
     <div class="cdl-welcome">
         <h1><i class="fas fa-hard-hat" style="color: #4f46e5;"></i> Olá, {{ user.get_full_name|default:user.username }}!</h1>
-        <p>Aqui estão os diários de obra das suas obras. Quando um diário é enviado, você tem <strong>24 horas</strong> para visualizar e enviar comentários.</p>
+        <p>Aqui estão os diários de obra das suas obras. Quando um diário é enviado, você tem <strong>24 horas úteis</strong> para visualizar e enviar comentários (sábados e domingos não contam).</p>
     </div>
 
     {% if not diaries_by_project %}

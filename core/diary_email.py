@@ -67,19 +67,6 @@ def send_diary_to_owners(diary):
     project = diary.project
     target_date = diary.date
     subject = f"Diário de Obra - {project.name} - {target_date.strftime('%d/%m/%Y')}"
-    body = f"""Prezado(a) senhor(a),
-
-Informamos que o diário de obra referente ao dia {target_date.strftime('%d/%m/%Y')} da obra {project.name} ({project.code}) foi aprovado e está disponível para visualização.
-
-Para acessar o documento e enviar comentários (prazo de até 24 horas após o envio do diário), utilize o link abaixo:
-
-{link}
-
-Atenciosamente,
-
-LPLAN - Diário de Obra
-Mensagem automática. Não responda a este e-mail.
-"""
     from gestao_aprovacao.email_utils import _criar_log_email, _enviar_email_com_retry
 
     connection, from_email = _get_rdo_connection_and_from()
@@ -89,6 +76,21 @@ Mensagem automática. Não responda a este e-mail.
             if not email_addr:
                 continue
             try:
+                nome_destinatario = (po.user.get_full_name() or po.user.username or '').strip()
+                saudacao = f"Prezado(a) {nome_destinatario}," if nome_destinatario else "Prezado(a),"
+                body = f"""{saudacao}
+
+Informamos que o diário de obra referente ao dia {target_date.strftime('%d/%m/%Y')} da obra {project.name} ({project.code}) foi aprovado e está disponível para visualização.
+
+Para acessar o documento e enviar comentários (prazo de até 24 horas úteis após o envio do diário; sábados e domingos não contam), utilize o link abaixo:
+
+{link}
+
+Atenciosamente,
+
+LPLAN - Diário de Obra
+Mensagem automática. Não responda a este e-mail.
+"""
                 email_obj = EmailMessage(
                     subject=subject,
                     body=body,

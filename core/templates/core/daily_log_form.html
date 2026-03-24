@@ -2225,31 +2225,43 @@ var equipmentList = [];
     var diaryEquipmentState = {};  // standard: key = "std-{id}", value = quantity; custom: key = "custom-{id}", value = { name, quantity }
     var customEquipmentId = 0;
     function getEquipmentPayload() {
-        var byName = {};
-        for (var k in diaryEquipmentState) {
-            if (k.indexOf('std-') === 0) {
-                var id = k.replace('std-', '');
-                var inp = document.querySelector('.diary-equipment-qty[data-equipment-id="' + id + '"]');
-                var qState = parseInt(diaryEquipmentState[k], 10) || 0;
-                var qFromInput = (inp && inp.value !== undefined && inp.value !== '') ? (parseInt(inp.value, 10) || 0) : 0;
-                var q = Math.max(qState, qFromInput);
-                if (q <= 0) continue;
-                var name = inp ? (inp.getAttribute('data-equipment-name') || '') : '';
-                if (name) byName[name] = Math.max(byName[name] || 0, q);
-            } else if (k.indexOf('custom-') === 0) {
-                var v = diaryEquipmentState[k];
-                if (v && v.quantity > 0 && v.name) byName[v.name] = Math.max(byName[v.name] || 0, v.quantity);
-            }
-        }
+        var byStandardId = {};
+        var byCustomName = {};
+        // Equipamentos padrão: fonte única = inputs visíveis (evita dupla contagem).
         var allInputs = document.querySelectorAll('.diary-equipment-qty[data-equipment-id][data-equipment-name]');
         for (var i = 0; i < allInputs.length; i++) {
             var inp = allInputs[i];
+            var equipmentId = (inp.getAttribute('data-equipment-id') || '').trim();
             var name = (inp.getAttribute('data-equipment-name') || '').trim();
             var qty = parseInt(inp.value, 10) || 0;
-            if (name && qty > 0) byName[name] = Math.max(byName[name] || 0, qty);
+            if (!equipmentId || !name || qty <= 0) continue;
+            if (!byStandardId[equipmentId]) {
+                byStandardId[equipmentId] = {
+                    equipment_id: parseInt(equipmentId, 10),
+                    name: name,
+                    quantity: 0
+                };
+            }
+            byStandardId[equipmentId].quantity += qty;
         }
+
+        // Equipamentos custom: fonte única = estado custom.
+        for (var k in diaryEquipmentState) {
+            if (k.indexOf('custom-') !== 0) continue;
+            var v = diaryEquipmentState[k];
+            if (!v || !v.name || v.quantity <= 0) continue;
+            var customName = String(v.name).trim();
+            if (!customName) continue;
+            byCustomName[customName] = (byCustomName[customName] || 0) + (parseInt(v.quantity, 10) || 0);
+        }
+
         var out = [];
-        for (var n in byName) if (byName[n] > 0) out.push({ name: n, quantity: byName[n] });
+        for (var sid in byStandardId) {
+            if (byStandardId[sid].quantity > 0) out.push(byStandardId[sid]);
+        }
+        for (var n in byCustomName) {
+            if (byCustomName[n] > 0) out.push({ name: n, quantity: byCustomName[n] });
+        }
         return out;
     }
     window.getEquipmentPayload = getEquipmentPayload;
@@ -2377,9 +2389,21 @@ var equipmentList = [];
                 var item = data[i];
                 var name = (item.name || '').trim();
                 var qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+                var equipmentId = (item.equipment_id !== undefined && item.equipment_id !== null) ? String(item.equipment_id) : '';
                 if (!name) continue;
                 var found = false;
+
+                // Prioriza match por ID quando disponível (evita colisões por nome duplicado).
+                if (equipmentId) {
+                    var byIdInput = document.querySelector('.diary-equipment-qty[data-equipment-id="' + equipmentId + '"]');
+                    if (byIdInput) {
+                        setEquipmentQty(equipmentId, byIdInput.getAttribute('data-equipment-name') || name, qty);
+                        found = true;
+                    }
+                }
+
                 for (var j = 0; j < allInputs.length; j++) {
+                    if (found) break;
                     if ((allInputs[j].getAttribute('data-equipment-name') || '') === name) {
                         var id = allInputs[j].getAttribute('data-equipment-id');
                         if (id) { setEquipmentQty(id, name, qty); found = true; break; }
@@ -4341,10 +4365,25 @@ function saveSignature(canvasId) {
             if (occDel && (occDel.checked === true || (occDel.value || '').toString().toLowerCase() === 'on')) continue;
             var occDesc = (occDescInputs[o].value || '').trim();
             if (!occDesc) continue;
-            var tagInputs = form.querySelectorAll('input[name="ocorrencias-' + oidx + '-tags"]');
             var tagIds = [];
-            for (var t = 0; t < tagInputs.length; t++) {
-                if (tagInputs[t].value) tagIds.push(parseInt(tagInputs[t].value, 10));
+            // Suporta tanto inputs hidden (tags adicionadas via modal) quanto
+            // select multiple do formset (ocorrências existentes/copiadas).
+            var tagFields = form.querySelectorAll(
+                'input[name="ocorrencias-' + oidx + '-tags"], select[name="ocorrencias-' + oidx + '-tags"]'
+            );
+            for (var t = 0; t < tagFields.length; t++) {
+                var field = tagFields[t];
+                if (!field) continue;
+                if ((field.tagName || '').toLowerCase() === 'select') {
+                    var selectedOptions = field.selectedOptions || [];
+                    for (var so = 0; so < selectedOptions.length; so++) {
+                        var selVal = parseInt(selectedOptions[so].value, 10);
+                        if (!isNaN(selVal) && tagIds.indexOf(selVal) === -1) tagIds.push(selVal);
+                    }
+                } else {
+                    var inputVal = parseInt(field.value, 10);
+                    if (!isNaN(inputVal) && tagIds.indexOf(inputVal) === -1) tagIds.push(inputVal);
+                }
             }
             occurrences.push({ description: occDesc, tag_ids: tagIds });
         }

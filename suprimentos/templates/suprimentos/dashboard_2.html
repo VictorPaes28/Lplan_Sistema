@@ -62,33 +62,31 @@
     <!-- Barra de Pesquisa e Filtros (sempre visível quando há obra selecionada) -->
     {% if obra_selecionada %}
     <div class="dashboard-filtros-bar" id="dashboardFiltrosBar">
-        <button type="button" class="dashboard-filtros-bar-mobile-toggle" id="dashboardFiltrosToggle" aria-expanded="false" aria-controls="dashboardFiltrosContent" aria-label="Abrir filtros e busca">
-            <i class="bi bi-funnel"></i>
-            <span>Filtros</span>
-            {% if filtro_status or categoria_filtro or fornecedor_filtro or busca_query %}
-            <span class="dashboard-filtros-badge" id="filtrosBadge">1</span>
-            {% endif %}
-        </button>
-        <div class="dashboard-filtros-bar-content" id="dashboardFiltrosContent">
-        <div class="dashboard-busca">
+        <div class="dashboard-busca dashboard-busca-sticky-mobile">
             <i class="bi bi-search dashboard-busca-icon"></i>
             <input type="text" 
                    class="dashboard-busca-input" 
                    id="buscaInput"
                    aria-label="Buscar por insumo, código, SC, categoria ou fornecedor"
-                   placeholder="Buscar insumo, código, SC ou categoria..."
+                   placeholder="Buscar insumo, código, SC, PC, fornecedor, local ou categoria..."
                    value="{{ busca_query }}"
                    onkeypress="if(event.key==='Enter') buscar()"
                    oninput="debounceBusca(this.value)">
-            {% if busca_query %}
             <button class="dashboard-busca-clear" 
+                    id="dashboardBuscaClear"
                     onclick="limparBusca()" 
                     aria-label="Limpar busca"
-                    title="Limpar busca">
+                    title="Limpar busca"
+                    {% if not busca_query %}style="display:none;"{% endif %}>
                 <i class="bi bi-x"></i>
             </button>
-            {% endif %}
         </div>
+        <button type="button" class="dashboard-filtros-bar-mobile-toggle" id="dashboardFiltrosToggle" aria-expanded="false" aria-controls="dashboardFiltrosContent" aria-label="Abrir filtros e busca">
+            <i class="bi bi-funnel"></i>
+            <span>Filtros</span>
+            <span class="dashboard-filtros-badge" id="filtrosBadge" style="display:none;">0</span>
+        </button>
+        <div class="dashboard-filtros-bar-content" id="dashboardFiltrosContent">
         <div class="dashboard-filtros-chips-wrapper">
             <span class="filtros-chips-label">Status:</span>
             <div class="dashboard-filtros-chips">
@@ -997,6 +995,7 @@ function voltarParaLocais() {
 // Debounce para busca em tempo real
 let buscaTimeout;
 function debounceBusca(valor) {
+    updateBuscaClearBtn();
     clearTimeout(buscaTimeout);
     buscaTimeout = setTimeout(() => {
         buscar();
@@ -1014,8 +1013,28 @@ function limparBusca() {
     const buscaInput = document.getElementById('buscaInput');
     if (buscaInput) {
         buscaInput.value = '';
+        updateBuscaClearBtn();
         buscar();
     }
+}
+
+function updateBuscaClearBtn() {
+    const buscaInput = document.getElementById('buscaInput');
+    const clearBtn = document.getElementById('dashboardBuscaClear');
+    if (!buscaInput || !clearBtn) return;
+    clearBtn.style.display = buscaInput.value && buscaInput.value.trim() ? 'inline-flex' : 'none';
+}
+
+function atualizarBadgeFiltros() {
+    const badge = document.getElementById('filtrosBadge');
+    if (!badge) return;
+    const params = new URLSearchParams(window.location.search);
+    let ativos = 0;
+    ['status', 'categoria', 'fornecedor', 'busca'].forEach((k) => {
+        if ((params.get(k) || '').trim()) ativos++;
+    });
+    badge.textContent = String(ativos);
+    badge.style.display = ativos > 0 ? 'inline-block' : 'none';
 }
 
 function aplicarFiltro(tipo, valor) {
@@ -1215,6 +1234,8 @@ function restaurarTema() {
 document.addEventListener('DOMContentLoaded', function() {
     // Restaurar tema primeiro
     restaurarTema();
+    updateBuscaClearBtn();
+    atualizarBadgeFiltros();
     // Mobile: toggle da barra de filtros (prioriza insumos na tela)
     var bar = document.getElementById('dashboardFiltrosBar');
     var toggle = document.getElementById('dashboardFiltrosToggle');
@@ -1654,7 +1675,10 @@ function salvarAlocacao() {
     var spacer = document.getElementById('virtualSpacer');
     var viewport = document.getElementById('virtualViewport');
     if (!wrapper || !spacer || !viewport) return;
-    var CARD_HEIGHT = 152;
+    function getCardHeight() {
+        return window.innerWidth <= 420 ? 126 : 136;
+    }
+    var CARD_HEIGHT = getCardHeight();
     var localTodos = document.getElementById('mobileCards') && document.getElementById('mobileCards').getAttribute('data-local-todos') === '1';
     function esc(s) {
         if (s == null || s === undefined) return '';
@@ -1702,6 +1726,8 @@ function salvarAlocacao() {
     }
     spacer.style.height = (itens.length * CARD_HEIGHT) + 'px';
     function renderVisible() {
+        CARD_HEIGHT = getCardHeight();
+        spacer.style.height = (itens.length * CARD_HEIGHT) + 'px';
         var scrollTop = wrapper.scrollTop;
         var height = wrapper.clientHeight;
         var start = Math.max(0, Math.floor(scrollTop / CARD_HEIGHT) - 2);

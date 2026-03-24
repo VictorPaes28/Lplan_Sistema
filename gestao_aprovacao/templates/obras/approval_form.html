@@ -8,26 +8,183 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/approval_form.css' %}">
+<style>
+    .approval-modern-wrap { max-width: 980px; margin: 0 auto; }
+    .approval-modern-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+    }
+    .approval-modern-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
+    .approval-modern-title { margin: 0; font-size: 1.15rem; font-weight: 700; color: #0f172a; }
+    .approval-modern-subtitle { margin: .4rem 0 0; color: #64748b; font-size: .92rem; }
+    .approval-modern-body { padding: 1.25rem 1.5rem 1.5rem; }
+    .approval-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: .75rem;
+        margin-bottom: 1rem;
+    }
+    .approval-info-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: .65rem .8rem;
+    }
+    .approval-info-item small { display: block; color: #64748b; font-size: .75rem; margin-bottom: .2rem; }
+    .approval-info-item strong { color: #0f172a; font-size: .92rem; word-break: break-word; }
+    .approval-alert-modern {
+        border-radius: 10px;
+        padding: .8rem .9rem;
+        border: 1px solid #fecaca;
+        background: #fef2f2;
+        color: #991b1b;
+        margin-bottom: 1rem;
+    }
+    .approval-alert-modern.aprovar {
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+        color: #166534;
+    }
+    .approval-section-label {
+        display: block;
+        margin-bottom: .45rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .approval-tags-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: .65rem;
+    }
+    .approval-tag-option {
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: .65rem .75rem;
+        background: #fff;
+        display: flex;
+        gap: .55rem;
+        align-items: flex-start;
+        cursor: pointer;
+        transition: .15s ease;
+    }
+    .approval-tag-option:hover { border-color: #94a3b8; background: #f8fafc; }
+    .approval-tag-option input { margin-top: .15rem; }
+    .approval-tag-name { font-weight: 600; color: #0f172a; font-size: .9rem; display: block; }
+    .approval-tag-desc { color: #64748b; font-size: .8rem; margin-top: .2rem; display: block; }
+    .approval-tag-empty {
+        border: 1px dashed #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: .8rem;
+        color: #64748b;
+        font-size: .9rem;
+    }
+    .approval-input,
+    .approval-textarea-modern {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: .65rem .75rem;
+        outline: none;
+        color: #0f172a;
+        background: #fff;
+    }
+    .approval-input:focus,
+    .approval-textarea-modern:focus {
+        border-color: #475569;
+        box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.12);
+    }
+    .approval-help-modern { margin: .45rem 0 0; color: #64748b; font-size: .82rem; }
+    .approval-tag-adder { display: flex; gap: .5rem; align-items: center; }
+    .approval-tag-adder .approval-input { flex: 1; }
+    .approval-add-btn {
+        border: 1px solid #0f766e;
+        background: #0f766e;
+        color: #fff;
+        border-radius: 10px;
+        padding: .62rem .9rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .approval-add-btn:hover { background: #0d9488; border-color: #0d9488; }
+    .approval-add-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .approval-new-tags-list {
+        margin-top: .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        min-height: 1.9rem;
+    }
+    .approval-new-tag-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        border: 1px solid #99f6e4;
+        background: #f0fdfa;
+        color: #134e4a;
+        border-radius: 999px;
+        padding: .25rem .55rem;
+        font-size: .82rem;
+        font-weight: 600;
+    }
+    .approval-new-tag-remove {
+        border: 0;
+        background: transparent;
+        color: #0f766e;
+        font-size: .95rem;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0 .05rem;
+    }
+    .approval-new-tag-empty { color: #64748b; font-size: .83rem; }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="approval-container">
-    <div class="card">
-        <h1 class="approval-title">
+    <div class="card approval-modern-wrap approval-modern-card">
+        <div class="approval-modern-header">
+        <h1 class="approval-title approval-modern-title">
             {% if action == 'aprovar' %}
                 Aprovar Pedido de Obra
             {% else %}
                 Reprovar Pedido de Obra
             {% endif %}
         </h1>
-        
-        <div class="approval-info-box">
-            <p><strong>Código:</strong> {{ workorder.codigo }}</p>
-            <p><strong>Obra:</strong> {{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
-            <p><strong>Credor:</strong> {{ workorder.nome_credor }}</p>
+        <p class="approval-modern-subtitle">
+            {% if action == 'aprovar' %}
+                Confirme a aprovação do pedido com segurança.
+            {% else %}
+                Classifique a reprovação com tags para análise de qualidade.
+            {% endif %}
+        </p>
         </div>
-        
-        <div class="approval-alert {{ action }}">
+
+        <div class="approval-modern-body">
+        <div class="approval-info-grid">
+            <div class="approval-info-item">
+                <small>Código</small>
+                <strong>{{ workorder.codigo }}</strong>
+            </div>
+            <div class="approval-info-item">
+                <small>Obra</small>
+                <strong>{{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</strong>
+            </div>
+            <div class="approval-info-item">
+                <small>Credor</small>
+                <strong>{{ workorder.nome_credor }}</strong>
+            </div>
+        </div>
+
+        <div class="approval-alert {{ action }} approval-alert-modern {% if action == 'aprovar' %}aprovar{% endif %}">
             <strong>
                 {% if action == 'aprovar' %}
                     ✓ Você está prestes a aprovar este pedido de obra.
@@ -47,47 +204,75 @@
         <form method="post">
             {% csrf_token %}
             
-            {% if action == 'reprovar' and tags_disponiveis %}
+            {% if action == 'reprovar' %}
                 <div class="approval-form-group">
-                    <label class="approval-label">
-                        Tags de Erro <span class="approval-required">*</span> (selecione uma ou mais):
+                    <label class="approval-section-label">
+                        Tags de controle da reprovação <span class="approval-required">*</span>
                     </label>
-                    <div class="tags-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem; margin-top: 0.5rem;">
+                    {% if tags_disponiveis %}
+                    <div class="approval-tags-grid">
                         {% for tag in tags_disponiveis %}
-                            <label class="tag-checkbox-label" style="display: flex; align-items: center; padding: 0.75rem; border: 2px solid #dee2e6; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; background-color: #fff;">
+                            <label class="approval-tag-option">
                                 <input 
                                     type="checkbox" 
                                     name="tags_erro" 
                                     value="{{ tag.id }}"
                                     {% if tag.id in tags_selecionadas %}checked{% endif %}
-                                    style="margin-right: 0.5rem; width: 18px; height: 18px; cursor: pointer;"
-                                    onchange="this.parentElement.style.borderColor = this.checked ? '#dc3545' : '#dee2e6'; this.parentElement.style.backgroundColor = this.checked ? '#fff5f5' : '#fff';"
                                 >
-                                <div style="flex: 1;">
-                                    <strong style="display: block; color: #2c3e50; font-size: 0.95rem;">{{ tag.nome }}</strong>
+                                <div>
+                                    <span class="approval-tag-name">{{ tag.nome }}</span>
                                     {% if tag.descricao %}
-                                        <small style="display: block; color: #6c757d; font-size: 0.85rem; margin-top: 0.25rem;">{{ tag.descricao|truncatewords:15 }}</small>
+                                        <span class="approval-tag-desc">{{ tag.descricao|truncatewords:16 }}</span>
                                     {% endif %}
                                 </div>
                             </label>
                         {% endfor %}
                     </div>
-                    <p class="approval-help" style="margin-top: 0.75rem; color: #6c757d; font-size: 0.9rem;">
-                        Selecione uma ou mais tags que descrevem os motivos da reprovação. Você também pode adicionar um comentário complementar abaixo.
+                    {% else %}
+                    <div class="approval-tag-empty">
+                        Ainda não existem tags para este tipo de solicitação.
+                        Cadastre abaixo as novas tags para iniciar o controle.
+                    </div>
+                    {% endif %}
+
+                    <p class="approval-help-modern">
+                        Selecione tags existentes e/ou cadastre novas tags (serão salvas no sistema para próximas reprovações).
+                    </p>
+                </div>
+
+                <div class="approval-form-group">
+                    <label for="nova_tag_input" class="approval-section-label">
+                        Adicionar novas tags
+                    </label>
+                    <div class="approval-tag-adder">
+                        <input
+                            id="nova_tag_input"
+                            type="text"
+                            class="approval-input"
+                            placeholder="Digite uma tag e clique no +"
+                        >
+                        <button type="button" id="adicionar_nova_tag" class="approval-add-btn" aria-label="Adicionar tag">
+                            +
+                        </button>
+                    </div>
+                    <div id="novas_tags_lista" class="approval-new-tags-list"></div>
+                    <input type="hidden" id="novas_tags_hidden" name="novas_tags" value="{{ novas_tags|default:'' }}">
+                    <p class="approval-help-modern">
+                        Adicione uma tag por vez no botão +. Você pode remover qualquer tag antes de confirmar.
                     </p>
                 </div>
             {% endif %}
             
             <div class="approval-form-group">
                 <label for="comentario" class="approval-label">
-                    Comentário {% if action == 'reprovar' %}(opcional - complementar às tags){% else %}(opcional){% endif %}:
+                    Comentário {% if action == 'reprovar' %}(opcional - complemento das tags){% else %}(opcional){% endif %}:
                 </label>
                 <textarea 
                     id="comentario" 
                     name="comentario" 
                     rows="5"
                     placeholder="{% if action == 'aprovar' %}Adicione observações sobre a aprovação (opcional)...{% else %}Adicione observações complementares às tags selecionadas (opcional)...{% endif %}"
-                    class="approval-textarea"
+                    class="approval-textarea approval-textarea-modern"
                 >{{ comentario|default:'' }}</textarea>
                 {% if action == 'reprovar' %}
                     <p class="approval-help">
@@ -112,6 +297,90 @@
                 </a>
             </div>
         </form>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+    const input = document.getElementById('nova_tag_input');
+    const addBtn = document.getElementById('adicionar_nova_tag');
+    const list = document.getElementById('novas_tags_lista');
+    const hidden = document.getElementById('novas_tags_hidden');
+    if (!input || !addBtn || !list || !hidden) {
+        return;
+    }
+
+    const tags = [];
+
+    function normalizeTag(value) {
+        return (value || '').trim().replace(/\s+/g, ' ');
+    }
+
+    function syncHidden() {
+        hidden.value = tags.join(', ');
+    }
+
+    function renderEmptyHint() {
+        if (tags.length === 0) {
+            list.innerHTML = '<span class="approval-new-tag-empty">Nenhuma nova tag adicionada.</span>';
+        }
+    }
+
+    function render() {
+        list.innerHTML = '';
+        tags.forEach((tag, idx) => {
+            const chip = document.createElement('span');
+            chip.className = 'approval-new-tag-chip';
+            chip.textContent = tag;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'approval-new-tag-remove';
+            removeBtn.setAttribute('aria-label', 'Remover tag');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function () {
+                tags.splice(idx, 1);
+                syncHidden();
+                render();
+            });
+
+            chip.appendChild(removeBtn);
+            list.appendChild(chip);
+        });
+        renderEmptyHint();
+    }
+
+    function addTag(raw) {
+        const value = normalizeTag(raw);
+        if (!value) return;
+        const exists = tags.some((t) => t.toLowerCase() === value.toLowerCase());
+        if (exists) return;
+        tags.push(value);
+        syncHidden();
+        render();
+    }
+
+    function addFromInput() {
+        addTag(input.value);
+        input.value = '';
+        input.focus();
+    }
+
+    addBtn.addEventListener('click', addFromInput);
+    input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            addFromInput();
+        }
+    });
+
+    const initial = "{{ novas_tags|default:''|escapejs }}";
+    initial.split(/[,;\n]+/).forEach(addTag);
+    render();
+})();
+</script>
 {% endblock %}

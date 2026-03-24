@@ -54,6 +54,24 @@
         background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
         padding: 0.85rem; font-size: 0.88rem; color: #334155; white-space: pre-wrap; line-height: 1.6;
     }
+    .cdd-photos-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+    .cdd-photo-item {
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+    }
+    .cdd-photo-item img {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        display: block;
+    }
 
     /* ── Comentários ── */
     .cdd-comments-card {
@@ -149,6 +167,8 @@
         .cdd-info-grid { grid-template-columns: 1fr; }
         .cdd-labor-grid { grid-template-columns: 1fr; }
         .cdd-bubble { max-width: 90%; }
+        .cdd-photos-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cdd-photo-item img { height: 120px; }
     }
 </style>
 {% endblock %}
@@ -272,10 +292,10 @@
     <div class="cdd-card">
         <div class="cdd-card-body">
             <div class="cdd-section-title"><i class="fas fa-camera" style="color: #0ea5e9;"></i> Fotos ({{ diary.images.count }})</div>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+            <div class="cdd-photos-grid">
                 {% for image in diary.images.all %}
-                <div style="border-radius: 8px; overflow: hidden; cursor: pointer; aspect-ratio: 1;" onclick="window.open('{{ image.image.url }}', '_blank')">
-                    <img src="{{ image.image.url }}" alt="{{ image.caption|default:'Foto' }}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;">
+                <div class="cdd-photo-item" onclick="window.open('{{ image.image.url }}', '_blank')">
+                    <img src="{{ image.image.url }}" alt="{{ image.caption|default:'Foto' }}" loading="lazy">
                 </div>
                 {% endfor %}
             </div>
@@ -330,7 +350,7 @@
         {% else %}
         <div class="cdd-closed-msg">
             {% if comment_deadline %}
-            <i class="fas fa-lock"></i> O prazo de 24 horas para comentários encerrou em {{ comment_deadline|date:"d/m/Y H:i" }}. O histórico acima permanece visível.
+            <i class="fas fa-lock"></i> O prazo de 24 horas úteis para comentários encerrou em {{ comment_deadline|date:"d/m/Y H:i" }}. O histórico acima permanece visível.
             {% else %}
             <i class="fas fa-info-circle"></i> Comentários serão habilitados após o envio do diário.
             {% endif %}

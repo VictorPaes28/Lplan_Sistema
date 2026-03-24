@@ -699,7 +699,6 @@ def report_list_view(request):
 
 
 @login_required
-@project_required
 def diary_detail_view(request, pk):
     """View de detalhe do diário."""
     from collections import defaultdict
@@ -730,9 +729,15 @@ def diary_detail_view(request, pk):
         pk=pk
     )
     project = get_selected_project(request)
-    # Se há projeto na sessão, só permite ver diário desse projeto
+    # Se há projeto na sessão e é diferente do diário, faz auto-switch seguro
+    # quando o usuário tem permissão na obra do diário.
     if project is not None and diary.project_id != project.id:
-        raise Http404('Relatório não encontrado.')
+        if not _user_can_access_project(request.user, diary.project):
+            raise Http404('Relatório não encontrado.')
+        project = diary.project
+        request.session['selected_project_id'] = project.id
+        request.session['selected_project_name'] = project.name
+        request.session['selected_project_code'] = getattr(project, 'code', '')
     # Se não há projeto na sessão (ex.: link direto), só usa o projeto do diário se o usuário tiver acesso
     if project is None:
         if not _user_can_access_project(request.user, diary.project):
@@ -954,12 +959,39 @@ def _client_can_access_diary(user, diary):
 
 
 def _client_can_comment(diary):
-    """True se ainda está na janela de 24h para enviar comentários (a partir de sent_to_owner_at)."""
+    """True se ainda está na janela de 24h úteis para enviar comentários."""
+    deadline = _client_comment_deadline(diary)
+    return bool(deadline and timezone.now() <= deadline)
+
+
+def _client_comment_deadline(diary):
+    """
+    Calcula o prazo de comentários em 24 horas úteis.
+    Sábado e domingo não contam para a contagem.
+    """
     if not diary.sent_to_owner_at:
-        return False
-    from datetime import timedelta
-    deadline = diary.sent_to_owner_at + timedelta(hours=24)
-    return timezone.now() <= deadline
+        return None
+
+    hours_remaining = 24.0
+    current = diary.sent_to_owner_at
+
+    # Regra operacional: envio muito tarde na sexta-feira começa a contar na segunda.
+    if current.weekday() == 4 and current.hour >= 18:
+        current = (current + timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    while hours_remaining > 0:
+        # Pula finais de semana inteiros sem consumir horas.
+        while current.weekday() >= 5:  # 5=sábado, 6=domingo
+            current = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        next_midnight = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        available_today = (next_midnight - current).total_seconds() / 3600.0
+
+        step = min(hours_remaining, available_today)
+        current = current + timedelta(hours=step)
+        hours_remaining -= step
+
+    return current
 
 
 def _client_comment_rate_limited(request, diary_id, window_seconds=12):
@@ -996,10 +1028,10 @@ def client_diary_list_view(request):
         )
         enriched = []
         for d in diaries:
-            deadline = d.sent_to_owner_at + timedelta(hours=24)
+            deadline = _client_comment_deadline(d)
             enriched.append({
                 'diary': d,
-                'can_comment': now <= deadline,
+                'can_comment': bool(deadline and now <= deadline),
                 'deadline': deadline,
                 'comment_count': d.owner_comments.count(),
             })
@@ -1023,15 +1055,16 @@ def client_diary_detail_view(request, pk):
         pk=pk,
     )
     if not _client_can_access_diary(request.user, diary):
+        # Usuários internos (staff/membro da obra) podem cair aqui por link do cliente.
+        # Nesses casos, leva para a tela interna em vez de retornar 404.
+        if _user_can_access_project(request.user, diary.project):
+            return redirect('diary-detail', pk=pk)
         raise Http404("Você não tem acesso a este diário.")
     if diary.status != DiaryStatus.APROVADO:
         raise Http404("Diário não disponível para visualização.")
     comments = list(diary.owner_comments.select_related('author').order_by('created_at'))
     can_comment = _client_can_comment(diary)
-    comment_deadline = None
-    if diary.sent_to_owner_at:
-        from datetime import timedelta
-        comment_deadline = diary.sent_to_owner_at + timedelta(hours=24)
+    comment_deadline = _client_comment_deadline(diary)
     # Contexto mínimo para exibir o diário (reutiliza lógica de clima/labor se necessário)
     labor_by_type = {'Direto': {}, 'Indireto': {}, 'Terceiros': {}}
     for work_log in diary.work_logs.all():
@@ -1122,7 +1155,7 @@ def client_diary_add_comment_view(request, pk):
     if diary.status != DiaryStatus.APROVADO:
         raise PermissionDenied("Diário não disponível para comentário.")
     if not _client_can_comment(diary):
-        messages.error(request, "O prazo de 24 horas para enviar comentários foi encerrado.")
+        messages.error(request, "O prazo de 24 horas úteis para enviar comentários foi encerrado.")
         return redirect('client-diary-detail', pk=pk)
     if _client_comment_rate_limited(request, diary.pk):
         messages.warning(request, "Aguarde alguns segundos antes de enviar outro comentário.")
@@ -2621,28 +2654,49 @@ def diary_form_view(request, pk=None):
                         equipment_data = json.loads(equipment_data_json) if equipment_data_json else []
                         logger.info(f"Dados de equipamentos recebidos: {len(equipment_data)} itens")
                         
-                        equipment_items = []  # lista de (equipment, quantity) para through
+                        equipment_qty_by_id = {}  # equipment_id -> {'equipment': Equipment, 'quantity': int}
                         for equipment_item in equipment_data:
                             equipment_name = equipment_item.get('name', '').strip()
                             equipment_quantity = int(equipment_item.get('quantity') or 1)
                             
-                            if not equipment_name:
+                            if equipment_quantity <= 0:
                                 continue
-                            
-                            equipment_code = f"EQ-{equipment_name.upper().replace(' ', '-')[:20]}"
-                            
-                            equipment, created = Equipment.objects.get_or_create(
-                                code=equipment_code,
-                                defaults={
-                                    'name': equipment_name,
-                                    'equipment_type': equipment_name,
-                                    'is_active': True
+
+                            equipment = None
+                            equipment_id = equipment_item.get('equipment_id')
+                            if equipment_id:
+                                try:
+                                    equipment = Equipment.objects.filter(pk=int(equipment_id)).first()
+                                except (ValueError, TypeError):
+                                    equipment = None
+
+                            if equipment is None and not equipment_name:
+                                continue
+
+                            if equipment is None:
+                                equipment_code = f"EQ-{equipment_name.upper().replace(' ', '-')[:20]}"
+                                equipment, created = Equipment.objects.get_or_create(
+                                    code=equipment_code,
+                                    defaults={
+                                        'name': equipment_name,
+                                        'equipment_type': equipment_name,
+                                        'is_active': True
+                                    }
+                                )
+
+                            if equipment.pk not in equipment_qty_by_id:
+                                equipment_qty_by_id[equipment.pk] = {
+                                    'equipment': equipment,
+                                    'quantity': 0,
                                 }
-                            )
-                            
-                            equipment_items.append((equipment, equipment_quantity))
+                            equipment_qty_by_id[equipment.pk]['quantity'] += equipment_quantity
                             logger.info(f"Equipment processado: {equipment.name} x{equipment_quantity}")
-                        
+
+                        equipment_items = [
+                            (v['equipment'], v['quantity'])
+                            for v in equipment_qty_by_id.values()
+                            if v['quantity'] > 0
+                        ]
                         request._equipment_items = equipment_items
                     except (json.JSONDecodeError, ValueError) as e:
                         logger.debug(f"Erro ao processar dados de equipamentos: {e}")
@@ -3194,14 +3248,14 @@ def diary_form_view(request, pk=None):
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_labor (cópia): %s", e, exc_info=True)
     
-    # Equipamentos já salvos no diário (para edição ou cópia) – agregados por nome e quantity
+    # Equipamentos já salvos no diário (para edição ou cópia) – agregados por ID para evitar colisão por nome
     existing_diary_equipment = []
     equipment_source = (copy_source_diary if copy_source_diary and 'equipment' in copy_opts_list else None) or (diary if diary and diary.pk else None)
     if equipment_source:
         try:
             from collections import defaultdict
-            agg = defaultdict(int)
-            equipment_ids = {}
+            agg = defaultdict(int)  # key = equipment_id
+            equipment_meta = {}     # key = equipment_id -> {name, equipment_id}
             # Usar through (DailyWorkLogEquipment) para respeitar quantidade; fallback para M2M antigo
             from .models import DailyWorkLogEquipment
             through_rows = DailyWorkLogEquipment.objects.filter(
@@ -3209,20 +3263,29 @@ def diary_form_view(request, pk=None):
             ).select_related('equipment')
             if through_rows.exists():
                 for row in through_rows:
-                    name = row.equipment.name
-                    agg[name] += row.quantity
-                    equipment_ids[name] = row.equipment_id
+                    eq_id = row.equipment_id
+                    agg[eq_id] += row.quantity
+                    if eq_id not in equipment_meta:
+                        equipment_meta[eq_id] = {
+                            'name': row.equipment.name,
+                            'equipment_id': eq_id,
+                        }
             else:
                 # Fallback: diários antigos sem through (só M2M) contam 1 por ocorrência
                 for wl in equipment_source.work_logs.prefetch_related('resources_equipment').all():
                     for eq in wl.resources_equipment.all():
-                        agg[eq.name] += 1
-                        equipment_ids[eq.name] = eq.id
-            for name, qty in agg.items():
+                        agg[eq.id] += 1
+                        if eq.id not in equipment_meta:
+                            equipment_meta[eq.id] = {
+                                'name': eq.name,
+                                'equipment_id': eq.id,
+                            }
+            for eq_id, qty in agg.items():
+                meta = equipment_meta.get(eq_id, {})
                 existing_diary_equipment.append({
-                    'name': name,
+                    'name': meta.get('name', ''),
                     'quantity': qty,
-                    'equipment_id': equipment_ids.get(name),
+                    'equipment_id': meta.get('equipment_id'),
                 })
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_equipment (cópia): %s", e, exc_info=True)

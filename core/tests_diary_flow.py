@@ -11,6 +11,7 @@ Cobre:
 """
 from decimal import Decimal
 from datetime import date, timedelta
+import json
 
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -29,6 +30,8 @@ from core.models import (
     LaborCargo,
     DiaryOccurrence,
     OccurrenceTag,
+    Equipment,
+    DailyWorkLogEquipment,
 )
 from core.forms import (
     ConstructionDiaryForm,
@@ -112,7 +115,7 @@ class DiaryFlowTestCase(TestCase):
             inspection_responsible='Fulano',
             production_responsible='Ciclano',
         )
-        DailyWorkLog.objects.create(
+        self.source_worklog = DailyWorkLog.objects.create(
             diary=self.source_diary,
             activity=self.activity,
             location='Local X',
@@ -309,6 +312,57 @@ class DiaryFlowTestCase(TestCase):
         last = resp.context.get('last_diary_for_copy')
         self.assertIsNotNone(last)
         self.assertNotEqual(last['id'], newer.pk)
+
+    def test_copy_equipment_preserves_quantity_and_equipment_id(self):
+        """Copy de equipamentos deve manter quantity e equipment_id no contexto."""
+        self._login_and_select_project()
+        eq = Equipment.objects.create(
+            code='EQ-COPY-01',
+            name='Escavadeira Teste',
+            equipment_type='Escavadeira Teste',
+            is_active=True,
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=self.source_worklog,
+            equipment=eq,
+            quantity=3,
+        )
+
+        url = reverse('diary-new')
+        resp = self.client.get(url, {
+            'copy_from': str(self.source_diary.pk),
+            'copy': 'equipment',
+        })
+        self.assertEqual(resp.status_code, 200)
+        existing_equipment = resp.context.get('existing_diary_equipment') or []
+        item = next((x for x in existing_equipment if x.get('equipment_id') == eq.id), None)
+        self.assertIsNotNone(item, 'Equipamento copiado não encontrado por equipment_id')
+        self.assertEqual(item.get('quantity'), 3)
+
+    def test_save_with_duplicate_equipment_payload_aggregates_quantity(self):
+        """Payload duplicado de equipamentos deve ser agregado sem distorcer quantidade."""
+        self._login_and_select_project()
+        eq = Equipment.objects.create(
+            code='EQ-AGG-01',
+            name='Rolo Compactador',
+            equipment_type='Rolo Compactador',
+            is_active=True,
+        )
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['equipment_data'] = json.dumps([
+            {'equipment_id': eq.id, 'name': eq.name, 'quantity': 2},
+            {'equipment_id': eq.id, 'name': eq.name, 'quantity': 3},
+        ])
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:500] if resp.status_code != 302 else '')
+
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        through_rows = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=eq)
+        self.assertEqual(through_rows.count(), 1)
+        self.assertEqual(through_rows.first().quantity, 5)
 
     def test_save_full_requires_signature(self):
         """POST Salvar diário sem assinatura deve retornar ao form com erro (não redirecionar)."""

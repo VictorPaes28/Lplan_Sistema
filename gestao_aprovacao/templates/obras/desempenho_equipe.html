@@ -436,9 +436,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             topTagsHtml = '<span style="color: #868e96; font-style: italic; font-size: 0.8rem;">Nenhum motivo</span>';
                         }
                         
-                        // URLs de exportação
-                        let exportUrlCsv = '/exportar-historico-solicitante/' + item.solicitante_id + '/?dias=' + dias + '&formato=csv';
-                        let exportUrlPdf = '/exportar-historico-solicitante/' + item.solicitante_id + '/?dias=' + dias + '&formato=pdf';
+                        // URLs de exportação (sempre com namespace/prefixo correto de gestao)
+                        const exportBaseTemplate = "{% url 'gestao:exportar_historico_solicitante' 0 %}";
+                        const exportBase = exportBaseTemplate.replace('/0/', '/' + item.solicitante_id + '/');
+                        let exportUrlCsv = exportBase + '?dias=' + dias + '&formato=csv';
+                        let exportUrlPdf = exportBase + '?dias=' + dias + '&formato=pdf';
                         if (tipoSolicitacao) {
                             exportUrlCsv += '&tipo_solicitacao=' + encodeURIComponent(tipoSolicitacao);
                             exportUrlPdf += '&tipo_solicitacao=' + encodeURIComponent(tipoSolicitacao);

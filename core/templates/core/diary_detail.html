@@ -843,6 +843,12 @@
     max-width: 85%;
 }
 
+/* Desktop: evita fotos gigantes na visualização do diário */
+.diary-photo-thumb img {
+    height: 150px !important;
+    object-fit: cover;
+}
+
 @media (max-width: 768px) {
     .diary-detail-actions {
         width: 100%;
@@ -872,6 +878,9 @@
     }
     .diary-comment-bubble {
         max-width: 92%;
+    }
+    .diary-photo-thumb img {
+        height: 115px !important;
     }
     #edit-logs-modal .bg-white.rounded-lg.shadow-2xl.max-w-2xl {
         max-height: 92vh;

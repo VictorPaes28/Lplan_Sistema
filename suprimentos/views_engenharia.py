@@ -1279,8 +1279,11 @@ def dashboard_2(request):
                 if not (busca_lower in (item.insumo.descricao or '').lower() or
                        busca_lower in (item.insumo.codigo_sienge or '').lower() or
                        busca_lower in (item.numero_sc or '').lower() or
+                       busca_lower in (item.numero_pc or '').lower() or
                        busca_lower in (item.empresa_fornecedora or '').lower() or
-                       busca_lower in (item.categoria or '').lower()):
+                       busca_lower in (item.categoria or '').lower() or
+                       busca_lower in ((item.local_aplicacao.nome if item.local_aplicacao else '') or '').lower() or
+                       busca_lower in (item.insumo.unidade or '').lower()):
                     return False
             
             # Filtro por fornecedor

@@ -15,6 +15,13 @@ html, body {
     text-size-adjust: 100%;
 }
 
+/* Desktop: reduzir densidade geral (evita sensação de "zoom 110%") */
+@media (min-width: 768px) {
+    html, body {
+        font-size: clamp(12px, 0.74rem + 0.03vw, 13px);
+    }
+}
+
 /* Mantém controles nativos em tema claro (evita auto-darkening do navegador). */
 html {
     color-scheme: light;
@@ -537,7 +544,7 @@ button[data-sidebar-close] {
     }
     
     .top-bar-title {
-        font-size: 1.5rem;
+        font-size: 1.2rem;
     }
     
     .top-bar-subtitle {
@@ -1143,18 +1150,18 @@ main .report-status--draft,
    ============================================ */
 
 /* Tipografia fluida global */
-h1, .text-3xl { font-size: clamp(1.5rem, 1.25rem + 1vw, 1.875rem); }
-h2, .text-2xl { font-size: clamp(1.25rem, 1.1rem + 0.65vw, 1.5rem); }
-h3, .text-xl  { font-size: clamp(1.1rem, 1rem + 0.4vw, 1.25rem); }
-h4, .text-lg  { font-size: clamp(1rem, 0.95rem + 0.2vw, 1.125rem); }
-
-/* Prevenir zoom automático no iOS ao focar em inputs */
-input, select, textarea {
-    font-size: max(16px, 1em);
-}
+h1, .text-3xl { font-size: clamp(1.3rem, 1.1rem + 0.6vw, 1.55rem); }
+h2, .text-2xl { font-size: clamp(1.12rem, 1.01rem + 0.34vw, 1.28rem); }
+h3, .text-xl  { font-size: clamp(1rem, 0.95rem + 0.16vw, 1.08rem); }
+h4, .text-lg  { font-size: clamp(0.94rem, 0.9rem + 0.1vw, 1rem); }
 
 /* Touch targets mínimos globais — 44px para tudo clicável */
 @media (hover: none) and (pointer: coarse) {
+    /* Evita zoom no iOS ao focar campos (somente touch/mobile). */
+    input, select, textarea {
+        font-size: max(16px, 1em);
+    }
+
     button,
     [type="button"],
     [type="submit"],

@@ -172,6 +172,20 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
         if not (path.startswith('/api/diario/diaries') or path.startswith('/api/diaries/')):
             from django.http import HttpResponseNotFound
             return HttpResponseNotFound("Esta rota não existe na API. Use /diaries/ para o frontend.")
+
+        # Evita que links antigos caiam na tela do DRF sem autenticação.
+        # Se o acesso vier via navegador, redireciona para as páginas HTML corretas.
+        accept = request.META.get('HTTP_ACCEPT', '')
+        is_browser_html = ('text/html' in accept) or ('application/xhtml+xml' in accept)
+        if request.method == 'GET' and is_browser_html:
+            pk = kwargs.get('pk')
+            if path.startswith('/api/diario/'):
+                if pk:
+                    return HttpResponseRedirect(f'/cliente/diarios/{pk}/')
+                return HttpResponseRedirect('/cliente/diarios/')
+            if pk:
+                return HttpResponseRedirect(f'/diaries/{pk}/')
+            return HttpResponseRedirect('/reports/')
         return super().dispatch(request, *args, **kwargs)
     
     def get_serializer_class(self):
@@ -205,6 +219,8 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
         accept = request.META.get('HTTP_ACCEPT', '')
         # Navegador pedindo HTML ou link direto para /api/diario/diaries/<id> -> vai para o frontend
         if 'text/html' in accept or request.path.startswith('/api/diario/'):
+            if request.path.startswith('/api/diario/'):
+                return HttpResponseRedirect(f'/cliente/diarios/{pk}/')
             return HttpResponseRedirect(f'/diaries/{pk}/')
         return super().retrieve(request, *args, **kwargs)
     

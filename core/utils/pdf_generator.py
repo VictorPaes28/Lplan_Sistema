@@ -336,13 +336,12 @@ class PDFGenerator:
             for thru in wl.equipment_through.all():
                 eq = thru.equipment
                 qty = _safe_int(getattr(thru, 'quantity', 1), 1)
-                key = f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
+                key = getattr(eq, 'pk', None) or f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
                 if key not in equipment_count:
                     equipment_count[key] = {'equipment': eq, 'count': 0}
-                # Equipamentos são coletados no formulário em nível de diário.
-                # Usa o maior valor encontrado por equipamento para evitar dupla contagem
-                # quando, por legado, o mesmo payload foi associado a múltiplos worklogs.
-                equipment_count[key]['count'] = max(equipment_count[key]['count'], qty)
+                # Soma as quantidades efetivamente registradas no diário para refletir
+                # fielmente o que foi salvo, inclusive em cenários com múltiplos worklogs.
+                equipment_count[key]['count'] += qty
 
         total_indirect = sum(i['count'] for i in labor_by_type['I'].values())
         total_direct = sum(i['count'] for i in labor_by_type['D'].values())

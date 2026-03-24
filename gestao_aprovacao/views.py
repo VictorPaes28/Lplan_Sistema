@@ -103,6 +103,31 @@ def validar_extensao_arquivo(nome_arquivo):
     return any(nome_arquivo.endswith(ext) for ext in EXTENSOES_PERMITIDAS)
 
 
+def _get_approvers_for_exclusion(workorder):
+    """
+    Retorna usuários que efetivamente podem aprovar/rejeitar exclusão
+    para o pedido informado, seguindo a mesma regra das views de aprovação.
+    """
+    if workorder.obra.empresa_id is None:
+        approvers = User.objects.filter(
+            permissoes_obra__obra=workorder.obra,
+            permissoes_obra__tipo_permissao='aprovador',
+            permissoes_obra__ativo=True,
+        )
+    else:
+        approvers = User.objects.filter(
+            permissoes_obra__obra__empresa_id=workorder.obra.empresa_id,
+            permissoes_obra__tipo_permissao='aprovador',
+            permissoes_obra__ativo=True,
+        )
+
+    admins = User.objects.filter(
+        Q(is_superuser=True) | Q(groups__name='Administrador')
+    )
+
+    return (approvers | admins).distinct()
+
+
 @login_required
 def home(request):
     """View da home - mostra informações do sistema."""
@@ -1247,9 +1272,30 @@ def reject_workorder(request, pk):
     if request.method == 'POST':
         comentario = request.POST.get('comentario', '').strip()
         tags_selecionadas = request.POST.getlist('tags_erro')  # Lista de IDs das tags selecionadas
+        novas_tags_raw = (request.POST.get('novas_tags') or '').strip()
+
+        def _parse_novas_tags(raw_value):
+            # Aceita tags separadas por vírgula, ponto e vírgula ou quebra de linha.
+            if not raw_value:
+                return []
+            normalized = raw_value.replace(';', ',').replace('\n', ',')
+            tokens = [t.strip() for t in normalized.split(',')]
+            out = []
+            seen = set()
+            for token in tokens:
+                if not token:
+                    continue
+                key = token.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(token[:200])  # limite do campo nome
+            return out
+
+        novas_tags_nomes = _parse_novas_tags(novas_tags_raw)
         
         # Validar: pelo menos uma tag OU comentário deve ser fornecido
-        if not tags_selecionadas and not comentario:
+        if not tags_selecionadas and not novas_tags_nomes and not comentario:
             messages.error(request, 'É obrigatório selecionar pelo menos uma tag de erro ou informar um comentário ao reprovar um pedido.')
             # Buscar tags disponíveis para este tipo de solicitação
             from .models import TagErro
@@ -1264,6 +1310,7 @@ def reject_workorder(request, pk):
                 'comentario': comentario,
                 'tags_disponiveis': tags_disponiveis,
                 'tags_selecionadas': [int(t) for t in tags_selecionadas] if tags_selecionadas else [],
+                'novas_tags': novas_tags_raw,
             }
             return render(request, 'obras/approval_form.html', context)
         
@@ -1288,11 +1335,58 @@ def reject_workorder(request, pk):
             )
             
             # Adicionar tags selecionadas
+            all_tags = []
             if tags_selecionadas:
                 from .models import TagErro
                 tags_ids = [int(tag_id) for tag_id in tags_selecionadas]
-                tags = TagErro.objects.filter(id__in=tags_ids, tipo_solicitacao=workorder.tipo_solicitacao, ativo=True)
-                approval.tags_erro.set(tags)
+                tags = list(
+                    TagErro.objects.filter(
+                        id__in=tags_ids,
+                        tipo_solicitacao=workorder.tipo_solicitacao,
+                        ativo=True,
+                    )
+                )
+                all_tags.extend(tags)
+
+            # Criar novas tags (quando aprovador informar no momento da reprovação)
+            if novas_tags_nomes:
+                from .models import TagErro
+                try:
+                    max_ordem = TagErro.objects.filter(
+                        tipo_solicitacao=workorder.tipo_solicitacao
+                    ).order_by('-ordem').values_list('ordem', flat=True).first()
+                    next_ordem = int(max_ordem or 0)
+                except Exception:
+                    next_ordem = 0
+
+                for nome_tag in novas_tags_nomes:
+                    existing = TagErro.objects.filter(
+                        tipo_solicitacao=workorder.tipo_solicitacao,
+                        nome__iexact=nome_tag,
+                    ).first()
+                    if existing:
+                        if not existing.ativo:
+                            existing.ativo = True
+                            existing.save(update_fields=['ativo', 'updated_at'])
+                        all_tags.append(existing)
+                        continue
+
+                    next_ordem += 1
+                    nova_tag = TagErro.objects.create(
+                        nome=nome_tag,
+                        tipo_solicitacao=workorder.tipo_solicitacao,
+                        ativo=True,
+                        ordem=next_ordem,
+                        descricao='Tag criada durante reprovação',
+                    )
+                    all_tags.append(nova_tag)
+
+            if all_tags:
+                # remove duplicadas mantendo ordem estável
+                unique_by_id = {}
+                for t in all_tags:
+                    unique_by_id[t.id] = t
+                approval.tags_erro.set(list(unique_by_id.values()))
             
             # Atualizar status do pedido
             workorder.status = 'reprovado'
@@ -1344,6 +1438,9 @@ def reject_workorder(request, pk):
         'action': 'reprovar',
         'user_profile': get_user_profile(request.user),
         'tags_disponiveis': tags_disponiveis,
+        'tags_selecionadas': [],
+        'comentario': '',
+        'novas_tags': '',
     }
     return render(request, 'obras/approval_form.html', context)
 
@@ -2571,20 +2668,9 @@ def solicitar_exclusao(request, pk):
         workorder.motivo_exclusao = motivo
         workorder.save()
         
-        # Criar notificação para aprovadores da empresa
-        aprovadores = User.objects.filter(
-            permissoes_obra__obra__empresa=workorder.obra.empresa,
-            permissoes_obra__tipo_permissao='aprovador',
-            permissoes_obra__ativo=True
-        ).distinct()
-        
-        # Adicionar admins também
-        admins = User.objects.filter(
-            Q(is_superuser=True) | Q(groups__name='Administrador')
-        ).distinct()
-        
-        usuarios_notificar = set(list(aprovadores) + list(admins))
-        
+        # Notificar exatamente quem pode aprovar/rejeitar essa exclusão.
+        usuarios_notificar = _get_approvers_for_exclusion(workorder)
+
         for usuario in usuarios_notificar:
             criar_notificacao(
                 usuario=usuario,
@@ -3787,326 +3873,283 @@ def _gerar_csv_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     return response
 
 def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitacao, total_reprovacoes, tags_count):
-    """Gera PDF profissional e bem formatado com visual corporativo."""
+    """Gera PDF corporativo de histórico de reprovações (padrão visual LPLAN)."""
+    from reportlab.platypus import Image as RLImage
+
+    def _safe(v, default='-'):
+        return v if v not in (None, '') else default
+
+    def _money(v):
+        if not v:
+            return '-'
+        return f"R$ {v:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def _dt(v, default='-'):
+        if not v:
+            return default
+        return v.strftime('%d/%m/%Y %H:%M')
+
+    def _get_logo_path():
+        base = settings.BASE_DIR
+        logo_dir = os.path.join(base, 'core', 'static', 'core', 'images')
+        for name in ('lplan-logo2.png', 'lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg'):
+            p = os.path.join(logo_dir, name)
+            if os.path.exists(p):
+                return p
+        return None
+
+    color_primary = colors.HexColor('#1A3A5C')
+    color_accent = colors.HexColor('#E8F0F8')
+    color_border = colors.HexColor('#D0D9E3')
+    color_text = colors.HexColor('#1C1C1C')
+    color_sub = colors.HexColor('#5A5A5A')
+    color_warn_bg = colors.HexColor('#FFF3E0')
+    color_info_bg = colors.HexColor('#F4F8FC')
+
+    tipo_labels = {
+        'contrato': 'Contrato',
+        'medicao': 'Medição',
+        'ordem_servico': 'Ordem de Serviço (OS)',
+        'mapa_cotacao': 'Mapa de Cotação',
+    }
+    recommendation_keywords = [
+        (('document', 'anexo', 'arquivo', 'comprovante'), 'Reforçar checklist de anexos obrigatórios antes do envio.'),
+        (('valor', 'preço', 'orc', 'cotacao', 'cotação'), 'Padronizar revisão de valores e cotações com dupla conferência.'),
+        (('prazo', 'data', 'cronograma'), 'Conferir prazos e datas com o planejamento antes da submissão.'),
+        (('fornecedor', 'credor', 'empresa'), 'Validar dados cadastrais de fornecedor/credor na abertura da solicitação.'),
+        (('assinatura', 'assin'), 'Orientar assinatura e conferência final antes de concluir o fluxo.'),
+    ]
+
+    reprovacoes_list = list(reprovacoes)
+    tipos_count = {}
+    comentarios_registrados = 0
+    for item in reprovacoes_list:
+        tipo_label = tipo_labels.get(item.work_order.tipo_solicitacao, item.work_order.tipo_solicitacao or 'Não informado')
+        tipos_count[tipo_label] = tipos_count.get(tipo_label, 0) + 1
+        if item.comentario:
+            comentarios_registrados += 1
+
+    top_tags = sorted(tags_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    taxa_comentarios = round((comentarios_registrados / total_reprovacoes * 100), 1) if total_reprovacoes else 0
+    media_diaria = round((total_reprovacoes / dias_periodo), 2) if dias_periodo else 0
+    tag_frequente = f'{top_tags[0][0]} ({top_tags[0][1]}x)' if top_tags else '-'
+
+    recomendacoes = []
+    for tag, _count in top_tags:
+        tag_lower = (tag or '').lower()
+        for keywords, message in recommendation_keywords:
+            if any(k in tag_lower for k in keywords) and message not in recomendacoes:
+                recomendacoes.append(message)
+                break
+        if len(recomendacoes) >= 4:
+            break
+    if tipos_count:
+        tipo_mais_critico, qtd_critica = max(tipos_count.items(), key=lambda x: x[1])
+        recomendacoes.append(f'Priorizar treinamento do time em solicitações de "{tipo_mais_critico}" ({qtd_critica} reprovações no período).')
+    if not recomendacoes:
+        recomendacoes.append('Sem padrão crítico no período; manter monitoramento e feedback contínuo.')
+
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, 
-                            rightMargin=2*cm, leftMargin=2*cm,
-                            topMargin=2*cm, bottomMargin=2*cm)
-    
-    # Container para elementos do PDF
-    elements = []
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.7 * cm,
+        leftMargin=1.7 * cm,
+        topMargin=1.7 * cm,
+        bottomMargin=1.5 * cm,
+    )
     styles = getSampleStyleSheet()
-    
-    # Estilos customizados
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=20,
-        textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=12,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold'
+    elements = []
+
+    normal = ParagraphStyle('HistNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leading=12)
+    label = ParagraphStyle('HistLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=color_sub)
+    h2 = ParagraphStyle('HistH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=color_primary, spaceAfter=6)
+    bullet = ParagraphStyle('HistBullet', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leftIndent=10, bulletIndent=0, leading=12)
+    table_head = ParagraphStyle('HistTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, textColor=colors.white, alignment=TA_CENTER)
+
+    # Header com logo + identificação
+    title_main = Paragraph("RELATÓRIO DE HISTÓRICO DE REPROVAÇÕES", ParagraphStyle('HistTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=13, textColor=colors.white, alignment=TA_LEFT))
+    title_sub = Paragraph(
+        f"<font color='white' size='9'>GesttControll · Solicitante: {_safe(solicitante.get_full_name() or solicitante.username)} · Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
+        ParagraphStyle('HistSub', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.white),
     )
-    
-    heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading2'],
-        fontSize=14,
-        textColor=colors.HexColor('#34495e'),
-        spaceAfter=8,
-        fontName='Helvetica-Bold'
-    )
-    
-    normal_style = ParagraphStyle(
-        'CustomNormal',
-        parent=styles['Normal'],
-        fontSize=10,
-        textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=6,
-        fontName='Helvetica'
-    )
-    
-    # Título
-    elements.append(Paragraph('RELATÓRIO DE HISTÓRICO DE REPROVAÇÕES', title_style))
-    elements.append(Paragraph('Qualidade das Solicitações', styles['Heading3']))
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Informações do relatório
-    info_data = [
-        ['Solicitante:', solicitante.get_full_name() or solicitante.username],
-        ['E-mail:', solicitante.email or 'Não informado'],
-        ['Período Analisado:', f'Últimos {dias_periodo} dias'],
-    ]
-    
-    if tipo_solicitacao:
-        tipo_labels_header = {
-            'contrato': 'Contrato',
-            'medicao': 'Medição',
-            'ordem_servico': 'Ordem de Serviço (OS)',
-            'mapa_cotacao': 'Mapa de Cotação',
-        }
-        info_data.append(['Filtro de Tipo:', tipo_labels_header.get(tipo_solicitacao, tipo_solicitacao)])
+
+    logo_path = _get_logo_path()
+    if logo_path:
+        logo = RLImage(logo_path, width=2.2 * cm, height=1.0 * cm)
+        text_block = Table([[title_main], [title_sub]], colWidths=[13.4 * cm])
+        text_block.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        header = Table([[logo, text_block]], colWidths=[2.6 * cm, 13.4 * cm])
     else:
-        info_data.append(['Filtro de Tipo:', 'Todos os tipos'])
-    
-    info_data.append(['Data de Geração:', datetime.now().strftime('%d/%m/%Y às %H:%M')])
-    
-    info_table = Table(info_data, colWidths=[4*cm, 12*cm])
-    info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
-        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        header = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), color_primary),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#bdc3c7')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
-    elements.append(info_table)
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Resumo estatístico
-    elements.append(Paragraph('RESUMO ESTATÍSTICO', heading_style))
-    resumo_data = [
-        ['Total de Reprovações:', str(total_reprovacoes)],
+    elements.append(header)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    tipo_desc = tipo_labels.get(tipo_solicitacao, tipo_solicitacao) if tipo_solicitacao else 'Todos os tipos'
+    info_rows = [
+        [Paragraph('<b>Solicitante</b>', label), Paragraph(_safe(solicitante.get_full_name() or solicitante.username), normal)],
+        [Paragraph('<b>E-mail</b>', label), Paragraph(_safe(solicitante.email, 'Não informado'), normal)],
+        [Paragraph('<b>Período analisado</b>', label), Paragraph(f'Últimos {dias_periodo} dias', normal)],
+        [Paragraph('<b>Filtro de tipo</b>', label), Paragraph(tipo_desc, normal)],
     ]
-    if tags_count:
-        tag_mais_frequente = max(tags_count.items(), key=lambda x: x[1])
-        resumo_data.append(['Tag Mais Frequente:', f'{tag_mais_frequente[0]} ({tag_mais_frequente[1]} ocorrências)'])
-    
-    resumo_table = Table(resumo_data, colWidths=[4*cm, 12*cm])
-    resumo_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fff5f5')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
-        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dc3545')),
+    info_tbl = Table(info_rows, colWidths=[4.2 * cm, 11.8 * cm])
+    info_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), color_accent),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
-    elements.append(resumo_table)
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Detalhamento das reprovações - formato detalhado por item (cards)
-    if total_reprovacoes > 0:
-        elements.append(Paragraph('DETALHAMENTO DAS REPROVAÇÕES', heading_style))
-        elements.append(Spacer(1, 0.3*cm))
-        
-        # Preparar dados
-        tipo_labels = {
-            'contrato': 'Contrato',
-            'medicao': 'Medição',
-            'ordem_servico': 'Ordem de Serviço (OS)',
-            'mapa_cotacao': 'Mapa de Cotação',
-        }
-        
-        # Estilo para tags (destaque visual)
-        tag_style = ParagraphStyle(
-            'TagStyle',
-            parent=styles['Normal'],
-            fontSize=9,
-            textColor=colors.HexColor('#c82333'),
-            leading=13,
-            fontName='Helvetica-Bold',
-            spaceAfter=5
-        )
-        
-        # Estilo para títulos de seção dentro de cada card
-        card_title_style = ParagraphStyle(
-            'CardTitle',
-            parent=styles['Normal'],
-            fontSize=11,
-            textColor=colors.HexColor('#2c3e50'),
-            fontName='Helvetica-Bold',
-            spaceAfter=5
-        )
-        
-        # Estilo para valores
-        value_style = ParagraphStyle(
-            'ValueStyle',
-            parent=styles['Normal'],
-            fontSize=9,
-            textColor=colors.HexColor('#2c3e50'),
-            leading=12,
-            fontName='Helvetica'
-        )
-        
-        # Estilo para comentário
-        comentario_style = ParagraphStyle(
-            'ComentarioStyle',
-            parent=styles['Normal'],
-            fontSize=9,
-            textColor=colors.HexColor('#495057'),
-            leading=12,
-            fontName='Helvetica',
-            leftIndent=0.3*cm,
-            spaceAfter=8
-        )
-        
-        # Processar cada reprovação como um card detalhado
-        for idx, reprovacao in enumerate(reprovacoes, 1):
-            # Título do card (número da reprovação)
-            card_title = f'REPROVAÇÃO #{idx} de {total_reprovacoes}'
-            elements.append(Paragraph(card_title, card_title_style))
-            
-            # Criar card com informações detalhadas em formato de tabela
-            card_data = []
-            
-            # Linha 1: Data/Hora e Código
-            card_data.append([
-                Paragraph('<b>Data/Hora da Reprovação:</b>', value_style),
-                Paragraph(reprovacao.created_at.strftime('%d/%m/%Y às %H:%M'), value_style),
-                Paragraph('<b>Código do Pedido:</b>', value_style),
-                Paragraph(reprovacao.work_order.codigo or '-', value_style),
-            ])
-            
-            # Linha 2: Obra e Tipo
-            obra_completa = f"{reprovacao.work_order.obra.codigo} - {reprovacao.work_order.obra.nome}" if reprovacao.work_order.obra else '-'
-            card_data.append([
-                Paragraph('<b>Obra:</b>', value_style),
-                Paragraph(obra_completa, value_style),
-                Paragraph('<b>Tipo de Solicitação:</b>', value_style),
-                Paragraph(tipo_labels.get(reprovacao.work_order.tipo_solicitacao, reprovacao.work_order.tipo_solicitacao), value_style),
-            ])
-            
-            # Linha 3: Credor e Aprovador
-            aprovador_nome = reprovacao.aprovado_por.get_full_name() or reprovacao.aprovado_por.username if reprovacao.aprovado_por else '-'
-            card_data.append([
-                Paragraph('<b>Nome do Credor:</b>', value_style),
-                Paragraph(reprovacao.work_order.nome_credor or '-', value_style),
-                Paragraph('<b>Aprovador:</b>', value_style),
-                Paragraph(aprovador_nome, value_style),
-            ])
-            
-            # Linha 4: Valor e Prazo
-            valor_str = '-'
-            if reprovacao.work_order.valor_estimado:
-                valor_str = f"R$ {reprovacao.work_order.valor_estimado:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-            
-            prazo_str = '-'
-            if reprovacao.work_order.prazo_estimado:
-                prazo_str = f"{reprovacao.work_order.prazo_estimado} dia(s)"
-            
-            card_data.append([
-                Paragraph('<b>Valor Estimado:</b>', value_style),
-                Paragraph(valor_str, value_style),
-                Paragraph('<b>Prazo Estimado:</b>', value_style),
-                Paragraph(prazo_str, value_style),
-            ])
-            
-            # Linha 5: Datas de criação e envio
-            data_criacao = reprovacao.work_order.created_at.strftime('%d/%m/%Y às %H:%M') if reprovacao.work_order.created_at else '-'
-            data_envio = reprovacao.work_order.data_envio.strftime('%d/%m/%Y às %H:%M') if reprovacao.work_order.data_envio else 'Não enviado'
-            card_data.append([
-                Paragraph('<b>Data de Criação:</b>', value_style),
-                Paragraph(data_criacao, value_style),
-                Paragraph('<b>Data de Envio:</b>', value_style),
-                Paragraph(data_envio, value_style),
-            ])
-            
-            # Criar tabela do card
-            card_table = Table(card_data, colWidths=[4.5*cm, 5.5*cm, 3.5*cm, 2.5*cm])
-            card_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f8f9fa')),
-                ('BACKGROUND', (2, 0), (2, -1), colors.HexColor('#f8f9fa')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
-                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-                ('ALIGN', (2, 0), (2, -1), 'LEFT'),
-                ('ALIGN', (3, 0), (3, -1), 'LEFT'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
-                ('TOPPADDING', (0, 0), (-1, -1), 7),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e6e8ec')),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ]))
-            elements.append(card_table)
-            elements.append(Spacer(1, 0.3*cm))
-            
-            # Seção de Tags de Erro (destaque especial com fundo)
-            tags_list = [tag.nome for tag in reprovacao.tags_erro.all()]
-            if tags_list:
-                # Criar box destacado para tags
-                tags_box_data = [[
-                    Paragraph('<b>TAGS DE ERRO IDENTIFICADAS:</b>', card_title_style)
-                ]]
-                # Adicionar cada tag em uma linha
-                for tag in tags_list:
-                    tags_box_data.append([
-                        Paragraph(f'<font color="#c82333"><b>•</b></font> {tag}', tag_style)
-                    ])
-                
-                tags_box = Table(tags_box_data, colWidths=[16*cm])
-                tags_box.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#fff5f5')),
-                    ('BACKGROUND', (0, 1), (0, -1), colors.HexColor('#fffbf0')),
-                    ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#2c3e50')),
-                    ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                    ('FONTSIZE', (0, 0), (0, -1), 9),
-                    ('BOTTOMPADDING', (0, 0), (0, -1), 8),
-                    ('TOPPADDING', (0, 0), (0, -1), 8),
-                    ('LEFTPADDING', (0, 0), (0, -1), 10),
-                    ('RIGHTPADDING', (0, 0), (0, -1), 10),
-                    ('GRID', (0, 0), (0, -1), 1, colors.HexColor('#dc3545')),
-                    ('VALIGN', (0, 0), (0, -1), 'TOP'),
-                ]))
-                elements.append(tags_box)
-            else:
-                elements.append(Paragraph('<b>TAGS DE ERRO IDENTIFICADAS:</b>', card_title_style))
-                elements.append(Paragraph('<i style="color: #868e96;">Nenhuma tag registrada</i>', value_style))
-            
-            elements.append(Spacer(1, 0.3*cm))
-            
-            # Seção de Comentário do Aprovador
-            comentario_texto = reprovacao.comentario or 'Sem comentário'
-            elements.append(Paragraph('<b>COMENTÁRIO DO APROVADOR:</b>', card_title_style))
-            # Box para comentário
-            comentario_box = Table([[
-                Paragraph(comentario_texto.replace('\n', '<br/>'), comentario_style)
-            ]], colWidths=[16*cm])
-            comentario_box.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#f8f9fa')),
-                ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#495057')),
-                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-                ('FONTSIZE', (0, 0), (0, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (0, 0), 10),
-                ('TOPPADDING', (0, 0), (0, 0), 10),
-                ('LEFTPADDING', (0, 0), (0, 0), 10),
-                ('RIGHTPADDING', (0, 0), (0, 0), 10),
-                ('GRID', (0, 0), (0, 0), 0.5, colors.HexColor('#bdc3c7')),
-                ('VALIGN', (0, 0), (0, 0), 'TOP'),
-            ]))
-            elements.append(comentario_box)
-            
-            # Separador entre cards (exceto no último)
-            if idx < len(reprovacoes):
-                elements.append(Spacer(1, 0.5*cm))
-                # Linha separadora
-                separator = Table([['']], colWidths=[16*cm])
-                separator.setStyle(TableStyle([
-                    ('LINEBELOW', (0, 0), (0, 0), 2, colors.HexColor('#bdc3c7')),
-                    ('TOPPADDING', (0, 0), (0, 0), 0),
-                    ('BOTTOMPADDING', (0, 0), (0, 0), 0),
-                ]))
-                elements.append(separator)
-                elements.append(Spacer(1, 0.5*cm))
+    elements.append(info_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    elements.append(Paragraph('RESUMO EXECUTIVO', h2))
+    resumo_tbl = Table([
+        [
+            Paragraph('<b>Total de reprovações</b><br/><font size="11"><b>%s</b></font>' % total_reprovacoes, normal),
+            Paragraph('<b>Tag mais frequente</b><br/>%s' % _safe(tag_frequente), normal),
+            Paragraph('<b>Média diária</b><br/><font size="11"><b>%s</b></font> reprovações/dia' % media_diaria, normal),
+            Paragraph('<b>Com comentário</b><br/><font size="11"><b>%s%%</b></font>' % str(taxa_comentarios).replace('.', ','), normal),
+        ]
+    ], colWidths=[4 * cm, 4 * cm, 4 * cm, 4 * cm])
+    resumo_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), color_warn_bg),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.4, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(resumo_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    elements.append(Paragraph('TOP TAGS DE REPROVAÇÃO', h2))
+    if top_tags:
+        tags_data = [[Paragraph('Tag', table_head), Paragraph('Ocorrências', table_head)]]
+        for tag_name, qtd in top_tags:
+            tags_data.append([Paragraph(_safe(tag_name), normal), Paragraph(str(qtd), normal)])
+        tags_tbl = Table(tags_data, colWidths=[12.2 * cm, 3.8 * cm], repeatRows=1)
+        tags_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(tags_tbl)
     else:
-        elements.append(Paragraph('Nenhuma reprovação encontrada no período selecionado.', normal_style))
-    
-    # Construir PDF
+        elements.append(Paragraph('Sem tags registradas no período selecionado.', normal))
+    elements.append(Spacer(1, 0.28 * cm))
+
+    elements.append(Paragraph('REPROVAÇÕES POR TIPO DE SOLICITAÇÃO', h2))
+    if tipos_count:
+        tipos_data = [[Paragraph('Tipo', table_head), Paragraph('Quantidade', table_head)]]
+        for tipo_nome, quantidade in sorted(tipos_count.items(), key=lambda x: x[1], reverse=True):
+            tipos_data.append([Paragraph(_safe(tipo_nome), normal), Paragraph(str(quantidade), normal)])
+        tipos_tbl = Table(tipos_data, colWidths=[12.2 * cm, 3.8 * cm], repeatRows=1)
+        tipos_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(tipos_tbl)
+    else:
+        elements.append(Paragraph('Sem dados por tipo para o período selecionado.', normal))
+    elements.append(Spacer(1, 0.28 * cm))
+
+    elements.append(Paragraph('AÇÕES RECOMENDADAS', h2))
+    acoes_data = [[Paragraph('Plano de melhoria sugerido', table_head)]]
+    for acao in recomendacoes[:5]:
+        acoes_data.append([Paragraph(acao, bullet, bulletText='•')])
+    acoes_tbl = Table(acoes_data, colWidths=[16 * cm], repeatRows=1)
+    acoes_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), color_primary),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 1), (-1, -1), 0.25, color_border),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(acoes_tbl)
+    elements.append(Spacer(1, 0.32 * cm))
+
+    elements.append(Paragraph('DETALHAMENTO DAS REPROVAÇÕES', h2))
+    if total_reprovacoes <= 0:
+        elements.append(Paragraph('Nenhuma reprovação encontrada no período selecionado.', normal))
+    else:
+        table_data = [[
+            Paragraph('Data', table_head),
+            Paragraph('Pedido/Tipo', table_head),
+            Paragraph('Obra/Credor', table_head),
+            Paragraph('Tags e Comentário', table_head),
+        ]]
+        for r in reprovacoes_list:
+            wo = r.work_order
+            obra = f"{wo.obra.codigo} - {wo.obra.nome}" if wo.obra else '-'
+            aprovador = r.aprovado_por.get_full_name() or r.aprovado_por.username if r.aprovado_por else '-'
+            tags = ', '.join([t.nome for t in r.tags_erro.all()]) or 'Sem tags'
+            comentario = r.comentario or 'Sem comentário'
+
+            col_a = Paragraph(_dt(r.created_at), normal)
+            col_b = Paragraph(f"<b>{_safe(wo.codigo)}</b><br/>{tipo_labels.get(wo.tipo_solicitacao, wo.tipo_solicitacao)}<br/>Aprovador: {_safe(aprovador)}", normal)
+            col_c = Paragraph(f"{_safe(obra)}<br/>Credor: {_safe(wo.nome_credor)}<br/>Valor: {_money(wo.valor_estimado)} | Prazo: {_safe(wo.prazo_estimado)} dia(s)", normal)
+            col_d = Paragraph(f"<b>Tags:</b> {tags}<br/><b>Comentário:</b> {comentario}", normal)
+            table_data.append([col_a, col_b, col_c, col_d])
+
+        detail_tbl = Table(table_data, colWidths=[2.2 * cm, 4.1 * cm, 4.5 * cm, 5.2 * cm], repeatRows=1)
+        detail_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(detail_tbl)
+
     doc.build(elements)
     buffer.seek(0)
-    
-    # Criar resposta
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     nome_arquivo = f'historico_{solicitante.username}_{dias_periodo}dias_{datetime.now().strftime("%Y%m%d")}.pdf'
     response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
-    
     return response
 
 @login_required
