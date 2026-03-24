@@ -1930,14 +1930,14 @@ window.updateLaborQuantity = updateLaborQuantity;
         }
     }
     function buildCompanyCardHtml(companyName) {
-        var html = '<div class="flex items-center justify-between mb-3"><strong class="text-slate-800">' + escapeHtml(companyName) + '</strong><button type="button" class="terceirizada-remove-empresa text-red-600 hover:text-red-800 text-sm" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-times mr-1"></i>Remover</button></div><ul class="space-y-2">';
+        var html = '<div class="flex items-center justify-between mb-3"><strong class="text-slate-800">' + escapeHtml(companyName) + '</strong><button type="button" class="terceirizada-remove-empresa text-red-600 hover:text-red-800 text-sm" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-times mr-1"></i>Remover</button></div><ul class="diary-labor-cargo-list">';
         for (var j = 0; j < terceirizadaDynamicCargos.length; j++) {
             var cargo = terceirizadaDynamicCargos[j];
             var cargoName = String(cargo.name || '').trim();
             if (!cargoName) continue;
             var cargoRef = cargo.id ? cargoRefFromId(cargo.id) : cargoRefFromName(cargoName);
             var q = diaryLaborState[key(cargoRef, companyName)] || 0;
-            html += '<li class="flex items-center justify-between gap-2 py-1"><span class="text-sm text-slate-700">' + escapeHtml(cargoName) + '</span>';
+            html += '<li class="flex items-center justify-between gap-2 py-1 border-b border-slate-100 last:border-0"><span class="text-sm text-slate-800 flex-1">' + escapeHtml(cargoName) + '</span>';
             html += '<div class="flex items-center gap-1"><button type="button" class="diary-labor-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-minus text-xs"></i></button>';
             html += '<input type="number" min="0" value="' + q + '" class="diary-labor-qty w-14 text-center py-1.5 border border-slate-300 rounded-lg text-sm" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '">';
             html += '<button type="button" class="diary-labor-plus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '"><i class="fas fa-plus text-xs"></i></button></div></li>';
@@ -1945,19 +1945,37 @@ window.updateLaborQuantity = updateLaborQuantity;
         html += '</ul>';
         return html;
     }
+    function refreshLaborMobileFilter() {
+        var search = document.getElementById('labor-mobile-search');
+        if (!search) return;
+        try {
+            search.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (e) {
+            var evt = document.createEvent('Event');
+            evt.initEvent('input', true, true);
+            search.dispatchEvent(evt);
+        }
+    }
     function wireCompanyCard(card) {
         if (!card) return;
         var btn = card.querySelector('.terceirizada-remove-empresa');
         if (!btn) return;
         btn.addEventListener('click', function() {
             var cn = this.getAttribute('data-company');
-            var qs = card.querySelectorAll('.diary-labor-qty[data-company="' + cn + '"]');
+            var allInputs = card.querySelectorAll('.diary-labor-qty');
+            var qs = [];
+            for (var i = 0; i < allInputs.length; i++) {
+                if ((allInputs[i].getAttribute('data-company') || '') === (cn || '')) {
+                    qs.push(allInputs[i]);
+                }
+            }
             for (var i = 0; i < qs.length; i++) {
                 var ref = getElementCargoRef(qs[i]);
                 if (ref) setQuantity(ref, cn, 0);
             }
             card.remove();
             updateTerceirizadaCargoButtonState();
+            refreshLaborMobileFilter();
         });
     }
     function createCompanyCard(companyName) {
@@ -1970,6 +1988,7 @@ window.updateLaborQuantity = updateLaborQuantity;
         container.appendChild(card);
         wireCompanyCard(card);
         updateTerceirizadaCargoButtonState();
+        refreshLaborMobileFilter();
         return card;
     }
     function rerenderAllCompanyCards() {
@@ -1981,6 +2000,7 @@ window.updateLaborQuantity = updateLaborQuantity;
             cards[i].innerHTML = buildCompanyCardHtml(companyName);
             wireCompanyCard(cards[i]);
         }
+        refreshLaborMobileFilter();
     }
     function hasAnyTerceirizadaCompany() {
         var container = document.getElementById('terceirizada-empresas');
