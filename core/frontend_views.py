@@ -1058,7 +1058,9 @@ def client_diary_detail_view(request, pk):
         # Usuários internos (staff/membro da obra) podem cair aqui por link do cliente.
         # Nesses casos, leva para a tela interna em vez de retornar 404.
         if _user_can_access_project(request.user, diary.project):
-            return redirect('diary-detail', pk=pk)
+            # Evita colisão de nome de rota com a API (diary-detail do DRF),
+            # que pode causar loop de redirects no portal do cliente.
+            return redirect(f'/diaries/{pk}/')
         raise Http404("Você não tem acesso a este diário.")
     if diary.status != DiaryStatus.APROVADO:
         raise Http404("Diário não disponível para visualização.")

@@ -313,6 +313,17 @@ class DiaryFlowTestCase(TestCase):
         self.assertIsNotNone(last)
         self.assertNotEqual(last['id'], newer.pk)
 
+    def test_client_diary_detail_internal_user_redirects_to_frontend_detail(self):
+        """
+        Usuário interno acessando rota do cliente deve ir para /diaries/<pk>/.
+        Evita loop quando há colisão de nome de rota com endpoint da API.
+        """
+        self._login_and_select_project()
+        url = reverse('client-diary-detail', kwargs={'pk': self.source_diary.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, f'/diaries/{self.source_diary.pk}/')
+
     def test_copy_equipment_preserves_quantity_and_equipment_id(self):
         """Copy de equipamentos deve manter quantity e equipment_id no contexto."""
         self._login_and_select_project()
