@@ -10,6 +10,7 @@ Gerado exclusivamente com ReportLab (compatível cPanel/Servihost).
 import os
 import tempfile
 import base64
+import binascii
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from io import BytesIO
@@ -71,6 +72,37 @@ def _safe_pdf_multiline_text(value: Any, default: str = '', max_len: Optional[in
     return escaped.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br/>')
 
 
+def _decode_data_url_or_base64_image(raw: str) -> Optional[bytes]:
+    """
+    Decodifica assinatura/anexo em data URL ou base64 puro.
+    Tolera espaços/quebras (comum em payloads colados ou gerados pelo canvas) e
+    evita falha com validate=True do b64decode em dados válidos mas não estritos.
+    """
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    if 'base64,' in s:
+        s = s.split('base64,', 1)[1]
+    s = ''.join(s.split())
+    if not s:
+        return None
+    pad = (-len(s)) % 4
+    if pad:
+        s += '=' * pad
+    try:
+        decoded = base64.b64decode(s, validate=False)
+    except (binascii.Error, ValueError):
+        try:
+            decoded = base64.urlsafe_b64decode(s)
+        except (binascii.Error, ValueError):
+            return None
+    if not decoded:
+        return None
+    if len(decoded) > (3 * 1024 * 1024):
+        return None
+    return decoded
+
+
 # ReportLab (única dependência de PDF; já no requirements, funciona em cPanel)
 try:
     from reportlab.lib.pagesizes import A4
@@ -81,9 +113,9 @@ try:
         Paragraph,
         Spacer,
         Table,
+        LongTable,
         TableStyle,
         Image as RLImage,
-        PageBreak,
     )
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT, TA_CENTER
@@ -142,10 +174,6 @@ try:
 except ImportError:
     REPORTLAB_AVAILABLE = False
     canvas = None
-
-# Compatibilidade: views importam esses nomes (sempre False — usamos só ReportLab)
-WEASYPRINT_AVAILABLE = False
-XHTML2PDF_AVAILABLE = False
 
 
 class ImageOptimizer:
@@ -320,6 +348,8 @@ class PDFGenerator:
                 'work_logs__resources_equipment',
                 'occurrences',
                 'occurrences__tags',
+                'signatures',
+                'signatures__signer',
             ).get(pk=diary_id)
         except ConstructionDiary.DoesNotExist:
             raise ConstructionDiary.DoesNotExist(
@@ -359,7 +389,6 @@ class PDFGenerator:
         )
 
         labor_by_type = {'I': {}, 'D': {}, 'T': {}}
-        equipment_count = {}
         for wl in work_logs:
             for labor in wl.resources_labor.all():
                 labor_type = labor.labor_type
@@ -368,34 +397,14 @@ class PDFGenerator:
                     if key not in labor_by_type[labor_type]:
                         labor_by_type[labor_type][key] = {'labor': labor, 'count': 0}
                     labor_by_type[labor_type][key]['count'] += 1
-            through_items = list(wl.equipment_through.all())
-            if through_items:
-                for thru in through_items:
-                    eq = thru.equipment
-                    if eq is None:
-                        continue
-                    qty = max(1, _safe_int(getattr(thru, 'quantity', 1), 1))
-                    key = getattr(eq, 'pk', None) or f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
-                    if key not in equipment_count:
-                        equipment_count[key] = {'equipment': eq, 'count': 0}
-                    # Soma as quantidades efetivamente registradas no diário para refletir
-                    # fielmente o que foi salvo, inclusive em cenários com múltiplos worklogs.
-                    equipment_count[key]['count'] += qty
-            else:
-                # Compatibilidade com registros antigos sem linhas na tabela through.
-                for eq in wl.resources_equipment.all():
-                    if eq is None:
-                        continue
-                    key = getattr(eq, 'pk', None) or f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
-                    if key not in equipment_count:
-                        equipment_count[key] = {'equipment': eq, 'count': 0}
-                    equipment_count[key]['count'] += 1
+
+        from core.utils.diary_equipment import aggregate_equipment_for_diary
+        equipment_rows, total_equipment = aggregate_equipment_for_diary(diary, work_logs)
 
         total_indirect = sum(i['count'] for i in labor_by_type['I'].values())
         total_direct = sum(i['count'] for i in labor_by_type['D'].values())
         total_third_party = sum(i['count'] for i in labor_by_type['T'].values())
         total_labor = total_indirect + total_direct + total_third_party
-        total_equipment = sum(i['count'] for i in equipment_count.values())
 
         labor_entries_by_category = None
         try:
@@ -461,8 +470,8 @@ class PDFGenerator:
                 total_direct=total_direct,
                 total_third_party=total_third_party,
                 total_labor=total_labor,
-                equipment_count=equipment_count,
                 total_equipment=total_equipment,
+                equipment_rows=equipment_rows,
                 images_with_paths=images_with_paths,
                 occurrences=occurrences,
                 pdf_type=pdf_type,
@@ -500,7 +509,7 @@ class PDFGenerator:
         total_direct: int,
         total_third_party: int,
         total_labor: int,
-        equipment_count: Dict,
+        equipment_rows: List[Dict[str, Any]],
         total_equipment: int,
         images_with_paths: List[Dict],
         occurrences: List,
@@ -518,6 +527,7 @@ class PDFGenerator:
             Paragraph,
             Spacer,
             Table,
+            LongTable,
             TableStyle,
             Image as RLImage,
         )
@@ -732,7 +742,7 @@ class PDFGenerator:
         content_width = 17 * cm
         # Largura interna menor que a célula para evitar availWidth negativo no ReportLab (padding da célula)
         inner_width = content_width - 0.6 * cm
-        inner_act = Table(act_rows, colWidths=[inner_width])
+        inner_act = LongTable(act_rows, colWidths=[inner_width], repeatRows=0)
         inner_act.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, 0), COLOR_ACCENT),
             ('LEFTPADDING', (0, 0), (-1, -1), 10),
@@ -809,7 +819,7 @@ class PDFGenerator:
             for i in range(len(col_t), n):
                 col_t.append(empty)
             efetivo_data = [[col_i[r], col_d[r], col_t[r]] for r in range(n)]
-            t_efetivo = Table(efetivo_data, colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm])
+            t_efetivo = LongTable(efetivo_data, colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm], repeatRows=1)
             t_efetivo.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
                 ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),
@@ -841,29 +851,21 @@ class PDFGenerator:
             story.append(total_row)
             story.append(Spacer(1, 0.25 * cm))
 
-        # Equipamentos
-        if equipment_count:
+        # Equipamentos (ordem = primeira ocorrência no diário, igual agregação do formulário)
+        if equipment_rows:
             story.append(Paragraph("EQUIPAMENTOS", heading_style))
             data = [[Paragraph('Equipamento', table_header_style), Paragraph('Qtd', table_header_style)]]
-            equipment_items = sorted(
-                equipment_count.values(),
-                key=lambda item: (
-                    (getattr(item.get('equipment'), 'code', '') or '').lower(),
-                    (getattr(item.get('equipment'), 'name', '') or '').lower(),
-                    getattr(item.get('equipment'), 'pk', 0) or 0,
-                ),
-            )
-            for item in equipment_items:
+            for item in equipment_rows:
                 eq = item['equipment']
                 code = _safe_pdf_text(getattr(eq, 'code', '') or '', default='')
                 name = _safe_pdf_text(getattr(eq, 'name', '') or '', default='Sem nome')
                 label = f"{code} – {name}" if code else name
                 data.append([
                     Paragraph(label, normal_style),
-                    Paragraph(str(item['count']), normal_style),
+                    Paragraph(str(item['quantity']), normal_style),
                 ])
             data.append([Paragraph('TOTAL', normal_style), Paragraph(str(total_equipment), normal_style)])
-            t_eq = Table(data, colWidths=[10 * cm, 2 * cm])
+            t_eq = LongTable(data, colWidths=[10 * cm, 2 * cm], repeatRows=1)
             t_eq.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), COLOR_PRIMARY),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -967,7 +969,7 @@ class PDFGenerator:
             border_color = COLOR_WARNING if occurrences else COLOR_PRIMARY
             bg_color = COLOR_OCCURRENCE_BG if occurrences else COLOR_ACCENT
             inner_width = content_width - 0.6 * cm
-            inner_occ = Table(occ_rows, colWidths=[inner_width])
+            inner_occ = LongTable(occ_rows, colWidths=[inner_width], repeatRows=0)
             inner_occ.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (0, 0), bg_color),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
@@ -1040,7 +1042,7 @@ class PDFGenerator:
                     if row_cells:
                         photo_cells.append(row_cells)
                 if photo_cells:
-                    t_photo = Table(photo_cells, colWidths=[img_w + 0.5 * cm] * 2)
+                    t_photo = LongTable(photo_cells, colWidths=[img_w + 0.5 * cm] * 2, repeatRows=0)
                     t_photo.setStyle(TableStyle([
                         ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
                         ('LINEBEFORE', (0, 0), (0, -1), 2, COLOR_PRIMARY),
@@ -1061,7 +1063,12 @@ class PDFGenerator:
         # Assinatura — bloco único de responsável pelo preenchimento (nome + assinatura desenhada)
         story.append(Spacer(1, 0.4 * cm))
         insp = getattr(diary, 'inspection_responsible', None) and diary.inspection_responsible.strip()
-        inspection_signature = diary.signatures.filter(signature_type='inspection').order_by('-signed_at').first()
+        inspection_signature = (
+            diary.signatures.filter(signature_type='inspection')
+            .select_related('signer')
+            .order_by('-signed_at')
+            .first()
+        )
         insp_name = insp
         if not insp_name and inspection_signature and inspection_signature.signer:
             insp_name = (
@@ -1081,12 +1088,9 @@ class PDFGenerator:
         signature_image_flowable = None
         if inspection_signature and inspection_signature.signature_data:
             try:
-                raw_data = inspection_signature.signature_data.strip()
-                if 'base64,' in raw_data:
-                    raw_data = raw_data.split('base64,', 1)[1]
-                decoded = base64.b64decode(raw_data, validate=True)
-                if len(decoded) > (2 * 1024 * 1024):
-                    raise ValueError("Assinatura excede tamanho máximo permitido.")
+                decoded = _decode_data_url_or_base64_image(inspection_signature.signature_data)
+                if not decoded or len(decoded) > (2 * 1024 * 1024):
+                    raise ValueError("Assinatura inválida ou excede tamanho máximo permitido.")
                 signature_stream = BytesIO(decoded)
 
                 max_sig_w = 6.2 * cm

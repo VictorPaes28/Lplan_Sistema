@@ -42,8 +42,6 @@ from accounts.signup_services import (
 logger = logging.getLogger(__name__)
 # PDFGenerator será importado apenas quando necessário (lazy import)
 PDFGenerator = None
-WEASYPRINT_AVAILABLE = False
-XHTML2PDF_AVAILABLE = False
 REPORTLAB_AVAILABLE = False
 
 # Mapeamento obra → contratante para autopreencher o formulário do diário.
@@ -3255,39 +3253,14 @@ def diary_form_view(request, pk=None):
     equipment_source = (copy_source_diary if copy_source_diary and 'equipment' in copy_opts_list else None) or (diary if diary and diary.pk else None)
     if equipment_source:
         try:
-            from collections import defaultdict
-            agg = defaultdict(int)  # key = equipment_id
-            equipment_meta = {}     # key = equipment_id -> {name, equipment_id}
-            # Usar through (DailyWorkLogEquipment) para respeitar quantidade; fallback para M2M antigo
-            from .models import DailyWorkLogEquipment
-            through_rows = DailyWorkLogEquipment.objects.filter(
-                work_log__diary=equipment_source
-            ).select_related('equipment')
-            if through_rows.exists():
-                for row in through_rows:
-                    eq_id = row.equipment_id
-                    agg[eq_id] += row.quantity
-                    if eq_id not in equipment_meta:
-                        equipment_meta[eq_id] = {
-                            'name': row.equipment.name,
-                            'equipment_id': eq_id,
-                        }
-            else:
-                # Fallback: diários antigos sem through (só M2M) contam 1 por ocorrência
-                for wl in equipment_source.work_logs.prefetch_related('resources_equipment').all():
-                    for eq in wl.resources_equipment.all():
-                        agg[eq.id] += 1
-                        if eq.id not in equipment_meta:
-                            equipment_meta[eq.id] = {
-                                'name': eq.name,
-                                'equipment_id': eq.id,
-                            }
-            for eq_id, qty in agg.items():
-                meta = equipment_meta.get(eq_id, {})
+            from core.utils.diary_equipment import aggregate_equipment_for_diary
+            rows_agg, _tot = aggregate_equipment_for_diary(equipment_source)
+            for r in rows_agg:
+                eq = r['equipment']
                 existing_diary_equipment.append({
-                    'name': meta.get('name', ''),
-                    'quantity': qty,
-                    'equipment_id': meta.get('equipment_id'),
+                    'name': getattr(eq, 'name', '') or '',
+                    'quantity': r['quantity'],
+                    'equipment_id': r['equipment_id'],
                 })
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_equipment (cópia): %s", e, exc_info=True)
@@ -3357,20 +3330,16 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
     View para gerar e retornar PDF do diário.
     pdf_type: 'normal', 'detailed', 'no_photos'
     """
-    # Importação lazy do PDFGenerator
-    global PDFGenerator, WEASYPRINT_AVAILABLE, XHTML2PDF_AVAILABLE, REPORTLAB_AVAILABLE
-    
+    # Importação lazy do PDFGenerator (ReportLab)
+    global PDFGenerator, REPORTLAB_AVAILABLE
+
     if PDFGenerator is None:
         try:
             from .utils.pdf_generator import (
                 PDFGenerator as PDFGen,
-                WEASYPRINT_AVAILABLE as WP_AVAILABLE,
-                XHTML2PDF_AVAILABLE as XP_AVAILABLE,
                 REPORTLAB_AVAILABLE as RL_AVAILABLE,
             )
             PDFGenerator = PDFGen
-            WEASYPRINT_AVAILABLE = WP_AVAILABLE
-            XHTML2PDF_AVAILABLE = XP_AVAILABLE
             REPORTLAB_AVAILABLE = RL_AVAILABLE
         except Exception as e:
             import logging
@@ -3378,22 +3347,18 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
                 "Falha ao importar gerador de PDF: %s. Instale reportlab e Pillow: pip install reportlab Pillow",
                 e,
             )
-            WEASYPRINT_AVAILABLE = False
-            XHTML2PDF_AVAILABLE = False
             REPORTLAB_AVAILABLE = False
             messages.error(request, "Geração de PDF não disponível neste ambiente.")
             return redirect('diary-detail', pk=pk)
-    
+
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
-    
-    # Verifica se pelo menos uma biblioteca está disponível
-    if not WEASYPRINT_AVAILABLE and not XHTML2PDF_AVAILABLE and not REPORTLAB_AVAILABLE:
+
+    if not REPORTLAB_AVAILABLE:
         messages.error(request, "Geração de PDF não disponível neste ambiente.")
         return redirect('diary-detail', pk=pk)
-    
+
     try:
-        # Gera PDF (mesmo padrão do GestControll: WeasyPrint/xhtml2pdf com fallback para ReportLab)
         pdf_buffer = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
         
         if pdf_buffer:
@@ -3419,12 +3384,8 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
             return redirect('diary-detail', pk=pk)
     except Exception as e:
         import traceback
-        from django.conf import settings
         tb = traceback.format_exc()
         logger.error("Erro ao gerar PDF do diário %s: %s\n%s", diary.id, e, tb, exc_info=False)
-        if getattr(settings, 'DEBUG', False):
-            import sys
-            print(tb, file=sys.stderr)
         messages.error(request, f"Erro ao gerar PDF: {str(e)}")
         return redirect('diary-detail', pk=pk)
 

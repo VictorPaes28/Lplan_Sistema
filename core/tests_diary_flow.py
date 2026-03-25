@@ -39,6 +39,7 @@ from core.forms import (
     DailyWorkLogFormSet,
     DiaryOccurrenceFormSet,
 )
+from core.utils.diary_equipment import aggregate_equipment_for_diary
 
 
 def _minimal_diary_post(project, diary_date, partial_save=True, signature_inspection='', **extra):
@@ -374,6 +375,93 @@ class DiaryFlowTestCase(TestCase):
         through_rows = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=eq)
         self.assertEqual(through_rows.count(), 1)
         self.assertEqual(through_rows.first().quantity, 5)
+
+    def test_aggregate_equipment_matches_form_totals(self):
+        """PDF e formulário usam aggregate_equipment_for_diary: totais e IDs batem."""
+        eq_a = Equipment.objects.create(
+            code='AGG-A',
+            name='Equip A',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        eq_b = Equipment.objects.create(
+            code='AGG-B',
+            name='Equip B',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=self.source_worklog,
+            equipment=eq_a,
+            quantity=2,
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=self.source_worklog,
+            equipment=eq_b,
+            quantity=4,
+        )
+        rows, total = aggregate_equipment_for_diary(self.source_diary)
+        by_id = {r['equipment_id']: r['quantity'] for r in rows}
+        self.assertEqual(by_id.get(eq_a.id), 2)
+        self.assertEqual(by_id.get(eq_b.id), 4)
+        self.assertEqual(total, 6)
+        self.assertEqual(len(rows), 2)
+
+    def test_copy_then_save_equipment_matches_pdf_aggregate(self):
+        """
+        Copiar relatório (GET) e salvar com equipment_data: o banco deve refletir as quantidades
+        e aggregate_equipment_for_diary (mesmo cálculo do PDF) deve bater.
+        """
+        self._login_and_select_project()
+        eq = Equipment.objects.create(
+            code='EQ-CHAIN-01',
+            name='Equip Copia PDF',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=self.source_worklog,
+            equipment=eq,
+            quantity=7,
+        )
+        url = reverse('diary-new')
+        resp_get = self.client.get(url, {
+            'copy_from': str(self.source_diary.pk),
+            'copy': 'equipment',
+        })
+        self.assertEqual(resp_get.status_code, 200)
+        existing = resp_get.context.get('existing_diary_equipment') or []
+        pre = next((x for x in existing if x.get('equipment_id') == eq.id), None)
+        self.assertIsNotNone(pre)
+        self.assertEqual(pre.get('quantity'), 7)
+
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['equipment_data'] = json.dumps([
+            {'equipment_id': eq.id, 'name': eq.name, 'quantity': 7},
+        ])
+        resp_post = self.client.post(url, post)
+        self.assertEqual(resp_post.status_code, 302, getattr(resp_post, 'content', b'')[:500])
+
+        diary_first = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary_first)
+        rows1, total1 = aggregate_equipment_for_diary(diary_first)
+        self.assertEqual(total1, 7)
+        self.assertEqual(
+            {r['equipment_id']: r['quantity'] for r in rows1},
+            {eq.id: 7},
+        )
+
+        # Cópia da cópia (GET): fonte = diário recém-salvo deve expor os mesmos totais no contexto
+        resp_get2 = self.client.get(url, {
+            'copy_from': str(diary_first.pk),
+            'copy': 'equipment',
+        })
+        self.assertEqual(resp_get2.status_code, 200)
+        existing2 = resp_get2.context.get('existing_diary_equipment') or []
+        pre2 = next((x for x in existing2 if x.get('equipment_id') == eq.id), None)
+        self.assertIsNotNone(pre2, 'Segunda cópia (GET) deve trazer o mesmo equipamento')
+        self.assertEqual(pre2.get('quantity'), 7)
 
     def test_save_full_requires_signature(self):
         """POST Salvar diário sem assinatura deve retornar ao form com erro (não redirecionar)."""

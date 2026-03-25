@@ -257,13 +257,10 @@ class ConstructionDiaryViewSet(viewsets.ModelViewSet):
             try:
                 from core.utils.pdf_generator import (
                     PDFGenerator,
-                    WEASYPRINT_AVAILABLE,
-                    XHTML2PDF_AVAILABLE,
                     REPORTLAB_AVAILABLE,
                     get_rdo_pdf_filename,
                 )
-                PDF_AVAILABLE = WEASYPRINT_AVAILABLE or XHTML2PDF_AVAILABLE or REPORTLAB_AVAILABLE
-                if not PDF_AVAILABLE:
+                if not REPORTLAB_AVAILABLE:
                     return Response(
                         {
                             'error': 'Geração de PDF não disponível neste ambiente.',

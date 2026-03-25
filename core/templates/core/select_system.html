@@ -858,17 +858,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Preencha Categoria, Severidade, Título e Descrição.');
                 return;
             }
-            var now = new Date();
-            var timestamp = now.toLocaleString();
-            var context = [
-                'Usuário: {{ user.username|escapejs }}',
-                'Nome: {{ user.get_full_name|default:user.username|escapejs }}',
-                'Tela atual: ' + window.location.pathname,
-                'URL completa: ' + window.location.href,
-                'Navegador: ' + navigator.userAgent,
-                'Data/hora local: ' + timestamp,
-                'Timezone: ' + Intl.DateTimeFormat().resolvedOptions().timeZone
-            ];
             var bodyLines = [
                 'Categoria: ' + supportCategory.value,
                 'Severidade: ' + supportSeverity.value,
@@ -876,9 +865,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 '',
                 'Descricao:',
                 supportDesc.value.trim(),
-                '',
-                'Contexto automatico:',
-                context.join('\n'),
                 '',
                 'Anexo sugerido: print da tela/erro.'
             ];
