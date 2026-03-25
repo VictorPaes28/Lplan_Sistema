@@ -912,9 +912,23 @@ def diary_detail_view(request, pk):
     signature_inspection = signatures.filter(signature_type='inspection').first()
     signature_production = signatures.filter(signature_type='production').first()
     
+    diary_provisional_edit_unlocked = bool(getattr(diary, 'provisional_edit_granted_at', None))
+    diary_edit_request_pending = bool(
+        getattr(diary, 'edit_requested_at', None) and not diary_provisional_edit_unlocked
+    )
+    show_request_edit_diary = (
+        diary.is_approved()
+        and _user_can_access_project(request.user, diary.project)
+        and not diary_provisional_edit_unlocked
+        and not diary_edit_request_pending
+    )
+
     context = {
         'diary': diary,
         'user': request.user,
+        'show_request_edit_diary': show_request_edit,
+        'diary_edit_request_pending': diary_edit_request_pending,
+        'diary_provisional_edit_unlocked': diary_provisional_edit_unlocked,
         'weather_morning': weather_morning,
         'weather_afternoon': weather_afternoon,
         'weather_night': weather_night,
@@ -1143,6 +1157,40 @@ def diary_delete_view(request, pk):
     diary.delete()
     messages.success(request, f"Relatório de {date_str} foi excluído.")
     return redirect('report-list')
+
+
+@login_required
+@project_required
+@require_http_methods(['POST'])
+def diary_request_edit_view(request, pk):
+    """
+    Pedido de correção em relatório aprovado: regista o pedido para o staff liberar edição provisória.
+    """
+    diary = get_object_or_404(ConstructionDiary.objects.select_related('project'), pk=pk)
+    if diary.project_id != get_selected_project(request).id:
+        raise Http404()
+    if not _user_can_access_project(request.user, diary.project):
+        raise Http404()
+    if not diary.is_approved():
+        messages.error(request, 'Só é possível pedir correção em relatórios aprovados.')
+        return redirect('diary-detail', pk=pk)
+    if diary.provisional_edit_granted_at:
+        messages.info(request, 'Este relatório já tem edição liberada.')
+        return redirect('diary-detail', pk=pk)
+    if diary.edit_requested_at and not diary.provisional_edit_granted_at:
+        messages.info(request, 'Já existe um pedido de correção pendente.')
+        return redirect('diary-detail', pk=pk)
+    note = (request.POST.get('note') or '').strip()[:2000]
+    ConstructionDiary.objects.filter(pk=diary.pk).update(
+        edit_requested_at=timezone.now(),
+        edit_requested_by=request.user,
+        edit_request_note=note,
+    )
+    messages.success(
+        request,
+        'Pedido de correção enviado. Quando um administrador liberar, o botão Editar ficará disponível.',
+    )
+    return redirect('diary-detail', pk=pk)
 
 
 @login_required
@@ -1861,6 +1909,10 @@ def diary_form_view(request, pk=None):
     copy_options_raw = ''
     
     if request.method == 'POST':
+        # Liberação provisória: após guardar com sucesso, limpa estes campos (captura antes do POST)
+        had_provisional_unlock = bool(
+            diary and diary.pk and getattr(diary, 'provisional_edit_granted_at', None)
+        )
         # Verifica permissão de edição antes de processar (se for edição)
         if diary and not diary.can_be_edited_by(request.user):
             messages.error(request, 'Você não tem permissão para editar este diário.')
@@ -2968,6 +3020,14 @@ def diary_form_view(request, pk=None):
             # Se chegou aqui, a transação foi commitada com sucesso
             if image_valid and worklog_valid and occurrence_valid:
                 from django.urls import reverse
+                if had_provisional_unlock and diary and diary.pk:
+                    ConstructionDiary.objects.filter(pk=diary.pk).update(
+                        provisional_edit_granted_at=None,
+                        provisional_edit_granted_by_id=None,
+                        edit_requested_at=None,
+                        edit_requested_by_id=None,
+                        edit_request_note='',
+                    )
                 # Salvar diário (não rascunho) = diário aprovado → enviar e-mail ao dono da obra
                 if not is_partial_save and diary and diary.status == DiaryStatus.APROVADO:
                     try:

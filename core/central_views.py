@@ -24,7 +24,7 @@ import csv
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from accounts.groups import GRUPOS
-from core.models import Project, ProjectOwner
+from core.models import Project, ProjectOwner, ConstructionDiary
 
 
 def _staff_required(f):
@@ -775,3 +775,41 @@ def central_client_remove_owner(request, pk):
     else:
         messages.success(request, f'Vínculo com "{project_code}" removido.')
     return redirect('central_clients')
+
+
+@login_required
+@_staff_required
+def central_diary_edit_requests_view(request):
+    """Lista pedidos de correção em relatórios aprovados (aguardando liberação de edição)."""
+    pending = (
+        ConstructionDiary.objects.filter(
+            edit_requested_at__isnull=False,
+            provisional_edit_granted_at__isnull=True,
+        )
+        .select_related('project', 'edit_requested_by')
+        .order_by('-edit_requested_at')
+    )
+    return render(request, 'core/central_diary_edit_requests.html', {'pending': pending})
+
+
+@login_required
+@_staff_required
+def central_diary_grant_provisional_edit(request, pk):
+    """Libera edição provisória do diário (staff). O utilizador pode editar até guardar."""
+    if request.method != 'POST':
+        return redirect('central_diary_edit_requests')
+    diary = get_object_or_404(ConstructionDiary, pk=pk)
+    if not diary.edit_requested_at:
+        messages.error(request, 'Este relatório não tem pedido de correção pendente.')
+        return redirect('central_diary_edit_requests')
+    if diary.provisional_edit_granted_at:
+        messages.info(request, 'Este relatório já tem edição liberada.')
+        return redirect('central_diary_edit_requests')
+    diary.provisional_edit_granted_at = timezone.now()
+    diary.provisional_edit_granted_by = request.user
+    diary.save(update_fields=['provisional_edit_granted_at', 'provisional_edit_granted_by', 'updated_at'])
+    messages.success(
+        request,
+        f'Edição liberada para o relatório nº {diary.report_number or diary.pk} ({diary.project.code}).',
+    )
+    return redirect('central_diary_edit_requests')

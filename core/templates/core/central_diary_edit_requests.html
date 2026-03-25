@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Pedidos de correção — RDO{% endblock %}
+{% block page_subtitle %}Relatórios aprovados com pedido de edição{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">
+        Quando um utilizador solicita correção num relatório já aprovado, o pedido aparece aqui.
+        Ao <strong>liberar edição</strong>, o botão Editar fica disponível na página do relatório até o utilizador guardar.
+    </p>
+
+    {% if not pending %}
+    <div class="bg-white rounded-lg border border-slate-200 p-8 text-center text-slate-600">
+        <i class="fas fa-check-circle text-emerald-500 text-2xl mb-2" aria-hidden="true"></i>
+        <p>Nenhum pedido pendente.</p>
+    </div>
+    {% else %}
+    <div class="space-y-4">
+        {% for d in pending %}
+        <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="font-semibold text-slate-900">
+                        Obra {{ d.project.code }} — Relatório nº {{ d.report_number|default:"—" }} — {{ d.date|date:"d/m/Y" }}
+                    </div>
+                    <div class="text-sm text-slate-600 mt-1">
+                        Pedido em {{ d.edit_requested_at|date:"d/m/Y H:i" }}
+                        {% if d.edit_requested_by %}
+                        por {{ d.edit_requested_by.get_full_name|default:d.edit_requested_by.username }}
+                        {% endif %}
+                    </div>
+                    {% if d.edit_request_note %}
+                    <p class="text-sm text-slate-700 mt-2 p-2 bg-slate-50 rounded border border-slate-100">{{ d.edit_request_note }}</p>
+                    {% endif %}
+                </div>
+                <form method="post" action="{% url 'central_diary_grant_provisional_edit' d.pk %}" class="shrink-0">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium w-full md:w-auto">
+                        <i class="fas fa-unlock-alt mr-2" aria-hidden="true"></i>Liberar edição
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mt-8 pt-6 border-t border-slate-100">
+        <a href="{% url 'central_hub' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao painel</a>
+    </div>
+</div>
+{% endblock %}

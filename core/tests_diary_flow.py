@@ -287,6 +287,48 @@ class DiaryFlowTestCase(TestCase):
         # Não seguir o redirect: a URL de diary-detail pode resolver para a API que retorna 302
         self.assertRedirects(resp, reverse('diary-detail', kwargs={'pk': approved.pk}), fetch_redirect_response=False)
 
+    def test_provisional_unlock_allows_edit_get(self):
+        """Com edição provisória liberada, GET diary-edit deve permitir (200)."""
+        self._login_and_select_project()
+        approved = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.APROVADO,
+            created_by=self.user,
+            approved_at=timezone.now(),
+            provisional_edit_granted_at=timezone.now(),
+            provisional_edit_granted_by=self.user,
+        )
+        self.assertTrue(approved.can_be_edited_by(self.user))
+        url = reverse('diary-edit', kwargs={'pk': approved.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_clear_provisional_after_partial_save(self):
+        """Após guardar (parcial) com unlock provisório, campos de unlock são limpos."""
+        self._login_and_select_project()
+        approved = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.APROVADO,
+            created_by=self.user,
+            approved_at=timezone.now(),
+            edit_requested_at=timezone.now(),
+            edit_requested_by=self.user,
+            edit_request_note='teste',
+            provisional_edit_granted_at=timezone.now(),
+            provisional_edit_granted_by=self.user,
+        )
+        url = reverse('diary-edit', kwargs={'pk': approved.pk})
+        post = _minimal_diary_post(self.project, approved.date, partial_save=True)
+        post['general_notes'] = 'nota após unlock'
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302)
+        approved.refresh_from_db()
+        self.assertIsNone(approved.provisional_edit_granted_at)
+        self.assertIsNone(approved.edit_requested_at)
+        self.assertEqual(approved.general_notes, 'nota após unlock')
+
     def test_last_diary_for_copy_in_context(self):
         """GET diary-new com projeto que tem diário deve ter last_diary_for_copy no context."""
         self._login_and_select_project()

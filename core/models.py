@@ -804,6 +804,37 @@ class ConstructionDiary(models.Model):
         auto_now=True,
         verbose_name='Data de Atualização'
     )
+    # Pedido de correção em relatório já aprovado (fluxo: solicitar → staff libera → editar até guardar)
+    edit_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Pedido de correção em',
+    )
+    edit_requested_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='diary_edit_requests_made',
+        verbose_name='Pedido de correção por',
+    )
+    edit_request_note = models.TextField(
+        blank=True,
+        verbose_name='Motivo / observação do pedido',
+    )
+    provisional_edit_granted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Edição provisória liberada em',
+    )
+    provisional_edit_granted_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='diary_provisional_edits_granted',
+        verbose_name='Liberação feita por',
+    )
 
     class Meta:
         verbose_name = 'Diário de Obra'
@@ -858,11 +889,12 @@ class ConstructionDiary(models.Model):
         """
         Verifica se o diário pode ser editado por um usuário.
         Quem pode editar é definido pela view (acesso à obra); aqui só checamos status.
-        - Ninguém edita quando status = APROVADO.
-        - Quando status = PREENCHENDO ou SALVAMENTO_PARCIAL: qualquer um com permissão
-          na obra pode editar (a view garante que só quem tem acesso à obra chega aqui;
-          o dono da obra / cliente não usa essa tela).
+        - Ninguém edita quando status = APROVADO, exceto se houver liberação provisória
+          (provisional_edit_granted_at) após pedido aprovado pelo staff.
+        - Quando status = PREENCHENDO ou SALVAMENTO_PARCIAL: editável conforme permissão na obra.
         """
+        if getattr(self, 'provisional_edit_granted_at', None):
+            return True
         if self.is_approved():
             return False
         if self.status in (DiaryStatus.PREENCHENDO, DiaryStatus.SALVAMENTO_PARCIAL):

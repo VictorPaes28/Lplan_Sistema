@@ -71,6 +71,34 @@
     </div>
 </div>
 
+{% if diary_provisional_edit_unlocked %}
+<div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-950 text-sm">
+    <i class="fas fa-unlock-alt mr-2" aria-hidden="true"></i>
+    <strong>Edição liberada:</strong> pode alterar o relatório e guardar. Depois de guardar com sucesso, este modo fecha automaticamente.
+</div>
+{% endif %}
+{% if diary_edit_request_pending %}
+<div class="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm">
+    <i class="fas fa-hourglass-half mr-2 text-slate-500" aria-hidden="true"></i>
+    Pedido de correção enviado. Aguarde um administrador liberar a edição no painel do sistema.
+</div>
+{% endif %}
+{% if show_request_edit_diary %}
+<div class="mb-6 p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+    <p class="text-sm text-slate-700 mb-3">Este relatório está aprovado. Para corrigir dados após envio ao cliente, solicite a liberação de edição.</p>
+    <form method="post" action="{% url 'diary-request-edit' diary.id %}" class="flex flex-col sm:flex-row gap-3 sm:items-end">
+        {% csrf_token %}
+        <div class="flex-1 min-w-0">
+            <label for="edit-request-note" class="block text-xs font-medium text-slate-600 mb-1">Motivo (opcional)</label>
+            <textarea name="note" id="edit-request-note" rows="2" maxlength="2000" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ex.: corrigir quantidade de equipamentos no PDF"></textarea>
+        </div>
+        <button type="submit" class="shrink-0 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium">
+            <i class="fas fa-paper-plane mr-2" aria-hidden="true"></i>Solicitar correção
+        </button>
+    </form>
+</div>
+{% endif %}
+
 <!-- Card Principal -->
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
     <!-- Logo e Título -->
