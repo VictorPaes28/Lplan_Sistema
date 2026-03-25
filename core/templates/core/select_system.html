@@ -757,19 +757,20 @@ document.addEventListener('DOMContentLoaded', function () {
         modalOverlay.setAttribute('aria-hidden', 'true');
     }
 
-    function buildWebmailComposeUrl(subject, bodyText) {
-        var base = 'https://lplan.com.br/webmail/';
-        var params = new URLSearchParams({
-            _task: 'mail',
-            _action: 'compose',
-            _to: supportEmail,
-            _subject: subject,
-            _body: bodyText,
-            to: supportEmail,
-            subject: subject,
-            body: bodyText
-        });
-        return base + '?' + params.toString();
+    function buildSupportText(subject, bodyText) {
+        return 'Para: ' + supportEmail + '\n' +
+            'Assunto: ' + subject + '\n\n' +
+            bodyText;
+    }
+
+    function copySupportText(subject, bodyText) {
+        var text = buildSupportText(subject, bodyText);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text)
+                .then(function () { return true; })
+                .catch(function () { return false; });
+        }
+        return Promise.resolve(false);
     }
 
     if (webmailLink) {
@@ -786,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'Tela: ' + window.location.pathname + '\n' +
             'Horário aproximado: ____\n\n' +
             'Anexo recomendado: print/vídeo curto do erro.';
-        webmailLink.href = buildWebmailComposeUrl(subject, bodyText);
+        webmailLink.href = 'https://lplan.com.br/webmail/';
     }
     if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (openModalBtn) openModalBtn.disabled = false;
@@ -898,15 +899,17 @@ document.addEventListener('DOMContentLoaded', function () {
             ];
             var subject = 'LPLAN - ' + supportSeverity.value + ' - ' + supportTitle.value.trim();
             var bodyText = bodyLines.join('\n');
-            var composeUrl = buildWebmailComposeUrl(subject, bodyText);
+            copySupportText(subject, bodyText).then(function (copied) {
+                window.open('https://lplan.com.br/webmail/', '_blank', 'noopener,noreferrer');
+                closeModal();
+                if (supportForm) supportForm.reset();
 
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText('Assunto: ' + subject + '\n\n' + bodyText).catch(function () {});
-            }
-
-            window.open(composeUrl, '_blank', 'noopener,noreferrer');
-            closeModal();
-            if (supportForm) supportForm.reset();
+                if (copied) {
+                    alert('Conteúdo do chamado copiado. Após entrar no Webmail, clique em "Escrever" e cole (Ctrl+V).');
+                } else {
+                    alert('Abra o Webmail e envie para suporte@lplan.com.br. Não foi possível copiar automaticamente neste navegador.');
+                }
+            });
         });
     }
 });
