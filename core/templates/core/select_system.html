@@ -731,6 +731,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var supportEmail = 'suporte@lplan.com.br';
+    var supportSendUrl = '{% url "support-send" %}';
     var webmailLink = document.getElementById('support-webmail-link');
     var openModalBtn = document.getElementById('open-support-modal-btn');
     var modalOverlay = document.getElementById('support-modal-overlay');
@@ -771,6 +772,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 .catch(function () { return false; });
         }
         return Promise.resolve(false);
+    }
+
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
 
     if (webmailLink) {
@@ -899,17 +915,47 @@ document.addEventListener('DOMContentLoaded', function () {
             ];
             var subject = 'LPLAN - ' + supportSeverity.value + ' - ' + supportTitle.value.trim();
             var bodyText = bodyLines.join('\n');
-            copySupportText(subject, bodyText).then(function (copied) {
-                window.open('https://lplan.com.br/webmail/', '_blank', 'noopener,noreferrer');
-                closeModal();
-                if (supportForm) supportForm.reset();
-
-                if (copied) {
-                    alert('Conteúdo do chamado copiado. Após entrar no Webmail, clique em "Escrever" e cole (Ctrl+V).');
-                } else {
-                    alert('Abra o Webmail e envie para suporte@lplan.com.br. Não foi possível copiar automaticamente neste navegador.');
-                }
+            var payload = new URLSearchParams({
+                subject: subject,
+                body: bodyText,
+                category: supportCategory.value,
+                severity: supportSeverity.value
             });
+            var csrfToken = getCookie('csrftoken');
+
+            fetch(supportSendUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    'X-CSRFToken': csrfToken || ''
+                },
+                body: payload.toString()
+            })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('support_send_failed');
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (data && data.success) {
+                        closeModal();
+                        if (supportForm) supportForm.reset();
+                        alert('Chamado enviado para o suporte com sucesso.');
+                        return;
+                    }
+                    throw new Error('support_send_failed');
+                })
+                .catch(function () {
+                    copySupportText(subject, bodyText).then(function (copied) {
+                        window.open('https://lplan.com.br/webmail/', '_blank', 'noopener,noreferrer');
+                        closeModal();
+                        if (supportForm) supportForm.reset();
+                        if (copied) {
+                            alert('Não foi possível enviar automaticamente. Abrimos o Webmail e copiamos o conteúdo do chamado. Após login, clique em "Escrever" e cole (Ctrl+V).');
+                        } else {
+                            alert('Não foi possível enviar automaticamente. Abra o Webmail e envie para suporte@lplan.com.br.');
+                        }
+                    });
+                });
         });
     }
 });

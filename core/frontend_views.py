@@ -13,6 +13,8 @@ from django.db.models import Q, Count, Avg, Sum
 from django.db import IntegrityError
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.conf import settings
+from django.core.mail import EmailMessage
 from datetime import datetime, timedelta
 from .models import (
     Project,
@@ -205,6 +207,60 @@ def select_system_view(request):
         'has_central': has_central,
     }
     return render(request, 'core/select_system.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def send_support_email_view(request):
+    """
+    Envia chamado de suporte diretamente pelo backend para evitar dependência
+    de webmail/token de sessão do cPanel no cliente.
+    """
+    subject = (request.POST.get('subject') or '').strip()
+    body = (request.POST.get('body') or '').strip()
+    category = (request.POST.get('category') or '').strip()
+    severity = (request.POST.get('severity') or '').strip()
+
+    if not subject or not body:
+        return JsonResponse(
+            {'success': False, 'error': 'Assunto e descrição são obrigatórios.'},
+            status=400,
+        )
+
+    support_email = (getattr(settings, 'SUPPORT_EMAIL', '') or 'suporte@lplan.com.br').strip()
+    if not support_email:
+        return JsonResponse(
+            {'success': False, 'error': 'E-mail de suporte não configurado.'},
+            status=500,
+        )
+
+    final_subject = f"[{severity or 'Suporte'}] {subject}" if severity else subject
+    metadata = [
+        f"Categoria: {category or 'Nao informado'}",
+        f"Severidade: {severity or 'Nao informado'}",
+        f"Usuario: {request.user.get_full_name() or request.user.username}",
+        f"Email usuario: {request.user.email or 'Nao informado'}",
+        f"URL origem: {request.build_absolute_uri(request.path)}",
+        f"Enviado em: {timezone.localtime().strftime('%d/%m/%Y %H:%M:%S')}",
+    ]
+    final_body = body + "\n\n---\n" + "\n".join(metadata)
+
+    try:
+        email = EmailMessage(
+            subject=final_subject[:255],
+            body=final_body,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            to=[support_email],
+            reply_to=[request.user.email] if request.user.email else None,
+        )
+        email.send(fail_silently=False)
+        return JsonResponse({'success': True})
+    except Exception as exc:
+        logger.error("Falha ao enviar e-mail de suporte: %s", exc, exc_info=True)
+        return JsonResponse(
+            {'success': False, 'error': 'Falha ao enviar pelo servidor. Use o Webmail como fallback.'},
+            status=500,
+        )
 
 
 @login_required
