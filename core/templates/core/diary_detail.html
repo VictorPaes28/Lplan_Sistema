@@ -84,18 +84,34 @@
 </div>
 {% endif %}
 {% if show_request_edit_diary %}
-<div class="mb-6 p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-    <p class="text-sm text-slate-700 mb-3">Este relatório está aprovado. Para corrigir dados após envio ao cliente, solicite a liberação de edição.</p>
-    <form method="post" action="{% url 'diary-request-edit' diary.id %}" class="flex flex-col sm:flex-row gap-3 sm:items-end">
-        {% csrf_token %}
-        <div class="flex-1 min-w-0">
-            <label for="edit-request-note" class="block text-xs font-medium text-slate-600 mb-1">Motivo (opcional)</label>
-            <textarea name="note" id="edit-request-note" rows="2" maxlength="2000" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ex.: corrigir quantidade de equipamentos no PDF"></textarea>
-        </div>
-        <button type="submit" class="shrink-0 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium">
-            <i class="fas fa-paper-plane mr-2" aria-hidden="true"></i>Solicitar correção
-        </button>
-    </form>
+<div class="mb-4 diary-request-correction-inline">
+    <p class="text-sm text-slate-600 mb-2 leading-snug max-w-2xl">
+        Relatório aprovado. Para corrigir dados após envio ao cliente, peça a liberação de edição.
+    </p>
+    <button type="button"
+            id="diary-request-edit-toggle"
+            class="diary-detail-action-btn diary-request-correction-submit px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2"
+            aria-expanded="false"
+            aria-controls="diary-request-edit-panel">
+        <i class="fas fa-unlock-alt" aria-hidden="true"></i>
+        <span>Solicitar correção</span>
+    </button>
+    <div id="diary-request-edit-panel" class="diary-request-edit-panel" hidden>
+        <form method="post" action="{% url 'diary-request-edit' diary.id %}" class="diary-request-edit-form mt-3">
+            {% csrf_token %}
+            <label for="edit-request-note" class="diary-request-edit-label">Justificativa <span class="text-slate-400 font-normal">(opcional)</span></label>
+            <textarea name="note" id="edit-request-note" maxlength="2000" class="diary-request-edit-textarea" rows="3" placeholder="Ex.: corrigir quantidade no PDF"></textarea>
+            <div class="diary-request-edit-actions">
+                <button type="submit" class="diary-detail-action-btn diary-request-correction-submit px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                    Enviar pedido
+                </button>
+                <button type="button" id="diary-request-edit-cancel" class="diary-request-edit-cancel-btn">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endif %}
 
@@ -867,6 +883,79 @@
 </div>
 
 <style>
+/* Contraste garantido (Tailwind pode não incluir bg-amber em produção) */
+button.diary-request-correction-submit {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    border: 1px solid #1d4ed8 !important;
+}
+button.diary-request-correction-submit:hover {
+    background-color: #1d4ed8 !important;
+    border-color: #1e40af !important;
+}
+button.diary-request-correction-submit i {
+    color: #ffffff !important;
+}
+
+/* Pedido de correção: painel compacto (só aparece após clicar em Solicitar) */
+.diary-request-edit-panel[hidden] {
+    display: none !important;
+}
+.diary-request-edit-form {
+    max-width: 22rem;
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+}
+.diary-request-edit-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.35rem;
+}
+.diary-request-edit-textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 4rem;
+    max-height: 7rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    resize: vertical;
+    color: #1e293b;
+    background: #fff;
+}
+.diary-request-edit-textarea:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 1px;
+    border-color: #3b82f6;
+}
+.diary-request-edit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+button.diary-request-edit-cancel-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #334155 !important;
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 0.375rem;
+    cursor: pointer;
+}
+button.diary-request-edit-cancel-btn:hover {
+    background: #f1f5f9 !important;
+}
+
 .diary-comment-bubble {
     max-width: 85%;
 }
@@ -975,6 +1064,35 @@
             }
         });
     }
+
+    // Pedido de correção: só mostra justificativa depois de clicar em "Solicitar correção"
+    (function() {
+        var reqToggle = document.getElementById('diary-request-edit-toggle');
+        var reqPanel = document.getElementById('diary-request-edit-panel');
+        var reqCancel = document.getElementById('diary-request-edit-cancel');
+        var reqNote = document.getElementById('edit-request-note');
+        if (!reqToggle || !reqPanel) return;
+        function closePanel() {
+            reqPanel.setAttribute('hidden', '');
+            reqToggle.setAttribute('aria-expanded', 'false');
+            if (reqNote) reqNote.value = '';
+        }
+        function openPanel() {
+            reqPanel.removeAttribute('hidden');
+            reqToggle.setAttribute('aria-expanded', 'true');
+            if (reqNote) {
+                try { reqNote.focus(); } catch (e) {}
+            }
+        }
+        reqToggle.addEventListener('click', function() {
+            if (reqPanel.hasAttribute('hidden')) {
+                openPanel();
+            }
+        });
+        if (reqCancel) {
+            reqCancel.addEventListener('click', closePanel);
+        }
+    })();
 })();
 </script>
 {% endblock %}
