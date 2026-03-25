@@ -325,6 +325,7 @@
                                     id="analisado_{{ workorder.pk }}" 
                                     name="analisado" 
                                     value="{{ workorder.pk }}"
+                                    data-url="{% url 'gestao:marcar_pedido_analisado' workorder.pk %}"
                                     {% if workorder.marcado_para_deletar %}checked{% endif %}
                                     onchange="marcarPedidoAnalisado(this, {{ workorder.pk }})"
                                     style="
@@ -596,7 +597,8 @@ function marcarPedidoAnalisado(checkbox, pedidoId) {
     }
     
     // Fazer requisição AJAX
-    fetch('/pedidos/' + pedidoId + '/marcar-analisado/', {
+    var requestUrl = checkbox.dataset.url || ('/gestao/pedidos/' + pedidoId + '/marcar-analisado/');
+    fetch(requestUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',

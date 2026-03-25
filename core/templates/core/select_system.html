@@ -643,14 +643,15 @@
                 <button type="button" id="open-support-modal-btn" class="support-card-btn support-card-btn-secondary">
                     <i class="fas fa-bug"></i>Reportar erro
                 </button>
-                <a id="support-email-link"
-                   href="mailto:suporte@lplan.com.br?subject=LPLAN%20-%20Suporte"
+                <a id="support-webmail-link"
+                   href="https://lplan.com.br/webmail/"
+                   target="_blank"
+                   rel="noopener noreferrer"
                    class="support-card-btn support-card-btn-primary">
-                    <i class="fas fa-envelope"></i>Enviar e-mail
+                    <i class="fas fa-envelope"></i>Abrir Webmail LPLAN
                 </a>
             </div>
         </div>
-        <span class="support-card-link">Resposta rápida <i class="fas fa-clock" style="font-size:0.75rem"></i></span>
     </section>
 </div>
 
@@ -672,7 +673,11 @@
                     <div class="support-shortcuts">
                         <button type="button" class="support-shortcut-btn" data-shortcut="login">Erro de login</button>
                         <button type="button" class="support-shortcut-btn" data-shortcut="diario">Erro no diário</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="pdf">PDF sem foto</button>
+                        <button type="button" class="support-shortcut-btn" data-shortcut="pdf">Erro em PDF</button>
+                        <button type="button" class="support-shortcut-btn" data-shortcut="gestao">Erro no GestControll</button>
+                        <button type="button" class="support-shortcut-btn" data-shortcut="exclusao">Exclusão de pedido</button>
+                        <button type="button" class="support-shortcut-btn" data-shortcut="analisado">Marcação de analisado</button>
+                        <button type="button" class="support-shortcut-btn" data-shortcut="anexo">Erro com anexo</button>
                         <button type="button" class="support-shortcut-btn" data-shortcut="mobile">Bug no mobile</button>
                     </div>
                 </div>
@@ -708,35 +713,25 @@
 
                 <div class="support-form-field full">
                     <label for="support-desc">Descrição do problema <span class="support-required">*</span></label>
-                    <textarea id="support-desc" required placeholder="Explique o que aconteceu de forma objetiva."></textarea>
+                    <textarea id="support-desc" required placeholder="1) O que você estava fazendo&#10;2) O que esperava que acontecesse&#10;3) O que aconteceu na prática&#10;4) Se possível, cole a mensagem de erro"></textarea>
                 </div>
-
-                <div class="support-form-field">
-                    <label for="support-expected">Resultado esperado</label>
-                    <input id="support-expected" type="text" maxlength="140" placeholder="O que deveria acontecer">
-                </div>
-                <div class="support-form-field">
-                    <label for="support-actual">Resultado atual</label>
-                    <input id="support-actual" type="text" maxlength="140" placeholder="O que aconteceu de fato">
+            </div>
+            <div class="support-modal-footer">
+                <div class="support-card-actions" style="margin-top:0;">
+                    <button type="button" id="cancel-support-btn" class="support-card-btn support-card-btn-secondary">Cancelar</button>
+                    <button type="button" id="send-support-btn" class="support-card-btn support-card-btn-primary">
+                        <i class="fas fa-paper-plane"></i>Montar e-mail
+                    </button>
                 </div>
             </div>
         </form>
-        <div class="support-modal-footer">
-            <span class="support-form-helper">Dica: anexe print no e-mail antes de enviar.</span>
-            <div class="support-card-actions" style="margin-top:0;">
-                <button type="button" id="cancel-support-btn" class="support-card-btn support-card-btn-secondary">Cancelar</button>
-                <button type="button" id="send-support-btn" class="support-card-btn support-card-btn-primary">
-                    <i class="fas fa-paper-plane"></i>Montar e-mail
-                </button>
-            </div>
-        </div>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var supportEmail = 'suporte@lplan.com.br';
-    var emailLink = document.getElementById('support-email-link');
+    var webmailLink = document.getElementById('support-webmail-link');
     var openModalBtn = document.getElementById('open-support-modal-btn');
     var modalOverlay = document.getElementById('support-modal-overlay');
     var closeModalBtn = document.getElementById('close-support-modal-btn');
@@ -747,8 +742,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var supportSeverity = document.getElementById('support-severity');
     var supportTitle = document.getElementById('support-title');
     var supportDesc = document.getElementById('support-desc');
-    var supportExpected = document.getElementById('support-expected');
-    var supportActual = document.getElementById('support-actual');
 
     function openModal() {
         if (!modalOverlay) return;
@@ -764,17 +757,36 @@ document.addEventListener('DOMContentLoaded', function () {
         modalOverlay.setAttribute('aria-hidden', 'true');
     }
 
-    if (emailLink) {
+    function buildWebmailComposeUrl(subject, bodyText) {
+        var base = 'https://lplan.com.br/webmail/';
+        var params = new URLSearchParams({
+            _task: 'mail',
+            _action: 'compose',
+            _to: supportEmail,
+            _subject: subject,
+            _body: bodyText,
+            to: supportEmail,
+            subject: subject,
+            body: bodyText
+        });
+        return base + '?' + params.toString();
+    }
+
+    if (webmailLink) {
         var userLabel = '{{ user.username|escapejs }}';
-        var subject = 'LPLAN - Suporte rápido';
-        var body =
-            'Olá, equipe de suporte.%0D%0A%0D%0A' +
-            'Descreva o problema:%0D%0A%0D%0A' +
-            'Usuário: ' + encodeURIComponent(userLabel) + '%0D%0A' +
-            'Tela: ' + encodeURIComponent(window.location.pathname) + '%0D%0A' +
-            'Horário aproximado: ____%0D%0A%0D%0A' +
-            'Anexo: print do erro (se possível).';
-        emailLink.href = 'mailto:' + supportEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + body;
+        var subject = 'LPLAN - Reporte de erro';
+        var bodyText =
+            'Olá, equipe de suporte.\n\n' +
+            'Preencha abaixo para agilizar a análise:\n\n' +
+            '1) O que estava fazendo:\n\n' +
+            '2) O que deveria acontecer:\n\n' +
+            '3) O que aconteceu:\n\n' +
+            '4) Mensagem de erro exibida (se houver):\n\n' +
+            'Usuário: ' + userLabel + '\n' +
+            'Tela: ' + window.location.pathname + '\n' +
+            'Horário aproximado: ____\n\n' +
+            'Anexo recomendado: print/vídeo curto do erro.';
+        webmailLink.href = buildWebmailComposeUrl(subject, bodyText);
     }
     if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (openModalBtn) openModalBtn.disabled = false;
@@ -804,11 +816,39 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (kind === 'pdf') {
             supportCategory.value = 'PDF/Relatórios';
             supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'PDF com conteúdo incorreto';
+            supportTitle.value = 'Erro ao gerar PDF do relatório';
+        } else if (kind === 'gestao') {
+            supportCategory.value = 'Permissões/Usuário';
+            supportSeverity.value = supportSeverity.value || 'Importante';
+            supportTitle.value = 'Falha no GestControll';
+        } else if (kind === 'exclusao') {
+            supportCategory.value = 'Permissões/Usuário';
+            supportSeverity.value = supportSeverity.value || 'Importante';
+            supportTitle.value = 'Solicitação/aprovação de exclusão não funciona';
+        } else if (kind === 'analisado') {
+            supportCategory.value = 'Permissões/Usuário';
+            supportSeverity.value = supportSeverity.value || 'Médio';
+            supportTitle.value = 'Checkbox de analisado não marca/desmarca';
+        } else if (kind === 'anexo') {
+            supportCategory.value = 'Fotos/Vídeos';
+            supportSeverity.value = supportSeverity.value || 'Importante';
+            supportTitle.value = 'Erro ao enviar/remover anexo';
         } else if (kind === 'mobile') {
             supportCategory.value = 'Mobile/Responsivo';
             supportSeverity.value = supportSeverity.value || 'Médio';
             supportTitle.value = 'Problema de layout no mobile';
+        }
+        if (supportDesc && !supportDesc.value.trim()) {
+            supportDesc.value =
+                'Passos para reproduzir:\n' +
+                '1) \n' +
+                '2) \n\n' +
+                'Resultado esperado:\n' +
+                '- \n\n' +
+                'Resultado atual:\n' +
+                '- \n\n' +
+                'Mensagem de erro (se houver):\n' +
+                '- ';
         }
     }
     var shortcutButtons = document.querySelectorAll('.support-shortcut-btn');
@@ -851,22 +891,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Descricao:',
                 supportDesc.value.trim(),
                 '',
-                'Resultado esperado:',
-                supportExpected.value.trim() || '(nao informado)',
-                '',
-                'Resultado atual:',
-                supportActual.value.trim() || '(nao informado)',
-                '',
                 'Contexto automatico:',
                 context.join('\n'),
                 '',
                 'Anexo sugerido: print da tela/erro.'
             ];
             var subject = 'LPLAN - ' + supportSeverity.value + ' - ' + supportTitle.value.trim();
-            var mailto = 'mailto:' + supportEmail +
-                '?subject=' + encodeURIComponent(subject) +
-                '&body=' + encodeURIComponent(bodyLines.join('\n'));
-            window.location.href = mailto;
+            var bodyText = bodyLines.join('\n');
+            var composeUrl = buildWebmailComposeUrl(subject, bodyText);
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText('Assunto: ' + subject + '\n\n' + bodyText).catch(function () {});
+            }
+
+            window.open(composeUrl, '_blank', 'noopener,noreferrer');
             closeModal();
             if (supportForm) supportForm.reset();
         });
