@@ -730,16 +730,16 @@ def detail_workorder(request, pk):
             can_delete_attachment = True
     # Aprovadores não podem adicionar/deletar anexos (já está False por padrão)
     
-    # Verificar se pode solicitar exclusão (apenas criador, pedido pendente, não já solicitado)
+    # Verificar se pode solicitar exclusão (apenas criador, pedido pendente/reprovado, não já solicitado)
     can_solicitar_exclusao = (
         workorder.criado_por == user and
-        workorder.status == 'pendente' and
+        workorder.status in ['pendente', 'reprovado'] and
         not workorder.solicitado_exclusao
     )
     
-    # Verificar se pode aprovar/rejeitar exclusão (aprovador/admin, pedido solicitado e ainda pendente)
+    # Verificar se pode aprovar/rejeitar exclusão (aprovador/admin, pedido solicitado e em status elegível)
     can_aprovar_exclusao = False
-    if workorder.solicitado_exclusao and workorder.status == 'pendente':
+    if workorder.solicitado_exclusao and workorder.status in ['pendente', 'reprovado']:
         if is_admin(user):
             can_aprovar_exclusao = True
         elif is_aprovador(user):
@@ -2628,7 +2628,7 @@ def manage_obra_permissions(request, pk):
 @login_required
 def solicitar_exclusao(request, pk):
     """
-    Permite que o solicitante solicite a exclusão de um pedido pendente.
+    Permite que o solicitante solicite a exclusão de um pedido pendente ou reprovado.
     A exclusão só será efetivada após aprovação do aprovador.
     """
     workorder = get_object_or_404(WorkOrder, pk=pk)
@@ -2639,9 +2639,9 @@ def solicitar_exclusao(request, pk):
         messages.error(request, 'Você só pode solicitar exclusão de pedidos que você criou.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
-    # Verificar se o pedido está pendente
-    if workorder.status != 'pendente':
-        messages.error(request, 'Você só pode solicitar exclusão de pedidos que estão pendentes para aprovação.')
+    # Verificar se o pedido está em status elegível
+    if workorder.status not in ['pendente', 'reprovado']:
+        messages.error(request, 'Você só pode solicitar exclusão de pedidos pendentes ou reprovados.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se já foi solicitado
