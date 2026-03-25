@@ -926,7 +926,7 @@ def diary_detail_view(request, pk):
     context = {
         'diary': diary,
         'user': request.user,
-        'show_request_edit_diary': show_request_edit,
+        'show_request_edit_diary': show_request_edit_diary,
         'diary_edit_request_pending': diary_edit_request_pending,
         'diary_provisional_edit_unlocked': diary_provisional_edit_unlocked,
         'weather_morning': weather_morning,
