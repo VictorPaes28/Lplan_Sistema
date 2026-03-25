@@ -732,7 +732,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var supportEmail = 'suporte@lplan.com.br';
-    var supportSendUrl = '{% url "support-send" %}';
     var webmailLink = document.getElementById('support-webmail-link');
     var openModalBtn = document.getElementById('open-support-modal-btn');
     var modalOverlay = document.getElementById('support-modal-overlay');
@@ -757,37 +756,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!modalOverlay) return;
         modalOverlay.classList.remove('is-open');
         modalOverlay.setAttribute('aria-hidden', 'true');
-    }
-
-    function buildSupportText(subject, bodyText) {
-        return 'Para: ' + supportEmail + '\n' +
-            'Assunto: ' + subject + '\n\n' +
-            bodyText;
-    }
-
-    function copySupportText(subject, bodyText) {
-        var text = buildSupportText(subject, bodyText);
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            return navigator.clipboard.writeText(text)
-                .then(function () { return true; })
-                .catch(function () { return false; });
-        }
-        return Promise.resolve(false);
-    }
-
-    function getCookie(name) {
-        var cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            var cookies = document.cookie.split(';');
-            for (var i = 0; i < cookies.length; i++) {
-                var cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
     }
 
     if (webmailLink) {
@@ -916,60 +884,12 @@ document.addEventListener('DOMContentLoaded', function () {
             ];
             var subject = 'LPLAN - ' + supportSeverity.value + ' - ' + supportTitle.value.trim();
             var bodyText = bodyLines.join('\n');
-            var csrfToken = getCookie('csrftoken');
-            var payload = new URLSearchParams({
-                subject: subject,
-                body: bodyText,
-                category: supportCategory.value,
-                severity: supportSeverity.value,
-                csrfmiddlewaretoken: csrfToken || ''
-            });
-
-            fetch(supportSendUrl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-                    'X-CSRFToken': csrfToken || ''
-                },
-                body: payload.toString()
-            })
-                .then(function (response) {
-                    return response.json().then(function (data) {
-                        if (!response.ok) {
-                            var msg = (data && data.error) ? data.error : 'support_send_failed';
-                            throw new Error(msg);
-                        }
-                        return data;
-                    }).catch(function () {
-                        if (!response.ok) {
-                            throw new Error('support_send_failed');
-                        }
-                        return { success: true };
-                    });
-                })
-                .then(function (data) {
-                    if (data && data.success) {
-                        closeModal();
-                        if (supportForm) supportForm.reset();
-                        alert('Chamado enviado para o suporte com sucesso.');
-                        return;
-                    }
-                    throw new Error('support_send_failed');
-                })
-                .catch(function (err) {
-                    console.warn('Fallback suporte acionado:', err && err.message ? err.message : err);
-                    copySupportText(subject, bodyText).then(function (copied) {
-                        window.open('https://lplan.com.br/webmail/', '_blank', 'noopener,noreferrer');
-                        closeModal();
-                        if (supportForm) supportForm.reset();
-                        if (copied) {
-                            alert('Não foi possível enviar automaticamente. Abrimos o Webmail e copiamos o conteúdo do chamado. Após login, clique em "Escrever" e cole (Ctrl+V).');
-                        } else {
-                            alert('Não foi possível enviar automaticamente. Abra o Webmail e envie para suporte@lplan.com.br.');
-                        }
-                    });
-                });
+            var mailto = 'mailto:' + supportEmail +
+                '?subject=' + encodeURIComponent(subject) +
+                '&body=' + encodeURIComponent(bodyText);
+            window.location.href = mailto;
+            closeModal();
+            if (supportForm) supportForm.reset();
         });
     }
 });

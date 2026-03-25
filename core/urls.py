@@ -9,7 +9,6 @@ from .frontend_views import (
     logout_view,
     signup_request_view,
     select_system_view,
-    send_support_email_view,
     select_project_view,
     central_hub_view,
     dashboard_view,
@@ -75,7 +74,6 @@ urlpatterns = [
         template_name='core/password_reset_complete.html',
     ), name='password_reset_complete'),
     path('select-system/', select_system_view, name='select-system'),
-    path('support/send/', send_support_email_view, name='support-send'),
     path('select-project/', select_project_view, name='select-project'),
     # Central: usuários e obras (obras = /projects/)
     path('central/', central_hub_view, name='central_hub'),
