@@ -13,6 +13,7 @@ import base64
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from io import BytesIO
+from xml.sax.saxutils import escape as xml_escape
 from django.conf import settings
 from django.core.files.base import ContentFile
 import logging
@@ -35,6 +36,39 @@ def _safe_int(value, default=0):
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _safe_pdf_text(value: Any, default: str = '') -> str:
+    """
+    Normaliza e escapa texto dinâmico para uso em Paragraph do ReportLab.
+    Evita erros de parse com caracteres especiais como &, < e >.
+    """
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    return xml_escape(text, {"'": "&#39;", '"': "&quot;"})
+
+
+def _safe_pdf_multiline_text(value: Any, default: str = '', max_len: Optional[int] = None) -> str:
+    """
+    Escapa texto dinâmico e preserva quebras de linha para Paragraph (<br/>).
+    """
+    if value is None:
+        return default
+    raw = str(value).strip()
+    if not raw:
+        return default
+    if max_len is not None:
+        raw = raw[:max_len]
+    # Evita blocos com quebras excessivas que podem estourar célula de tabela.
+    lines = raw.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    if len(lines) > 80:
+        lines = lines[:80]
+    raw = '\n'.join(lines)
+    escaped = xml_escape(raw, {"'": "&#39;", '"': "&quot;"})
+    return escaped.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br/>')
 
 
 # ReportLab (única dependência de PDF; já no requirements, funciona em cPanel)
@@ -320,6 +354,7 @@ class PDFGenerator:
         work_logs = list(
             diary.work_logs.select_related('activity')
             .prefetch_related('resources_labor', 'resources_equipment', 'equipment_through__equipment')
+            .order_by('activity__code', 'activity__name', 'pk')
             .all()
         )
 
@@ -333,15 +368,28 @@ class PDFGenerator:
                     if key not in labor_by_type[labor_type]:
                         labor_by_type[labor_type][key] = {'labor': labor, 'count': 0}
                     labor_by_type[labor_type][key]['count'] += 1
-            for thru in wl.equipment_through.all():
-                eq = thru.equipment
-                qty = _safe_int(getattr(thru, 'quantity', 1), 1)
-                key = getattr(eq, 'pk', None) or f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
-                if key not in equipment_count:
-                    equipment_count[key] = {'equipment': eq, 'count': 0}
-                # Soma as quantidades efetivamente registradas no diário para refletir
-                # fielmente o que foi salvo, inclusive em cenários com múltiplos worklogs.
-                equipment_count[key]['count'] += qty
+            through_items = list(wl.equipment_through.all())
+            if through_items:
+                for thru in through_items:
+                    eq = thru.equipment
+                    if eq is None:
+                        continue
+                    qty = max(1, _safe_int(getattr(thru, 'quantity', 1), 1))
+                    key = getattr(eq, 'pk', None) or f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
+                    if key not in equipment_count:
+                        equipment_count[key] = {'equipment': eq, 'count': 0}
+                    # Soma as quantidades efetivamente registradas no diário para refletir
+                    # fielmente o que foi salvo, inclusive em cenários com múltiplos worklogs.
+                    equipment_count[key]['count'] += qty
+            else:
+                # Compatibilidade com registros antigos sem linhas na tabela through.
+                for eq in wl.resources_equipment.all():
+                    if eq is None:
+                        continue
+                    key = getattr(eq, 'pk', None) or f"{getattr(eq, 'code', '')}_{getattr(eq, 'name', '')}"
+                    if key not in equipment_count:
+                        equipment_count[key] = {'equipment': eq, 'count': 0}
+                    equipment_count[key]['count'] += 1
 
         total_indirect = sum(i['count'] for i in labor_by_type['I'].values())
         total_direct = sum(i['count'] for i in labor_by_type['D'].values())
@@ -552,9 +600,9 @@ class PDFGenerator:
         header_sub = Paragraph(
             "<font color='white' size='9'>RDO n° %s · Código %s · %s · %s</font>" % (
                 report_num if report_num is not None else '—',
-                proj.code or '—',
+                _safe_pdf_text(proj.code or '—', default='—'),
                 diary.date.strftime('%d/%m/%Y'),
-                wd_pt,
+                _safe_pdf_text(wd_pt, default='—'),
             ),
             ParagraphStyle(name='H2', fontName='Helvetica', fontSize=9, textColor=colors.white),
         )
@@ -614,18 +662,18 @@ class PDFGenerator:
 
         # Linha separadora e bloco de dados da obra (fundo azul)
         obra_line = Paragraph(
-            "<font color='white' size='9'><b>OBRA:</b> %s</font>" % ((proj.name or '—')[:50],),
+            "<font color='white' size='9'><b>OBRA:</b> %s</font>" % (_safe_pdf_text((proj.name or '—')[:50], default='—'),),
             ParagraphStyle(name='ObraH', fontName='Helvetica', fontSize=9, textColor=colors.white),
         )
         line2 = Paragraph(
             "<font color='white' size='8'>Contratante: %s &nbsp;&nbsp; Resp. Técnico: %s</font>" % (
-                (contratante or '—')[:40],
-                (resp_tec or '—')[:35],
+                _safe_pdf_text((contratante or '—')[:40], default='—'),
+                _safe_pdf_text((resp_tec or '—')[:35], default='—'),
             ),
             ParagraphStyle(name='Line2', fontName='Helvetica', fontSize=8, textColor=colors.white),
         )
         line3 = Paragraph(
-            "<font color='white' size='8'>Local: %s</font>" % ((endereco or '—')[:90]),
+            "<font color='white' size='8'>Local: %s</font>" % (_safe_pdf_text((endereco or '—')[:90], default='—')),
             ParagraphStyle(name='Line3', fontName='Helvetica', fontSize=8, textColor=colors.white),
         )
         line4 = Paragraph(
@@ -668,16 +716,20 @@ class PDFGenerator:
         act_rows = [[act_title], [Spacer(1, 0.08 * cm)]]
         if work_logs:
             for wl in work_logs:
+                act_code = _safe_pdf_text(getattr(wl.activity, 'code', '') or '', default='')
+                act_name = _safe_pdf_text(getattr(wl.activity, 'name', '') or '', default='—')
                 text = "• %s – %s" % (
-                    getattr(wl.activity, 'code', '') or '',
-                    getattr(wl.activity, 'name', '') or '',
+                    act_code,
+                    act_name,
                 )
                 if getattr(wl, 'notes', None) and wl.notes.strip():
-                    text += " <i>(%s)</i>" % (wl.notes[:100].replace('\n', ' ') if wl.notes else '')
+                    notes = _safe_pdf_text(wl.notes[:100].replace('\n', ' '), default='')
+                    if notes:
+                        text += " <i>(%s)</i>" % notes
                 act_rows.append([Paragraph(text, normal_style)])
         else:
             act_rows.append([Paragraph("Nenhuma atividade registrada.", normal_style)])
-        content_width = 17 * cm - 3 * mm
+        content_width = 17 * cm
         # Largura interna menor que a célula para evitar availWidth negativo no ReportLab (padding da célula)
         inner_width = content_width - 0.6 * cm
         inner_act = Table(act_rows, colWidths=[inner_width])
@@ -685,16 +737,12 @@ class PDFGenerator:
             ('BACKGROUND', (0, 0), (0, 0), COLOR_ACCENT),
             ('LEFTPADDING', (0, 0), (-1, -1), 10),
             ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ]))
-        sect_act = Table([[Paragraph(' ', ParagraphStyle(name='Bar', fontSize=1)), inner_act]], colWidths=[3 * mm, content_width])
-        sect_act.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LINEBEFORE', (0, 0), (0, -1), 2, COLOR_PRIMARY),
             ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-            ('LEFTPADDING', (0, 0), (0, -1), 0),
-            ('RIGHTPADDING', (0, 0), (0, -1), 0),
         ]))
-        story.append(sect_act)
+        story.append(inner_act)
         story.append(Spacer(1, 0.2 * cm))
 
         # Gestão de Efetivo: UMA tabela com 3 colunas (Indireto | Direto | Terceiros) como no RQ-10
@@ -711,9 +759,9 @@ class PDFGenerator:
             def _lab_name(lab):
                 n = getattr(lab, 'name', None)
                 if n:
-                    return str(n)
+                    return _safe_pdf_text(n, default='—')
                 if hasattr(lab, 'get_role_display') and callable(getattr(lab, 'get_role_display')):
-                    return str(lab.get_role_display() or '—')
+                    return _safe_pdf_text(lab.get_role_display() or '—', default='—')
                 return '—'
             col_i = [Paragraph('EFETIVO INDIRETO (LPLAN)', table_header_style)]
             indireta_rows = labor_entries_by_category.get('indireta', []) if labor_entries_by_category else []
@@ -722,7 +770,8 @@ class PDFGenerator:
                     col_i.append(Paragraph(_lab_name(item['labor']) + ' ' + str(item['count']), normal_style))
             else:
                 for item in indireta_rows:
-                    col_i.append(Paragraph((item.get('cargo_name') or '—') + ' ' + str(item['quantity']), normal_style))
+                    cargo_name = _safe_pdf_text(item.get('cargo_name') or '—', default='—')
+                    col_i.append(Paragraph(cargo_name + ' ' + str(item['quantity']), normal_style))
             col_i.append(Paragraph('TOTAL ' + str(total_indirect), normal_style))
 
             col_d = [Paragraph('EFETIVO DIRETO', table_header_style)]
@@ -732,7 +781,8 @@ class PDFGenerator:
                     col_d.append(Paragraph(_lab_name(item['labor']) + ' ' + str(item['count']), normal_style))
             else:
                 for item in direta_rows:
-                    col_d.append(Paragraph((item.get('cargo_name') or '—') + ' ' + str(item['quantity']), normal_style))
+                    cargo_name = _safe_pdf_text(item.get('cargo_name') or '—', default='—')
+                    col_d.append(Paragraph(cargo_name + ' ' + str(item['quantity']), normal_style))
             col_d.append(Paragraph('TOTAL ' + str(total_direct), normal_style))
 
             col_t = [Paragraph('EFETIVO TERCEIROS', table_header_style)]
@@ -740,11 +790,14 @@ class PDFGenerator:
             if labor_entries_by_category and labor_entries_by_category.get('terceirizada'):
                 for block in labor_entries_by_category['terceirizada']:
                     for item in block['items']:
-                        col_t.append(Paragraph((block.get('company') or '—') + ' ' + (item.get('cargo_name') or '') + ' ' + str(item['quantity']), normal_style))
+                        company = _safe_pdf_text(block.get('company') or '—', default='—')
+                        cargo_name = _safe_pdf_text(item.get('cargo_name') or '', default='')
+                        col_t.append(Paragraph(company + ' ' + cargo_name + ' ' + str(item['quantity']), normal_style))
             elif labor_by_type.get('T'):
                 for item in labor_by_type['T'].values():
                     lab = item['labor']
-                    col_t.append(Paragraph((getattr(lab, 'company', None) or '—') + ' ' + _lab_name(lab) + ' ' + str(item['count']), normal_style))
+                    company = _safe_pdf_text(getattr(lab, 'company', None) or '—', default='—')
+                    col_t.append(Paragraph(company + ' ' + _lab_name(lab) + ' ' + str(item['count']), normal_style))
             col_t.append(Paragraph('TOTAL ' + str(total_third_party), normal_style))
 
             n = max(len(col_i), len(col_d), len(col_t))
@@ -792,10 +845,21 @@ class PDFGenerator:
         if equipment_count:
             story.append(Paragraph("EQUIPAMENTOS", heading_style))
             data = [[Paragraph('Equipamento', table_header_style), Paragraph('Qtd', table_header_style)]]
-            for item in equipment_count.values():
+            equipment_items = sorted(
+                equipment_count.values(),
+                key=lambda item: (
+                    (getattr(item.get('equipment'), 'code', '') or '').lower(),
+                    (getattr(item.get('equipment'), 'name', '') or '').lower(),
+                    getattr(item.get('equipment'), 'pk', 0) or 0,
+                ),
+            )
+            for item in equipment_items:
                 eq = item['equipment']
+                code = _safe_pdf_text(getattr(eq, 'code', '') or '', default='')
+                name = _safe_pdf_text(getattr(eq, 'name', '') or '', default='Sem nome')
+                label = f"{code} – {name}" if code else name
                 data.append([
-                    Paragraph('%s – %s' % (getattr(eq, 'code', '') or '', getattr(eq, 'name', '') or ''), normal_style),
+                    Paragraph(label, normal_style),
                     Paragraph(str(item['count']), normal_style),
                 ])
             data.append([Paragraph('TOTAL', normal_style), Paragraph(str(total_equipment), normal_style)])
@@ -821,7 +885,7 @@ class PDFGenerator:
         story.append(Paragraph(text, normal_style))
         if getattr(diary, 'rain_observations', None) and diary.rain_observations.strip():
             story.append(Paragraph(
-                "OBSERVAÇÕES: %s" % diary.rain_observations[:300].replace('\n', '<br/>'),
+                "OBSERVAÇÕES: %s" % _safe_pdf_multiline_text(diary.rain_observations, default='—', max_len=300),
                 normal_style,
             ))
         story.append(Spacer(1, 0.2 * cm))
@@ -829,7 +893,10 @@ class PDFGenerator:
         # Condições climáticas detalhadas (quando preenchidas)
         weather_parts = []
         if getattr(diary, 'weather_conditions', None) and diary.weather_conditions.strip():
-            weather_parts.append(Paragraph("<b>Condições climáticas:</b> %s" % diary.weather_conditions[:400].replace('\n', '<br/>'), normal_style))
+            weather_parts.append(Paragraph(
+                "<b>Condições climáticas:</b> %s" % _safe_pdf_multiline_text(diary.weather_conditions, default='—', max_len=400),
+                normal_style,
+            ))
         w_morn_c = getattr(diary, 'weather_morning_condition', None)
         w_morn_w = getattr(diary, 'weather_morning_workable', None)
         if w_morn_c or w_morn_w:
@@ -861,8 +928,8 @@ class PDFGenerator:
         def _sec(title, value, max_len=1200):
             if not value or not str(value).strip():
                 return
-            story.append(Paragraph("<b>%s</b>" % title, normal_style))
-            story.append(Paragraph(str(value).replace('\n', '<br/>')[:max_len], normal_style))
+            story.append(Paragraph("<b>%s</b>" % _safe_pdf_text(title, default='—'), normal_style))
+            story.append(Paragraph(_safe_pdf_multiline_text(value, default='—', max_len=max_len), normal_style))
             story.append(Spacer(1, 0.12 * cm))
         _sec("Acidentes:", getattr(diary, 'accidents', None))
         _sec("Paralisações:", getattr(diary, 'stoppages', None))
@@ -884,9 +951,9 @@ class PDFGenerator:
             if occurrences:
                 for occ in occurrences:
                     desc = getattr(occ, 'description', '') or ''
-                    desc = desc.replace('\n', '<br/>')[:800]
+                    desc = _safe_pdf_multiline_text(desc, default='—', max_len=500)
                     tags = list(occ.tags.values_list('name', flat=True)[:5])
-                    tag_str = (' | '.join(tags)) if tags else ''
+                    tag_str = _safe_pdf_text(' | '.join(tags), default='') if tags else ''
                     if tag_str:
                         occ_rows.append([Paragraph("<b>%s</b> %s" % (tag_str, desc), normal_style)])
                     else:
@@ -894,7 +961,7 @@ class PDFGenerator:
             if getattr(diary, 'deliberations', None) and diary.deliberations.strip():
                 occ_rows.append([Paragraph("<b>DELIBERAÇÕES:</b>", normal_style)])
                 occ_rows.append([Paragraph(
-                    diary.deliberations.replace('\n', '<br/>')[:1500],
+                    _safe_pdf_multiline_text(diary.deliberations, default='—', max_len=1000),
                     normal_style,
                 )])
             border_color = COLOR_WARNING if occurrences else COLOR_PRIMARY
@@ -905,20 +972,12 @@ class PDFGenerator:
                 ('BACKGROUND', (0, 0), (0, 0), bg_color),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-            ]))
-            sect_occ = Table([[Paragraph(' ', ParagraphStyle(name='Bar2', fontSize=1)), inner_occ]], colWidths=[3 * mm, content_width])
-            sect_occ.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, 0), border_color),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('LEFTPADDING', (0, 0), (0, -1), 0),
-                ('RIGHTPADDING', (0, 0), (0, -1), 0),
-                ('LEFTPADDING', (1, 0), (1, 0), 10),
-                ('RIGHTPADDING', (1, 0), (1, 0), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LINEBEFORE', (0, 0), (0, -1), 2, border_color),
                 ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
             ]))
-            story.append(sect_occ)
+            story.append(inner_occ)
             story.append(Spacer(1, 0.25 * cm))
 
         # Registro Fotográfico — tabela aninhada; incluir imagem só se o arquivo for válido (PIL)
@@ -927,9 +986,10 @@ class PDFGenerator:
                 "<font color='#1A3A5C'><b>REGISTRO FOTOGRÁFICO</b></font>",
                 ParagraphStyle(name='PhotoTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
             )
-            content_width = 17 * cm - 3 * mm
+            content_width = 17 * cm
             img_w, img_h = 6.5 * cm, 4.9 * cm
-            photo_rows = [[photo_title], [Spacer(1, 0.12 * cm)]]
+            story.append(photo_title)
+            story.append(Spacer(1, 0.12 * cm))
             valid = [i for i in images_with_paths if i.get('absolute_path') and os.path.exists(i['absolute_path'])]
             if valid:
                 photo_cells = []
@@ -949,7 +1009,7 @@ class PDFGenerator:
                         else:
                             cap = str(cap)[:50]
                         cap_para = Paragraph(
-                            "<i>%s</i>" % cap,
+                            "<i>%s</i>" % _safe_pdf_text(cap, default='Foto'),
                             ParagraphStyle(name='Cap', parent=normal_style, fontSize=8, textColor=COLOR_TEXT_SECONDARY),
                         )
                         img_flowable = None
@@ -982,29 +1042,20 @@ class PDFGenerator:
                 if photo_cells:
                     t_photo = Table(photo_cells, colWidths=[img_w + 0.5 * cm] * 2)
                     t_photo.setStyle(TableStyle([
+                        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                        ('LINEBEFORE', (0, 0), (0, -1), 2, COLOR_PRIMARY),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                        ('TOPPADDING', (0, 0), (-1, -1), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                     ]))
-                    photo_rows.append([t_photo])
+                    story.append(t_photo)
                 else:
-                    photo_rows.append([Paragraph("Nenhum registro fotográfico.", label_style)])
+                    story.append(Paragraph("Nenhum registro fotográfico.", label_style))
             else:
-                photo_rows.append([Paragraph("Nenhum registro fotográfico.", label_style)])
-            inner_width = content_width - 0.6 * cm
-            inner_photo = Table(photo_rows, colWidths=[inner_width])
-            inner_photo.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, 0), COLOR_SURFACE),
-                ('LEFTPADDING', (0, 0), (-1, -1), 10),
-            ]))
-            sect_photo = Table([[Paragraph(' ', ParagraphStyle(name='BarP', fontSize=1)), inner_photo]], colWidths=[3 * mm, content_width])
-            sect_photo.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-                ('LEFTPADDING', (0, 0), (0, -1), 0),
-                ('RIGHTPADDING', (0, 0), (0, -1), 0),
-            ]))
-            story.append(sect_photo)
+                story.append(Paragraph("Nenhum registro fotográfico.", label_style))
             story.append(Spacer(1, 0.2 * cm))
 
         # Assinatura — bloco único de responsável pelo preenchimento (nome + assinatura desenhada)
@@ -1033,7 +1084,9 @@ class PDFGenerator:
                 raw_data = inspection_signature.signature_data.strip()
                 if 'base64,' in raw_data:
                     raw_data = raw_data.split('base64,', 1)[1]
-                decoded = base64.b64decode(raw_data)
+                decoded = base64.b64decode(raw_data, validate=True)
+                if len(decoded) > (2 * 1024 * 1024):
+                    raise ValueError("Assinatura excede tamanho máximo permitido.")
                 signature_stream = BytesIO(decoded)
 
                 max_sig_w = 6.2 * cm
@@ -1071,8 +1124,8 @@ class PDFGenerator:
             else:
                 rows.append([Paragraph('Assinatura não disponível', sig_line_style)])
             rows.extend([
-                [Paragraph(name or '_________________________', sig_style)],
-                [Paragraph(cargo or '', sig_cargo_style)],
+                [Paragraph(_safe_pdf_text(name, default='_________________________'), sig_style)],
+                [Paragraph(_safe_pdf_text(cargo, default=''), sig_cargo_style)],
             ])
             block = Table(rows, colWidths=[17 * cm])
             block.setStyle(TableStyle([
