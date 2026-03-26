@@ -31,6 +31,8 @@ from core.models import (
     DiaryOccurrence,
     OccurrenceTag,
     Equipment,
+    EquipmentCategory,
+    StandardEquipment,
     DailyWorkLogEquipment,
     DiaryCorrectionRequestLog,
 )
@@ -460,6 +462,67 @@ class DiaryFlowTestCase(TestCase):
         through = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=existing).first()
         self.assertIsNotNone(through)
         self.assertEqual(through.quantity, 3)
+
+    def test_equipment_payload_mismatched_id_prioritizes_name(self):
+        """
+        Se equipment_id vier inconsistente com o nome (ex.: id de tabela padrão),
+        o backend deve resolver por nome para evitar associação incorreta.
+        """
+        self._login_and_select_project()
+        wrong = Equipment.objects.create(
+            code='EQ-WRONG-01',
+            name='Equipamento Errado',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        expected = Equipment.objects.create(
+            code='EQ-RIGHT-01',
+            name='Betoneira',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['equipment_data'] = json.dumps([
+            {'equipment_id': wrong.id, 'name': 'Betoneira', 'quantity': 2},
+        ])
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:500] if resp.status_code != 302 else '')
+
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        right_row = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=expected).first()
+        wrong_row = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=wrong).first()
+        self.assertIsNotNone(right_row)
+        self.assertEqual(right_row.quantity, 2)
+        self.assertIsNone(wrong_row)
+
+    def test_equipment_payload_standard_id_uses_standard_name(self):
+        """Payload com standard_equipment_id deve resolver para Equipment pelo nome padrão."""
+        self._login_and_select_project()
+        category = EquipmentCategory.objects.create(slug='teste-equip', name='Teste Equip', order=1)
+        std = StandardEquipment.objects.create(category=category, name='Furadeira', order=1)
+        expected = Equipment.objects.create(
+            code='EQ-FURA-01',
+            name='Furadeira',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['equipment_data'] = json.dumps([
+            {'standard_equipment_id': std.id, 'name': 'Qualquer Nome', 'quantity': 4},
+        ])
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:500] if resp.status_code != 302 else '')
+
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        row = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=expected).first()
+        self.assertIsNotNone(row)
+        self.assertEqual(row.quantity, 4)
 
     def test_aggregate_equipment_matches_form_totals(self):
         """PDF e formulário usam aggregate_equipment_for_diary: totais e IDs batem."""

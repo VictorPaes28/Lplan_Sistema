@@ -2257,7 +2257,7 @@ var equipmentList = [];
             if (!equipmentId || !name || qty <= 0) continue;
             if (!byStandardId[equipmentId]) {
                 byStandardId[equipmentId] = {
-                    equipment_id: parseInt(equipmentId, 10),
+                    standard_equipment_id: parseInt(equipmentId, 10),
                     name: name,
                     quantity: 0
                 };
@@ -2409,15 +2409,21 @@ var equipmentList = [];
                 var item = data[i];
                 var name = (item.name || '').trim();
                 var qty = Math.max(1, parseInt(item.quantity, 10) || 1);
-                var equipmentId = (item.equipment_id !== undefined && item.equipment_id !== null) ? String(item.equipment_id) : '';
+                var standardEquipmentId = (item.standard_equipment_id !== undefined && item.standard_equipment_id !== null)
+                    ? String(item.standard_equipment_id)
+                    : '';
                 if (!name) continue;
                 var found = false;
 
-                // Prioriza match por ID quando disponível (evita colisões por nome duplicado).
-                if (equipmentId) {
-                    var byIdInput = document.querySelector('.diary-equipment-qty[data-equipment-id="' + equipmentId + '"]');
-                    if (byIdInput) {
-                        setEquipmentQty(equipmentId, byIdInput.getAttribute('data-equipment-name') || name, qty);
+                // Quando houver id de equipamento padrão, prioriza correspondência exata do card.
+                if (standardEquipmentId) {
+                    var byStdIdInput = document.querySelector('.diary-equipment-qty[data-equipment-id="' + standardEquipmentId + '"]');
+                    if (byStdIdInput) {
+                        setEquipmentQty(
+                            standardEquipmentId,
+                            byStdIdInput.getAttribute('data-equipment-name') || name,
+                            qty
+                        );
                         found = true;
                     }
                 }

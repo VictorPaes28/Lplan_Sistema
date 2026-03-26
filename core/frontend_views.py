@@ -162,6 +162,11 @@ def _normalize_equipment_name(value):
     return _decode_js_escaped_text(value).strip()
 
 
+def _normalized_name_key(value):
+    """Chave de comparação para nome de equipamento (case/espacos)."""
+    return ' '.join(_normalize_equipment_name(value).lower().split())
+
+
 def _generate_unique_equipment_code(base_name):
     """
     Gera código único para equipamento custom, evitando colisão em Equipment.code.
@@ -184,30 +189,49 @@ def _resolve_equipment_from_payload_item(equipment_item):
     Prioriza equipment_id válido; fallback por nome normalizado.
     """
     equipment = None
+    payload_name = _normalize_equipment_name(equipment_item.get('name', ''))
+    payload_name_key = _normalized_name_key(payload_name)
+
+    # Payload novo do formulário: id de StandardEquipment (não é Equipment.pk).
+    standard_equipment_id = equipment_item.get('standard_equipment_id')
+    if standard_equipment_id:
+        try:
+            from .models import StandardEquipment
+            std = StandardEquipment.objects.filter(pk=int(standard_equipment_id)).only('name').first()
+            if std and getattr(std, 'name', None):
+                payload_name = _normalize_equipment_name(std.name)
+                payload_name_key = _normalized_name_key(payload_name)
+        except (ValueError, TypeError):
+            pass
+
     equipment_id = equipment_item.get('equipment_id')
     if equipment_id:
         try:
-            equipment = Equipment.objects.filter(pk=int(equipment_id)).first()
+            by_id = Equipment.objects.filter(pk=int(equipment_id)).first()
+            if by_id:
+                by_id_name_key = _normalized_name_key(getattr(by_id, 'name', ''))
+                # Evita mapear equipamento errado quando o front envia id de outra tabela.
+                if not payload_name_key or by_id_name_key == payload_name_key:
+                    equipment = by_id
         except (ValueError, TypeError):
             equipment = None
-    name = _normalize_equipment_name(equipment_item.get('name', ''))
     if equipment is not None:
-        return equipment, name
-    if not name:
+        return equipment, payload_name
+    if not payload_name:
         return None, ''
 
-    by_name = Equipment.objects.filter(name__iexact=name).order_by('id').first()
+    by_name = Equipment.objects.filter(name__iexact=payload_name).order_by('id').first()
     if by_name:
-        return by_name, name
+        return by_name, payload_name
 
-    code = _generate_unique_equipment_code(name)
+    code = _generate_unique_equipment_code(payload_name)
     equipment = Equipment.objects.create(
         code=code,
-        name=name,
-        equipment_type=name,
+        name=payload_name,
+        equipment_type=payload_name,
         is_active=True,
     )
-    return equipment, name
+    return equipment, payload_name
 
 
 def _build_diary_equipment_list(diary):
@@ -1887,6 +1911,7 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
                             'name': name,
                             'quantity': int(item.get('quantity') or 1),
                             'equipment_id': item.get('equipment_id'),
+                            'standard_equipment_id': item.get('standard_equipment_id'),
                         })
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
