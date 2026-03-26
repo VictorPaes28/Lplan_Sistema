@@ -2,57 +2,220 @@
 {% load static %}
 
 {% block page_title %}Pedidos de correção — RDO{% endblock %}
-{% block page_subtitle %}Relatórios aprovados com pedido de edição{% endblock %}
+{% block page_subtitle %}Pendentes e histórico{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .rdo-req-page { max-width: 48rem; margin: 0 auto; }
+    .rdo-req-intro {
+        font-size: 0.9375rem;
+        color: #475569;
+        line-height: 1.55;
+        margin-bottom: 1.25rem;
+    }
+    .rdo-req-section-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748b;
+        margin: 0 0 0.65rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .rdo-req-section-title.rdo-req-section--hist { margin-top: 2rem; color: #475569; }
+    .rdo-req-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        padding: 1rem 1.15rem;
+        margin-bottom: 0.65rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .rdo-req-card-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem 1rem;
+    }
+    .rdo-req-title {
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 0.9375rem;
+        line-height: 1.35;
+    }
+    .rdo-req-meta {
+        font-size: 0.8125rem;
+        color: #64748b;
+        margin-top: 0.35rem;
+    }
+    .rdo-req-note-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94a3b8;
+        margin-top: 0.65rem;
+        margin-bottom: 0.25rem;
+    }
+    .rdo-req-note {
+        font-size: 0.8125rem;
+        color: #334155;
+        line-height: 1.45;
+        margin: 0;
+        padding: 0.45rem 0.6rem;
+        background: #f8fafc;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        max-height: 4.25rem;
+        overflow-y: auto;
+        word-break: break-word;
+    }
+    .rdo-req-btn-grant {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        padding: 0.55rem 1rem !important;
+        font-size: 0.875rem !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        background: #059669 !important;
+        border: 1px solid #047857 !important;
+        border-radius: 8px !important;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .rdo-req-btn-grant:hover {
+        background: #047857 !important;
+        border-color: #065f46 !important;
+    }
+    .rdo-req-btn-grant i { color: #ffffff !important; }
+    .rdo-req-empty {
+        text-align: center;
+        padding: 1.25rem 1.5rem;
+        color: #64748b;
+        font-size: 0.9375rem;
+        border: 1px dashed #cbd5e1;
+        border-radius: 12px;
+        background: #fafafa;
+        margin-bottom: 0.5rem;
+    }
+    .rdo-req-empty i { color: #22c55e; font-size: 1.5rem; margin-bottom: 0.35rem; display: block; }
+    .rdo-hist-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: #334155;
+    }
+    .rdo-hist-card strong { color: #0f172a; font-size: 0.875rem; }
+    .rdo-hist-line { margin: 0.25rem 0 0 0; }
+    .rdo-hist-badges { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .rdo-hist-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .rdo-hist-badge--done { background: #dcfce7; color: #166534; }
+    .rdo-hist-badge--wait { background: #fff7ed; color: #c2410c; }
+    .rdo-req-back { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid #f1f5f9; }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
-    <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">
-        Quando um utilizador solicita correção num relatório já aprovado, o pedido aparece aqui.
-        Ao <strong>liberar edição</strong>, o botão Editar fica disponível na página do relatório até o utilizador guardar.
+<div class="rdo-req-page">
+    <p class="rdo-req-intro">
+        <strong>Aguardando liberação:</strong> pedidos de correção em relatório já aprovado.
+        <strong>Histórico:</strong> registos após liberar edição (continua visível depois de liberar e depois de guardar).
     </p>
 
-    {% if not pending %}
-    <div class="bg-white rounded-lg border border-slate-200 p-8 text-center text-slate-600">
-        <i class="fas fa-check-circle text-emerald-500 text-2xl mb-2" aria-hidden="true"></i>
-        <p>Nenhum pedido pendente.</p>
+    <h2 class="rdo-req-section-title"><i class="fas fa-hourglass-half" aria-hidden="true"></i> Aguardando liberação</h2>
+    {% if not pending_items %}
+    <div class="rdo-req-empty">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        Nenhum pedido pendente.
     </div>
     {% else %}
-    <div class="space-y-4">
-        {% for d in pending %}
-        <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+    <div>
+        {% for item in pending_items %}
+        {% with d=item.diary %}
+        <article class="rdo-req-card">
+            <div class="rdo-req-card-head">
                 <div class="min-w-0">
-                    <div class="font-semibold text-slate-900">
-                        Obra {{ d.project.code }} — Relatório nº {{ d.report_number|default:"—" }} — {{ d.date|date:"d/m/Y" }}
+                    <div class="rdo-req-title">
+                        Obra {{ d.project.code }} · Rel. nº {{ d.report_number|default:"—" }} · {{ d.date|date:"d/m/Y" }}
                     </div>
-                    <div class="text-sm text-slate-600 mt-1">
-                        Pedido em {{ d.edit_requested_at|date:"d/m/Y H:i" }}
-                        {% if d.edit_requested_by %}
-                        por {{ d.edit_requested_by.get_full_name|default:d.edit_requested_by.username }}
+                    <div class="rdo-req-meta">
+                        Pedido em {{ item.requested_at|date:"d/m/Y H:i" }}
+                        {% if item.requested_by %}
+                        · {{ item.requested_by.get_full_name|default:item.requested_by.username }}
                         {% endif %}
                     </div>
-                    {% if d.edit_request_note %}
-                    <p class="text-sm text-slate-700 mt-2 p-2 bg-slate-50 rounded border border-slate-100">{{ d.edit_request_note }}</p>
+                    {% if item.note %}
+                    <div class="rdo-req-note-label">Justificativa</div>
+                    <p class="rdo-req-note">{{ item.note }}</p>
                     {% endif %}
                 </div>
                 <form method="post" action="{% url 'central_diary_grant_provisional_edit' d.pk %}" class="shrink-0">
                     {% csrf_token %}
-                    <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium w-full md:w-auto">
-                        <i class="fas fa-unlock-alt mr-2" aria-hidden="true"></i>Liberar edição
+                    <button type="submit" class="rdo-req-btn-grant">
+                        <i class="fas fa-unlock-alt" aria-hidden="true"></i>
+                        Liberar edição
                     </button>
                 </form>
             </div>
-        </div>
+        </article>
+        {% endwith %}
         {% endfor %}
     </div>
     {% endif %}
 
-    <div class="mt-8 pt-6 border-t border-slate-100">
-        <a href="{% url 'central_hub' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao painel</a>
+    <h2 class="rdo-req-section-title rdo-req-section--hist"><i class="fas fa-history" aria-hidden="true"></i> Histórico</h2>
+    {% if not history %}
+    <div class="rdo-req-empty" style="border-style: solid; background: #f8fafc;">
+        <i class="fas fa-inbox" aria-hidden="true" style="color:#94a3b8;"></i>
+        Ainda não há registos de liberação.
+    </div>
+    {% else %}
+    <div>
+        {% for log in history %}
+        {% with d=log.diary %}
+        <article class="rdo-hist-card">
+            <div><strong>Obra {{ d.project.code }} · Rel. nº {{ d.report_number|default:"—" }} · {{ d.date|date:"d/m/Y" }}</strong></div>
+            <p class="rdo-hist-line">Pedido: {{ log.requested_at|date:"d/m/Y H:i" }}{% if log.requested_by %} — {{ log.requested_by.get_full_name|default:log.requested_by.username }}{% endif %}</p>
+            {% if log.note %}
+            <p class="rdo-hist-line" style="margin-top:0.35rem;">Justificativa: {{ log.note }}</p>
+            {% endif %}
+            <p class="rdo-hist-line">Liberação: {{ log.granted_at|date:"d/m/Y H:i" }}{% if log.granted_by %} — {{ log.granted_by.get_full_name|default:log.granted_by.username }}{% endif %}</p>
+            <div class="rdo-hist-badges">
+                {% if log.closed_at %}
+                <span class="rdo-hist-badge rdo-hist-badge--done"><i class="fas fa-check" aria-hidden="true"></i> Concluído (guardou) em {{ log.closed_at|date:"d/m/Y H:i" }}</span>
+                {% else %}
+                <span class="rdo-hist-badge rdo-hist-badge--wait"><i class="fas fa-pen" aria-hidden="true"></i> Edição liberada — aguardando guardar</span>
+                {% endif %}
+            </div>
+        </article>
+        {% endwith %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="rdo-req-back">
+        <a href="{% url 'accounts:admin_central' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao Painel do sistema</a>
+        <span class="text-slate-300 mx-2">|</span>
+        <a href="{% url 'central_hub' %}" class="central-nav-link">Central (obras e usuários)</a>
     </div>
 </div>
 {% endblock %}

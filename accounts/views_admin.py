@@ -105,6 +105,16 @@ def admin_central(request):
     except Exception:
         pass
 
+    # Pedidos de correção em RDO (diário aprovado → pedido pendente de liberação)
+    pending_diary_edit_requests_count = 0
+    try:
+        pending_diary_edit_requests_count = ConstructionDiary.objects.filter(
+            edit_requested_at__isnull=False,
+            provisional_edit_granted_at__isnull=True,
+        ).count()
+    except Exception:
+        pass
+
     context = {
         'total_usuarios': total_usuarios,
         'usuarios_ativos': usuarios_ativos,
@@ -119,6 +129,7 @@ def admin_central(request):
         'obras_ativas': obras_ativas,
         'stats_email_logs': stats_email_logs,
         'stats_system_logs': stats_system_logs,
+        'pending_diary_edit_requests_count': pending_diary_edit_requests_count,
     }
 
     return render(request, 'accounts/admin_central.html', context)

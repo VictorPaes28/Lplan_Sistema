@@ -902,6 +902,60 @@ class ConstructionDiary(models.Model):
         return False
 
 
+class DiaryCorrectionRequestLog(models.Model):
+    """
+    Histórico de pedidos de correção em relatório já aprovado (solicitar → liberar → guardar).
+    Mantém registo após liberação e após o utilizador guardar (closed_at).
+    """
+    diary = models.ForeignKey(
+        'ConstructionDiary',
+        on_delete=models.CASCADE,
+        related_name='correction_request_logs',
+        verbose_name='Diário',
+    )
+    requested_at = models.DateTimeField(verbose_name='Pedido em')
+    requested_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+        verbose_name='Pedido por',
+    )
+    note = models.TextField(blank=True, verbose_name='Justificativa')
+    granted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Liberação em',
+    )
+    granted_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+        verbose_name='Liberação por',
+    )
+    closed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Encerrado em',
+        help_text='Quando o utilizador guardou após a edição provisória.',
+    )
+
+    class Meta:
+        verbose_name = 'Pedido de correção (histórico)'
+        verbose_name_plural = 'Pedidos de correção (histórico)'
+        ordering = ['-requested_at']
+        indexes = [
+            models.Index(fields=['-requested_at']),
+            models.Index(fields=['diary', '-requested_at']),
+        ]
+
+    def __str__(self) -> str:
+        return f'Correção diário {self.diary_id} @ {self.requested_at}'
+
+
 class DiaryComment(models.Model):
     """
     Comentário do dono da obra (ou da LPLAN) no diário.

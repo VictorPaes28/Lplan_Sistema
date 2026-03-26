@@ -24,7 +24,7 @@ import csv
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from accounts.groups import GRUPOS
-from core.models import Project, ProjectOwner, ConstructionDiary
+from core.models import Project, ProjectOwner, ConstructionDiary, DiaryCorrectionRequestLog
 
 
 def _staff_required(f):
@@ -777,19 +777,59 @@ def central_client_remove_owner(request, pk):
     return redirect('central_clients')
 
 
-@login_required
-@_staff_required
-def central_diary_edit_requests_view(request):
-    """Lista pedidos de correção em relatórios aprovados (aguardando liberação de edição)."""
-    pending = (
+def _merge_pending_correction_items():
+    """Pendentes de liberação: logs novos + diários legados sem linha de log aberta."""
+    pending_logs = list(
+        DiaryCorrectionRequestLog.objects.filter(granted_at__isnull=True)
+        .select_related('diary', 'diary__project', 'requested_by')
+    )
+    open_diary_ids = {log.diary_id for log in pending_logs}
+    legacy_diaries = list(
         ConstructionDiary.objects.filter(
             edit_requested_at__isnull=False,
             provisional_edit_granted_at__isnull=True,
         )
+        .exclude(pk__in=open_diary_ids)
         .select_related('project', 'edit_requested_by')
-        .order_by('-edit_requested_at')
     )
-    return render(request, 'core/central_diary_edit_requests.html', {'pending': pending})
+    items = []
+    for log in pending_logs:
+        items.append({
+            'kind': 'log',
+            'diary': log.diary,
+            'requested_at': log.requested_at,
+            'requested_by': log.requested_by,
+            'note': log.note or '',
+            'log': log,
+        })
+    for d in legacy_diaries:
+        items.append({
+            'kind': 'legacy',
+            'diary': d,
+            'requested_at': d.edit_requested_at,
+            'requested_by': d.edit_requested_by,
+            'note': (d.edit_request_note or ''),
+            'log': None,
+        })
+    items.sort(key=lambda x: x['requested_at'] or timezone.now(), reverse=True)
+    return items
+
+
+@login_required
+@_staff_required
+def central_diary_edit_requests_view(request):
+    """Lista pedidos pendentes de liberação e histórico de pedidos já liberados."""
+    pending_items = _merge_pending_correction_items()
+    history = (
+        DiaryCorrectionRequestLog.objects.filter(granted_at__isnull=False)
+        .select_related('diary', 'diary__project', 'requested_by', 'granted_by')
+        .order_by('-granted_at')[:200]
+    )
+    return render(
+        request,
+        'core/central_diary_edit_requests.html',
+        {'pending_items': pending_items, 'history': history},
+    )
 
 
 @login_required
@@ -805,9 +845,28 @@ def central_diary_grant_provisional_edit(request, pk):
     if diary.provisional_edit_granted_at:
         messages.info(request, 'Este relatório já tem edição liberada.')
         return redirect('central_diary_edit_requests')
-    diary.provisional_edit_granted_at = timezone.now()
+    now = timezone.now()
+    diary.provisional_edit_granted_at = now
     diary.provisional_edit_granted_by = request.user
     diary.save(update_fields=['provisional_edit_granted_at', 'provisional_edit_granted_by', 'updated_at'])
+    log = (
+        DiaryCorrectionRequestLog.objects.filter(diary=diary, granted_at__isnull=True)
+        .order_by('-requested_at')
+        .first()
+    )
+    if log:
+        log.granted_at = now
+        log.granted_by = request.user
+        log.save(update_fields=['granted_at', 'granted_by'])
+    else:
+        DiaryCorrectionRequestLog.objects.create(
+            diary=diary,
+            requested_at=diary.edit_requested_at or now,
+            requested_by=diary.edit_requested_by,
+            note=diary.edit_request_note or '',
+            granted_at=now,
+            granted_by=request.user,
+        )
     messages.success(
         request,
         f'Edição liberada para o relatório nº {diary.report_number or diary.pk} ({diary.project.code}).',
