@@ -32,6 +32,7 @@ from core.models import (
     OccurrenceTag,
     Equipment,
     DailyWorkLogEquipment,
+    DiaryCorrectionRequestLog,
 )
 from core.forms import (
     ConstructionDiaryForm,
@@ -319,6 +320,15 @@ class DiaryFlowTestCase(TestCase):
             provisional_edit_granted_at=timezone.now(),
             provisional_edit_granted_by=self.user,
         )
+        t = timezone.now()
+        DiaryCorrectionRequestLog.objects.create(
+            diary=approved,
+            requested_at=t,
+            requested_by=self.user,
+            note='teste',
+            granted_at=t,
+            granted_by=self.user,
+        )
         url = reverse('diary-edit', kwargs={'pk': approved.pk})
         post = _minimal_diary_post(self.project, approved.date, partial_save=True)
         post['general_notes'] = 'nota após unlock'
@@ -328,6 +338,9 @@ class DiaryFlowTestCase(TestCase):
         self.assertIsNone(approved.provisional_edit_granted_at)
         self.assertIsNone(approved.edit_requested_at)
         self.assertEqual(approved.general_notes, 'nota após unlock')
+        log = DiaryCorrectionRequestLog.objects.filter(diary=approved).first()
+        self.assertIsNotNone(log)
+        self.assertIsNotNone(log.closed_at)
 
     def test_last_diary_for_copy_in_context(self):
         """GET diary-new com projeto que tem diário deve ter last_diary_for_copy no context."""
@@ -418,6 +431,36 @@ class DiaryFlowTestCase(TestCase):
         self.assertEqual(through_rows.count(), 1)
         self.assertEqual(through_rows.first().quantity, 5)
 
+    def test_save_custom_equipment_reuses_existing_name_with_js_escape(self):
+        """
+        Equipamento sem equipment_id deve reutilizar cadastro existente por nome
+        (incluindo payload com escape JS \\u0027).
+        """
+        self._login_and_select_project()
+        existing = Equipment.objects.create(
+            code='EQ-BOMBA-01',
+            name="Bomba d'água",
+            equipment_type='Bomba',
+            is_active=True,
+        )
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['equipment_data'] = json.dumps([
+            {'name': 'Bomba d\\u0027água', 'quantity': 3},
+        ])
+
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:500] if resp.status_code != 302 else '')
+
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        # Não deve criar novo cadastro de equipamento por colisão de nome.
+        self.assertEqual(Equipment.objects.filter(name__iexact="Bomba d'água").count(), 1)
+        through = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=existing).first()
+        self.assertIsNotNone(through)
+        self.assertEqual(through.quantity, 3)
+
     def test_aggregate_equipment_matches_form_totals(self):
         """PDF e formulário usam aggregate_equipment_for_diary: totais e IDs batem."""
         eq_a = Equipment.objects.create(
@@ -448,6 +491,47 @@ class DiaryFlowTestCase(TestCase):
         self.assertEqual(by_id.get(eq_b.id), 4)
         self.assertEqual(total, 6)
         self.assertEqual(len(rows), 2)
+
+    def test_aggregate_equipment_uses_daily_max_not_sum_across_worklogs(self):
+        """
+        Mesmo equipamento em múltiplos work_logs do dia não deve somar quantidades;
+        deve manter a maior quantidade diária para evitar supercontagem no PDF.
+        """
+        eq = Equipment.objects.create(
+            code='AGG-MAX-01',
+            name='Equip Max',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        second_activity = Activity.add_root(
+            project=self.project,
+            name='Atividade Teste 2',
+            code='1.1',
+            weight=Decimal('1.00'),
+        )
+        wl2 = DailyWorkLog.objects.create(
+            diary=self.source_diary,
+            activity=second_activity,
+            location='Setor B',
+            percentage_executed_today=0,
+            accumulated_progress_snapshot=0,
+            notes='Outro serviço no mesmo dia',
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=self.source_worklog,
+            equipment=eq,
+            quantity=4,
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=wl2,
+            equipment=eq,
+            quantity=6,
+        )
+
+        rows, total = aggregate_equipment_for_diary(self.source_diary)
+        by_id = {r['equipment_id']: r['quantity'] for r in rows}
+        self.assertEqual(by_id.get(eq.id), 6)
+        self.assertEqual(total, 6)
 
     def test_copy_then_save_equipment_matches_pdf_aggregate(self):
         """

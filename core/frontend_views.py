@@ -2,6 +2,7 @@
 Views para frontend do LPlan - Templates Django com HTMX/Alpine.js
 """
 from functools import wraps
+import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import Group
@@ -19,6 +20,7 @@ from .models import (
     ProjectMember,
     ProjectOwner,
     ConstructionDiary,
+    DiaryCorrectionRequestLog,
     DiaryComment,
     DiaryImage,
     DailyWorkLog,
@@ -132,6 +134,117 @@ def _is_truthy_flag(value):
     """Interpreta flags vindas de forms HTML de forma resiliente."""
     normalized = str(value or '').strip().lower()
     return normalized in {'1', 'true', 'on', 'yes'}
+
+
+def _decode_js_escaped_text(value):
+    """
+    Decodifica sequências JS literais (ex.: \\u0027) para exibição humana.
+    Mantém o texto original quando não há escapes.
+    """
+    text = str(value or '').strip()
+    if not text:
+        return ''
+    text = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), text)
+    return text.replace("\\'", "'")
+
+
+def _safe_positive_int(value, default=1, minimum=1):
+    """Converte para inteiro positivo sem quebrar fluxo."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return max(minimum, int(default))
+    return max(minimum, number)
+
+
+def _normalize_equipment_name(value):
+    """Normaliza nome de equipamento recebido do front/API."""
+    return _decode_js_escaped_text(value).strip()
+
+
+def _generate_unique_equipment_code(base_name):
+    """
+    Gera código único para equipamento custom, evitando colisão em Equipment.code.
+    """
+    normalized = _normalize_equipment_name(base_name)
+    token = re.sub(r'[^A-Za-z0-9]+', '-', normalized.upper()).strip('-')
+    token = token[:26] if token else 'CUSTOM'
+    base_code = f"EQ-CUSTOM-{token}"
+    candidate = base_code
+    suffix = 1
+    while Equipment.objects.filter(code=candidate).exists():
+        suffix += 1
+        candidate = f"{base_code}-{suffix}"
+    return candidate
+
+
+def _resolve_equipment_from_payload_item(equipment_item):
+    """
+    Resolve/Cria Equipment a partir do item do payload de equipamentos.
+    Prioriza equipment_id válido; fallback por nome normalizado.
+    """
+    equipment = None
+    equipment_id = equipment_item.get('equipment_id')
+    if equipment_id:
+        try:
+            equipment = Equipment.objects.filter(pk=int(equipment_id)).first()
+        except (ValueError, TypeError):
+            equipment = None
+    name = _normalize_equipment_name(equipment_item.get('name', ''))
+    if equipment is not None:
+        return equipment, name
+    if not name:
+        return None, ''
+
+    by_name = Equipment.objects.filter(name__iexact=name).order_by('id').first()
+    if by_name:
+        return by_name, name
+
+    code = _generate_unique_equipment_code(name)
+    equipment = Equipment.objects.create(
+        code=code,
+        name=name,
+        equipment_type=name,
+        is_active=True,
+    )
+    return equipment, name
+
+
+def _build_diary_equipment_list(diary):
+    """
+    Lista de equipamentos agregada por equipamento (mesma regra do PDF),
+    com quantidade total por diário.
+    """
+    equipment_list = []
+    try:
+        from core.utils.diary_equipment import aggregate_equipment_for_diary
+        rows, _total = aggregate_equipment_for_diary(diary)
+        for row in rows:
+            eq = row.get('equipment')
+            if not eq:
+                continue
+            equipment_list.append({
+                'name': _decode_js_escaped_text(getattr(eq, 'name', '') or ''),
+                'code': _decode_js_escaped_text(getattr(eq, 'code', '') or ''),
+                'quantity': int(row.get('quantity') or 0),
+            })
+    except Exception:
+        # Fallback defensivo para não quebrar a tela caso a agregação falhe.
+        seen = {}
+        for work_log in diary.work_logs.prefetch_related('resources_equipment').all():
+            for equipment in work_log.resources_equipment.all():
+                eid = getattr(equipment, 'pk', None)
+                if eid is None:
+                    continue
+                if eid not in seen:
+                    seen[eid] = {
+                        'name': _decode_js_escaped_text(getattr(equipment, 'name', '') or ''),
+                        'code': _decode_js_escaped_text(getattr(equipment, 'code', '') or ''),
+                        'quantity': 0,
+                    }
+                seen[eid]['quantity'] += 1
+        equipment_list = list(seen.values())
+    return equipment_list
 
 
 def login_view(request):
@@ -860,31 +973,8 @@ def diary_detail_view(request, pk):
     weekday_names = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo']
     weekday_name = weekday_names[diary.date.weekday()] if diary.date else ''
     
-    # Equipamentos: usar tabela through (DailyWorkLogEquipment) para quantidade correta; evitar colapsar por nome e perder itens
-    equipment_list = []
-    try:
-        from .models import DailyWorkLogEquipment
-        through_rows = DailyWorkLogEquipment.objects.filter(
-            work_log__diary=diary
-        ).select_related('equipment')
-        if through_rows.exists():
-            for row in through_rows:
-                equipment_list.append({
-                    'name': row.equipment.name,
-                    'code': row.equipment.code,
-                    'quantity': row.quantity,
-                })
-        else:
-            # Fallback: M2M sem through (diários antigos)
-            for work_log in diary.work_logs.prefetch_related('resources_equipment').all():
-                for equipment in work_log.resources_equipment.all():
-                    equipment_list.append({
-                        'name': equipment.name,
-                        'code': equipment.code,
-                        'quantity': 1,
-                    })
-    except Exception:
-        pass
+    # Equipamentos agregados por diário (mesma regra do PDF)
+    equipment_list = _build_diary_equipment_list(diary)
 
     # Mão de obra por categorias (DiaryLaborEntry) - preferência sobre work_log.resources_labor
     labor_entries_by_category = None
@@ -1090,11 +1180,7 @@ def client_diary_detail_view(request, pk):
                 labor_by_type['Indireto'][labor.name] = labor_by_type['Indireto'].get(labor.name, 0) + 1
             elif labor_type == 'T':
                 labor_by_type['Terceiros'][labor.name] = labor_by_type['Terceiros'].get(labor.name, 0) + 1
-    equipment_list = []
-    for work_log in diary.work_logs.all():
-        for equipment in work_log.resources_equipment.all():
-            if equipment.name not in [e['name'] for e in equipment_list]:
-                equipment_list.append({'name': equipment.name, 'code': equipment.code})
+    equipment_list = _build_diary_equipment_list(diary)
     project = diary.project
     project_days_total = (project.end_date - project.start_date).days if project.end_date and project.start_date else 0
     project_days_elapsed = (diary.date - project.start_date).days if project.end_date and project.start_date else 0
@@ -1181,10 +1267,17 @@ def diary_request_edit_view(request, pk):
         messages.info(request, 'Já existe um pedido de correção pendente.')
         return redirect('diary-detail', pk=pk)
     note = (request.POST.get('note') or '').strip()[:2000]
+    now = timezone.now()
     ConstructionDiary.objects.filter(pk=diary.pk).update(
-        edit_requested_at=timezone.now(),
+        edit_requested_at=now,
         edit_requested_by=request.user,
         edit_request_note=note,
+    )
+    DiaryCorrectionRequestLog.objects.create(
+        diary_id=diary.pk,
+        requested_at=now,
+        requested_by=request.user,
+        note=note,
     )
     messages.success(
         request,
@@ -1729,26 +1822,21 @@ def equipment_histogram_view(request):
     if activity_id:
         work_logs = work_logs.filter(activity_id=activity_id)
     
-    # Agrupa equipamentos por nome
+    # Agrupa por quantidade do through (DailyWorkLogEquipment), evitando contagem por presença.
+    from .models import DailyWorkLogEquipment
     equipment_stats = {}
-    
-    for work_log in work_logs:
-        for equipment in work_log.resources_equipment.all():
-            if equipment.name not in equipment_stats:
-                equipment_stats[equipment.name] = 0
-            equipment_stats[equipment.name] += 1
-    
-    # Estatísticas por data
     equipment_by_date = {}
-    for work_log in work_logs:
-        date_key = work_log.diary.date.isoformat()
+    through_rows = DailyWorkLogEquipment.objects.filter(work_log__in=work_logs).select_related('work_log__diary', 'equipment')
+    for row in through_rows:
+        eq_name = _normalize_equipment_name(getattr(row.equipment, 'name', ''))
+        if not eq_name:
+            continue
+        qty = _safe_positive_int(getattr(row, 'quantity', 1), default=1, minimum=1)
+        equipment_stats[eq_name] = equipment_stats.get(eq_name, 0) + qty
+        date_key = row.work_log.diary.date.isoformat()
         if date_key not in equipment_by_date:
             equipment_by_date[date_key] = {}
-        
-        for equipment in work_log.resources_equipment.all():
-            if equipment.name not in equipment_by_date[date_key]:
-                equipment_by_date[date_key][equipment.name] = 0
-            equipment_by_date[date_key][equipment.name] += 1
+        equipment_by_date[date_key][eq_name] = equipment_by_date[date_key].get(eq_name, 0) + qty
     
     context = {
         'equipment_stats': equipment_stats,
@@ -2701,58 +2789,48 @@ def diary_form_view(request, pk=None):
                             logger.debug(f"Erro ao processar dados de mão de obra: {e}")
                             request._labor_objects = []
                     
-                    equipment_data_json = request.POST.get('equipment_data', '[]')
-                    try:
-                        equipment_data = json.loads(equipment_data_json) if equipment_data_json else []
-                        logger.info(f"Dados de equipamentos recebidos: {len(equipment_data)} itens")
-                        
-                        equipment_qty_by_id = {}  # equipment_id -> {'equipment': Equipment, 'quantity': int}
-                        for equipment_item in equipment_data:
-                            equipment_name = equipment_item.get('name', '').strip()
-                            equipment_quantity = int(equipment_item.get('quantity') or 1)
-                            
-                            if equipment_quantity <= 0:
-                                continue
+                    # Equipamentos: só processa se campo foi enviado no POST.
+                    # Isso evita limpar dados por acidente em submits parciais/legados.
+                    if 'equipment_data' in request.POST:
+                        equipment_data_json = request.POST.get('equipment_data', '[]')
+                        try:
+                            equipment_data = json.loads(equipment_data_json) if equipment_data_json else []
+                            if not isinstance(equipment_data, list):
+                                equipment_data = []
+                            logger.info(f"Dados de equipamentos recebidos: {len(equipment_data)} itens")
 
-                            equipment = None
-                            equipment_id = equipment_item.get('equipment_id')
-                            if equipment_id:
-                                try:
-                                    equipment = Equipment.objects.filter(pk=int(equipment_id)).first()
-                                except (ValueError, TypeError):
-                                    equipment = None
-
-                            if equipment is None and not equipment_name:
-                                continue
-
-                            if equipment is None:
-                                equipment_code = f"EQ-{equipment_name.upper().replace(' ', '-')[:20]}"
-                                equipment, created = Equipment.objects.get_or_create(
-                                    code=equipment_code,
-                                    defaults={
-                                        'name': equipment_name,
-                                        'equipment_type': equipment_name,
-                                        'is_active': True
-                                    }
+                            equipment_qty_by_id = {}  # equipment_id -> {'equipment': Equipment, 'quantity': int}
+                            for equipment_item in equipment_data:
+                                if not isinstance(equipment_item, dict):
+                                    continue
+                                equipment, parsed_name = _resolve_equipment_from_payload_item(equipment_item)
+                                if equipment is None:
+                                    continue
+                                equipment_quantity = _safe_positive_int(
+                                    equipment_item.get('quantity'),
+                                    default=1,
+                                    minimum=1,
                                 )
 
-                            if equipment.pk not in equipment_qty_by_id:
-                                equipment_qty_by_id[equipment.pk] = {
-                                    'equipment': equipment,
-                                    'quantity': 0,
-                                }
-                            equipment_qty_by_id[equipment.pk]['quantity'] += equipment_quantity
-                            logger.info(f"Equipment processado: {equipment.name} x{equipment_quantity}")
+                                if equipment.pk not in equipment_qty_by_id:
+                                    equipment_qty_by_id[equipment.pk] = {
+                                        'equipment': equipment,
+                                        'quantity': 0,
+                                    }
+                                equipment_qty_by_id[equipment.pk]['quantity'] += equipment_quantity
+                                logger.info("Equipment processado: %s x%s", equipment.name, equipment_quantity)
 
-                        equipment_items = [
-                            (v['equipment'], v['quantity'])
-                            for v in equipment_qty_by_id.values()
-                            if v['quantity'] > 0
-                        ]
-                        request._equipment_items = equipment_items
-                    except (json.JSONDecodeError, ValueError) as e:
-                        logger.debug(f"Erro ao processar dados de equipamentos: {e}")
-                        request._equipment_items = []
+                            equipment_items = [
+                                (v['equipment'], v['quantity'])
+                                for v in equipment_qty_by_id.values()
+                                if v['quantity'] > 0
+                            ]
+                            request._equipment_items = equipment_items
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.debug(f"Erro ao processar dados de equipamentos: {e}")
+                            request._equipment_items = []
+                    else:
+                        request._equipment_items = None
                     
                     # 5. PROCESSAMENTO DE WORKLOGS (prioridade: JSON > formset)
                     saved_worklogs = []
@@ -3021,6 +3099,11 @@ def diary_form_view(request, pk=None):
             if image_valid and worklog_valid and occurrence_valid:
                 from django.urls import reverse
                 if had_provisional_unlock and diary and diary.pk:
+                    DiaryCorrectionRequestLog.objects.filter(
+                        diary_id=diary.pk,
+                        granted_at__isnull=False,
+                        closed_at__isnull=True,
+                    ).update(closed_at=timezone.now())
                     ConstructionDiary.objects.filter(pk=diary.pk).update(
                         provisional_edit_granted_at=None,
                         provisional_edit_granted_by_id=None,

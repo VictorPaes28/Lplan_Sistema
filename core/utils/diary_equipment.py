@@ -2,9 +2,10 @@
 Agregação de equipamentos por diário — fonte única para formulário e PDF.
 
 Regra (igual em todo o sistema):
-- Se existir qualquer linha em DailyWorkLogEquipment para o diário → soma apenas
-  `quantity` dessa tabela, por `equipment_id` (ordem: primeira ocorrência por work_log, id do through).
-- Caso contrário (diários só com M2M antigo) → +1 por vínculo work_log↔equipamento,
+- Se existir qualquer linha em DailyWorkLogEquipment para o diário → consolida por
+  `equipment_id` usando o MAIOR `quantity` encontrado no dia (não soma entre work_logs).
+  Isso evita supercontagem quando o mesmo equipamento é associado a várias atividades.
+- Caso contrário (diários só com M2M antigo) → quantidade 1 por equipamento único do dia,
   ordem pela primeira ocorrência na ordem explícita dos work_logs (atividade, pk).
 """
 from __future__ import annotations
@@ -39,10 +40,15 @@ def aggregate_equipment_for_diary(
             if eq is None:
                 continue
             eid = row.equipment_id
+            qty = int(row.quantity or 0)
             if eid not in by_id:
-                by_id[eid] = {'equipment': eq, 'quantity': 0}
+                by_id[eid] = {'equipment': eq, 'quantity': qty}
                 order_eids.append(eid)
-            by_id[eid]['quantity'] += row.quantity
+            else:
+                # Lógica de diário: mesmo equipamento em vários serviços conta uma vez
+                # com a maior quantidade usada no dia.
+                if qty > by_id[eid]['quantity']:
+                    by_id[eid]['quantity'] = qty
     else:
         if work_logs_ordered is not None:
             wls = work_logs_ordered
@@ -60,9 +66,8 @@ def aggregate_equipment_for_diary(
                 if eid is None:
                     continue
                 if eid not in by_id:
-                    by_id[eid] = {'equipment': eq, 'quantity': 0}
+                    by_id[eid] = {'equipment': eq, 'quantity': 1}
                     order_eids.append(eid)
-                by_id[eid]['quantity'] += 1
 
     rows: List[Dict[str, Any]] = []
     for eid in order_eids:

@@ -270,7 +270,9 @@
             <div class="cdd-section-title"><i class="fas fa-tools" style="color: #0ea5e9;"></i> Equipamentos</div>
             <div class="cdd-equip-list">
                 {% for e in equipment_list %}
-                <span class="cdd-equip-tag">{{ e.name }}{% if e.code %} ({{ e.code }}){% endif %}</span>
+                <span class="cdd-equip-tag">
+                    {{ e.name }}{% if e.quantity and e.quantity > 1 %} × {{ e.quantity }}{% endif %}{% if e.code %} ({{ e.code }}){% endif %}
+                </span>
                 {% endfor %}
             </div>
         </div>

@@ -11,6 +11,7 @@ import os
 import tempfile
 import base64
 import binascii
+import re
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from io import BytesIO
@@ -70,6 +71,17 @@ def _safe_pdf_multiline_text(value: Any, default: str = '', max_len: Optional[in
     raw = '\n'.join(lines)
     escaped = xml_escape(raw, {"'": "&#39;", '"': "&quot;"})
     return escaped.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br/>')
+
+
+def _decode_js_escaped_text(value: Any) -> str:
+    """
+    Decodifica sequências JS literais (ex.: \\u0027) para melhorar legibilidade no PDF.
+    """
+    text = str(value or '').strip()
+    if not text:
+        return ''
+    text = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), text)
+    return text.replace("\\'", "'")
 
 
 def _decode_data_url_or_base64_image(raw: str) -> Optional[bytes]:
@@ -857,8 +869,8 @@ class PDFGenerator:
             data = [[Paragraph('Equipamento', table_header_style), Paragraph('Qtd', table_header_style)]]
             for item in equipment_rows:
                 eq = item['equipment']
-                code = _safe_pdf_text(getattr(eq, 'code', '') or '', default='')
-                name = _safe_pdf_text(getattr(eq, 'name', '') or '', default='Sem nome')
+                code = _safe_pdf_text(_decode_js_escaped_text(getattr(eq, 'code', '') or ''), default='')
+                name = _safe_pdf_text(_decode_js_escaped_text(getattr(eq, 'name', '') or ''), default='Sem nome')
                 label = f"{code} – {name}" if code else name
                 data.append([
                     Paragraph(label, normal_style),
