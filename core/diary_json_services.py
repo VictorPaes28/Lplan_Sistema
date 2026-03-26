@@ -69,10 +69,11 @@ def _get_or_create_activity(project, activity_description):
     return None
 
 
-def create_worklogs_from_json(diary, project, work_logs_json_str):
+def create_worklogs_from_json(diary, project, work_logs_json_str, replace_existing=False):
     """
-    Substitui os registros DailyWorkLog do diário pelos enviados em JSON.
-    Remove os existentes e cria a partir da lista (activity_description, work_stage, etc.).
+    Cria/atualiza registros DailyWorkLog do diário a partir de JSON.
+    Quando replace_existing=True, remove os existentes antes de recriar.
+    Quando replace_existing=False (padrão), faz upsert sem apagar os atuais.
 
     Retorna a lista de DailyWorkLog criados.
     """
@@ -88,10 +89,10 @@ def create_worklogs_from_json(diary, project, work_logs_json_str):
     valid_count = sum(1 for item in data if isinstance(item, dict) and (item.get('activity_description') or '').strip())
     if valid_count == 0:
         return []
-    # Substituição: remove todos os work_logs atuais do diário
-    deleted_count, _ = diary.work_logs.all().delete()
-    if deleted_count:
-        logger.info("Work logs anteriores do diário removidos: %s", deleted_count)
+    if replace_existing:
+        deleted_count, _ = diary.work_logs.all().delete()
+        if deleted_count:
+            logger.info("Work logs anteriores do diário removidos: %s", deleted_count)
     saved = []
     for item in data:
         if not isinstance(item, dict):
@@ -149,10 +150,11 @@ def create_worklogs_from_json(diary, project, work_logs_json_str):
     return saved
 
 
-def create_occurrences_from_json(diary, occurrences_json_str, created_by):
+def create_occurrences_from_json(diary, occurrences_json_str, created_by, replace_existing=False):
     """
-    Substitui as ocorrências do diário pelas enviadas em JSON.
-    Remove as existentes e cria a partir da lista (description e opcionalmente tag_ids).
+    Cria/atualiza ocorrências do diário a partir de JSON.
+    Quando replace_existing=True, remove as existentes antes de recriar.
+    Quando replace_existing=False (padrão), apenas adiciona novas (sem apagar as atuais).
 
     Retorna a lista de DiaryOccurrence criados.
     created_by: usuário logado (obrigatório; DiaryOccurrence.created_by NOT NULL).
@@ -181,10 +183,10 @@ def create_occurrences_from_json(diary, occurrences_json_str, created_by):
     valid_count = sum(1 for item in data if isinstance(item, dict) and (item.get('description') or '').strip())
     if valid_count == 0:
         return []
-    # Substituição: remove todas as ocorrências atuais do diário
-    deleted_count, _ = diary.occurrences.all().delete()
-    if deleted_count:
-        logger.info("Ocorrências anteriores do diário removidas: %s", deleted_count)
+    if replace_existing:
+        deleted_count, _ = diary.occurrences.all().delete()
+        if deleted_count:
+            logger.info("Ocorrências anteriores do diário removidas: %s", deleted_count)
     saved = []
     for item in data:
         if not isinstance(item, dict):

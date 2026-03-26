@@ -2857,21 +2857,33 @@ def diary_form_view(request, pk=None):
                     else:
                         request._equipment_items = None
                     
-                    # 5. PROCESSAMENTO DE WORKLOGS (prioridade: JSON > formset)
+                    # 5. PROCESSAMENTO DE WORKLOGS (prioridade: formset; JSON apenas fallback não destrutivo)
                     saved_worklogs = []
                     work_logs_json_str = (request.POST.get('work_logs_json') or '').strip()
                     occurrences_json_str = (request.POST.get('occurrences_json') or '').strip()
-                    # Só usa JSON quando o payload tem conteúdo; [] ou vazio evita apagar dados por engano
-                    use_worklogs_json = 'work_logs_json' in request.POST and work_logs_json_str not in ('', '[]')
-                    use_occurrences_json = 'occurrences_json' in request.POST and occurrences_json_str not in ('', '[]')
-                    if use_worklogs_json:
-                        from core.diary_json_services import create_worklogs_from_json
-                        create_worklogs_from_json(diary, project, work_logs_json_str)
-                        saved_worklogs = list(diary.work_logs.all())
-                        logger.info(f"Worklogs criados a partir de JSON; total no diário: {len(saved_worklogs)}")
-                    elif worklog_valid:
+                    has_worklogs_json = 'work_logs_json' in request.POST and work_logs_json_str not in ('', '[]')
+                    has_occurrences_json = 'occurrences_json' in request.POST and occurrences_json_str not in ('', '[]')
+                    total_worklog_forms_post = int(normalized_post.get('work_logs-TOTAL_FORMS', '0'))
+                    total_occurrence_forms_post = int(normalized_post.get('ocorrencias-TOTAL_FORMS', '0'))
+
+                    if worklog_valid:
                         saved_worklogs = worklog_formset.save()
                         logger.info(f"Worklogs salvos pelo formset: {len(saved_worklogs)} worklogs")
+                        # Fallback de compatibilidade:
+                        # se o front enviou apenas JSON (sem linhas no formset), processa JSON sem apagar dados existentes.
+                        if not saved_worklogs and has_worklogs_json and total_worklog_forms_post == 0:
+                            from core.diary_json_services import create_worklogs_from_json
+                            create_worklogs_from_json(
+                                diary,
+                                project,
+                                work_logs_json_str,
+                                replace_existing=False,
+                            )
+                            saved_worklogs = list(diary.work_logs.all())
+                            logger.info(
+                                "Worklogs processados por fallback JSON (não destrutivo); total no diário: %s",
+                                len(saved_worklogs),
+                            )
                     else:
                         logger.warning("Formset de worklogs inválido, pulando processamento")
                     
@@ -2986,8 +2998,8 @@ def diary_form_view(request, pk=None):
                                 len(request._equipment_items),
                             )
                     
-                    # Recalcula progresso quando worklogs foram salvos (JSON ou formset)
-                    if use_worklogs_json and saved_worklogs:
+                    # Recalcula progresso quando worklogs foram salvos (formset ou fallback JSON)
+                    if saved_worklogs:
                         try:
                             from .services import ProgressService
                             for wl in saved_worklogs:
@@ -2997,7 +3009,7 @@ def diary_form_view(request, pk=None):
                                     except Exception as e:
                                         logger.debug(f"Erro ao recalcular progresso da atividade {wl.activity_id}: {e}", exc_info=True)
                         except Exception as e:
-                            logger.debug(f"Erro ao recalcular progresso (JSON): {e}", exc_info=True)
+                            logger.debug(f"Erro ao recalcular progresso: {e}", exc_info=True)
                     elif worklog_valid:
                         for form_obj in worklog_formset.forms:
                             if form_obj.instance.pk and form_obj.instance.activity:
@@ -3007,12 +3019,8 @@ def diary_form_view(request, pk=None):
                                 except Exception as e:
                                     logger.debug(f"Erro ao recalcular progresso da atividade {form_obj.instance.activity_id}: {e}", exc_info=True)
                     
-                    # 6. PROCESSAMENTO DE OCORRÊNCIAS (prioridade: JSON > formset)
-                    if use_occurrences_json:
-                        from core.diary_json_services import create_occurrences_from_json
-                        created_occurrences = create_occurrences_from_json(diary, occurrences_json_str, request.user)
-                        logger.info("Ocorrências criadas a partir de JSON: %s itens (diary_id=%s)", len(created_occurrences), diary.pk)
-                    elif occurrence_valid:
+                    # 6. PROCESSAMENTO DE OCORRÊNCIAS (prioridade: formset; JSON apenas fallback não destrutivo)
+                    if occurrence_valid:
                         occurrences = occurrence_formset.save(commit=False)
                         for occurrence in occurrences:
                             if not occurrence.pk:
@@ -3020,6 +3028,21 @@ def diary_form_view(request, pk=None):
                             occurrence.save()
                         occurrence_formset.save_m2m()
                         logger.info(f"Ocorrências salvas: {len(occurrences)} ocorrências")
+                        # Fallback de compatibilidade:
+                        # se o front enviou apenas JSON (sem linhas no formset), processa JSON sem apagar dados existentes.
+                        if has_occurrences_json and total_occurrence_forms_post == 0:
+                            from core.diary_json_services import create_occurrences_from_json
+                            created_occurrences = create_occurrences_from_json(
+                                diary,
+                                occurrences_json_str,
+                                request.user,
+                                replace_existing=False,
+                            )
+                            logger.info(
+                                "Ocorrências processadas por fallback JSON (não destrutivo): %s itens (diary_id=%s)",
+                                len(created_occurrences),
+                                diary.pk,
+                            )
                     else:
                         logger.warning("Formset de ocorrências inválido, pulando processamento")
                     

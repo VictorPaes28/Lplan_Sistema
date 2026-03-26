@@ -693,3 +693,238 @@ class DiaryFlowTestCase(TestCase):
         resp = self.client.post(url, post)
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'sig-preservada')
+
+    def test_edit_draft_with_partial_worklogs_json_does_not_delete_existing_worklogs(self):
+        """
+        Em edição de rascunho, payload JSON parcial de atividades não pode apagar
+        atividades já salvas no diário.
+        """
+        self._login_and_select_project()
+        draft = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=self.user,
+            general_notes='Rascunho com atividades',
+        )
+        activity_b = Activity.add_root(
+            project=self.project,
+            name='Atividade Secundária',
+            code='1.9',
+            weight=Decimal('10.00'),
+        )
+        wl_a = DailyWorkLog.objects.create(
+            diary=draft,
+            activity=self.activity,
+            location='Setor A',
+            percentage_executed_today=Decimal('5.00'),
+            accumulated_progress_snapshot=Decimal('10.00'),
+            notes='WL A',
+        )
+        DailyWorkLog.objects.create(
+            diary=draft,
+            activity=activity_b,
+            location='Setor B',
+            percentage_executed_today=Decimal('7.00'),
+            accumulated_progress_snapshot=Decimal('20.00'),
+            notes='WL B',
+        )
+
+        post = _minimal_diary_post(self.project, draft.date, partial_save=True)
+        # Simula payload JSON incompleto (apenas 1 item), com formset vazio.
+        post['work_logs_json'] = json.dumps([
+            {
+                'activity_description': self.activity.name,
+                'work_stage': 'AN',
+                'percentage_executed_today': '6.00',
+                'accumulated_progress_snapshot': '11.00',
+                'location': 'Setor A - revisado',
+                'notes': 'WL A atualizado via JSON',
+            }
+        ])
+        url = reverse('diary-edit', kwargs={'pk': draft.pk})
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:800] if resp.status_code != 302 else '')
+
+        draft.refresh_from_db()
+        worklogs = DailyWorkLog.objects.filter(diary=draft).select_related('activity')
+        self.assertEqual(worklogs.count(), 2)
+        self.assertTrue(worklogs.filter(activity=activity_b).exists(), 'Atividade secundária não pode ser apagada por payload JSON parcial')
+        wl_a.refresh_from_db()
+        self.assertEqual(wl_a.location, 'Setor A - revisado')
+
+    def test_edit_draft_with_partial_occurrences_json_does_not_delete_existing_occurrences(self):
+        """
+        Em edição de rascunho, payload JSON parcial de ocorrências não pode apagar
+        ocorrências já salvas no diário.
+        """
+        self._login_and_select_project()
+        draft = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=self.user,
+            general_notes='Rascunho com ocorrências',
+        )
+        DiaryOccurrence.objects.create(
+            diary=draft,
+            description='Ocorrência original A',
+            created_by=self.user,
+        )
+        DiaryOccurrence.objects.create(
+            diary=draft,
+            description='Ocorrência original B',
+            created_by=self.user,
+        )
+
+        post = _minimal_diary_post(self.project, draft.date, partial_save=True)
+        # Simula payload JSON incompleto (apenas 1 ocorrência), com formset vazio.
+        post['occurrences_json'] = json.dumps([
+            {'description': 'Ocorrência nova via JSON', 'tag_ids': []}
+        ])
+        url = reverse('diary-edit', kwargs={'pk': draft.pk})
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:800] if resp.status_code != 302 else '')
+
+        descriptions = set(DiaryOccurrence.objects.filter(diary=draft).values_list('description', flat=True))
+        self.assertIn('Ocorrência original A', descriptions)
+        self.assertIn('Ocorrência original B', descriptions)
+
+    def test_edit_draft_prefers_formset_over_conflicting_worklogs_json(self):
+        """
+        Quando formset e JSON de atividades coexistem no POST, o backend deve
+        priorizar o formset para evitar sobrescrita implícita por JSON parcial.
+        """
+        self._login_and_select_project()
+        draft = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=self.user,
+        )
+        wl = DailyWorkLog.objects.create(
+            diary=draft,
+            activity=self.activity,
+            location='Local original',
+            percentage_executed_today=Decimal('5.00'),
+            accumulated_progress_snapshot=Decimal('10.00'),
+            notes='Notas originais',
+        )
+
+        post = _minimal_diary_post(self.project, draft.date, partial_save=True)
+        post['work_logs-TOTAL_FORMS'] = '1'
+        post['work_logs-INITIAL_FORMS'] = '1'
+        post['work_logs-0-id'] = str(wl.pk)
+        post['work_logs-0-activity_description'] = self.activity.name
+        post['work_logs-0-work_stage'] = 'AN'
+        post['work_logs-0-location'] = 'Local vindo do formset'
+        post['work_logs-0-percentage_executed_today'] = '8.00'
+        post['work_logs-0-accumulated_progress_snapshot'] = '18.00'
+        post['work_logs-0-notes'] = 'Notas vindas do formset'
+        # JSON conflitante (não deve prevalecer)
+        post['work_logs_json'] = json.dumps([
+            {
+                'activity_description': self.activity.name,
+                'work_stage': 'TE',
+                'location': 'Local vindo do JSON',
+                'percentage_executed_today': '99.00',
+                'accumulated_progress_snapshot': '99.00',
+                'notes': 'Notas vindas do JSON',
+            }
+        ])
+
+        url = reverse('diary-edit', kwargs={'pk': draft.pk})
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:800] if resp.status_code != 302 else '')
+
+        wl.refresh_from_db()
+        self.assertEqual(wl.location, 'Local vindo do formset')
+        self.assertEqual(str(wl.percentage_executed_today), '8.00')
+        self.assertEqual(str(wl.accumulated_progress_snapshot), '18.00')
+        self.assertEqual(wl.notes, 'Notas vindas do formset')
+
+    def test_edit_draft_with_incomplete_dynamic_post_keeps_existing_and_updates_main_fields(self):
+        """
+        Em POST incompleto (formsets vazios), campos principais do diário devem
+        atualizar e os dados dinâmicos já existentes não podem desaparecer.
+        """
+        self._login_and_select_project()
+        draft = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=self.user,
+            stoppages='Paralisação inicial',
+            general_notes='Nota inicial',
+        )
+        DailyWorkLog.objects.create(
+            diary=draft,
+            activity=self.activity,
+            location='Atividade existente',
+            percentage_executed_today=Decimal('3.00'),
+            accumulated_progress_snapshot=Decimal('6.00'),
+            notes='WL existente',
+        )
+        DiaryOccurrence.objects.create(
+            diary=draft,
+            description='Ocorrência existente',
+            created_by=self.user,
+        )
+
+        post = _minimal_diary_post(self.project, draft.date, partial_save=True)
+        # Simula envio incompleto sem linhas dinâmicas
+        post['work_logs-TOTAL_FORMS'] = '0'
+        post['work_logs-INITIAL_FORMS'] = '0'
+        post['ocorrencias-TOTAL_FORMS'] = '0'
+        post['ocorrencias-INITIAL_FORMS'] = '0'
+        post['general_notes'] = 'Nota atualizada'
+        post['stoppages'] = 'Paralisação atualizada'
+
+        url = reverse('diary-edit', kwargs={'pk': draft.pk})
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:800] if resp.status_code != 302 else '')
+
+        draft.refresh_from_db()
+        self.assertEqual(draft.general_notes, 'Nota atualizada')
+        self.assertEqual(draft.stoppages, 'Paralisação atualizada')
+        self.assertEqual(DailyWorkLog.objects.filter(diary=draft).count(), 1)
+        self.assertEqual(DiaryOccurrence.objects.filter(diary=draft).count(), 1)
+
+    def test_edit_get_renders_saved_dynamic_and_main_fields(self):
+        """
+        Dupla verificação frontend+backend: após salvar rascunho, o GET de edição
+        deve renderizar no HTML os dados dinâmicos e campos principais já persistidos.
+        """
+        self._login_and_select_project()
+        draft = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=self.user,
+            stoppages='Paralisação render teste',
+            general_notes='Observação render teste',
+        )
+        DailyWorkLog.objects.create(
+            diary=draft,
+            activity=self.activity,
+            location='Frente A',
+            percentage_executed_today=Decimal('12.00'),
+            accumulated_progress_snapshot=Decimal('34.00'),
+            notes='Alvenaria executada',
+        )
+        DiaryOccurrence.objects.create(
+            diary=draft,
+            description='Ocorrência render teste',
+            created_by=self.user,
+        )
+
+        url = reverse('diary-edit', kwargs={'pk': draft.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+
+        # Campos principais renderizados
+        self.assertContains(resp, 'Paralisação render teste')
+        self.assertContains(resp, 'Observação render teste')
+        # Dinâmicos renderizados na edição (não apenas no banco)
+        self.assertContains(resp, 'Alvenaria executada')
+        self.assertContains(resp, 'Ocorrência render teste')
