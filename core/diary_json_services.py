@@ -28,12 +28,16 @@ def _get_or_create_activity(project, activity_description):
     activity_description = (activity_description or '').strip()
     if not activity_description:
         return None
+    # Activity.name é CharField(max_length=255); evita DataError no MySQL.
+    activity_name = activity_description[:255].strip()
+    if not activity_name:
+        return None
     try:
-        activity = Activity.objects.get(project=project, name=activity_description)
+        activity = Activity.objects.get(project=project, name=activity_name)
         return activity
     except Activity.DoesNotExist:
         pass
-    base_code = f'GEN-{activity_description[:20].upper().replace(" ", "-").replace("/", "-")}'
+    base_code = f'GEN-{activity_name[:20].upper().replace(" ", "-").replace("/", "-")}'
     code = base_code
     max_attempts = 5
     for attempt in range(max_attempts):
@@ -46,7 +50,7 @@ def _get_or_create_activity(project, activity_description):
                 return existing
             activity = Activity.add_root(
                 project=project,
-                name=activity_description,
+                name=activity_name,
                 code=code,
                 description=f'Atividade criada automaticamente: {activity_description}',
                 weight=Decimal('0.00'),
@@ -59,7 +63,7 @@ def _get_or_create_activity(project, activity_description):
                 code = f'{base_code}-{int(time.time()) % 10000}'
             else:
                 try:
-                    return Activity.objects.get(project=project, name=activity_description)
+                    return Activity.objects.get(project=project, name=activity_name)
                 except Activity.DoesNotExist:
                     raise
     return None

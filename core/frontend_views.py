@@ -2856,7 +2856,6 @@ def diary_form_view(request, pk=None):
                         ((hasattr(request, '_labor_objects') and request._labor_objects) or 
                          (hasattr(request, '_equipment_items') and request._equipment_items))):
                         from core.models import DailyWorkLog, Activity
-                        from django.db import IntegrityError
                         
                         # Valida que project existe
                         if not project:
