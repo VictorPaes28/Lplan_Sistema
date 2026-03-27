@@ -198,6 +198,32 @@ class DiaryFlowTestCase(TestCase):
         self.assertIsNotNone(diary)
         self.assertEqual(diary.status, DiaryStatus.SALVAMENTO_PARCIAL)
 
+    def test_save_draft_with_long_activity_description_returns_validation_instead_of_500(self):
+        """Descrição longa deve gerar validação amigável sem erro 500."""
+        self._login_and_select_project()
+        url = reverse('diary-new')
+        new_date = date.today()
+        long_desc = 'Atividade muito longa ' + ('X' * 400)
+
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['work_logs-TOTAL_FORMS'] = '1'
+        post['work_logs-INITIAL_FORMS'] = '0'
+        post['work_logs-0-activity_description'] = long_desc
+        post['work_logs-0-work_stage'] = 'AN'
+        post['work_logs-0-location'] = 'Trecho teste'
+        post['work_logs-0-percentage_executed_today'] = '1.00'
+        post['work_logs-0-accumulated_progress_snapshot'] = '1.00'
+        post['work_logs-0-notes'] = 'Teste nome longo'
+
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Certifique-se de que o valor tenha no máximo')
+        self.assertFalse(
+            Activity.objects.filter(project=self.project)
+            .exclude(pk=self.activity.pk)
+            .exists()
+        )
+
     def test_save_draft_after_copy(self):
         """POST salvar rascunho após ter carregado página com copy_from deve salvar rascunho com dados copiados."""
         self._login_and_select_project()

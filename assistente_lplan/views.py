@@ -20,9 +20,20 @@ from assistente_lplan.services.messages import MessageCatalog
 
 logger = logging.getLogger(__name__)
 
+
+def _resolve_history_limit(setting_name: str, default: int) -> int:
+    raw_value = getattr(settings, setting_name, default)
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        value = default
+    return max(1, value)
+
+
 SESSION_HISTORY_KEY = "assistente_lplan_history"
-MAX_SESSION_HISTORY_ITEMS = 20
-MAX_UI_HISTORY_ITEMS = getattr(settings, "ASSISTENTE_LPLAN_UI_HISTORY_ITEMS", 20)
+DEFAULT_HISTORY_ITEMS = 5
+MAX_SESSION_HISTORY_ITEMS = _resolve_history_limit("ASSISTENTE_LPLAN_SESSION_HISTORY_ITEMS", DEFAULT_HISTORY_ITEMS)
+MAX_UI_HISTORY_ITEMS = _resolve_history_limit("ASSISTENTE_LPLAN_UI_HISTORY_ITEMS", DEFAULT_HISTORY_ITEMS)
 MAX_LOGS_PER_USER = getattr(settings, "ASSISTENTE_LPLAN_MAX_LOGS_PER_USER", 3000)
 LOG_RETENTION_DAYS = getattr(settings, "ASSISTENTE_LPLAN_LOG_RETENTION_DAYS", 180)
 CLEANUP_USER_INTERVAL_SECONDS = getattr(settings, "ASSISTENTE_LPLAN_CLEANUP_INTERVAL_SECONDS", 3600)
@@ -36,8 +47,14 @@ def assistant_home(request):
         "Onde esta o cimento do bloco C?",
         "Quais itens dessa obra estao sem alocacao?",
         "Quais aprovacoes estao pendentes?",
+        "Quero o RDO do dia 15/03/2026",
+        "Mostre o diario da obra ALFA em 2026-03-15",
         "Resuma a situacao da obra atual",
         "Como Joao esta nos ultimos 30 dias?",
+        "Status do usuario Stan nos ultimos 30 dias",
+        "Quais solicitacoes foram reprovadas na obra ALFA?",
+        "Reprovados por aprovador Stan nos ultimos 30 dias",
+        "Quais pendencias da obra ALFA hoje?",
         "Quais sao os gargalos da obra X?",
     ]
     return render(

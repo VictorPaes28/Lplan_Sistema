@@ -527,10 +527,12 @@ class DailyWorkLogForm(forms.ModelForm):
         if 'percentage_executed_today' in self.fields:
             self.fields['percentage_executed_today'].required = False
         
+        activity_name_max_length = Activity._meta.get_field('name').max_length or 255
+
         # Adiciona campo de texto livre para atividade (textarea)
         self.fields['activity_description'] = forms.CharField(
             required=True,
-            max_length=1000,
+            max_length=activity_name_max_length,
             widget=forms.Textarea(attrs={
                 'class': 'w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm text-slate-900 placeholder:text-slate-400 transition-all resize-y max-h-24',
                 'placeholder': 'Descreva a atividade executada...',
@@ -669,7 +671,7 @@ class DailyWorkLogForm(forms.ModelForm):
     def save(self, commit=True):
         """Salva o form criando uma Activity automaticamente se necessário."""
         from core.models import Activity
-        from django.db import transaction, IntegrityError
+        from django.db import transaction, IntegrityError, DataError
         import logging
         import time
         
@@ -678,8 +680,11 @@ class DailyWorkLogForm(forms.ModelForm):
         
         # Pega o texto da atividade
         activity_description = self.cleaned_data.get('activity_description', '').strip()
+        activity_name_max_length = Activity._meta.get_field('name').max_length or 255
+        activity_name = activity_description[:activity_name_max_length].strip()
+        candidate_activity_name = activity_name
         
-        if not activity_description:
+        if not activity_name:
             raise ValidationError({
                 'activity_description': 'A descrição da atividade é obrigatória.'
             })
@@ -687,12 +692,12 @@ class DailyWorkLogForm(forms.ModelForm):
         if not self.diary or not self.diary.project:
             raise ValidationError('Diário e projeto são obrigatórios para criar worklog.')
         
-        if activity_description and self.diary and self.diary.project:
+        if activity_name and self.diary and self.diary.project:
             # Busca uma Activity existente com este nome no projeto
             try:
                 activity = Activity.objects.get(
                     project=self.diary.project,
-                    name=activity_description
+                    name=activity_name
                 )
                 instance.activity = activity
                 logger.info(f"Activity encontrada por nome: {activity.code}")
@@ -729,7 +734,7 @@ class DailyWorkLogForm(forms.ModelForm):
                                 # Cria nova Activity como raiz
                                 activity = Activity.add_root(
                                     project=self.diary.project,
-                                    name=activity_description,
+                                    name=candidate_activity_name,
                                     code=code,
                                     description=f'Atividade criada automaticamente: {activity_description}',
                                     weight=Decimal('0.00'),
@@ -737,7 +742,15 @@ class DailyWorkLogForm(forms.ModelForm):
                                 )
                                 logger.info(f"Activity criada como raiz: {activity.code}")
                                 break
-                            except IntegrityError as e:
+                            except (IntegrityError, DataError) as e:
+                                if isinstance(e, DataError) and "Data too long for column 'name'" in str(e):
+                                    if len(candidate_activity_name) > 20:
+                                        candidate_activity_name = candidate_activity_name[: max(20, len(candidate_activity_name) - 40)].strip()
+                                        logger.warning(
+                                            "Nome da atividade excedeu limite do banco, reduzindo para %s caracteres.",
+                                            len(candidate_activity_name),
+                                        )
+                                        continue
                                 if attempt < max_attempts - 1:
                                     code = f'{base_code}-{int(time.time()) % 10000}'
                                     logger.warning(f"Erro ao criar Activity: {e}, tentando {code}")
@@ -746,12 +759,12 @@ class DailyWorkLogForm(forms.ModelForm):
                                     try:
                                         activity = Activity.objects.get(
                                             project=self.diary.project,
-                                            name=activity_description
+                                            name=candidate_activity_name
                                         )
                                         logger.info(f"Activity encontrada após tentativas: {activity.code}")
                                         break
                                     except Activity.DoesNotExist:
-                                        logger.error(f"Não foi possível criar ou encontrar Activity para: {activity_description}")
+                                        logger.error(f"Não foi possível criar ou encontrar Activity para: {candidate_activity_name}")
                                         raise ValidationError({
                                             'activity_description': f'Erro ao criar atividade. Tente novamente.'
                                         })

@@ -1,4 +1,7 @@
 import logging
+import re
+import unicodedata
+from difflib import SequenceMatcher
 
 from assistente_lplan.schemas import AssistantResponse
 
@@ -12,6 +15,7 @@ from .intents import (
     INTENT_LOCATE_SUPPLY,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
+    INTENT_RDO_BY_DATE,
     INTENT_REJECTED_REQUESTS,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
@@ -53,7 +57,7 @@ class AssistantOrchestrator:
         domain = self._domain_for_intent(intent)
 
         if intent == INTENT_FALLBACK:
-            response = self._clarification_response(candidates=candidates, reason=reason)
+            response = self._clarification_response(question=question, candidates=candidates, reason=reason)
             response = self._ensure_actionability(response, domain=domain)
             response = self._apply_primary_action_highlight(response=response, intent=intent, domain=domain)
             response.raw_data.update(
@@ -130,6 +134,8 @@ class AssistantOrchestrator:
             return self.obras.listar_pendencias_obra(entities)
         if intent == INTENT_LIST_PENDING_APPROVALS:
             return self.aprovacoes.listar_aprovacoes_pendentes(entities)
+        if intent == INTENT_RDO_BY_DATE:
+            return self.diario.consultar_rdo_por_data(entities)
         if intent == INTENT_OBRA_SUMMARY:
             return self.obras.resumo_obra(entities)
         if intent == INTENT_USER_STATUS:
@@ -168,22 +174,30 @@ class AssistantOrchestrator:
             raw_data={"message_code": unsupported["code"], "message_kind": unsupported["kind"]},
         )
 
-    @staticmethod
-    def _clarification_response(candidates: list | None = None, reason: str = "") -> AssistantResponse:
+    @classmethod
+    def _clarification_response(cls, question: str = "", candidates: list | None = None, reason: str = "") -> AssistantResponse:
         sugestoes = []
         if candidates:
             sugestoes = [f"{intent} ({score:.2f})" for intent, score in candidates[:3]]
+        suggested_questions = cls._suggest_similar_questions(question=question, candidates=candidates, limit=3)
         summary_msg = MessageCatalog.resolve("assistant.intent.ambiguous_summary", {"domain": "fallback"})
         alert_msg = MessageCatalog.resolve("assistant.intent.ambiguous_alert", {"domain": "fallback"})
+        summary_text = summary_msg["text"]
+        alerts = [
+            {
+                "level": "warning",
+                "message": alert_msg["text"],
+            }
+        ]
+        if suggested_questions:
+            summary_text = f"{summary_text} Talvez voce quis dizer: {suggested_questions[0]}"
+            alerts.append({"level": "info", "message": f"Pergunta semelhante: {suggested_questions[0]}"})
+            if len(suggested_questions) > 1:
+                alerts.append({"level": "info", "message": "Outras sugestoes: " + " | ".join(suggested_questions[1:])})
         return AssistantResponse(
-            summary=summary_msg["text"],
+            summary=summary_text,
             badges=["Interpretacao ambigua"],
-            alerts=[
-                {
-                    "level": "warning",
-                    "message": alert_msg["text"],
-                }
-            ],
+            alerts=alerts,
             actions=[
                 {"label": "Abrir pendencias de aprovacao", "url": "/gestao/pedidos/", "style": "secondary"},
                 {"label": "Abrir mapa de suprimentos", "url": "/engenharia/mapa/", "style": "secondary"},
@@ -197,11 +211,102 @@ class AssistantOrchestrator:
             raw_data={
                 "candidates": sugestoes,
                 "reason": reason,
+                "suggested_questions": suggested_questions,
                 "message_code": summary_msg["code"],
                 "message_kind": summary_msg["kind"],
                 "next_steps": summary_msg["next_steps"],
             },
         )
+
+    @classmethod
+    def _suggest_similar_questions(cls, question: str, candidates: list | None = None, limit: int = 3) -> list[str]:
+        pools = cls._intent_example_questions()
+        ordered_intents = [intent for intent, _score in (candidates or [])]
+
+        candidate_questions: list[str] = []
+        for intent in ordered_intents:
+            candidate_questions.extend(pools.get(intent, []))
+        if not candidate_questions:
+            for values in pools.values():
+                candidate_questions.extend(values)
+
+        question_norm = cls._normalize_similarity_text(question)
+        scored: list[tuple[str, float]] = []
+        for phrase in candidate_questions:
+            phrase_norm = cls._normalize_similarity_text(phrase)
+            ratio = SequenceMatcher(None, question_norm, phrase_norm).ratio() if (question_norm and phrase_norm) else 0.0
+            scored.append((phrase, ratio))
+
+        scored.sort(key=lambda item: item[1], reverse=True)
+        unique: list[str] = []
+        seen = set()
+        for phrase, _score in scored:
+            key = phrase.strip().lower()
+            if not key or key in seen:
+                continue
+            unique.append(phrase)
+            seen.add(key)
+            if len(unique) >= max(1, limit):
+                break
+        return unique
+
+    @staticmethod
+    def _intent_example_questions() -> dict[str, list[str]]:
+        return {
+            INTENT_LOCATE_SUPPLY: [
+                "Onde esta o cimento do bloco C?",
+                "Localizar insumo vergalhao na obra X",
+                "Onde esta o insumo areia fina na obra Y?",
+            ],
+            INTENT_UNALLOCATED_ITEMS: [
+                "Quais itens dessa obra estao sem alocacao?",
+                "Liste os itens nao alocados da obra X",
+                "Itens sem alocacao com prioridade alta na obra Y",
+            ],
+            INTENT_LIST_PENDING_APPROVALS: [
+                "Quais aprovacoes estao pendentes?",
+                "Liste as aprovacoes pendentes da obra X",
+                "Pedidos pendentes por solicitante Joao",
+            ],
+            INTENT_RDO_BY_DATE: [
+                "Quero o RDO do dia 15/03/2026",
+                "Mostre o diario da obra ALFA em 2026-03-15",
+                "RDO de ontem da obra X",
+            ],
+            INTENT_REJECTED_REQUESTS: [
+                "Tudo que ja foi reprovado",
+                "Quais solicitacoes foram reprovadas na obra X?",
+                "Reprovados por aprovador Stan nos ultimos 30 dias",
+            ],
+            INTENT_LIST_OBRA_PENDING: [
+                "Quais pendencias da obra X?",
+                "O que falta na obra atual?",
+                "Pendencias operacionais da obra Y",
+            ],
+            INTENT_OBRA_SUMMARY: [
+                "Resuma a situacao da obra atual",
+                "Resumo operacional da obra X",
+                "Como esta a obra Y hoje?",
+            ],
+            INTENT_USER_STATUS: [
+                "Como Joao esta nos ultimos 30 dias?",
+                "Status do usuario Stan nos ultimos 30 dias",
+                "Desempenho do usuario Maria",
+            ],
+            INTENT_OBRA_BOTTLENECKS: [
+                "Quais sao os gargalos da obra X?",
+                "O que esta travando a obra Y?",
+                "Gargalos atuais da obra selecionada",
+            ],
+        }
+
+    @staticmethod
+    def _normalize_similarity_text(value: str) -> str:
+        text = (value or "").lower().strip()
+        text = unicodedata.normalize("NFD", text)
+        text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+        text = re.sub(r"[^a-z0-9 ]+", " ", text)
+        return re.sub(r"\s+", " ", text).strip()
 
     @staticmethod
     def _domain_for_intent(intent: str) -> str:
@@ -211,6 +316,7 @@ class AssistantOrchestrator:
             INTENT_LIST_PENDING_APPROVALS: "aprovacoes",
             INTENT_REJECTED_REQUESTS: "aprovacoes",
             INTENT_LIST_OBRA_PENDING: "obras",
+            INTENT_RDO_BY_DATE: "obras",
             INTENT_OBRA_SUMMARY: "obras",
             INTENT_USER_STATUS: "usuarios",
             INTENT_OBRA_BOTTLENECKS: "cross_domain",
@@ -302,7 +408,7 @@ class AssistantOrchestrator:
             chosen_idx = find_idx("mapa") or find_idx("aloca") or 0
         elif intent in (INTENT_LIST_PENDING_APPROVALS, INTENT_REJECTED_REQUESTS) or domain == "aprovacoes":
             chosen_idx = find_idx("pedido") or find_idx("aprova") or 0
-        elif intent in (INTENT_LIST_OBRA_PENDING, INTENT_OBRA_SUMMARY) or domain == "obras":
+        elif intent in (INTENT_LIST_OBRA_PENDING, INTENT_OBRA_SUMMARY, INTENT_RDO_BY_DATE) or domain == "obras":
             if has_warning_alert or has_error_alert:
                 chosen_idx = find_idx("relatorio") or find_idx("pedido") or 0
             else:

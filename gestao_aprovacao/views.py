@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from datetime import timedelta, datetime
+from urllib.parse import urlencode
 import os
 import csv
 import io
@@ -2353,16 +2354,18 @@ def list_notificacoes(request):
     if marcar_todas_lidas == 'true':
         Notificacao.objects.filter(usuario=request.user, lida=False).update(lida=True)
         messages.success(request, 'Todas as notificações foram marcadas como lidas.')
-        # Preservar filtros ao redirecionar
-        redirect_url = 'gestao:list_notificacoes'
-        params = []
+        # Preservar filtros ao redirecionar sem quebrar reverse com querystring.
+        params = {}
         if tipo_filter:
-            params.append(f'tipo={tipo_filter}')
+            params['tipo'] = tipo_filter
         if lida_filter:
-            params.append(f'lida={lida_filter}')
-        if params:
-            redirect_url += '?' + '&'.join(params)
-        return redirect(redirect_url)
+            params['lida'] = lida_filter
+        if order_by:
+            params['order_by'] = order_by
+        query = urlencode(params)
+        if query:
+            return redirect(f'{request.path}?{query}')
+        return redirect(request.path)
     
     context = {
         'notificacoes': page_obj,

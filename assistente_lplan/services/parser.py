@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from dataclasses import dataclass
+from datetime import date, timedelta
 from difflib import SequenceMatcher
 
 from .intents import (
@@ -10,6 +11,7 @@ from .intents import (
     INTENT_LOCATE_SUPPLY,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
+    INTENT_RDO_BY_DATE,
     INTENT_REJECTED_REQUESTS,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
@@ -74,6 +76,11 @@ class RuleBasedIntentParser:
                 0.0,
             ),
             (
+                INTENT_RDO_BY_DATE,
+                ["rdo", "diario do dia", "diário do dia", "relatorio do dia", "relatório do dia", "rdo do dia"],
+                0.0,
+            ),
+            (
                 INTENT_REJECTED_REQUESTS,
                 ["reprovad", "reprovado", "reprovadas", "solicitacoes reprovadas", "solicitações reprovadas"],
                 0.0,
@@ -99,7 +106,6 @@ class RuleBasedIntentParser:
                     "como está o rdo",
                     "como esta o diario",
                     "como está o diario",
-                    "rdo",
                     "diario de obras",
                 ],
                 0.0,
@@ -128,6 +134,10 @@ class RuleBasedIntentParser:
             if intent == INTENT_USER_STATUS and "usuario" in entities:
                 score += 0.25
             if intent == INTENT_USER_STATUS and "usuario" in entities and ("esta" in normalized_text):
+                score += 0.25
+            if intent == INTENT_RDO_BY_DATE and "data" in entities:
+                score += 0.5
+            if intent == INTENT_RDO_BY_DATE and any(tok in normalized_text for tok in ["rdo", "diario", "relatorio"]):
                 score += 0.25
             if intent in (INTENT_OBRA_SUMMARY, INTENT_LIST_OBRA_PENDING, INTENT_OBRA_BOTTLENECKS) and "obra" in entities:
                 score += 0.2
@@ -206,7 +216,47 @@ class RuleBasedIntentParser:
             if insumo_match:
                 entities["insumo"] = insumo_match.group(1).strip(" .,:;")
 
+        parsed_date = self._extract_date_entity(normalized_text)
+        if parsed_date:
+            entities["data"] = parsed_date
+
         return {k: v for k, v in entities.items() if v}
+
+    def _extract_date_entity(self, normalized_text: str) -> str:
+        if not normalized_text:
+            return ""
+
+        today = date.today()
+        if "hoje" in normalized_text:
+            return today.isoformat()
+        if "anteontem" in normalized_text:
+            return (today - timedelta(days=2)).isoformat()
+        if "ontem" in normalized_text:
+            return (today - timedelta(days=1)).isoformat()
+
+        slash_match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b", normalized_text)
+        if slash_match:
+            day = int(slash_match.group(1))
+            month = int(slash_match.group(2))
+            year = int(slash_match.group(3))
+            if year < 100:
+                year += 2000
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                return ""
+
+        iso_match = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", normalized_text)
+        if iso_match:
+            year = int(iso_match.group(1))
+            month = int(iso_match.group(2))
+            day = int(iso_match.group(3))
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                return ""
+
+        return ""
 
     @staticmethod
     def _normalize(value: str) -> str:

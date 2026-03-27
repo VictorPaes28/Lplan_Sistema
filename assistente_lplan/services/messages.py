@@ -234,6 +234,22 @@ class MessageCatalog:
             ),
             next_steps=("Mantenha monitoramento por diario, aprovacoes e suprimentos.",),
         ),
+        "assistant.diario.date_missing": MessageTemplate(
+            kind="validation",
+            variants=(
+                "Preciso da data para localizar o RDO com seguranca.",
+                "Dados insuficientes: informe o dia para buscar o RDO.",
+            ),
+            next_steps=("Exemplo: 'Quero o RDO do dia 15/03/2026 da obra ALFA'.",),
+        ),
+        "assistant.diario.date_empty": MessageTemplate(
+            kind="empty_state",
+            variants=(
+                "Nao localizei RDO para a data {data} no escopo consultado.",
+                "Sem registros de RDO na data {data} para o escopo atual.",
+            ),
+            next_steps=("Confirme a data, o escopo da obra ou tente consultar outro dia.",),
+        ),
     }
 
     @classmethod

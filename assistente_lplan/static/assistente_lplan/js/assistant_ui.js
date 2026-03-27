@@ -163,37 +163,6 @@
         `;
     }
 
-    function renderActions(actions) {
-        if (!Array.isArray(actions) || !actions.length) return "";
-        return `
-            <div class="assistant-section-title">Proximas acoes</div>
-            <div class="assistant-actions">
-                ${actions
-                    .map((a) => {
-                        const main = !!a.is_primary;
-                        const cls = main ? "assistant-btn main" : `assistant-btn ${a.style === "primary" ? "primary" : ""}`;
-                        return `
-                        <a href="${escapeHtml(a.url || "#")}" class="${cls}">
-                            ${escapeHtml(a.label || "Acao")}
-                            ${main ? '<span class="assistant-primary-label">Principal</span>' : ""}
-                        </a>
-                    `;
-                    })
-                    .join("")}
-            </div>
-        `;
-    }
-
-    function renderLinks(links) {
-        if (!Array.isArray(links) || !links.length) return "";
-        return `
-            <div class="assistant-section-title">Links uteis</div>
-            <div class="assistant-links">
-                ${links.map((l) => `<a class="assistant-link" href="${escapeHtml(l.url || "#")}">${escapeHtml(l.label || "Abrir")}</a>`).join("")}
-            </div>
-        `;
-    }
-
     function renderFeedback(payload) {
         const qid = payload.question_log_id || (payload.raw_data && payload.raw_data.question_log_id) || "";
         if (!qid) return "";
@@ -228,8 +197,6 @@
             ${renderTable(payload.table)}
             ${renderTimeline(payload.timeline)}
             ${renderAlerts(payload.alerts)}
-            ${renderActions(payload.actions)}
-            ${renderLinks(payload.links)}
             ${renderFeedback(payload)}
         `;
     }

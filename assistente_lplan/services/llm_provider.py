@@ -21,7 +21,7 @@ class LLMProvider:
         prompt = (
             "Classifique a pergunta em UMA intencao desta lista: "
             + ", ".join(sorted(SUPPORTED_INTENTS))
-            + '. Extraia entidades (obra, usuario, insumo, local). '
+            + '. Extraia entidades (obra, usuario, insumo, local, data, credor). '
             + 'Retorne JSON puro: {"intent": "...", "entities": {...}, "confidence": 0.0-1.0}.'
         )
         payload = {

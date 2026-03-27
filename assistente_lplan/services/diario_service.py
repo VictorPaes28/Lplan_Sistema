@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.utils import timezone
 
@@ -53,6 +53,72 @@ class DiarioAssistantService:
             badges=["Diario de Obras"],
             actions=[{"label": "Abrir relatorios", "url": "/reports/", "style": "primary"}],
             links=[{"label": "Relatorios da obra", "url": "/reports/"}],
+        )
+
+    def consultar_rdo_por_data(self, entities: dict) -> AssistantResponse:
+        target_date = self._resolve_target_date(entities)
+        if not target_date:
+            msg = MessageCatalog.resolve("assistant.diario.date_missing", {"domain": "obras"})
+            return AssistantResponse(
+                summary=msg["text"],
+                alerts=[{"level": "warning", "message": msg["next_steps"][0]}],
+                raw_data={"message_code": msg["code"], "message_kind": msg["kind"]},
+            )
+
+        qs = ConstructionDiary.objects.select_related("project", "created_by").filter(date=target_date)
+        project = None
+        if entities.get("obra") or entities.get("project_id"):
+            project = self._resolve_project(entities)
+            if not project:
+                msg = MessageCatalog.resolve("assistant.obras.project_missing", {"domain": "obras"})
+                return AssistantResponse(
+                    summary=msg["text"],
+                    alerts=[{"level": "warning", "message": msg["next_steps"][0]}],
+                    raw_data={"message_code": msg["code"], "message_kind": msg["kind"]},
+                )
+            qs = qs.filter(project=project)
+        elif self.scope.role != "admin":
+            qs = qs.filter(project_id__in=self.scope.project_ids)
+
+        diaries = list(qs.order_by("-report_number", "project__code")[:30])
+        if not diaries:
+            date_label = target_date.strftime("%d/%m/%Y")
+            msg = MessageCatalog.resolve("assistant.diario.date_empty", {"domain": "obras", "data": date_label})
+            return AssistantResponse(
+                summary=msg["text"],
+                badges=["Sem dados suficientes", "RDO"],
+                alerts=[{"level": "info", "message": msg["next_steps"][0]}],
+                raw_data={"message_code": msg["code"], "message_kind": msg["kind"], "data": target_date.isoformat()},
+            )
+
+        rows = []
+        for d in diaries:
+            rows.append(
+                {
+                    "obra": d.project.code if d.project else "-",
+                    "projeto": d.project.name if d.project else "-",
+                    "data": d.date.strftime("%d/%m/%Y") if d.date else "-",
+                    "rdo": f"#{d.report_number}" if d.report_number else "-",
+                    "status": d.get_status_display(),
+                    "responsavel": (d.created_by.get_full_name() or d.created_by.username) if d.created_by else "-",
+                }
+            )
+
+        obra_label = project.code if project else "seu escopo"
+        date_label = target_date.strftime("%d/%m/%Y")
+        return AssistantResponse(
+            summary=f"Foram encontrados {len(rows)} RDO(s) em {date_label} para {obra_label}.",
+            cards=[
+                {"title": "RDOs na data", "value": str(len(rows)), "tone": "info"},
+                {"title": "Obras com RDO", "value": str(len({r['obra'] for r in rows})), "tone": "secondary"},
+            ],
+            table={
+                "caption": f"RDOs de {date_label}",
+                "columns": ["obra", "projeto", "data", "rdo", "status", "responsavel"],
+                "rows": rows,
+            },
+            badges=["Diario de Obras", "RDO por data"],
+            raw_data={"data": target_date.isoformat(), "project_id": getattr(project, "id", None)},
         )
 
     def gargalos_obra(self, entities: dict) -> AssistantResponse:
@@ -112,4 +178,17 @@ class DiarioAssistantService:
             project = qs.filter(name__icontains=term).first() or qs.filter(code__icontains=term).first()
             return project
         return qs.order_by("-created_at").first()
+
+    @staticmethod
+    def _resolve_target_date(entities: dict):
+        raw_date = str((entities or {}).get("data") or "").strip()
+        if not raw_date:
+            return None
+
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(raw_date, fmt).date()
+            except ValueError:
+                continue
+        return None
 
