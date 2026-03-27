@@ -79,8 +79,7 @@
         {% for work_log in work_logs %}
         <div class="work-log-item no-break">
             <h3>
-                <span class="activity-code">{{ work_log.activity.code }}</span> - 
-                {{ work_log.activity.name }}
+                <span class="activity-title">{{ work_log.activity.display_name }}</span>
             </h3>
             <div class="progress-info">
                 <strong>Progresso Executado Hoje:</strong> {{ work_log.percentage_executed_today }}%<br>

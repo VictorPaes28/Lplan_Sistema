@@ -301,7 +301,26 @@ class Activity(MP_Node):
         ]
 
     def __str__(self) -> str:
-        return f"{self.code} - {self.name}"
+        return self.display_code_name
+
+    @property
+    def display_code(self) -> str:
+        """Código não é exibido na aplicação (apenas persistido no BD)."""
+        from core.utils.activity_display import activity_code_for_display
+
+        return activity_code_for_display(self.code)
+
+    @property
+    def display_name(self) -> str:
+        """Nome sem prefixo legado GEN- no texto, quando existir."""
+        from core.utils.activity_display import activity_name_for_display
+
+        return activity_name_for_display(self.name)
+
+    @property
+    def display_code_name(self) -> str:
+        """Rótulo único para PDF/telas: somente o nome (código fica só no BD)."""
+        return self.display_name
 
     def is_leaf(self) -> bool:
         """
@@ -1376,7 +1395,7 @@ class DailyWorkLog(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
-        return f"{self.activity.code} - {self.diary.date} ({self.percentage_executed_today}%)"
+        return f"{self.activity.display_code_name} · {self.diary.date} ({self.percentage_executed_today}%)"
 
 
 class DailyWorkLogEquipment(models.Model):

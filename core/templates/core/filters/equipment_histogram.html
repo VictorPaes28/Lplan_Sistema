@@ -26,7 +26,7 @@
                 <option value="">Todas</option>
                 {% for activity in activities %}
                 <option value="{{ activity.id }}" {% if activity_id == activity.id|stringformat:"s" %}selected{% endif %}>
-                    {{ activity.code }} - {{ activity.name|truncatechars:30 }}
+                    {{ activity.display_code_name|truncatechars:40 }}
                 </option>
                 {% endfor %}
             </select>

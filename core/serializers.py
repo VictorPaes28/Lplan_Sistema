@@ -63,11 +63,12 @@ class ActivityTreeSerializer(serializers.ModelSerializer):
     children_count = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     parent_id = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
     
     class Meta:
         model = Activity
         fields = [
-            'id', 'name', 'code', 'description', 'planned_start', 'planned_end',
+            'id', 'name', 'description', 'planned_start', 'planned_end',
             'weight', 'status', 'project', 'parent_id', 'children_count', 'progress',
             'created_at', 'updated_at'
         ]
@@ -90,6 +91,10 @@ class ActivityTreeSerializer(serializers.ModelSerializer):
         if obj.is_root():
             return None
         return obj.get_parent().id
+
+    def get_name(self, obj):
+        """Nome para exibição (código não é exposto na API)."""
+        return obj.display_name
 
 
 class ActivityDetailSerializer(ActivityTreeSerializer):
@@ -172,15 +177,14 @@ class DiaryImageSerializer(serializers.ModelSerializer):
 
 class DailyWorkLogSerializer(serializers.ModelSerializer):
     """Serializer para DailyWorkLog."""
-    activity_code = serializers.CharField(source='activity.code', read_only=True)
-    activity_name = serializers.CharField(source='activity.name', read_only=True)
+    activity_name = serializers.CharField(source='activity.display_name', read_only=True)
     resources_labor_names = serializers.SerializerMethodField()
     resources_equipment_names = serializers.SerializerMethodField()
     
     class Meta:
         model = DailyWorkLog
         fields = [
-            'id', 'activity', 'activity_code', 'activity_name', 'diary',
+            'id', 'activity', 'activity_name', 'diary',
             'percentage_executed_today', 'accumulated_progress_snapshot', 'notes',
             'resources_labor', 'resources_labor_names',
             'resources_equipment', 'resources_equipment_names',

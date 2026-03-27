@@ -3639,27 +3639,24 @@ def diary_excel_view(request, pk):
     ws[f'A{row}'].fill = header_fill
     ws.merge_cells(f'A{row}:D{row}')
     row += 1
-    ws[f'A{row}'] = 'Código'
-    ws[f'B{row}'] = 'Descrição'
-    ws[f'C{row}'] = 'Progresso (%)'
-    ws[f'D{row}'] = 'Local'
-    for cell in [ws[f'A{row}'], ws[f'B{row}'], ws[f'C{row}'], ws[f'D{row}']]:
+    ws[f'A{row}'] = 'Atividade'
+    ws[f'B{row}'] = 'Progresso (%)'
+    ws[f'C{row}'] = 'Local'
+    for cell in [ws[f'A{row}'], ws[f'B{row}'], ws[f'C{row}']]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
     row += 1
     
     for work_log in diary.work_logs.all():
-        ws[f'A{row}'] = work_log.activity.code
-        ws[f'B{row}'] = work_log.activity.name
-        ws[f'C{row}'] = float(work_log.percentage_executed_today)
-        ws[f'D{row}'] = work_log.location or '-'
+        ws[f'A{row}'] = work_log.activity.display_name
+        ws[f'B{row}'] = float(work_log.percentage_executed_today)
+        ws[f'C{row}'] = work_log.location or '-'
         row += 1
     
     # Ajusta largura das colunas
-    ws.column_dimensions['A'].width = 15
-    ws.column_dimensions['B'].width = 40
-    ws.column_dimensions['C'].width = 15
-    ws.column_dimensions['D'].width = 25
+    ws.column_dimensions['A'].width = 48
+    ws.column_dimensions['B'].width = 15
+    ws.column_dimensions['C'].width = 25
     
     # Resposta
     response = HttpResponse(

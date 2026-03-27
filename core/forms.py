@@ -1056,10 +1056,7 @@ class ActivityForm(forms.ModelForm):
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
                 'placeholder': 'Nome da atividade...'
             }),
-            'code': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
-                'placeholder': 'Código (ex: 1.2.1)'
-            }),
+            'code': forms.HiddenInput(),
             'description': forms.Textarea(attrs={
                 'rows': 3,
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
@@ -1084,6 +1081,21 @@ class ActivityForm(forms.ModelForm):
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['code'].widget = forms.HiddenInput()
+        self.fields['code'].required = True
+        if not getattr(self.instance, 'pk', None) and not self.is_bound:
+            import uuid
+            self.initial['code'] = f'GEN-{uuid.uuid4().hex[:10].upper()}'
+
+    def clean_code(self):
+        code = (self.cleaned_data.get('code') or '').strip()
+        if not code:
+            import uuid
+            return f'GEN-{uuid.uuid4().hex[:10].upper()}'
+        return code
     
     def clean_weight(self):
         weight = self.cleaned_data.get('weight')

@@ -124,7 +124,6 @@ class ActivityViewSet(viewsets.ModelViewSet):
         progress = ProgressService.get_activity_progress(activity)
         return Response({
             'activity_id': activity.id,
-            'activity_code': activity.code,
             'progress': float(progress),
             'status': activity.status
         })

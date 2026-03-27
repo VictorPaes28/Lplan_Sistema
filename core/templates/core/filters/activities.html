@@ -13,7 +13,7 @@
     <form method="get" class="filter-form filter-form--3cols">
         <div>
             <label for="filter-activities-search">Buscar</label>
-            <input type="text" id="filter-activities-search" name="search" value="{{ search }}" placeholder="Nome, código...">
+            <input type="text" id="filter-activities-search" name="search" value="{{ search }}" placeholder="Nome da atividade...">
         </div>
         <div>
             <label for="filter-activities-status">Status</label>
@@ -49,11 +49,8 @@
             <tbody class="bg-white divide-y divide-slate-200">
                 {% for activity in activities %}
                 <tr class="hover:bg-slate-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {{ activity.code }}
-                    </td>
                     <td class="px-6 py-4 text-sm text-gray-900">
-                        {{ activity.name }}
+                        {{ activity.display_name }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         {% if activity.status == 'CO' %}

@@ -806,11 +806,10 @@ class PDFGenerator:
         act_rows = [[act_title]]
         if work_logs:
             for wl in work_logs:
-                act_code = _safe_pdf_text(getattr(wl.activity, 'code', '') or '', default='')
-                act_name = _safe_pdf_text(getattr(wl.activity, 'name', '') or '', default='—')
-                text = "%s – %s" % (
-                    act_code,
-                    act_name,
+                text = _safe_pdf_text(
+                    getattr(wl.activity, 'display_code_name', None)
+                    or (getattr(wl.activity, 'name', '') or '—'),
+                    default='—',
                 )
                 if getattr(wl, 'notes', None) and wl.notes.strip():
                     notes = _safe_pdf_text(wl.notes[:100].replace('\n', ' '), default='')

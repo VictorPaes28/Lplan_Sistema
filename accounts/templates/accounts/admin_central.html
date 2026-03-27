@@ -37,6 +37,16 @@
         position: relative;
         overflow: hidden;
     }
+    a.kpi-card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+    }
+    a.kpi-card:focus-visible {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+    }
     .kpi-card::before {
         content: '';
         position: absolute;
@@ -599,18 +609,6 @@
 
 {% block content %}
 <div class="admin-page">
-    {% if stats_system_logs and stats_system_logs.has_alert %}
-    <section class="anim-1" style="margin-bottom: 1rem;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:0.85rem; padding:0.85rem 1rem;">
-            <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.9rem; font-weight:600;">
-                <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-                Há {{ stats_system_logs.recent_errors }} erro(s) técnico(s) nas últimas {{ stats_system_logs.window_hours }}h.
-            </div>
-            <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link" style="font-size:0.82rem; white-space:nowrap;">Analisar agora <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-        </div>
-    </section>
-    {% endif %}
-
     <!-- ═══ Pedidos de correção (RDO) — atalho visível ═══ -->
     {% if pending_diary_edit_requests_count > 0 %}
     <section class="anim-1" style="margin-bottom: 1rem;">
@@ -636,80 +634,12 @@
     </section>
     {% endif %}
 
-    <!-- ═══ Logs de E-mail ═══ -->
-    <section class="email-logs-panel anim-1" aria-labelledby="email-logs-title">
-        <div class="email-logs-panel-inner">
-            <header class="email-logs-panel-header">
-                <div>
-                    <p id="email-logs-title" class="email-logs-panel-label">Logs de E-mail</p>
-                    <p class="email-logs-panel-desc">Histórico de envios do GestControll (pedidos e aprovações). Ver detalhes e reenviar falhas.</p>
-                </div>
-                <a href="{% url 'gestao:list_email_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-            </header>
-            {% if stats_email_logs %}
-            <div class="email-logs-panel-stats">
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value">{{ stats_email_logs.total }}</span>
-                    <span class="email-logs-stat-label">Total</span>
-                </div>
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value">{{ stats_email_logs.enviados }}</span>
-                    <span class="email-logs-stat-label">Enviados</span>
-                </div>
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value {% if stats_email_logs.falhados > 0 %}email-logs-stat-fail{% endif %}">{{ stats_email_logs.falhados }}</span>
-                    <span class="email-logs-stat-label">Falhados</span>
-                </div>
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value">{{ stats_email_logs.taxa_sucesso }}%</span>
-                    <span class="email-logs-stat-label">Taxa de sucesso</span>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </section>
-
-    <!-- ═══ Logs do Sistema ═══ -->
-    <section class="email-logs-panel anim-1" aria-labelledby="system-logs-title">
-        <div class="email-logs-panel-inner">
-            <header class="email-logs-panel-header">
-                <div>
-                    <p id="system-logs-title" class="email-logs-panel-label">Logs do Sistema</p>
-                    <p class="email-logs-panel-desc">Eventos técnicos do Diário, Central e integrações. Filtre por nível, módulo, data e exporte CSV.</p>
-                </div>
-                <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-            </header>
-            {% if stats_system_logs %}
-            <div class="email-logs-panel-stats">
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value {% if stats_system_logs.recent_errors > 0 %}email-logs-stat-fail{% endif %}">{{ stats_system_logs.recent_errors }}</span>
-                    <span class="email-logs-stat-label">Erros (24h)</span>
-                </div>
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value">{{ stats_system_logs.recent_warnings }}</span>
-                    <span class="email-logs-stat-label">Avisos (24h)</span>
-                </div>
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value">
-                        {% if stats_system_logs.last_error_at %}{{ stats_system_logs.last_error_at|date:"d/m H:i" }}{% else %}--{% endif %}
-                    </span>
-                    <span class="email-logs-stat-label">Último erro</span>
-                </div>
-                <div class="email-logs-stat">
-                    <span class="email-logs-stat-value">{{ stats_system_logs.window_hours }}h</span>
-                    <span class="email-logs-stat-label">Janela</span>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </section>
-
-    <!-- ═══ KPI Cards ═══ -->
+    <!-- ═══ KPI Cards (links para cada área) ═══ -->
     <div class="kpi-grid">
-        <div class="kpi-card blue anim-1">
+        <a href="{% url 'central_list_users' %}" class="kpi-card blue anim-1">
             <div class="kpi-top">
                 <div class="kpi-icon" style="background: #eff6ff; color: #3b82f6;">
-                    <i class="fas fa-users"></i>
+                    <i class="fas fa-users" aria-hidden="true"></i>
                 </div>
                 <div>
                     <div class="kpi-value">{{ total_usuarios }}</div>
@@ -722,31 +652,31 @@
                 <span class="kpi-badge" style="background: #dbeafe; color: #2563eb;">+{{ novos_usuarios_30d }} este mês</span>
                 {% endif %}
             </div>
-        </div>
+        </a>
         
-        <div class="kpi-card green anim-2">
+        <a href="{% url 'central_project_list' %}" class="kpi-card green anim-2">
             <div class="kpi-top">
                 <div class="kpi-icon" style="background: #f0fdf4; color: #22c55e;">
-                    <i class="fas fa-hard-hat"></i>
+                    <i class="fas fa-hard-hat" aria-hidden="true"></i>
                 </div>
                 <div>
                     <div class="kpi-value">{{ stats_diario.projetos_ativos }}</div>
-                    <div class="kpi-label">Projetos Ativos</div>
+                    <div class="kpi-label">Projetos ativos</div>
                 </div>
             </div>
             <div class="kpi-badges">
                 <span class="kpi-badge" style="background: #f0fdf4; color: #16a34a;">{{ stats_diario.projetos }} total</span>
             </div>
-        </div>
+        </a>
         
-        <div class="kpi-card amber anim-3">
+        <a href="{% url 'report-list' %}" class="kpi-card amber anim-3">
             <div class="kpi-top">
                 <div class="kpi-icon" style="background: #fef3c7; color: #f59e0b;">
-                    <i class="fas fa-file-alt"></i>
+                    <i class="fas fa-file-alt" aria-hidden="true"></i>
                 </div>
                 <div>
                     <div class="kpi-value">{{ stats_diario.diarios }}</div>
-                    <div class="kpi-label">Diários de Obra</div>
+                    <div class="kpi-label">Diários de obra</div>
                 </div>
             </div>
             <div class="kpi-badges">
@@ -754,22 +684,22 @@
                 <span class="kpi-badge" style="background: #fef3c7; color: #92400e;">+{{ stats_diario.diarios_30d }} últimos 30d</span>
                 {% endif %}
             </div>
-        </div>
+        </a>
         
-        <div class="kpi-card purple anim-4">
+        <a href="{% url 'gestao:home' %}" class="kpi-card purple anim-4">
             <div class="kpi-top">
                 <div class="kpi-icon" style="background: #fae8ff; color: #a855f7;">
-                    <i class="fas fa-clipboard-check"></i>
+                    <i class="fas fa-clipboard-check" aria-hidden="true"></i>
                 </div>
                 <div>
                     <div class="kpi-value">{{ stats_gestao.ordens }}</div>
-                    <div class="kpi-label">Ordens de Serviço</div>
+                    <div class="kpi-label">GestControll</div>
                 </div>
             </div>
             <div class="kpi-badges">
                 <span class="kpi-badge" style="background: #fae8ff; color: #7e22ce;">{{ stats_gestao.aprovacoes }} aprovações</span>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- ═══ Obras e usuários (hub único) ═══ -->
@@ -1149,6 +1079,87 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- ═══ Diagnóstico: erros técnicos, logs de e-mail e logs do sistema (uso principalmente técnico) ═══ -->
+    <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
+        {% if stats_system_logs and stats_system_logs.has_alert %}
+        <section class="anim-1" style="margin-bottom: 1rem;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:0.85rem; padding:0.85rem 1rem;">
+                <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.9rem; font-weight:600;">
+                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                    Há {{ stats_system_logs.recent_errors }} erro(s) técnico(s) nas últimas {{ stats_system_logs.window_hours }}h.
+                </div>
+                <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link" style="font-size:0.82rem; white-space:nowrap;">Analisar agora <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="email-logs-panel anim-1" aria-labelledby="email-logs-title">
+            <div class="email-logs-panel-inner">
+                <header class="email-logs-panel-header">
+                    <div>
+                        <p id="email-logs-title" class="email-logs-panel-label">Logs de E-mail</p>
+                        <p class="email-logs-panel-desc">Histórico de envios do GestControll (pedidos e aprovações). Ver detalhes e reenviar falhas.</p>
+                    </div>
+                    <a href="{% url 'gestao:list_email_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+                </header>
+                {% if stats_email_logs %}
+                <div class="email-logs-panel-stats">
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value">{{ stats_email_logs.total }}</span>
+                        <span class="email-logs-stat-label">Total</span>
+                    </div>
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value">{{ stats_email_logs.enviados }}</span>
+                        <span class="email-logs-stat-label">Enviados</span>
+                    </div>
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value {% if stats_email_logs.falhados > 0 %}email-logs-stat-fail{% endif %}">{{ stats_email_logs.falhados }}</span>
+                        <span class="email-logs-stat-label">Falhados</span>
+                    </div>
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value">{{ stats_email_logs.taxa_sucesso }}%</span>
+                        <span class="email-logs-stat-label">Taxa de sucesso</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="email-logs-panel anim-1" aria-labelledby="system-logs-title">
+            <div class="email-logs-panel-inner">
+                <header class="email-logs-panel-header">
+                    <div>
+                        <p id="system-logs-title" class="email-logs-panel-label">Logs do Sistema</p>
+                        <p class="email-logs-panel-desc">Eventos técnicos do Diário, Central e integrações. Filtre por nível, módulo, data e exporte CSV.</p>
+                    </div>
+                    <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+                </header>
+                {% if stats_system_logs %}
+                <div class="email-logs-panel-stats">
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value {% if stats_system_logs.recent_errors > 0 %}email-logs-stat-fail{% endif %}">{{ stats_system_logs.recent_errors }}</span>
+                        <span class="email-logs-stat-label">Erros (24h)</span>
+                    </div>
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value">{{ stats_system_logs.recent_warnings }}</span>
+                        <span class="email-logs-stat-label">Avisos (24h)</span>
+                    </div>
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value">
+                            {% if stats_system_logs.last_error_at %}{{ stats_system_logs.last_error_at|date:"d/m H:i" }}{% else %}--{% endif %}
+                        </span>
+                        <span class="email-logs-stat-label">Último erro</span>
+                    </div>
+                    <div class="email-logs-stat">
+                        <span class="email-logs-stat-value">{{ stats_system_logs.window_hours }}h</span>
+                        <span class="email-logs-stat-label">Janela</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
     
 </div>
 {% endblock %}

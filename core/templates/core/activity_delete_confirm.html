@@ -30,12 +30,8 @@
     <div class="bg-gray-50 rounded-lg p-4 mb-6">
         <div class="space-y-2">
             <div>
-                <span class="text-sm font-medium text-gray-700">Código:</span>
-                <span class="ml-2 text-sm text-gray-900">{{ activity.code }}</span>
-            </div>
-            <div>
                 <span class="text-sm font-medium text-gray-700">Nome:</span>
-                <span class="ml-2 text-sm text-gray-900">{{ activity.name }}</span>
+                <span class="ml-2 text-sm text-gray-900">{{ activity.display_name }}</span>
             </div>
             {% if activity.description %}
             <div>

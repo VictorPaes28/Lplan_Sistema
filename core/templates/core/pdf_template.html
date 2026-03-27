@@ -180,10 +180,9 @@
             font-size: 8pt;
         }
         
-        .activity-code {
+        .activity-title {
             font-weight: 700;
-            color: #2563EB;
-            font-family: 'Courier New', monospace;
+            color: #1e293b;
         }
         
         .activity-notes {
@@ -593,7 +592,7 @@
             <ul class="activities-list">
                 {% for work_log in work_logs %}
                 <li>
-                    <span class="activity-code">{{ work_log.activity.code }}</span> - {{ work_log.activity.name }}
+                    <span class="activity-title">{{ work_log.activity.display_name }}</span>
                     {% if work_log.notes %}
                     <span class="activity-notes">{{ work_log.notes }}</span>
                     {% endif %}
