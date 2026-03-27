@@ -152,6 +152,8 @@ try:
     COLOR_TEXT = colors.HexColor('#1C1C1C')
     COLOR_TEXT_SECONDARY = colors.HexColor('#5A5A5A')
     COLOR_BORDER = colors.HexColor('#D0D9E3')
+    # Linha divisória (ex.: acima dos totais por coluna no bloco de efetivo) — um pouco mais escura que grey padrão
+    COLOR_DIVIDER_STRONG = colors.HexColor('#64748b')
     COLOR_SURFACE = colors.HexColor('#F7F9FC')
     COLOR_OCCURRENCE_BG = colors.HexColor('#FFF3E0')
 
@@ -923,7 +925,7 @@ class PDFGenerator:
                 ('BACKGROUND', (0, total_row_idx), (0, total_row_idx), COLOR_ACCENT),
                 ('BACKGROUND', (1, total_row_idx), (1, total_row_idx), COLOR_ACCENT),
                 ('BACKGROUND', (2, total_row_idx), (2, total_row_idx), COLOR_ACCENT),
-                ('LINEABOVE', (0, total_row_idx), (2, total_row_idx), 0.5, colors.grey),
+                ('LINEABOVE', (0, total_row_idx), (2, total_row_idx), 0.5, COLOR_DIVIDER_STRONG),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('LEFTPADDING', (0, 0), (-1, -1), 6),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 6),
