@@ -23,45 +23,9 @@
     line-height: 1;
     letter-spacing: 0.02em;
 }
-.mobile-menu-btn .fas.fa-times {
-    font-size: 1rem;
-    line-height: 1;
-}
-.mobile-menu-btn.mobile-menu-btn-close {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-/* Botão X da sidebar: oculto por padrão (desktop) */
-#mobile-sidebar-close {
-    display: none !important;
-}
 
 /* Breakpoint principal: até 768px = mobile/tablet portrait */
 @media (max-width: 768px) {
-    #mobile-sidebar-close {
-        display: inline-flex !important;
-    }
-    /* X fechar sidebar: bem pequeno e só neste breakpoint */
-    #mobile-sidebar-close.mobile-menu-btn,
-    #mobile-sidebar-close.mobile-menu-btn-close {
-        width: 26px;
-        height: 26px;
-        min-width: 26px;
-        min-height: 26px;
-        top: 0.45rem;
-        right: 0.45rem;
-        border-radius: 6px;
-        padding: 0;
-    }
-    #mobile-sidebar-close .fas.fa-times {
-        font-size: 0.55rem;
-        line-height: 1;
-    }
-
     #mobile-app-header {
         position: relative;
     }

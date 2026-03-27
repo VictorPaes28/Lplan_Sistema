@@ -114,10 +114,6 @@
         
         <!-- Header com Logo e Branding -->
         <div class="h-20 flex items-center justify-center border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 px-4 relative">
-            <!-- Mobile Close Button -->
-            <button id="mobile-sidebar-close" type="button" class="mobile-menu-btn mobile-menu-btn-close md:hidden absolute top-3 right-3 text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-900" aria-label="Fechar menu de navegação">
-                <i class="fas fa-times" aria-hidden="true"></i>
-            </button>
             <div class="flex items-center justify-center w-full">
                 <div class="logo-white-box w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1 flex-shrink-0">
                     <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" style="max-width: 90%; max-height: 90%;">
@@ -622,7 +618,6 @@
                 const sidebar = document.getElementById('sidebar');
                 const overlay = document.getElementById('mobile-sidebar-overlay');
                 const toggleBtn = document.getElementById('mobile-sidebar-toggle');
-                const closeBtn = document.getElementById('mobile-sidebar-close');
                 
                 if (!sidebar) return;
                 
@@ -687,15 +682,6 @@
                     });
                     
                     overlay.addEventListener('click', closeSidebar);
-                }
-                
-                // Mobile close button
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        closeSidebar();
-                    });
                 }
             }
             
