@@ -815,6 +815,12 @@ class PDFGenerator:
                     notes = _safe_pdf_text(wl.notes[:100].replace('\n', ' '), default='')
                     if notes:
                         text += " <i>(%s)</i>" % notes
+                try:
+                    stage_disp = wl.get_work_stage_display()
+                except Exception:
+                    stage_disp = ""
+                if stage_disp:
+                    text += " — <i>%s</i>" % _safe_pdf_text(stage_disp, default="")
                 act_rows.append([Paragraph(text, activity_item_style)])
         else:
             act_rows.append([Paragraph("Nenhuma atividade registrada.", activity_item_style)])

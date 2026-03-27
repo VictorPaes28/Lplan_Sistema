@@ -81,6 +81,9 @@
             <h3>
                 <span class="activity-title">{{ work_log.activity.display_name }}</span>
             </h3>
+            <p style="margin: 0.25rem 0 0.5rem 0; font-size: 9pt; color: #475569;">
+                <strong>Status:</strong> {{ work_log.get_work_stage_display }}
+            </p>
             <div class="progress-info">
                 <strong>Progresso Executado Hoje:</strong> {{ work_log.percentage_executed_today }}%<br>
                 <strong>Progresso Acumulado:</strong> {{ work_log.accumulated_progress_snapshot }}%

@@ -593,6 +593,7 @@
                 {% for work_log in work_logs %}
                 <li>
                     <span class="activity-title">{{ work_log.activity.display_name }}</span>
+                    <span class="activity-stage" style="font-size: 7.5pt; color: #475569;"> — {{ work_log.get_work_stage_display }}</span>
                     {% if work_log.notes %}
                     <span class="activity-notes">{{ work_log.notes }}</span>
                     {% endif %}
