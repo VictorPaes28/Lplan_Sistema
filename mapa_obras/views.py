@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.urls import reverse
+from core.user_messages import flash_message, resolve_message
 from .models import Obra, LocalObra
 
 
@@ -60,7 +61,7 @@ def selecionar_obra(request, obra_id):
     """
     obra = get_object_or_404(Obra, id=obra_id, ativa=True)
     if not _user_can_access_obra(request, obra):
-        messages.error(request, 'Você não está vinculado a esta obra.')
+        flash_message(request, "error", "mapa.select.no_scope", {"obra": obra.nome})
         return redirect('mapa_obras:home')
     
     # Armazenar na sessão
@@ -98,7 +99,11 @@ def api_locais_por_obra(request, obra_id):
     """
     obra = get_object_or_404(Obra, id=obra_id, ativa=True)
     if not _user_can_access_obra(request, obra):
-        return JsonResponse({'success': False, 'error': 'Sem permissão para esta obra.'}, status=403)
+        msg = resolve_message("mapa.api.no_scope", {"obra": obra.nome})
+        return JsonResponse(
+            {'success': False, 'error': msg["text"], 'message_code': msg["code"], 'next_steps': msg["next_steps"]},
+            status=403,
+        )
     
     locais = LocalObra.objects.filter(obra=obra).order_by('tipo', 'nome')
     

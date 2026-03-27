@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Assistente LPLAN{% endblock %}
+{% block page_subtitle %}Consulta operacional inteligente integrada ao sistema{% endblock %}
+{% block back_url %}{% url 'select-system' %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .assistant-shell { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; }
+    .assistant-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; }
+    .assistant-chat { min-height: 60vh; max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; }
+    .assistant-msg { border-radius: 12px; padding: 0.85rem; border: 1px solid #e2e8f0; background: #f8fafc; }
+    .assistant-msg.user { background: #0f172a; color: #fff; margin-left: 8%; }
+    .assistant-msg.assistant { margin-right: 8%; background: #ffffff; }
+    .assistant-badges { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .assistant-badge { background: #e2e8f0; color: #0f172a; border-radius: 999px; padding: 0.18rem 0.55rem; font-size: 0.72rem; }
+    .assistant-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem; margin-top: 0.6rem; }
+    .assistant-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.55rem; background: #f8fafc; }
+    .assistant-card .title { font-size: 0.75rem; color: #64748b; }
+    .assistant-card .value { font-size: 1.2rem; font-weight: 700; }
+    .assistant-section-title { font-size: 0.78rem; color: #475569; font-weight: 700; margin-top: 0.7rem; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .assistant-table-wrap { overflow-x: auto; margin-top: 0.6rem; }
+    .assistant-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .assistant-table caption { text-align: left; color: #475569; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.35rem; }
+    .assistant-table th, .assistant-table td { border: 1px solid #e2e8f0; padding: 0.4rem 0.45rem; text-align: left; vertical-align: top; }
+    .assistant-table thead th { background: #f8fafc; }
+    .assistant-timeline { margin-top: 0.5rem; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 0.55rem; }
+    .assistant-timeline-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px dashed #cbd5e1; }
+    .assistant-timeline-item:last-child { border-bottom: 0; }
+    .assistant-timeline-dot { width: 8px; height: 8px; margin-top: 0.35rem; border-radius: 999px; background: #2563eb; flex-shrink: 0; }
+    .assistant-timeline-text { font-size: 0.82rem; color: #334155; }
+    .assistant-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; }
+    .assistant-btn { border-radius: 8px; padding: 0.45rem 0.7rem; font-size: 0.82rem; text-decoration: none; border: 1px solid #cbd5e1; color: #0f172a; background: #fff; }
+    .assistant-btn.primary { background: #0f172a; color: #fff; border-color: #0f172a; }
+    .assistant-btn.main { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border-color: #ea580c; box-shadow: 0 6px 18px rgba(234, 88, 12, 0.28); font-weight: 700; }
+    .assistant-btn.main:hover { filter: brightness(1.04); transform: translateY(-1px); }
+    .assistant-primary-label { font-size: 0.68rem; font-weight: 700; background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; border-radius: 999px; padding: 0.1rem 0.45rem; margin-left: 0.3rem; vertical-align: middle; }
+    .assistant-links { margin-top: 0.45rem; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .assistant-link { font-size: 0.8rem; color: #2563eb; text-decoration: none; border-bottom: 1px solid transparent; }
+    .assistant-link:hover { border-bottom-color: #2563eb; }
+    .assistant-radar { margin-top: 0.6rem; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.7rem; background: #f8fafc; }
+    .assistant-radar-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+    .assistant-radar-score { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+    .assistant-radar-meta { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .assistant-radar-pill { font-size: 0.72rem; border-radius: 999px; padding: 0.16rem 0.55rem; font-weight: 700; border: 1px solid transparent; }
+    .assistant-radar-pill.low { background: #ecfdf5; color: #166534; border-color: #86efac; }
+    .assistant-radar-pill.medium { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+    .assistant-radar-pill.high { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+    .assistant-radar-pill.trend { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }
+    .assistant-radar-bar { height: 10px; border-radius: 999px; background: #e2e8f0; margin-top: 0.5rem; overflow: hidden; }
+    .assistant-radar-fill { height: 100%; transition: width .25s ease; }
+    .assistant-radar-fill.low { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .assistant-radar-fill.medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .assistant-radar-fill.high { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .assistant-causes { margin-top: 0.6rem; padding-left: 1rem; color: #334155; font-size: 0.82rem; }
+    .assistant-causes li { margin: 0.2rem 0; }
+    .assistant-recommended { margin-top: 0.6rem; padding: 0.55rem; border-radius: 10px; border: 1px solid #fdba74; background: #fff7ed; }
+    .assistant-recommended-title { font-size: 0.72rem; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: .04em; }
+    .assistant-recommended-label { margin-top: 0.2rem; font-size: 0.86rem; font-weight: 600; color: #7c2d12; }
+    .assistant-form { margin-top: 0.9rem; display: flex; gap: 0.5rem; align-items: center; }
+    .assistant-input { flex: 1; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0.65rem 0.8rem; }
+    .assistant-send { border: 0; border-radius: 10px; background: #2563eb; color: #fff; padding: 0.65rem 0.9rem; font-weight: 600; }
+    .assistant-loading { display: none; font-size: 0.82rem; color: #475569; }
+    .assistant-loading.show { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .assistant-dot { width: 7px; height: 7px; border-radius: 999px; background: #2563eb; animation: pulse 0.9s infinite alternate; }
+    .assistant-feedback { margin-top: 0.8rem; border-top: 1px solid #e2e8f0; padding-top: 0.65rem; }
+    .assistant-feedback-actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+    .assistant-feedback-btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 0.3rem 0.55rem; font-size: 0.78rem; cursor: pointer; }
+    .assistant-feedback-btn:hover { background: #f8fafc; }
+    .assistant-feedback-btn.good { border-color: #16a34a; color: #166534; }
+    .assistant-feedback-btn.bad { border-color: #dc2626; color: #991b1b; }
+    .assistant-feedback-form { margin-top: 0.55rem; display: none; gap: 0.45rem; flex-direction: column; }
+    .assistant-feedback-form.show { display: flex; }
+    .assistant-feedback-input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.45rem 0.55rem; font-size: 0.8rem; }
+    .assistant-feedback-note { min-height: 62px; resize: vertical; }
+    .assistant-feedback-status { font-size: 0.75rem; color: #475569; }
+    @keyframes pulse { from { opacity: .2; transform: translateY(1px); } to { opacity: 1; transform: translateY(-1px); } }
+    @media (max-width: 980px) { .assistant-shell { grid-template-columns: 1fr; } .assistant-msg.user, .assistant-msg.assistant { margin: 0; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="assistant-shell">
+    <aside class="assistant-panel">
+        <h3 class="text-base font-semibold mb-2">Sugestões</h3>
+        <div class="space-y-2 mb-4">
+            {% for question in suggested_questions %}
+            <button class="assistant-btn w-full text-left js-suggested-question">{{ question }}</button>
+            {% endfor %}
+        </div>
+        <h3 class="text-base font-semibold mb-2">Histórico recente</h3>
+        <div id="history-list" data-history-limit="{{ history_limit|default:20 }}" class="space-y-2 text-sm">
+            {% for item in history %}
+            <div class="p-2 rounded-lg border border-slate-200 bg-slate-50">
+                <div class="font-medium text-slate-700">{{ item.question }}</div>
+                <div class="text-slate-500 text-xs">{{ item.summary }}</div>
+            </div>
+            {% empty %}
+            <div class="text-slate-500 text-sm">Sem perguntas recentes.</div>
+            {% endfor %}
+        </div>
+    </aside>
+
+    <section class="assistant-panel">
+        <div id="assistant-chat" class="assistant-chat">
+            <div class="assistant-msg assistant">
+                <div class="font-semibold mb-1">Assistente LPLAN</div>
+                <div>Posso consultar suprimentos, aprovações, diário, usuários e gargalos com resposta estruturada.</div>
+            </div>
+        </div>
+        <form id="assistant-form" class="assistant-form">
+            {% csrf_token %}
+            <input id="assistant-input" class="assistant-input" type="text" placeholder="Digite sua pergunta operacional..." required />
+            <button type="submit" class="assistant-send">Perguntar</button>
+            <span id="assistant-loading" class="assistant-loading"><span class="assistant-dot"></span>consultando...</span>
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'assistente_lplan/js/assistant_ui.js' %}"></script>
+{% endblock %}

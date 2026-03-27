@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'mapa_obras',  # Mapa_Controle/obras (renomeado)
     'accounts',  # Mapa_Controle/accounts
     'suprimentos',  # Mapa_Controle/suprimentos
+    'assistente_lplan',
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 

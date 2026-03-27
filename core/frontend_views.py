@@ -40,6 +40,7 @@ from accounts.signup_services import (
     notify_signup_request_created,
     get_allowed_signup_domains,
 )
+from .user_messages import flash_message
 
 logger = logging.getLogger(__name__)
 # PDFGenerator será importado apenas quando necessário (lazy import)
@@ -2028,12 +2029,12 @@ def diary_form_view(request, pk=None):
         )
         # Verifica permissão de edição antes de processar (se for edição)
         if diary and not diary.can_be_edited_by(request.user):
-            messages.error(request, 'Você não tem permissão para editar este diário.')
+            flash_message(request, "error", "core.diary.edit.no_permission")
             return redirect('diary-detail', pk=pk)
         
         # Valida que projeto existe
         if not project:
-            messages.error(request, 'Nenhum projeto selecionado. Selecione um projeto primeiro.')
+            flash_message(request, "error", "core.diary.project_not_selected")
             return redirect('select-project')
         
         form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
@@ -2116,7 +2117,7 @@ def diary_form_view(request, pk=None):
             # Valida que diary foi criado corretamente (não deve ser None)
             if diary is None:
                 logger.error("Form.save(commit=False) retornou None! Isso não deveria acontecer.")
-                messages.error(request, 'Erro ao processar formulário. Verifique os dados e tente novamente.')
+                flash_message(request, "error", "core.diary.form_process_error")
                 # Retorna para o formulário com erros
                 form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
                 if diary and diary.pk:
@@ -3708,7 +3709,7 @@ def profile_view(request):
                 return redirect('login')
             return redirect('profile')
         else:
-            messages.error(request, 'Por favor, corrija os erros abaixo.')
+            flash_message(request, "error", "core.form.fix_errors.profile")
     else:
         form = ProfileEditForm(user=user)
     
@@ -3766,7 +3767,7 @@ def activity_form_view(request, project_id, pk=None, parent_id=None):
             messages.success(request, f'Atividade "{activity.name}" foi salva com sucesso!')
             return redirect('project-activities-tree', project_id=project.id)
         else:
-            messages.error(request, 'Por favor, corrija os erros abaixo.')
+            flash_message(request, "error", "core.form.fix_errors.activity")
     else:
         form = ActivityForm(instance=activity)
     
@@ -3802,7 +3803,7 @@ def activity_delete_view(request, project_id, pk):
     if request.method == 'POST':
         # Verifica se a atividade tem filhos
         if activity.get_children().exists():
-            messages.error(request, f'Não é possível deletar a atividade "{activity.name}" pois ela possui atividades filhas.')
+            flash_message(request, "error", "core.activity.delete.has_children", {"atividade": activity.name})
             return redirect('project-activities-tree', project_id=project.id)
         
         activity_name = activity.name
@@ -3884,7 +3885,7 @@ def labor_form_view(request, pk=None):
             messages.success(request, f'Mão de obra "{labor.name}" foi salva com sucesso!')
             return redirect('labor-list')
         else:
-            messages.error(request, 'Por favor, corrija os erros abaixo.')
+            flash_message(request, "error", "core.form.fix_errors.labor")
     else:
         form = LaborForm(instance=labor)
     
@@ -3956,7 +3957,7 @@ def equipment_form_view(request, pk=None):
             messages.success(request, f'Equipamento "{equipment.name}" foi salvo com sucesso!')
             return redirect('equipment-list')
         else:
-            messages.error(request, 'Por favor, corrija os erros abaixo.')
+            flash_message(request, "error", "core.form.fix_errors.equipment")
     else:
         form = EquipmentForm(instance=equipment)
     
@@ -4162,7 +4163,7 @@ def project_form_view(request, pk=None):
             messages.success(request, f'Obra "{project.name}" foi salva e sincronizada com GestControll e Mapa.')
             return redirect('central_project_list')
         else:
-            messages.error(request, 'Por favor, corrija os erros abaixo.')
+            flash_message(request, "error", "core.form.fix_errors.project")
     else:
         form = ProjectForm(instance=project)
     

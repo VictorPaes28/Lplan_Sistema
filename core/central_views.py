@@ -25,6 +25,7 @@ from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from accounts.groups import GRUPOS
 from core.models import Project, ProjectOwner, ConstructionDiary, DiaryCorrectionRequestLog
+from core.user_messages import flash_message, resolve_message
 
 
 def _staff_required(f):
@@ -405,12 +406,12 @@ def central_diary_emails_view(request, project_id):
             email = (request.POST.get('email') or '').strip()
             nome = (request.POST.get('nome') or '').strip()
             if not email:
-                messages.error(request, 'Informe o e-mail.')
+                flash_message(request, "error", "central.diary_email.required")
             else:
                 try:
                     validate_email(email)
                 except ValidationError:
-                    messages.error(request, 'E-mail inválido.')
+                    flash_message(request, "error", "central.diary_email.invalid")
                 else:
                     _, created = ProjectDiaryRecipient.objects.get_or_create(
                         project=project,
@@ -487,7 +488,7 @@ def central_signup_request_approve(request, pk):
     selected_groups = request.POST.getlist('approved_groups')
     selected_projects = request.POST.getlist('approved_projects')
     if not selected_groups:
-        messages.error(request, 'Selecione pelo menos uma permissão (grupo) antes de aprovar.')
+        flash_message(request, "error", "central.signup.approve.groups_required")
         return redirect('central_signup_requests')
     try:
         user = approve_signup_request(
@@ -497,7 +498,8 @@ def central_signup_request_approve(request, pk):
             selected_project_ids=selected_projects,
         )
     except Exception as exc:
-        messages.error(request, f'Não foi possível aprovar a solicitação: {exc}')
+        msg = resolve_message("central.signup.approve.failed")
+        messages.error(request, f'{msg["text"]} Detalhe técnico: {exc}')
     else:
         if signup_request.requested_by and signup_request.requested_by != request.user:
             try:
@@ -523,12 +525,12 @@ def central_signup_request_reject(request, pk):
         return redirect('central_signup_requests')
     signup_request = get_object_or_404(UserSignupRequest, pk=pk)
     if signup_request.status != UserSignupRequest.STATUS_PENDENTE:
-        messages.warning(request, 'Esta solicitação já foi processada.')
+        flash_message(request, "warning", "central.signup.reject.already_processed")
         return redirect('central_signup_requests')
 
     rejection_reason = (request.POST.get('rejection_reason') or '').strip()
     if not rejection_reason:
-        messages.error(request, 'Informe o motivo da rejeição.')
+        flash_message(request, "error", "central.signup.reject.reason_required")
         return redirect('central_signup_requests')
 
     signup_request.status = UserSignupRequest.STATUS_REJEITADO
@@ -620,32 +622,29 @@ def central_clients_view(request):
             project_ids = request.POST.getlist('projects')
 
             if not username:
-                messages.error(request, 'Username é obrigatório.')
+                flash_message(request, "error", "central.clients.username_required")
                 return redirect('central_clients')
             if not project_ids:
-                messages.error(request, 'Selecione pelo menos uma obra.')
+                flash_message(request, "error", "central.clients.project_required")
                 return redirect('central_clients')
             if User.objects.filter(username=username).exists():
-                messages.error(request, f'O username "{username}" já existe.')
+                flash_message(request, "error", "central.clients.username_exists", {"username": username})
                 return redirect('central_clients')
             if email:
                 try:
                     validate_email(email)
                 except ValidationError:
-                    messages.error(request, 'E-mail inválido.')
+                    flash_message(request, "error", "central.clients.email_invalid")
                     return redirect('central_clients')
 
             unique_project_ids = sorted(set(pid for pid in project_ids if str(pid).strip()))
             projects_qs = Project.objects.filter(id__in=unique_project_ids, is_active=True)
             if projects_qs.count() != len(unique_project_ids):
-                messages.error(request, 'Há obra inválida/inativa selecionada. Atualize a página e tente novamente.')
+                flash_message(request, "error", "central.clients.invalid_project")
                 return redirect('central_clients')
 
             if not password or len(password) < 8:
-                messages.error(
-                    request,
-                    'Senha é obrigatória e deve ter no mínimo 8 caracteres.'
-                )
+                flash_message(request, "error", "central.clients.password_min")
                 return redirect('central_clients')
 
             user = User(
@@ -685,7 +684,7 @@ def central_clients_view(request):
                 if created:
                     messages.success(request, f'Obra "{project.code}" vinculada a "{user.get_full_name() or user.username}".')
                 else:
-                    messages.info(request, 'Este cliente já está vinculado a esta obra.')
+                    flash_message(request, "info", "central.clients.project_already_linked")
             return redirect('central_clients')
 
         elif action == 'edit':
@@ -699,7 +698,7 @@ def central_clients_view(request):
                     validate_email(new_email)
                     user.email = new_email
                 except ValidationError:
-                    messages.error(request, 'E-mail inválido.')
+                    flash_message(request, "error", "central.clients.email_invalid")
                     return redirect('central_clients')
             else:
                 user.email = ''
@@ -734,7 +733,7 @@ def central_clients_view(request):
             user_id = request.POST.get('user_id')
             user = _get_client_user_or_404(user_id)
             if user == request.user:
-                messages.error(request, 'Você não pode excluir seu próprio usuário por esta tela.')
+                flash_message(request, "error", "central.clients.self_delete_blocked")
                 return redirect('central_clients')
             name = user.get_full_name() or user.username
             user.delete()
@@ -840,10 +839,10 @@ def central_diary_grant_provisional_edit(request, pk):
         return redirect('central_diary_edit_requests')
     diary = get_object_or_404(ConstructionDiary, pk=pk)
     if not diary.edit_requested_at:
-        messages.error(request, 'Este relatório não tem pedido de correção pendente.')
+        flash_message(request, "error", "central.diary_edit.no_pending_request")
         return redirect('central_diary_edit_requests')
     if diary.provisional_edit_granted_at:
-        messages.info(request, 'Este relatório já tem edição liberada.')
+        flash_message(request, "info", "central.diary_edit.already_granted")
         return redirect('central_diary_edit_requests')
     now = timezone.now()
     diary.provisional_edit_granted_at = now

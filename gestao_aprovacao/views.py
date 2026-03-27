@@ -34,6 +34,7 @@ from accounts.signup_services import (
     is_allowed_signup_email,
     notify_signup_request_created,
 )
+from core.user_messages import flash_message
 
 
 # --- Evitar que o botão "Voltar" do navegador retorne a formulários já submetidos ---
@@ -423,7 +424,7 @@ def create_workorder(request):
     pode_criar = is_solicitante_group or tem_permissao_solicitante or is_admin(request.user)
     
     if not pode_criar:
-        messages.error(request, 'Apenas solicitantes podem criar pedidos de obra.')
+        flash_message(request, "error", "gestao.create.not_allowed")
         return redirect('gestao:list_workorders')
     
     # is_solicitante_only: é solicitante (grupo ou permissão) mas NÃO é admin ou aprovador
@@ -438,7 +439,12 @@ def create_workorder(request):
             anexos_files = request.FILES.getlist('anexos')
             if not anexos_files or len(anexos_files) == 0:
                 extensoes_str = ', '.join(EXTENSOES_PERMITIDAS)
-                messages.error(request, f'É obrigatório anexar pelo menos um arquivo. Formatos permitidos: {extensoes_str}')
+                flash_message(
+                    request,
+                    "error",
+                    "gestao.create.attachment_required",
+                    {"extensoes": extensoes_str},
+                )
                 anexos_obrigatorios = True
         
         if form.is_valid() and not anexos_obrigatorios:
@@ -461,7 +467,12 @@ def create_workorder(request):
                             ativo=True
                         ).exists()
                         if not tem_permissao_obra:
-                            messages.error(request, 'Você não tem permissão para criar pedidos nesta obra.')
+                            flash_message(
+                                request,
+                                "error",
+                                "gestao.create.permission_obra",
+                                {"obra": obra.nome},
+                            )
                             context = {
                                 'form': form,
                                 'title': 'Criar Novo Pedido de Obra',
@@ -1165,7 +1176,7 @@ def approve_workorder(request, pk):
     
     # Verificar se pode aprovar (status pendente E gestor da obra)
     if not workorder.pode_aprovar(request.user):
-        messages.error(request, 'Este pedido não pode ser aprovado no momento.')
+        flash_message(request, "error", "gestao.approval.not_allowed_now")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se aprovador tem acesso (por empresa ou por permissão na obra quando obra sem empresa)
@@ -1182,7 +1193,7 @@ def approve_workorder(request, pk):
             ).values_list('id', flat=True).distinct()
             tem_permissao = workorder.obra.empresa_id in empresas_ids
         if not tem_permissao:
-            messages.error(request, 'Você não tem permissão para aprovar pedidos desta obra.')
+            flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     if request.method == 'POST':
@@ -1196,7 +1207,7 @@ def approve_workorder(request, pk):
             
             # Re-verificar status dentro da transação
             if not workorder.pode_aprovar(request.user):
-                messages.error(request, 'Este pedido já foi aprovado/reprovado por outro usuário.')
+                flash_message(request, "error", "gestao.approval.race_conflict")
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
             
             status_anterior = workorder.status
@@ -1259,7 +1270,7 @@ def reject_workorder(request, pk):
     
     # Verificar se pode reprovar (status pendente E gestor da obra)
     if not workorder.pode_aprovar(request.user):
-        messages.error(request, 'Este pedido não pode ser reprovado no momento.')
+        flash_message(request, "error", "gestao.reject.not_allowed_now")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se aprovador tem acesso (por empresa ou por permissão na obra quando obra sem empresa)
@@ -1276,7 +1287,7 @@ def reject_workorder(request, pk):
             ).values_list('id', flat=True).distinct()
             tem_permissao = workorder.obra.empresa_id in empresas_ids
         if not tem_permissao:
-            messages.error(request, 'Você não tem permissão para reprovar pedidos desta obra.')
+            flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     if request.method == 'POST':
@@ -1306,7 +1317,7 @@ def reject_workorder(request, pk):
         
         # Validar: pelo menos uma tag OU comentário deve ser fornecido
         if not tags_selecionadas and not novas_tags_nomes and not comentario:
-            messages.error(request, 'É obrigatório selecionar pelo menos uma tag de erro ou informar um comentário ao reprovar um pedido.')
+            flash_message(request, "error", "gestao.reject.tags_or_comment_required")
             # Buscar tags disponíveis para este tipo de solicitação
             from .models import TagErro
             tags_disponiveis = TagErro.objects.filter(
@@ -1331,7 +1342,7 @@ def reject_workorder(request, pk):
             
             # Re-verificar status dentro da transação
             if not workorder.pode_aprovar(request.user):
-                messages.error(request, 'Este pedido já foi aprovado/reprovado por outro usuário.')
+                flash_message(request, "error", "gestao.approval.race_conflict")
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
             
             status_anterior = workorder.status
@@ -2646,12 +2657,12 @@ def solicitar_exclusao(request, pk):
     
     # Verificar se é o criador do pedido
     if workorder.criado_por != user:
-        messages.error(request, 'Você só pode solicitar exclusão de pedidos que você criou.')
+        flash_message(request, "error", "gestao.delete_request.only_creator")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se o pedido está em status elegível
     if workorder.status not in ['pendente', 'reprovado']:
-        messages.error(request, 'Você só pode solicitar exclusão de pedidos pendentes ou reprovados.')
+        flash_message(request, "error", "gestao.delete_request.invalid_status")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se já foi solicitado
@@ -2664,7 +2675,7 @@ def solicitar_exclusao(request, pk):
         
         # Validar motivo
         if not motivo:
-            messages.error(request, 'O motivo da exclusão é obrigatório.')
+            flash_message(request, "error", "gestao.delete_request.reason_required")
             context = {
                 'workorder': workorder,
                 'user_profile': get_user_profile(user),
@@ -2711,12 +2722,12 @@ def aprovar_exclusao(request, pk):
     
     # Verificar se foi solicitado
     if not workorder.solicitado_exclusao:
-        messages.error(request, 'Este pedido não foi solicitado para exclusão.')
+        flash_message(request, "error", "gestao.delete_approve.not_requested")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se é aprovador ou admin
     if not (is_aprovador(user) or is_admin(user)):
-        messages.error(request, 'Você não tem permissão para aprovar exclusões.')
+        flash_message(request, "error", "gestao.delete_approve.no_role")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se o aprovador tem permissão (por empresa ou por permissão na obra quando obra sem empresa)
@@ -2733,7 +2744,7 @@ def aprovar_exclusao(request, pk):
             ).values_list('id', flat=True).distinct()
             tem_permissao = workorder.obra.empresa_id in empresas_ids
         if not tem_permissao:
-            messages.error(request, 'Você não tem permissão para aprovar exclusões desta obra.')
+            flash_message(request, "error", "gestao.delete_approve.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     if request.method == 'POST':
@@ -2789,12 +2800,12 @@ def rejeitar_exclusao(request, pk):
     
     # Verificar se foi solicitado
     if not workorder.solicitado_exclusao:
-        messages.error(request, 'Este pedido não foi solicitado para exclusão.')
+        flash_message(request, "error", "gestao.delete_approve.not_requested")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se é aprovador ou admin
     if not (is_aprovador(user) or is_admin(user)):
-        messages.error(request, 'Você não tem permissão para rejeitar exclusões.')
+        flash_message(request, "error", "gestao.delete_reject.no_role")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se o aprovador tem permissão (por empresa ou por permissão na obra quando obra sem empresa)
@@ -2811,7 +2822,7 @@ def rejeitar_exclusao(request, pk):
             ).values_list('id', flat=True).distinct()
             tem_permissao = workorder.obra.empresa_id in empresas_ids
         if not tem_permissao:
-            messages.error(request, 'Você não tem permissão para rejeitar exclusões desta obra.')
+            flash_message(request, "error", "gestao.delete_reject.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     if request.method == 'POST':
