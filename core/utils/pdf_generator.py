@@ -6,6 +6,15 @@ header azul, cards de efetivo, seções com borda esquerda, ocorrências em dest
 laranja, galeria com legendas, assinaturas em grid, rodapé paginado.
 
 Gerado exclusivamente com ReportLab (compatível cPanel/Servihost).
+
+Manutenção (sem alterar regras de negócio aqui):
+- ReportLab é dependência de importação: a classe PDFGenerator referencia cores do
+  ReportLab no corpo da classe; o módulo não deve ser carregado sem reportlab instalado.
+- Efetivo no PDF: se ``DiaryLaborEntry`` puder ser agregado com sucesso, os totais e
+  colunas usam essa fonte; caso contrário mantém-se o agregado por work logs
+  (``labor_by_type``). Falhas nesse bloco são registradas em debug e o PDF segue.
+- Limiares de bytes: até ~3 MiB em ``_decode_data_url_or_base64_image`` (anexos gerais);
+  assinatura no PDF limita a ~2 MiB após decode (ver trecho da inspeção).
 """
 import os
 import tempfile
@@ -294,10 +303,17 @@ class ImageOptimizer:
 
 
 def _get_logo_absolute_path() -> Optional[str]:
-    """Retorna o caminho absoluto da logo LPLAN (static/core/images/lplan_logo.png)."""
+    """Retorna o caminho absoluto da logo LPLAN (static/core/images; prioriza lpla-logo-pdf)."""
     base = Path(settings.BASE_DIR)
     logo_dir = base / 'core' / 'static' / 'core' / 'images'
-    for name in ('lplan-logo2.png', 'lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg'):
+    for name in (
+        'lpla-logo-pdf-transparent.png',
+        'lpla-logo-pdf.png',
+        'lplan-logo2.png',
+        'lplan_logo.png',
+        'lplan_logo.jpg',
+        'lplan_logo.jpeg',
+    ):
         p = logo_dir / name
         if p.exists():
             return str(p)
@@ -309,7 +325,6 @@ def get_rdo_pdf_filename(project, date_obj, suffix='') -> str:
     Nome padrão do arquivo PDF do RDO: RDO_[CODIGO]_[DATA]_[NOME_DA_OBRA].pdf
     date_obj: date do diário; suffix: opcional (ex: '_detalhado', '_sem_fotos').
     """
-    import re
     code = (project.code or '').strip() or 'RDO'
     data_str = date_obj.strftime('%Y%m%d')
     name = (project.name or '').strip()
@@ -427,10 +442,7 @@ class PDFGenerator:
                 labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': {}}
                 for e in entries:
                     slug = e.cargo.category.slug
-                    try:
-                        qty = _safe_int(e.quantity, 0)
-                    except Exception:
-                        qty = 0
+                    qty = _safe_int(e.quantity, 0)
                     item = {'cargo_name': e.cargo.name, 'quantity': qty}
                     if slug == 'terceirizada':
                         company = e.company or '(Sem empresa)'
@@ -451,8 +463,12 @@ class PDFGenerator:
                     for x in block['items']
                 )
                 total_labor = total_indirect + total_direct + total_third_party
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(
+                "Efetivo por DiaryLaborEntry indisponível; usando agregado por work logs: %s",
+                exc,
+                exc_info=True,
+            )
 
         occurrences = list(
             diary.occurrences.select_related('created_by')
@@ -546,15 +562,17 @@ class PDFGenerator:
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
-        # Margens A4: 20mm lateral, 18mm topo/rodapé (espaço para rodapé fixo)
+        # Margens leves e proporcionais para dar respiro visual sem perder área útil.
         doc = SimpleDocTemplate(
             buffer_io,
             pagesize=A4,
-            leftMargin=20 * mm,
-            rightMargin=20 * mm,
-            topMargin=18 * mm,
+            leftMargin=6 * mm,
+            rightMargin=6 * mm,
+            topMargin=6 * mm,
+            # Rodapé fixo é desenhado em ~10-14 mm; margem maior evita sobreposição.
             bottomMargin=18 * mm,
         )
+        content_width = doc.width
         styles = getSampleStyleSheet()
         # Hierarquia tipográfica (Inter → Helvetica como fallback)
         title_style = ParagraphStyle(
@@ -570,8 +588,8 @@ class PDFGenerator:
             name='Section',
             parent=styles['Normal'],
             fontSize=10,
-            spaceBefore=8,
-            spaceAfter=4,
+            spaceBefore=6,
+            spaceAfter=3,
             alignment=TA_LEFT,
             textColor=COLOR_PRIMARY,
             fontName='Helvetica-Bold',
@@ -584,6 +602,16 @@ class PDFGenerator:
             textColor=COLOR_TEXT,
             spaceAfter=2,
             leading=11,
+        )
+        # Lista de atividades: mais compacta que o corpo geral (muitas linhas sem dominar a página)
+        activity_item_style = ParagraphStyle(
+            name='ActivityItem',
+            parent=styles['Normal'],
+            fontSize=8,
+            alignment=TA_LEFT,
+            textColor=COLOR_TEXT,
+            spaceAfter=0,
+            leading=10,
         )
         label_style = ParagraphStyle(
             name='Label',
@@ -598,6 +626,12 @@ class PDFGenerator:
             textColor=colors.white,
             fontName='Helvetica-Bold',
             fontSize=8,
+        )
+        total_col_style = ParagraphStyle(
+            name='TotalCol',
+            parent=normal_style,
+            fontName='Helvetica-Bold',
+            alignment=TA_CENTER,
         )
         story = []
 
@@ -616,23 +650,37 @@ class PDFGenerator:
         endereco = getattr(proj, 'address', None) and proj.address.strip()
 
         header_title = Paragraph(
-            "<font color='white' size='14'><b>RELATÓRIO DIÁRIO DE OBRA</b></font>",
-            ParagraphStyle(name='H1', fontName='Helvetica-Bold', fontSize=14, textColor=colors.white),
+            "<font color='#1A3A5C' size='14'><b>RELATÓRIO DIÁRIO DE OBRA</b></font>",
+            ParagraphStyle(
+                name='H1',
+                fontName='Helvetica-Bold',
+                fontSize=14,
+                leading=16,
+                spaceAfter=2,
+                alignment=TA_CENTER,
+                textColor=COLOR_PRIMARY,
+            ),
         )
         header_sub = Paragraph(
-            "<font color='white' size='9'>RDO n° %s · Código %s · %s · %s</font>" % (
+            "<font color='#1A3A5C' size='9'>RDO n° %s · Código %s · %s · %s</font>" % (
                 report_num if report_num is not None else '—',
                 _safe_pdf_text(proj.code or '—', default='—'),
                 diary.date.strftime('%d/%m/%Y'),
                 _safe_pdf_text(wd_pt, default='—'),
             ),
-            ParagraphStyle(name='H2', fontName='Helvetica', fontSize=9, textColor=colors.white),
+            ParagraphStyle(
+                name='H2',
+                fontName='Helvetica',
+                fontSize=9,
+                leading=11,
+                alignment=TA_CENTER,
+                textColor=COLOR_PRIMARY,
+            ),
         )
         if logo_absolute_path and os.path.exists(logo_absolute_path):
             try:
-                # Ajuste fino de proporção para o header do PDF:
-                # mantém destaque discreto sem "engolir" o título.
-                max_logo_w = 2.5 * cm
+                # Logo horizontal institucional (wordmark + ícone): caixa mais larga, altura contida
+                max_logo_w = 4.8 * cm
                 max_logo_h = 1.15 * cm
                 logo_w = max_logo_w
                 logo_h = max_logo_h
@@ -648,31 +696,41 @@ class PDFGenerator:
 
                     if src_w and src_h:
                         scale = min(max_logo_w / float(src_w), max_logo_h / float(src_h))
-                        logo_w = max(0.95 * cm, float(src_w) * scale)
-                        logo_h = max(0.45 * cm, float(src_h) * scale)
+                        logo_w = max(1.0 * cm, float(src_w) * scale)
+                        logo_h = max(0.4 * cm, float(src_h) * scale)
                 except Exception as logo_size_err:
                     logger.debug("Não foi possível medir logo para escala proporcional: %s", logo_size_err)
 
                 logo_img = RLImage(logo_absolute_path, width=logo_w, height=logo_h)
-                text_block = Table([[header_title], [header_sub]], colWidths=[14.5 * cm])
+                logo_col_w = 5.2 * cm
+                text_col_w = max(content_width - (2 * logo_col_w), 1.0 * cm)
+                right_spacer = Paragraph(" ", ParagraphStyle(name='HeaderSpacer', fontSize=1))
+                text_block = Table(
+                    [[header_title], [Spacer(1, 1.5)], [header_sub]],
+                    colWidths=[text_col_w],
+                    hAlign='CENTER',
+                )
                 text_block.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('LEFTPADDING', (0, 0), (-1, -1), 0),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-                    ('TOPPADDING', (0, 0), (-1, -1), 0),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                    ('TOPPADDING', (0, 0), (-1, -1), 1),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
                 ]))
 
-                header_rows = [[logo_img, text_block]]
-                col_widths = [2.5 * cm, 14.5 * cm]
+                # 3 colunas: logo | texto centralizado | espaçador
+                # Isso mantém o título no centro real da página.
+                header_rows = [[logo_img, text_block, right_spacer]]
+                col_widths = [logo_col_w, text_col_w, logo_col_w]
             except Exception:
                 header_rows = [[header_title], [header_sub]]
-                col_widths = [17 * cm]
+                col_widths = [content_width]
         else:
             header_rows = [[header_title], [header_sub]]
-            col_widths = [17 * cm]
-        tbl_header = Table(header_rows, colWidths=col_widths)
+            col_widths = [content_width]
+        tbl_header = Table(header_rows, colWidths=col_widths, hAlign='CENTER')
         tbl_header.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARY),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EAF2FB')),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (0, 0), (-1, -1), 8),
@@ -680,36 +738,35 @@ class PDFGenerator:
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ]))
-        story.append(tbl_header)
 
-        # Linha separadora e bloco de dados da obra (fundo azul)
+        # Linha separadora e bloco de dados da obra (fundo preto)
         obra_line = Paragraph(
-            "<font color='white' size='9'><b>OBRA:</b> %s</font>" % (_safe_pdf_text((proj.name or '—')[:50], default='—'),),
-            ParagraphStyle(name='ObraH', fontName='Helvetica', fontSize=9, textColor=colors.white),
+            "<font color='black' size='9'><b>OBRA:</b> %s</font>" % (_safe_pdf_text((proj.name or '—')[:50], default='—'),),
+            ParagraphStyle(name='ObraH', fontName='Helvetica', fontSize=9, textColor=colors.black),
         )
         line2 = Paragraph(
-            "<font color='white' size='8'>Contratante: %s &nbsp;&nbsp; Resp. Técnico: %s</font>" % (
+            "<font color='black' size='8'><b>Contratante:</b> %s &nbsp;&nbsp; <b>Resp. Técnico:</b> %s</font>" % (
                 _safe_pdf_text((contratante or '—')[:40], default='—'),
                 _safe_pdf_text((resp_tec or '—')[:35], default='—'),
             ),
-            ParagraphStyle(name='Line2', fontName='Helvetica', fontSize=8, textColor=colors.white),
+            ParagraphStyle(name='Line2', fontName='Helvetica', fontSize=8, textColor=colors.black),
         )
         line3 = Paragraph(
-            "<font color='white' size='8'>Local: %s</font>" % (_safe_pdf_text((endereco or '—')[:90], default='—')),
-            ParagraphStyle(name='Line3', fontName='Helvetica', fontSize=8, textColor=colors.white),
+            "<font color='black' size='8'><b>Local:</b> %s</font>" % (_safe_pdf_text((endereco or '—')[:90], default='—')),
+            ParagraphStyle(name='Line3', fontName='Helvetica', fontSize=8, textColor=colors.black),
         )
         line4 = Paragraph(
-            "<font color='white' size='8'>Início: %s &nbsp;&nbsp; Término: %s &nbsp;&nbsp; Dias corridos: %s</font>" % (
+            "<font color='black' size='8'><b>Início:</b> %s &nbsp;&nbsp; <b>Término:</b> %s &nbsp;&nbsp; <b>Dias corridos:</b> %s</font>" % (
                 start_d.strftime('%d/%m/%y') if start_d else '—',
                 end_d.strftime('%d/%m/%y') if end_d else '—',
                 str(days_elapsed) if days_elapsed is not None else '—',
             ),
-            ParagraphStyle(name='Line4', fontName='Helvetica', fontSize=8, textColor=colors.white),
+            ParagraphStyle(name='Line4', fontName='Helvetica', fontSize=8, textColor=colors.black),
         )
-        sep_row = Table([[Paragraph(' ', ParagraphStyle(name='Sep', fontSize=1))]], colWidths=[17 * cm])
+        sep_row = Table([[Paragraph(' ', ParagraphStyle(name='Sep', fontSize=1))]], colWidths=[content_width], hAlign='CENTER')
         sep_row.setStyle(TableStyle([
-            ('LINEABOVE', (0, 0), (0, 0), 0.5, colors.HexColor('#FFFFFF')),
-            ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+            ('LINEABOVE', (0, 0), (0, 0), 1, COLOR_PRIMARY),
+            ('BACKGROUND', (0, 0), (0, 0), colors.white),
             ('TOPPADDING', (0, 0), (0, 0), 4),
             ('BOTTOMPADDING', (0, 0), (0, 0), 4),
         ]))
@@ -718,29 +775,40 @@ class PDFGenerator:
             [line2],
             [line3],
             [line4],
-        ], colWidths=[17 * cm])
+        ], colWidths=[content_width], hAlign='CENTER')
         header_block2.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARY),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
             ('LEFTPADDING', (0, 0), (-1, -1), 8),
             ('RIGHTPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ]))
-        story.append(sep_row)
-        story.append(header_block2)
-        story.append(Spacer(1, 0.35 * cm))
+        header_wrapper = Table(
+            [[tbl_header], [sep_row], [header_block2]],
+            colWidths=[content_width],
+            hAlign='CENTER',
+        )
+        header_wrapper.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        story.append(header_wrapper)
+        story.append(Spacer(1, 0.28 * cm))
 
         # Atividades / Serviços — seção com borda esquerda; conteúdo em tabela aninhada (1 flowable por célula)
         act_title = Paragraph(
-            "<font color='#1A3A5C'><b>ATIVIDADES / SERVIÇOS</b></font>",
-            ParagraphStyle(name='SecTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
+            "<font color='white'><b>ATIVIDADES / SERVIÇOS</b></font>",
+            ParagraphStyle(name='SecTitle', fontName='Helvetica-Bold', fontSize=9.5, textColor=colors.white),
         )
-        act_rows = [[act_title], [Spacer(1, 0.08 * cm)]]
+        act_rows = [[act_title]]
         if work_logs:
             for wl in work_logs:
                 act_code = _safe_pdf_text(getattr(wl.activity, 'code', '') or '', default='')
                 act_name = _safe_pdf_text(getattr(wl.activity, 'name', '') or '', default='—')
-                text = "• %s – %s" % (
+                text = "%s – %s" % (
                     act_code,
                     act_name,
                 )
@@ -748,24 +816,27 @@ class PDFGenerator:
                     notes = _safe_pdf_text(wl.notes[:100].replace('\n', ' '), default='')
                     if notes:
                         text += " <i>(%s)</i>" % notes
-                act_rows.append([Paragraph(text, normal_style)])
+                act_rows.append([Paragraph(text, activity_item_style)])
         else:
-            act_rows.append([Paragraph("Nenhuma atividade registrada.", normal_style)])
-        content_width = 17 * cm
+            act_rows.append([Paragraph("Nenhuma atividade registrada.", activity_item_style)])
         # Largura interna menor que a célula para evitar availWidth negativo no ReportLab (padding da célula)
-        inner_width = content_width - 0.6 * cm
-        inner_act = LongTable(act_rows, colWidths=[inner_width], repeatRows=0)
+        inner_width = content_width
+        inner_act = LongTable(act_rows, colWidths=[inner_width], repeatRows=0, hAlign='CENTER')
         inner_act.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, 0), COLOR_ACCENT),
-            ('LEFTPADDING', (0, 0), (-1, -1), 10),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('LINEBEFORE', (0, 0), (0, -1), 2, COLOR_PRIMARY),
-            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+            ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+            ('LINEBELOW', (0, 0), (0, 0), 0.4, COLOR_BORDER),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (0, 0), 5),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 5),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_ACCENT]),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
         ]))
         story.append(inner_act)
-        story.append(Spacer(1, 0.2 * cm))
+        story.append(Spacer(1, 0.12 * cm))
 
         # Gestão de Efetivo: UMA tabela com 3 colunas (Indireto | Direto | Terceiros) como no RQ-10
         has_efetivo = (
@@ -789,23 +860,21 @@ class PDFGenerator:
             indireta_rows = labor_entries_by_category.get('indireta', []) if labor_entries_by_category else []
             if not indireta_rows and labor_by_type.get('I'):
                 for item in labor_by_type['I'].values():
-                    col_i.append(Paragraph(_lab_name(item['labor']) + ' ' + str(item['count']), normal_style))
+                    col_i.append(Paragraph(_lab_name(item['labor']) + ': ' + str(item['count']), normal_style))
             else:
                 for item in indireta_rows:
                     cargo_name = _safe_pdf_text(item.get('cargo_name') or '—', default='—')
-                    col_i.append(Paragraph(cargo_name + ' ' + str(item['quantity']), normal_style))
-            col_i.append(Paragraph('TOTAL ' + str(total_indirect), normal_style))
+                    col_i.append(Paragraph(cargo_name + ': ' + str(item['quantity']), normal_style))
 
             col_d = [Paragraph('EFETIVO DIRETO', table_header_style)]
             direta_rows = labor_entries_by_category.get('direta', []) if labor_entries_by_category else []
             if not direta_rows and labor_by_type.get('D'):
                 for item in labor_by_type['D'].values():
-                    col_d.append(Paragraph(_lab_name(item['labor']) + ' ' + str(item['count']), normal_style))
+                    col_d.append(Paragraph(_lab_name(item['labor']) + ': ' + str(item['count']), normal_style))
             else:
                 for item in direta_rows:
                     cargo_name = _safe_pdf_text(item.get('cargo_name') or '—', default='—')
-                    col_d.append(Paragraph(cargo_name + ' ' + str(item['quantity']), normal_style))
-            col_d.append(Paragraph('TOTAL ' + str(total_direct), normal_style))
+                    col_d.append(Paragraph(cargo_name + ': ' + str(item['quantity']), normal_style))
 
             col_t = [Paragraph('EFETIVO TERCEIROS', table_header_style)]
             terceiros_rows = []
@@ -814,13 +883,12 @@ class PDFGenerator:
                     for item in block['items']:
                         company = _safe_pdf_text(block.get('company') or '—', default='—')
                         cargo_name = _safe_pdf_text(item.get('cargo_name') or '', default='')
-                        col_t.append(Paragraph(company + ' ' + cargo_name + ' ' + str(item['quantity']), normal_style))
+                        col_t.append(Paragraph(company + ' ' + cargo_name + ': ' + str(item['quantity']), normal_style))
             elif labor_by_type.get('T'):
                 for item in labor_by_type['T'].values():
                     lab = item['labor']
                     company = _safe_pdf_text(getattr(lab, 'company', None) or '—', default='—')
-                    col_t.append(Paragraph(company + ' ' + _lab_name(lab) + ' ' + str(item['count']), normal_style))
-            col_t.append(Paragraph('TOTAL ' + str(total_third_party), normal_style))
+                    col_t.append(Paragraph(company + ' ' + _lab_name(lab) + ': ' + str(item['count']), normal_style))
 
             n = max(len(col_i), len(col_d), len(col_t))
             empty = Paragraph(' ', normal_style)
@@ -830,20 +898,27 @@ class PDFGenerator:
                 col_d.append(empty)
             for i in range(len(col_t), n):
                 col_t.append(empty)
-            efetivo_data = [[col_i[r], col_d[r], col_t[r]] for r in range(n)]
-            t_efetivo = LongTable(efetivo_data, colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm], repeatRows=1)
+            # Mantém os três totais na mesma linha para evitar confusão visual com o total geral.
+            col_i.append(Paragraph('TOTAL: ' + str(total_indirect), total_col_style))
+            col_d.append(Paragraph('TOTAL: ' + str(total_direct), total_col_style))
+            col_t.append(Paragraph('TOTAL: ' + str(total_third_party), total_col_style))
+            total_row_idx = n
+            efetivo_data = [[col_i[r], col_d[r], col_t[r]] for r in range(n + 1)]
+            col_w = content_width / 3.0
+            t_efetivo = LongTable(efetivo_data, colWidths=[col_w, col_w, col_w], repeatRows=1, hAlign='CENTER')
             t_efetivo.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
                 ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),
                 ('BACKGROUND', (2, 0), (2, 0), COLOR_PRIMARY),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('FONTSIZE', (0, 0), (-1, -1), 8),
-                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-                ('INNERGRID', (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.grey),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, COLOR_ACCENT]),
-                ('BACKGROUND', (0, n - 1), (0, n - 1), COLOR_ACCENT),
-                ('BACKGROUND', (1, n - 1), (1, n - 1), COLOR_ACCENT),
-                ('BACKGROUND', (2, n - 1), (2, n - 1), COLOR_ACCENT),
+                ('BACKGROUND', (0, total_row_idx), (0, total_row_idx), COLOR_ACCENT),
+                ('BACKGROUND', (1, total_row_idx), (1, total_row_idx), COLOR_ACCENT),
+                ('BACKGROUND', (2, total_row_idx), (2, total_row_idx), COLOR_ACCENT),
+                ('LINEABOVE', (0, total_row_idx), (2, total_row_idx), 0.5, colors.grey),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('LEFTPADDING', (0, 0), (-1, -1), 6),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 6),
@@ -853,7 +928,7 @@ class PDFGenerator:
             total_row = Table([[Paragraph(
                 "EFETIVO TOTAL GERAL: %s" % total_labor,
                 ParagraphStyle(name='EfetivoTotal', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=TA_CENTER),
-            )]], colWidths=[17 * cm])
+            )]], colWidths=[content_width], hAlign='CENTER')
             total_row.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, -1), COLOR_PRIMARY),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTRE'),
@@ -865,8 +940,13 @@ class PDFGenerator:
 
         # Equipamentos (ordem = primeira ocorrência no diário, igual agregação do formulário)
         if equipment_rows:
-            story.append(Paragraph("EQUIPAMENTOS", heading_style))
-            data = [[Paragraph('Equipamento', table_header_style), Paragraph('Qtd', table_header_style)]]
+            total_eq_style = ParagraphStyle(
+                name='TotalEquip',
+                parent=normal_style,
+                fontName='Helvetica-Bold',
+                textColor=colors.white,
+            )
+            data = [[Paragraph('EQUIPAMENTOS', table_header_style), Paragraph('Qtd', table_header_style)]]
             for item in equipment_rows:
                 eq = item['equipment']
                 code = _safe_pdf_text(_decode_js_escaped_text(getattr(eq, 'code', '') or ''), default='')
@@ -876,8 +956,12 @@ class PDFGenerator:
                     Paragraph(label, normal_style),
                     Paragraph(str(item['quantity']), normal_style),
                 ])
-            data.append([Paragraph('TOTAL', normal_style), Paragraph(str(total_equipment), normal_style)])
-            t_eq = LongTable(data, colWidths=[10 * cm, 2 * cm], repeatRows=1)
+            data.append([Paragraph('TOTAL', total_eq_style), Paragraph(str(total_equipment), total_eq_style)])
+            # Equipamentos ponta a ponta: usa toda largura útil.
+            qty_col_w = 2.6 * cm
+            desc_col_w = max(content_width - qty_col_w, 1.0 * cm)
+            # Evita repetição de cabeçalho da tabela em quebra de página.
+            t_eq = LongTable(data, colWidths=[desc_col_w, qty_col_w], repeatRows=0, hAlign='CENTER')
             t_eq.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), COLOR_PRIMARY),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -885,24 +969,65 @@ class PDFGenerator:
                 ('ALIGN', (1, 0), (1, -1), 'CENTER'),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_ACCENT]),
+                ('BACKGROUND', (0, len(data) - 1), (-1, len(data) - 1), COLOR_PRIMARY),
+                ('TEXTCOLOR', (0, len(data) - 1), (-1, len(data) - 1), colors.white),
+                ('TEXTCOLOR', (0, len(data) - 1), (0, len(data) - 1), colors.white),
+                ('TEXTCOLOR', (1, len(data) - 1), (1, len(data) - 1), colors.white),
+                ('FONTNAME', (0, len(data) - 1), (-1, len(data) - 1), 'Helvetica-Bold'),
             ]))
             story.append(t_eq)
             story.append(Spacer(1, 0.25 * cm))
 
-        # Ocorrência de Chuvas (como no RQ-10)
-        story.append(Paragraph("OCORRÊNCIA DE CHUVAS", heading_style))
+        # Ocorrência de Chuvas (bloco visual com melhor proporção/legibilidade)
+        weather_text_style = ParagraphStyle(
+            name='WeatherText',
+            parent=normal_style,
+            fontSize=9,
+            leading=11,
+            spaceAfter=1,
+        )
+        weather_title_style = ParagraphStyle(
+            name='WeatherTitle',
+            fontName='Helvetica-Bold',
+            fontSize=10,
+            leading=12,
+            textColor=COLOR_PRIMARY,
+        )
+        rain_title_style = ParagraphStyle(
+            name='RainTitle',
+            parent=table_header_style,
+            alignment=TA_LEFT,
+            textColor=colors.white,
+        )
         rain = getattr(diary, 'rain_occurrence', None)
         rain_label = {'F': 'Fraca', 'M': 'Média', 'S': 'Forte'}.get(rain, 'Nenhuma')
         text = "Intensidade da Chuva: %s" % rain_label
         if getattr(diary, 'pluviometric_index', None) is not None:
             text += " | Índice Pluviométrico: %s mm" % diary.pluviometric_index
-        story.append(Paragraph(text, normal_style))
+        rain_rows = [[Paragraph('OCORRÊNCIA DE CHUVA', rain_title_style)]]
+        rain_rows.append([Paragraph(text, weather_text_style)])
         if getattr(diary, 'rain_observations', None) and diary.rain_observations.strip():
-            story.append(Paragraph(
+            rain_rows.append([Spacer(1, 0.04 * cm)])
+            rain_rows.append([Paragraph(
                 "OBSERVAÇÕES: %s" % _safe_pdf_multiline_text(diary.rain_observations, default='—', max_len=300),
-                normal_style,
-            ))
-        story.append(Spacer(1, 0.2 * cm))
+                weather_text_style,
+            )])
+        rain_tbl = LongTable(rain_rows, colWidths=[content_width], repeatRows=0, hAlign='CENTER')
+        rain_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+            ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+            ('LINEBELOW', (0, 0), (0, 0), 0.4, COLOR_BORDER),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (0, 0), 5),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 5),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_ACCENT]),
+        ]))
+        story.append(rain_tbl)
+        story.append(Spacer(1, 0.14 * cm))
 
         # Condições climáticas detalhadas (quando preenchidas)
         weather_parts = []
@@ -928,9 +1053,24 @@ class PDFGenerator:
             p = {'P': 'Praticável', 'I': 'Impraticável'}.get(getattr(diary, 'weather_night_workable', None), '—')
             weather_parts.append(Paragraph("Clima Noite: %s / %s" % (t, p), normal_style))
         if weather_parts:
-            story.append(Paragraph("CONDIÇÕES CLIMÁTICAS DETALHADAS", heading_style))
+            weather_rows = [[Paragraph("<font color='white'><b>CONDIÇÕES CLIMÁTICAS DETALHADAS</b></font>", rain_title_style)]]
             for p in weather_parts:
-                story.append(p)
+                weather_rows.append([p])
+            weather_tbl = LongTable(weather_rows, colWidths=[content_width], repeatRows=0, hAlign='CENTER')
+            weather_tbl.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+                ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+                ('LINEBELOW', (0, 0), (0, 0), 0.4, COLOR_BORDER),
+                ('LEFTPADDING', (0, 0), (-1, -1), 12),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ('TOPPADDING', (0, 0), (0, 0), 5),
+                ('BOTTOMPADDING', (0, 0), (0, 0), 5),
+                ('TOPPADDING', (0, 1), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_ACCENT]),
+            ]))
+            story.append(weather_tbl)
             story.append(Spacer(1, 0.15 * cm))
 
         # Horas trabalhadas
@@ -955,44 +1095,58 @@ class PDFGenerator:
 
         # Ocorrências e Observações — tabela aninhada (1 flowable por célula); destaque laranja se houver ocorrências
         if occurrences or (getattr(diary, 'deliberations', None) and diary.deliberations.strip()):
-            occ_title = Paragraph(
-                "<font color='#1A3A5C'><b>OCORRÊNCIAS E OBSERVAÇÕES</b></font>" + (
-                    " &nbsp; <font color='#F57C00' size='8'><b>⚠ OCORRÊNCIA</b></font>" if occurrences else ""
-                ),
-                ParagraphStyle(name='OccTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
+            occ_text_style = ParagraphStyle(
+                name='OccText',
+                parent=normal_style,
+                fontSize=9,
+                leading=11,
+                spaceAfter=1,
             )
-            occ_rows = [[occ_title], [Spacer(1, 0.08 * cm)]]
+            occ_title_style = ParagraphStyle(
+                name='OccTitle',
+                fontName='Helvetica-Bold',
+                fontSize=10,
+                leading=12,
+                textColor=colors.white,
+            )
+            occ_title = Paragraph(
+                "<font color='white'><b>OCORRÊNCIAS E OBSERVAÇÕES</b></font>",
+                occ_title_style,
+            )
+            occ_rows = [[occ_title], [Spacer(1, 0.05 * cm)]]
             if occurrences:
                 for occ in occurrences:
                     desc = getattr(occ, 'description', '') or ''
                     desc = _safe_pdf_multiline_text(desc, default='—', max_len=500)
                     tags = list(occ.tags.values_list('name', flat=True)[:5])
                     tag_str = _safe_pdf_text(' | '.join(tags), default='') if tags else ''
+                    occ_rows.append([Paragraph(desc or '—', occ_text_style)])
                     if tag_str:
-                        occ_rows.append([Paragraph("<b>%s</b> %s" % (tag_str, desc), normal_style)])
-                    else:
-                        occ_rows.append([Paragraph(desc or '—', normal_style)])
+                        occ_rows.append([Paragraph("Tags: %s" % tag_str, occ_text_style)])
             if getattr(diary, 'deliberations', None) and diary.deliberations.strip():
-                occ_rows.append([Paragraph("<b>DELIBERAÇÕES:</b>", normal_style)])
+                occ_rows.append([Spacer(1, 0.03 * cm)])
+                occ_rows.append([Paragraph("<b>DELIBERAÇÕES:</b>", occ_text_style)])
                 occ_rows.append([Paragraph(
                     _safe_pdf_multiline_text(diary.deliberations, default='—', max_len=1000),
-                    normal_style,
+                    occ_text_style,
                 )])
-            border_color = COLOR_WARNING if occurrences else COLOR_PRIMARY
-            bg_color = COLOR_OCCURRENCE_BG if occurrences else COLOR_ACCENT
-            inner_width = content_width - 0.6 * cm
-            inner_occ = LongTable(occ_rows, colWidths=[inner_width], repeatRows=0)
+            inner_width = content_width
+            inner_occ = LongTable(occ_rows, colWidths=[inner_width], repeatRows=0, hAlign='CENTER')
             inner_occ.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, 0), bg_color),
+                ('BACKGROUND', (0, 0), (0, 0), COLOR_PRIMARY),
+                ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+                ('LINEBELOW', (0, 0), (0, 0), 0.4, COLOR_BORDER),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('LINEBEFORE', (0, 0), (0, -1), 2, border_color),
-                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                ('TOPPADDING', (0, 0), (0, 0), 4),
+                ('BOTTOMPADDING', (0, 0), (0, 0), 3),
+                ('TOPPADDING', (0, 1), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_ACCENT]),
             ]))
             story.append(inner_occ)
-            story.append(Spacer(1, 0.25 * cm))
+            story.append(Spacer(1, 0.1 * cm))
 
         # Registro Fotográfico — tabela aninhada; incluir imagem só se o arquivo for válido (PIL)
         if pdf_type != 'no_photos':
@@ -1000,8 +1154,10 @@ class PDFGenerator:
                 "<font color='#1A3A5C'><b>REGISTRO FOTOGRÁFICO</b></font>",
                 ParagraphStyle(name='PhotoTitle', fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY),
             )
-            content_width = 17 * cm
-            img_w, img_h = 6.5 * cm, 4.9 * cm
+            # Fotos com largura dinâmica da área útil atual, preservando proporção.
+            photo_col_w = (content_width - 0.2 * cm) / 2.0
+            img_w = max(photo_col_w - 0.9 * cm, 4.5 * cm)
+            img_h = img_w * 0.72
             story.append(photo_title)
             story.append(Spacer(1, 0.12 * cm))
             valid = [i for i in images_with_paths if i.get('absolute_path') and os.path.exists(i['absolute_path'])]
@@ -1040,12 +1196,12 @@ class PDFGenerator:
                             except Exception as e:
                                 logger.debug("RLImage falhou para %s: %s", path, e)
                                 img_flowable = Paragraph("Imagem indisponível", label_style)
-                        cell_content = Table([[img_flowable], [cap_para]], colWidths=[img_w + 0.3 * cm])
+                        cell_content = Table([[img_flowable], [cap_para]], colWidths=[photo_col_w - 0.2 * cm])
                         cell_content.setStyle(TableStyle([
                             ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
                             ('BACKGROUND', (0, 0), (-1, -1), COLOR_SURFACE),
-                            ('TOPPADDING', (0, 0), (-1, -1), 4),
-                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                            ('TOPPADDING', (0, 0), (-1, -1), 3),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                         ]))
                         row_cells.append(cell_content)
@@ -1054,14 +1210,13 @@ class PDFGenerator:
                     if row_cells:
                         photo_cells.append(row_cells)
                 if photo_cells:
-                    t_photo = LongTable(photo_cells, colWidths=[img_w + 0.5 * cm] * 2, repeatRows=0)
+                    t_photo = LongTable(photo_cells, colWidths=[photo_col_w, photo_col_w], repeatRows=0, hAlign='CENTER')
                     t_photo.setStyle(TableStyle([
                         ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-                        ('LINEBEFORE', (0, 0), (0, -1), 2, COLOR_PRIMARY),
-                        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-                        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-                        ('TOPPADDING', (0, 0), (-1, -1), 8),
-                        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                     ]))
@@ -1093,8 +1248,21 @@ class PDFGenerator:
                 or getattr(diary.created_by, 'username', None)
             )
 
-        sig_style = ParagraphStyle(name='Sig', parent=normal_style, fontSize=9.5, fontName='Helvetica-Bold', textColor=COLOR_TEXT)
-        sig_cargo_style = ParagraphStyle(name='SigCargo', parent=normal_style, fontSize=8.5, textColor=COLOR_TEXT_SECONDARY)
+        sig_style = ParagraphStyle(
+            name='Sig',
+            parent=normal_style,
+            fontSize=9.5,
+            fontName='Helvetica-Bold',
+            textColor=COLOR_TEXT,
+            alignment=TA_CENTER,
+        )
+        sig_cargo_style = ParagraphStyle(
+            name='SigCargo',
+            parent=normal_style,
+            fontSize=8.5,
+            textColor=COLOR_TEXT_SECONDARY,
+            alignment=TA_CENTER,
+        )
         sig_line_style = ParagraphStyle(name='SigLine', parent=normal_style, fontSize=8, textColor=COLOR_TEXT_SECONDARY, alignment=TA_CENTER)
 
         signature_image_flowable = None
@@ -1132,18 +1300,17 @@ class PDFGenerator:
         def _sig_block(name, cargo, signature_img=None):
             line_t = Table([['']], colWidths=[7 * cm])
             line_t.setStyle(TableStyle([('LINEBELOW', (0, 0), (0, 0), 1, COLOR_TEXT_SECONDARY)]))
-            rows = [
-                [line_t],
-            ]
+            rows = []
             if signature_img is not None:
                 rows.append([signature_img])
             else:
                 rows.append([Paragraph('Assinatura não disponível', sig_line_style)])
+            rows.append([line_t])
             rows.extend([
                 [Paragraph(_safe_pdf_text(name, default='_________________________'), sig_style)],
                 [Paragraph(_safe_pdf_text(cargo, default=''), sig_cargo_style)],
             ])
-            block = Table(rows, colWidths=[17 * cm])
+            block = Table(rows, colWidths=[content_width])
             block.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -1153,7 +1320,7 @@ class PDFGenerator:
             return block
 
         c1 = _sig_block(insp_name, "Responsável pelo preenchimento", signature_image_flowable)
-        sig_table = Table([[c1]], colWidths=[17 * cm])
+        sig_table = Table([[c1]], colWidths=[content_width])
         sig_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -1168,3 +1335,4 @@ class PDFGenerator:
         generated_date_str = date.today().strftime('%d/%m/%Y')
         canvas_class = functools.partial(_RDOCanvas, generated_date_str=generated_date_str)
         doc.build(story, canvasmaker=canvas_class)
+    
