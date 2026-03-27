@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from django.utils import timezone
 from datetime import date, timedelta
 from accounts.groups import GRUPOS
+from .user_messages import resolve_message
 from .models import (
     Project,
     Activity,
@@ -303,4 +304,29 @@ class ActivityModelTestCase(TestCase):
         ancestors = list(self.child.get_ancestors())
         self.assertEqual(len(ancestors), 1)
         self.assertEqual(ancestors[0], self.root)
+
+
+class UserMessagesTestCase(TestCase):
+    def test_resolve_message_deterministico(self):
+        ctx = {"obra": "Obra Alfa"}
+        msg1 = resolve_message("mapa.select.no_scope", ctx)
+        msg2 = resolve_message("mapa.select.no_scope", ctx)
+        self.assertEqual(msg1["code"], "mapa.select.no_scope")
+        self.assertEqual(msg1["text"], msg2["text"])
+        self.assertIn("Obra Alfa", msg1["text"])
+
+    def test_resolve_message_fallback_quando_codigo_nao_existe(self):
+        msg = resolve_message("codigo.inexistente", {})
+        self.assertEqual(msg["code"], "codigo.inexistente")
+        self.assertIn("Não foi possível concluir", msg["text"])
+
+    def test_resolve_message_com_placeholder(self):
+        msg = resolve_message("core.activity.delete.has_children", {"atividade": "Fundação"})
+        self.assertEqual(msg["code"], "core.activity.delete.has_children")
+        self.assertIn("Fundação", msg["text"])
+
+    def test_resolve_message_central_username_exists(self):
+        msg = resolve_message("central.clients.username_exists", {"username": "cliente01"})
+        self.assertEqual(msg["code"], "central.clients.username_exists")
+        self.assertIn("cliente01", msg["text"])
 

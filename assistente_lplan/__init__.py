@@ -1,0 +1,2 @@
+"""Assistente LPLAN app."""
+

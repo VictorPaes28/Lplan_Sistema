@@ -543,6 +543,60 @@
 
     {% block page_modals %}{% endblock %}
 
+    {% url 'assistente_lplan:home' as assistente_home_url %}
+    {% if user.is_authenticated and '/assistente/' not in request.path and assistente_home_url %}
+    <a href="{{ assistente_home_url }}"
+       class="assistant-fab"
+       aria-label="Abrir Assistente LPLAN"
+       title="Assistente LPLAN">
+        <i class="fas fa-robot" aria-hidden="true"></i>
+    </a>
+    <style>
+    .assistant-fab {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        width: 58px;
+        height: 58px;
+        border-radius: 9999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f97316, #ea580c);
+        color: #fff;
+        text-decoration: none;
+        font-size: 1.25rem;
+        box-shadow: 0 12px 28px rgba(234, 88, 12, 0.35);
+        z-index: 1200;
+        transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+        animation: assistantFabPulse 2s infinite;
+    }
+    .assistant-fab:hover {
+        transform: translateY(-2px) scale(1.03);
+        filter: brightness(1.03);
+        box-shadow: 0 16px 34px rgba(234, 88, 12, 0.42);
+    }
+    .assistant-fab:focus-visible {
+        outline: 2px solid #fb923c;
+        outline-offset: 2px;
+    }
+    @keyframes assistantFabPulse {
+        0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.35), 0 12px 28px rgba(234, 88, 12, 0.35); }
+        70% { box-shadow: 0 0 0 12px rgba(234, 88, 12, 0), 0 12px 28px rgba(234, 88, 12, 0.35); }
+        100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0), 0 12px 28px rgba(234, 88, 12, 0.35); }
+    }
+    @media (max-width: 768px) {
+        .assistant-fab {
+            right: 16px;
+            bottom: 16px;
+            width: 54px;
+            height: 54px;
+            font-size: 1.15rem;
+        }
+    }
+    </style>
+    {% endif %}
+
     <!-- Scripts - Carregados no final do body para melhor performance -->
     <!-- Accordion Manager - Sistema robusto de seções expansíveis -->
     {% load static %}
