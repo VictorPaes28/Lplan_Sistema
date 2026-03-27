@@ -70,6 +70,19 @@ from core.models import Project, ProjectMember
 
 logger = logging.getLogger(__name__)
 
+# Coluna "analisado" (checkbox) em list_workorders — só estes e-mails + superuser.
+_EMAILS_MARCAR_PEDIDO_ANALISADO = frozenset({
+    "luiz.henrique@lplan.com.br",
+    "luizdomingos@lplan.com.br",
+})
+
+
+def _usuario_pode_marcar_pedido_analisado(user):
+    if getattr(user, "is_superuser", False):
+        return True
+    email = (getattr(user, "email", None) or "").strip().lower()
+    return bool(email and email in _EMAILS_MARCAR_PEDIDO_ANALISADO)
+
 
 def _grupos_ordenados_por_sistema():
     """Retorna os grupos na ordem: Gestão (Admin, Responsável, Aprovador, Solicitante), Diário de Obra, Mapa de Suprimentos."""
@@ -349,10 +362,7 @@ def list_workorders(request):
         is_admin(user)
     )
     
-    # Verificar se o usuário é um dos Luizes ou superuser (pode marcar pedidos para análise)
-    emails_luizes = getattr(settings, 'EMAIL_DEPARTAMENTOS_APROVACAO', [])
-    emails_luizes = [email.strip().lower() for email in emails_luizes if email.strip()]
-    pode_marcar_analisado = user.is_superuser or (user.email and user.email.lower() in emails_luizes)
+    pode_marcar_analisado = _usuario_pode_marcar_pedido_analisado(user)
     
     # Aviso para solicitante sem obras vinculadas (regra única: acesso é por obra)
     aviso_sem_obras = (
@@ -4434,14 +4444,9 @@ def reenviar_email(request, log_id):
 def marcar_pedido_analisado(request, pk):
     """
     View para marcar/desmarcar pedido como analisado via AJAX.
-    Apenas para os dois Luizes (emails configurados em EMAIL_DEPARTAMENTOS_APROVACAO) ou superuser.
+    Apenas os e-mails fixos em _EMAILS_MARCAR_PEDIDO_ANALISADO ou superuser.
     """
-    # Verificar se é um dos Luizes ou superuser
-    emails_luizes = getattr(settings, 'EMAIL_DEPARTAMENTOS_APROVACAO', [])
-    emails_luizes = [email.strip().lower() for email in emails_luizes if email.strip()]
-    
-    is_luiz = request.user.email and request.user.email.lower() in emails_luizes
-    if not request.user.is_superuser and not is_luiz:
+    if not _usuario_pode_marcar_pedido_analisado(request.user):
         return JsonResponse({
             'success': False, 
             'error': 'Você não tem permissão para usar esta funcionalidade.'

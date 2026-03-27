@@ -317,6 +317,14 @@ SIGNUP_APPROVER_EMAIL = os.environ.get('SIGNUP_APPROVER_EMAIL', '').strip().lowe
 _email_dept = os.environ.get('EMAIL_DEPARTAMENTOS_APROVACAO', 'luiz.henrique@lplan.com.br,luizdomingos@lplan.com.br')
 EMAIL_DEPARTAMENTOS_APROVACAO = [e.strip() for e in _email_dept.split(',') if e.strip()]
 
+# Gestão de Aprovação: destinatários obrigatórios para e-mails de pedido aprovado.
+# Mantém um fallback seguro para garantir recebimento mesmo se EMAIL_DEPARTAMENTOS_APROVACAO vier incompleto.
+_email_aprovacao_fixos = os.environ.get(
+    'EMAIL_APROVACAO_DESTINATARIOS_FIXOS',
+    'luiz.henrique@lplan.com.br,luizdomingos@lplan.com.br',
+)
+EMAIL_APROVACAO_DESTINATARIOS_FIXOS = [e.strip() for e in _email_aprovacao_fixos.split(',') if e.strip()]
+
 # Mapa/Suprimentos: API Sienge (webhook e integração). Definir no .env em produção.
 SIENGE_API_BASE_URL = os.environ.get('SIENGE_API_BASE_URL', 'https://api.sienge.com.br')
 SIENGE_API_CLIENT_ID = os.environ.get('SIENGE_API_CLIENT_ID', '')

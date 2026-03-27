@@ -12,6 +12,39 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+# Destinatários fixos para aprovações do GestControll.
+# Mantido em código para garantir recebimento mesmo se o .env estiver incompleto.
+_APROVACAO_DESTINATARIOS_PADRAO = (
+    "luiz.henrique@lplan.com.br",
+    "luizdomingos@lplan.com.br",
+)
+
+
+def _normalizar_destinatarios(destinatarios):
+    """Remove vazios/duplicados e normaliza e-mails mantendo ordem."""
+    if not destinatarios:
+        return []
+    normalizados = []
+    seen = set()
+    for email in destinatarios:
+        e = (email or "").strip().lower()
+        if not e or e in seen:
+            continue
+        seen.add(e)
+        normalizados.append(e)
+    return normalizados
+
+
+def _get_destinatarios_fixos_aprovacao():
+    """
+    Retorna destinatários obrigatórios para e-mails de aprovação.
+    Pode ser sobrescrito por EMAIL_APROVACAO_DESTINATARIOS_FIXOS no ambiente.
+    """
+    configured = getattr(settings, "EMAIL_APROVACAO_DESTINATARIOS_FIXOS", None)
+    if configured is None:
+        configured = list(_APROVACAO_DESTINATARIOS_PADRAO)
+    return _normalizar_destinatarios(configured)
+
 
 def _criar_log_email(tipo_email, workorder, destinatarios, assunto):
     """
@@ -461,12 +494,13 @@ def _enviar_email_aprovacao_thread(workorder_id, aprovado_por_id, comentario):
         
         # Adicionar departamentos configurados
         if hasattr(settings, 'EMAIL_DEPARTAMENTOS_APROVACAO') and settings.EMAIL_DEPARTAMENTOS_APROVACAO:
-            for email_dept in settings.EMAIL_DEPARTAMENTOS_APROVACAO:
-                if email_dept and email_dept not in destinatarios:
-                    destinatarios.append(email_dept)
-        
+            destinatarios.extend(settings.EMAIL_DEPARTAMENTOS_APROVACAO)
+
+        # Garantir destinatários fixos de aprovação (independente do .env)
+        destinatarios.extend(_get_destinatarios_fixos_aprovacao())
+
         # Remover duplicatas mantendo ordem
-        destinatarios = list(dict.fromkeys(destinatarios))
+        destinatarios = _normalizar_destinatarios(destinatarios)
         
         if not destinatarios:
             logger.warning(f"Nenhum destinatário encontrado para email de aprovação do pedido {workorder.codigo}.")
