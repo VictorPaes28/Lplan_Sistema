@@ -9,8 +9,10 @@ from .models import (
     ProjectMember,
     ProjectOwner,
     ProjectDiaryRecipient,
+    ProjectDiaryApprover,
     Activity,
     ConstructionDiary,
+    DiaryApprovalHistory,
     DiaryImage,
     DailyWorkLog,
     Labor,
@@ -74,6 +76,16 @@ class ProjectOwnerAdmin(admin.ModelAdmin):
     def project_code(self, obj):
         return obj.project.code if obj.project_id else '-'
     project_code.short_description = 'Código obra'
+
+
+@admin.register(ProjectDiaryApprover)
+class ProjectDiaryApproverAdmin(admin.ModelAdmin):
+    """Aprovadores do RDO por obra."""
+    list_display = ['project', 'user', 'is_active', 'order', 'updated_at']
+    list_filter = ['is_active', 'project']
+    search_fields = ['project__code', 'project__name', 'user__username', 'user__first_name', 'user__last_name']
+    autocomplete_fields = ['project', 'user']
+    ordering = ['project', 'order', 'user__username']
 
 
 @admin.register(Activity)
@@ -261,4 +273,13 @@ class DiaryOccurrenceAdmin(admin.ModelAdmin):
     def description_short(self, obj):
         return obj.description[:50] + '...' if len(obj.description) > 50 else obj.description
     description_short.short_description = 'Descrição'
+
+
+@admin.register(DiaryApprovalHistory)
+class DiaryApprovalHistoryAdmin(admin.ModelAdmin):
+    """Histórico de decisões de aprovação do RDO."""
+    list_display = ['diary', 'decision', 'decided_by', 'created_at']
+    list_filter = ['decision', 'created_at', 'diary__project']
+    search_fields = ['diary__project__code', 'diary__report_number', 'comment', 'decided_by__username']
+    readonly_fields = ['created_at']
 

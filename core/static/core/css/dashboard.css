@@ -369,6 +369,8 @@
 
 .dashboard-legend-draft i { color: #b45309; }
 .dashboard-legend-draft { border-color: #fde68a; background: #fefce8; }
+.dashboard-legend-pending-approval i { color: #1d4ed8; }
+.dashboard-legend-pending-approval { border-color: #bfdbfe; background: #eff6ff; }
 
 .dashboard-calendar-wrapper {
     padding: 1rem 1.5rem 1.5rem;

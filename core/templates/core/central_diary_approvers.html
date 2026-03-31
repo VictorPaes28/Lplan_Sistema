@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Aprovadores do RDO{% endblock %}
+{% block page_subtitle %}{{ project.name }} — Quem aprova antes do envio ao cliente{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">
+        Configure aqui os aprovadores do <strong>RDO (Diário de Obra)</strong> desta obra.
+        Quando o relatório for salvo (sem rascunho), ele ficará como <strong>Aguardando aprovação</strong>.
+        Somente após aprovação será enviado ao cliente. Esta configuração é exclusiva do Diário de Obra.
+    </p>
+
+    <div class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-user-check text-emerald-600"></i> Adicionar aprovador</h2>
+        <form method="post" action="{% url 'central_diary_approvers' project.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add" />
+            <div class="grid grid-cols-1 gap-4 mb-4">
+                <div>
+                    <label for="user_id" class="central-input-label">Usuário *</label>
+                    <select name="user_id" id="user_id" class="central-input" required>
+                        <option value="">Selecione...</option>
+                        {% for user in eligible_users %}
+                        <option value="{{ user.id }}">
+                            {{ user.get_full_name|default:user.username }} ({{ user.username }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="central-btn-primary">
+                <i class="fas fa-plus" aria-hidden="true"></i> Adicionar aprovador
+            </button>
+        </form>
+    </div>
+
+    <div class="central-section">
+        <h2 class="central-section-title"><i class="fas fa-users text-slate-500"></i> Aprovadores cadastrados ({{ approvers|length }})</h2>
+        {% if approvers %}
+        <ul class="list-none p-0 m-0">
+            {% for approver in approvers %}
+            <li class="central-email-row">
+                <div class="min-w-0 flex-1">
+                    <span class="central-email-address">{{ approver.user.get_full_name|default:approver.user.username }}</span>
+                    <span class="central-email-nome">— {{ approver.user.username }}</span>
+                    {% if approver.is_active %}
+                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Ativo</span>
+                    {% else %}
+                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Inativo</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <form method="post" action="{% url 'central_diary_approvers' project.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle" />
+                        <input type="hidden" name="approver_id" value="{{ approver.id }}" />
+                        <button type="submit" class="central-btn-secondary text-xs px-3 py-1.5">
+                            {% if approver.is_active %}Desativar{% else %}Ativar{% endif %}
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'central_diary_approvers' project.id %}" onsubmit="return confirm('Remover este aprovador da obra?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove" />
+                        <input type="hidden" name="approver_id" value="{{ approver.id }}" />
+                        <button type="submit" class="central-btn-danger-ghost" title="Remover aprovador">
+                            <i class="fas fa-trash-alt mr-1" aria-hidden="true"></i> Remover
+                        </button>
+                    </form>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="central-empty-state">
+            <i class="fas fa-inbox text-4xl text-slate-300 mb-3 block" aria-hidden="true"></i>
+            Nenhum aprovador cadastrado ainda. Use o formulário acima para adicionar.
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="flex flex-wrap gap-4 mt-6 pt-6 border-t border-slate-100">
+        <a href="{% url 'central_project_list' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar à lista de obras</a>
+        <a href="{% url 'project-edit' project.id %}" class="central-btn-secondary"><i class="fas fa-edit" aria-hidden="true"></i> Editar esta obra</a>
+    </div>
+</div>
+{% endblock %}

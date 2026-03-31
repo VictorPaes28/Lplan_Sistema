@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block page_title %}Obras (Diário de Obra){% endblock %}
-{% block page_subtitle %}Cadastre obras e configure quem recebe o PDF do diário por e-mail, diariamente{% endblock %}
+{% block page_subtitle %}Cadastre obras, configure e-mails e aprovadores do RDO por obra{% endblock %}
 
 {% block content %}
 <div class="mb-4">
@@ -16,7 +16,7 @@
 <header class="project-list-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
         <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Obras</h2>
-        <p class="text-slate-500 text-sm mt-0.5 max-w-xl">Obras do <strong>Diário de Obra</strong>: cadastro e e-mails que recebem o PDF do diário automaticamente todo dia. (Pedidos e aprovações ficam no GestControll.)</p>
+        <p class="text-slate-500 text-sm mt-0.5 max-w-xl">Obras do <strong>Diário de Obra</strong>: cadastro, e-mails de envio automático e aprovadores do RDO antes do envio ao cliente. (Não confundir com aprovações do GestControll.)</p>
     </div>
     <a href="{% url 'project-new' %}" class="central-btn-primary inline-flex shrink-0 w-fit items-center gap-2" id="project-list-primary-cta">
         <i class="fas fa-plus" aria-hidden="true"></i> Nova Obra
@@ -48,6 +48,9 @@
         <div class="central-project-actions">
             <a href="{% url 'central_diary_emails' project.id %}" class="central-project-btn central-project-btn-email" title="E-mails que recebem o PDF do diário por e-mail, todo dia">
                 <i class="fas fa-envelope" aria-hidden="true"></i> E-mails do diário
+            </a>
+            <a href="{% url 'central_diary_approvers' project.id %}" class="central-project-btn central-project-btn-primary" title="Aprovadores que validam o RDO antes de enviar ao cliente">
+                <i class="fas fa-user-check" aria-hidden="true"></i> Aprovadores do RDO
             </a>
             <a href="{% url 'project-edit' project.id %}" class="central-project-btn central-project-btn-icon" title="Editar obra">
                 <i class="fas fa-edit" aria-hidden="true"></i>

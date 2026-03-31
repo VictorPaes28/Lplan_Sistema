@@ -31,6 +31,8 @@ def report_status_label(diary):
     labels = {
         DiaryStatus.SALVAMENTO_PARCIAL.value: 'Rascunho',
         DiaryStatus.PREENCHENDO.value: 'Preenchido',
+        DiaryStatus.AGUARDANDO_APROVACAO_GESTOR.value: 'Aguardando aprovação',
+        DiaryStatus.REPROVADO_GESTOR.value: 'Reprovado',
         DiaryStatus.REVISAR.value: 'Em revisão',
         DiaryStatus.APROVADO.value: 'Aprovado',
     }
@@ -50,6 +52,8 @@ def report_status_css(diary):
     classes = {
         DiaryStatus.SALVAMENTO_PARCIAL.value: 'report-status--draft',
         DiaryStatus.PREENCHENDO.value: 'report-status--approved',
+        DiaryStatus.AGUARDANDO_APROVACAO_GESTOR.value: 'report-status--pending-approval',
+        DiaryStatus.REPROVADO_GESTOR.value: 'report-status--rejected',
         DiaryStatus.REVISAR.value: 'report-status--review',
         DiaryStatus.APROVADO.value: 'report-status--approved',
     }
@@ -70,6 +74,8 @@ def report_status_style(diary):
     styles = {
         DiaryStatus.SALVAMENTO_PARCIAL.value: 'background-color:#ffedd5;color:#c2410c',
         DiaryStatus.PREENCHENDO.value: 'background-color:#d1fae5;color:#047857',
+        DiaryStatus.AGUARDANDO_APROVACAO_GESTOR.value: 'background-color:#dbeafe;color:#1d4ed8',
+        DiaryStatus.REPROVADO_GESTOR.value: 'background-color:#fee2e2;color:#b91c1c',
         DiaryStatus.REVISAR.value: 'background-color:#fef3c7;color:#b45309',
         DiaryStatus.APROVADO.value: 'background-color:#d1fae5;color:#047857',
     }

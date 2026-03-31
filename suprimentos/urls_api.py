@@ -1,9 +1,11 @@
 from django.urls import path
-from . import views_api
+from . import views_api, views_controle
 
 app_name = 'suprimentos'
 
 urlpatterns = [
+    path('mapa-controle/summary', views_controle.mapa_controle_summary, name='mapa_controle_summary'),
+    path('mapa-controle/items', views_controle.mapa_controle_items, name='mapa_controle_items'),
     path('item/<int:item_id>/detalhe/', views_api.item_detalhe, name='item_detalhe'),
     path('item/<int:item_id>/alocacoes/', views_api.item_alocacoes_json, name='item_alocacoes_json'),
     path('item/atualizar-campo/', views_api.item_atualizar_campo, name='item_atualizar_campo'),

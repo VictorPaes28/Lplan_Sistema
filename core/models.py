@@ -36,6 +36,8 @@ class DiaryStatus(models.TextChoices):
     """
     PREENCHENDO = 'PR', 'Preenchendo'
     SALVAMENTO_PARCIAL = 'SP', 'Salvamento Parcial'
+    AGUARDANDO_APROVACAO_GESTOR = 'AG', 'Aguardando aprovação do gestor'
+    REPROVADO_GESTOR = 'RG', 'Reprovado pelo gestor'
     REVISAR = 'RV', 'Revisar'  # Legado
     APROVADO = 'AP', 'Aprovado'
 
@@ -212,6 +214,49 @@ class ProjectOwner(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} → {self.project.code}"
+
+
+class ProjectDiaryApprover(models.Model):
+    """
+    Usuários que podem aprovar o RDO de uma obra antes do envio ao cliente.
+    """
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='rdo_approvers',
+        verbose_name='Obra',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='rdo_project_approvals',
+        verbose_name='Aprovador',
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Ativo',
+        help_text='Permite desativar temporariamente sem remover o vínculo.',
+    )
+    order = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Ordem',
+        help_text='Apenas para ordenação visual no painel.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Data de Atualização')
+
+    class Meta:
+        verbose_name = 'Aprovador de RDO por obra'
+        verbose_name_plural = 'Aprovadores de RDO por obra'
+        unique_together = [['project', 'user']]
+        ordering = ['project', 'order', 'user__first_name', 'user__username']
+        indexes = [
+            models.Index(fields=['project', 'is_active']),
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.project.code} → {self.user.get_full_name() or self.user.username}"
 
 
 class ActivityManager(MP_NodeManager):
@@ -873,6 +918,14 @@ class ConstructionDiary(models.Model):
         """Verifica se o diário está aprovado (imutável)."""
         return self.status == DiaryStatus.APROVADO
 
+    def is_waiting_manager_approval(self) -> bool:
+        """True quando o diário aguarda decisão de aprovador do RDO."""
+        return self.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR
+
+    def requires_manager_approval(self) -> bool:
+        """True quando a obra tem ao menos um aprovador ativo de RDO."""
+        return self.project.rdo_approvers.filter(is_active=True).exists()
+
     def save(self, *args, **kwargs):
         """
         Sobrescreve save() para gerar automaticamente o número do relatório.
@@ -916,9 +969,64 @@ class ConstructionDiary(models.Model):
             return True
         if self.is_approved():
             return False
-        if self.status in (DiaryStatus.PREENCHENDO, DiaryStatus.SALVAMENTO_PARCIAL):
+        if self.status in (
+            DiaryStatus.PREENCHENDO,
+            DiaryStatus.SALVAMENTO_PARCIAL,
+            DiaryStatus.REPROVADO_GESTOR,
+        ):
             return True
         return False
+
+
+class DiaryApprovalHistory(models.Model):
+    """
+    Histórico de decisões de aprovação do RDO (aprovar/reprovar por gestor).
+    """
+    DECISAO_APROVAR = 'AP'
+    DECISAO_REPROVAR = 'RP'
+    DECISAO_CHOICES = [
+        (DECISAO_APROVAR, 'Aprovado'),
+        (DECISAO_REPROVAR, 'Reprovado'),
+    ]
+
+    diary = models.ForeignKey(
+        'ConstructionDiary',
+        on_delete=models.CASCADE,
+        related_name='approval_history',
+        verbose_name='Diário',
+    )
+    decided_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='diary_approval_decisions',
+        verbose_name='Decidido por',
+    )
+    decision = models.CharField(
+        max_length=2,
+        choices=DECISAO_CHOICES,
+        verbose_name='Decisão',
+    )
+    comment = models.TextField(
+        blank=True,
+        verbose_name='Comentário',
+        help_text='Justificativa opcional para aprovar e obrigatória para reprovar.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data da decisão')
+
+    class Meta:
+        verbose_name = 'Histórico de aprovação do RDO'
+        verbose_name_plural = 'Histórico de aprovação do RDO'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['diary', '-created_at']),
+            models.Index(fields=['decision', '-created_at']),
+        ]
+
+    def __str__(self):
+        decisao = self.get_decision_display()
+        return f"RDO {self.diary_id} - {decisao} ({self.created_at})"
 
 
 class DiaryCorrectionRequestLog(models.Model):

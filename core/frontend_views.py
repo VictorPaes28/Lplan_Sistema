@@ -19,8 +19,10 @@ from .models import (
     Project,
     ProjectMember,
     ProjectOwner,
+    ProjectDiaryApprover,
     ConstructionDiary,
     DiaryCorrectionRequestLog,
+    DiaryApprovalHistory,
     DiaryComment,
     DiaryImage,
     DailyWorkLog,
@@ -402,7 +404,14 @@ def _get_projects_for_user(request):
             project_ids = list(ProjectMember.objects.filter(user=request.user).values_list('project_id', flat=True))
         except Exception:
             pass
-    return Project.objects.filter(pk__in=project_ids, is_active=True).order_by('-created_at')
+    approver_project_ids = list(
+        ProjectDiaryApprover.objects.filter(
+            user=request.user,
+            is_active=True,
+        ).values_list('project_id', flat=True)
+    )
+    combined_ids = sorted(set(project_ids + approver_project_ids))
+    return Project.objects.filter(pk__in=combined_ids, is_active=True).order_by('-created_at')
 
 
 def _user_can_access_project(user, project):
@@ -412,7 +421,24 @@ def _user_can_access_project(user, project):
     from core.models import ProjectOwner
     if ProjectOwner.objects.filter(user=user, project=project).exists():
         return True
+    if ProjectDiaryApprover.objects.filter(user=user, project=project, is_active=True).exists():
+        return True
     return ProjectMember.objects.filter(user=user, project=project).exists()
+
+
+def _is_project_rdo_approver(user, project):
+    """True se o usuário é aprovador ativo de RDO para a obra."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    # Superusuário pode atuar como contingência operacional.
+    # Staff comum só aprova quando estiver explicitamente cadastrado na obra.
+    if user.is_superuser:
+        return True
+    return ProjectDiaryApprover.objects.filter(
+        user=user,
+        project=project,
+        is_active=True,
+    ).exists()
 
 
 @login_required
@@ -490,10 +516,15 @@ def dashboard_view(request):
 
     # KPIs filtrados pela obra selecionada
     total_diaries = ConstructionDiary.objects.filter(project=project).count()
-    # Relatórios em edição (status PREENCHENDO - raro, mas mantido para compatibilidade)
+    # Relatórios pendentes (inclui rascunho, preenchendo, aguardando aprovação e reprovados)
     pending_reports = ConstructionDiary.objects.filter(
         project=project,
-        status=DiaryStatus.PREENCHENDO
+        status__in=[
+            DiaryStatus.PREENCHENDO,
+            DiaryStatus.SALVAMENTO_PARCIAL,
+            DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+            DiaryStatus.REPROVADO_GESTOR,
+        ],
     ).count()
     approved_reports = ConstructionDiary.objects.filter(
         project=project,
@@ -697,6 +728,12 @@ def calendar_events_view(request):
         if diary.status == DiaryStatus.APROVADO:
             color = '#10b981'  # Verde - Preenchido/Finalizado
             title_status = 'Preenchido'
+        elif diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
+            color = '#2563eb'  # Azul - aguardando aprovação
+            title_status = 'Aguardando aprovação'
+        elif diary.status == DiaryStatus.REPROVADO_GESTOR:
+            color = '#dc2626'  # Vermelho - reprovado
+            title_status = 'Reprovado'
         elif diary.status == DiaryStatus.SALVAMENTO_PARCIAL:
             color = '#f59e0b'  # Âmbar - Salvamento parcial (rascunho)
             title_status = 'Salvamento Parcial'
@@ -861,6 +898,7 @@ def diary_detail_view(request, pk):
             'work_logs__activity', 'work_logs__resources_labor', 'work_logs__resources_equipment',
             'occurrences', 'occurrences__tags',
             'owner_comments__author',
+            'approval_history__decided_by',
         ),
         pk=pk
     )
@@ -1037,6 +1075,16 @@ def diary_detail_view(request, pk):
         and not diary_provisional_edit_unlocked
         and not diary_edit_request_pending
     )
+    can_decide_rdo_approval = (
+        diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR
+        and _is_project_rdo_approver(request.user, diary.project)
+    )
+    approval_history = list(
+        diary.approval_history.select_related('decided_by').order_by('-created_at')[:20]
+    )
+    rdo_approvers = list(
+        diary.project.rdo_approvers.filter(is_active=True).select_related('user').order_by('order', 'user__first_name', 'user__username')
+    )
 
     context = {
         'diary': diary,
@@ -1064,6 +1112,9 @@ def diary_detail_view(request, pk):
         'signature_production': signature_production,
         'owner_comments': list(diary.owner_comments.select_related('author').order_by('created_at')),
         'can_add_owner_comment': diary.is_approved() and (request.user.is_staff or request.user.groups.filter(name=GRUPOS.GERENTES).exists()),
+        'can_decide_rdo_approval': can_decide_rdo_approval,
+        'approval_history': approval_history,
+        'rdo_approvers': rdo_approvers,
     }
     
     # Força retorno HTML explícito (evita conflito com API REST)
@@ -1308,6 +1359,72 @@ def diary_request_edit_view(request, pk):
         request,
         'Pedido de correção enviado. Quando um administrador liberar, o botão Editar ficará disponível.',
     )
+    return redirect('diary-detail', pk=pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def diary_review_decision_view(request, pk):
+    """
+    Aprovação/reprovação do RDO por aprovador da obra.
+    Só se aplica quando o diário está em AGUARDANDO_APROVACAO_GESTOR.
+    """
+    diary = get_object_or_404(ConstructionDiary.objects.select_related('project'), pk=pk)
+    if not _user_can_access_project(request.user, diary.project):
+        raise Http404()
+    if not _is_project_rdo_approver(request.user, diary.project):
+        raise PermissionDenied("Você não tem permissão para decidir a aprovação deste RDO.")
+    if diary.status != DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
+        messages.info(request, 'Este RDO não está pendente de aprovação.')
+        return redirect('diary-detail', pk=pk)
+
+    decision = (request.POST.get('decision') or '').strip().lower()
+    comment = (request.POST.get('comment') or '').strip()[:2000]
+    now = timezone.now()
+
+    if decision == 'approve':
+        diary.status = DiaryStatus.APROVADO
+        diary.reviewed_by = request.user
+        diary.approved_at = now
+        if not diary.sent_to_owner_at:
+            diary.sent_to_owner_at = now
+        diary.save(update_fields=['status', 'reviewed_by', 'approved_at', 'sent_to_owner_at', 'updated_at'])
+
+        DiaryApprovalHistory.objects.create(
+            diary=diary,
+            decided_by=request.user,
+            decision=DiaryApprovalHistory.DECISAO_APROVAR,
+            comment=comment,
+        )
+        try:
+            from .diary_email import send_diary_to_owners, send_diary_pdf_to_recipients
+            send_diary_to_owners(diary)
+            send_diary_pdf_to_recipients(diary)
+        except Exception as exc:
+            logger.exception("Erro ao enviar RDO aprovado aos destinatários: %s", exc)
+        messages.success(request, 'RDO aprovado e enviado ao cliente.')
+        return redirect('diary-detail', pk=pk)
+
+    if decision == 'reject':
+        if not comment:
+            messages.error(request, 'Informe o motivo da reprovação.')
+            return redirect('diary-detail', pk=pk)
+        diary.status = DiaryStatus.REPROVADO_GESTOR
+        diary.reviewed_by = request.user
+        diary.approved_at = None
+        diary.sent_to_owner_at = None
+        diary.save(update_fields=['status', 'reviewed_by', 'approved_at', 'sent_to_owner_at', 'updated_at'])
+
+        DiaryApprovalHistory.objects.create(
+            diary=diary,
+            decided_by=request.user,
+            decision=DiaryApprovalHistory.DECISAO_REPROVAR,
+            comment=comment,
+        )
+        messages.success(request, 'RDO reprovado. O responsável poderá ajustar e reenviar para aprovação.')
+        return redirect('diary-detail', pk=pk)
+
+    messages.error(request, 'Decisão inválida.')
     return redirect('diary-detail', pk=pk)
 
 
@@ -1992,12 +2109,15 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
 def diary_form_view(request, pk=None):
     """View de formulário de diário de obra."""
     import logging
+    from django.forms import inlineformset_factory
     logger = logging.getLogger(__name__)
     from .forms import (
         ConstructionDiaryForm,
         DiaryImageFormSet,
         DailyWorkLogFormSet,
         DiaryOccurrenceFormSet,
+        DailyWorkLogForm,
+        DiaryOccurrenceForm,
     )
     from .services import ProgressService
     
@@ -2151,14 +2271,22 @@ def diary_form_view(request, pk=None):
                     diary.status = DiaryStatus.SALVAMENTO_PARCIAL
                     logger.info("Salvamento parcial: status definido como SALVAMENTO_PARCIAL")
                 else:
-                    # Salvar diário = aprovado (sem fluxo de revisar/aprovar). Envio ao dono da obra após salvar.
-                    diary.status = DiaryStatus.APROVADO
-                    diary.approved_at = timezone.now()
-                    # Prazo de 24h para comentários começa só na primeira aprovação (não reinicia ao re-salvar)
-                    if not diary.sent_to_owner_at:
-                        diary.sent_to_owner_at = timezone.now()
-                    diary.reviewed_by = request.user
-                    logger.info("Salvar diário: status definido como APROVADO (envio ao dono após commit)")
+                    has_project_approver = diary.project.rdo_approvers.filter(is_active=True).exists()
+                    if has_project_approver:
+                        # Novo fluxo: aguarda aprovação antes de enviar ao cliente.
+                        diary.status = DiaryStatus.AGUARDANDO_APROVACAO_GESTOR
+                        diary.approved_at = None
+                        diary.reviewed_by = None
+                        diary.sent_to_owner_at = None
+                        logger.info("Salvar diário: status definido como AGUARDANDO_APROVACAO_GESTOR")
+                    else:
+                        # Compatibilidade: sem aprovadores cadastrados, mantém fluxo direto.
+                        diary.status = DiaryStatus.APROVADO
+                        diary.approved_at = timezone.now()
+                        if not diary.sent_to_owner_at:
+                            diary.sent_to_owner_at = timezone.now()
+                        diary.reviewed_by = request.user
+                        logger.info("Salvar diário: status definido como APROVADO (sem aprovadores configurados)")
             
             # Recria os formsets ANTES de salvar o diário
             # Isso permite validar os formsets antes de criar o diário no banco
@@ -3170,6 +3298,9 @@ def diary_form_view(request, pk=None):
                 if is_partial_save:
                     messages.success(request, 'Diário salvo parcialmente. Você pode continuar o preenchimento depois.')
                     return redirect('report-list')
+                if diary and diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
+                    messages.success(request, 'RDO enviado para aprovação dos gestores. O envio ao cliente ocorrerá após aprovação.')
+                    return redirect(reverse('diary-detail', kwargs={'pk': diary.pk}))
                 if is_new:
                     messages.success(request, f'Diário criado com sucesso! Relatório #{diary.report_number or "em processamento"}')
                     return redirect('report-list')
@@ -3338,6 +3469,7 @@ def diary_form_view(request, pk=None):
                 if src and (not diary or src.pk != diary.pk):
                     copy_source_diary = src
                     copy_opts_list = copy_opts
+                    copy_formset_instance = ConstructionDiary(project=project)
                     # Form initial a partir do relatório fonte
                     try:
                         if any(o in copy_opts for o in ('climate',)):
@@ -3374,7 +3506,17 @@ def diary_form_view(request, pk=None):
                                     'activity_description': wl.activity.name if wl.activity else '',
                                 })
                             if worklog_initial:
-                                worklog_formset = DailyWorkLogFormSet(
+                                # Inline formsets com extra=0 ignoram initial em GET.
+                                # Criamos um formset dinâmico com extra proporcional ao que foi copiado.
+                                WorklogCopyFormSet = inlineformset_factory(
+                                    ConstructionDiary,
+                                    DailyWorkLog,
+                                    form=DailyWorkLogForm,
+                                    extra=len(worklog_initial),
+                                    can_delete=True,
+                                )
+                                worklog_formset = WorklogCopyFormSet(
+                                    instance=copy_formset_instance,
                                     initial=worklog_initial,
                                     form_kwargs={'diary': diary if diary and diary.pk else None},
                                     prefix='work_logs',
@@ -3387,7 +3529,17 @@ def diary_form_view(request, pk=None):
                                     'tags': list(o.tags.values_list('pk', flat=True)),
                                 })
                             if occ_initial:
-                                occurrence_formset = DiaryOccurrenceFormSet(
+                                # Inline formsets com extra=0 ignoram initial em GET.
+                                # Criamos um formset dinâmico com extra proporcional ao que foi copiado.
+                                OccurrenceCopyFormSet = inlineformset_factory(
+                                    ConstructionDiary,
+                                    DiaryOccurrence,
+                                    form=DiaryOccurrenceForm,
+                                    extra=len(occ_initial),
+                                    can_delete=True,
+                                )
+                                occurrence_formset = OccurrenceCopyFormSet(
+                                    instance=copy_formset_instance,
                                     initial=occ_initial,
                                     prefix='ocorrencias',
                                 )

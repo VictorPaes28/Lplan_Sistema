@@ -12,6 +12,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.utils import timezone
+from django.db.models import Q
 from django.core.mail import EmailMessage
 from django.core.paginator import Paginator
 from django.http import HttpResponse
@@ -21,10 +22,17 @@ from datetime import datetime, timedelta
 import re
 import csv
 
+from django.contrib.auth.models import User
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from accounts.groups import GRUPOS
-from core.models import Project, ProjectOwner, ConstructionDiary, DiaryCorrectionRequestLog
+from core.models import (
+    Project,
+    ProjectOwner,
+    ConstructionDiary,
+    DiaryCorrectionRequestLog,
+    ProjectDiaryApprover,
+)
 from core.user_messages import flash_message, resolve_message
 
 
@@ -446,6 +454,83 @@ def central_diary_email_remove_view(request, project_id, pk):
     ProjectDiaryRecipient.objects.filter(project=project, pk=pk).delete()
     messages.success(request, 'E-mail removido.')
     return redirect('central_diary_emails', project_id=project_id)
+
+
+@login_required
+@_staff_required
+def central_diary_approvers_view(request, project_id):
+    """
+    Tela para cadastrar aprovadores do RDO por obra.
+    Esses aprovadores validam o diário antes do envio ao cliente.
+    """
+    project = get_object_or_404(Project, pk=project_id)
+    approvers = (
+        ProjectDiaryApprover.objects.filter(project=project)
+        .select_related('user')
+        .order_by('order', 'user__first_name', 'user__username')
+    )
+
+    eligible_users = (
+        User.objects.filter(
+            Q(is_staff=True)
+            | Q(groups__name=GRUPOS.GERENTES)
+            | Q(diario_project_memberships__project=project)
+        )
+        .distinct()
+        .order_by('first_name', 'username')
+    )
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+
+        if action == 'add':
+            user_id = request.POST.get('user_id')
+            if not user_id:
+                messages.error(request, 'Selecione um usuário para adicionar como aprovador.')
+                return redirect('central_diary_approvers', project_id=project_id)
+            try:
+                user = eligible_users.get(pk=user_id)
+            except (User.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'Usuário inválido para esta obra.')
+                return redirect('central_diary_approvers', project_id=project_id)
+
+            _, created = ProjectDiaryApprover.objects.get_or_create(
+                project=project,
+                user=user,
+                defaults={'is_active': True},
+            )
+            if created:
+                messages.success(request, f'{user.get_full_name() or user.username} adicionado como aprovador do RDO.')
+            else:
+                ProjectDiaryApprover.objects.filter(project=project, user=user).update(is_active=True)
+                messages.info(request, f'{user.get_full_name() or user.username} já estava cadastrado; vínculo reativado.')
+            return redirect('central_diary_approvers', project_id=project_id)
+
+        if action == 'remove':
+            approver_id = request.POST.get('approver_id')
+            if approver_id:
+                ProjectDiaryApprover.objects.filter(project=project, pk=approver_id).delete()
+                messages.success(request, 'Aprovador removido.')
+            return redirect('central_diary_approvers', project_id=project_id)
+
+        if action == 'toggle':
+            approver_id = request.POST.get('approver_id')
+            approver = get_object_or_404(ProjectDiaryApprover, project=project, pk=approver_id)
+            approver.is_active = not approver.is_active
+            approver.save(update_fields=['is_active', 'updated_at'])
+            status_txt = 'ativado' if approver.is_active else 'desativado'
+            messages.success(request, f'Aprovador {status_txt}.')
+            return redirect('central_diary_approvers', project_id=project_id)
+
+    return render(
+        request,
+        'core/central_diary_approvers.html',
+        {
+            'project': project,
+            'approvers': approvers,
+            'eligible_users': eligible_users,
+        },
+    )
 
 
 @login_required

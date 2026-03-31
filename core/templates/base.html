@@ -252,6 +252,11 @@
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
+            <a href="{% url 'engenharia:mapa_controle' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-gauge-high w-5 mr-3"></i>
+                <span class="font-medium">Mapa de Controle</span>
+            </a>
             <a href="{% url 'engenharia:mapa' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-table w-5 mr-3"></i>

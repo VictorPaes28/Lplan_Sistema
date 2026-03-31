@@ -11,13 +11,14 @@
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         text-decoration: none;
         display: block;
+        height: 100%;
     }
     .system-card:hover:not(.disabled) {
         transform: translateY(-8px);
     }
     .system-card.disabled {
         opacity: 0.35;
-        pointer-events: none;
+        pointer-events: auto;
         filter: grayscale(0.8);
         cursor: not-allowed;
         position: relative;
@@ -42,6 +43,9 @@
         position: relative;
         overflow: hidden;
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
     .system-card:hover:not(.disabled) .card-inner {
         box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.12);
@@ -60,13 +64,17 @@
         opacity: 1;
     }
 
-    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos */
+    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos, Orange para Controle */
     .system-card.diario:hover:not(.disabled) .card-inner { border-color: #3b82f6; }
     .system-card.diario .card-inner::before { background: #3b82f6; }
     .system-card.gestao:hover:not(.disabled) .card-inner { border-color: #a855f7; }
     .system-card.gestao .card-inner::before { background: #a855f7; }
     .system-card.mapa:hover:not(.disabled) .card-inner { border-color: #10b981; }
     .system-card.mapa .card-inner::before { background: #10b981; }
+    .system-card.controle:hover:not(.disabled) .card-inner { border-color: #f97316; }
+    .system-card.controle .card-inner::before { background: #f97316; }
+    .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
+    .system-card.central .card-inner::before { background: #475569; }
 
     /* System Icon */
     .system-icon {
@@ -86,6 +94,7 @@
     .system-card.diario .system-icon { background: linear-gradient(135deg, #667eea, #764ba2); box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35); }
     .system-card.gestao .system-icon { background: linear-gradient(135deg, #f093fb, #f5576c); box-shadow: 0 4px 14px rgba(245, 87, 108, 0.35); }
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
+    .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
 
     /* Badges */
     .access-badge {
@@ -139,6 +148,8 @@
     .system-card.diario .card-arrow { color: #3b82f6; }
     .system-card.gestao .card-arrow { color: #a855f7; }
     .system-card.mapa .card-arrow   { color: #10b981; }
+    .system-card.controle .card-arrow { color: #ea580c; }
+    .system-card.central .card-arrow { color: #475569; }
 
     /* Acessibilidade: foco visível no teclado */
     .system-card:focus-visible,
@@ -616,13 +627,41 @@
                     {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Suprimentos</h3>
-                <p class="text-sm text-slate-500 mb-4">Controle de suprimentos e engenharia</p>
+                <p class="text-sm text-slate-500 mb-4">Controle de suprimentos, engenharia e mapa de controle</p>
                 <div class="pt-3 border-t border-slate-100">
                     <ul class="feature-list">
                         <li><i class="fas fa-check-circle text-emerald-500"></i>Mapa de suprimentos por obra</li>
+                        <li><i class="fas fa-check-circle text-emerald-500"></i>Mapa de controle com KPIs e pendências</li>
                         <li><i class="fas fa-check-circle text-emerald-500"></i>Recebimentos e alocações</li>
                         <li><i class="fas fa-check-circle text-emerald-500"></i>Importação Sienge</li>
                         <li><i class="fas fa-check-circle text-emerald-500"></i>Dashboard de engenharia</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+
+        <!-- Mapa de Controle -->
+        <a href="{% url 'engenharia:mapa_controle' %}" class="system-card controle {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Mapa de Controle" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-gauge-high"></i></div>
+                    {% if has_mapa %}
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Controle</h3>
+                <p class="text-sm text-slate-500 mb-4">Visão gerencial de pendências e exceções</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-orange-500"></i>KPIs de operação por obra</li>
+                        <li><i class="fas fa-check-circle text-orange-500"></i>Top riscos por local/categoria</li>
+                        <li><i class="fas fa-check-circle text-orange-500"></i>Quem cobrar em cada etapa</li>
+                        <li><i class="fas fa-check-circle text-orange-500"></i>Tabela detalhada semelhante ao mapa</li>
                     </ul>
                 </div>
                 <div class="mt-4 text-right">
@@ -742,6 +781,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var supportSeverity = document.getElementById('support-severity');
     var supportTitle = document.getElementById('support-title');
     var supportDesc = document.getElementById('support-desc');
+
+    // Mantém hover/tooltip dos cards sem acesso, mas bloqueia navegação.
+    var disabledSystemCards = document.querySelectorAll('.system-card.disabled');
+    disabledSystemCards.forEach(function (card) {
+        card.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    });
 
     function openModal() {
         if (!modalOverlay) return;

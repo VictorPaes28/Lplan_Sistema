@@ -136,6 +136,10 @@
                     <i class="fas fa-pencil-alt" aria-hidden="true"></i>
                     Rascunho
                 </span>
+                <span class="dashboard-legend-item dashboard-legend-pending-approval">
+                    <i class="fas fa-user-clock" aria-hidden="true"></i>
+                    Aguardando aprovação
+                </span>
             </div>
         </div>
         <div class="dashboard-calendar-wrapper">
@@ -447,6 +451,10 @@ document.addEventListener('DOMContentLoaded', function() {
             var compactMobile = window.innerWidth < 768 && arg.view.type === 'dayGridMonth';
             if (props && props.missing) {
                 icon = (props.status === 'Atraso') ? 'fa-exclamation-triangle' : 'fa-calendar-day';
+            } else if (props && (props.status === 'Aguardando aprovação' || props.status === 'Aguardando aprovação do gestor')) {
+                icon = 'fa-user-clock';
+            } else if (props && (props.status === 'Reprovado' || props.status === 'Reprovado pelo gestor')) {
+                icon = 'fa-times-circle';
             } else if (props && props.has_diary) {
                 icon = 'fa-check-circle';
             }
@@ -479,6 +487,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else if (status === 'APROVADO' || status === 'Finalizado' || status === 'Preenchido' || status === 'Preenchendo') {
                 info.el.classList.add('fc-event--preenchido');
+            } else if (status === 'Aguardando aprovação' || status === 'Aguardando aprovação do gestor') {
+                info.el.classList.add('fc-event--pending-approval');
+            } else if (status === 'Reprovado' || status === 'Reprovado pelo gestor') {
+                info.el.classList.add('fc-event--rejected');
             }
             
             // Aplica cores baseadas no status
@@ -537,6 +549,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Relatório preenchido - verde com texto branco
                 info.el.style.backgroundColor = '#059669';
                 info.el.style.borderColor = '#047857';
+                info.el.style.color = '#fff';
+            } else if (status === 'Aguardando aprovação' || status === 'Aguardando aprovação do gestor') {
+                // Pendente de aprovação - azul
+                info.el.style.backgroundColor = '#2563eb';
+                info.el.style.borderColor = '#1d4ed8';
+                info.el.style.color = '#fff';
+            } else if (status === 'Reprovado' || status === 'Reprovado pelo gestor') {
+                // Reprovado - vermelho
+                info.el.style.backgroundColor = '#dc2626';
+                info.el.style.borderColor = '#b91c1c';
                 info.el.style.color = '#fff';
             } else if (status === 'Não preenchido' || status === 'Atraso') {
                 info.el.style.backgroundColor = '#ef4444'; // Vermelho

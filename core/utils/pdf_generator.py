@@ -1007,16 +1007,32 @@ class PDFGenerator:
             textColor=colors.white,
         )
         rain = getattr(diary, 'rain_occurrence', None)
-        rain_label = {'F': 'Fraca', 'M': 'Média', 'S': 'Forte'}.get(rain, 'Nenhuma')
+        rain_obs_raw = (getattr(diary, 'rain_observations', None) or '').strip()
+        weather_raw = (getattr(diary, 'weather_conditions', None) or '').strip()
+        weather_text = ("%s %s" % (weather_raw, rain_obs_raw)).lower()
+        has_rain_hint = any(
+            token in weather_text for token in ('chuva', 'chuv', 'garoa', 'temporal', 'pluv')
+        )
+        has_pluviometric = getattr(diary, 'pluviometric_index', None) is not None
+        rain_label = {'F': 'Fraca', 'M': 'Média', 'S': 'Forte'}.get(
+            rain,
+            'Informada em observações' if (rain_obs_raw or has_rain_hint or has_pluviometric) else 'Nenhuma',
+        )
         text = "Intensidade da Chuva: %s" % rain_label
         if getattr(diary, 'pluviometric_index', None) is not None:
             text += " | Índice Pluviométrico: %s mm" % diary.pluviometric_index
         rain_rows = [[Paragraph('OCORRÊNCIA DE CHUVA', rain_title_style)]]
         rain_rows.append([Paragraph(text, weather_text_style)])
-        if getattr(diary, 'rain_observations', None) and diary.rain_observations.strip():
+        if rain_obs_raw:
             rain_rows.append([Spacer(1, 0.04 * cm)])
             rain_rows.append([Paragraph(
-                "OBSERVAÇÕES: %s" % _safe_pdf_multiline_text(diary.rain_observations, default='—', max_len=300),
+                "OBSERVAÇÕES: %s" % _safe_pdf_multiline_text(rain_obs_raw, default='—', max_len=300),
+                weather_text_style,
+            )])
+        elif has_rain_hint and weather_raw:
+            rain_rows.append([Spacer(1, 0.04 * cm)])
+            rain_rows.append([Paragraph(
+                "REFERÊNCIA EM CONDIÇÕES CLIMÁTICAS: %s" % _safe_pdf_multiline_text(weather_raw, default='—', max_len=300),
                 weather_text_style,
             )])
         rain_tbl = LongTable(rain_rows, colWidths=[content_width], repeatRows=0, hAlign='CENTER')

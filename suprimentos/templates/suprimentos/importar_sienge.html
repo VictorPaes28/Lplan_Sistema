@@ -171,7 +171,13 @@
                     <tr>
                         <td class="table-cell-tabular">{{ h.data_hora|date:"d/m/Y H:i" }}</td>
                         <td>{{ h.obra.nome }}</td>
-                        <td>{{ h.usuario.first_name|default:h.usuario.username }}</td>
+                        <td>
+                            {% if h.usuario %}
+                                {{ h.usuario.first_name|default:h.usuario.username }}
+                            {% else %}
+                                Sistema
+                            {% endif %}
+                        </td>
                         <td class="table-cell-truncate">
                             {% if h.campo_alterado == 'ERRO' %}
                                 <strong>{{ h.descricao }}</strong><br>

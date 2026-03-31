@@ -20,6 +20,7 @@ from .frontend_views import (
     diary_excel_view,
     diary_delete_view,
     diary_request_edit_view,
+    diary_review_decision_view,
     project_list_view,
     project_form_view,
     project_delete_view,
@@ -94,6 +95,7 @@ urlpatterns = [
     path('central/clientes/<int:pk>/remover-vinculo/', central_views.central_client_remove_owner, name='central_client_remove_owner'),
     path('projects/<int:project_id>/diario-emails/', central_views.central_diary_emails_view, name='central_diary_emails'),
     path('projects/<int:project_id>/diario-emails/<int:pk>/remover/', central_views.central_diary_email_remove_view, name='central_diary_email_remove'),
+    path('projects/<int:project_id>/diario-aprovadores/', central_views.central_diary_approvers_view, name='central_diary_approvers'),
     path('dashboard/', dashboard_view, name='dashboard'),
     # path('integracoes/teams/chat/', teams_chat_embed_view, name='teams-chat-embed'),  # Pausado
     path('profile/', profile_view, name='profile'),
@@ -113,6 +115,7 @@ urlpatterns = [
     path('diaries/<int:pk>/edit/', diary_form_view, name='diary-edit'),
     path('diaries/<int:pk>/delete/', diary_delete_view, name='diary-delete'),
     path('diaries/<int:pk>/pedir-edicao/', diary_request_edit_view, name='diary-request-edit'),
+    path('diaries/<int:pk>/decisao-aprovacao/', diary_review_decision_view, name='diary-review-decision'),
     path('diaries/new/', diary_form_view, name='diary-new'),
     path('diaries/<int:pk>/pdf/', diary_pdf_view, {'pdf_type': 'normal'}, name='diary-pdf'),
     path('diaries/<int:pk>/pdf/detalhado/', diary_pdf_view, {'pdf_type': 'detailed'}, name='diary-pdf-detailed'),

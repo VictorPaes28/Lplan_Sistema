@@ -1,0 +1,166 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Mapa de Controle - LPLAN{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/mapa_controle.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-2 controle-page">
+    <div class="controle-hero">
+        <div>
+            <span class="controle-badge">ENGENHARIA</span>
+            <h2>Mapa de Controle - Engenharia</h2>
+            <p>Visão rápida de pendências para decisão imediata.</p>
+        </div>
+        <div class="header-actions">
+            <a id="btn-abrir-mapa" class="btn btn-outline-primary btn-sm" href="{% url 'engenharia:mapa' %}">
+                <i class="bi bi-table"></i> Abrir Mapa de Suprimentos
+            </a>
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'engenharia:importar_sienge' %}">
+                <i class="bi bi-upload"></i> Importar Sienge
+            </a>
+        </div>
+    </div>
+
+    <div class="controle-block">
+        <div class="controle-topbar">
+            <h6 class="controle-section-title">Indicadores operacionais</h6>
+            <div class="controle-topbar-actions">
+                <small id="controle-last-update" class="controle-meta">Atualizando...</small>
+                <button id="btn-toggle-detalhes" type="button" class="btn btn-outline-secondary btn-sm">
+                    Ver detalhes
+                </button>
+            </div>
+        </div>
+        <div class="kpi-container controle-kpi-compacto" id="kpi-container"></div>
+    </div>
+
+    <div class="controle-block">
+        <h6 class="controle-section-title">Filtros de controle</h6>
+        <div class="filtros-container">
+            <form id="filtro-form-controle">
+                <div class="filtros-row">
+                    <div class="filtro-item">
+                        <label for="filtro-obra" class="form-label">Obra:</label>
+                        <select id="filtro-obra" class="form-select" name="obra">
+                            {% for obra in obras %}
+                            <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
+                                {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filtro-item">
+                        <label for="filtro-categoria" class="form-label">Categoria:</label>
+                        <select id="filtro-categoria" class="form-select" name="categoria">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="filtro-item">
+                        <label for="filtro-local" class="form-label">Local:</label>
+                        <select id="filtro-local" class="form-select" name="local">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filtro-item">
+                        <label for="filtro-prioridade" class="form-label">Prioridade:</label>
+                        <select id="filtro-prioridade" class="form-select" name="prioridade">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="filtro-item">
+                        <label for="filtro-status" class="form-label">Status:</label>
+                        <select id="filtro-status" class="form-select" name="status">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filtro-item">
+                        <label for="filtro-search" class="form-label">Busca:</label>
+                        <input id="filtro-search" name="search" class="form-control" placeholder="Insumo, SC, PC, fornecedor..." />
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <section id="controle-detalhes" class="d-none controle-block">
+        <h6 class="controle-section-title">Leitura avançada</h6>
+        <div class="controle-alertas">
+            <div class="controle-alerta">
+                <strong>Sem SC</strong>
+                <span>Itens levantados sem solicitação de compra.</span>
+            </div>
+            <div class="controle-alerta">
+                <strong>Sem PC</strong>
+                <span>SC criada, aguardando compra emitir PC.</span>
+            </div>
+            <div class="controle-alerta">
+                <strong>Sem Entrega</strong>
+                <span>PC emitido, sem material recebido na obra.</span>
+            </div>
+            <div class="controle-alerta">
+                <strong>Sem Alocação</strong>
+                <span>Material recebido sem distribuição por local.</span>
+            </div>
+            <div class="controle-alerta">
+                <strong>Atrasados</strong>
+                <span>Prazo vencido e item ainda não entregue/alocado.</span>
+            </div>
+        </div>
+
+        <div class="legenda-cores">
+            <div class="legenda-item"><div class="legenda-cor status-branco"></div><span class="legenda-texto">1) Levantamento</span></div>
+            <div class="legenda-item"><div class="legenda-cor status-vermelho"></div><span class="legenda-texto">2) Aguard. Compra</span></div>
+            <div class="legenda-item"><div class="legenda-cor status-azul"></div><span class="legenda-texto">3) Aguard. Entrega</span></div>
+            <div class="legenda-item"><div class="legenda-cor status-amarelo"></div><span class="legenda-texto">4) Aguard. Alocação</span></div>
+            <div class="legenda-item"><div class="legenda-cor status-laranja"></div><span class="legenda-texto">5) Parcial</span></div>
+            <div class="legenda-item"><div class="legenda-cor status-verde"></div><span class="legenda-texto">Entregue</span></div>
+            <div class="legenda-item"><div class="legenda-cor status-atrasado"></div><span class="legenda-texto">Atrasado</span></div>
+        </div>
+
+        <div class="row g-2 mb-2">
+            <div class="col-md-3"><div class="insights-card"><h6>Top locais pendentes</h6><ul id="ranking-locais" class="insights-list"></ul></div></div>
+            <div class="col-md-3"><div class="insights-card"><h6>Top categorias de risco</h6><ul id="ranking-categorias" class="insights-list"></ul></div></div>
+            <div class="col-md-3"><div class="insights-card"><h6>Top fornecedores</h6><ul id="ranking-fornecedores" class="insights-list"></ul></div></div>
+            <div class="col-md-3"><div class="insights-card"><h6>Quem cobrar agora</h6><ul id="quem-cobrar" class="insights-list"></ul></div></div>
+        </div>
+    </section>
+
+    <div class="controle-block">
+        <h6 class="controle-section-title">Lista detalhada de pendências</h6>
+        <div class="table-responsive controle-table-wrap">
+            <table class="table table-hover align-middle mb-0 controle-table">
+                <thead>
+                <tr>
+                    <th style="min-width: 270px;">Insumo</th>
+                    <th style="min-width: 160px;">Local</th>
+                    <th style="min-width: 120px;">Responsável</th>
+                    <th style="min-width: 90px;">SC</th>
+                    <th style="min-width: 90px;">PC</th>
+                    <th style="min-width: 140px;">Fornecedor</th>
+                    <th style="min-width: 130px;">Quem cobrar</th>
+                    <th style="min-width: 110px;">Planejado</th>
+                    <th style="min-width: 110px;">Recebido</th>
+                    <th style="min-width: 110px;">Alocado</th>
+                    <th style="min-width: 110px;">Saldo</th>
+                    <th style="min-width: 80px;">%</th>
+                    <th style="min-width: 160px;">Status</th>
+                </tr>
+                </thead>
+                <tbody id="itens-body">
+                    <tr class="controle-loading-row"><td colspan="13">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{ summary_payload|default:"{}"|json_script:"mapa-controle-inicial" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/mapa_controle.js' %}?v=2"></script>
+{% endblock %}

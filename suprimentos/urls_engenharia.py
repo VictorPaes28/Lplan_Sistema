@@ -1,11 +1,12 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import views_engenharia
+from . import views_engenharia, views_controle
 
 app_name = 'engenharia'
 
 urlpatterns = [
     path('mapa/', views_engenharia.mapa_engenharia, name='mapa'),
+    path('mapa-controle/', views_controle.mapa_controle, name='mapa_controle'),
     path('mapa/exportar-excel/', views_engenharia.exportar_mapa_excel, name='exportar_excel'),
     path('mapa/criar-item/', views_engenharia.criar_item_mapa, name='criar_item'),
     path('mapa/novo-levantamento/', views_engenharia.criar_levantamento_rapido, name='novo_levantamento'),

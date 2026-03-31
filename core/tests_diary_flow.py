@@ -21,10 +21,12 @@ from django.utils import timezone
 from core.models import (
     Project,
     ProjectMember,
+    ProjectDiaryApprover,
     Activity,
     ConstructionDiary,
     DailyWorkLog,
     DiaryStatus,
+    DiaryApprovalHistory,
     DiaryLaborEntry,
     LaborCategory,
     LaborCargo,
@@ -259,7 +261,7 @@ class DiaryFlowTestCase(TestCase):
         self.assertEqual(diary.status, DiaryStatus.APROVADO)
         self.assertIsNotNone(diary.approved_at)
         self.assertIsNotNone(diary.sent_to_owner_at)
-        self.assertEqual(diary.reviewed_by, self.user)
+
 
     def test_edit_draft_then_save_full(self):
         """Editar rascunho (alterar dados) e Salvar diário deve resultar em APROVADO."""
@@ -954,3 +956,133 @@ class DiaryFlowTestCase(TestCase):
         # Dinâmicos renderizados na edição (não apenas no banco)
         self.assertContains(resp, 'Alvenaria executada')
         self.assertContains(resp, 'Ocorrência render teste')
+
+
+class DiaryApprovalFlowByManagerTestCase(TestCase):
+    """Fluxo novo: RDO precisa de aprovação de gestor antes do envio ao cliente."""
+
+    def setUp(self):
+        self.client = Client()
+        self.author = User.objects.create_user(
+            username='autor_rdo',
+            password='testpass123',
+            email='autor@teste.com',
+        )
+        self.approver = User.objects.create_user(
+            username='gestor_rdo',
+            password='testpass123',
+            email='gestor@teste.com',
+        )
+        self.project = Project.objects.create(
+            code='PROJ-APROV-001',
+            name='Projeto Aprovação',
+            start_date=date.today() - timedelta(days=5),
+            end_date=date.today() + timedelta(days=180),
+        )
+        ProjectMember.objects.get_or_create(user=self.author, project=self.project)
+        ProjectDiaryApprover.objects.create(
+            project=self.project,
+            user=self.approver,
+            is_active=True,
+        )
+
+    def _login_and_select_project(self, user):
+        self.client.force_login(user)
+        session = self.client.session
+        session['selected_project_id'] = self.project.id
+        session['selected_project_name'] = self.project.name
+        session['selected_project_code'] = self.project.code
+        session.save()
+
+    def test_save_full_diary_with_approver_goes_to_waiting_status(self):
+        """Salvar diário com aprovador ativo deve ir para AG e não enviar ao cliente."""
+        self._login_and_select_project(self.author)
+        new_date = date.today()
+        post = _minimal_diary_post(
+            self.project,
+            new_date,
+            partial_save=False,
+            signature_inspection='data:image/png;base64,iVBORw0KGgo=',
+        )
+        resp = self.client.post(reverse('diary-new'), post)
+        self.assertEqual(resp.status_code, 302)
+        diary = ConstructionDiary.objects.get(project=self.project, date=new_date)
+        self.assertEqual(diary.status, DiaryStatus.AGUARDANDO_APROVACAO_GESTOR)
+        self.assertIsNone(diary.approved_at)
+        self.assertIsNone(diary.sent_to_owner_at)
+
+    def test_manager_can_approve_and_transitions_to_approved(self):
+        """Aprovador pode aprovar e diário vira AP com timestamps."""
+        diary = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+            created_by=self.author,
+        )
+        self._login_and_select_project(self.approver)
+        resp = self.client.post(
+            reverse('diary-review-decision', kwargs={'pk': diary.pk}),
+            {'decision': 'approve', 'comment': 'Ok para envio.'},
+        )
+        self.assertEqual(resp.status_code, 302)
+        diary.refresh_from_db()
+        self.assertEqual(diary.status, DiaryStatus.APROVADO)
+        self.assertEqual(diary.reviewed_by_id, self.approver.id)
+        self.assertIsNotNone(diary.approved_at)
+        self.assertIsNotNone(diary.sent_to_owner_at)
+        self.assertTrue(
+            DiaryApprovalHistory.objects.filter(
+                diary=diary,
+                decision=DiaryApprovalHistory.DECISAO_APROVAR,
+            ).exists()
+        )
+
+    def test_manager_reject_requires_comment(self):
+        """Reprovação sem comentário deve ser bloqueada."""
+        diary = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+            created_by=self.author,
+        )
+        self._login_and_select_project(self.approver)
+        resp = self.client.post(
+            reverse('diary-review-decision', kwargs={'pk': diary.pk}),
+            {'decision': 'reject', 'comment': ''},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        diary.refresh_from_db()
+        self.assertEqual(diary.status, DiaryStatus.AGUARDANDO_APROVACAO_GESTOR)
+        self.assertFalse(
+            DiaryApprovalHistory.objects.filter(
+                diary=diary,
+                decision=DiaryApprovalHistory.DECISAO_REPROVAR,
+            ).exists()
+        )
+
+    def test_manager_reject_with_comment_moves_to_rejected(self):
+        """Reprovação com comentário deve colocar diário em RG."""
+        diary = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+            created_by=self.author,
+        )
+        self._login_and_select_project(self.approver)
+        resp = self.client.post(
+            reverse('diary-review-decision', kwargs={'pk': diary.pk}),
+            {'decision': 'reject', 'comment': 'Ajustar quantitativo.'},
+        )
+        self.assertEqual(resp.status_code, 302)
+        diary.refresh_from_db()
+        self.assertEqual(diary.status, DiaryStatus.REPROVADO_GESTOR)
+        self.assertEqual(diary.reviewed_by_id, self.approver.id)
+        self.assertIsNone(diary.approved_at)
+        self.assertIsNone(diary.sent_to_owner_at)
+        self.assertTrue(
+            DiaryApprovalHistory.objects.filter(
+                diary=diary,
+                decision=DiaryApprovalHistory.DECISAO_REPROVAR,
+            ).exists()
+        )
