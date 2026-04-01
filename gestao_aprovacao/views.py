@@ -806,6 +806,308 @@ def detail_workorder(request, pk):
 
 
 @login_required
+def exportar_snapshot_workorder_pdf(request, pk):
+    """
+    Exportação rápida (snapshot) do estado atual da página de detalhes do pedido.
+    O PDF segue o padrão visual institucional da LPLAN, sem filtros adicionais.
+    """
+    workorder = get_object_or_404(WorkOrder, pk=pk)
+    user = request.user
+
+    # Reutiliza a mesma regra de acesso da tela de detalhes.
+    tem_permissao = False
+    if is_admin(user):
+        tem_permissao = True
+    elif is_aprovador(user):
+        if workorder.obra.empresa_id is None:
+            tem_permissao = WorkOrderPermission.objects.filter(
+                obra=workorder.obra, usuario=user, tipo_permissao='aprovador', ativo=True
+            ).exists()
+        else:
+            empresas_ids = Empresa.objects.filter(
+                obras__permissoes__usuario=user,
+                obras__permissoes__tipo_permissao='aprovador',
+                obras__permissoes__ativo=True
+            ).values_list('id', flat=True).distinct()
+            tem_permissao = workorder.obra.empresa_id in empresas_ids
+    elif is_engenheiro(user):
+        tem_permissao_obra = WorkOrderPermission.objects.filter(
+            obra=workorder.obra,
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True
+        ).exists()
+        is_solicitante_group = user.groups.filter(name='Solicitante').exists()
+        if workorder.criado_por == user:
+            tem_permissao = True
+        elif tem_permissao_obra or is_solicitante_group:
+            outros_solicitantes_obra = WorkOrderPermission.objects.filter(
+                obra=workorder.obra,
+                tipo_permissao='solicitante',
+                ativo=True
+            ).values_list('usuario_id', flat=True)
+            if workorder.criado_por_id:
+                criador_no_grupo = workorder.criado_por.groups.filter(name='Solicitante').exists()
+                criador_tem_permissao = workorder.criado_por.id in outros_solicitantes_obra
+            else:
+                criador_no_grupo = False
+                criador_tem_permissao = False
+            tem_permissao = bool(criador_no_grupo or criador_tem_permissao)
+
+    if not tem_permissao:
+        messages.error(request, 'Você não tem permissão para exportar este pedido.')
+        return redirect('gestao:list_workorders')
+
+    approvals = Approval.objects.filter(work_order=workorder).order_by('created_at')
+    status_history = StatusHistory.objects.filter(work_order=workorder).order_by('created_at')
+    comments = Comment.objects.filter(work_order=workorder).select_related('autor').order_by('created_at')
+
+    def _safe(value, default='-'):
+        return value if value not in (None, '') else default
+
+    def _dt(value, default='-'):
+        if not value:
+            return default
+        return value.strftime('%d/%m/%Y %H:%M')
+
+    def _money(value):
+        if value in (None, ''):
+            return '-'
+        return f"R$ {value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def _get_logo_path():
+        logo_dir = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'images')
+        for name in (
+            'lpla-logo-pdf-transparent.png',
+            'lpla-logo-pdf.png',
+            'lplan-logo2.png',
+            'lplan_logo.png',
+            'lplan_logo.jpg',
+            'lplan_logo.jpeg',
+        ):
+            path = os.path.join(logo_dir, name)
+            if os.path.exists(path):
+                return path
+        return None
+
+    color_primary = colors.HexColor('#1A3A5C')
+    color_accent = colors.HexColor('#E8F0F8')
+    color_border = colors.HexColor('#D0D9E3')
+    color_text = colors.HexColor('#1C1C1C')
+    color_sub = colors.HexColor('#5A5A5A')
+    color_info_bg = colors.HexColor('#F4F8FC')
+
+    status_labels = dict(WorkOrder.STATUS_CHOICES)
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.7 * cm,
+        leftMargin=1.7 * cm,
+        topMargin=1.7 * cm,
+        bottomMargin=1.5 * cm,
+    )
+    styles = getSampleStyleSheet()
+    elements = []
+
+    normal = ParagraphStyle('SnapNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leading=12)
+    label = ParagraphStyle('SnapLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=color_sub)
+    h2 = ParagraphStyle('SnapH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=color_primary, spaceAfter=6)
+    table_head = ParagraphStyle('SnapTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, textColor=colors.white, alignment=TA_CENTER)
+
+    # Header no padrão visual do RDO (fundo branco + linha azul escura inferior)
+    title_main = Paragraph(
+        "<font color='#1A3A5C' size='14'><b>DETALHES PEDIDO</b></font>",
+        ParagraphStyle(
+            'SnapTitle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=color_primary,
+            alignment=TA_CENTER,
+            leading=16,
+            spaceAfter=2,
+        ),
+    )
+    title_sub = Paragraph(
+        f"<font color='#1A3A5C' size='9'>Pedido: {_safe(workorder.codigo)} · Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
+        ParagraphStyle(
+            'SnapSub',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9,
+            textColor=color_primary,
+            alignment=TA_CENTER,
+            leading=11,
+        ),
+    )
+    logo_path = _get_logo_path()
+    if logo_path:
+        from reportlab.platypus import Image as RLImage
+        logo = RLImage(logo_path, width=4.8 * cm, height=1.15 * cm)
+        text_block = Table([[title_main], [title_sub]], colWidths=[11.2 * cm])
+        text_block.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        header = Table([[logo, text_block]], colWidths=[4.8 * cm, 11.2 * cm])
+    else:
+        header = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, -1), (-1, -1), 1.2, color_primary),
+    ]))
+    elements.append(header)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Bloco "Informações do Pedido"
+    info_rows = [
+        [Paragraph('<b>Código</b>', label), Paragraph(_safe(workorder.codigo), normal)],
+        [Paragraph('<b>Obra</b>', label), Paragraph(f"{_safe(getattr(workorder.obra, 'codigo', '-'))} - {_safe(getattr(workorder.obra, 'nome', '-'))}", normal)],
+        [Paragraph('<b>Credor</b>', label), Paragraph(_safe(workorder.nome_credor), normal)],
+        [Paragraph('<b>Tipo de Solicitação</b>', label), Paragraph(_safe(tipo_labels.get(workorder.tipo_solicitacao, workorder.tipo_solicitacao)), normal)],
+        [Paragraph('<b>Status</b>', label), Paragraph(_safe(status_labels.get(workorder.status, workorder.status)), normal)],
+        [Paragraph('<b>Valor Estimado</b>', label), Paragraph(_money(workorder.valor_estimado), normal)],
+        [Paragraph('<b>Prazo Estimado</b>', label), Paragraph(f"{workorder.prazo_estimado} dia(s)" if workorder.prazo_estimado else '-', normal)],
+        [Paragraph('<b>Local</b>', label), Paragraph(_safe(workorder.local), normal)],
+        [Paragraph('<b>Solicitante</b>', label), Paragraph(_safe(workorder.criado_por.get_full_name() or workorder.criado_por.username if workorder.criado_por else '-'), normal)],
+        [Paragraph('<b>E-mail do Solicitante</b>', label), Paragraph(_safe(workorder.criado_por.email if workorder.criado_por else '-'), normal)],
+        [Paragraph('<b>Última atualização</b>', label), Paragraph(_dt(workorder.updated_at), normal)],
+    ]
+    if workorder.observacoes:
+        info_rows.append([Paragraph('<b>Observações</b>', label), Paragraph(str(workorder.observacoes).replace('\n', '<br/>'), normal)])
+    info_tbl = Table(info_rows, colWidths=[4.2 * cm, 11.8 * cm])
+    info_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), color_accent),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(Paragraph('INFORMAÇÕES DO PEDIDO', h2))
+    elements.append(info_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Histórico cronológico (ordem de acontecimento: criação -> edições/envios -> decisões)
+    elements.append(Paragraph('HISTÓRICO CRONOLÓGICO', h2))
+    timeline_data = [[
+        Paragraph('Data', table_head),
+        Paragraph('Evento', table_head),
+        Paragraph('Responsável', table_head),
+        Paragraph('Detalhes', table_head),
+    ]]
+
+    timeline_events = []
+    for item in status_history:
+        if item.status_anterior is None:
+            evento = 'Criação do pedido'
+        elif item.status_anterior == item.status_novo:
+            evento = 'Edição/Atualização'
+        elif item.status_novo in ('aprovado', 'reprovado'):
+            evento = 'Decisão do gestor'
+        elif item.status_novo == 'reaprovacao':
+            evento = 'Solicitação de reaprovação'
+        elif item.status_novo == 'pendente':
+            evento = 'Envio para análise'
+        else:
+            evento = 'Mudança de status'
+        timeline_events.append({
+            'data': item.created_at,
+            'evento': evento,
+            'responsavel': item.alterado_por.get_full_name() or item.alterado_por.username if item.alterado_por else '-',
+            'detalhes': _safe(item.observacao, '-'),
+        })
+
+    for approval in approvals:
+        timeline_events.append({
+            'data': approval.created_at,
+            'evento': 'Decisão do gestor',
+            'responsavel': approval.aprovado_por.get_full_name() or approval.aprovado_por.username if approval.aprovado_por else '-',
+            'detalhes': f"{_safe(approval.get_decisao_display())}. {_safe(approval.comentario, 'Sem comentário')}",
+        })
+
+    timeline_events.sort(key=lambda x: x['data'] or datetime.min)
+    if timeline_events:
+        for ev in timeline_events:
+            timeline_data.append([
+                Paragraph(_dt(ev['data']), normal),
+                Paragraph(_safe(ev['evento']), normal),
+                Paragraph(_safe(ev['responsavel']), normal),
+                Paragraph(_safe(ev['detalhes']).replace('\n', '<br/>'), normal),
+            ])
+        timeline_tbl = Table(timeline_data, colWidths=[2.6 * cm, 3.6 * cm, 3.6 * cm, 6.2 * cm], repeatRows=1)
+        timeline_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(timeline_tbl)
+    else:
+        elements.append(Paragraph('Nenhum evento cronológico registrado.', normal))
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Comentários visíveis na tela
+    elements.append(Paragraph('COMENTÁRIOS', h2))
+    if comments.exists():
+        comments_data = [[
+            Paragraph('Data', table_head),
+            Paragraph('Autor', table_head),
+            Paragraph('Comentário', table_head),
+        ]]
+        for comment in comments:
+            autor = comment.autor.get_full_name() or comment.autor.username if comment.autor else 'Usuário removido'
+            comments_data.append([
+                Paragraph(_dt(comment.created_at), normal),
+                Paragraph(_safe(autor), normal),
+                Paragraph(_safe(comment.texto).replace('\n', '<br/>'), normal),
+            ])
+        comments_tbl = Table(comments_data, colWidths=[2.8 * cm, 4.2 * cm, 9.0 * cm], repeatRows=1)
+        comments_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(comments_tbl)
+    else:
+        elements.append(Paragraph('Nenhum comentário registrado.', normal))
+
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    nome_arquivo = f'pedido_{workorder.codigo}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return response
+
+
+@login_required
 def edit_workorder(request, pk):
     """
     Edita um pedido de obra.
