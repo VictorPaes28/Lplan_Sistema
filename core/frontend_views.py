@@ -817,6 +817,11 @@ def report_list_view(request):
     """View de listagem de relatórios com filtros HTMX."""
     project = get_selected_project(request)
     diaries = ConstructionDiary.objects.filter(project=project).select_related('project').all()
+    can_review_diaries = _is_project_rdo_approver(request.user, project) if project else False
+    pending_approval_diaries = ConstructionDiary.objects.filter(
+        project=project,
+        status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+    ).select_related('created_by').order_by('date', 'report_number')
     
     # Filtros
     search = request.GET.get('search')
@@ -862,6 +867,8 @@ def report_list_view(request):
         'user': request.user,  # Adiciona user ao contexto para can_be_edited_by
         'project': project,  # Adiciona projeto ao contexto para o modal
         'all_projects': all_projects,  # Projetos acessíveis para o select do modal
+        'can_review_diaries': can_review_diaries,
+        'pending_approval_diaries': pending_approval_diaries,
     }
     
     # Se for requisição HTMX, retorna apenas o conteúdo
