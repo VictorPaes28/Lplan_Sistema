@@ -39,10 +39,6 @@
     
     <!-- Ações -->
     <div class="detail-actions">
-        <a href="{% url 'gestao:exportar_snapshot_workorder_pdf' workorder.pk %}" class="btn btn-export-pdf">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:0.35rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 11v6"></path><path d="M9.5 14.5L12 17l2.5-2.5"></path></svg>
-            Exportar PDF
-        </a>
         {% if can_edit %}
             {% if workorder.status == 'reprovado' %}
                 <a href="{% url 'gestao:edit_workorder' workorder.pk %}" class="btn btn-reenviar">
