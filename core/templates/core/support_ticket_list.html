@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block back_url %}{% url 'select-system' %}{% endblock %}
+{% block page_title %}Meus Chamados{% endblock %}
+{% block page_subtitle %}Acompanhe respostas do suporte no sistema{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-wrap gap-2">
+    <a href="{% url 'select-system' %}" class="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800">
+        <i class="fas fa-arrow-left"></i> Voltar
+    </a>
+    {% if can_manage_support_tickets %}
+    <a href="{% url 'support-ticket-admin-list' %}" class="inline-flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900">
+        <i class="fas fa-headset"></i> Painel de suporte
+    </a>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-200 bg-slate-50">
+        <h2 class="text-sm font-semibold text-slate-700">Chamados criados por você</h2>
+    </div>
+    {% if tickets %}
+    <div class="divide-y divide-slate-100">
+        {% for ticket in tickets %}
+        <a href="{% url 'support-ticket-detail' ticket.id %}" class="block px-4 py-4 hover:bg-slate-50 transition-colors">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="font-semibold text-slate-900 truncate">#{{ ticket.id }} - {{ ticket.title }}</p>
+                    <p class="text-sm text-slate-500 mt-0.5">
+                        {{ ticket.category }}{% if ticket.related_project %} • {{ ticket.related_project.code }}{% endif %}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 text-xs shrink-0">
+                    <span class="px-2 py-1 rounded-full font-semibold border-2
+                        {% if ticket.attention_tone == 'closed' %}bg-slate-200 text-slate-700 border-slate-400
+                        {% elif ticket.attention_tone == 'resolved' %}bg-emerald-100 text-emerald-700 border border-emerald-200
+                        {% elif ticket.attention_tone == 'reopened' %}bg-purple-100 text-purple-700 border-purple-300
+                        {% elif ticket.attention_tone == 'new' %}bg-blue-100 text-blue-700 border-blue-300
+                        {% elif ticket.attention_tone == 'waiting-team' %}bg-amber-100 text-amber-700 border border-amber-200
+                        {% elif ticket.attention_tone == 'waiting-requester' %}bg-amber-100 text-amber-700 border-amber-300
+                        {% elif ticket.attention_tone == 'responded' %}bg-blue-100 text-blue-700 border-blue-300
+                        {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
+                        {{ ticket.attention_label }}
+                    </span>
+                    {% if ticket.attention_label != ticket.get_status_display %}
+                    <span class="px-2 py-1 rounded-full font-semibold border-2
+                        {% if ticket.status == 'OP' %}bg-blue-100 text-blue-700 border-blue-300
+                        {% elif ticket.status == 'TR' %}bg-blue-100 text-blue-700 border-blue-300
+                        {% elif ticket.status == 'IP' %}bg-blue-100 text-blue-700 border-blue-300
+                        {% elif ticket.status == 'WU' %}bg-amber-100 text-amber-700 border-amber-300
+                        {% elif ticket.status == 'WD' %}bg-amber-100 text-amber-700 border-amber-300
+                        {% elif ticket.status == 'RS' %}bg-emerald-100 text-emerald-700 border-emerald-300
+                        {% elif ticket.status == 'CL' %}bg-slate-200 text-slate-700 border-slate-400
+                        {% elif ticket.status == 'RO' %}bg-purple-100 text-purple-700 border-purple-300
+                        {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
+                        {{ ticket.get_status_display }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+                <p class="text-xs text-slate-400">{{ ticket.created_at|date:"d/m/Y H:i" }}</p>
+                <span class="text-[11px] px-2 py-0.5 rounded-full
+                    {% if ticket.severity == 'BL' %}bg-red-100 text-red-700 border border-red-200
+                    {% elif ticket.severity == 'IM' %}bg-orange-100 text-orange-700 border border-orange-200
+                    {% elif ticket.severity == 'MD' %}bg-amber-100 text-amber-700 border border-amber-200
+                    {% else %}bg-slate-100 text-slate-600 border border-slate-200{% endif %}">
+                    {{ ticket.get_severity_display }}
+                </span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-4 py-8 text-sm text-slate-500">Você ainda não abriu chamados pelo sistema.</div>
+    {% endif %}
+</div>
+{% endblock %}

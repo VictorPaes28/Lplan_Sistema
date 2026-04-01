@@ -7,6 +7,7 @@ Este módulo contém os modelos principais para:
 - Registros transacionais de progresso diário
 """
 import os
+from datetime import timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
@@ -1743,6 +1744,166 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} - {self.user.username}"
+
+
+class SupportTicket(models.Model):
+    """Chamado de suporte interno do sistema."""
+
+    class Status(models.TextChoices):
+        OPEN = 'OP', 'Novo'
+        TRIAGE = 'TR', 'Triagem'
+        IN_PROGRESS = 'IP', 'Em atendimento'
+        WAITING_USER = 'WU', 'Aguardando usuário'
+        WAITING_DEPLOY = 'WD', 'Aguardando deploy'
+        RESOLVED = 'RS', 'Resolvido'
+        CLOSED = 'CL', 'Fechado'
+        REOPENED = 'RO', 'Reaberto'
+
+    class Severity(models.TextChoices):
+        BLOCKER = 'BL', 'Bloqueante'
+        IMPORTANT = 'IM', 'Importante'
+        MEDIUM = 'MD', 'Médio'
+        LOW = 'LW', 'Baixo/Dúvida'
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='support_tickets_created',
+        verbose_name='Criado por',
+    )
+    assigned_to = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='support_tickets_assigned',
+        verbose_name='Responsável',
+    )
+    category = models.CharField(max_length=80, verbose_name='Categoria')
+    severity = models.CharField(max_length=2, choices=Severity.choices, default=Severity.MEDIUM, verbose_name='Severidade')
+    title = models.CharField(max_length=120, verbose_name='Título')
+    description = models.TextField(verbose_name='Descrição')
+    status = models.CharField(max_length=2, choices=Status.choices, default=Status.OPEN, verbose_name='Status')
+    related_project = models.ForeignKey(
+        Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='support_tickets',
+        verbose_name='Obra relacionada',
+    )
+    screen_path = models.CharField(max_length=255, blank=True, verbose_name='Tela de origem')
+    browser_info = models.CharField(max_length=255, blank=True, verbose_name='Navegador/cliente')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Data de Atualização')
+    resolved_at = models.DateTimeField(null=True, blank=True, verbose_name='Data de Resolução')
+    first_response_due_at = models.DateTimeField(null=True, blank=True, verbose_name='Prazo 1ª resposta')
+    resolution_due_at = models.DateTimeField(null=True, blank=True, verbose_name='Prazo de resolução')
+    first_response_at = models.DateTimeField(null=True, blank=True, verbose_name='Data da 1ª resposta')
+
+    class Meta:
+        verbose_name = 'Chamado de suporte'
+        verbose_name_plural = 'Chamados de suporte'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['created_by', '-created_at']),
+            models.Index(fields=['assigned_to', '-created_at']),
+        ]
+
+    def __str__(self) -> str:
+        return f"#{self.pk} - {self.title}"
+
+    def is_first_response_overdue(self):
+        return bool(self.first_response_due_at and not self.first_response_at and timezone.now() > self.first_response_due_at)
+
+    def is_resolution_overdue(self):
+        return bool(
+            self.resolution_due_at
+            and self.status not in {self.Status.RESOLVED, self.Status.CLOSED}
+            and timezone.now() > self.resolution_due_at
+        )
+
+    def can_be_reopened_by_user(self, user):
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if self.created_by_id != user.id:
+            return False
+        if self.status not in {self.Status.RESOLVED, self.Status.CLOSED}:
+            return False
+        if not self.resolved_at:
+            return False
+        return timezone.now() <= (self.resolved_at + timedelta(days=7))
+
+
+class SupportTicketMessage(models.Model):
+    """Mensagens de conversa dentro do chamado de suporte."""
+
+    ticket = models.ForeignKey(
+        SupportTicket,
+        on_delete=models.CASCADE,
+        related_name='messages',
+        verbose_name='Chamado',
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='support_ticket_messages',
+        verbose_name='Autor',
+    )
+    message = models.TextField(verbose_name='Mensagem')
+    is_internal_note = models.BooleanField(
+        default=False,
+        verbose_name='Nota interna',
+        help_text='Visível apenas para admins/superusers.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')
+
+    class Meta:
+        verbose_name = 'Mensagem de chamado'
+        verbose_name_plural = 'Mensagens de chamado'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['ticket', 'created_at']),
+        ]
+
+    def __str__(self) -> str:
+        return f"Mensagem #{self.pk} - Ticket #{self.ticket_id}"
+
+
+class SupportTicketAttachment(models.Model):
+    """Anexos enviados no chamado de suporte."""
+
+    ticket = models.ForeignKey(
+        SupportTicket,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        verbose_name='Chamado',
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='support_ticket_attachments',
+        verbose_name='Enviado por',
+    )
+    file = models.FileField(upload_to='support_tickets/%Y/%m/%d/', verbose_name='Arquivo')
+    original_name = models.CharField(max_length=255, blank=True, verbose_name='Nome original')
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Upload')
+
+    class Meta:
+        verbose_name = 'Anexo de chamado'
+        verbose_name_plural = 'Anexos de chamado'
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['ticket', '-uploaded_at']),
+        ]
+
+    def __str__(self) -> str:
+        return f"Anexo #{self.pk} - Ticket #{self.ticket_id}"
 
 
 class OccurrenceTag(models.Model):
