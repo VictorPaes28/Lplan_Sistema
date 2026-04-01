@@ -1,6 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.http import HttpResponseForbidden
 from django.views.decorators.cache import cache_control
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -9,6 +10,11 @@ from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
 from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
 from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
+
+
+def _is_admin_mapa_controle(user):
+    """Acesso temporário: somente administrador do sistema."""
+    return bool(user and user.is_authenticated and user.is_superuser)
 
 
 def _resolve_obra_for_request(request):
@@ -63,6 +69,9 @@ def _build_filters_from_request(request):
 @ensure_csrf_cookie
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle(request):
+    if not _is_admin_mapa_controle(request.user):
+        return HttpResponseForbidden("Mapa de Controle temporariamente disponível apenas para admin.")
+
     obras, obra = _resolve_obra_for_request(request)
     summary_payload = None
     filters = _build_filters_from_request(request)
@@ -91,6 +100,12 @@ def mapa_controle(request):
 @require_group(GRUPOS.ENGENHARIA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle_summary(request):
+    if not _is_admin_mapa_controle(request.user):
+        return JsonResponse(
+            {"success": False, "error": "Mapa de Controle temporariamente disponível apenas para admin."},
+            status=403,
+        )
+
     obra_id = request.GET.get("obra")
     obra = get_object_or_404(Obra, id=obra_id, ativa=True)
     if not _user_can_access_obra(request, obra):
@@ -105,6 +120,12 @@ def mapa_controle_summary(request):
 @require_group(GRUPOS.ENGENHARIA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle_items(request):
+    if not _is_admin_mapa_controle(request.user):
+        return JsonResponse(
+            {"success": False, "error": "Mapa de Controle temporariamente disponível apenas para admin."},
+            status=403,
+        )
+
     obra_id = request.GET.get("obra")
     obra = get_object_or_404(Obra, id=obra_id, ativa=True)
     if not _user_can_access_obra(request, obra):
