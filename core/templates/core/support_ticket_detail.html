@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+
+{% block back_url %}{% if can_manage_support_tickets %}{% url 'support-ticket-admin-list' %}{% else %}{% url 'support-ticket-list' %}{% endif %}{% endblock %}
+{% block page_title %}Chamado #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.title }}{% endblock %}
+{% block extra_css %}
+<style>
+.ticket-wrap { width: 100%; max-width: 1200px; margin: 0 auto; }
+.ticket-card { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+.ticket-summary { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+.ticket-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ticket-summary-item { min-width: 0; }
+.ticket-summary-label { font-size: 11px; color: #64748b; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+.ticket-summary-value { font-size: 13px; color: #0f172a; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ticket-header { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; color: #475569; font-weight: 600; }
+.ticket-thread { padding: 16px; background: #f8fafc; min-height: 260px; }
+.ticket-item { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; margin-bottom: 12px; overflow: hidden; }
+.ticket-item.requester { border-left: 4px solid #64748b; }
+.ticket-item.team { border-left: 4px solid #2563eb; }
+.ticket-item.note { border-left: 4px solid #f59e0b; background: #fffbeb; }
+.ticket-item-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-size: 12px; color: #475569; }
+.ticket-item-header strong { font-weight: 700; color: #1e293b; }
+.ticket-item-body { padding: 12px; font-size: 14px; color: #0f172a; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.ticket-compose { padding: 16px; border-top: 1px solid #e2e8f0; background: #fff; }
+.ticket-footer { padding: 16px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
+.compose-form { display: grid; gap: 12px; }
+.compose-label { display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px; }
+.compose-textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: #0f172a;
+    background: #fff;
+    min-height: 110px;
+    resize: vertical;
+}
+.compose-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.compose-file {
+    width: 100%;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    font-size: 13px;
+    color: #334155;
+}
+.compose-file:hover { border-color: #94a3b8; }
+.compose-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.compose-submit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #fff;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.compose-submit:hover { background: #1e293b; }
+.ticket-quick-actions { display: inline-flex; gap: 6px; align-items: center; }
+.ticket-quick-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.ticket-quick-btn:hover { background: #f8fafc; }
+.ticket-quick-btn.resolve { border-color: #86efac; color: #166534; background: #f0fdf4; }
+.ticket-quick-btn.close { border-color: #fecaca; color: #991b1b; background: #fef2f2; }
+.ticket-quick-btn.reopen { border-color: #7c3aed; color: #ffffff; background: #7c3aed; }
+.ticket-quick-btn.reopen:hover { background: #6d28d9; }
+.ticket-quick-hint { font-size: 11px; color: #64748b; width: 100%; margin-top: 2px; }
+.reopen-main-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid #7c3aed;
+    background: #7c3aed;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+}
+.reopen-main-btn:hover { background: #6d28d9; border-color: #6d28d9; }
+@media (max-width: 900px) { .ticket-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .ticket-summary-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ticket-wrap">
+<div class="mb-4 flex flex-wrap items-center gap-3">
+    <a href="{% if can_manage_support_tickets %}{% url 'support-ticket-admin-list' %}{% else %}{% url 'support-ticket-list' %}{% endif %}" class="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800">
+        <i class="fas fa-arrow-left"></i> Voltar
+    </a>
+    <span class="text-xs px-2 py-1 rounded-full font-semibold border-2
+        {% if ticket.severity == 'BL' %}bg-red-100 text-red-700 border border-red-200
+        {% elif ticket.severity == 'IM' %}bg-orange-100 text-orange-700 border border-orange-200
+        {% elif ticket.severity == 'MD' %}bg-amber-100 text-amber-700 border border-amber-200
+        {% else %}bg-slate-100 text-slate-600 border-slate-300{% endif %}">
+        {{ ticket.get_severity_display }}
+    </span>
+    <span class="text-xs px-2 py-1 rounded-full font-semibold border-2
+        {% if ticket.status == 'OP' %}bg-blue-100 text-blue-700 border-blue-300
+        {% elif ticket.status == 'TR' %}bg-blue-100 text-blue-700 border-blue-300
+        {% elif ticket.status == 'IP' %}bg-blue-100 text-blue-700 border-blue-300
+        {% elif ticket.status == 'WU' %}bg-amber-100 text-amber-700 border-amber-300
+        {% elif ticket.status == 'WD' %}bg-amber-100 text-amber-700 border-amber-300
+        {% elif ticket.status == 'RS' %}bg-emerald-100 text-emerald-700 border-emerald-300
+        {% elif ticket.status == 'CL' %}bg-slate-200 text-slate-700 border-slate-400
+        {% elif ticket.status == 'RO' %}bg-purple-100 text-purple-700 border-purple-300
+        {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
+        {{ ticket.get_status_display }}
+    </span>
+    {% if ticket.is_first_response_overdue or ticket.is_resolution_overdue %}
+    <span class="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">Chamado atrasado</span>
+    {% endif %}
+    {% if attention_tag.0 != ticket.get_status_display %}
+    <span class="text-xs px-2 py-1 rounded-full font-semibold border-2
+        {% if attention_tag.1 == 'closed' %}bg-slate-200 text-slate-700 border-slate-400
+        {% elif attention_tag.1 == 'resolved' %}bg-emerald-100 text-emerald-700 border-emerald-300
+        {% elif attention_tag.1 == 'reopened' %}bg-purple-100 text-purple-700 border-purple-300
+        {% elif attention_tag.1 == 'new' %}bg-blue-100 text-blue-700 border-blue-300
+        {% elif attention_tag.1 == 'waiting-team' %}bg-amber-100 text-amber-700 border-amber-300
+        {% elif attention_tag.1 == 'waiting-requester' %}bg-amber-100 text-amber-700 border-amber-300
+        {% elif attention_tag.1 == 'responded' %}bg-blue-100 text-blue-700 border-blue-300
+        {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
+        {{ attention_tag.0 }}
+    </span>
+    {% endif %}
+    {% if can_manage_support_tickets %}
+    <div class="ticket-quick-actions">
+        {% if ticket.status != 'RS' %}
+        <form method="post" action="{% url 'support-ticket-reply' ticket.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="RS">
+            <button type="submit" class="ticket-quick-btn resolve">Resolver</button>
+        </form>
+        {% endif %}
+        {% if ticket.status != 'CL' %}
+        <form method="post" action="{% url 'support-ticket-reply' ticket.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="CL">
+            <button type="submit" class="ticket-quick-btn close">Fechar</button>
+        </form>
+        {% endif %}
+        {% if ticket.status == 'RS' or ticket.status == 'CL' %}
+        <form method="post" action="{% url 'support-ticket-reply' ticket.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="RO">
+            <button type="submit" class="ticket-quick-btn reopen">Reabrir</button>
+        </form>
+        {% endif %}
+        <div class="ticket-quick-hint">Responder atualiza o andamento. Use Resolver/Fechar apenas quando concluir.</div>
+    </div>
+    {% endif %}
+</div>
+
+<section class="ticket-summary" aria-label="Resumo do chamado">
+    {% if ticket.status == 'CL' or ticket.status == 'RS' %}
+    <div class="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        Este chamado está encerrado no histórico (status: {{ ticket.get_status_display }}).
+    </div>
+    {% endif %}
+    <div class="ticket-summary-grid">
+        <div class="ticket-summary-item">
+            <div class="ticket-summary-label"><i class="fas fa-user"></i>Solicitante</div>
+            <div class="ticket-summary-value">{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}</div>
+        </div>
+        <div class="ticket-summary-item">
+            <div class="ticket-summary-label"><i class="fas fa-building"></i>Obra</div>
+            <div class="ticket-summary-value">{% if ticket.related_project %}{{ ticket.related_project.code }} - {{ ticket.related_project.name }}{% else %}Não vinculada{% endif %}</div>
+        </div>
+        <div class="ticket-summary-item">
+            <div class="ticket-summary-label"><i class="fas fa-clock"></i>Abertura</div>
+            <div class="ticket-summary-value">{{ ticket.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="ticket-summary-item">
+            <div class="ticket-summary-label"><i class="fas fa-tag"></i>Categoria</div>
+            <div class="ticket-summary-value">{{ ticket.category }}</div>
+        </div>
+    </div>
+</section>
+
+<div class="ticket-card">
+        <div class="ticket-header">Conversa do chamado</div>
+        <div class="ticket-thread">
+            {% for item in ticket_messages %}
+            {% if item.is_internal_note %}
+            <article class="ticket-item note">
+                <div class="ticket-item-header">
+                    <strong>Nota interna</strong>
+                    <span>{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                </div>
+                <div class="ticket-item-body">{{ item.message }}</div>
+            </article>
+            {% elif item.author_id == ticket.created_by_id %}
+            <article class="ticket-item requester">
+                <div class="ticket-item-header">
+                    <strong>Solicitante</strong>
+                    <span>{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                </div>
+                <div class="ticket-item-body">{{ item.message }}</div>
+            </article>
+            {% else %}
+            <article class="ticket-item team">
+                <div class="ticket-item-header">
+                    <strong>Equipe</strong>
+                    <span>{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                </div>
+                <div class="ticket-item-body">{{ item.message }}</div>
+            </article>
+            {% endif %}
+            {% empty %}
+            <p class="text-sm text-slate-500">Sem mensagens.</p>
+            {% endfor %}
+        </div>
+        {% if can_manage_support_tickets or ticket.status != 'RS' and ticket.status != 'CL' %}
+        <div class="ticket-compose">
+            <form method="post" action="{% url 'support-ticket-reply' ticket.id %}" enctype="multipart/form-data" class="compose-form">
+                {% csrf_token %}
+                <div>
+                    <label class="compose-label" for="id_message">Responder</label>
+                    <textarea id="id_message" name="message" rows="5" class="compose-textarea" placeholder="Escreva os detalhes da resposta..."></textarea>
+                </div>
+                <div>
+                    <label class="compose-label" for="id_attachments">Anexos</label>
+                    <input id="id_attachments" type="file" name="attachments" multiple class="compose-file">
+                </div>
+                {% if can_manage_support_tickets %}
+                <details class="rounded-xl border border-slate-200 p-3">
+                    <summary class="cursor-pointer text-sm font-medium text-slate-700">Ações administrativas</summary>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="id_status">Status</label>
+                            <select id="id_status" name="status" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                                {% for status_value, status_label in status_choices %}
+                                <option value="{{ status_value }}" {% if ticket.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="id_assigned_to">Responsável</label>
+                            <select id="id_assigned_to" name="assigned_to" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                                <option value="">Não atribuído</option>
+                                {% for admin_user in admin_users %}
+                                <option value="{{ admin_user.id }}" {% if ticket.assigned_to_id == admin_user.id %}selected{% endif %}>
+                                    {{ admin_user.get_full_name|default:admin_user.username }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <label class="inline-flex items-center gap-2 mt-7">
+                            <input type="checkbox" name="is_internal_note" value="1">
+                            <span class="text-sm text-slate-700">Nota interna</span>
+                        </label>
+                    </div>
+                </details>
+                {% endif %}
+                <div class="compose-actions">
+                    <button type="submit" class="compose-submit">
+                        <i class="fas fa-paper-plane"></i> Enviar resposta
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% else %}
+        <div class="ticket-compose">
+            <p class="text-sm text-slate-600">Este chamado está encerrado. Para enviar nova mensagem, use a opção <strong>Reabrir chamado</strong> (quando disponível).</p>
+        </div>
+        {% endif %}
+        <div class="ticket-footer">
+            <h3 class="text-sm font-semibold text-slate-800 mb-2">Anexos</h3>
+            <div class="space-y-2">
+                {% for attachment in attachments %}
+                <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 break-all">
+                    <i class="fas fa-paperclip"></i>{{ attachment.original_name|default:attachment.file.name }}
+                </a>
+                {% empty %}
+                <p class="text-sm text-slate-500">Sem anexos enviados.</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% if can_reopen %}
+        <div class="px-4 py-4 border-t border-slate-200 bg-white">
+            <h3 class="text-sm font-semibold text-slate-800 mb-2">Reabrir chamado</h3>
+            <p class="text-xs text-slate-500 mb-3">Disponível até 7 dias após resolução/fechamento.</p>
+            <form method="post" action="{% url 'support-ticket-reopen' ticket.id %}" class="space-y-2">
+                {% csrf_token %}
+                <textarea name="reason" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Motivo da reabertura (opcional)"></textarea>
+                <button type="submit" class="reopen-main-btn">
+                    <i class="fas fa-rotate-left"></i> Reabrir chamado
+                </button>
+            </form>
+        </div>
+        {% endif %}
+</div>
+</div>
+{% endblock %}

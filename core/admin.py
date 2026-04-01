@@ -29,6 +29,9 @@ from .models import (
     DiaryVideo,
     DiaryAttachment,
     Notification,
+    SupportTicket,
+    SupportTicketMessage,
+    SupportTicketAttachment,
     OccurrenceTag,
     DiaryOccurrence,
 )
@@ -250,6 +253,36 @@ class NotificationAdmin(admin.ModelAdmin):
     list_filter = ['notification_type', 'is_read', 'created_at']
     search_fields = ['title', 'message', 'user__username']
     readonly_fields = ['created_at']
+
+
+@admin.register(SupportTicket)
+class SupportTicketAdmin(admin.ModelAdmin):
+    """Admin para chamados de suporte."""
+    list_display = ['id', 'title', 'status', 'severity', 'created_by', 'assigned_to', 'created_at', 'resolved_at']
+    list_filter = ['status', 'severity', 'created_at', 'resolved_at']
+    search_fields = ['title', 'description', 'created_by__username', 'assigned_to__username', 'category']
+    readonly_fields = ['created_at', 'updated_at', 'resolved_at']
+    autocomplete_fields = ['created_by', 'assigned_to', 'related_project']
+
+
+@admin.register(SupportTicketMessage)
+class SupportTicketMessageAdmin(admin.ModelAdmin):
+    """Admin para mensagens dos chamados."""
+    list_display = ['ticket', 'author', 'is_internal_note', 'created_at']
+    list_filter = ['is_internal_note', 'created_at']
+    search_fields = ['ticket__title', 'author__username', 'message']
+    readonly_fields = ['created_at']
+    autocomplete_fields = ['ticket', 'author']
+
+
+@admin.register(SupportTicketAttachment)
+class SupportTicketAttachmentAdmin(admin.ModelAdmin):
+    """Admin para anexos dos chamados."""
+    list_display = ['ticket', 'uploaded_by', 'original_name', 'uploaded_at']
+    list_filter = ['uploaded_at']
+    search_fields = ['ticket__title', 'original_name', 'uploaded_by__username']
+    readonly_fields = ['uploaded_at']
+    autocomplete_fields = ['ticket', 'uploaded_by']
 
 
 @admin.register(OccurrenceTag)

@@ -626,6 +626,7 @@
                 if (event) event.preventDefault();
                 var ref = typeof document.referrer === 'string' ? document.referrer : '';
                 var path = typeof location.pathname === 'string' ? location.pathname : '';
+                var currentPathWithQuery = (location.pathname || '') + (location.search || '');
                 var origin = typeof location.origin === 'string' ? location.origin : (location.protocol + '//' + location.host);
                 
                 function isFormReferrer() {
@@ -643,6 +644,9 @@
                 }
                 
                 function getSafeBackUrl() {
+                    if (path.indexOf('/support/tickets/admin') !== -1) return origin + '/support/tickets/admin/';
+                    if (path.indexOf('/support/tickets/') !== -1) return origin + '/support/tickets/';
+                    if (path.indexOf('/support/tickets') !== -1) return origin + '/select-system/';
                     if (path.indexOf('/diaries/') !== -1 || path.indexOf('/reports/') !== -1) return origin + '/reports/';
                     if (path.indexOf('/dashboard') !== -1) return origin + '/dashboard/';
                     if (path.indexOf('/gestao/') !== -1) return origin + '/gestao/';
@@ -651,10 +655,32 @@
                     return null;
                 }
                 
+                if (ref) {
+                    try {
+                        var refUrl2 = new URL(ref);
+                        if (refUrl2.origin === location.origin) {
+                            var refPathWithQuery = (refUrl2.pathname || '') + (refUrl2.search || '');
+                            // Se veio exatamente da mesma URL (comum após POST/redirect ou múltiplos estados da mesma tela),
+                            // evita "voltar dentro do formulário" e já sai para uma rota segura.
+                            if (refPathWithQuery === currentPathWithQuery) {
+                                var safeSame = getSafeBackUrl();
+                                if (safeSame) { location.href = safeSame; return false; }
+                            } else {
+                                // Quando o referrer é uma tela anterior válida, volta direto para ela
+                                // sem depender de múltiplos passos no history.
+                                location.href = refUrl2.href;
+                                return false;
+                            }
+                        }
+                    } catch (e) {}
+                }
+
                 if (isFormReferrer()) {
                     var safe = getSafeBackUrl();
                     if (safe) { location.href = safe; return false; }
                 }
+                var safeFallback = getSafeBackUrl();
+                if (safeFallback) { location.href = safeFallback; return false; }
                 window.history.back();
                 return false;
             };
