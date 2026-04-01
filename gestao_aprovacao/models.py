@@ -517,6 +517,24 @@ def sanitize_filename(filename):
     return name + ext.lower()
 
 
+def sanitize_attachment_nome(nome, max_len=200):
+    """
+    Sanitiza o valor salvo em Attachment.nome para evitar erros de charset no banco.
+    Garante também limite final do campo CharField.
+    """
+    nome = (nome or '').strip()
+    if not nome:
+        return ''
+    cleaned = sanitize_filename(nome)
+    if len(cleaned) <= max_len:
+        return cleaned
+    base, ext = os.path.splitext(cleaned)
+    keep = max_len - len(ext)
+    if keep <= 0:
+        return cleaned[:max_len]
+    return f"{base[:keep]}{ext}"
+
+
 def attachment_upload_path(instance, filename):
     """
     Função para gerar o caminho de upload de anexos com nome sanitizado.
@@ -625,6 +643,17 @@ class Attachment(models.Model):
         if '.' in nome:
             return nome.split('.')[-1].upper()
         return ''
+
+    def save(self, *args, **kwargs):
+        """
+        Normaliza e sanitiza o nome antes de persistir para evitar
+        `Incorrect string value` em ambientes MySQL com charset mais restritivo.
+        """
+        source_name = (self.nome or '').strip()
+        if not source_name and self.arquivo:
+            source_name = os.path.basename(self.arquivo.name)
+        self.nome = sanitize_attachment_nome(source_name, max_len=200)
+        super().save(*args, **kwargs)
 
 
 class StatusHistory(models.Model):
