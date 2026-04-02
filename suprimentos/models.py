@@ -8,6 +8,8 @@ from mapa_obras.models import Obra, LocalObra
 from django.contrib.auth.models import User
 from django.db.models import Sum
 
+from .recebimento_match import descricao_item_compativel
+
 
 def _normalizar_numero_sc_model(valor):
     """Normaliza número da SC para comparação (85, 085, 85.0 -> 85). Usado em recebimento_vinculado."""
@@ -511,6 +513,22 @@ class ItemMapa(models.Model):
             if (rec.insumo and _normalizar_codigo_insumo_model(rec.insumo.codigo_sienge) == chave_insumo
                     and _normalizar_numero_sc_model(rec.numero_sc) == chave_sc):
                 return rec
+        # SM-LEV: vínculo levantamento → RecebimentoObra já importado (ver recebimento_match).
+        # Não altera regras do MAPA (múltiplas linhas Excel, MÁXIMO entregue, blocos no mapa).
+        if self.insumo and (self.insumo.codigo_sienge or '').startswith('SM-LEV-'):
+            sc_only = [
+                r for r in candidatos
+                if _normalizar_numero_sc_model(r.numero_sc) == chave_sc
+            ]
+            if len(sc_only) == 1:
+                return sc_only[0]
+            alvo = (self.descricao_override or self.insumo.descricao or '').strip()
+            por_desc = [
+                r for r in sc_only
+                if descricao_item_compativel(alvo, r.descricao_item)
+            ]
+            if len(por_desc) == 1:
+                return por_desc[0]
         return None
 
     @property

@@ -1,0 +1,8 @@
+# Dependências só para desenvolvimento e CI (testes).
+# Instalação: pip install -r requirements-dev.txt
+# Produção: use apenas requirements.txt
+
+-r requirements.txt
+
+pytest>=8.0
+pytest-django>=4.8
