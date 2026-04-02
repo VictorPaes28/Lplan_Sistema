@@ -13,6 +13,7 @@ urlpatterns = [
     
     # CRUD WorkOrder
     path('pedidos/', views.list_workorders, name='list_workorders'),
+    path('pedidos/exportar-lista-pdf/', views.export_list_workorders_pdf, name='export_list_workorders_pdf'),
     path('pedidos/criar/', views.create_workorder, name='create_workorder'),
     path('pedidos/<int:pk>/', views.detail_workorder, name='detail_workorder'),
     path('pedidos/<int:pk>/exportar-pdf/', views.exportar_snapshot_workorder_pdf, name='exportar_snapshot_workorder_pdf'),
