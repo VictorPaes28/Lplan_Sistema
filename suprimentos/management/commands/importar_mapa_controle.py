@@ -304,10 +304,15 @@ class Command(BaseCommand):
                 return existente, False
 
             if desc_norm:
-                candidato = Insumo.objects.filter(
-                    descricao__iexact=desc_norm,
-                    codigo_sienge__startswith='SM-LEV-'
-                ).first()
+                # Não usar codigo_sienge__startswith no MySQL: gera LIKE e pode disparar
+                # Error 1267 (Illegal mix of collations latin1 vs utf8mb4). Filtrar SM-LEV- em Python.
+                candidato = None
+                for cand in Insumo.objects.filter(descricao__iexact=desc_norm).only(
+                    'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
+                ):
+                    if (cand.codigo_sienge or '').startswith('SM-LEV-'):
+                        candidato = cand
+                        break
                 if candidato:
                     candidato.codigo_sienge = codigo_str
                     candidato.descricao = desc_norm[:500]

@@ -254,10 +254,14 @@ class Command(BaseCommand):
             # Reconciliar insumo criado no levantamento (código provisório) pelo nome
             # Isso permite que insumos criados manualmente no levantamento sejam vinculados ao código do Sienge
             if desc_norm:
-                candidato = Insumo.objects.filter(
-                    descricao__iexact=desc_norm,
-                    codigo_sienge__startswith='SM-LEV-'
-                ).first()
+                # Evitar LIKE em codigo_sienge (MySQL 1267 collation)
+                candidato = None
+                for cand in Insumo.objects.filter(descricao__iexact=desc_norm).only(
+                    'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
+                ):
+                    if (cand.codigo_sienge or '').startswith('SM-LEV-'):
+                        candidato = cand
+                        break
                 if candidato:
                     # Atualizar código provisório para o código real do Sienge
                     candidato.codigo_sienge = codigo_str
