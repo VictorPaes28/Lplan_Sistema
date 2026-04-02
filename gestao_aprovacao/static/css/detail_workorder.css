@@ -711,6 +711,19 @@
     border: none;
 }
 
+.btn-export-pdf {
+    background: #1a3a5c;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    border: none;
+}
+
+.btn-export-pdf:hover {
+    background: #13314f;
+    color: #fff;
+}
+
 .btn-reenviar:hover {
     background: #c2410c;
     color: #fff;
