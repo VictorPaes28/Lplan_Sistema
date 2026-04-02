@@ -25,6 +25,7 @@ from django.db import transaction
 from django.db import models
 from mapa_obras.models import Obra
 from suprimentos.models import ItemMapa, RecebimentoObra, Insumo, ImportacaoSienge
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
 import pandas as pd
@@ -214,6 +215,22 @@ class Command(BaseCommand):
         obras_cache = {}
         insumos_cache = {}
 
+        def _chave_desc_recon(s):
+            """Casar descrição CSV ↔ insumo SM-LEV sem iexact/LIKE no MySQL (erro 1267 collation)."""
+            if s is None:
+                return ''
+            return ' '.join(str(s).strip().split()).lower()
+
+        # Índice em memória: insumos com código SM-LEV-* (um scan no início; lookups O(1))
+        sm_lev_por_desc = defaultdict(list)
+        for ins in Insumo.objects.only(
+            'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
+        ).iterator(chunk_size=500):
+            code = ins.codigo_sienge or ''
+            if not code.startswith('SM-LEV-'):
+                continue
+            sm_lev_por_desc[_chave_desc_recon(ins.descricao)].append(ins)
+
         # Código principal + codigos_sienge_alternativos, com variantes numéricas (42, 0042, …)
         obra_chave_map = {}
         for ob in Obra.objects.filter(ativa=True):
@@ -304,15 +321,10 @@ class Command(BaseCommand):
                 return existente, False
 
             if desc_norm:
-                # Não usar codigo_sienge__startswith no MySQL: gera LIKE e pode disparar
-                # Error 1267 (Illegal mix of collations latin1 vs utf8mb4). Filtrar SM-LEV- em Python.
-                candidato = None
-                for cand in Insumo.objects.filter(descricao__iexact=desc_norm).only(
-                    'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
-                ):
-                    if (cand.codigo_sienge or '').startswith('SM-LEV-'):
-                        candidato = cand
-                        break
+                # Reconciliar com SM-LEV via sm_lev_por_desc (sem ORM iexact/startswith → sem LIKE no MySQL)
+                k = _chave_desc_recon(descricao)
+                cands = sm_lev_por_desc.get(k, [])
+                candidato = cands[0] if cands else None
                 if candidato:
                     candidato.codigo_sienge = codigo_str
                     candidato.descricao = desc_norm[:500]
@@ -320,6 +332,9 @@ class Command(BaseCommand):
                         candidato.unidade = 'UND'
                     candidato.eh_macroelemento = candidato.identificar_eh_macroelemento()
                     candidato.save()
+                    sm_lev_por_desc[k] = [x for x in cands if x.pk != candidato.pk]
+                    if not sm_lev_por_desc[k]:
+                        del sm_lev_por_desc[k]
                     insumos_cache[codigo_str] = candidato
                     return candidato, False
 

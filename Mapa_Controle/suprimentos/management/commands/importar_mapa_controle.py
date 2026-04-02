@@ -24,6 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db import models
 from apps.suprimentos.models import Obra, ItemMapa, RecebimentoObra, Insumo
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
 import pandas as pd
@@ -198,6 +199,20 @@ class Command(BaseCommand):
         # Caches
         obras_cache = {}
         insumos_cache = {}
+
+        def _chave_desc_recon(s):
+            if s is None:
+                return ''
+            return ' '.join(str(s).strip().split()).lower()
+
+        sm_lev_por_desc = defaultdict(list)
+        for ins in Insumo.objects.only(
+            'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
+        ).iterator(chunk_size=500):
+            code = ins.codigo_sienge or ''
+            if not code.startswith('SM-LEV-'):
+                continue
+            sm_lev_por_desc[_chave_desc_recon(ins.descricao)].append(ins)
         
         def get_obra(codigo):
             codigo_str = str(codigo).strip()
@@ -254,26 +269,19 @@ class Command(BaseCommand):
             # Reconciliar insumo criado no levantamento (código provisório) pelo nome
             # Isso permite que insumos criados manualmente no levantamento sejam vinculados ao código do Sienge
             if desc_norm:
-                # Evitar LIKE em codigo_sienge (MySQL 1267 collation)
-                candidato = None
-                for cand in Insumo.objects.filter(descricao__iexact=desc_norm).only(
-                    'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
-                ):
-                    if (cand.codigo_sienge or '').startswith('SM-LEV-'):
-                        candidato = cand
-                        break
+                k = _chave_desc_recon(descricao)
+                cands = sm_lev_por_desc.get(k, [])
+                candidato = cands[0] if cands else None
                 if candidato:
-                    # Atualizar código provisório para o código real do Sienge
                     candidato.codigo_sienge = codigo_str
                     candidato.descricao = desc_norm[:500]
-                    # ⚠️ UNIDADE: Não tentar ler do CSV - deve ser definida manualmente no cadastro do insumo
-                    # Se não tiver unidade definida, usar 'UND' apenas como fallback temporário
-                    # O usuário deve ajustar manualmente no cadastro do insumo
                     if not candidato.unidade or candidato.unidade.strip() == '':
-                        candidato.unidade = 'UND'  # Fallback temporário - ajustar manualmente
-                    # Identificar automaticamente se é macroelemento
+                        candidato.unidade = 'UND'
                     candidato.eh_macroelemento = candidato.identificar_eh_macroelemento()
                     candidato.save()
+                    sm_lev_por_desc[k] = [x for x in cands if x.pk != candidato.pk]
+                    if not sm_lev_por_desc[k]:
+                        del sm_lev_por_desc[k]
                     insumos_cache[codigo_str] = candidato
                     return candidato
 
