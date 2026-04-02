@@ -35,6 +35,7 @@ class InsumoForm(forms.ModelForm):
     
     UNIDADE_CHOICES = [
         ('UND', 'UND (Unidade)'),
+        ('PÇ', 'PÇ (Peça)'),
         ('KG', 'KG (Quilograma)'),
         ('M', 'M (Metro)'),
         ('M²', 'M² (Metro Quadrado)'),
