@@ -147,6 +147,55 @@
     </div>
     {% endif %}
 
+    <!-- DESFAZER IMPORTAÇÃO (recebimentos vinculados) -->
+    <div class="lplan-card mt-3">
+        <div class="lplan-card-header">
+            <div class="lplan-card-title">
+                <i class="bi bi-trash"></i> Desfazer importação
+            </div>
+            <div class="text-muted small">Remove recebimentos na obra gerados por cada upload (e insumos criados só nessa importação, se não usados)</div>
+        </div>
+        <div class="history-table-wrapper p-3">
+            <p class="text-muted small mb-2">
+                Linhas do mapa (ItemMapa) não são revertidas automaticamente — confira o mapa após desfazer.
+            </p>
+            <table class="lplan-grid">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Obra</th>
+                        <th>Arquivo</th>
+                        <th>Usuário</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for imp in importacoes_desfazer %}
+                    <tr>
+                        <td class="table-cell-tabular">{{ imp.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{% if imp.obra %}{{ imp.obra.nome }}{% else %}<span class="text-muted">Multi-obra</span>{% endif %}</td>
+                        <td class="table-cell-truncate" title="{{ imp.nome_arquivo }}">{{ imp.nome_arquivo }}</td>
+                        <td>{% if imp.usuario %}{{ imp.usuario.username }}{% else %}—{% endif %}</td>
+                        <td>
+                            <form method="post" action="{% url 'engenharia:excluir_importacao_sienge' imp.id %}" class="d-inline"
+                                  onsubmit="return confirm('Remover todos os RecebimentoObra desta importação? Esta ação não desfaz alterações manuais no ItemMapa.');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-x-lg"></i> Desfazer
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted table-empty-cell">Nenhuma importação registrada para desfazer (após o próximo upload, aparecerá aqui).</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- HISTÓRICO DE IMPORTAÇÃO -->
     <div class="lplan-card mt-3">
         <div class="lplan-card-header">

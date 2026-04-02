@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.utils import timezone
@@ -191,6 +192,15 @@ class RecebimentoObra(models.Model):
     # Auditoria
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    importacao = models.ForeignKey(
+        'ImportacaoSienge',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recebimentos',
+        help_text='Última importação MAPA_CONTROLE que criou ou atualizou este registro',
+    )
 
     class Meta:
         # Permite múltiplos insumos na mesma SC (ex: sapato 32, 36, 38 no mesmo pedido)
@@ -1045,6 +1055,40 @@ class AlocacaoRecebimento(models.Model):
         super().save(*args, **kwargs)
 
 
+class ImportacaoSienge(models.Model):
+    """
+    Registro de um upload do MAPA_CONTROLE (CSV/XLSX) para auditoria e desfazer.
+    RecebimentoObra vinculados via importacao podem ser removidos em lote.
+    """
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='importacoes_sienge',
+        help_text='Obra do contexto no upload; vazio se o arquivo tinha várias obras.',
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='importacoes_sienge',
+    )
+    nome_arquivo = models.CharField(max_length=255)
+    sha256_arquivo = models.CharField(max_length=64, db_index=True)
+    insumos_criados_ids = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Importação Sienge (MAPA)'
+        verbose_name_plural = 'Importações Sienge (MAPA)'
+
+    def __str__(self):
+        return f'{self.created_at:%d/%m/%Y %H:%M} — {self.nome_arquivo}'
+
+
 class HistoricoAlteracao(models.Model):
     """
     Registro de todas as alterações feitas no sistema.
@@ -1091,6 +1135,14 @@ class HistoricoAlteracao(models.Model):
     )
     data_hora = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    importacao_sienge = models.ForeignKey(
+        'ImportacaoSienge',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historico_alteracoes',
+    )
     
     class Meta:
         ordering = ['-data_hora']
@@ -1107,7 +1159,8 @@ class HistoricoAlteracao(models.Model):
     
     @classmethod
     def registrar(cls, obra, usuario, tipo, descricao, item_mapa=None, 
-                  campo_alterado='', valor_anterior='', valor_novo='', ip_address=None):
+                  campo_alterado='', valor_anterior='', valor_novo='', ip_address=None,
+                  importacao_sienge=None):
         """Método auxiliar para registrar alterações facilmente."""
         return cls.objects.create(
             obra=obra,
@@ -1120,5 +1173,6 @@ class HistoricoAlteracao(models.Model):
             insumo_nome=(item_mapa.insumo.descricao or '')[:200] if item_mapa and item_mapa.insumo else '',
             local_nome=item_mapa.local_aplicacao.nome if item_mapa and item_mapa.local_aplicacao else '',
             usuario=usuario,
-            ip_address=ip_address
+            ip_address=ip_address,
+            importacao_sienge=importacao_sienge,
         )

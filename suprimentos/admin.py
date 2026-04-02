@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import Insumo, ItemMapa, NotaFiscalEntrada, AlocacaoRecebimento, RecebimentoObra
+from .models import (
+    Insumo,
+    ItemMapa,
+    NotaFiscalEntrada,
+    AlocacaoRecebimento,
+    RecebimentoObra,
+    ImportacaoSienge,
+)
 
 
 @admin.register(Insumo)
@@ -130,3 +137,11 @@ class AlocacaoRecebimentoAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(ImportacaoSienge)
+class ImportacaoSiengeAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'obra', 'nome_arquivo', 'usuario']
+    list_filter = ['created_at']
+    search_fields = ['nome_arquivo', 'sha256_arquivo']
+    readonly_fields = ['created_at', 'sha256_arquivo', 'insumos_criados_ids']

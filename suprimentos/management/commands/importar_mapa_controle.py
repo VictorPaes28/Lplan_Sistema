@@ -24,7 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db import models
 from mapa_obras.models import Obra
-from suprimentos.models import ItemMapa, RecebimentoObra, Insumo
+from suprimentos.models import ItemMapa, RecebimentoObra, Insumo, ImportacaoSienge
 from decimal import Decimal
 from datetime import datetime
 import pandas as pd
@@ -58,6 +58,12 @@ class Command(BaseCommand):
             '--incluir-pequenos',
             action='store_true',
             help='Incluir insumos pequenos e cimentos (padrão: apenas macroelementos entram no mapa)'
+        )
+        parser.add_argument(
+            '--importacao-id',
+            type=int,
+            default=None,
+            help='ID do registro ImportacaoSienge (vínculo para desfazer importação)',
         )
 
     def parse_date(self, val):
@@ -112,6 +118,14 @@ class Command(BaseCommand):
         obra_codigo_fallback = options['obra_codigo']
         skiprows = options['skiprows']
         incluir_pequenos = options.get('incluir_pequenos', False)
+        importacao_id = options.get('importacao_id')
+        importacao = None
+        if importacao_id:
+            importacao = ImportacaoSienge.objects.filter(pk=importacao_id).first()
+            if not importacao:
+                self.stdout.write(self.style.WARNING(
+                    f'   [!] ImportacaoSienge id={importacao_id} não encontrada; importação sem vínculo.'
+                ))
         
         if not os.path.exists(file_path):
             self.stdout.write(self.style.ERROR(f'Arquivo não encontrado: {file_path}'))
@@ -199,34 +213,53 @@ class Command(BaseCommand):
         # Caches
         obras_cache = {}
         insumos_cache = {}
-        
+
+        # Código principal + codigos_sienge_alternativos, com variantes numéricas (42, 0042, …)
+        obra_chave_map = {}
+        for ob in Obra.objects.filter(ativa=True):
+            for k in ob.chaves_sienge_busca_importacao():
+                if k in obra_chave_map and obra_chave_map[k].pk != ob.pk:
+                    self.stdout.write(self.style.WARNING(
+                        f'   [!] Código Sienge "{k}" associado a mais de uma obra; '
+                        f'mantida {obra_chave_map[k].codigo_sienge} - {obra_chave_map[k].nome}.'
+                    ))
+                    continue
+                obra_chave_map[k] = ob
+
+        def expand_codigo_obra_csv(codigo):
+            """Variações do código vindo do CSV para bater no mapa de obras."""
+            s = str(codigo).strip()
+            out = []
+            if not s or s.lower() == 'nan':
+                return out
+            out.append(s)
+            if s.replace('.', '', 1).replace(',', '', 1).isdigit():
+                try:
+                    n = str(int(float(s.replace(',', '.'))))
+                    out.append(n)
+                    for width in (4, 5):
+                        out.append(n.zfill(width))
+                except (ValueError, TypeError):
+                    pass
+            elif s.isdigit():
+                n = str(int(s))
+                out.append(n)
+                for width in (4, 5):
+                    out.append(n.zfill(width))
+            return list(dict.fromkeys(out))
+
         def get_obra(codigo):
-            """Busca obra por código Sienge. Normaliza: strip; 224 e 0224 considerados iguais."""
+            """Resolve obra pelo código Sienge do arquivo (principal, alternativos e variantes numéricas)."""
             codigo_str = str(codigo).strip()
             if not codigo_str or codigo_str.lower() == 'nan':
                 return None
             if codigo_str not in obras_cache:
-                try:
-                    obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=codigo_str)
-                except Obra.DoesNotExist:
-                    obras_cache[codigo_str] = None
-                if obras_cache[codigo_str] is None and codigo_str.isdigit():
-                    # CSV "224" vs BD "0224" ou vice-versa: tentar forma normalizada
-                    normalizado = str(int(codigo_str))
-                    try:
-                        obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=normalizado)
-                    except Obra.DoesNotExist:
-                        pass
-                if obras_cache[codigo_str] is None and codigo_str.isdigit() and len(codigo_str) < 6:
-                    # Tentar com zeros à esquerda (ex.: BD "0224", CSV "224")
-                    for width in (4, 5):
-                        padded = codigo_str.zfill(width)
-                        if padded != codigo_str:
-                            try:
-                                obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=padded)
-                                break
-                            except Obra.DoesNotExist:
-                                continue
+                obra = None
+                for v in expand_codigo_obra_csv(codigo_str):
+                    if v in obra_chave_map:
+                        obra = obra_chave_map[v]
+                        break
+                obras_cache[codigo_str] = obra
             return obras_cache[codigo_str]
         
         def get_insumo(codigo):
@@ -303,7 +336,8 @@ class Command(BaseCommand):
         # A quantidade entregue vem repetida no CSV para o mesmo insumo, então pegamos apenas o maior valor
         grupos_sc = {}  # Chave: (obra, numero_sc, codigo_insumo) -> dados consolidados
         obras_ignoradas = set()
-        insumos_criados_agora = set()  # Códigos de insumos criados neste import
+        insumos_criados_agora = set()  # Códigos de insumos criados neste import (log)
+        insumos_criados_ids = []  # IDs para possível exclusão ao desfazer importação
         
         for idx, row in df.iterrows():
             # Limpar e validar número da SC
@@ -368,6 +402,8 @@ class Command(BaseCommand):
                         continue  # Código vazio ou inválido
                     if foi_criado:
                         insumos_criados_agora.add(f"{codigo_insumo} ({str(desc_insumo)[:30] if desc_insumo else 'sem descricao'})")
+                        if insumo_obj.pk and insumo_obj.pk not in insumos_criados_ids:
+                            insumos_criados_ids.append(insumo_obj.pk)
 
             if not insumo_obj:
                 continue  # Sem coluna de insumo ou código vazio
@@ -540,24 +576,27 @@ class Command(BaseCommand):
                     # === 1. CRIAR/ATUALIZAR RecebimentoObra ===
                     # Registrar todas as linhas do arquivo (obra + SC + insumo) para vínculo posterior no mapa
                     if insumo:
+                        rec_defaults = {
+                            'data_sc': dados['data_sc'],
+                            'numero_pc': dados['numero_pc'],
+                            'data_pc': dados['data_emissao_pc'],
+                            'empresa_fornecedora': dados['empresa_fornecedora'],
+                            'prazo_recebimento': dados['previsao_entrega'],
+                            'descricao_item': (str(dados.get('descricao_insumo') or '')[:500]),
+                            'quantidade_solicitada': dados['quantidade_solicitada'],
+                            'quantidade_recebida': dados['quantidade_entregue'],
+                            'saldo_a_entregar': saldo_final,
+                            'numero_nf': dados['numero_nf'],
+                            'data_nf': dados['data_nf'],
+                        }
+                        if importacao:
+                            rec_defaults['importacao'] = importacao
                         recebimento, created = RecebimentoObra.objects.update_or_create(
                             obra=obra,
                             numero_sc=numero_sc,
                             insumo=insumo,
                             item_sc='',
-                            defaults={
-                                'data_sc': dados['data_sc'],
-                                'numero_pc': dados['numero_pc'],
-                                'data_pc': dados['data_emissao_pc'],
-                                'empresa_fornecedora': dados['empresa_fornecedora'],
-                                'prazo_recebimento': dados['previsao_entrega'],
-                                'descricao_item': (str(dados.get('descricao_insumo') or '')[:500]),
-                                'quantidade_solicitada': dados['quantidade_solicitada'],
-                                'quantidade_recebida': dados['quantidade_entregue'],
-                                'saldo_a_entregar': saldo_final,
-                                'numero_nf': dados['numero_nf'],
-                                'data_nf': dados['data_nf'],
-                            }
+                            defaults=rec_defaults,
                         )
                         if created:
                             total_recebimentos_criados += 1
@@ -724,3 +763,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f'\n[!] {len(erros)} erros:'))
             for erro in erros[:10]:
                 self.stdout.write(self.style.WARNING(f'   - {erro}'))
+
+        if importacao:
+            importacao.insumos_criados_ids = insumos_criados_ids
+            importacao.save(update_fields=['insumos_criados_ids'])
