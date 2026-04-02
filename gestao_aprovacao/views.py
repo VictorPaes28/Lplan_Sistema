@@ -806,6 +806,329 @@ def detail_workorder(request, pk):
 
 
 @login_required
+def exportar_snapshot_workorder_pdf(request, pk):
+    """Exporta um PDF rápido com os detalhes do pedido e linha do tempo."""
+    workorder = get_object_or_404(WorkOrder, pk=pk)
+    user = request.user
+
+    tem_permissao = False
+    if is_admin(user):
+        tem_permissao = True
+    elif is_aprovador(user):
+        if workorder.obra.empresa_id is None:
+            tem_permissao = WorkOrderPermission.objects.filter(
+                obra=workorder.obra, usuario=user, tipo_permissao='aprovador', ativo=True
+            ).exists()
+        else:
+            empresas_ids = Empresa.objects.filter(
+                obras__permissoes__usuario=user,
+                obras__permissoes__tipo_permissao='aprovador',
+                obras__permissoes__ativo=True
+            ).values_list('id', flat=True).distinct()
+            tem_permissao = workorder.obra.empresa_id in empresas_ids
+    elif is_engenheiro(user):
+        tem_permissao_obra = WorkOrderPermission.objects.filter(
+            obra=workorder.obra,
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True
+        ).exists()
+        is_solicitante_group = user.groups.filter(name='Solicitante').exists()
+        if workorder.criado_por == user:
+            tem_permissao = True
+        elif tem_permissao_obra or is_solicitante_group:
+            outros_solicitantes_obra = WorkOrderPermission.objects.filter(
+                obra=workorder.obra,
+                tipo_permissao='solicitante',
+                ativo=True
+            ).values_list('usuario_id', flat=True)
+            if workorder.criado_por_id:
+                criador_no_grupo = workorder.criado_por.groups.filter(name='Solicitante').exists()
+                criador_tem_permissao = workorder.criado_por.id in outros_solicitantes_obra
+            else:
+                criador_no_grupo = False
+                criador_tem_permissao = False
+            tem_permissao = bool(criador_no_grupo or criador_tem_permissao)
+
+    if not tem_permissao:
+        messages.error(request, 'Você não tem permissão para exportar este pedido.')
+        return redirect('gestao:list_workorders')
+
+    status_history = list(StatusHistory.objects.filter(work_order=workorder).order_by('created_at'))
+
+    def _safe(value, default='-'):
+        return value if value not in (None, '') else default
+
+    def _dt(value, default='-'):
+        if not value:
+            return default
+        return value.strftime('%d/%m/%Y %H:%M')
+
+    def _money(value):
+        if value in (None, ''):
+            return '-'
+        return f"R$ {value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def _get_logo_path():
+        logo_dir = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'images')
+        for name in (
+            'lpla-logo-pdf-transparent.png',
+            'lpla-logo-pdf.png',
+            'lplan-logo2.png',
+            'lplan_logo.png',
+            'lplan_logo.jpg',
+            'lplan_logo.jpeg',
+        ):
+            path = os.path.join(logo_dir, name)
+            if os.path.exists(path):
+                return path
+        return None
+
+    # Paleta igual aos badges da UI (list_workorders.css)
+    status_palette = {
+        'criacao': {'bg': colors.HexColor('#e0e7ff'), 'fg': colors.HexColor('#3730a3')},      # rascunho
+        'envio': {'bg': colors.HexColor('#fef3c7'), 'fg': colors.HexColor('#92400e')},        # pendente
+        'reenviado': {'bg': colors.HexColor('#fed7aa'), 'fg': colors.HexColor('#9a3412')},    # reaprovacao
+        'reprovado': {'bg': colors.HexColor('#fee2e2'), 'fg': colors.HexColor('#991b1b')},
+        'aprovado': {'bg': colors.HexColor('#d1fae5'), 'fg': colors.HexColor('#065f46')},
+    }
+
+    color_primary = colors.HexColor('#1A3A5C')
+    color_accent = colors.HexColor('#E8F0F8')
+    color_border = colors.HexColor('#D0D9E3')
+    color_text = colors.HexColor('#1C1C1C')
+    color_sub = colors.HexColor('#5A5A5A')
+    color_info_bg = colors.HexColor('#F4F8FC')
+    status_labels = dict(WorkOrder.STATUS_CHOICES)
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.7 * cm,
+        leftMargin=1.7 * cm,
+        topMargin=1.7 * cm,
+        bottomMargin=1.5 * cm,
+    )
+    styles = getSampleStyleSheet()
+    elements = []
+
+    normal = ParagraphStyle('SnapNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leading=12)
+    label = ParagraphStyle('SnapLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=color_sub)
+    h2 = ParagraphStyle('SnapH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=color_primary, spaceAfter=6)
+    table_head = ParagraphStyle('SnapTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, textColor=colors.white, alignment=TA_CENTER)
+    badge_style = ParagraphStyle('SnapBadge', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.1, alignment=TA_CENTER, leading=10)
+    def _build_status_badge(label_text, palette_key, align='CENTER', with_bullet=False, width_cm=None):
+        pal = status_palette.get(palette_key, status_palette['envio'])
+        badge_text = _safe(label_text, '-').upper()
+        if with_bullet:
+            badge_text = f"● {badge_text}"
+        align_value = 'LEFT' if align == 'LEFT' else 'CENTER'
+        p_style = ParagraphStyle(
+            f"SnapBadge{palette_key}{align}",
+            parent=badge_style,
+            textColor=pal['fg'],
+            alignment=TA_LEFT if align == 'LEFT' else TA_CENTER,
+        )
+        badge_para = Paragraph(badge_text, p_style)
+        if width_cm is not None:
+            col_widths = [width_cm * cm]
+        else:
+            col_widths = [2.45 * cm] if align == 'CENTER' else [3.1 * cm]
+        badge_tbl = Table([[badge_para]], colWidths=col_widths, hAlign=align_value)
+        badge_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), pal['bg']),
+            ('BOX', (0, 0), (-1, -1), 0.5, pal['bg']),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('ALIGN', (0, 0), (-1, -1), align_value),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        return badge_tbl
+
+
+    # Cabeçalho no padrão RDO (logo à esquerda, texto central, fundo branco e linha azul)
+    title_main = Paragraph(
+        "<font color='#1A3A5C' size='14'><b>DETALHES PEDIDO</b></font>",
+        ParagraphStyle('SnapTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, textColor=color_primary, alignment=TA_CENTER, leading=16, spaceAfter=2),
+    )
+    title_sub = Paragraph(
+        f"<font color='#1A3A5C' size='9'>Pedido: {_safe(workorder.codigo)} · Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
+        ParagraphStyle('SnapSub', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=color_primary, alignment=TA_CENTER, leading=11),
+    )
+    logo_path = _get_logo_path()
+    if logo_path:
+        from reportlab.platypus import Image as RLImage
+        logo = RLImage(logo_path, width=4.8 * cm, height=1.15 * cm)
+        text_block = Table([[title_main], [title_sub]], colWidths=[11.2 * cm])
+        text_block.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        header = Table([[logo, text_block]], colWidths=[4.8 * cm, 11.2 * cm])
+    else:
+        header = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, -1), (-1, -1), 1.2, color_primary),
+    ]))
+    elements.append(header)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Informações do pedido
+    status_badge_key_map = {
+        'rascunho': 'criacao',
+        'pendente': 'envio',
+        'reaprovacao': 'reenviado',
+        'reprovado': 'reprovado',
+        'aprovado': 'aprovado',
+    }
+    status_badge_key = status_badge_key_map.get(workorder.status, 'envio')
+
+    info_rows = [
+        [Paragraph('<b>Código</b>', label), Paragraph(_safe(workorder.codigo), normal)],
+        [Paragraph('<b>Obra</b>', label), Paragraph(f"{_safe(getattr(workorder.obra, 'codigo', '-'))} - {_safe(getattr(workorder.obra, 'nome', '-'))}", normal)],
+        [Paragraph('<b>Credor</b>', label), Paragraph(_safe(workorder.nome_credor), normal)],
+        [Paragraph('<b>Tipo de Solicitação</b>', label), Paragraph(_safe(tipo_labels.get(workorder.tipo_solicitacao, workorder.tipo_solicitacao)), normal)],
+        [Paragraph('<b>Status Atual</b>', label), _build_status_badge(status_labels.get(workorder.status, workorder.status), status_badge_key, align='LEFT', with_bullet=True, width_cm=11.25)],
+        [Paragraph('<b>Valor Estimado</b>', label), Paragraph(_money(workorder.valor_estimado), normal)],
+        [Paragraph('<b>Prazo Estimado</b>', label), Paragraph(f"{workorder.prazo_estimado} dia(s)" if workorder.prazo_estimado else '-', normal)],
+        [Paragraph('<b>Local</b>', label), Paragraph(_safe(workorder.local), normal)],
+        [Paragraph('<b>Solicitante</b>', label), Paragraph(_safe(workorder.criado_por.get_full_name() or workorder.criado_por.username if workorder.criado_por else '-'), normal)],
+        [Paragraph('<b>Data de Criação</b>', label), Paragraph(_dt(workorder.created_at), normal)],
+        [Paragraph('<b>Data de Envio</b>', label), Paragraph(_dt(workorder.data_envio, 'Ainda não enviado'), normal)],
+        [Paragraph('<b>Data da Decisão</b>', label), Paragraph(_dt(workorder.data_aprovacao, 'Ainda sem decisão'), normal)],
+    ]
+    if workorder.observacoes:
+        info_rows.append([Paragraph('<b>Observações</b>', label), Paragraph(str(workorder.observacoes).replace('\n', '<br/>'), normal)])
+    info_tbl = Table(info_rows, colWidths=[4.2 * cm, 11.8 * cm])
+    info_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), color_accent),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(Paragraph('INFORMAÇÕES DO PEDIDO', h2))
+    elements.append(info_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Linha do tempo imutável (ordem natural dos fatos)
+    elements.append(Paragraph('LINHA DO TEMPO DO FLUXO', h2))
+    timeline_rows = [[
+        Paragraph('Descrição', table_head),
+        Paragraph('Etapa', table_head),
+        Paragraph('Responsável', table_head),
+        Paragraph('Data e Hora', table_head),
+    ]]
+
+    timeline_events = []
+    has_previous_reprovacao = False
+    for item in status_history:
+        etapa_key = 'envio'
+        descricao = _safe(item.observacao, '-')
+        if item.status_anterior is None:
+            etapa_key = 'criacao'
+            descricao = descricao if descricao != '-' else 'Pedido criado no sistema.'
+        elif item.status_novo == 'reprovado':
+            etapa_key = 'reprovado'
+            has_previous_reprovacao = True
+            if descricao == '-':
+                descricao = 'Pedido reprovado pelo gestor.'
+        elif item.status_novo == 'aprovado':
+            etapa_key = 'aprovado'
+            if descricao == '-':
+                descricao = 'Pedido aprovado pelo gestor.'
+        elif item.status_novo == 'reaprovacao':
+            etapa_key = 'reenviado' if has_previous_reprovacao else 'envio'
+            if descricao == '-':
+                descricao = 'Pedido reenviado para reaprovação.'
+        elif item.status_novo == 'pendente':
+            etapa_key = 'envio'
+            if descricao == '-':
+                descricao = 'Pedido enviado para análise.'
+        elif item.status_anterior == item.status_novo:
+            etapa_key = 'envio'
+            if descricao == '-':
+                descricao = 'Edição/atualização intermediária.'
+
+        responsavel = _safe(item.alterado_por.get_full_name() or item.alterado_por.username if item.alterado_por else '-')
+        timeline_events.append({
+            'descricao': descricao,
+            'etapa': etapa_key,
+            'responsavel': responsavel,
+            'data': item.created_at,
+        })
+
+    if not timeline_events:
+        timeline_events.append({
+            'descricao': 'Pedido criado no sistema.',
+            'etapa': 'criacao',
+            'responsavel': _safe(workorder.criado_por.get_full_name() or workorder.criado_por.username if workorder.criado_por else '-'),
+            'data': workorder.created_at,
+        })
+
+    timeline_events.sort(key=lambda x: x['data'] or datetime.min)
+    etapa_labels = {
+        'criacao': 'Criação',
+        'envio': 'Envio',
+        'reenviado': 'Reenviado',
+        'reprovado': 'Reprovado',
+        'aprovado': 'Aprovado',
+    }
+
+    for index, ev in enumerate(timeline_events, start=1):
+        etapa = ev['etapa']
+        badge_label = etapa_labels.get(etapa, etapa.title())
+        timeline_rows.append([
+            Paragraph(_safe(ev['descricao']).replace('\n', '<br/>'), normal),
+            _build_status_badge(badge_label, etapa, align='CENTER', with_bullet=False),
+            Paragraph(_safe(ev['responsavel']), normal),
+            Paragraph(_dt(ev['data']), normal),
+        ])
+
+    timeline_tbl = Table(timeline_rows, colWidths=[7.6 * cm, 2.6 * cm, 3.8 * cm, 2.0 * cm], repeatRows=1)
+    timeline_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]
+    timeline_tbl.setStyle(TableStyle(timeline_style))
+    elements.append(timeline_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    nome_arquivo = f'pedido_{workorder.codigo}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return response
+
+
+@login_required
 def edit_workorder(request, pk):
     """
     Edita um pedido de obra.
