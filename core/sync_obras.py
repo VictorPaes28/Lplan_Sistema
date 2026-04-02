@@ -48,6 +48,10 @@ def sync_project_to_gestao_and_mapa(project, return_result=False):
             defaults={
                 'nome': project.name,
                 'ativa': project.is_active,
+                'codigos_sienge_alternativos': getattr(
+                    project, 'sienge_codigos_alternativos', ''
+                )
+                or '',
             },
         )
         result['mapa_ok'] = True

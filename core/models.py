@@ -111,6 +111,14 @@ class Project(models.Model):
         verbose_name='Ativo',
         help_text='Indica se o projeto está ativo'
     )
+    sienge_codigos_alternativos = models.TextField(
+        blank=True,
+        verbose_name='Códigos Sienge alternativos (Mapa de suprimentos)',
+        help_text=(
+            'Outros códigos de obra no Sienge que devem apontar para este projeto na importação MAPA '
+            '(ex.: MAPA envia 42 e o código principal da obra é 260). Separar por vírgula, ponto e vírgula ou linha.'
+        ),
+    )
 
     class Meta:
         verbose_name = 'Projeto'
