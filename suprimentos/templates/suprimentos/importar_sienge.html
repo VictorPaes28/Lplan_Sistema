@@ -120,10 +120,21 @@
                     </div>
                 </div>
 
+                <div class="form-check mt-3 mb-2">
+                    <input class="form-check-input" type="checkbox" name="forcar_reimportacao" id="forcarReimportacao" value="1">
+                    <label class="form-check-label" for="forcarReimportacao">
+                        <strong>Forçar reimportação</strong> — mesmo arquivo (mesmo Excel) já importado antes
+                    </label>
+                    <div class="text-muted small ms-4">
+                        Marque se o sistema bloqueou por arquivo repetido, mas você <strong>corrigiu obras ou códigos Sienge</strong> (ex.: alternativos) e precisa processar de novo <strong>sem mudar o arquivo</strong>.
+                        Reimportar atualiza os recebimentos (não duplica linhas iguais obra+SC+insumo).
+                    </div>
+                </div>
+
                 <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
                     <div class="text-muted small">
                         - Detecta automaticamente o cabeçalho e a coluna <strong>Cód. Obra</strong> (quando existir).<br>
-                        - Evita duplicações mesmo com exportações por período (1 dia, 1 semana, 6 meses...).
+                        - Por padrão evita enviar duas vezes o <strong>mesmo arquivo</strong> (hash); use a opção acima para forçar.
                     </div>
                     <button type="submit" class="btn btn-primary" id="btnImportarAgora">
                         <i class="bi bi-cloud-arrow-up"></i> Importar agora

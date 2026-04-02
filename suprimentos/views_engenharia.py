@@ -931,8 +931,10 @@ def importar_sienge_upload(request):
                 arquivo.seek(0)
             except Exception:
                 pass
+
+            forcar = form.cleaned_data.get('forcar_reimportacao') is True
             
-            if obra_fallback:
+            if not forcar and obra_fallback:
                 ja_importado = HistoricoAlteracao.objects.filter(
                     obra=obra_fallback,
                     tipo='IMPORTACAO',
@@ -961,7 +963,7 @@ def importar_sienge_upload(request):
                         'import_history': import_history,
                         'importacoes_desfazer': importacoes_desfazer,
                     })
-            elif ImportacaoSienge.objects.filter(
+            elif not forcar and ImportacaoSienge.objects.filter(
                 obra__isnull=True, usuario=request.user, sha256_arquivo=file_hash
             ).exists():
                 messages.warning(
