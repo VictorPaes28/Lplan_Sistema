@@ -139,11 +139,15 @@
 .bg-red-50 { background-color: #fef2f2; }
 .bg-red-500 { background-color: #ef4444; }
 .bg-red-600 { background-color: #dc2626; }
+.bg-red-700 { background-color: #b91c1c; }
+.bg-red-800 { background-color: #991b1b; }
 
 /* Green, Yellow, Orange, Purple, Pink, Indigo */
 .bg-green-50 { background-color: #f0fdf4; }
 .bg-green-500 { background-color: #22c55e; }
 .bg-green-600 { background-color: #16a34a; }
+.bg-green-700 { background-color: #15803d; }
+.bg-green-800 { background-color: #166534; }
 .bg-yellow-500 { background-color: #eab308; }
 .bg-orange-500 { background-color: #f97316; }
 .bg-purple-500 { background-color: #a855f7; }
@@ -299,6 +303,10 @@
 .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
 .hover\:bg-gray-50:hover { background-color: #f9fafb; }
 .hover\:bg-gray-700:hover { background-color: #374151; }
+.hover\:bg-green-700:hover { background-color: #15803d; }
+.hover\:bg-green-800:hover { background-color: #166534; }
+.hover\:bg-red-700:hover { background-color: #b91c1c; }
+.hover\:bg-red-800:hover { background-color: #991b1b; }
 .hover\:text-white:hover { color: #ffffff; }
 .hover\:text-blue-600:hover { color: #2563eb; }
 .hover\:text-blue-700:hover { color: #1d4ed8; }
