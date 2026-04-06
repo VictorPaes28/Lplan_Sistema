@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if user.is_authenticated %}
+    {# Token CSRF para JS (cookie csrftoken é HttpOnly) — mesmo valor do input {% csrf_token %} #}
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    {% endif %}
     <title>{% block title %}GestControll{% endblock %}</title>
     {% load static %}
     <link rel="preconnect" href="https://fonts.googleapis.com">

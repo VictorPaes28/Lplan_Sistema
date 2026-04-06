@@ -80,7 +80,12 @@
 
 .filters-card {
     margin-bottom: 0;
-    padding: 2rem;
+    padding: 1.35rem 1.35rem 1.5rem;
+}
+
+.filters-card.card:hover {
+    transform: none;
+    box-shadow: var(--shadow-md);
 }
 
 .table-container {
@@ -204,70 +209,297 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
     padding-bottom: 1rem;
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 1px solid #e8ecf1;
 }
 
 .filters-title {
-    font-size: 1.125rem;
+    font-size: 1.0625rem;
     font-weight: 700;
-    color: var(--text-color);
+    color: #0f172a;
     margin: 0;
+    letter-spacing: -0.02em;
 }
 
-.toggle-filters-btn {
+/* Abre painel de filtros + exportação PDF (CTA principal) */
+.filters-pdf-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.1rem;
+    background: #fff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.filters-pdf-toggle:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #1e293b;
+    box-shadow: none;
+}
+
+.filters-pdf-toggle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18);
+}
+
+/* Painel aberto: estilo secundário para indicar “fechar” */
+.filters-pdf-toggle.is-open {
+    background: #f8fafc;
+    color: #1e293b;
+    border-color: #94a3b8;
+}
+
+.filters-pdf-toggle.is-open:hover {
+    background: #f1f5f9;
+    border-color: #64748b;
+}
+
+.filters-pdf-toggle__icon {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: transparent;
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-md);
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    outline: none;
+    opacity: 0.95;
 }
 
-.toggle-filters-btn:hover {
-    background: var(--light-bg);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-}
-
-.toggle-filters-btn:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-}
-
-.toggle-filters-btn svg {
+.filters-pdf-toggle__chevron {
     transition: transform 0.3s ease;
+    flex-shrink: 0;
 }
 
 /* Formulário de filtros */
 .filters-form {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0;
+}
+
+/* Linha: busca + ações alinhadas */
+.filter-search-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.875rem 1rem;
+}
+
+.filter-group--search {
+    flex: 1 1 220px;
+    min-width: 0;
 }
 
 .filter-actions-main {
     display: flex;
-    gap: 0.75rem;
-    align-items: end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.filter-btn--apply {
+    min-width: 6.5rem;
+    font-weight: 600;
+    padding: 0.65rem 1.1rem;
+    border-radius: 9px;
+    background: #334155;
+    border: 1px solid #334155;
+    color: #fff;
+}
+
+.filter-btn--apply:hover {
+    background: #1e293b;
+    border-color: #1e293b;
+    filter: none;
+}
+
+.filter-btn--ghost.btn-secondary {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    font-weight: 500;
+}
+
+.filter-btn--ghost.btn-secondary:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #1e293b;
+}
+
+.filter-label--primary {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 0.4rem;
+}
+
+.filter-input--search {
+    min-height: 2.75rem;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: #cbd5e1;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.9375rem;
 }
 
 .advanced-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding-top: 1rem;
+    margin-top: 1.25rem;
+    border-top: 1px solid #e8ecf1;
+}
+
+.filter-section {
+    background: transparent;
+    border: 1px solid #edf1f5;
+    border-radius: 10px;
+    padding: 0.85rem 0.95rem 0.95rem;
+}
+
+.filter-section-heading {
+    margin: 0 0 0.35rem 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #475569;
+}
+
+.filter-section-sub {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.filter-section--grid .filter-section-heading {
+    margin-bottom: 0.75rem;
+}
+
+.filter-fields-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem 0.85rem;
     align-items: end;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
-    margin-top: 1rem;
+}
+
+.filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.filter-field--credor {
+    grid-column: 1 / -1;
+    max-width: min(100%, 28rem);
+}
+
+.filter-period-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    align-items: end;
+    max-width: 22rem;
+}
+
+.filters-hint {
+    margin: 0.6rem 0 0 0;
+    font-size: 0.73rem;
+    line-height: 1.4;
+    color: #8a97a8;
+}
+
+.filter-advanced-footer {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.15rem;
+    padding: 0.75rem 0;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid #edf1f5;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.filter-advanced-footer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.filter-advanced-footer-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.filter-advanced-footer .filter-advanced-footer-hint {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+.filter-advanced-footer .btn-export-pdf {
+    flex-shrink: 0;
+    min-width: 10.5rem;
+    padding: 0.65rem 1.25rem;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.btn-export-pdf {
+    background: #fff;
+    color: #334155;
+    border: 1px solid #94a3b8;
+}
+
+.btn-export-pdf:hover {
+    background: #f8fafc;
+    filter: none;
+    border-color: #64748b;
+}
+
+/* Labels dentro do painel avançado: mais leves que ALL CAPS */
+.filters-form .advanced-filters .filter-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #475569;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 0;
+}
+
+.filters-form .advanced-filters .filter-input,
+.filters-form .advanced-filters .filter-select {
+    border-width: 1px;
+    border-color: #cbd5e1;
+    border-radius: 9px;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.875rem;
+}
+
+.filters-form .advanced-filters .filter-input:focus,
+.filters-form .advanced-filters .filter-select:focus {
+    border-color: #94a3b8;
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
 }
 
 .filter-group {
@@ -312,6 +544,11 @@
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.filter-input.filter-input--search:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .filter-actions {
@@ -925,34 +1162,57 @@
         gap: 1rem;
     }
 
-    .toggle-filters-btn {
+    .filters-pdf-toggle {
         width: 100%;
         justify-content: space-between;
     }
 
-    .filters-form {
-        gap: 1rem;
+    .filter-search-toolbar {
+        flex-direction: column;
+        align-items: stretch;
     }
 
-    .advanced-filters {
+    .filter-advanced-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-advanced-footer .btn-export-pdf {
+        align-self: stretch;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .filters-form {
+        gap: 0;
+    }
+
+    .filter-period-row {
         grid-template-columns: 1fr;
+        max-width: none;
+    }
+
+    .filter-fields-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-field--credor {
+        max-width: none;
     }
 
     .filter-actions-main {
         width: 100%;
+        justify-content: stretch;
     }
 
-    .filter-btn {
+    .filter-actions-main .filter-btn {
         flex: 1;
+        min-height: 44px;
     }
 
     .filter-actions {
         width: 100%;
         justify-content: stretch;
-    }
-
-    .filter-btn {
-        flex: 1;
     }
 
     /* Tabela responsiva - converter para cards em mobile */

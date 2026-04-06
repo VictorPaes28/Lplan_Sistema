@@ -37,24 +37,24 @@
         <a href="{% url 'gestao:list_workorders' %}" class="quick-filter-btn {% if not status_filter %}active{% endif %}">
             Todos
         </a>
-        <a href="?status=pendente{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-pendente {% if status_filter == 'pendente' %}active{% endif %}">
+        <a href="?status=pendente{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-pendente {% if status_filter == 'pendente' %}active{% endif %}">
             Pendentes
         </a>
-        <a href="?status=aprovado{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-aprovado {% if status_filter == 'aprovado' %}active{% endif %}">
+        <a href="?status=aprovado{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-aprovado {% if status_filter == 'aprovado' %}active{% endif %}">
             Aprovados
         </a>
-        <a href="?status=reprovado{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-reprovado {% if status_filter == 'reprovado' %}active{% endif %}">
+        <a href="?status=reprovado{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-reprovado {% if status_filter == 'reprovado' %}active{% endif %}">
             Reprovados
         </a>
-        <a href="?status=reaprovacao{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-reaprovacao {% if status_filter == 'reaprovacao' %}active{% endif %}">
+        <a href="?status=reaprovacao{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-reaprovacao {% if status_filter == 'reaprovacao' %}active{% endif %}">
             Reaprovação
         </a>
         {% if pode_marcar_analisado %}
         <div class="quick-filter-divider"></div>
-        <a href="?analisado=nao{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-analisado {% if analisado_filter == 'nao' %}active{% endif %}">
+        <a href="?analisado=nao{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-analisado {% if analisado_filter == 'nao' %}active{% endif %}">
             Não Analisados
         </a>
-        <a href="?analisado=sim{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="quick-filter-btn quick-filter-analisado-check {% if analisado_filter == 'sim' %}active{% endif %}">
+        <a href="?analisado=sim{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-analisado-check {% if analisado_filter == 'sim' %}active{% endif %}">
             Analisados
         </a>
         {% endif %}
@@ -64,42 +64,74 @@
     <div class="card filters-card">
     <div class="filters-header">
         <h3 class="filters-title">Filtros de Busca</h3>
-        <button type="button" class="toggle-filters-btn" onclick="toggleFilters()">
-            <span id="toggle-filters-text">Mostrar Filtros Avançados</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="toggle-filters-icon">
+        <button type="button" class="filters-pdf-toggle" id="toggle-filters-btn" onclick="toggleFilters()" aria-expanded="false" aria-controls="advanced-filters" title="Abre filtros por período, obra, status e o download em PDF">
+            <span class="filters-pdf-toggle__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </span>
+            <span id="toggle-filters-text">Exportar PDF</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="filters-pdf-toggle__chevron" id="toggle-filters-icon" aria-hidden="true">
                 <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
         </button>
     </div>
     <form method="get" class="filters-form" id="filters-form">
-        <div class="filter-group">
-            <label for="search" class="filter-label">
-                Buscar:
-            </label>
-            <input 
-                type="text" 
-                id="search" 
-                name="search" 
-                value="{{ search_query|default:'' }}"
-                placeholder="Código, credor ou observações..."
-                class="filter-input"
-            >
-        </div>
-        
-        <div class="filter-actions-main">
-            <button type="submit" class="btn filter-btn">Buscar</button>
-            <a href="{% url 'gestao:list_workorders' %}" class="btn btn-secondary filter-btn">
-                Limpar
-            </a>
-            <a href="#" class="btn filter-btn" id="export-list-pdf-btn" style="background:#1a3a5c;color:#fff;border:none;">Exportar PDF</a>
+        <div class="filter-search-toolbar">
+            <div class="filter-group filter-group--search">
+                <label for="search" class="filter-label filter-label--primary">Buscar pedidos</label>
+                <input 
+                    type="text" 
+                    id="search" 
+                    name="search" 
+                    value="{{ search_query|default:'' }}"
+                    placeholder="Código, credor ou observações…"
+                    class="filter-input filter-input--search"
+                >
+            </div>
+            <div class="filter-actions-main">
+                <button type="submit" class="btn filter-btn filter-btn--apply">Aplicar</button>
+                <a href="{% url 'gestao:list_workorders' %}" class="btn btn-secondary filter-btn filter-btn--ghost">
+                    Limpar
+                </a>
+            </div>
         </div>
         
         <div class="advanced-filters" id="advanced-filters" style="display: none;">
+            <div class="filter-section filter-section--period">
+                <p class="filter-section-heading">Período</p>
+                <p class="filter-section-sub">Por data de envio; se não houver envio, usa a data de criação.</p>
+                <div class="filter-period-row">
+                    <div class="filter-field">
+                        <label for="data_inicio" class="filter-label">De</label>
+                        <input
+                            type="date"
+                            id="data_inicio"
+                            name="data_inicio"
+                            value="{{ data_inicio|default:'' }}"
+                            class="filter-input"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="filter-field">
+                        <label for="data_fim" class="filter-label">Até</label>
+                        <input
+                            type="date"
+                            id="data_fim"
+                            name="data_fim"
+                            value="{{ data_fim|default:'' }}"
+                            class="filter-input"
+                            autocomplete="off"
+                        >
+                    </div>
+                </div>
+                <p class="filters-hint">Só preencher o início: o fim considerado é hoje.</p>
+            </div>
+
+            <div class="filter-section filter-section--grid">
+                <p class="filter-section-heading">Refinar lista</p>
+                <div class="filter-fields-grid">
             {% if obras_disponiveis %}
-            <div class="filter-group-small">
-                <label for="obra" class="filter-label">
-                    Obra:
-                </label>
+            <div class="filter-field">
+                <label for="obra" class="filter-label">Obra</label>
                 <select id="obra" name="obra" class="filter-select">
                     <option value="">Todas</option>
                     {% for obra in obras_disponiveis %}
@@ -111,10 +143,8 @@
             </div>
             {% endif %}
             
-            <div class="filter-group-small">
-                <label for="status" class="filter-label">
-                    Status:
-                </label>
+            <div class="filter-field">
+                <label for="status" class="filter-label">Status</label>
                 <select id="status" name="status" class="filter-select">
                     <option value="">Todos</option>
                     {% for value, label in status_choices %}
@@ -125,10 +155,8 @@
                 </select>
             </div>
             
-            <div class="filter-group-small">
-                <label for="tipo_solicitacao" class="filter-label">
-                    Tipo:
-                </label>
+            <div class="filter-field">
+                <label for="tipo_solicitacao" class="filter-label">Tipo</label>
                 <select id="tipo_solicitacao" name="tipo_solicitacao" class="filter-select">
                     <option value="">Todos</option>
                     {% for value, label in tipo_solicitacao_choices %}
@@ -140,10 +168,8 @@
             </div>
             
             {% if engenheiros_list %}
-            <div class="filter-group-small">
-                <label for="engenheiro" class="filter-label">
-                    Solicitante:
-                </label>
+            <div class="filter-field">
+                <label for="engenheiro" class="filter-label">Solicitante</label>
                 <select id="engenheiro" name="engenheiro" class="filter-select">
                     <option value="">Todos</option>
                     {% for eng in engenheiros_list %}
@@ -155,43 +181,28 @@
             </div>
             {% endif %}
             
-            <div class="filter-group-small">
-                <label for="credor" class="filter-label">
-                    Credor:
-                </label>
+            <div class="filter-field filter-field--credor">
+                <label for="credor" class="filter-label">Credor</label>
                 <input 
                     type="text" 
                     id="credor" 
                     name="credor" 
                     value="{{ credor_filter|default:'' }}"
-                    placeholder="Nome do credor..."
+                    placeholder="Nome do credor…"
                     class="filter-input"
                 >
             </div>
-            
-            <div class="filter-group-small">
-                <label for="data_inicio" class="filter-label">
-                    Data Início:
-                </label>
-                <input 
-                    type="date" 
-                    id="data_inicio" 
-                    name="data_inicio" 
-                    value="{{ data_inicio }}"
-                    class="filter-input"
-                >
+                </div>
             </div>
-            <div class="filter-group-small">
-                <label for="data_fim" class="filter-label">
-                    Data Fim:
-                </label>
-                <input 
-                    type="date" 
-                    id="data_fim" 
-                    name="data_fim" 
-                    value="{{ data_fim|default:'' }}"
-                    class="filter-input"
-                >
+
+            <div class="filter-advanced-footer">
+                <div class="filter-advanced-footer-text">
+                    <span class="filter-advanced-footer-title">Download em PDF</span>
+                    <span class="filter-advanced-footer-hint">Usa os mesmos filtros da tabela abaixo.</span>
+                </div>
+                <button type="button" class="btn filter-btn btn-export-pdf" id="export-list-pdf-btn">
+                    <span class="btn-export-pdf__label">Gerar PDF</span>
+                </button>
             </div>
         </div>
     </form>
@@ -309,6 +320,16 @@
                             <span class="sort-indicator"></span>
                         </div>
                     </th>
+                    <th class="sortable" data-sort="data_aprovacao">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Data Aprovação
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
                     <th class="text-center">Ações</th>
                 </tr>
             </thead>
@@ -402,6 +423,15 @@
                                 <span>{{ workorder.data_envio|date:"d/m/Y H:i"|default:"-" }}</span>
                             </div>
                         </td>
+                        <td data-label="Data Aprovação">
+                            <div class="cell-with-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                <span>{{ workorder.data_aprovacao|date:"d/m/Y H:i"|default:"-" }}</span>
+                            </div>
+                        </td>
                         <td class="text-center" data-label="Ações">
                             <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn action-btn">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -422,13 +452,13 @@
         <div class="pagination-wrapper">
             <div class="pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Primeira página">
+                    <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Primeira página">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="11 17 6 12 11 7"></polyline>
                             <polyline points="18 17 13 12 18 7"></polyline>
                         </svg>
                     </a>
-                    <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn" title="Página anterior">
+                    <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn" title="Página anterior">
                         Anterior
                     </a>
                 {% else %}
@@ -443,7 +473,7 @@
                 
                 <div class="pagination-numbers">
                     {% if page_obj.number > 3 %}
-                        <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-number">1</a>
+                        <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">1</a>
                         {% if page_obj.number > 4 %}
                             <span class="pagination-ellipsis">...</span>
                         {% endif %}
@@ -453,7 +483,7 @@
                         {% if num == page_obj.number %}
                             <span class="pagination-number pagination-number-active">{{ num }}</span>
                         {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
-                            <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-number">{{ num }}</a>
+                            <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">{{ num }}</a>
                         {% endif %}
                     {% endfor %}
                     
@@ -461,15 +491,15 @@
                         {% if page_obj.number < page_obj.paginator.num_pages|add:"-3" %}
                             <span class="pagination-ellipsis">...</span>
                         {% endif %}
-                        <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-number">{{ page_obj.paginator.num_pages }}</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">{{ page_obj.paginator.num_pages }}</a>
                     {% endif %}
                 </div>
                 
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn" title="Próxima página">
+                    <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn" title="Próxima página">
                         Próxima
                     </a>
-                    <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Última página">
+                    <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Última página">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="13 17 18 12 13 7"></polyline>
                             <polyline points="6 17 11 12 6 7"></polyline>
@@ -514,15 +544,26 @@ function toggleFilters() {
     const advancedFilters = document.getElementById('advanced-filters');
     const toggleText = document.getElementById('toggle-filters-text');
     const toggleIcon = document.getElementById('toggle-filters-icon');
-    
-    if (advancedFilters.style.display === 'none' || advancedFilters.style.display === '') {
+    const toggleBtn = document.getElementById('toggle-filters-btn');
+    if (!advancedFilters || !toggleText) return;
+    const isHidden = advancedFilters.style.display === 'none' || advancedFilters.style.display === '';
+
+    if (isHidden) {
         advancedFilters.style.display = 'grid';
-        toggleText.textContent = 'Ocultar Filtros Avançados';
-        toggleIcon.style.transform = 'rotate(180deg)';
+        toggleText.textContent = 'Ocultar filtros';
+        if (toggleIcon) toggleIcon.style.transform = 'rotate(180deg)';
+        if (toggleBtn) {
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleBtn.classList.add('is-open');
+        }
     } else {
         advancedFilters.style.display = 'none';
-        toggleText.textContent = 'Mostrar Filtros Avançados';
-        toggleIcon.style.transform = 'rotate(0deg)';
+        toggleText.textContent = 'Exportar PDF';
+        if (toggleIcon) toggleIcon.style.transform = 'rotate(0deg)';
+        if (toggleBtn) {
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            toggleBtn.classList.remove('is-open');
+        }
     }
 }
 
@@ -548,9 +589,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const advancedFilters = document.getElementById('advanced-filters');
         const toggleText = document.getElementById('toggle-filters-text');
         const toggleIcon = document.getElementById('toggle-filters-icon');
-        advancedFilters.style.display = 'grid';
-        toggleText.textContent = 'Ocultar Filtros Avançados';
-        toggleIcon.style.transform = 'rotate(180deg)';
+        const toggleBtn = document.getElementById('toggle-filters-btn');
+        if (advancedFilters) advancedFilters.style.display = 'grid';
+        if (toggleText) toggleText.textContent = 'Ocultar filtros';
+        if (toggleIcon) toggleIcon.style.transform = 'rotate(180deg)';
+        if (toggleBtn) {
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleBtn.classList.add('is-open');
+        }
     }
     
     // Adicionar eventos de ordenação
@@ -564,6 +610,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'nome_credor': 'nome_credor',
         'criado_por': 'criado_por__first_name',
         'data_envio': 'data_envio',
+        'data_aprovacao': 'data_aprovacao',
         'analisado': 'marcado_para_deletar'
     };
     
@@ -600,19 +647,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 {% if pode_marcar_analisado %}
-// CSRF: em settings, CSRF_COOKIE_HTTPONLY=True → getCookie('csrftoken') não funciona no JS.
-// Usar input [name=csrfmiddlewaretoken] (base + esta página), ou API abaixo.
-var _gestaoCsrfApiUrl = '{% url "api_csrf_token" %}';
+// CSRF: cookie HttpOnly — usar meta csrf-token, inputs hidden ou gestao_csrf_api_url (reverse Django).
+// marcar: data-url no checkbox ou gestao_marcar_analisado_url_tpl (nunca path fixo /gestao/...).
+var _gestaoCsrfApiUrl = "{{ gestao_csrf_api_url|escapejs }}";
+var _gestaoMarcarUrlTpl = "{{ gestao_marcar_analisado_url_tpl|escapejs }}";
+var _gestaoMarcarPkPh = "{{ gestao_marcar_url_pk_placeholder|escapejs }}";
 
 function getCsrfTokenForGestao() {
     var t = getCookie('csrftoken');
-    if (t) return t;
+    if (t && String(t).trim()) return String(t).trim();
     var inputs = document.querySelectorAll('[name=csrfmiddlewaretoken]');
     for (var i = 0; i < inputs.length; i++) {
-        if (inputs[i].value) return inputs[i].value;
+        var v = inputs[i].value;
+        if (v && String(v).trim()) return String(v).trim();
     }
     var metaTag = document.querySelector('meta[name=csrf-token]');
-    if (metaTag && metaTag.getAttribute('content')) return metaTag.getAttribute('content');
+    if (metaTag) {
+        var c = metaTag.getAttribute('content');
+        if (c && String(c).trim()) return String(c).trim();
+    }
     return '';
 }
 
@@ -625,51 +678,73 @@ function fetchCsrfTokenFromApi() {
         if (!r.ok) throw new Error('csrf-api');
         return r.json();
     }).then(function(d) {
-        return (d && (d.csrfToken || d.csrf_token)) ? (d.csrfToken || d.csrf_token) : '';
+        var raw = (d && (d.csrfToken || d.csrf_token)) ? (d.csrfToken || d.csrf_token) : '';
+        return String(raw || '').trim();
     });
 }
 
 // Função para marcar pedido como analisado
 function marcarPedidoAnalisado(checkbox, pedidoId) {
+    if (checkbox.getAttribute('data-analisado-busy') === '1') return;
+
     var marcado = checkbox.checked;
     var label = checkbox.closest('label');
     var originalState = !marcado;
 
-    checkbox.disabled = true;
+    if (!label) {
+        console.error('marcarPedidoAnalisado: label não encontrado');
+        return;
+    }
+
+    checkbox.setAttribute('data-analisado-busy', '1');
     label.style.opacity = '0.6';
+    label.style.pointerEvents = 'none';
 
     var tokenSync = getCsrfTokenForGestao();
     var tokenPromise = tokenSync ? Promise.resolve(tokenSync) : fetchCsrfTokenFromApi();
 
     tokenPromise.then(function(csrftoken) {
+        csrftoken = (csrftoken || '').trim();
         if (!csrftoken) throw new Error('csrf-missing');
-        var requestUrl = checkbox.dataset.url || ('/gestao/pedidos/' + pedidoId + '/marcar-analisado/');
-        var body = 'marcado=' + (marcado ? 'true' : 'false') + '&csrfmiddlewaretoken=' + encodeURIComponent(csrftoken);
+        var requestUrl = checkbox.getAttribute('data-url');
+        if (!requestUrl && typeof _gestaoMarcarUrlTpl !== 'undefined' && _gestaoMarcarUrlTpl && _gestaoMarcarPkPh) {
+            requestUrl = _gestaoMarcarUrlTpl.split(_gestaoMarcarPkPh).join(String(pedidoId));
+        }
+        if (!requestUrl) throw new Error('url-missing');
+        var params = new URLSearchParams();
+        params.set('marcado', marcado ? 'true' : 'false');
+        params.set('csrfmiddlewaretoken', csrftoken);
         return fetch(requestUrl, {
             method: 'POST',
             credentials: 'same-origin',
+            redirect: 'follow',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'X-CSRFToken': csrftoken,
                 'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
+                'Accept': 'application/json, text/javascript, */*;q=0.01'
             },
-            body: body
+            body: params.toString()
         });
     }).then(function(response) {
+        var ct = (response.headers.get('content-type') || '').toLowerCase();
         if (!response.ok) {
-            return response.json().then(function(data) {
-                throw new Error((data && data.error) ? data.error : ('Erro ' + response.status));
-            }, function() {
-                throw new Error('Não foi possível salvar (sessão ou rede). Recarregue a página.');
-            });
+            if (ct.indexOf('application/json') !== -1) {
+                return response.json().then(function(data) {
+                    throw new Error((data && data.error) ? data.error : ('Erro ' + response.status));
+                });
+            }
+            throw new Error('Erro ' + response.status + '. Recarregue a página ou entre novamente.');
         }
-        return response.json().catch(function() {
-            return { success: true, marcado: marcado };
-        });
+        if (ct.indexOf('application/json') === -1) {
+            throw new Error('Resposta não é JSON (sessão expirou?). Recarregue a página e tente de novo.');
+        }
+        return response.json();
     }).then(function(data) {
         if (data && data.success) {
-            if (marcado) {
+            var m = (data.marcado !== undefined && data.marcado !== null) ? !!data.marcado : marcado;
+            checkbox.checked = m;
+            if (m) {
                 label.style.backgroundColor = '#fee2e2';
                 label.style.borderColor = '#dc3545';
             } else {
@@ -689,8 +764,9 @@ function marcarPedidoAnalisado(checkbox, pedidoId) {
         console.error('marcarPedidoAnalisado:', err);
         alert(msg);
     }).finally(function() {
-        checkbox.disabled = false;
+        checkbox.removeAttribute('data-analisado-busy');
         label.style.opacity = '1';
+        label.style.pointerEvents = '';
     });
 }
 

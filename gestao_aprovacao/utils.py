@@ -2,10 +2,39 @@
 Utilitários para verificação de permissões e perfis de usuário.
 """
 from functools import wraps
+from django.conf import settings
 from django.shortcuts import redirect
 from django.contrib import messages
 from accounts.groups import GRUPOS
 from .models import Notificacao
+
+# Coluna "Analisado" (lista de pedidos): e-mails fixos + EMAIL_DEPARTAMENTOS_APROVACAO + superuser.
+_EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT = frozenset({
+    "luiz.henrique@lplan.com.br",
+    "luizdomingos@lplan.com.br",
+})
+
+
+def _frozenset_emails_marcar_pedido_analisado():
+    s = set(_EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT)
+    for e in getattr(settings, "EMAIL_DEPARTAMENTOS_APROVACAO", None) or []:
+        e = (e or "").strip().lower()
+        if e:
+            s.add(e)
+    return frozenset(s)
+
+
+_EMAILS_MARCAR_PEDIDO_ANALISADO = _frozenset_emails_marcar_pedido_analisado()
+
+
+def usuario_pode_marcar_pedido_analisado(user):
+    """
+    Quem pode usar o checkbox "Analisado" na lista de pedidos (GestControll).
+    """
+    if getattr(user, "is_superuser", False):
+        return True
+    email = (getattr(user, "email", None) or "").strip().lower()
+    return bool(email and email in _EMAILS_MARCAR_PEDIDO_ANALISADO)
 
 
 def get_user_profile(user):
