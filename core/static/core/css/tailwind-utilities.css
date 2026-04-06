@@ -53,6 +53,8 @@
 .w-56 { width: 14rem; }
 .w-64 { width: 16rem; }
 .max-w-md { max-width: 28rem; }
+/* Mesma coluna central do Diário de Obras / telas com cards (72rem ≈ 1152px) */
+.max-w-6xl { max-width: 72rem; }
 .min-w-0 { min-width: 0; }
 .min-w-full { min-width: 100%; }
 .h-full { height: 100%; }
@@ -198,6 +200,8 @@
 .text-red-600 { color: #dc2626; }
 .text-red-700 { color: #b91c1c; }
 .text-green-500 { color: #22c55e; }
+.text-green-600 { color: #16a34a; }
+.text-green-700 { color: #15803d; }
 .text-green-800 { color: #166534; }
 
 /* ============================================

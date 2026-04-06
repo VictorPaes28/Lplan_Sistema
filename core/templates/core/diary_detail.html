@@ -136,10 +136,10 @@
             <textarea name="comment" rows="2" class="w-full md:w-80 border border-blue-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Comentário (obrigatório para reprovar)"></textarea>
             <div class="flex gap-2">
                 <button type="submit" name="decision" value="approve" class="diary-detail-action-btn px-3 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 text-sm font-medium">
-                    <i class="fas fa-check mr-1"></i>Aprovar e enviar
+                    <i class="fas fa-check mr-2"></i>Aprovar e enviar
                 </button>
                 <button type="submit" name="decision" value="reject" class="diary-detail-action-btn px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
-                    <i class="fas fa-times mr-1"></i>Reprovar
+                    <i class="fas fa-times mr-2"></i>Reprovar
                 </button>
             </div>
         </form>
@@ -293,8 +293,9 @@
                     <i class="fas fa-sun text-yellow-500 mr-3"></i>Manhã
                 </p>
                 <div class="flex items-center">
-                    <i class="fas fa-{{ weather_morning.icon }} text-3xl mr-5"
-                       style="{% if weather_morning.color == 'yellow' %}color:#eab308;{% elif weather_morning.color == 'blue' %}color:#3b82f6;{% elif weather_morning.color == 'gray' %}color:#6b7280;{% elif weather_morning.color == 'indigo' %}color:#6366f1;{% elif weather_morning.color == 'purple' %}color:#a855f7;{% elif weather_morning.color == 'orange' %}color:#f97316;{% else %}color:#6b7280;{% endif %}"></i>
+                    {% with weather_morning.color as wc %}
+                    <i class="fas fa-{{ weather_morning.icon }} text-3xl mr-5 weather-icon-color--{{ wc|default:'gray' }}"></i>
+                    {% endwith %}
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ weather_morning.label }}</p>
                         <p class="text-sm text-gray-600">{{ weather_morning.condition }}</p>
@@ -308,8 +309,9 @@
                     <i class="fas fa-sun text-orange-500 mr-3"></i>Tarde
                 </p>
                 <div class="flex items-center">
-                    <i class="fas fa-{{ weather_afternoon.icon }} text-3xl mr-5"
-                       style="{% if weather_afternoon.color == 'yellow' %}color:#eab308;{% elif weather_afternoon.color == 'blue' %}color:#3b82f6;{% elif weather_afternoon.color == 'gray' %}color:#6b7280;{% elif weather_afternoon.color == 'indigo' %}color:#6366f1;{% elif weather_afternoon.color == 'purple' %}color:#a855f7;{% elif weather_afternoon.color == 'orange' %}color:#f97316;{% else %}color:#6b7280;{% endif %}"></i>
+                    {% with weather_afternoon.color as wc %}
+                    <i class="fas fa-{{ weather_afternoon.icon }} text-3xl mr-5 weather-icon-color--{{ wc|default:'gray' }}"></i>
+                    {% endwith %}
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ weather_afternoon.label }}</p>
                         <p class="text-sm text-gray-600">{{ weather_afternoon.condition }}</p>
@@ -323,8 +325,9 @@
                     <i class="fas fa-moon text-indigo-500 mr-3"></i>Noite
                 </p>
                 <div class="flex items-center">
-                    <i class="fas fa-{{ weather_night.icon }} text-3xl mr-5"
-                       style="{% if weather_night.color == 'yellow' %}color:#eab308;{% elif weather_night.color == 'blue' %}color:#3b82f6;{% elif weather_night.color == 'gray' %}color:#6b7280;{% elif weather_night.color == 'indigo' %}color:#6366f1;{% elif weather_night.color == 'purple' %}color:#a855f7;{% elif weather_night.color == 'orange' %}color:#f97316;{% else %}color:#6b7280;{% endif %}"></i>
+                    {% with weather_night.color as wc %}
+                    <i class="fas fa-{{ weather_night.icon }} text-3xl mr-5 weather-icon-color--{{ wc|default:'gray' }}"></i>
+                    {% endwith %}
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ weather_night.label }}</p>
                         <p class="text-sm text-gray-600">{{ weather_night.condition }}</p>

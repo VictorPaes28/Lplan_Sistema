@@ -17,6 +17,7 @@ import os
 import csv
 import io
 import logging
+import uuid
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -50,6 +51,31 @@ from accounts.signup_services import (
     notify_signup_request_created,
 )
 from core.user_messages import flash_message
+
+
+# --- Proteção contra duplo envio (double-submit) via token de idempotência ---
+_FORM_TOKEN_SESSION_PREFIX = '_form_submit_token_'
+
+
+def _generate_form_token(request, form_name: str) -> str:
+    """Gera e guarda na sessão um token UUID único para o formulário dado.
+    Use na view GET para injetar o token no contexto e depois no template como campo oculto."""
+    token = str(uuid.uuid4())
+    request.session[_FORM_TOKEN_SESSION_PREFIX + form_name] = token
+    return token
+
+
+def _consume_form_token(request, form_name: str, posted_token: str) -> bool:
+    """Valida e consome (remove) o token de sessão.
+    Retorna True se o token é válido (primeira submissão).
+    Retorna False se o token já foi usado ou não existe (duplo envio)."""
+    session_key = _FORM_TOKEN_SESSION_PREFIX + form_name
+    expected = request.session.get(session_key)
+    if not expected or not posted_token or expected != posted_token:
+        return False
+    # Consome o token — uma única vez
+    del request.session[session_key]
+    return True
 
 
 # --- Evitar que o botão "Voltar" do navegador retorne a formulários já submetidos ---
@@ -675,6 +701,14 @@ def create_workorder(request):
     is_solicitante_only = (is_solicitante_group or tem_permissao_solicitante) and not (is_aprovador(request.user) or is_admin(request.user))
     
     if request.method == 'POST':
+        posted_token = request.POST.get('_form_token', '')
+        if not _consume_form_token(request, 'create_workorder', posted_token):
+            messages.warning(
+                request,
+                'O pedido já foi enviado. Verifique a lista de pedidos antes de tentar novamente.'
+            )
+            return redirect('gestao:list_workorders')
+
         form = WorkOrderForm(request.POST, user=request.user, is_creating=True)
         
         # Validar anexos obrigatórios para solicitantes
@@ -853,6 +887,7 @@ def create_workorder(request):
         'title': 'Criar Novo Pedido de Obra',
         'user_profile': get_user_profile(request.user),
         'is_solicitante': is_solicitante_only,
+        'form_token': _generate_form_token(request, 'create_workorder'),
     }
     response = render(request, 'obras/workorder_form.html', context)
     return _no_cache_form_response(response)
