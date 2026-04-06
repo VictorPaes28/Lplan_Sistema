@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.urls import reverse
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, time
 from urllib.parse import urlencode
 import os
 import csv
@@ -298,16 +298,31 @@ def _filter_workorders_by_envio_or_created_date(workorders, start_date, end_date
     """
     Data de referência = data_envio quando preenchida; senão created_at.
     Equivalente ao Coalesce(data_envio, created_at) em filtros por dia.
+    Evita lookups __date para não depender de tabelas de timezone no MySQL.
     """
     eff_end = end_date if end_date is not None else timezone.localdate()
+    if start_date and start_date > eff_end:
+        start_date, eff_end = eff_end, start_date
+
+    current_tz = timezone.get_current_timezone()
+    start_dt = None
+    if start_date:
+        start_dt = timezone.make_aware(datetime.combine(start_date, time.min), current_tz)
+    end_exclusive = timezone.make_aware(
+        datetime.combine(eff_end + timedelta(days=1), time.min),
+        current_tz,
+    )
+
     q_branch1 = Q(data_envio__isnull=False)
-    if start_date:
-        q_branch1 &= Q(data_envio__date__gte=start_date)
-    q_branch1 &= Q(data_envio__date__lte=eff_end)
+    if start_dt:
+        q_branch1 &= Q(data_envio__gte=start_dt)
+    q_branch1 &= Q(data_envio__lt=end_exclusive)
+
     q_branch2 = Q(data_envio__isnull=True)
-    if start_date:
-        q_branch2 &= Q(created_at__date__gte=start_date)
-    q_branch2 &= Q(created_at__date__lte=eff_end)
+    if start_dt:
+        q_branch2 &= Q(created_at__gte=start_dt)
+    q_branch2 &= Q(created_at__lt=end_exclusive)
+
     return workorders.filter(q_branch1 | q_branch2)
 
 
@@ -359,6 +374,8 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
         data_inicio_raw = ''
     if data_fim_raw and end_date is None:
         data_fim_raw = ''
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
 
     data_inicio = start_date.strftime('%Y-%m-%d') if start_date else ''
     data_fim = end_date.strftime('%Y-%m-%d') if end_date else ''
