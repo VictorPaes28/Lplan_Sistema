@@ -24,6 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db import models
 from apps.suprimentos.models import Obra, ItemMapa, RecebimentoObra, Insumo
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
 import pandas as pd
@@ -152,12 +153,13 @@ class Command(BaseCommand):
             'descricao_insumo': ['DESCRIÇÃO DO INSUMO', 'DESCRICAO DO INSUMO', 'DESCRIÇÃO', 'DESCRICAO', 'DESC INSUMO', 'DESCRIÇÃO DO INSUMO', 'DESC. INSUMO'],
             'quantidade_solicitada': ['QT. SOLICITADA', 'QT SOLICITADA', 'QUANTIDADE SOLICITADA', 'QTD SOLICITADA', 'QUANT SOLICITADA', 'QT SOLICITADA'],
             'data_sc': ['DATA DA SC', 'DATA SC', 'DATA_SOLICITACAO', 'DATA SC'],
-            'numero_sc': ['Nº DA SC', 'N DA SC', 'NUMERO SC', 'NUMERO_DA_SC', 'SC', 'NSC', 'N. DA SC', 'N. SC'],
-            'numero_pc': ['Nº DO PC', 'N DO PC', 'NUMERO PC', 'NUMERO_DO_PC', 'PC', 'NPC', 'N. DO PC', 'N. PC'],
+            # "NO ..." = export sem símbolo º ou com Nº normalizado diferente do Sienge padrão (ex.: Rpontes)
+            'numero_sc': ['Nº DA SC', 'NO DA SC', 'N DA SC', 'NUMERO SC', 'NUMERO_DA_SC', 'SC', 'NSC', 'N. DA SC', 'N. SC'],
+            'numero_pc': ['Nº DO PC', 'NO DO PC', 'N DO PC', 'NUMERO PC', 'NUMERO_DO_PC', 'PC', 'NPC', 'N. DO PC', 'N. PC'],
             'previsao_entrega': ['PREVISÃO DE ENTREGA', 'PREVISAO DE ENTREGA', 'PRAZO ENTREGA', 'PRAZO_RECEBIMENTO', 'PREVISÃO ENTREGA'],
             'quantidade_entregue': ['QUANT. ENTREGUE', 'QUANT ENTREGUE', 'QTD ENTREGUE', 'QUANTIDADE ENTREGUE', 'QTD_ENTREGUE', 'QT. ENTREGUE'],
             'saldo': ['SALDO', 'SALDO A ENTREGAR', 'SALDO_A_ENTREGAR', 'SALDO ENTREGAR'],
-            'numero_nf': ['Nº DA NF', 'N DA NF', 'NUMERO NF', 'NUMERO_DA_NF', 'NF', 'NNF', 'N. DA NF', 'N. NF'],
+            'numero_nf': ['Nº DA NF', 'NO DA NF', 'N DA NF', 'NUMERO NF', 'NUMERO_DA_NF', 'NF', 'NNF', 'N. DA NF', 'N. NF'],
             'data_nf': ['DATA DA NF', 'DATA NF', 'DATA_NOTA_FISCAL', 'DATA NF'],
             'data_emissao_pc': ['DATA EMISSÃO DO PC', 'DATA EMISSAO DO PC', 'DATA_PC', 'DATA DO PC', 'DATA EMISSÃO PC'],
             'empresa_fornecedora': ['FORNECEDOR', 'EMPRESA', 'EMPRESA FORNECEDORA', 'RAZAO SOCIAL', 'EMPRESA FORNECEDORA'],
@@ -197,6 +199,20 @@ class Command(BaseCommand):
         # Caches
         obras_cache = {}
         insumos_cache = {}
+
+        def _chave_desc_recon(s):
+            if s is None:
+                return ''
+            return ' '.join(str(s).strip().split()).lower()
+
+        sm_lev_por_desc = defaultdict(list)
+        for ins in Insumo.objects.only(
+            'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
+        ).iterator(chunk_size=500):
+            code = ins.codigo_sienge or ''
+            if not code.startswith('SM-LEV-'):
+                continue
+            sm_lev_por_desc[_chave_desc_recon(ins.descricao)].append(ins)
         
         def get_obra(codigo):
             codigo_str = str(codigo).strip()
@@ -253,22 +269,19 @@ class Command(BaseCommand):
             # Reconciliar insumo criado no levantamento (código provisório) pelo nome
             # Isso permite que insumos criados manualmente no levantamento sejam vinculados ao código do Sienge
             if desc_norm:
-                candidato = Insumo.objects.filter(
-                    descricao__iexact=desc_norm,
-                    codigo_sienge__startswith='SM-LEV-'
-                ).first()
+                k = _chave_desc_recon(descricao)
+                cands = sm_lev_por_desc.get(k, [])
+                candidato = cands[0] if cands else None
                 if candidato:
-                    # Atualizar código provisório para o código real do Sienge
                     candidato.codigo_sienge = codigo_str
                     candidato.descricao = desc_norm[:500]
-                    # ⚠️ UNIDADE: Não tentar ler do CSV - deve ser definida manualmente no cadastro do insumo
-                    # Se não tiver unidade definida, usar 'UND' apenas como fallback temporário
-                    # O usuário deve ajustar manualmente no cadastro do insumo
                     if not candidato.unidade or candidato.unidade.strip() == '':
-                        candidato.unidade = 'UND'  # Fallback temporário - ajustar manualmente
-                    # Identificar automaticamente se é macroelemento
+                        candidato.unidade = 'UND'
                     candidato.eh_macroelemento = candidato.identificar_eh_macroelemento()
                     candidato.save()
+                    sm_lev_por_desc[k] = [x for x in cands if x.pk != candidato.pk]
+                    if not sm_lev_por_desc[k]:
+                        del sm_lev_por_desc[k]
                     insumos_cache[codigo_str] = candidato
                     return candidato
 

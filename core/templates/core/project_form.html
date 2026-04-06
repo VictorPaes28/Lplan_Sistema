@@ -112,6 +112,22 @@
                     {% endif %}
                     <p class="help-text">Código único do projeto (ex: PROJ-2024-001)</p>
                 </div>
+
+                <!-- Códigos Sienge alternativos (importação Mapa) -->
+                <div class="form-group">
+                    <label for="{{ form.sienge_codigos_alternativos.id_for_label }}">
+                        Códigos Sienge alternativos
+                    </label>
+                    {{ form.sienge_codigos_alternativos }}
+                    {% if form.sienge_codigos_alternativos.errors %}
+                        <p class="error-text">{{ form.sienge_codigos_alternativos.errors.0 }}</p>
+                    {% endif %}
+                    <p class="help-text">
+                        Opcional. Use quando o Excel do Mapa traz outro código de obra que é o mesmo projeto
+                        (ex.: código principal <strong>260</strong> e o arquivo cita <strong>42</strong>).
+                        Separe por vírgula ou linha. Afeta a importação em Engenharia → Mapa de suprimentos.
+                    </p>
+                </div>
                 
                 <!-- Descrição -->
                 <div class="form-group">

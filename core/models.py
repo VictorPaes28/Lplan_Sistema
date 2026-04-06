@@ -111,6 +111,14 @@ class Project(models.Model):
         verbose_name='Ativo',
         help_text='Indica se o projeto está ativo'
     )
+    sienge_codigos_alternativos = models.TextField(
+        blank=True,
+        verbose_name='Códigos Sienge alternativos (Mapa de suprimentos)',
+        help_text=(
+            'Outros códigos de obra no Sienge que devem apontar para este projeto na importação MAPA '
+            '(ex.: MAPA envia 42 e o código principal da obra é 260). Separar por vírgula, ponto e vírgula ou linha.'
+        ),
+    )
 
     class Meta:
         verbose_name = 'Projeto'
@@ -964,7 +972,8 @@ class ConstructionDiary(models.Model):
         Quem pode editar é definido pela view (acesso à obra); aqui só checamos status.
         - Ninguém edita quando status = APROVADO, exceto se houver liberação provisória
           (provisional_edit_granted_at) após pedido aprovado pelo staff.
-        - Quando status = PREENCHENDO ou SALVAMENTO_PARCIAL: editável conforme permissão na obra.
+        - Enquanto não estiver APROVADO (inclusive AGUARDANDO_APROVACAO_GESTOR):
+          editável conforme permissão na obra.
         """
         if getattr(self, 'provisional_edit_granted_at', None):
             return True
@@ -973,6 +982,7 @@ class ConstructionDiary(models.Model):
         if self.status in (
             DiaryStatus.PREENCHENDO,
             DiaryStatus.SALVAMENTO_PARCIAL,
+            DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
             DiaryStatus.REPROVADO_GESTOR,
         ):
             return True

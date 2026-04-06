@@ -970,6 +970,7 @@ class ProjectForm(forms.ModelForm):
         fields = [
             'name',
             'code',
+            'sienge_codigos_alternativos',
             'description',
             'address',
             'responsible',
@@ -984,6 +985,11 @@ class ProjectForm(forms.ModelForm):
             'code': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
                 'placeholder': 'Código único (ex: PROJ-2024-001)'
+            }),
+            'sienge_codigos_alternativos': forms.Textarea(attrs={
+                'rows': 2,
+                'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
+                'placeholder': 'Ex.: 42 (um por linha ou separados por vírgula)',
             }),
             'description': forms.Textarea(attrs={
                 'rows': 3,

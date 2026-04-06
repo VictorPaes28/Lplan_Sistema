@@ -5,7 +5,8 @@ from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, DateTimeField
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
@@ -19,7 +20,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, LongTable
+from xml.sax.saxutils import escape as xml_escape
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from .models import (
     Empresa, Obra, WorkOrder, Approval, Attachment, StatusHistory,
@@ -230,18 +232,11 @@ def home(request):
 # ========== CRUD WorkOrder ==========
 # Autenticação (login/logout) centralizada no app 'accounts'.
 
-@login_required
-def list_workorders(request):
+def _workorders_base_queryset_and_obras(user):
     """
-    Lista pedidos de obra. Regra única no GestControll:
-    - Admin: vê todos.
-    - Aprovador / Responsável: vê por permissão por obra ou por empresas que gerencia.
-    - Solicitante: vê só as obras em que foi vinculado (WorkOrderPermission). Se não tiver nenhuma obra, vê só os pedidos que ele criou.
+    Retorna (queryset base, obras_disponiveis) conforme permissão multi-tenant.
+    Mesma regra de list_workorders / exportação.
     """
-    user = request.user
-    user_profile = get_user_profile(user)
-    
-    # Determinar quais pedidos mostrar baseado em obras e permissões
     if is_admin(user):
         workorders = WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por').all()
         obras_disponiveis = Obra.objects.filter(ativo=True)
@@ -253,19 +248,16 @@ def list_workorders(request):
             ativo=True
         ).distinct()
         empresas_ids = [e for e in obras_com_permissao.values_list('empresa_id', flat=True).distinct() if e is not None]
-        # Obras com empresa: todas da mesma empresa; obras sem empresa: só as que têm permissão
         obras_com_empresa = Obra.objects.filter(empresa_id__in=empresas_ids, ativo=True).distinct()
         obras_sem_empresa = obras_com_permissao.filter(empresa_id__isnull=True)
         obras_aprovador = (obras_com_empresa | obras_sem_empresa).distinct()
         workorders = WorkOrder.objects.filter(obra__in=obras_aprovador).select_related('obra', 'obra__empresa', 'criado_por')
         obras_disponiveis = obras_aprovador
     elif is_responsavel_empresa(user):
-        # Responsável por empresa: só obras das empresas que ele gerencia
         empresas_resp = Empresa.objects.filter(responsavel=user, ativo=True)
         obras_disponiveis = Obra.objects.filter(empresa__in=empresas_resp, ativo=True).distinct()
         workorders = WorkOrder.objects.filter(obra__in=obras_disponiveis).select_related('obra', 'obra__empresa', 'criado_por')
     else:
-        # Solicitantes: só veem obras em que foram vinculados (WorkOrderPermission). Uma única regra.
         obras_solicitante = Obra.objects.filter(
             permissoes__usuario=user,
             permissoes__tipo_permissao='solicitante',
@@ -283,63 +275,124 @@ def list_workorders(request):
             ).select_related('obra', 'obra__empresa', 'criado_por')
             obras_disponiveis = obras_solicitante
         else:
-            # Sem obras vinculadas: vê só os pedidos que ele mesmo criou (ou vazio)
             workorders = WorkOrder.objects.filter(criado_por=user).select_related('obra', 'obra__empresa', 'criado_por')
             obras_disponiveis = Obra.objects.filter(
                 id__in=workorders.values_list('obra_id', flat=True).distinct(),
                 ativo=True
             )
-    
-    # Filtros
-    obra_filter = request.GET.get('obra')
+    return workorders, obras_disponiveis
+
+
+def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_params):
+    """
+    Aplica filtros GET (ORM apenas). Valida obra contra obras_disponiveis.
+    Intervalo de datas: data de referência = Coalesce(data_envio, created_at).
+    Se data_fim vazia e houver data_inicio, fim = hoje local.
+    Se ambos vazios, não filtra por data.
+    """
+    obra_filter = get_params.get('obra')
+    obra_filter_out = ''
     if obra_filter:
-        workorders = workorders.filter(obra_id=obra_filter)
-    
-    status_filter = request.GET.get('status')
+        try:
+            obra_id = int(obra_filter)
+        except (ValueError, TypeError):
+            obra_filter_out = ''
+        else:
+            allowed = set(obras_disponiveis.values_list('id', flat=True))
+            if obra_id in allowed:
+                workorders = workorders.filter(obra_id=obra_id)
+                obra_filter_out = str(obra_id)
+            else:
+                workorders = workorders.none()
+                obra_filter_out = ''
+
+    status_filter = get_params.get('status')
     if status_filter:
         workorders = workorders.filter(status=status_filter)
-    
-    tipo_solicitacao_filter = request.GET.get('tipo_solicitacao')
+
+    tipo_solicitacao_filter = get_params.get('tipo_solicitacao')
     if tipo_solicitacao_filter:
         workorders = workorders.filter(tipo_solicitacao=tipo_solicitacao_filter)
-    
-    credor_filter = request.GET.get('credor')
+
+    credor_filter = (get_params.get('credor') or '').strip()
     if credor_filter:
         workorders = workorders.filter(nome_credor__icontains=credor_filter)
-    
-    engenheiro_filter = request.GET.get('engenheiro')
-    if engenheiro_filter:
+
+    engenheiro_filter = get_params.get('engenheiro')
+    if engenheiro_filter and (is_aprovador(user) or is_admin(user)):
         workorders = workorders.filter(criado_por_id=engenheiro_filter)
-    
-    # Filtro por período (data de envio)
-    data_inicio = request.GET.get('data_inicio')
-    if data_inicio:
+
+    data_inicio_raw = (get_params.get('data_inicio') or '').strip()
+    data_fim_raw = (get_params.get('data_fim') or '').strip()
+
+    start_date = None
+    if data_inicio_raw:
         try:
-            data_inicio_obj = datetime.strptime(data_inicio, '%Y-%m-%d').date()
-            workorders = workorders.filter(data_envio__gte=data_inicio_obj)
+            start_date = datetime.strptime(data_inicio_raw, '%Y-%m-%d').date()
         except (ValueError, TypeError):
-            data_inicio = None
-    
-    # Busca
-    search_query = request.GET.get('search')
+            data_inicio_raw = ''
+
+    end_date = None
+    if data_fim_raw:
+        try:
+            end_date = datetime.strptime(data_fim_raw, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            data_fim_raw = ''
+            end_date = None
+
+    if data_inicio_raw or data_fim_raw:
+        workorders = workorders.annotate(
+            ref_dt=Coalesce('data_envio', 'created_at', output_field=DateTimeField())
+        )
+        if start_date:
+            workorders = workorders.filter(ref_dt__date__gte=start_date)
+        eff_end = end_date if end_date is not None else timezone.localdate()
+        workorders = workorders.filter(ref_dt__date__lte=eff_end)
+
+    search_query = (get_params.get('search') or '').strip()
     if search_query:
         workorders = workorders.filter(
             Q(codigo__icontains=search_query) |
             Q(nome_credor__icontains=search_query) |
             Q(observacoes__icontains=search_query)
         )
-    
-    # Filtro por analisado (apenas para quem pode marcar como analisado)
-    analisado_filter = request.GET.get('analisado', None)
-    if analisado_filter:
-        if analisado_filter == 'sim':
-            workorders = workorders.filter(marcado_para_deletar=True)
-        elif analisado_filter == 'nao':
-            workorders = workorders.filter(marcado_para_deletar=False)
-    
-    # Ordenação
-    order_by = request.GET.get('order_by', '-created_at')
+
+    analisado_filter = get_params.get('analisado')
+    if analisado_filter == 'sim':
+        workorders = workorders.filter(marcado_para_deletar=True)
+    elif analisado_filter == 'nao':
+        workorders = workorders.filter(marcado_para_deletar=False)
+
+    order_by = get_params.get('order_by', '-created_at')
     workorders = workorders.order_by(order_by)
+
+    return workorders, {
+        'obra_filter': obra_filter_out,
+        'status_filter': status_filter or '',
+        'tipo_solicitacao_filter': tipo_solicitacao_filter or '',
+        'credor_filter': credor_filter,
+        'engenheiro_filter': engenheiro_filter if engenheiro_filter and (is_aprovador(user) or is_admin(user)) else '',
+        'analisado_filter': analisado_filter,
+        'data_inicio': data_inicio_raw,
+        'data_fim': data_fim_raw,
+        'search_query': search_query,
+        'order_by': order_by,
+    }
+
+
+@login_required
+def list_workorders(request):
+    """
+    Lista pedidos de obra. Regra única no GestControll:
+    - Admin: vê todos.
+    - Aprovador / Responsável: vê por permissão por obra ou por empresas que gerencia.
+    - Solicitante: vê só as obras em que foi vinculado (WorkOrderPermission). Se não tiver nenhuma obra, vê só os pedidos que ele criou.
+    """
+    user = request.user
+    user_profile = get_user_profile(user)
+
+    workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
+    workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
     
     # Paginação
     paginator = Paginator(workorders, 15)  # 15 por página
@@ -379,15 +432,6 @@ def list_workorders(request):
         'engenheiros_list': engenheiros_list,
         'pode_marcar_analisado': pode_marcar_analisado,
         'pode_criar_pedido': pode_criar_pedido,
-        'obra_filter': obra_filter,
-        'status_filter': status_filter,
-        'tipo_solicitacao_filter': tipo_solicitacao_filter,
-        'credor_filter': credor_filter,
-        'engenheiro_filter': engenheiro_filter,
-        'analisado_filter': analisado_filter,
-        'data_inicio': data_inicio if data_inicio else '',
-        'search_query': search_query,
-        'order_by': order_by,
         'aviso_sem_obras': aviso_sem_obras,
         'status_choices': [
             ('pendente', 'Pendente Aprovação'),
@@ -396,8 +440,165 @@ def list_workorders(request):
             ('reaprovacao', 'Reaprovação'),
         ],
         'tipo_solicitacao_choices': WorkOrder.TIPO_SOLICITACAO_CHOICES,
+        **filter_ctx,
     }
     return render(request, 'obras/list_workorders.html', context)
+
+
+def _pdf_esc(text):
+    return xml_escape(str(text if text is not None else ''), {'"': '&quot;', "'": '&#39;'})
+
+
+@login_required
+def export_list_workorders_pdf(request):
+    """
+    Exporta PDF da listagem de pedidos com os mesmos filtros da tela (GET).
+    Limite de linhas para evitar PDF excessivo.
+    """
+    user = request.user
+    workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
+    workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
+
+    MAX_ROWS = 3000
+    total_count = workorders.count()
+    items = list(workorders[:MAX_ROWS])
+
+    color_primary = colors.HexColor('#1A3A5C')
+    color_accent = colors.HexColor('#E8F0F8')
+    color_border = colors.HexColor('#D0D9E3')
+    color_text = colors.HexColor('#1C1C1C')
+
+    def _logo_path():
+        logo_dir = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'images')
+        for name in (
+            'lpla-logo-pdf-transparent.png', 'lpla-logo-pdf.png', 'lplan-logo2.png',
+            'lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg',
+        ):
+            p = os.path.join(logo_dir, name)
+            if os.path.exists(p):
+                return p
+        return None
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.7 * cm,
+        leftMargin=1.7 * cm,
+        topMargin=1.2 * cm,
+        bottomMargin=1.2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    normal = ParagraphStyle('ListPdfNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, textColor=color_text, leading=9)
+    th = ParagraphStyle('ListPdfTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=7.5, textColor=colors.white, alignment=TA_CENTER)
+    title_style = ParagraphStyle('ListPdfTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=13, textColor=color_primary, alignment=TA_CENTER)
+    sub_style = ParagraphStyle('ListPdfSub', parent=styles['Normal'], fontName='Helvetica', fontSize=8, textColor=color_primary, alignment=TA_CENTER)
+
+    story = []
+    title_main = Paragraph("<font color='#1A3A5C'><b>RELATÓRIO DE PEDIDOS DE OBRA</b></font>", title_style)
+    filtros_bits = [
+        f"Gerado em {timezone.now().strftime('%d/%m/%Y %H:%M')}",
+        f"Registros: {total_count}" + (f" (exportando até {MAX_ROWS})" if total_count > MAX_ROWS else ''),
+    ]
+    if filter_ctx.get('search_query'):
+        filtros_bits.append(f"Busca: {_pdf_esc(filter_ctx['search_query'])}")
+    if filter_ctx.get('obra_filter'):
+        filtros_bits.append(f"Obra ID: {_pdf_esc(filter_ctx['obra_filter'])}")
+    if filter_ctx.get('status_filter'):
+        filtros_bits.append(f"Status: {_pdf_esc(filter_ctx['status_filter'])}")
+    if filter_ctx.get('tipo_solicitacao_filter'):
+        filtros_bits.append(f"Tipo: {_pdf_esc(filter_ctx['tipo_solicitacao_filter'])}")
+    if filter_ctx.get('engenheiro_filter'):
+        filtros_bits.append(f"Solicitante ID: {_pdf_esc(filter_ctx['engenheiro_filter'])}")
+    if filter_ctx.get('credor_filter'):
+        filtros_bits.append(f"Credor: {_pdf_esc(filter_ctx['credor_filter'])}")
+    if filter_ctx.get('data_inicio') or filter_ctx.get('data_fim'):
+        filtros_bits.append(
+            f"Período (ref. envio/criação): {_pdf_esc(filter_ctx.get('data_inicio') or '—')} a {_pdf_esc(filter_ctx.get('data_fim') or timezone.localdate().strftime('%Y-%m-%d'))}"
+        )
+    title_sub = Paragraph(
+        "<font size='8' color='#1A3A5C'>GestControll · " + " · ".join(filtros_bits) + "</font>",
+        sub_style,
+    )
+
+    lp = _logo_path()
+    if lp:
+        from reportlab.platypus import Image as RLImage
+        logo = RLImage(lp, width=4.8 * cm, height=1.15 * cm)
+        text_block = Table([[title_main], [title_sub]], colWidths=[11.2 * cm])
+        text_block.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        hdr = Table([[logo, text_block]], colWidths=[4.8 * cm, 11.2 * cm])
+    else:
+        hdr = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+    hdr.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, -1), (-1, -1), 1.0, color_primary),
+    ]))
+    story.append(hdr)
+    story.append(Spacer(1, 0.35 * cm))
+
+    tipo_dict = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+    status_dict = dict(WorkOrder.STATUS_CHOICES)
+
+    data_rows = [[
+        Paragraph('Código', th),
+        Paragraph('Obra', th),
+        Paragraph('Credor', th),
+        Paragraph('Tipo', th),
+        Paragraph('Status', th),
+        Paragraph('Solicitante', th),
+        Paragraph('Data envio', th),
+        Paragraph('Criado em', th),
+    ]]
+    for wo in items:
+        sol = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
+        obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
+        data_rows.append([
+            Paragraph(_pdf_esc(wo.codigo), normal),
+            Paragraph(_pdf_esc(obra_txt), normal),
+            Paragraph(_pdf_esc((wo.nome_credor or '')[:42]), normal),
+            Paragraph(_pdf_esc(tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')), normal),
+            Paragraph(_pdf_esc(status_dict.get(wo.status, wo.status or '')), normal),
+            Paragraph(_pdf_esc(sol[:28]), normal),
+            Paragraph(_pdf_esc(wo.data_envio.strftime('%d/%m/%Y %H:%M') if wo.data_envio else '—'), normal),
+            Paragraph(_pdf_esc(wo.created_at.strftime('%d/%m/%Y %H:%M') if wo.created_at else '—'), normal),
+        ])
+
+    tbl = LongTable(data_rows, colWidths=[2.0 * cm, 2.4 * cm, 3.0 * cm, 2.2 * cm, 1.9 * cm, 2.2 * cm, 1.85 * cm, 1.85 * cm], repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+    ]))
+    story.append(tbl)
+    if total_count > MAX_ROWS:
+        story.append(Spacer(1, 0.2 * cm))
+        story.append(Paragraph(
+            f"<i>Lista truncada: {total_count} pedidos no filtro; exportados os primeiros {MAX_ROWS}.</i>",
+            ParagraphStyle('Trunc', parent=normal, fontSize=8, textColor=color_text),
+        ))
+
+    doc.build(story)
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    fname = f"relatorio_pedidos_{timezone.now().strftime('%Y%m%d_%H%M')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return response
 
 
 @login_required
@@ -803,6 +1004,329 @@ def detail_workorder(request, pk):
         'comments': comments,
     }
     return render(request, 'obras/detail_workorder.html', context)
+
+
+@login_required
+def exportar_snapshot_workorder_pdf(request, pk):
+    """Exporta um PDF rápido com os detalhes do pedido e linha do tempo."""
+    workorder = get_object_or_404(WorkOrder, pk=pk)
+    user = request.user
+
+    tem_permissao = False
+    if is_admin(user):
+        tem_permissao = True
+    elif is_aprovador(user):
+        if workorder.obra.empresa_id is None:
+            tem_permissao = WorkOrderPermission.objects.filter(
+                obra=workorder.obra, usuario=user, tipo_permissao='aprovador', ativo=True
+            ).exists()
+        else:
+            empresas_ids = Empresa.objects.filter(
+                obras__permissoes__usuario=user,
+                obras__permissoes__tipo_permissao='aprovador',
+                obras__permissoes__ativo=True
+            ).values_list('id', flat=True).distinct()
+            tem_permissao = workorder.obra.empresa_id in empresas_ids
+    elif is_engenheiro(user):
+        tem_permissao_obra = WorkOrderPermission.objects.filter(
+            obra=workorder.obra,
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True
+        ).exists()
+        is_solicitante_group = user.groups.filter(name='Solicitante').exists()
+        if workorder.criado_por == user:
+            tem_permissao = True
+        elif tem_permissao_obra or is_solicitante_group:
+            outros_solicitantes_obra = WorkOrderPermission.objects.filter(
+                obra=workorder.obra,
+                tipo_permissao='solicitante',
+                ativo=True
+            ).values_list('usuario_id', flat=True)
+            if workorder.criado_por_id:
+                criador_no_grupo = workorder.criado_por.groups.filter(name='Solicitante').exists()
+                criador_tem_permissao = workorder.criado_por.id in outros_solicitantes_obra
+            else:
+                criador_no_grupo = False
+                criador_tem_permissao = False
+            tem_permissao = bool(criador_no_grupo or criador_tem_permissao)
+
+    if not tem_permissao:
+        messages.error(request, 'Você não tem permissão para exportar este pedido.')
+        return redirect('gestao:list_workorders')
+
+    status_history = list(StatusHistory.objects.filter(work_order=workorder).order_by('created_at'))
+
+    def _safe(value, default='-'):
+        return value if value not in (None, '') else default
+
+    def _dt(value, default='-'):
+        if not value:
+            return default
+        return value.strftime('%d/%m/%Y %H:%M')
+
+    def _money(value):
+        if value in (None, ''):
+            return '-'
+        return f"R$ {value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    def _get_logo_path():
+        logo_dir = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'images')
+        for name in (
+            'lpla-logo-pdf-transparent.png',
+            'lpla-logo-pdf.png',
+            'lplan-logo2.png',
+            'lplan_logo.png',
+            'lplan_logo.jpg',
+            'lplan_logo.jpeg',
+        ):
+            path = os.path.join(logo_dir, name)
+            if os.path.exists(path):
+                return path
+        return None
+
+    # Paleta igual aos badges da UI (list_workorders.css)
+    status_palette = {
+        'criacao': {'bg': colors.HexColor('#e0e7ff'), 'fg': colors.HexColor('#3730a3')},      # rascunho
+        'envio': {'bg': colors.HexColor('#fef3c7'), 'fg': colors.HexColor('#92400e')},        # pendente
+        'reenviado': {'bg': colors.HexColor('#fed7aa'), 'fg': colors.HexColor('#9a3412')},    # reaprovacao
+        'reprovado': {'bg': colors.HexColor('#fee2e2'), 'fg': colors.HexColor('#991b1b')},
+        'aprovado': {'bg': colors.HexColor('#d1fae5'), 'fg': colors.HexColor('#065f46')},
+    }
+
+    color_primary = colors.HexColor('#1A3A5C')
+    color_accent = colors.HexColor('#E8F0F8')
+    color_border = colors.HexColor('#D0D9E3')
+    color_text = colors.HexColor('#1C1C1C')
+    color_sub = colors.HexColor('#5A5A5A')
+    color_info_bg = colors.HexColor('#F4F8FC')
+    status_labels = dict(WorkOrder.STATUS_CHOICES)
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.7 * cm,
+        leftMargin=1.7 * cm,
+        topMargin=1.7 * cm,
+        bottomMargin=1.5 * cm,
+    )
+    styles = getSampleStyleSheet()
+    elements = []
+
+    normal = ParagraphStyle('SnapNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leading=12)
+    label = ParagraphStyle('SnapLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=color_sub)
+    h2 = ParagraphStyle('SnapH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=color_primary, spaceAfter=6)
+    table_head = ParagraphStyle('SnapTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, textColor=colors.white, alignment=TA_CENTER)
+    badge_style = ParagraphStyle('SnapBadge', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.1, alignment=TA_CENTER, leading=10)
+    def _build_status_badge(label_text, palette_key, align='CENTER', with_bullet=False, width_cm=None):
+        pal = status_palette.get(palette_key, status_palette['envio'])
+        badge_text = _safe(label_text, '-').upper()
+        if with_bullet:
+            badge_text = f"● {badge_text}"
+        align_value = 'LEFT' if align == 'LEFT' else 'CENTER'
+        p_style = ParagraphStyle(
+            f"SnapBadge{palette_key}{align}",
+            parent=badge_style,
+            textColor=pal['fg'],
+            alignment=TA_LEFT if align == 'LEFT' else TA_CENTER,
+        )
+        badge_para = Paragraph(badge_text, p_style)
+        if width_cm is not None:
+            col_widths = [width_cm * cm]
+        else:
+            col_widths = [2.45 * cm] if align == 'CENTER' else [3.1 * cm]
+        badge_tbl = Table([[badge_para]], colWidths=col_widths, hAlign=align_value)
+        badge_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), pal['bg']),
+            ('BOX', (0, 0), (-1, -1), 0.5, pal['bg']),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('ALIGN', (0, 0), (-1, -1), align_value),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        return badge_tbl
+
+
+    # Cabeçalho no padrão RDO (logo à esquerda, texto central, fundo branco e linha azul)
+    title_main = Paragraph(
+        "<font color='#1A3A5C' size='14'><b>DETALHES PEDIDO</b></font>",
+        ParagraphStyle('SnapTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, textColor=color_primary, alignment=TA_CENTER, leading=16, spaceAfter=2),
+    )
+    title_sub = Paragraph(
+        f"<font color='#1A3A5C' size='9'>Pedido: {_safe(workorder.codigo)} · Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
+        ParagraphStyle('SnapSub', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=color_primary, alignment=TA_CENTER, leading=11),
+    )
+    logo_path = _get_logo_path()
+    if logo_path:
+        from reportlab.platypus import Image as RLImage
+        logo = RLImage(logo_path, width=4.8 * cm, height=1.15 * cm)
+        text_block = Table([[title_main], [title_sub]], colWidths=[11.2 * cm])
+        text_block.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        header = Table([[logo, text_block]], colWidths=[4.8 * cm, 11.2 * cm])
+    else:
+        header = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, -1), (-1, -1), 1.2, color_primary),
+    ]))
+    elements.append(header)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Informações do pedido
+    status_badge_key_map = {
+        'rascunho': 'criacao',
+        'pendente': 'envio',
+        'reaprovacao': 'reenviado',
+        'reprovado': 'reprovado',
+        'aprovado': 'aprovado',
+    }
+    status_badge_key = status_badge_key_map.get(workorder.status, 'envio')
+
+    info_rows = [
+        [Paragraph('<b>Código</b>', label), Paragraph(_safe(workorder.codigo), normal)],
+        [Paragraph('<b>Obra</b>', label), Paragraph(f"{_safe(getattr(workorder.obra, 'codigo', '-'))} - {_safe(getattr(workorder.obra, 'nome', '-'))}", normal)],
+        [Paragraph('<b>Credor</b>', label), Paragraph(_safe(workorder.nome_credor), normal)],
+        [Paragraph('<b>Tipo de Solicitação</b>', label), Paragraph(_safe(tipo_labels.get(workorder.tipo_solicitacao, workorder.tipo_solicitacao)), normal)],
+        [Paragraph('<b>Status Atual</b>', label), _build_status_badge(status_labels.get(workorder.status, workorder.status), status_badge_key, align='LEFT', with_bullet=True, width_cm=11.25)],
+        [Paragraph('<b>Valor Estimado</b>', label), Paragraph(_money(workorder.valor_estimado), normal)],
+        [Paragraph('<b>Prazo Estimado</b>', label), Paragraph(f"{workorder.prazo_estimado} dia(s)" if workorder.prazo_estimado else '-', normal)],
+        [Paragraph('<b>Local</b>', label), Paragraph(_safe(workorder.local), normal)],
+        [Paragraph('<b>Solicitante</b>', label), Paragraph(_safe(workorder.criado_por.get_full_name() or workorder.criado_por.username if workorder.criado_por else '-'), normal)],
+        [Paragraph('<b>Data de Criação</b>', label), Paragraph(_dt(workorder.created_at), normal)],
+        [Paragraph('<b>Data de Envio</b>', label), Paragraph(_dt(workorder.data_envio, 'Ainda não enviado'), normal)],
+        [Paragraph('<b>Data da Decisão</b>', label), Paragraph(_dt(workorder.data_aprovacao, 'Ainda sem decisão'), normal)],
+    ]
+    if workorder.observacoes:
+        info_rows.append([Paragraph('<b>Observações</b>', label), Paragraph(str(workorder.observacoes).replace('\n', '<br/>'), normal)])
+    info_tbl = Table(info_rows, colWidths=[4.2 * cm, 11.8 * cm])
+    info_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), color_accent),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(Paragraph('INFORMAÇÕES DO PEDIDO', h2))
+    elements.append(info_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    # Linha do tempo imutável (ordem natural dos fatos)
+    elements.append(Paragraph('LINHA DO TEMPO DO FLUXO', h2))
+    timeline_rows = [[
+        Paragraph('Descrição', table_head),
+        Paragraph('Etapa', table_head),
+        Paragraph('Responsável', table_head),
+        Paragraph('Data e Hora', table_head),
+    ]]
+
+    timeline_events = []
+    has_previous_reprovacao = False
+    for item in status_history:
+        etapa_key = 'envio'
+        descricao = _safe(item.observacao, '-')
+        if item.status_anterior is None:
+            etapa_key = 'criacao'
+            descricao = descricao if descricao != '-' else 'Pedido criado no sistema.'
+        elif item.status_novo == 'reprovado':
+            etapa_key = 'reprovado'
+            has_previous_reprovacao = True
+            if descricao == '-':
+                descricao = 'Pedido reprovado pelo gestor.'
+        elif item.status_novo == 'aprovado':
+            etapa_key = 'aprovado'
+            if descricao == '-':
+                descricao = 'Pedido aprovado pelo gestor.'
+        elif item.status_novo == 'reaprovacao':
+            etapa_key = 'reenviado' if has_previous_reprovacao else 'envio'
+            if descricao == '-':
+                descricao = 'Pedido reenviado para reaprovação.'
+        elif item.status_novo == 'pendente':
+            etapa_key = 'envio'
+            if descricao == '-':
+                descricao = 'Pedido enviado para análise.'
+        elif item.status_anterior == item.status_novo:
+            etapa_key = 'envio'
+            if descricao == '-':
+                descricao = 'Edição/atualização intermediária.'
+
+        responsavel = _safe(item.alterado_por.get_full_name() or item.alterado_por.username if item.alterado_por else '-')
+        timeline_events.append({
+            'descricao': descricao,
+            'etapa': etapa_key,
+            'responsavel': responsavel,
+            'data': item.created_at,
+        })
+
+    if not timeline_events:
+        timeline_events.append({
+            'descricao': 'Pedido criado no sistema.',
+            'etapa': 'criacao',
+            'responsavel': _safe(workorder.criado_por.get_full_name() or workorder.criado_por.username if workorder.criado_por else '-'),
+            'data': workorder.created_at,
+        })
+
+    timeline_events.sort(key=lambda x: x['data'] or datetime.min)
+    etapa_labels = {
+        'criacao': 'Criação',
+        'envio': 'Envio',
+        'reenviado': 'Reenviado',
+        'reprovado': 'Reprovado',
+        'aprovado': 'Aprovado',
+    }
+
+    for index, ev in enumerate(timeline_events, start=1):
+        etapa = ev['etapa']
+        badge_label = etapa_labels.get(etapa, etapa.title())
+        timeline_rows.append([
+            Paragraph(_safe(ev['descricao']).replace('\n', '<br/>'), normal),
+            _build_status_badge(badge_label, etapa, align='CENTER', with_bullet=False),
+            Paragraph(_safe(ev['responsavel']), normal),
+            Paragraph(_dt(ev['data']), normal),
+        ])
+
+    timeline_tbl = Table(timeline_rows, colWidths=[7.6 * cm, 2.6 * cm, 3.8 * cm, 2.0 * cm], repeatRows=1)
+    timeline_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]
+    timeline_tbl.setStyle(TableStyle(timeline_style))
+    elements.append(timeline_tbl)
+    elements.append(Spacer(1, 0.28 * cm))
+
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    nome_arquivo = f'pedido_{workorder.codigo}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return response
 
 
 @login_required

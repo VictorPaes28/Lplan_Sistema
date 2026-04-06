@@ -788,16 +788,26 @@ def enviar_email_aprovacao(workorder, aprovado_por, comentario=None):
     workorder_id = workorder.pk
     aprovado_por_id = aprovado_por.pk
     
-    # Criar e iniciar thread em background
+    # Criar e iniciar thread em background.
+    # Em alguns hosts compartilhados pode haver limite de threads por processo.
+    # Se isso acontecer, fazemos fallback síncrono para evitar erro 500 na aprovação.
     thread = threading.Thread(
         target=_enviar_email_aprovacao_thread,
         args=(workorder_id, aprovado_por_id, comentario),
         daemon=True  # Thread daemon não impede o programa de encerrar
     )
-    thread.start()
-    
-    logger.info(f"Thread de envio de email de aprovação iniciada para pedido {workorder.codigo}")
-    return True
+    try:
+        thread.start()
+        logger.info(f"Thread de envio de email de aprovação iniciada para pedido {workorder.codigo}")
+        return True
+    except RuntimeError as exc:
+        logger.warning(
+            "Não foi possível iniciar thread de e-mail para pedido %s (%s). "
+            "Executando envio síncrono como fallback.",
+            workorder.codigo,
+            exc,
+        )
+        return _enviar_email_aprovacao_thread(workorder_id, aprovado_por_id, comentario)
 
 
 def enviar_email_reprovacao(workorder, aprovado_por, comentario):

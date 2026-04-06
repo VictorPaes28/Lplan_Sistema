@@ -6,8 +6,9 @@ from .models import Obra, LocalObra
 class ObraAdmin(admin.ModelAdmin):
     list_display = ['codigo_sienge', 'nome', 'ativa', 'created_at']
     list_filter = ['ativa', 'created_at']
-    search_fields = ['codigo_sienge', 'nome']
+    search_fields = ['codigo_sienge', 'nome', 'codigos_sienge_alternativos']
     readonly_fields = ['created_at', 'updated_at']
+    fields = ['codigo_sienge', 'codigos_sienge_alternativos', 'nome', 'ativa', 'created_at', 'updated_at']
 
 
 @admin.register(LocalObra)
