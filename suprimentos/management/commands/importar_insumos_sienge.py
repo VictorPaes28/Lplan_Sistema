@@ -11,6 +11,7 @@ Uso:
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from suprimentos.models import Insumo
+from suprimentos.utils_importacao import sanitizar_texto_sienge
 import pandas as pd
 import os
 
@@ -116,12 +117,25 @@ class Command(BaseCommand):
         if not tem_unidade:
             self.stdout.write(self.style.WARNING('   ⚠️ Coluna "Unidade" não encontrada - usando "UND" como padrão'))
         
+        def _txt(v, max_length=None):
+            return sanitizar_texto_sienge(v, max_length=max_length)
+
+        def _codigo(v):
+            codigo = _txt(v, max_length=100)
+            # Normalizar export do Excel: 15666.0 -> 15666
+            if codigo and codigo.replace('.', '', 1).replace(',', '', 1).isdigit():
+                try:
+                    return str(int(float(codigo.replace(',', '.'))))
+                except (ValueError, TypeError):
+                    return codigo
+            return codigo
+
         # Extrair insumos únicos
         insumos_unicos = {}
         
         for idx, row in df.iterrows():
-            codigo = str(row[colunas_encontradas['codigo_insumo']]).strip()
-            descricao = str(row[colunas_encontradas['descricao_insumo']]).strip()
+            codigo = _codigo(row[colunas_encontradas['codigo_insumo']])
+            descricao = _txt(row[colunas_encontradas['descricao_insumo']], max_length=500)
             
             if not codigo or codigo == 'nan' or not descricao or descricao == 'nan':
                 continue
@@ -129,7 +143,7 @@ class Command(BaseCommand):
             # Pegar unidade se existir
             unidade = 'UND'
             if tem_unidade:
-                unid_val = str(row[colunas_encontradas['unidade']]).strip()
+                unid_val = _txt(row[colunas_encontradas['unidade']], max_length=20)
                 if unid_val and unid_val != 'nan':
                     unidade = unid_val.upper()
             
