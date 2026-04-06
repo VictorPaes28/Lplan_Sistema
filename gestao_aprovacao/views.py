@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 # auth import removido - autenticação centralizada no app 'accounts'
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -74,11 +75,24 @@ from core.models import Project, ProjectMember
 
 logger = logging.getLogger(__name__)
 
-# Coluna "analisado" (checkbox) em list_workorders — só estes e-mails + superuser.
-_EMAILS_MARCAR_PEDIDO_ANALISADO = frozenset({
+# Coluna "analisado" (checkbox) em list_workorders — e-mails em EMAIL_DEPARTAMENTOS_APROVACAO (settings) + fallback + superuser.
+_EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT = frozenset({
     "luiz.henrique@lplan.com.br",
     "luizdomingos@lplan.com.br",
 })
+
+
+def _emails_marcar_pedido_analisado_frozen():
+    """Inclui sempre os fixos e os configurados em EMAIL_DEPARTAMENTOS_APROVACAO."""
+    s = set(_EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT)
+    for e in getattr(settings, "EMAIL_DEPARTAMENTOS_APROVACAO", None) or []:
+        e = (e or "").strip().lower()
+        if e:
+            s.add(e)
+    return frozenset(s)
+
+
+_EMAILS_MARCAR_PEDIDO_ANALISADO = _emails_marcar_pedido_analisado_frozen()
 
 
 def _usuario_pode_marcar_pedido_analisado(user):
@@ -381,6 +395,7 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
 
 
 @login_required
+@ensure_csrf_cookie
 def list_workorders(request):
     """
     Lista pedidos de obra. Regra única no GestControll:
