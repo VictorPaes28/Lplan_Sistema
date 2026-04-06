@@ -546,10 +546,11 @@ function toggleFilters() {
     const toggleIcon = document.getElementById('toggle-filters-icon');
     const toggleBtn = document.getElementById('toggle-filters-btn');
     if (!advancedFilters || !toggleText) return;
-    const isHidden = advancedFilters.style.display === 'none' || advancedFilters.style.display === '';
+    const isHidden = window.getComputedStyle(advancedFilters).display === 'none';
 
     if (isHidden) {
-        advancedFilters.style.display = 'grid';
+        // Volta para o display definido no CSS (.advanced-filters), sem forçar grid.
+        advancedFilters.style.display = '';
         toggleText.textContent = 'Ocultar filtros';
         if (toggleIcon) toggleIcon.style.transform = 'rotate(180deg)';
         if (toggleBtn) {
@@ -590,7 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const toggleText = document.getElementById('toggle-filters-text');
         const toggleIcon = document.getElementById('toggle-filters-icon');
         const toggleBtn = document.getElementById('toggle-filters-btn');
-        if (advancedFilters) advancedFilters.style.display = 'grid';
+        if (advancedFilters) advancedFilters.style.display = '';
         if (toggleText) toggleText.textContent = 'Ocultar filtros';
         if (toggleIcon) toggleIcon.style.transform = 'rotate(180deg)';
         if (toggleBtn) {
