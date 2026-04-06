@@ -18,8 +18,11 @@
                 {{ title }}
             </h1>
             
-            <form method="post" enctype="multipart/form-data">
+            <form method="post" enctype="multipart/form-data" id="workorder-create-form">
             {% csrf_token %}
+            {% if form_token %}
+                <input type="hidden" name="_form_token" value="{{ form_token }}">
+            {% endif %}
             
             {% if form.non_field_errors %}
                 <div class="form-error-box">
@@ -243,7 +246,7 @@
             {% endif %}
             
             <div class="form-actions">
-                <button type="submit" class="btn btn-submit">Salvar</button>
+                <button type="submit" class="btn btn-submit" id="workorder-submit-btn">Salvar</button>
                 {% if workorder %}
                     <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-cancel">Cancelar</a>
                 {% else %}
@@ -254,4 +257,40 @@
         </div>
     </div>
 </div>
+
+{% if form_token %}
+<script>
+(function () {
+    var form  = document.getElementById('workorder-create-form');
+    var btn   = document.getElementById('workorder-submit-btn');
+    if (!form || !btn) return;
+
+    var submitted = false;
+
+    form.addEventListener('submit', function (e) {
+        if (submitted) {
+            e.preventDefault();
+            return false;
+        }
+        submitted = true;
+
+        // Feedback visual imediato
+        btn.disabled = true;
+        btn.textContent = 'Salvando…';
+        btn.style.opacity = '0.7';
+        btn.style.cursor  = 'not-allowed';
+    });
+
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) {
+            submitted = false;
+            btn.disabled    = false;
+            btn.textContent = 'Salvar';
+            btn.style.opacity = '';
+            btn.style.cursor  = '';
+        }
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

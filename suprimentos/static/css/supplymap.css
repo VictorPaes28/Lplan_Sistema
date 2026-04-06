@@ -552,11 +552,20 @@ h2.mb-0 {
     text-transform: uppercase;
 }
 
-.filtro-item .form-select,
 .filtro-item .form-control {
     height: 28px;
     font-size: 12px;
     padding: 4px 8px;
+    border: 1px solid var(--grid-border);
+    border-radius: 3px;
+}
+
+/* Select: padding à direita para a seta customizada (ver bloco FORMS) */
+.filtro-item select.form-select,
+.filtro-item select.form-control {
+    height: 28px;
+    font-size: 12px;
+    padding: 4px 1.85rem 4px 8px;
     border: 1px solid var(--grid-border);
     border-radius: 3px;
 }
@@ -1326,7 +1335,7 @@ select[data-field="prioridade"] option[value="BAIXA"] {
 /* ========================================
    FORMS
    ======================================== */
-.form-control, .form-select {
+.form-control {
     font-size: 13px;
     padding: 6px 10px;
     border: 1px solid var(--grid-border);
@@ -1334,10 +1343,61 @@ select[data-field="prioridade"] option[value="BAIXA"] {
     height: 34px;
 }
 
-.form-control-sm, .form-select-sm {
+/*
+ * <select>: remove seta nativa + indicador Bootstrap duplicado; uma única seta SVG preta.
+ * (Evita sobreposição de “setinhas azuis” e o visual quebrado no Windows/Chrome.)
+ */
+select.form-select,
+select.form-control {
+    font-size: 13px;
+    border: 1px solid var(--grid-border);
+    border-radius: 4px;
+    height: 34px;
+    padding: 6px 2.25rem 6px 10px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #fff;
+    --bs-form-select-bg-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%231a1a1a' d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+    background-image: var(--bs-form-select-bg-img);
+    background-repeat: no-repeat;
+    background-position: right 0.65rem center;
+    background-size: 12px 12px;
+}
+
+select.form-select:focus,
+select.form-control:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    background-image: var(--bs-form-select-bg-img);
+}
+
+.form-control-sm {
     font-size: 12px;
     padding: 4px 8px;
     height: 28px;
+}
+
+select.form-select-sm,
+select.form-control-sm {
+    font-size: 12px;
+    padding: 4px 1.75rem 4px 8px;
+    height: 28px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #fff;
+    --bs-form-select-bg-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%231a1a1a' d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+    background-image: var(--bs-form-select-bg-img);
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 10px 10px;
+}
+
+select.form-select-sm:focus,
+select.form-control-sm:focus {
+    background-image: var(--bs-form-select-bg-img);
 }
 
 .form-label { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
@@ -1954,11 +2014,17 @@ select.ghost-input:hover {
         margin-bottom: 1px;
     }
     
-    .filtro-item .form-select,
     .filtro-item .form-control {
         height: 30px;
         font-size: 12px;
         padding: 5px 6px;
+    }
+    
+    .filtro-item select.form-select,
+    .filtro-item select.form-control {
+        height: 30px;
+        font-size: 12px;
+        padding: 5px 1.75rem 5px 6px;
     }
     
     .filtro-item .btn {
@@ -2037,11 +2103,17 @@ select.ghost-input:hover {
         min-width: 50px;
     }
     
-    .tabela-mapa .form-select-sm,
     .tabela-mapa .form-control-sm {
         height: 28px;
         font-size: 10px;
         padding: 4px 6px;
+    }
+    
+    .tabela-mapa select.form-select-sm,
+    .tabela-mapa select.form-control-sm {
+        height: 28px;
+        font-size: 10px;
+        padding: 4px 1.5rem 4px 6px;
     }
     
     /* Badges e status */
@@ -2222,11 +2294,18 @@ select.ghost-input:hover {
         line-height: 1;
     }
     
-    .filtro-item .form-select,
     .filtro-item .form-control {
         height: 24px !important;
         font-size: 10px !important;
         padding: 2px 4px !important;
+        line-height: 1.2;
+    }
+    
+    .filtro-item select.form-select,
+    .filtro-item select.form-control {
+        height: 24px !important;
+        font-size: 10px !important;
+        padding: 2px 1.35rem 2px 4px !important;
         line-height: 1.2;
     }
     
@@ -2287,11 +2366,18 @@ select.ghost-input:hover {
     }
     
     .tabela-mapa .input-inline,
-    .tabela-mapa .form-select-sm,
     .tabela-mapa .form-control-sm {
         height: 20px !important;
         font-size: 8px !important;
         padding: 2px 4px !important;
+        line-height: 1.2;
+    }
+    
+    .tabela-mapa select.form-select-sm,
+    .tabela-mapa select.form-control-sm {
+        height: 20px !important;
+        font-size: 8px !important;
+        padding: 2px 1.15rem 2px 4px !important;
         line-height: 1.2;
     }
     

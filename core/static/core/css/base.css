@@ -449,11 +449,10 @@ button[data-sidebar-close] {
     background-color: #ffffff !important;
     border-bottom: 1px solid #e5e7eb !important;
 }
-
 /* Gestão-themed accent for top bar */
 .top-bar-container.gestao-top-bar {
-    background-color: #faf5ff !important;
-    border-bottom-color: #e9d5ff !important;
+    background-color: #ffffff !important;
+    border-bottom-color: #e5e7eb !important;
 }
 
 .main-content > *:not(.top-bar-container) {
@@ -1074,6 +1073,56 @@ main .report-status--rejected,
 .report-status--rejected .report-status-bullet { color: #b91c1c !important; }
 .report-status-bullet {
     margin-right: 0.375rem;
+}
+
+/* ========================================
+   SINO DE NOTIFICAÇÕES — badge circular
+   ======================================== */
+.notif-bell-link {
+    /* garante que o badge absolute use este como referência */
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.notif-count-badge {
+    /* círculo vermelho colado ao canto superior direito do sino */
+    position: absolute;
+    top: -1px;
+    right: -1px;
+
+    /* Tamanho mínimo garante círculo mesmo com 1 dígito */
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.28rem;
+
+    background-color: #dc2626;   /* vermelho */
+    color: #ffffff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+
+    border-radius: 9999px;       /* círculo perfeito */
+    border: 1.5px solid #ffffff; /* borda branca separa do sino */
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    /* Garante que o número fique bem centrado */
+    text-align: center;
+    letter-spacing: 0;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+    /* Leve animação de pulso quando aparece */
+    animation: notif-badge-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes notif-badge-pop {
+    from { transform: scale(0.5); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
 }
 
 /* Diary detail - link Voltar */

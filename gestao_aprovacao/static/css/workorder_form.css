@@ -170,19 +170,37 @@ input[type="file"]::-webkit-file-upload-button:hover {
     background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
 }
 
-/* Melhorar select no mobile */
 select {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+}
+
+select.form-select,
+select.form-control,
+.form-group select {
+    background-color: #fff !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.875rem center !important;
+    background-size: 12px 12px !important;
     padding-right: 2.5rem !important;
 }
 
-select:focus {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233498db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+input[type="text"].form-control,
+input[type="email"].form-control,
+input[type="number"].form-control,
+input[type="date"].form-control,
+textarea.form-control {
+    background-image: none !important;
+    padding-right: 0.875rem !important; 
+    background-color: var(--card-bg, #fff) !important; 
+}
+
+select.form-select:focus,
+select.form-control:focus,
+.form-group select:focus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233498db' d='M6 9L1 4h10z'/%3E%3C/svg%3E") !important;
 }
 
 .form-error {

@@ -218,11 +218,6 @@
                         <span>{{ project.start_date|date:"d/m/Y" }} - {{ project.end_date|date:"d/m/Y" }}</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        {% if selected_project_id == project.id %}
-                        <span class="px-2 py-1 bg-blue-600 text-white rounded-full font-medium text-xs">
-                            <i class="fas fa-check-circle mr-1"></i>Selecionada
-                        </span>
-                        {% endif %}
                         {% if project.is_active %}
                         <span class="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-xs">
                             <i class="fas fa-circle mr-1"></i>Ativa
