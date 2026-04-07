@@ -568,7 +568,6 @@ def importar_mapa_controle(request):
         obra_id = (request.POST.get("obra_id") or "").strip()
         sheet_name = (request.POST.get("sheet") or "DADOS").strip() or "DADOS"
         limpar_antes = bool(request.POST.get("limpar_antes"))
-        strict_quality = bool(request.POST.get("strict_quality"))
         arquivo = request.FILES.get("arquivo")
 
         try:
@@ -597,7 +596,6 @@ def importar_mapa_controle(request):
                 obra_id=obra_post.id,
                 sheet=sheet_name,
                 limpar_antes=limpar_antes,
-                strict_quality=strict_quality,
             )
             request.session["obra_id"] = obra_post.id
             request.session.modified = True
