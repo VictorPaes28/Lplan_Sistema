@@ -1322,6 +1322,9 @@ def dashboard_2(request):
             
             return True
         
+        # Preservar lista completa para cálculo de KPIs globais (independente de qualquer filtro)
+        itens_ativos_global = itens_ativos
+
         # Filtrar itens antes de agrupar
         if busca_query or filtro_status or fornecedor_filtro_top or categoria_filtro_top:
             itens_ativos = [i for i in itens_ativos if item_passa_filtros(i)]
@@ -1373,13 +1376,15 @@ def dashboard_2(request):
             })
         
         # ====== KPIs GLOBAIS DA OBRA ======
-        kpi_total_itens = len(itens_ativos)
-        kpi_com_sc = sum(1 for i in itens_ativos if i.numero_sc)
+        # Calculados sempre sobre a lista completa (sem filtros), para que os
+        # contadores do topo não sejam afetados pelo filtro ativo na lista.
+        kpi_total_itens = len(itens_ativos_global)
+        kpi_com_sc = sum(1 for i in itens_ativos_global if i.numero_sc)
         kpi_sem_sc = kpi_total_itens - kpi_com_sc
-        kpi_atrasados = sum(1 for i in itens_ativos if i.is_atrasado)
+        kpi_atrasados = sum(1 for i in itens_ativos_global if i.is_atrasado)
         kpi_total_locais = len(locais_data)
-        kpi_recebidos = sum(1 for i in itens_ativos if (i.quantidade_recebida_obra or 0) > 0)
-        kpi_alocados = sum(1 for i in itens_ativos if (i.quantidade_alocada_local or 0) > 0)
+        kpi_recebidos = sum(1 for i in itens_ativos_global if (i.quantidade_recebida_obra or 0) > 0)
+        kpi_alocados = sum(1 for i in itens_ativos_global if (i.quantidade_alocada_local or 0) > 0)
         
         # Percentuais para progress bars
         kpi_pct_sc = round((kpi_com_sc / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
@@ -1544,14 +1549,16 @@ def dashboard_2(request):
         categorias_disponiveis = sorted(set(cat for cat in todos_itens_obra.values_list('categoria', flat=True) if cat))
         fornecedores_disponiveis = sorted(set(forn for forn in todos_itens_obra.values_list('empresa_fornecedora', flat=True) if forn))
         
-        # Resumo por categoria (antes de filtrar): para "Onde estão os cimentos?" no mobile
+        # Resumo por categoria sempre calculado sobre a lista global (sem filtros),
+        # para que todos os chips de categoria permaneçam visíveis mesmo quando
+        # uma categoria específica está selecionada.
         _cat = defaultdict(lambda: {'total': 0, 'no_patio': 0, 'a_caminho': 0, 'sem_sc': 0})
-        for _item in itens_pipeline:
-            c = (_item.get('categoria') or 'A CLASSIFICAR').strip() or 'A CLASSIFICAR'
+        for _item in itens_ativos_global:
+            c = (_item.categoria or 'A CLASSIFICAR').strip() or 'A CLASSIFICAR'
             _cat[c]['total'] += 1
-            q_patio = float(_item.get('coluna_3_patio') or 0)
-            q_pedido = float(_item.get('coluna_2_pedido_qtd') or 0)
-            tem_sc = bool(_item.get('coluna_2_pedido_sc'))
+            q_patio = float(_item.quantidade_recebida_obra or 0)
+            q_pedido = float(_item.quantidade_solicitada_sienge or 0)
+            tem_sc = bool(_item.numero_sc)
             if q_patio > 0:
                 _cat[c]['no_patio'] += 1
             elif tem_sc and q_patio < q_pedido:
