@@ -359,8 +359,8 @@
             <span class="local-chip-count">{{ kpi_total_itens }}</span>
         </button>
         {% for local_data in locais_data %}
-        <button class="local-chip {% if local_data.local_id|stringformat:'s' == local_selecionado_id %}active{% endif %}" 
-                onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">
+        <button class="local-chip {% if local_data.local_id|default:'sem-local'|stringformat:'s' == local_selecionado_id %}active{% endif %}" 
+                onclick="navegarParaLocal('{{ local_data.local_id|default:'sem-local'|escapejs }}')">
             {{ local_data.local_nome }}
             <span class="local-chip-count">{{ local_data.total_itens }}</span>
             {% if local_data.itens_atrasados > 0 %}
@@ -417,15 +417,6 @@
                     {% endif %}
                 </div>
             </div>
-            {% if local_selecionado_id == 'todos' and locais_data %}
-            <div class="itens-header-locais" aria-label="Trocar local sem sair da lista">
-                <span class="itens-header-locais-label">Local:</span>
-                <button type="button" class="itens-header-local-chip active" onclick="navegarParaLocal('todos')">Todos</button>
-                {% for local_data in locais_data %}
-                <button type="button" class="itens-header-local-chip" onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">{{ local_data.local_nome }}</button>
-                {% endfor %}
-            </div>
-            {% endif %}
         </div>
         {% if itens_pipeline and local_selecionado_id == 'todos' and itens_pipeline|length > 15 %}
         <p class="itens-muitos-hint">Muitos itens? Toque num <strong>local</strong> acima para ver só aquele local.</p>
