@@ -44,6 +44,69 @@ def get_obra_da_sessao(request):
     return obra
 
 
+def _build_confiabilidade_suprimentos(itens_queryset):
+    total = itens_queryset.count()
+    if total <= 0:
+        return {
+            'score': 0.0,
+            'nivel': 'sem_dados',
+            'sem_local': 0,
+            'sem_responsavel': 0,
+            'sem_prazo': 0,
+            'sem_codigo_insumo': 0,
+            'sem_sc': 0,
+            'inconsistencia_alocacao': 0,
+        }
+
+    itens_lista = list(itens_queryset)
+    sem_local = itens_queryset.filter(local_aplicacao__isnull=True).count()
+    sem_responsavel = itens_queryset.filter(Q(responsavel__isnull=True) | Q(responsavel__exact='')).count()
+    sem_prazo = itens_queryset.filter(prazo_necessidade__isnull=True).count()
+    sem_codigo_insumo = itens_queryset.filter(
+        Q(insumo__codigo_sienge__isnull=True)
+        | Q(insumo__codigo_sienge__exact='')
+        | Q(insumo__codigo_sienge__startswith='SM-LEV-')
+    ).count()
+    sem_sc = itens_queryset.filter(Q(numero_sc__isnull=True) | Q(numero_sc__exact='')).count()
+    inconsistencia_alocacao = sum(
+        1
+        for item in itens_lista
+        if (
+            (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local > item.quantidade_solicitada_sienge)
+            or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local > item.quantidade_planejada)
+        )
+    )
+
+    penalidade = (
+        (sem_local / total) * 10
+        + (sem_responsavel / total) * 10
+        + (sem_prazo / total) * 10
+        + (sem_codigo_insumo / total) * 20
+        + (sem_sc / total) * 20
+        + (inconsistencia_alocacao / total) * 30
+    )
+    score = max(0.0, round(100 - penalidade, 2))
+    if score >= 95:
+        nivel = 'excelente'
+    elif score >= 85:
+        nivel = 'bom'
+    elif score >= 70:
+        nivel = 'atenção'
+    else:
+        nivel = 'crítico'
+
+    return {
+        'score': score,
+        'nivel': nivel,
+        'sem_local': sem_local,
+        'sem_responsavel': sem_responsavel,
+        'sem_prazo': sem_prazo,
+        'sem_codigo_insumo': sem_codigo_insumo,
+        'sem_sc': sem_sc,
+        'inconsistencia_alocacao': inconsistencia_alocacao,
+    }
+
+
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @ensure_csrf_cookie
@@ -219,23 +282,25 @@ def mapa_engenharia(request):
     
     # KPIs
     itens_queryset = itens
+    itens_lista = list(itens_queryset)
     kpis = {
-        'total': itens_queryset.count(),
-        'atrasados': sum(1 for item in itens_queryset if item.is_atrasado),
+        'total': len(itens_lista),
+        'atrasados': sum(1 for item in itens_lista if item.is_atrasado),
         'solicitados': itens_queryset.exclude(numero_sc='').count(),
         'em_compra': itens_queryset.exclude(numero_sc='').filter(numero_pc='').count(),
         # Parciais: tem alocação mas não completou (baseado em alocação manual, não recebimento)
-        'parciais': sum(1 for item in itens_queryset if 
+        'parciais': sum(1 for item in itens_lista if
             item.quantidade_alocada_local > 0 and 
             ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge) or
              (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada))
         ),
         # Entregues: totalmente alocado (baseado em alocação manual, não recebimento)
-        'entregues': sum(1 for item in itens_queryset if 
+        'entregues': sum(1 for item in itens_lista if
             ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local >= item.quantidade_solicitada_sienge) or
              (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local >= item.quantidade_planejada))
         ),
     }
+    confiabilidade = _build_confiabilidade_suprimentos(itens_queryset)
     
     categorias_opcoes = ItemMapa.CATEGORIA_CHOICES
     categorias_opcoes_values = [v for v, _ in categorias_opcoes]
@@ -259,6 +324,7 @@ def mapa_engenharia(request):
             )
         ).order_by('ordem_categoria', 'categoria', 'insumo__descricao'),
         'kpis': kpis,
+        'confiabilidade': confiabilidade,
         # filtros: obra_id sempre string para o template (comparação com option value)
         'filtros': {
             'obra_id': str(obra_id) if obra_id else None,

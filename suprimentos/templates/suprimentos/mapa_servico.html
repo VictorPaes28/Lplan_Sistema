@@ -1,0 +1,128 @@
+{% extends 'base_mapa.html' %}
+
+{% block title %}Mapa de Serviço - LPLAN{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">Mapa de Serviço</h2>
+            <p class="text-muted mb-0">Visão operacional por setor, bloco, pavimento, apto e atividade.</p>
+        </div>
+        <a href="{% url 'engenharia:mapa' %}" class="btn btn-outline-primary btn-sm">Abrir Mapa de Suprimentos</a>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-2"><div class="card"><div class="card-body"><small class="text-muted">Total</small><div class="h4 mb-0">{{ kpis.total }}</div></div></div></div>
+        <div class="col-md-2"><div class="card"><div class="card-body"><small class="text-muted">Concluídos</small><div class="h4 mb-0 text-success">{{ kpis.concluido }}</div></div></div></div>
+        <div class="col-md-2"><div class="card"><div class="card-body"><small class="text-muted">Em andamento</small><div class="h4 mb-0 text-warning">{{ kpis.em_andamento }}</div></div></div></div>
+        <div class="col-md-2"><div class="card"><div class="card-body"><small class="text-muted">Não iniciados</small><div class="h4 mb-0 text-danger">{{ kpis.nao_iniciado }}</div></div></div></div>
+        <div class="col-md-4"><div class="card"><div class="card-body"><small class="text-muted">% concluído</small><div class="h4 mb-0">{{ kpis.percentual_concluido }}%</div></div></div></div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="get" class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label">Obra</label>
+                    <select class="form-select" name="obra">
+                        {% for obra in obras %}
+                        <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
+                            {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Setor</label>
+                    <select class="form-select" name="setor">
+                        <option value="">Todos</option>
+                        {% for s in options.setores %}
+                        <option value="{{ s }}" {% if filters.setor == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Bloco</label>
+                    <select class="form-select" name="bloco">
+                        <option value="">Todos</option>
+                        {% for b in options.blocos %}
+                        <option value="{{ b }}" {% if filters.bloco == b %}selected{% endif %}>{{ b }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Pavimento</label>
+                    <select class="form-select" name="pavimento">
+                        <option value="">Todos</option>
+                        {% for p in options.pavimentos %}
+                        <option value="{{ p }}" {% if filters.pavimento == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="">Todos</option>
+                        <option value="concluido" {% if filters.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                        <option value="em_andamento" {% if filters.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+                        <option value="nao_iniciado" {% if filters.status == 'nao_iniciado' %}selected{% endif %}>Não iniciado</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Busca</label>
+                    <input class="form-control" type="text" name="search" value="{{ filters.search|default:'' }}" placeholder="Atividade, grupo, apto, observação..." />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Itens do Mapa de Serviço</strong>
+            <small class="text-muted">Mostrando até 500 de {{ total_items }} itens</small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Setor</th>
+                        <th>Bloco</th>
+                        <th>Pavimento</th>
+                        <th>Apto</th>
+                        <th>Atividade</th>
+                        <th>Grupo</th>
+                        <th>Status</th>
+                        <th>%</th>
+                        <th>Custo</th>
+                        <th>Término</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.setor|default:"-" }}</td>
+                        <td>{{ item.bloco|default:"-" }}</td>
+                        <td>{{ item.pavimento|default:"-" }}</td>
+                        <td>{{ item.apto|default:"-" }}</td>
+                        <td>{{ item.atividade }}</td>
+                        <td>{{ item.grupo_servicos|default:"-" }}</td>
+                        <td>{{ item.status_texto|default:"-" }}</td>
+                        <td>{% if item.status_percentual != None %}{{ item.status_percentual }}{% else %}-{% endif %}</td>
+                        <td>{% if item.custo != None %}R$ {{ item.custo }}{% else %}-{% endif %}</td>
+                        <td>{% if item.data_termino %}{{ item.data_termino|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">Nenhum item encontrado para os filtros selecionados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

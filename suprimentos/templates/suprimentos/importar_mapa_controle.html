@@ -1,0 +1,101 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Importar Mapa de Controle - LPLAN{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 mb-4">
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <h4 class="mb-1">Importar Mapa de Controle</h4>
+            <p class="text-muted mb-0">Upload do arquivo Excel do mapa de serviço/controle da obra.</p>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" class="row g-3">
+                {% csrf_token %}
+
+                <div class="col-md-4">
+                    <label for="obra_id" class="form-label">Obra</label>
+                    <select name="obra_id" id="obra_id" class="form-select" required>
+                        {% for obra in obras %}
+                            <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
+                                {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label for="sheet" class="form-label">Aba</label>
+                    <input type="text" class="form-control" id="sheet" name="sheet" value="DADOS">
+                </div>
+
+                <div class="col-md-4">
+                    <label for="arquivo" class="form-label">Arquivo Excel (.xlsx)</label>
+                    <input type="file" class="form-control" id="arquivo" name="arquivo" accept=".xlsx,.xls" required>
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="limpar_antes" name="limpar_antes">
+                        <label class="form-check-label" for="limpar_antes">Limpar antes</label>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="strict_quality" name="strict_quality" checked>
+                        <label class="form-check-label" for="strict_quality">
+                            Qualidade rígida (ignorar linhas incompletas)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload me-1"></i> Importar arquivo
+                    </button>
+                    <a href="{% url 'engenharia:mapa_controle' %}" class="btn btn-outline-secondary ms-2">Voltar ao mapa</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <h6 class="mb-3">Últimas importações da obra selecionada</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Arquivo</th>
+                            <th>Aba</th>
+                            <th>Importadas</th>
+                            <th>Lidas</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for imp in importacoes %}
+                        <tr>
+                            <td>{{ imp.nome_arquivo }}</td>
+                            <td>{{ imp.aba_origem }}</td>
+                            <td>{{ imp.total_linhas_importadas }}</td>
+                            <td>{{ imp.total_linhas_lidas }}</td>
+                            <td>{{ imp.created_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">Sem importações registradas para esta obra.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
