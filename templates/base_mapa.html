@@ -72,38 +72,38 @@
                     {% if user.is_authenticated %}
                         <li class="nav-item">
                             <a class="nav-link nav-link-switch-system px-3 py-2 rounded me-1" href="{% url 'select-system' %}" title="Trocar de sistema">
-                                <i class="bi bi-grid-3x3-gap"></i> <span class="d-none d-lg-inline">Trocar Sistema</span>
+                                <i class="bi bi-grid-3x3-gap"></i> <span>Trocar Sistema</span>
                             </a>
                         </li>
                         {% if user.is_staff or user.is_superuser %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'accounts:admin_central' %}"><i class="bi bi-gear"></i> <span class="d-none d-lg-inline">Painel</span></a>
+                                <a class="nav-link" href="{% url 'accounts:admin_central' %}"><i class="bi bi-gear"></i> <span>Painel</span></a>
                             </li>
                         {% endif %}
                         {% if user.groups.all %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:dashboard_2' %}">
-                                    <i class="bi bi-speedometer2"></i> <span class="d-none d-lg-inline">Dashboard</span>
+                                    <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:mapa' %}">
-                                    <i class="bi bi-table"></i> <span class="d-none d-lg-inline">Mapa</span>
+                                    <i class="bi bi-table"></i> <span>Mapa</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:mapa_controle' %}">
-                                    <i class="bi bi-clipboard2-data"></i> <span class="d-none d-lg-inline">Controle</span>
+                                    <i class="bi bi-clipboard2-data"></i> <span>Controle</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:importar_sienge' %}">
-                                    <i class="bi bi-upload"></i> <span class="d-none d-lg-inline">Importar</span>
+                                    <i class="bi bi-upload"></i> <span>Importar</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'mapa_obras:home' %}">
-                                    <i class="bi bi-arrow-left-right"></i> <span class="d-none d-lg-inline">Trocar Obra</span>
+                                    <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
                                 </a>
                             </li>
                         {% endif %}
