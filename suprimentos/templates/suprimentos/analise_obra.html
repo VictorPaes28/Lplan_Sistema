@@ -92,6 +92,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         <div class="ao-kpi-label">Período</div>
         <div class="ao-kpi-value" style="font-size:0.95rem;font-weight:600;line-height:1.2;">
           {{ analise_payload.meta.periodo.inicio }} — {{ analise_payload.meta.periodo.fim }}
+          <div class="small text-secondary mt-1">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</div>
         </div>
       </div>
     </div>
@@ -291,7 +292,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <span class="ao-badge-origem diario">Campo</span>
         </div>
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_no_periodo|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Período selecionado</p>
+        <p class="ao-card-caption mb-0">Período selecionado: {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
       </div>
       <div class="ao-card span-3">
         <div class="ao-card-head">
@@ -307,7 +308,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <span class="ao-badge-origem diario">Campo</span>
         </div>
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.dias_com_ocorrencia|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.inicio }} - {{ analise_payload.meta.periodo.fim }}</p>
+        <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s) do recorte</p>
       </div>
       <div class="ao-card span-3">
         <div class="ao-card-head">
@@ -325,19 +326,19 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         <div class="ao-card-head">
           <h3 class="ao-card-title">Últimas ocorrências (com evidência)</h3>
           <div class="d-flex align-items-center gap-2">
-            <span class="ao-badge-origem diario">Todas no período</span>
+            <span class="ao-badge-origem diario">Todas no período ({{ analise_payload.meta.periodo.dias|default:"—" }} dia(s))</span>
             <button
-              class="btn btn-outline-secondary btn-sm"
+              class="btn btn-sm ao-occ-toggle-btn"
               type="button"
               data-bs-toggle="collapse"
               data-bs-target="#aoOcorrenciasCollapse"
-              aria-expanded="false"
+              aria-expanded="true"
               aria-controls="aoOcorrenciasCollapse">
-              Ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length }})
+              Ocultar ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length }})
             </button>
           </div>
         </div>
-        <div class="collapse" id="aoOcorrenciasCollapse">
+        <div class="collapse show" id="aoOcorrenciasCollapse">
           <div class="ao-occ-filter mb-2 d-flex flex-wrap gap-2">
             <button type="button" class="btn btn-outline-secondary btn-sm active" data-priority-filter="all">Todas</button>
             <button type="button" class="btn btn-outline-danger btn-sm" data-priority-filter="critica">Urgente</button>
@@ -358,7 +359,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
               </thead>
               <tbody>
                 {% for o in analise_payload.diario.ocorrencias_recentes %}
-                <tr data-priority="{{ o.gravidade }}">
+                <tr data-priority="{{ o.gravidade }}"{% if forloop.counter > 5 %} class="ao-occ-extra d-none"{% endif %}>
                   <td>{{ o.data }}</td>
                   <td>#{{ o.relatorio|default:"—" }}</td>
                   <td>
@@ -389,6 +390,13 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
               </tbody>
             </table>
           </div>
+          {% if analise_payload.diario.ocorrencias_recentes|length > 5 %}
+          <div class="text-end mt-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="aoOccShowMore" aria-expanded="false">
+              Ver mais ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length|add:"-5" }})
+            </button>
+          </div>
+          {% endif %}
         </div>
       </div>
       <div class="ao-card span-12">
@@ -398,7 +406,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         </div>
         <ul class="ao-action-list mb-0">
           {% for acao in analise_payload.cruzamento.acoes_recomendadas %}
-          <li>
+          <li{% if forloop.counter > 2 %} class="ao-action-extra d-none"{% endif %}>
             <span class="ao-sev-badge {% if acao.prioridade == 'URGENTE' %}ao-sev-critica{% elif acao.prioridade == 'ALTA' %}ao-sev-alta{% elif acao.prioridade == 'MEDIA' or acao.prioridade == 'MÉDIA' %}ao-sev-media{% else %}ao-sev-baixa{% endif %}">
               {{ acao.prioridade }}
             </span>
@@ -408,6 +416,13 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <li><span class="text-secondary">Sem ação sugerida para o recorte atual.</span></li>
           {% endfor %}
         </ul>
+        {% if analise_payload.cruzamento.acoes_recomendadas|length > 2 %}
+        <div class="text-end mt-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoActionShowMore" aria-expanded="false">
+            Ver mais ações ({{ analise_payload.cruzamento.acoes_recomendadas|length|add:"-2" }})
+          </button>
+        </div>
+        {% endif %}
       </div>
     </div>
   </section>
@@ -493,7 +508,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     {% if analise_payload.heatmap.celulas|length > 4 %}
     <div class="text-end mt-2">
       <button type="button" class="btn btn-outline-secondary btn-sm" id="aoHeatmapShowMore" aria-expanded="false">
-        Ver mais
+        Ver mais ({{ analise_payload.heatmap.celulas|length|add:"-4" }})
       </button>
     </div>
     {% endif %}
@@ -514,6 +529,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <h3 class="ao-card-title">Ocorrências no tempo</h3>
           <span class="ao-badge-origem diario">Campo</span>
         </div>
+        <p class="ao-card-caption mb-0">Recorte de {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
         <div class="ao-chart-box">
           <canvas id="chart-ocorrencias-dia" aria-label="Ocorrências por dia"></canvas>
         </div>
@@ -530,18 +546,39 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       <div class="ao-card span-12">
         <div class="ao-card-head">
           <h3 class="ao-card-title">Últimos dias</h3>
-          <span class="ao-badge-origem diario">Campo</span>
+          <span class="ao-badge-origem diario">{{ analise_payload.diario.timeline|length }} dia(s)</span>
         </div>
         {% if analise_payload.diario.timeline %}
         <div class="ao-timeline">
           {% for row in analise_payload.diario.timeline %}
-          <div class="ao-tl-item">
-            <div class="ao-tl-date">{{ row.data }}</div>
-            <div class="ao-tl-body">
-              #{{ row.relatorio|default:"—" }} · {{ row.ocorrencias_no_dia }} ocorr.
-              {% if row.resumo_clima %}<br><span class="text-secondary small">{{ row.resumo_clima }}</span>{% endif %}
+          <details class="ao-tl-item ao-tl-item--expandable" {% if forloop.first %}open{% endif %}>
+            <summary class="ao-tl-summary">
+              <div class="ao-tl-date">{{ row.data }}</div>
+              <div class="ao-tl-body">
+                #{{ row.relatorio|default:"—" }} · {{ row.ocorrencias_no_dia }} ocorr.
+                {% if row.resumo_clima %}<br><span class="text-secondary small">{{ row.resumo_clima }}</span>{% endif %}
+                <br><span class="ao-tl-open-hint">Clique para ver ocorrências do dia</span>
+              </div>
+            </summary>
+            <div class="ao-tl-occ-list">
+              {% if row.ocorrencias %}
+                {% for oc in row.ocorrencias %}
+                <div class="ao-tl-occ-item">
+                  <p class="mb-1">{{ oc.descricao }}</p>
+                  {% if oc.tags %}
+                    <div class="d-flex flex-wrap gap-1">
+                      {% for tg in oc.tags %}
+                      <span class="ao-tag-inline">{{ tg }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="ao-empty mb-0">Sem ocorrências registradas neste dia.</p>
+              {% endif %}
             </div>
-          </div>
+          </details>
           {% endfor %}
         </div>
         {% else %}

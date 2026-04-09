@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 
 from django.utils import timezone
 
@@ -231,6 +231,7 @@ class AnaliseObraService:
 
     def build_payload(self) -> dict[str, Any]:
         project = _resolve_project_for_obra(self.obra)
+        dias_periodo = max(1, (self.periodo.data_fim - self.periodo.data_inicio).days + 1)
         controle = self._build_controle()
         suprimentos = self._build_suprimentos()
         diario = self._build_diario(project)
@@ -249,6 +250,7 @@ class AnaliseObraService:
                 "periodo": {
                     "inicio": self.periodo.data_inicio.isoformat(),
                     "fim": self.periodo.data_fim.isoformat(),
+                    "dias": dias_periodo,
                 },
                 "gerado_em": timezone.now().isoformat(),
                 "situacao_executiva": situacao,
@@ -296,19 +298,55 @@ class AnaliseObraService:
                 "observacao",
             )[:80]
         )
-        ratios = []
-        for row in itens:
+        def _row_ratio(row: dict[str, Any]) -> float | None:
             sp = row.get("status_percentual")
-            if sp is None:
+            if sp is not None:
+                try:
+                    v = float(sp)
+                    if v > 1:
+                        v = v / 100.0
+                    return max(0.0, min(1.0, v))
+                except (TypeError, ValueError):
+                    pass
+            st = (row.get("status_texto") or "").strip().lower()
+            if not st:
+                return None
+            if "conclu" in st or "final" in st or "entreg" in st or "feito" in st:
+                return 1.0
+            if "exec" in st or "andamento" in st or "andando" in st or "parcial" in st or "parado" in st:
+                return 0.5
+            if "nao" in st or "não" in st or "pend" in st or "aguard" in st or "bloq" in st:
+                return 0.0
+            return None
+
+        ratios = []
+        concluidos = em_andamento = nao_iniciados = sem_dado = 0
+        itens_com_ratio = []
+        for row in itens:
+            ratio = _row_ratio(row)
+            if ratio is None:
+                sem_dado += 1
                 continue
-            try:
-                v = float(sp)
-                if v > 1:
-                    v = v / 100.0
-                ratios.append(max(0.0, min(1.0, v)))
-            except (TypeError, ValueError):
-                continue
+            ratios.append(ratio)
+            itens_com_ratio.append((row, ratio))
+            if ratio >= 0.999:
+                concluidos += 1
+            elif ratio <= 0.0:
+                nao_iniciados += 1
+            else:
+                em_andamento += 1
         pct_local = round((sum(ratios) / len(ratios)) * 100, 1) if ratios else None
+        itens_com_ratio.sort(key=lambda x: x[1])
+        atividades_criticas = [
+            {
+                "atividade": row.get("atividade"),
+                "apto": row.get("apto"),
+                "status_texto": row.get("status_texto"),
+                "percentual": round(ratio * 100, 1),
+            }
+            for row, ratio in itens_com_ratio[:5]
+        ]
+        linhas_preview = itens[:12]
 
         busca_local = f"{bloco} {pavimento}".strip()
         sup_filters = MapaControleFilters(
@@ -320,6 +358,26 @@ class AnaliseObraService:
             limit=200,
         )
         sup_res = MapaControleService(obra=self.obra, filters=sup_filters).build_summary_payload()
+        sup_kpis = sup_res.get("kpis") or {}
+        ranking_locais = (sup_res.get("ranking") or {}).get("locais")[:8]
+        materiais_criticos = [{"local": x[0], "pendencias": x[1]} for x in ranking_locais[:5]]
+
+        atrasados = int(sup_kpis.get("atrasados") or 0)
+        score_exec = max(0.0, 100.0 - float(pct_local or 0.0))
+        score_sup = min(100.0, float(atrasados) * 6.0)
+        score = round(score_exec * 0.6 + score_sup * 0.4, 1)
+        if score >= 70:
+            prioridade = "urgente"
+            acao = "Atuar hoje no local: destravar material e alinhar frente com encarregado."
+        elif score >= 50:
+            prioridade = "alta"
+            acao = "Planejar ação no próximo turno com foco nas pendências de material."
+        elif score >= 30:
+            prioridade = "media"
+            acao = "Monitorar evolução diária e revisar novos bloqueios."
+        else:
+            prioridade = "baixa"
+            acao = "Manter acompanhamento de rotina."
 
         return {
             "origem": "drilldown",
@@ -328,12 +386,22 @@ class AnaliseObraService:
                 "percentual_medio_local": pct_local,
                 "total_linhas": len(itens),
                 "linhas": itens,
+                "linhas_preview": linhas_preview,
+                "resumo_status": {
+                    "concluidos": concluidos,
+                    "em_andamento": em_andamento,
+                    "nao_iniciados": nao_iniciados,
+                    "sem_dado": sem_dado,
+                },
+                "atividades_criticas": atividades_criticas,
             },
             "suprimentos": {
                 "nota": "Resumo de suprimentos filtrado por termo de busca alinhado ao bloco/pavimento.",
-                "kpis": sup_res.get("kpis"),
-                "ranking_locais": (sup_res.get("ranking") or {}).get("locais")[:8],
+                "kpis": sup_kpis,
+                "ranking_locais": ranking_locais,
+                "materiais_criticos": materiais_criticos,
             },
+            "resumo_executivo": {"prioridade": prioridade, "score": score, "acao": acao},
         }
 
     def _build_suprimentos(self) -> dict[str, Any]:
@@ -529,10 +597,27 @@ class AnaliseObraService:
                 }
             )
 
-        recent = diarios_aprovados.order_by("-date")[:12]
+        recent = (
+            diarios_aprovados.order_by("-date")
+            .prefetch_related(
+                Prefetch(
+                    "occurrences",
+                    queryset=DiaryOccurrence.objects.prefetch_related("tags").order_by("-created_at"),
+                )
+            )[:12]
+        )
         timeline = []
         for d in recent:
-            occ_n = d.occurrences.count()
+            day_occurrences = list(d.occurrences.all())
+            occ_n = len(day_occurrences)
+            occ_items = []
+            for occ in day_occurrences:
+                occ_items.append(
+                    {
+                        "descricao": (occ.description or "")[:260],
+                        "tags": [t.name for t in occ.tags.all()[:4]],
+                    }
+                )
             timeline.append(
                 {
                     "data": d.date.isoformat(),
@@ -540,6 +625,7 @@ class AnaliseObraService:
                     "status": d.status,
                     "ocorrencias_no_dia": occ_n,
                     "resumo_clima": (d.weather_conditions or "")[:160],
+                    "ocorrencias": occ_items,
                 }
             )
 
@@ -622,14 +708,13 @@ class AnaliseObraService:
         p2 = int(prioridades_diario.get("p2_alta") or 0)
 
         acoes_recomendadas: list[dict[str, str]] = []
-        if candidatos:
-            top = candidatos[0]
-            top_local = top.get("local_norm") or "local crítico"
-            top_pri = (top.get("prioridade") or "alta").upper()
+        for c in candidatos[:4]:
+            local = c.get("local_norm") or "local crítico"
+            pri = (c.get("prioridade") or "alta").upper()
             acoes_recomendadas.append(
                 {
-                    "prioridade": top_pri,
-                    "acao": f"Alinhar obra e suprimentos no {top_local} e remover bloqueio de material no mesmo turno.",
+                    "prioridade": pri,
+                    "acao": f"Priorizar frente do {local}: alinhar execução e suprimentos no mesmo turno.",
                 }
             )
         if p1 > 0:
@@ -658,7 +743,7 @@ class AnaliseObraService:
             "origem": "cruzamento",
             "descricao_curta": "Hipóteses de causa: combina sinais sem misturar definições.",
             "candidatos_atraso_suprimento_e_execucao": candidatos[:10],
-            "acoes_recomendadas": acoes_recomendadas[:3],
+            "acoes_recomendadas": acoes_recomendadas[:8],
             "alertas_semanticos": [
                 "Ocorrência do diário ≠ pendência de suprimento ≠ percentual de serviço; cada card indica a origem.",
                 "Indicadores de suprimento medem abastecimento; percentual de serviço mede execução física.",
