@@ -279,7 +279,7 @@
     <!-- KPI SUMMARY BAR - Modern Design with Progress -->
     <div class="kpi-bar">
         <!-- Total -->
-        <div class="kpi-item" onclick="limparFiltros()" title="Total de itens ativos na obra">
+        <div class="kpi-item{% if not filtro_status %} active{% endif %}" onclick="limparFiltros()" title="Total de itens ativos na obra">
             <div class="kpi-icon-mini"><i class="bi bi-layers"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value" id="kpiTotalItens">{{ kpi_total_itens }}</span>
@@ -287,7 +287,7 @@
             </div>
         </div>
         <!-- Pipeline: Solicitados -->
-        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','com_sc')" title="Itens com Solicitação de Compra">
+        <div class="kpi-item kpi-has-progress{% if filtro_status == 'com_sc' %} active{% endif %}" onclick="aplicarFiltro('status','com_sc')" title="Itens com Solicitação de Compra">
             <div class="kpi-icon-mini kpi-icon-success"><i class="bi bi-check2-circle"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value">{{ kpi_com_sc }}<span class="kpi-pct">{{ kpi_pct_sc }}%</span></span>
@@ -296,7 +296,7 @@
             </div>
         </div>
         <!-- Pipeline: Recebidos -->
-        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','recebido')" title="Itens com material recebido na obra">
+        <div class="kpi-item kpi-has-progress{% if filtro_status == 'recebido' %} active{% endif %}" onclick="aplicarFiltro('status','recebido')" title="Itens com material recebido na obra">
             <div class="kpi-icon-mini kpi-icon-info"><i class="bi bi-truck"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value">{{ kpi_recebidos }}<span class="kpi-pct">{{ kpi_pct_recebidos }}%</span></span>
@@ -305,7 +305,7 @@
             </div>
         </div>
         <!-- Pipeline: Alocados (número = já alocados; clique = ver NÃO alocados) -->
-        <div class="kpi-item kpi-has-progress" onclick="aplicarFiltro('status','nao_alocado')" title="Clique para ver itens não alocados (pendentes)">
+        <div class="kpi-item kpi-has-progress{% if filtro_status == 'nao_alocado' %} active{% endif %}" onclick="aplicarFiltro('status','nao_alocado')" title="Clique para ver itens não alocados (pendentes)">
             <div class="kpi-icon-mini kpi-icon-cyan"><i class="bi bi-geo-alt"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value">{{ kpi_alocados }}<span class="kpi-pct">{{ kpi_pct_alocados }}%</span></span>
@@ -314,7 +314,7 @@
             </div>
         </div>
         <!-- Sem SC -->
-        <div class="kpi-item kpi-danger" onclick="aplicarFiltro('status','sem_sc')" title="Itens sem Solicitação de Compra">
+        <div class="kpi-item kpi-danger{% if filtro_status == 'sem_sc' %} active{% endif %}" onclick="aplicarFiltro('status','sem_sc')" title="Itens sem Solicitação de Compra">
             <div class="kpi-icon-mini kpi-icon-danger"><i class="bi bi-x-octagon"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value">{{ kpi_sem_sc }}</span>
@@ -322,7 +322,7 @@
             </div>
         </div>
         <!-- Atrasados -->
-        <div class="kpi-item kpi-warning" onclick="aplicarFiltro('status','atrasados')" title="Itens com prazo vencido">
+        <div class="kpi-item kpi-warning{% if filtro_status == 'atrasados' %} active{% endif %}" onclick="aplicarFiltro('status','atrasados')" title="Itens com prazo vencido">
             <div class="kpi-icon-mini kpi-icon-warning"><i class="bi bi-exclamation-triangle"></i></div>
             <div class="kpi-data">
                 <span class="kpi-value" id="kpiAlertas">{{ kpi_atrasados }}</span>
@@ -359,8 +359,8 @@
             <span class="local-chip-count">{{ kpi_total_itens }}</span>
         </button>
         {% for local_data in locais_data %}
-        <button class="local-chip {% if local_data.local_id|stringformat:'s' == local_selecionado_id %}active{% endif %}" 
-                onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">
+        <button class="local-chip {% if local_data.local_id|default:'sem-local'|stringformat:'s' == local_selecionado_id %}active{% endif %}" 
+                onclick="navegarParaLocal('{{ local_data.local_id|default:'sem-local'|escapejs }}')">
             {{ local_data.local_nome }}
             <span class="local-chip-count">{{ local_data.total_itens }}</span>
             {% if local_data.itens_atrasados > 0 %}
@@ -417,21 +417,16 @@
                     {% endif %}
                 </div>
             </div>
-            {% if local_selecionado_id == 'todos' and locais_data %}
-            <div class="itens-header-locais" aria-label="Trocar local sem sair da lista">
-                <span class="itens-header-locais-label">Local:</span>
-                <button type="button" class="itens-header-local-chip active" onclick="navegarParaLocal('todos')">Todos</button>
-                {% for local_data in locais_data %}
-                <button type="button" class="itens-header-local-chip" onclick="navegarParaLocal('{{ local_data.local_id|default:"sem-local"|escapejs }}')">{{ local_data.local_nome }}</button>
-                {% endfor %}
-            </div>
-            {% endif %}
         </div>
         {% if itens_pipeline and local_selecionado_id == 'todos' and itens_pipeline|length > 15 %}
         <p class="itens-muitos-hint">Muitos itens? Toque num <strong>local</strong> acima para ver só aquele local.</p>
         {% endif %}
         
         {% if itens_pipeline %}
+        <!-- Dica de interação: visível em desktop e mobile, acima da lista/tabela -->
+        <p class="table-hint" aria-live="polite">
+            <i class="bi bi-hand-index"></i> Clique numa linha para abrir detalhes e alocar.
+        </p>
         <!-- MOBILE: Lista virtual (só renderiza cards visíveis; evita 300+ no DOM) -->
         <div class="mobile-cards-container" id="mobileCards" data-local-todos="{% if local_selecionado_id == 'todos' %}1{% else %}0{% endif %}">
             <div id="mobileCardsVirtual" class="mobile-cards-virtual-wrapper">
@@ -439,10 +434,6 @@
                 <div class="mobile-cards-virtual-viewport" id="virtualViewport"></div>
             </div>
         </div>
-        <!-- DESKTOP: Tabela principal (escondida no mobile) -->
-        <p class="table-hint" aria-live="polite">
-            <i class="bi bi-hand-index"></i> Clique numa linha para abrir detalhes e alocar.
-        </p>
         <div id="tabelaContainer" class="tabela-container-vertical">
         <table class="matriz-table" id="tabelaMatriz">
             <thead>
@@ -1153,10 +1144,10 @@ function aplicarModoDashboard() {
     var filtrosBar = document.querySelector('.dashboard-filtros-bar');
     var btn = document.getElementById('btnModoTabela');
     var label = document.getElementById('labelModoDashboard');
-    var localId = '{{ local_selecionado_id|default:"" }}';
-    var cat = '{{ categoria_filtro|default:"" }}';
-    var st = '{{ filtro_status|default:"" }}';
-    var hasDrill = (localId && localId !== 'todos') || !!cat || !!st;
+    var localId = params.get('local') || '';
+    var cat = params.get('categoria') || '';
+    var st = params.get('status') || '';
+    var hasDrill = !!localId || !!cat || !!st;
     if (modoTabela) {
         if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
         if (label) label.textContent = 'Modo Pipeline';

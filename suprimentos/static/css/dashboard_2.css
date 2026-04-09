@@ -295,6 +295,44 @@ main#main-content {
 .kpi-danger .kpi-value { color: var(--text-status-critical); }
 .kpi-warning .kpi-value { color: var(--text-status-warning); }
 
+/* Estado ativo dos KPI items (filtro selecionado) */
+.kpi-item.active {
+    border-color: var(--text-primary-action);
+    background: rgba(69, 137, 255, 0.12);
+    box-shadow: 0 0 0 1px rgba(69, 137, 255, 0.25), inset 0 0 0 2px rgba(69, 137, 255, 0.08);
+    transform: translateY(-1px);
+}
+.kpi-item.active .kpi-label {
+    color: var(--text-primary-action);
+    font-weight: 700;
+}
+.kpi-item.active .kpi-icon-mini {
+    background: rgba(69, 137, 255, 0.2);
+    color: var(--text-primary-action);
+}
+.kpi-item.kpi-danger.active {
+    border-color: var(--text-status-critical);
+    background: rgba(218, 30, 40, 0.14);
+    box-shadow: 0 0 0 1px rgba(218, 30, 40, 0.3), inset 0 0 0 2px rgba(218, 30, 40, 0.08);
+}
+.kpi-item.kpi-danger.active .kpi-label {
+    color: var(--text-status-critical);
+}
+.kpi-item.kpi-danger.active .kpi-icon-mini {
+    background: rgba(218, 30, 40, 0.2);
+}
+.kpi-item.kpi-warning.active {
+    border-color: var(--text-status-warning);
+    background: rgba(241, 194, 27, 0.14);
+    box-shadow: 0 0 0 1px rgba(241, 194, 27, 0.35), inset 0 0 0 2px rgba(241, 194, 27, 0.08);
+}
+.kpi-item.kpi-warning.active .kpi-label {
+    color: var(--text-status-warning);
+}
+.kpi-item.kpi-warning.active .kpi-icon-mini {
+    background: rgba(241, 194, 27, 0.2);
+}
+
 /* KPI bar responsive – proporção melhor em telas pequenas */
 @media (max-width: 768px) {
     .kpi-bar {
@@ -611,15 +649,23 @@ main#main-content {
 
 .dashboard-busca-clear {
     position: absolute;
-    right: 8px;
+    right: 6px;
     top: 50%;
     transform: translateY(-50%);
-    background: var(--bg-industrial-600);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
     border: none;
-    color: var(--dark-text-muted);
-    width: 28px;
-    height: 28px;
+    color: var(--text-on-base-low);
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-size: 14px;
 }
 
 /* ============================================
@@ -1019,6 +1065,11 @@ main#main-content {
 .dashboard-drill-nivel2-table td.mono {
     font-variant-numeric: tabular-nums;
 }
+/* Colunas numéricas (4–8): Planejado, Comprado, Recebido, Saldo, Status */
+.dashboard-drill-nivel2-table th:nth-child(n+4),
+.dashboard-drill-nivel2-table td:nth-child(n+4) {
+    text-align: center;
+}
 .dashboard-drill-nivel2-table tr:hover td {
     background: var(--bg-industrial-800);
 }
@@ -1057,7 +1108,7 @@ main#main-content {
     border-top: 2px solid var(--dark-border);
 }
 .dashboard-drill-tfoot .drill-total {
-    text-align: right;
+    text-align: center;
     padding: 12px;
     border-top: 2px solid var(--dark-border);
 }
@@ -1166,9 +1217,13 @@ main#main-content {
 }
 
 .dashboard-busca-clear:hover {
-    background: var(--bg-industrial-500);
-    color: var(--dark-text);
-    transform: translateY(-50%) scale(1.1);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-on-base-high);
+    transform: translateY(-50%);
+}
+.dashboard-busca-clear:active {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-50%);
 }
 
 /* (Old KPIs cards section removed - now using .kpi-bar in the KPI SUMMARY BAR section) */
@@ -1954,7 +2009,8 @@ main#main-content {
     }
     
     .filtro-chip.active,
-    .filtro-chip-home.active {
+    .filtro-chip-home.active,
+    .kpi-item.active {
         border-width: 3px;
     }
 }
@@ -3221,7 +3277,7 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
 /* Coluna PLANO */
 .col-plano {
     min-width: 120px;
-    text-align: right;
+    text-align: left;
 }
 
 .plano-valor {
@@ -3273,7 +3329,7 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
 /* Coluna PATIO */
 .col-patio {
     min-width: 110px;
-    text-align: right;
+    text-align: left;
 }
 
 .patio-valor {
