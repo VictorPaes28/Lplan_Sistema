@@ -125,7 +125,7 @@
                             Painel do sistema
                         {% elif '/gestao/' in request.path %}
                             GestControll
-                        {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+                        {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
                             Mapa de Suprimentos
                         {% elif request.session.selected_project_name %}
                             {{ request.session.selected_project_name|truncatechars:20 }}
@@ -230,7 +230,7 @@
             </a>
             {% endif %}
 
-            {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+            {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
             <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
             {% if obra_atual %}
             <div class="mb-2 px-4">
@@ -240,12 +240,6 @@
                 <p class="text-sm font-medium text-emerald-300">{{ obra_atual.nome }}</p>
                 <p class="text-xs text-gray-400">Cod: {{ obra_atual.codigo_sienge }}</p>
             </div>
-            {% endif %}
-            {% if request.resolver_match.url_name != 'home' or '/engenharia/' in request.path %}
-            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' and '/mapa/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-building w-5 mr-3"></i>
-                <span class="font-medium">{% if obra_atual %}Trocar Obra{% else %}Selecionar Obra{% endif %}</span>
-            </a>
             {% endif %}
             <a href="{% url 'engenharia:dashboard_2' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -257,16 +251,29 @@
                 <i class="fas fa-gauge-high w-5 mr-3"></i>
                 <span class="font-medium">Mapa de Controle</span>
             </a>
+            <a href="{% url 'engenharia:mapa_servico' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa_servico' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-diagram-project w-5 mr-3"></i>
+                <span class="font-medium">Mapa de Serviço</span>
+            </a>
             <a href="{% url 'engenharia:mapa' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-table w-5 mr-3"></i>
                 <span class="font-medium">Mapa</span>
             </a>
+            {% if request.resolver_match.url_name == 'mapa' or request.resolver_match.url_name == 'importar_sienge' %}
             <a href="{% url 'engenharia:importar_sienge' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_sienge_upload' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-upload w-5 mr-3"></i>
-                <span class="font-medium">Importar Sienge</span>
+                <span class="font-medium">Importar Suprimentos</span>
             </a>
+            {% else %}
+            <a href="{% url 'engenharia:importar_mapa_controle' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-upload w-5 mr-3"></i>
+                <span class="font-medium">Importar Controle</span>
+            </a>
+            {% endif %}
 
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
             <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
@@ -390,7 +397,7 @@
     <!-- Main Content -->
     <div class="main-content-wrapper">
         <!-- Page Content -->
-        <main class="main-content">
+        <main class="main-content{% block main_extra_class %}{% endblock %}">
             <!-- Top Bar - Primeiro elemento, no topo -->
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
                 <div class="flex flex-col gap-1">
@@ -916,7 +923,6 @@
             }
         })();
     </script>
-
 
     {% block extra_js %}{% endblock %}
 </body>

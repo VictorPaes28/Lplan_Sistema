@@ -8,159 +8,352 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-2 controle-page">
-    <div class="controle-hero">
+<div class="container-fluid mt-2 controle-camadas-page">
+    <div class="controle-camadas-hero">
         <div>
-            <span class="controle-badge">ENGENHARIA</span>
-            <h2>Mapa de Controle - Engenharia</h2>
-            <p>Visão rápida de pendências para decisão imediata.</p>
-        </div>
-        <div class="header-actions">
-            <a id="btn-abrir-mapa" class="btn btn-outline-primary btn-sm" href="{% url 'engenharia:mapa' %}">
-                <i class="bi bi-table"></i> Abrir Mapa de Suprimentos
-            </a>
-            <a class="btn btn-outline-secondary btn-sm" href="{% url 'engenharia:importar_sienge' %}">
-                <i class="bi bi-upload"></i> Importar Sienge
-            </a>
+            <h2>Mapa de Controle</h2>
         </div>
     </div>
 
-    <div class="controle-block">
-        <div class="controle-topbar">
-            <h6 class="controle-section-title">Indicadores operacionais</h6>
-            <div class="controle-topbar-actions">
-                <small id="controle-last-update" class="controle-meta">Atualizando...</small>
-                <button id="btn-toggle-detalhes" type="button" class="btn btn-outline-secondary btn-sm">
-                    Ver detalhes
-                </button>
-            </div>
-        </div>
-        <div class="kpi-container controle-kpi-compacto" id="kpi-container"></div>
-    </div>
-
-    <div class="controle-block">
-        <h6 class="controle-section-title">Filtros de controle</h6>
-        <div class="filtros-container">
-            <form id="filtro-form-controle">
-                <div class="filtros-row">
-                    <div class="filtro-item">
-                        <label for="filtro-obra" class="form-label">Obra:</label>
-                        <select id="filtro-obra" class="form-select" name="obra">
-                            {% for obra in obras %}
-                            <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
-                                {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-categoria" class="form-label">Categoria:</label>
-                        <select id="filtro-categoria" class="form-select" name="categoria">
-                            <option value="">Todas</option>
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-local" class="form-label">Local:</label>
-                        <select id="filtro-local" class="form-select" name="local">
-                            <option value="">Todos</option>
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-prioridade" class="form-label">Prioridade:</label>
-                        <select id="filtro-prioridade" class="form-select" name="prioridade">
-                            <option value="">Todas</option>
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-status" class="form-label">Status:</label>
-                        <select id="filtro-status" class="form-select" name="status">
-                            <option value="">Todos</option>
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-search" class="form-label">Busca:</label>
-                        <input id="filtro-search" name="search" class="form-control" placeholder="Insumo, SC, PC, fornecedor..." />
-                    </div>
+    <div class="card mb-3 mobile-priority-filters">
+        <div class="card-body">
+            <form method="get" class="row g-2">
+                <input type="hidden" name="obra" value="{{ obra_selecionada.id|default:'' }}">
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="" {% if not selected.status %}selected{% endif %}>Todos</option>
+                        <option value="concluido" {% if selected.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                        <option value="em_andamento" {% if selected.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+                        <option value="nao_iniciado" {% if selected.status == 'nao_iniciado' %}selected{% endif %}>Não iniciado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Busca</label>
+                    <input class="form-control" name="search" value="{{ selected.search|default:'' }}" placeholder="Atividade, grupo, apto..." />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Busca rápida</label>
+                    <input class="form-control" name="quick" value="{{ selected.quick_find|default:'' }}" placeholder="Ex: 315, estrelas, portas" />
+                </div>
+                <input type="hidden" name="setor" value="{{ selected.setor|default:'' }}">
+                <input type="hidden" name="bloco" value="{{ selected.bloco|default:'' }}">
+                <input type="hidden" name="pavimento" value="{{ selected.pavimento|default:'' }}">
+                <input type="hidden" name="apto" value="{{ selected.apto|default:'' }}">
+                <input type="hidden" name="atividade" value="{{ selected.atividade|default:'' }}">
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-dark w-100">Aplicar</button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <a class="btn btn-clear-camadas w-100" href="?obra={{ obra_selecionada.id }}">
+                        Limpar camadas
+                    </a>
                 </div>
             </form>
         </div>
     </div>
 
-    <section id="controle-detalhes" class="d-none controle-block">
-        <h6 class="controle-section-title">Leitura avançada</h6>
-        <div class="controle-alertas">
-            <div class="controle-alerta">
-                <strong>Sem SC</strong>
-                <span>Itens levantados sem solicitação de compra.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Sem PC</strong>
-                <span>SC criada, aguardando compra emitir PC.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Sem Entrega</strong>
-                <span>PC emitido, sem material recebido na obra.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Sem Alocação</strong>
-                <span>Material recebido sem distribuição por local.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Atrasados</strong>
-                <span>Prazo vencido e item ainda não entregue/alocado.</span>
-            </div>
-        </div>
+    {% if quick_match %}
+    <div class="quick-match-banner mb-2">
+        <strong>Busca rápida:</strong> "{{ quick_match.query }}" -> {{ quick_match.setor }} / {{ quick_match.bloco }} / {{ quick_match.pavimento }} / {{ quick_match.apto }}
+    </div>
+    {% endif %}
 
-        <div class="legenda-cores">
-            <div class="legenda-item"><div class="legenda-cor status-branco"></div><span class="legenda-texto">1) Levantamento</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-vermelho"></div><span class="legenda-texto">2) Aguard. Compra</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-azul"></div><span class="legenda-texto">3) Aguard. Entrega</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-amarelo"></div><span class="legenda-texto">4) Aguard. Alocação</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-laranja"></div><span class="legenda-texto">5) Parcial</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-verde"></div><span class="legenda-texto">Entregue</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-atrasado"></div><span class="legenda-texto">Atrasado</span></div>
-        </div>
+    {% if importacao_info %}
+    <div class="data-info-banner mb-2 mobile-priority-import">
+        <span><strong>Carga:</strong> {{ importacao_info.nome_arquivo }} (aba {{ importacao_info.aba_origem }})</span>
+        <span><strong>Linhas:</strong> {{ importacao_info.total_linhas_importadas }} / {{ importacao_info.total_linhas_lidas }}</span>
+        <span><strong>Atualização:</strong> {{ importacao_info.created_at|date:"d/m/Y H:i" }}</span>
+    </div>
+    {% endif %}
 
-        <div class="row g-2 mb-2">
-            <div class="col-md-3"><div class="insights-card"><h6>Top locais pendentes</h6><ul id="ranking-locais" class="insights-list"></ul></div></div>
-            <div class="col-md-3"><div class="insights-card"><h6>Top categorias de risco</h6><ul id="ranking-categorias" class="insights-list"></ul></div></div>
-            <div class="col-md-3"><div class="insights-card"><h6>Top fornecedores</h6><ul id="ranking-fornecedores" class="insights-list"></ul></div></div>
-            <div class="col-md-3"><div class="insights-card"><h6>Quem cobrar agora</h6><ul id="quem-cobrar" class="insights-list"></ul></div></div>
-        </div>
-    </section>
-
-    <div class="controle-block">
-        <h6 class="controle-section-title">Lista detalhada de pendências</h6>
-        <div class="table-responsive controle-table-wrap">
-            <table class="table table-hover align-middle mb-0 controle-table">
+    <div class="layer-block mb-2 mobile-priority-matrix">
+        <h6>Painel Matricial — Bloco x Atividade</h6>
+        <div class="matrix-wrap">
+            <table class="matrix-table">
                 <thead>
-                <tr>
-                    <th style="min-width: 270px;">Insumo</th>
-                    <th style="min-width: 160px;">Local</th>
-                    <th style="min-width: 120px;">Responsável</th>
-                    <th style="min-width: 90px;">SC</th>
-                    <th style="min-width: 90px;">PC</th>
-                    <th style="min-width: 140px;">Fornecedor</th>
-                    <th style="min-width: 130px;">Quem cobrar</th>
-                    <th style="min-width: 110px;">Planejado</th>
-                    <th style="min-width: 110px;">Recebido</th>
-                    <th style="min-width: 110px;">Alocado</th>
-                    <th style="min-width: 110px;">Saldo</th>
-                    <th style="min-width: 80px;">%</th>
-                    <th style="min-width: 160px;">Status</th>
-                </tr>
+                    <tr>
+                        <th class="sticky-left">Bloco</th>
+                        {% for atividade in matrix.atividades %}
+                        <th class="vertical">{{ atividade }}</th>
+                        {% endfor %}
+                        <th>Total</th>
+                    </tr>
                 </thead>
-                <tbody id="itens-body">
-                    <tr class="controle-loading-row"><td colspan="13">Carregando...</td></tr>
+                <tbody>
+                    {% for row in matrix.rows %}
+                    <tr>
+                        <td class="sticky-left row-name">
+                            <a class="cell-link row-link"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+                                {{ row.bloco }}
+                            </a>
+                        </td>
+                        {% for cell in row.cells %}
+                            {% if cell.pct == None %}
+                            <td class="cell-empty">-</td>
+                            {% elif cell.pct >= 90 %}
+                            <td class="cell-pct cell-90">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                    {{ cell.pct }}%
+                                </a>
+                            </td>
+                            {% elif cell.pct >= 70 %}
+                            <td class="cell-pct cell-70">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                    {{ cell.pct }}%
+                                </a>
+                            </td>
+                            {% elif cell.pct >= 40 %}
+                            <td class="cell-pct cell-40">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                    {{ cell.pct }}%
+                                </a>
+                            </td>
+                            {% elif cell.pct > 0 %}
+                            <td class="cell-pct cell-10">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                    {{ cell.pct }}%
+                                </a>
+                            </td>
+                            {% else %}
+                            <td class="cell-pct cell-0">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                    {{ cell.pct }}%
+                                </a>
+                            </td>
+                            {% endif %}
+                        {% endfor %}
+                        <td class="total-col">{% if row.total != None %}{{ row.total }}%{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
+                    {% endfor %}
+                    {% if matrix.atividades %}
+                    <tr class="totals-row">
+                        <td class="sticky-left row-name">Total</td>
+                        {% for total in matrix.totais %}
+                            {% if total.pct == None %}
+                            <td class="cell-empty">-</td>
+                            {% else %}
+                            <td class="total-col">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                    {{ total.pct }}%
+                                </a>
+                            </td>
+                            {% endif %}
+                        {% endfor %}
+                        <td class="total-col">-</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
     </div>
+
+    {% if focus_detail %}
+    <div id="detalhe-celula" class="layer-block mb-2 mobile-priority-focus">
+        <h6>Detalhe da célula selecionada — {{ focus_detail.bloco }} x {{ focus_detail.atividade }}</h6>
+        {% if focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
+        <div class="data-info-banner mb-2">
+            {% if focus_detail.status_macro %}<span><strong>Status macro:</strong> {{ focus_detail.status_macro }}</span>{% endif %}
+            {% if focus_detail.situacao %}<span><strong>Situação:</strong> {{ focus_detail.situacao }}</span>{% endif %}
+            {% if focus_detail.responsabilidade %}<span><strong>Responsável:</strong> {{ focus_detail.responsabilidade }}</span>{% endif %}
+            {% if focus_detail.prazo_execucao %}<span><strong>Prazo execução:</strong> {{ focus_detail.prazo_execucao }}</span>{% endif %}
+        </div>
+        {% endif %}
+        <div class="row g-2 mb-2">
+            <div class="col-md-2"><div class="kpi-box"><small>Média da célula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Aptos</small><strong>{{ focus_detail.total_aptos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Concluídos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Andamento</small><strong>{{ focus_detail.em_andamento }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Não iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
+            <div class="col-md-2 d-flex align-items-end"><a class="btn btn-outline-secondary btn-sm w-100" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">Fechar detalhe</a></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-compact align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Pav.</th>
+                        <th>Apto</th>
+                        <th>%</th>
+                        <th>Status</th>
+                        <th>Término</th>
+                        <th>Obs.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in focus_detail.rows %}
+                    <tr>
+                        <td>{{ row.pavimento }}</td>
+                        <td>{{ row.apto }}</td>
+                        <td>{% if row.pct != None %}{{ row.pct }}%{% else %}-{% endif %}</td>
+                        <td>{{ row.status_texto|default:"-" }}</td>
+                        <td>{% if row.data_termino %}{{ row.data_termino|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                        <td>{{ row.observacao|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-3">Sem registros para este detalhe.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="layer-path mb-2 mobile-priority-path">
+        <a class="path-pill {% if selected.setor %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+            Setor: {{ selected.setor|default:"-" }}
+        </a>
+        <a class="path-pill {% if selected.bloco %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+            Bloco: {{ selected.bloco|default:"-" }}
+        </a>
+        <a class="path-pill {% if selected.pavimento %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+            Pavimento: {{ selected.pavimento|default:"-" }}
+        </a>
+        <a class="path-pill {% if selected.apto %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+            Apto: {{ selected.apto|default:"-" }}
+        </a>
+        <a class="path-pill {% if selected.atividade %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+            Atividade: {{ selected.atividade|default:"-" }}
+        </a>
+    </div>
+
+    <div class="data-quality-strip mb-2 mobile-priority-quality">
+        <span class="dq-pill">Sem bloco: {{ qualidade.sem_bloco }}</span>
+        <span class="dq-pill">Sem pavimento: {{ qualidade.sem_pavimento }}</span>
+        <span class="dq-pill">Sem apto: {{ qualidade.sem_apto }}</span>
+        <span class="dq-pill">Sem %: {{ qualidade.sem_status_percentual }}</span>
+        <span class="dq-pill">Sem término: {{ qualidade.sem_data_termino }}</span>
+    </div>
+
+    <div class="layer-block mb-3 mobile-priority-layer1">
+        <h6>Camada 1 — Setor</h6>
+        <div class="layer-grid">
+            {% for row in layers.setores %}
+            <a class="layer-card {% if selected.setor == row.setor %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+                <span class="name">{{ row.setor|default:"Sem setor" }}</span>
+                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para setor.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if selected.setor %}
+    <div class="layer-block mb-3 mobile-priority-layer2">
+        <h6>Camada 2 — Bloco ({{ selected.setor }})</h6>
+        <div class="layer-grid">
+            {% for row in layers.blocos %}
+            <a class="layer-card {% if selected.bloco == row.bloco %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+                <span class="name">{{ row.bloco|default:"Sem bloco" }}</span>
+                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para bloco.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected.bloco %}
+    <div class="layer-block mb-3 mobile-priority-layer3">
+        <h6>Camada 3 — Pavimento ({{ selected.bloco }})</h6>
+        <div class="layer-grid">
+            {% for row in layers.pavimentos %}
+            <a class="layer-card {% if selected.pavimento == row.pavimento %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+                <span class="name">{{ row.pavimento|default:"Sem pavimento" }}</span>
+                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para pavimento.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected.pavimento %}
+    <div class="layer-block mb-3 mobile-priority-layer4">
+        <h6>Camada 4 — Unidade/Apto ({{ selected.pavimento }})</h6>
+        <div class="layer-grid">
+            {% for row in layers.aptos %}
+            <a class="layer-card {% if selected.apto == row.apto %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+                <span class="name">{{ row.apto|default:"Sem apto" }}</span>
+                <span class="meta">{{ row.total }} ativ. • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para apto.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected.apto %}
+    <div class="layer-block mb-3 mobile-priority-layer5">
+        <h6>Camada 5 — Atividades ({{ selected.apto }})</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-compact align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Atividade</th>
+                        <th>Status</th>
+                        <th>%</th>
+                        <th>Término</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in itens_atividade %}
+                    <tr>
+                        <td>{{ item.atividade }}</td>
+                        <td>{{ item.status_texto|default:"-" }}</td>
+                        <td>{% if item.pct_display != None %}{{ item.pct_display }}%{% else %}-{% endif %}</td>
+                        <td>{% if item.data_termino %}{{ item.data_termino|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center text-muted py-3">Sem atividades nessa camada.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
 </div>
-
-{{ summary_payload|default:"{}"|json_script:"mapa-controle-inicial" }}
 {% endblock %}
 
-{% block extra_js %}
-<script src="{% static 'js/mapa_controle.js' %}?v=2"></script>
-{% endblock %}
+{% block extra_js %}{% endblock %}

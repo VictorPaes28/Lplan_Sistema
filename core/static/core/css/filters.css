@@ -355,3 +355,157 @@
 .report-list-table .report-status--draft i { color: #c2410c !important; }
 .report-list-table .report-status--review .report-status-bullet,
 .report-list-table .report-status--review i { color: #b45309 !important; }
+
+/* ============================================================
+   DARK THEME (páginas de filtro / relatório do Diário)
+   ============================================================ */
+html[data-theme="dark"] .filter-page-title {
+    color: #f8fafc !important;
+    opacity: 1 !important;
+}
+
+html[data-theme="dark"] .filter-page-total {
+    color: #cbd5e1 !important;
+    opacity: 1 !important;
+}
+
+html[data-theme="dark"] .filter-form-card {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="dark"] .filter-form label {
+    color: #e2e8f0;
+}
+
+html[data-theme="dark"] .filter-form input[type="text"],
+html[data-theme="dark"] .filter-form input[type="date"],
+html[data-theme="dark"] .filter-form select {
+    background: #0f172a !important;
+    border-color: #475569 !important;
+    color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .filter-form input::placeholder {
+    color: #94a3b8;
+}
+
+html[data-theme="dark"] .filter-form input:focus,
+html[data-theme="dark"] .filter-form select:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+html[data-theme="dark"] .filter-form .filter-submit {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .filter-form .filter-submit:hover {
+    background: #1d4ed8 !important;
+}
+
+/* Relatórios (tabela desktop/mobile) */
+html[data-theme="dark"] .page-content-wrapper .report-list-table thead,
+html[data-theme="dark"] .page-content-wrapper .report-list-table tbody,
+html[data-theme="dark"] .page-content-wrapper .report-list-table tr,
+html[data-theme="dark"] .page-content-wrapper .report-list-table th,
+html[data-theme="dark"] .page-content-wrapper .report-list-table td {
+    border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .page-content-wrapper .report-list-table thead {
+    background: #0f172a !important;
+}
+
+html[data-theme="dark"] .page-content-wrapper .report-list-table tbody {
+    background: #1e293b !important;
+}
+
+html[data-theme="dark"] .page-content-wrapper .report-list-table .report-list-row:hover {
+    background: #1f2937 !important;
+}
+
+html[data-theme="dark"] .page-content-wrapper .report-list-row p.text-slate-900,
+html[data-theme="dark"] .page-content-wrapper .report-list-row .text-gray-900,
+html[data-theme="dark"] .page-content-wrapper .report-list-row .text-slate-800 {
+    color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .page-content-wrapper .report-list-row p.text-slate-500,
+html[data-theme="dark"] .page-content-wrapper .report-list-row .text-slate-500,
+html[data-theme="dark"] .page-content-wrapper .report-list-row .text-slate-600,
+html[data-theme="dark"] .page-content-wrapper .report-list-row .text-gray-500 {
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .page-content-wrapper .report-list-row .bg-slate-100 {
+    background: #334155 !important;
+}
+
+html[data-theme="dark"] .filter-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+html[data-theme="dark"] .filter-card:hover {
+    border-color: #475569;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="dark"] .filter-card-date {
+    color: #cbd5e1;
+}
+
+html[data-theme="dark"] .filter-card-caption {
+    color: #f1f5f9;
+}
+
+html[data-theme="dark"] .filter-card-caption.filter-card-caption--muted {
+    color: #94a3b8;
+}
+
+html[data-theme="dark"] .filter-card-link {
+    color: #93c5fd;
+}
+
+html[data-theme="dark"] .filter-card-link:hover {
+    color: #bfdbfe;
+}
+
+html[data-theme="dark"] .filter-photo-thumb {
+    background: #0f172a;
+}
+
+html[data-theme="dark"] .filter-video-thumb {
+    background: #0f172a;
+}
+
+html[data-theme="dark"] .filter-pagination a {
+    background: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+html[data-theme="dark"] .filter-pagination a:hover {
+    background: #334155;
+    border-color: #475569;
+    color: #ffffff;
+}
+
+html[data-theme="dark"] .filter-empty {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+html[data-theme="dark"] .filter-empty-title,
+html[data-theme="dark"] .filter-stats-title,
+html[data-theme="dark"] .filter-stats-count {
+    color: #f8fafc;
+}
+
+html[data-theme="dark"] .filter-empty-desc,
+html[data-theme="dark"] .filter-stats-date {
+    color: #cbd5e1;
+}

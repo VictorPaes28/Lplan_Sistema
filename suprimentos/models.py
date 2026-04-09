@@ -1194,3 +1194,139 @@ class HistoricoAlteracao(models.Model):
             ip_address=ip_address,
             importacao_sienge=importacao_sienge,
         )
+
+
+class ImportacaoMapaServico(models.Model):
+    """Registro de upload/importação do mapa de serviço (Excel)."""
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="importacoes_mapa_servico",
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="importacoes_mapa_servico",
+    )
+    nome_arquivo = models.CharField(max_length=255)
+    aba_origem = models.CharField(max_length=120, default="DADOS")
+    total_linhas_lidas = models.PositiveIntegerField(default=0)
+    total_linhas_importadas = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Importação Mapa de Serviço"
+        verbose_name_plural = "Importações do Mapa de Serviço"
+
+    def __str__(self):
+        return f"{self.created_at:%d/%m/%Y %H:%M} — {self.nome_arquivo}"
+
+
+class ItemMapaServico(models.Model):
+    """
+    Linha canônica do mapa de serviço.
+    Hierarquia principal: setor > bloco > pavimento > apto > atividade.
+    """
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="itens_mapa_servico",
+    )
+    importacao = models.ForeignKey(
+        ImportacaoMapaServico,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="itens",
+    )
+
+    setor = models.CharField(max_length=120, blank=True, default="")
+    bloco = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    pavimento = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    apto = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    atividade = models.CharField(max_length=200, db_index=True)
+    grupo_servicos = models.CharField(max_length=120, blank=True, default="", db_index=True)
+
+    status_texto = models.CharField(max_length=100, blank=True, default="")
+    status_percentual = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.000"))],
+        help_text="Faixa esperada: 0.000 até 1.000 (ou vazio).",
+    )
+    custo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    observacao = models.TextField(blank=True, default="")
+    data_termino = models.DateField(null=True, blank=True)
+
+    # Chave natural para upsert por obra.
+    chave_uid = models.CharField(max_length=255, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["setor", "bloco", "pavimento", "apto", "atividade"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["obra", "chave_uid"],
+                name="uniq_item_mapa_servico_por_obra_chave",
+            )
+        ]
+        verbose_name = "Item do Mapa de Serviço"
+        verbose_name_plural = "Itens do Mapa de Serviço"
+
+    def __str__(self):
+        local = " / ".join([p for p in [self.bloco, self.pavimento, self.apto] if p])
+        local = local or "Sem local"
+        return f"{self.atividade} ({local})"
+
+
+class ItemMapaServicoStatusRef(models.Model):
+    """
+    Referência auxiliar importada da aba STATUS (por atividade).
+    Enriquece o detalhe do clique no mapa de controle.
+    """
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="itens_status_mapa_servico",
+    )
+    importacao = models.ForeignKey(
+        ImportacaoMapaServico,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="status_refs",
+    )
+
+    atividade = models.CharField(max_length=200, db_index=True)
+    atividade_chave = models.CharField(max_length=220, db_index=True)
+    status_macro = models.CharField(max_length=80, blank=True, default="")
+    situacao = models.TextField(blank=True, default="")
+    prazo_execucao = models.CharField(max_length=50, blank=True, default="")
+    responsabilidade = models.CharField(max_length=120, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["atividade"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["obra", "atividade_chave"],
+                name="uniq_status_ref_mapa_servico_por_obra_atividade",
+            )
+        ]
+        verbose_name = "Status de Referência do Mapa de Serviço"
+        verbose_name_plural = "Status de Referência do Mapa de Serviço"
+
+    def __str__(self):
+        return f"{self.atividade} ({self.status_macro or 'sem status'})"

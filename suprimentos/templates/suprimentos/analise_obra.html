@@ -1,0 +1,714 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block main_extra_class %} main-content--bi-obra{% endblock %}
+
+{% block title %}BI da Obra — LPlan{% endblock %}
+
+{% block back_url %}{% url 'select-system' %}{% endblock %}
+{% block page_title %}BI da Obra{% endblock %}
+{% block page_subtitle %}Integração obra, campo e material{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+<link rel="stylesheet" href="{% static 'css/analise_obra.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'js/analise_obra.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+{% if analise_payload %}
+{{ analise_payload|json_script:"analise-payload" }}
+{% endif %}
+<script>
+window.__ANALISE_API_URL__ = "{% url 'suprimentos:analise_obra_api' %}";
+window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' %}";
+</script>
+
+<div class="analise-obra-page" id="ao-page-root">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem("lplan_ao_bi_theme");
+    if (t === "dark") {
+      var root = document.getElementById("ao-page-root");
+      if (root) root.classList.add("analise-obra-page--dark");
+      var main = document.querySelector("main.main-content--bi-obra");
+      if (main) main.classList.add("bi-page-dark");
+      if (document.body) document.body.classList.add("bi-page-dark");
+    }
+  } catch (e) {}
+})();
+</script>
+<div class="ao-wrap">
+  <!-- Cabeçalho: BI da obra ≠ Dashboard SC/PC ≠ Gestão -->
+  <header class="ao-hero" role="banner">
+    <div class="ao-hero-top">
+      <div class="ao-hero-intro">
+        <h1 class="ao-hero-title">BI da Obra</h1>
+        {% if obra_selecionada %}
+        <p class="ao-hero-meta mt-1">
+          <strong>{{ obra_selecionada.nome }}</strong>
+          <span class="text-secondary"> · {{ obra_selecionada.codigo_sienge }}</span>
+          {% if analise_payload and analise_payload.meta.projeto_diario_codigo %}
+          <span class="text-secondary d-none d-sm-inline"> · Diário {{ analise_payload.meta.projeto_diario_codigo }}</span>
+          {% endif %}
+        </p>
+        {% else %}
+        <p class="ao-hero-meta">Escolha uma obra.</p>
+        {% endif %}
+      </div>
+      <div class="ao-hero-actions d-flex flex-column align-items-stretch align-items-md-end gap-1 w-100 w-md-auto">
+        {% if analise_payload %}
+        <span class="small text-secondary text-center text-md-end fw-semibold">Status geral da obra</span>
+        <span class="ao-situacao {{ analise_payload.meta.situacao_executiva.nivel }} text-center text-md-end mb-1">
+          {{ analise_payload.meta.situacao_executiva.rotulo }}
+        </span>
+        <span class="text-secondary small text-center text-md-end ao-hero-gerado">{{ analise_payload.meta.gerado_em|slice:":16"|default:"—" }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if analise_payload %}
+    <div class="ao-hero-kpis">
+      <div class="ao-kpi">
+        <div class="ao-kpi-label"><span class="ao-badge-origem controle">Obra</span> Avanço médio</div>
+        <div class="ao-kpi-value">{{ analise_payload.controle.kpis.percentual_medio|floatformat:1 }}%</div>
+      </div>
+      <div class="ao-kpi">
+        <div class="ao-kpi-label"><span class="ao-badge-origem suprimentos">Material</span> Atrasos</div>
+        <div class="ao-kpi-value">{{ analise_payload.suprimentos.kpis.atrasados|default:"0" }}</div>
+      </div>
+      <div class="ao-kpi">
+        <div class="ao-kpi-label"><span class="ao-badge-origem diario">Campo</span> Ocorrências</div>
+        <div class="ao-kpi-value">{{ analise_payload.diario.kpis.ocorrencias_no_periodo|default:"—" }}</div>
+      </div>
+      <div class="ao-kpi">
+        <div class="ao-kpi-label">Período</div>
+        <div class="ao-kpi-value" style="font-size:0.95rem;font-weight:600;line-height:1.2;">
+          {{ analise_payload.meta.periodo.inicio }} — {{ analise_payload.meta.periodo.fim }}
+          <div class="small text-secondary mt-1">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</div>
+        </div>
+      </div>
+    </div>
+    {% if analise_payload.meta.baseline_planejamento %}
+    <p class="small text-secondary mb-0 mt-2" title="{{ analise_payload.meta.baseline_planejamento.mensagem }}">
+      Previsto × real automático: em breve <span class="d-none d-sm-inline">(depende da fonte de cronograma)</span>
+    </p>
+    {% endif %}
+    {% endif %}
+  </header>
+
+  <div class="d-flex justify-content-end mb-2 mb-md-3">
+    <button type="button" class="ao-theme-toggle ao-theme-toggle--prominent" id="aoThemeToggle" aria-pressed="false" title="Alternar tema claro ou escuro do BI">
+      <i class="bi bi-sun-fill ao-icon-light" aria-hidden="true"></i>
+      <i class="bi bi-moon-stars-fill ao-icon-dark" aria-hidden="true"></i>
+      <span class="ms-2" id="aoThemeLabel">Modo escuro</span>
+    </button>
+  </div>
+
+  <!-- Filtros: rápidos sempre visíveis; resto recolhível (melhor no celular) -->
+  <form class="ao-filters" method="get" action="" id="formAnaliseFiltros">
+    <div class="ao-filters-quick">
+      <div>
+        <label for="filtro-obra">Obra</label>
+        <select name="obra" id="filtro-obra" class="form-select form-select-sm">
+          {% for o in obras %}
+          <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="data_inicio">De</label>
+        <input type="date" name="data_inicio" id="data_inicio" value="{{ filtros_get.data_inicio }}" autocomplete="off">
+      </div>
+      <div>
+        <label for="data_fim">Até</label>
+        <input type="date" name="data_fim" id="data_fim" value="{{ filtros_get.data_fim }}" autocomplete="off">
+      </div>
+      <div>
+        <label for="visao">Zoom</label>
+        <select name="visao" id="visao" class="form-select form-select-sm" title="Geral = visão ampla; Detalhe = mais recortes">
+          <option value="geral" {% if filtros_get.visao == 'geral' %}selected{% endif %}>Geral</option>
+          <option value="detalhe" {% if filtros_get.visao == 'detalhe' %}selected{% endif %}>Detalhe</option>
+        </select>
+      </div>
+      <div>
+        <label class="d-none d-sm-block">&nbsp;</label>
+        <button type="submit" class="btn btn-primary w-100">Aplicar</button>
+      </div>
+    </div>
+    {% if analise_payload %}
+    <button class="ao-filters-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#aoFiltrosExtras" aria-expanded="false" aria-controls="aoFiltrosExtras">
+      <i class="bi bi-sliders" aria-hidden="true"></i> Mais filtros
+    </button>
+    <div class="collapse" id="aoFiltrosExtras">
+    <div class="ao-filters-grid pt-2 mt-1 border-top border-secondary border-opacity-25">
+    <div>
+      <label for="setor">Setor</label>
+      <select name="setor" id="setor" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for o in analise_payload.filtros.opcoes.setores %}
+        <option value="{{ o.id }}" {% if filtros_get.setor == o.id %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="bloco">Bloco</label>
+      <select name="bloco" id="bloco" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for o in analise_payload.filtros.opcoes.blocos %}
+        <option value="{{ o.id }}" {% if filtros_get.bloco == o.id %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="pavimento">Pavimento</label>
+      <select name="pavimento" id="pavimento" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for o in analise_payload.filtros.opcoes.pavimentos %}
+        <option value="{{ o.id }}" {% if filtros_get.pavimento == o.id %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="apto">Unidade / apto</label>
+      <select name="apto" id="apto" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for o in analise_payload.filtros.opcoes.aptos %}
+        <option value="{{ o.id }}" {% if filtros_get.apto == o.id %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="atividade">Etapa / atividade</label>
+      <select name="atividade" id="atividade" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for o in analise_payload.filtros.opcoes.atividades %}
+        <option value="{{ o.id }}" {% if filtros_get.atividade == o.id %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="status_servico">Status obra</label>
+      <select name="status_servico" id="status_servico" class="form-select form-select-sm">
+        {% for o in analise_payload.filtros.opcoes.status_servico %}
+        <option value="{{ o.id }}" {% if filtros_get.status_servico == o.id %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="local_suprimento_id">Local material</label>
+      <select name="local_suprimento_id" id="local_suprimento_id" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for loc in analise_payload.filtros.opcoes.suprimentos.locais %}
+        <option value="{{ loc.id }}" {% if filtros_get.local_suprimento_id == loc.id|stringformat:"s" %}selected{% endif %}>{{ loc.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="categoria_suprimento">Categoria</label>
+      <select name="categoria_suprimento" id="categoria_suprimento" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for c in analise_payload.filtros.opcoes.suprimentos.categorias %}
+        <option value="{{ c }}" {% if filtros_get.categoria_suprimento == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="prioridade_suprimento">Prioridade</label>
+      <select name="prioridade_suprimento" id="prioridade_suprimento" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for p in analise_payload.filtros.opcoes.suprimentos.prioridades %}
+        <option value="{{ p.id }}" {% if filtros_get.prioridade_suprimento == p.id|stringformat:"s" %}selected{% endif %}>{{ p.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="status_suprimento">Status SC/PC</label>
+      <select name="status_suprimento" id="status_suprimento" class="form-select form-select-sm">
+        {% for s in analise_payload.filtros.opcoes.suprimentos.status %}
+        <option value="{{ s.id }}" {% if filtros_get.status_suprimento == s.id %}selected{% endif %}>{{ s.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ao-filter-span-2">
+      <label for="busca_suprimento">Buscar material</label>
+      <input type="text" name="busca_suprimento" id="busca_suprimento" value="{{ filtros_get.busca_suprimento }}" placeholder="Código, SC, texto…" class="form-control form-control-sm" autocomplete="off">
+    </div>
+    <div>
+      <label for="tag_ocorrencia_id">Tag ocorrência</label>
+      <select name="tag_ocorrencia_id" id="tag_ocorrencia_id" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for t in analise_payload.filtros.opcoes.tags_ocorrencia %}
+        <option value="{{ t.id }}" {% if filtros_get.tag_ocorrencia_id == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="busca_diario_texto">Texto ocorrência</label>
+      <input type="text" name="busca_diario_texto" id="busca_diario_texto" value="{{ filtros_get.busca_diario_texto }}" class="form-control form-control-sm">
+    </div>
+    <div>
+      <label for="responsavel_texto">Responsável</label>
+      <input type="text" name="responsavel_texto" id="responsavel_texto" value="{{ filtros_get.responsavel_texto }}" placeholder="Nome parcial" class="form-control form-control-sm">
+    </div>
+    <div class="ao-filter-actions">
+      <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+      {% if obra_selecionada %}
+      <a class="btn btn-outline-secondary btn-sm" href="?obra={{ obra_selecionada.id }}">Limpar</a>
+      <button type="button" class="btn btn-outline-info btn-sm" id="btnAnaliseRefreshApi" title="Sincronizar com o servidor">Atualizar</button>
+      {% endif %}
+    </div>
+    </div>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if not obra_selecionada %}
+  <p class="ao-empty">Nenhuma obra disponível para seu usuário.</p>
+  {% elif not analise_payload %}
+  <p class="ao-empty">Não foi possível montar o payload de análise.</p>
+  {% else %}
+
+  <!-- 0 · Evidências executivas -->
+  <section class="ao-section ao-section-evidence" aria-labelledby="sec-e0">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-e0">0 · Resumo de ocorrências</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">
+        Leitura simples: o que aconteceu no campo, prioridade e evidências
+        <span class="ao-badge-origem diario">diário</span>
+      </p>
+    </div>
+    <div class="ao-grid">
+      <div class="ao-card span-3">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Ocorrências registradas</h3>
+          <span class="ao-badge-origem diario">Campo</span>
+        </div>
+        <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_no_periodo|default:"0" }}</p>
+        <p class="ao-card-caption mb-0">Período selecionado: {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
+      </div>
+      <div class="ao-card span-3">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Ocorrências críticas</h3>
+          <span class="ao-badge-origem diario">Risco</span>
+        </div>
+        <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_criticas_no_periodo|default:"0" }}</p>
+        <p class="ao-card-caption mb-0">Requer atenção imediata</p>
+      </div>
+      <div class="ao-card span-3">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Dias com ocorrência</h3>
+          <span class="ao-badge-origem diario">Campo</span>
+        </div>
+        <p class="ao-metric-big">{{ analise_payload.diario.kpis.dias_com_ocorrencia|default:"0" }}</p>
+        <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s) do recorte</p>
+      </div>
+      <div class="ao-card span-3">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Fila de prioridade</h3>
+          <span class="ao-badge-origem cruzamento">Ação</span>
+        </div>
+        <div class="ao-priority-grid">
+          <span class="ao-pri-badge p1">Urgente {{ analise_payload.diario.prioridades.p1_critica|default:"0" }}</span>
+          <span class="ao-pri-badge p2">Alta {{ analise_payload.diario.prioridades.p2_alta|default:"0" }}</span>
+          <span class="ao-pri-badge p3">Média {{ analise_payload.diario.prioridades.p3_media|default:"0" }}</span>
+          <span class="ao-pri-badge p4">Baixa {{ analise_payload.diario.prioridades.p4_baixa|default:"0" }}</span>
+        </div>
+      </div>
+      <div class="ao-card span-12">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Últimas ocorrências (com evidência)</h3>
+          <div class="d-flex align-items-center gap-2">
+            <span class="ao-badge-origem diario">Todas no período ({{ analise_payload.meta.periodo.dias|default:"—" }} dia(s))</span>
+            <button
+              class="btn btn-sm ao-occ-toggle-btn"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#aoOcorrenciasCollapse"
+              aria-expanded="true"
+              aria-controls="aoOcorrenciasCollapse">
+              Ocultar ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length }})
+            </button>
+          </div>
+        </div>
+        <div class="collapse show" id="aoOcorrenciasCollapse">
+          <div class="ao-occ-filter mb-2 d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm active" data-priority-filter="all">Todas</button>
+            <button type="button" class="btn btn-outline-danger btn-sm" data-priority-filter="critica">Urgente</button>
+            <button type="button" class="btn btn-outline-warning btn-sm" data-priority-filter="alta">Alta</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-priority-filter="media">Média</button>
+            <button type="button" class="btn btn-outline-success btn-sm" data-priority-filter="baixa">Baixa</button>
+          </div>
+          <div class="ao-table-wrap">
+            <table class="ao-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Relatório</th>
+                  <th>Prioridade</th>
+                  <th>Tags</th>
+                  <th>Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for o in analise_payload.diario.ocorrencias_recentes %}
+                <tr data-priority="{{ o.gravidade }}"{% if forloop.counter > 5 %} class="ao-occ-extra d-none"{% endif %}>
+                  <td>{{ o.data }}</td>
+                  <td>#{{ o.relatorio|default:"—" }}</td>
+                  <td>
+                    {% if o.gravidade == 'critica' %}
+                    <span class="ao-sev-badge ao-sev-critica">URGENTE</span>
+                    {% elif o.gravidade == 'alta' %}
+                    <span class="ao-sev-badge ao-sev-alta">ALTA</span>
+                    {% elif o.gravidade == 'media' %}
+                    <span class="ao-sev-badge ao-sev-media">MEDIA</span>
+                    {% else %}
+                    <span class="ao-sev-badge ao-sev-baixa">BAIXA</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if o.tags %}
+                      {% for tag in o.tags %}
+                      <span class="ao-tag-inline">{{ tag }}</span>
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-secondary">Sem tag</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ o.descricao }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="ao-empty">Sem ocorrências no recorte.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if analise_payload.diario.ocorrencias_recentes|length > 5 %}
+          <div class="text-end mt-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="aoOccShowMore" aria-expanded="false">
+              Ver mais ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length|add:"-5" }})
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="ao-card span-12">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Ações recomendadas para hoje</h3>
+          <span class="ao-badge-origem cruzamento">Prioridade</span>
+        </div>
+        <ul class="ao-action-list mb-0">
+          {% for acao in analise_payload.cruzamento.acoes_recomendadas %}
+          <li{% if forloop.counter > 2 %} class="ao-action-extra d-none"{% endif %}>
+            <span class="ao-sev-badge {% if acao.prioridade == 'URGENTE' %}ao-sev-critica{% elif acao.prioridade == 'ALTA' %}ao-sev-alta{% elif acao.prioridade == 'MEDIA' or acao.prioridade == 'MÉDIA' %}ao-sev-media{% else %}ao-sev-baixa{% endif %}">
+              {{ acao.prioridade }}
+            </span>
+            <span>{{ acao.acao }}</span>
+          </li>
+          {% empty %}
+          <li><span class="text-secondary">Sem ação sugerida para o recorte atual.</span></li>
+          {% endfor %}
+        </ul>
+        {% if analise_payload.cruzamento.acoes_recomendadas|length > 2 %}
+        <div class="text-end mt-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoActionShowMore" aria-expanded="false">
+            Ver mais ações ({{ analise_payload.cruzamento.acoes_recomendadas|length|add:"-2" }})
+          </button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- 1 · Obra (avanço físico) -->
+  <section class="ao-section" aria-labelledby="sec-a">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-a">1 · Obra</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">O que já foi executado no terreno <span class="ao-badge-origem controle">mapa serviço</span></p>
+    </div>
+    <div class="ao-grid">
+      <div class="ao-card span-4">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Concluído</h3>
+          <span class="ao-badge-origem controle">Obra</span>
+        </div>
+        <p class="ao-metric-big">{{ analise_payload.controle.kpis.concluidos }}</p>
+      </div>
+      <div class="ao-card span-4">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Andando / parado</h3>
+          <span class="ao-badge-origem controle">Obra</span>
+        </div>
+        <p class="ao-metric-big">{{ analise_payload.controle.kpis.em_andamento }} / {{ analise_payload.controle.kpis.nao_iniciados }}</p>
+      </div>
+      <div class="ao-card span-4">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Linhas</h3>
+          <span class="ao-badge-origem controle">Obra</span>
+        </div>
+        <p class="ao-metric-big">{{ analise_payload.controle.kpis.total_itens }}</p>
+      </div>
+      <div class="ao-card span-12">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Blocos mais atrasados</h3>
+          <span class="ao-badge-origem controle">Obra</span>
+        </div>
+        <div class="ao-chart-box">
+          <canvas id="chart-blocos-controle" aria-label="Avanço por bloco"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mapa de calor -->
+  <section class="ao-section" id="section-heatmap" aria-labelledby="sec-h">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-h">Mapa · bloco × piso</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">Toque na linha para abrir detalhe <span class="ao-badge-origem controle">só obra</span></p>
+    </div>
+    <p class="small text-secondary mb-2 d-md-none">Toque na linha · detalhe</p>
+    <p class="ao-footnote small d-none d-md-block mb-2">
+      &lt;30% crítico · 30–55 alto · 55–75 médio · ≥75 ok
+    </p>
+    <div class="ao-table-wrap">
+      <table class="ao-table ao-table-heatmap">
+        <thead>
+          <tr>
+            <th>Bloco</th>
+            <th>Piso</th>
+            <th>% médio</th>
+            <th>Amostras</th>
+            <th>Criticidade</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in analise_payload.heatmap.celulas %}
+          <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-pavimento="{{ c.pavimento }}">
+            <td>{{ c.bloco }}</td>
+            <td>{{ c.pavimento }}</td>
+            <td>{{ c.percentual_medio }}%</td>
+            <td>{{ c.amostras }}</td>
+            <td><span class="ao-crit-badge">{{ c.criticidade }}</span></td>
+            <td><button type="button" class="btn btn-sm ao-heat-open-btn ao-drill-btn">Abrir</button></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="ao-empty">Sem células no recorte (ajuste filtros ou importe mapa de serviço).</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if analise_payload.heatmap.celulas|length > 4 %}
+    <div class="text-end mt-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="aoHeatmapShowMore" aria-expanded="false">
+        Ver mais ({{ analise_payload.heatmap.celulas|length|add:"-4" }})
+      </button>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- 2 · Campo (diário) -->
+  <section class="ao-section" aria-labelledby="sec-b">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-b">2 · Campo</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">O que aconteceu no dia <span class="ao-badge-origem diario">diário</span></p>
+      {% if not analise_payload.diario.vinculo_projeto %}
+      <p class="small text-warning mb-0">Sem vínculo diário–obra (código Sienge).</p>
+      {% endif %}
+    </div>
+    <div class="ao-grid">
+      <div class="ao-card span-6">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Ocorrências no tempo</h3>
+          <span class="ao-badge-origem diario">Campo</span>
+        </div>
+        <p class="ao-card-caption mb-0">Recorte de {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
+        <div class="ao-chart-box">
+          <canvas id="chart-ocorrencias-dia" aria-label="Ocorrências por dia"></canvas>
+        </div>
+      </div>
+      <div class="ao-card span-6">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Tipos</h3>
+          <span class="ao-badge-origem diario">Campo</span>
+        </div>
+        <div class="ao-chart-box">
+          <canvas id="chart-tags-diario" aria-label="Tags"></canvas>
+        </div>
+      </div>
+      <div class="ao-card span-12">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Últimos dias</h3>
+          <span class="ao-badge-origem diario">{{ analise_payload.diario.timeline|length }} dia(s)</span>
+        </div>
+        {% if analise_payload.diario.timeline %}
+        <div class="ao-timeline">
+          {% for row in analise_payload.diario.timeline %}
+          <details class="ao-tl-item ao-tl-item--expandable" {% if forloop.first %}open{% endif %}>
+            <summary class="ao-tl-summary">
+              <div class="ao-tl-date">{{ row.data }}</div>
+              <div class="ao-tl-body">
+                #{{ row.relatorio|default:"—" }} · {{ row.ocorrencias_no_dia }} ocorr.
+                {% if row.resumo_clima %}<br><span class="text-secondary small">{{ row.resumo_clima }}</span>{% endif %}
+                <br><span class="ao-tl-open-hint">Clique para ver ocorrências do dia</span>
+              </div>
+            </summary>
+            <div class="ao-tl-occ-list">
+              {% if row.ocorrencias %}
+                {% for oc in row.ocorrencias %}
+                <div class="ao-tl-occ-item">
+                  <p class="mb-1">{{ oc.descricao }}</p>
+                  {% if oc.tags %}
+                    <div class="d-flex flex-wrap gap-1">
+                      {% for tg in oc.tags %}
+                      <span class="ao-tag-inline">{{ tg }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="ao-empty mb-0">Sem ocorrências registradas neste dia.</p>
+              {% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="ao-empty">Sem registros no período.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · Material (resumo — painel completo continua no Dashboard / Mapa) -->
+  <section class="ao-section" aria-labelledby="sec-c">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-c">3 · Material</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">Resumo do fluxo SC/PC — detalhe no <em>Dashboard</em> de suprimentos <span class="ao-badge-origem suprimentos">material</span></p>
+    </div>
+    <div class="ao-grid">
+      <div class="ao-card span-4">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Fila</h3>
+          <span class="ao-badge-origem suprimentos">Material</span>
+        </div>
+        <ul class="list-unstyled small mb-0" style="line-height:1.8;">
+          <li>Sem SC: <strong>{{ analise_payload.suprimentos.kpis.sem_sc }}</strong></li>
+          <li>Com SC sem PC: <strong>{{ analise_payload.suprimentos.kpis.sem_pc }}</strong></li>
+          <li>Com PC sem entrega: <strong>{{ analise_payload.suprimentos.kpis.sem_entrega }}</strong></li>
+          <li>Recebido sem alocação: <strong>{{ analise_payload.suprimentos.kpis.sem_alocacao }}</strong></li>
+        </ul>
+      </div>
+      <div class="ao-card span-8">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Onde mais pesa</h3>
+          <span class="ao-badge-origem suprimentos">Material</span>
+        </div>
+        <div class="ao-chart-box">
+          <canvas id="chart-suprimentos-locais" aria-label="Pendências por local"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · Onde cruza -->
+  <section class="ao-section" aria-labelledby="sec-d">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-d">4 · Locais com risco de atraso</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">Obra lenta + material pendente no mesmo eixo <span class="ao-badge-origem cruzamento">mistura</span></p>
+    </div>
+    <p class="small text-secondary d-md-none mb-2">Obra atrasada + fila material</p>
+    <div class="ao-table-wrap">
+      <table class="ao-table">
+        <thead>
+          <tr>
+            <th>Local</th>
+            <th>% obra</th>
+            <th>Pend.</th>
+            <th>Prioridade</th>
+            <th class="d-none d-md-table-cell">Nota</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in analise_payload.cruzamento.candidatos_atraso_suprimento_e_execucao %}
+          <tr>
+            <td>{{ c.local_norm }}</td>
+            <td>{{ c.controle.percentual_medio }}%</td>
+            <td>{{ c.suprimentos.pendencias_pendentes_ranking }}</td>
+            <td>
+              {% if c.prioridade == 'urgente' %}
+              <span class="ao-sev-badge ao-sev-critica">URGENTE</span>
+              {% elif c.prioridade == 'alta' %}
+              <span class="ao-sev-badge ao-sev-alta">ALTA</span>
+              {% elif c.prioridade == 'media' %}
+              <span class="ao-sev-badge ao-sev-media">MEDIA</span>
+              {% else %}
+              <span class="ao-sev-badge ao-sev-baixa">BAIXA</span>
+              {% endif %}
+            </td>
+            <td class="small d-none d-md-table-cell">{{ c.leitura|truncatechars:80 }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="ao-empty">Nada no recorte — mude filtros ou período.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="ao-section" aria-labelledby="sec-t">
+    <h2 class="ao-section-title" id="sec-t">Blocos · ranking</h2>
+    <div class="ao-table-wrap">
+      <table class="ao-table">
+        <thead>
+          <tr>
+            <th>Bloco</th>
+            <th>% médio</th>
+            <th>Amostras</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in analise_payload.controle.blocos_mais_atrasados %}
+          <tr>
+            <td>{{ b.bloco }}</td>
+            <td>{{ b.percentual_medio }}</td>
+            <td>{{ b.amostras }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="ao-footnote d-flex flex-wrap gap-2 gap-md-3 align-items-center">
+    <span class="text-secondary small">Ir para:</span>
+    <a href="{% url 'engenharia:dashboard_2' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Dashboard SC/PC</a>
+    <a href="{% url 'engenharia:mapa' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Mapa</a>
+    <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Controle físico</a>
+    <a href="/reports/" class="ao-link-footer">Diários</a>
+  </p>
+
+  <!-- Drawer drill-down -->
+  <div class="offcanvas offcanvas-end ao-drill-offcanvas" tabindex="-1" id="aoDrilldown" aria-labelledby="aoDrilldownLabel" style="width:min(520px,100vw);">
+    <div class="offcanvas-header ao-drill-offcanvas-header border-bottom">
+      <h2 class="offcanvas-title h5" id="aoDrilldownLabel">Recorte</h2>
+      <button type="button" class="btn-close ao-drill-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+    </div>
+    <div class="offcanvas-body ao-drill-offcanvas-body" id="aoDrilldownBody">
+      <p class="small ao-drill-placeholder">Selecione uma linha na matriz ou use Detalhar.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
