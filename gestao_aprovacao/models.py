@@ -535,6 +535,18 @@ def sanitize_attachment_nome(nome, max_len=200):
     return f"{base[:keep]}{ext}"
 
 
+def sanitize_mysql_text_value(value):
+    """
+    Normaliza texto para persistência em MySQL e evita DataError 1366 (Incorrect string value)
+    quando a coluna é legada (latin1/utf8 antigo) ou o texto vem em NFD com diacríticos combinantes.
+    """
+    if value is None:
+        return None
+    s = unicodedata.normalize('NFC', str(value))
+    # Remove surrogate pairs inválidos (raro; quebra insert em alguns drivers)
+    return ''.join(c for c in s if not (0xD800 <= ord(c) <= 0xDFFF))
+
+
 def attachment_upload_path(instance, filename):
     """
     Função para gerar o caminho de upload de anexos com nome sanitizado.
@@ -713,6 +725,11 @@ class StatusHistory(models.Model):
         indexes = [
             models.Index(fields=['work_order', '-created_at']),
         ]
+
+    def save(self, *args, **kwargs):
+        if self.observacao is not None:
+            self.observacao = sanitize_mysql_text_value(self.observacao)
+        super().save(*args, **kwargs)
     
     def __str__(self):
         status_ant = self.status_anterior or 'N/A'
