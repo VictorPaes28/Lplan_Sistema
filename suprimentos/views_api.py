@@ -119,7 +119,7 @@ def _aplicar_dados_recebimento_obra(item):
 @require_http_methods(["GET"])
 def item_detalhe(request, item_id):
     """Retorna detalhes do item para modal."""
-    item = get_object_or_404(ItemMapa, id=item_id)
+    item = get_object_or_404(ItemMapa.objects.select_related('criado_por'), id=item_id)
     
     # Validar que o item pertence à obra da sessão
     obra_sessao_id = request.session.get('obra_id')
@@ -148,6 +148,12 @@ def item_detalhe(request, item_id):
     # Falta Alocar: baseado no que foi recebido na obra, não no planejado
     saldo_a_alocar = max(qtd_recebida_obra - qtd_alocada_local, Decimal('0.00'))
     
+    # Nome do responsável pelo levantamento
+    if item.criado_por:
+        criado_por_nome = item.criado_por.get_full_name() or item.criado_por.username
+    else:
+        criado_por_nome = '-'
+
     from accounts.groups import GRUPOS
     pode_excluir = (
         request.user.is_superuser or
@@ -182,6 +188,10 @@ def item_detalhe(request, item_id):
     <div class="detalhe-item">
         <div class="detalhe-label">Prazo Necessidade:</div>
         <div class="detalhe-valor">{item.prazo_necessidade or '-'}</div>
+    </div>
+    <div class="detalhe-item">
+        <div class="detalhe-label">Responsável pelo Levantamento:</div>
+        <div class="detalhe-valor"><strong>{criado_por_nome}</strong></div>
     </div>
         </div>
         <div class="col-md-6">

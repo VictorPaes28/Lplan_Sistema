@@ -101,43 +101,11 @@
                                     <i class="bi bi-upload"></i> <span>Importar</span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'mapa_obras:home' %}">
-                                    <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
-                                </a>
-                            </li>
                         {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
-                        <!-- Seletor de Obra (Contexto Multi-Obra) -->
-                        {% if obras_disponiveis %}
-                        <li class="nav-item dropdown me-3">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="obraDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-building me-1"></i>
-                                <span class="obra-nome-atual">{% if obra_atual %}{{ obra_atual.nome }}{% else %}Selecionar Obra{% endif %}</span>
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="obraDropdown">
-                                <li><h6 class="dropdown-header">Selecionar Obra</h6></li>
-                                {% for obra in obras_disponiveis %}
-                                    <li>
-                                        <a class="dropdown-item {% if obra_atual and obra.id == obra_atual.id %}active{% endif %}" 
-                                           href="{% url 'mapa_obras:selecionar' obra.id %}">
-                                            {% if obra_atual and obra.id == obra_atual.id %}
-                                                <i class="bi bi-check-circle-fill me-2"></i>
-                                            {% else %}
-                                                <i class="bi bi-circle me-2"></i>
-                                            {% endif %}
-                                            {{ obra.nome }}
-                                            <small class="text-muted ms-2">({{ obra.codigo_sienge }})</small>
-                                        </a>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        </li>
-                        {% endif %}
-                        
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                                 <span class="lplan-avatar">{{ user.username|slice:":1"|upper }}</span>
