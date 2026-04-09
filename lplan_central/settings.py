@@ -178,6 +178,17 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Uploads POST/multipart: padrão Django (2,5 MB) rejeita pedidos com anexos maiores (SuspiciousOperation).
+# Alinhado a core.utils.file_validators (anexo 50 MB, vídeo 100 MB) + margem (vários anexos / multipart).
+# Segurança: tipos/tamanho por arquivo continuam em file_validators; limite global evita estouro de memória.
+#   Reduza DATA_UPLOAD_MAX_MB no .env em ambientes sensíveis; no proxy use client_body_timeout e rate limit.
+# Em produção, nginx precisa de client_max_body_size >= este valor (413 antes do Django = sem log na app).
+_MB = 1024 * 1024
+_data_upload_mb = int(os.environ.get('DATA_UPLOAD_MAX_MB', '200'))
+DATA_UPLOAD_MAX_MEMORY_SIZE = max(2621440, _data_upload_mb * _MB)
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_MB', '10')) * _MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get('DATA_UPLOAD_MAX_NUMBER_FIELDS', '10000'))
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
