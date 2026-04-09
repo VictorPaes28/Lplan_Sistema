@@ -78,6 +78,8 @@
     .system-card.mapa .card-inner::before { background: #10b981; }
     .system-card.controle:hover:not(.disabled) .card-inner { border-color: #f97316; }
     .system-card.controle .card-inner::before { background: #f97316; }
+    .system-card.biobra:hover:not(.disabled) .card-inner { border-color: #0ea5e9; }
+    .system-card.biobra .card-inner::before { background: #0ea5e9; }
     .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
     .system-card.central .card-inner::before { background: #475569; }
 
@@ -99,6 +101,7 @@
     .system-card.diario .system-icon { background: linear-gradient(135deg, #667eea, #764ba2); box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35); }
     .system-card.gestao .system-icon { background: linear-gradient(135deg, #f093fb, #f5576c); box-shadow: 0 4px 14px rgba(245, 87, 108, 0.35); }
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
+    .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
     .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
 
     /* Badges */
@@ -153,6 +156,7 @@
     .system-card.diario .card-arrow { color: #3b82f6; }
     .system-card.gestao .card-arrow { color: #a855f7; }
     .system-card.mapa .card-arrow   { color: #10b981; }
+    .system-card.biobra .card-arrow { color: #0ea5e9; }
     .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
 
@@ -644,6 +648,32 @@
                 </div>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+
+        <!-- BI da Obra (visão integrada por obra vinculada) -->
+        <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra {% if not has_bi_obra %}disabled{% endif %}" aria-label="Acessar BI da Obra" {% if not has_bi_obra %}data-tooltip="Sem acesso"{% endif %}>
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-chart-pie"></i></div>
+                    {% if has_bi_obra %}
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">BI da Obra</h3>
+                <p class="text-sm text-slate-500 mb-4">Obra, campo e material numa leitura só</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-sky-500"></i>Indicadores por obra</li>
+                        <li><i class="fas fa-check-circle text-sky-500"></i>Diário + mapa + suprimentos</li>
+                        <li><i class="fas fa-check-circle text-sky-500"></i>Gráficos e mapa de calor</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Abrir <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>

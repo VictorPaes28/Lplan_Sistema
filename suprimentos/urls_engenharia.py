@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import views_engenharia, views_controle, views_mapa_servico
+from . import views_analise_obra, views_engenharia, views_controle, views_mapa_servico
 
 app_name = 'engenharia'
 
@@ -18,5 +18,6 @@ urlpatterns = [
     # Dashboard antigo redireciona para o novo
     path('dashboard/', RedirectView.as_view(pattern_name='engenharia:dashboard_2', permanent=True), name='dashboard_redirect'),
     path('dashboard-2/', views_engenharia.dashboard_2, name='dashboard_2'),
+    path('analise-obra/', views_analise_obra.analise_obra, name='analise_obra'),
 ]
 

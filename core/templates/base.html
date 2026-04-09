@@ -125,7 +125,7 @@
                             Painel do sistema
                         {% elif '/gestao/' in request.path %}
                             GestControll
-                        {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+                        {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
                             Mapa de Suprimentos
                         {% elif request.session.selected_project_name %}
                             {{ request.session.selected_project_name|truncatechars:20 }}
@@ -230,7 +230,7 @@
             </a>
             {% endif %}
 
-            {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+            {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
             <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
             {% if obra_atual %}
             <div class="mb-2 px-4">
@@ -397,7 +397,7 @@
     <!-- Main Content -->
     <div class="main-content-wrapper">
         <!-- Page Content -->
-        <main class="main-content">
+        <main class="main-content{% block main_extra_class %}{% endblock %}">
             <!-- Top Bar - Primeiro elemento, no topo -->
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
                 <div class="flex flex-col gap-1">
@@ -923,7 +923,6 @@
             }
         })();
     </script>
-
 
     {% block extra_js %}{% endblock %}
 </body>

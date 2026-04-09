@@ -351,6 +351,8 @@ def select_system_view(request):
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    # BI da Obra: mesma base de obras (projeto vinculado); visível para quem usa Diário ou Mapa
+    has_bi_obra = user.is_superuser or user.is_staff or has_diario or has_mapa
     has_central = user.is_superuser or user.is_staff
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
     if not (has_diario or has_gestao or has_mapa or has_central) and _is_work_owner(user):
@@ -360,6 +362,7 @@ def select_system_view(request):
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_mapa': has_mapa,
+        'has_bi_obra': has_bi_obra,
         'has_admin': user.is_superuser or user.is_staff,
         'has_central': has_central,
         'can_manage_support_tickets': user.is_superuser or user.is_staff,

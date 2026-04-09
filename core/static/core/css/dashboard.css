@@ -779,3 +779,278 @@
 .dashboard-content .recent-reports-table .report-status--review i {
     color: #b45309 !important;
 }
+
+/* ============================================================
+   DARK THEME (Diário de Obras) - contraste por trecho
+   ============================================================ */
+html[data-theme="dark"] .dashboard-content {
+    color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .dashboard-content .bg-white,
+html[data-theme="dark"] .dashboard-content .kpi-card,
+html[data-theme="dark"] .dashboard-content .dashboard-video-card,
+html[data-theme="dark"] .dashboard-content .recent-reports-table tbody,
+html[data-theme="dark"] .dashboard-content .recent-reports-table thead {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .dashboard-content .kpi-card:hover {
+    border-color: #475569 !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-theme="dark"] .dashboard-content .text-slate-800,
+html[data-theme="dark"] .dashboard-content .text-slate-900,
+html[data-theme="dark"] .dashboard-content .text-gray-900 {
+    color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .dashboard-content .text-slate-500,
+html[data-theme="dark"] .dashboard-content .text-slate-600,
+html[data-theme="dark"] .dashboard-content .text-gray-500,
+html[data-theme="dark"] .dashboard-content .text-gray-600 {
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .dashboard-content .kpi-icon--reports { color: #93c5fd !important; }
+html[data-theme="dark"] .dashboard-content .kpi-icon--activities,
+html[data-theme="dark"] .dashboard-content .kpi-icon--occurrences,
+html[data-theme="dark"] .dashboard-content .kpi-icon--comments,
+html[data-theme="dark"] .dashboard-content .kpi-icon--photos,
+html[data-theme="dark"] .dashboard-content .kpi-icon--videos {
+    color: #cbd5e1 !important;
+}
+
+/* Calendário */
+html[data-theme="dark"] .dashboard-calendar-header {
+    background: linear-gradient(180deg, #0f172a 0%, #111827 100%) !important;
+    border-bottom-color: #334155 !important;
+}
+
+html[data-theme="dark"] .dashboard-calendar-title {
+    color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .dashboard-legend-item {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .dashboard-legend-filled {
+    background: rgba(16, 185, 129, 0.16) !important;
+    border-color: rgba(16, 185, 129, 0.45) !important;
+}
+
+html[data-theme="dark"] .dashboard-legend-overdue {
+    background: rgba(239, 68, 68, 0.16) !important;
+    border-color: rgba(239, 68, 68, 0.45) !important;
+}
+
+html[data-theme="dark"] .dashboard-legend-draft {
+    background: rgba(245, 158, 11, 0.16) !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+}
+
+html[data-theme="dark"] .dashboard-legend-pending-approval {
+    background: rgba(59, 130, 246, 0.16) !important;
+    border-color: rgba(59, 130, 246, 0.45) !important;
+}
+
+html[data-theme="dark"] .fc-header-toolbar {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-title {
+    color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-chunk:first-child .fc-button {
+    background: #1e293b !important;
+    border-color: #475569 !important;
+    color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-chunk:first-child .fc-button:hover {
+    background: #334155 !important;
+    border-color: #64748b !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-chunk:last-child {
+    background: #0b1220 !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-chunk:last-child .fc-button {
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-chunk:last-child .fc-button:hover {
+    background: #1e293b !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .fc .fc-toolbar-chunk:last-child .fc-button-active,
+html[data-theme="dark"] .fc .fc-toolbar-chunk:last-child .fc-button.fc-button-active {
+    background: #334155 !important;
+    color: #f8fafc !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="dark"] .fc .fc-button {
+    box-shadow: none !important;
+}
+
+html[data-theme="dark"] .fc .fc-theme-standard td,
+html[data-theme="dark"] .fc .fc-theme-standard th,
+html[data-theme="dark"] .fc-theme-standard td,
+html[data-theme="dark"] .fc-theme-standard th {
+    border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .fc-col-header-cell {
+    background: #0f172a !important;
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .fc-daygrid-day-number {
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .fc-day-today {
+    background: rgba(59, 130, 246, 0.12) !important;
+}
+
+html[data-theme="dark"] .fc-daygrid-day:hover {
+    background: rgba(51, 65, 85, 0.35) !important;
+}
+
+html[data-theme="dark"] .fc-day-sun .fc-daygrid-day-frame,
+html[data-theme="dark"] .fc-day-sat .fc-daygrid-day-frame {
+    background: #111827 !important;
+}
+
+html[data-theme="dark"] .fc .fc-more-link {
+    color: #cbd5e1 !important;
+}
+
+/* Eventos no mês: força aparência legível mesmo com estilos inline do JS */
+html[data-theme="dark"] .fc-event--atraso {
+    background: rgba(127, 29, 29, 0.45) !important;
+    border: 1px solid rgba(248, 113, 113, 0.55) !important;
+    color: #fecaca !important;
+}
+
+html[data-theme="dark"] .fc-event--atraso .fc-event-content-inner,
+html[data-theme="dark"] .fc-event--atraso .fc-event-title-text,
+html[data-theme="dark"] .fc-event--atraso .fc-event-icon {
+    color: #fecaca !important;
+}
+
+html[data-theme="dark"] .fc-event--futuro {
+    background: rgba(30, 64, 175, 0.35) !important;
+    border: 1px solid rgba(96, 165, 250, 0.5) !important;
+}
+
+html[data-theme="dark"] .fc-event--futuro .fc-event-content-inner,
+html[data-theme="dark"] .fc-event--futuro .fc-event-title-text,
+html[data-theme="dark"] .fc-event--futuro .fc-event-icon {
+    color: #bfdbfe !important;
+}
+
+html[data-theme="dark"] .fc-event--preenchido {
+    background: #166534 !important;
+    border: 1px solid #22c55e !important;
+}
+
+/* FullCalendar vars + grid shells (remove barras cinza/brancas) */
+html[data-theme="dark"] .dashboard-calendar-inner,
+html[data-theme="dark"] #calendar {
+    --fc-page-bg-color: #111827;
+    --fc-neutral-bg-color: #0f172a;
+    --fc-border-color: #243447;
+    --fc-list-event-hover-bg-color: #1f2937;
+}
+
+html[data-theme="dark"] .dashboard-content .fc-theme-standard .fc-scrollgrid,
+html[data-theme="dark"] .dashboard-content .fc-theme-standard td,
+html[data-theme="dark"] .dashboard-content .fc-theme-standard th {
+    border-color: #243447 !important;
+}
+
+html[data-theme="dark"] .dashboard-content .fc-scrollgrid,
+html[data-theme="dark"] .dashboard-content .fc-scrollgrid-section > * {
+    background: #111827 !important;
+}
+
+html[data-theme="dark"] .dashboard-content .fc-scroller,
+html[data-theme="dark"] .dashboard-content .fc-scroller-liquid-absolute {
+    background: #111827 !important;
+}
+
+/* Remove faixa cinza atrás do título no topo do calendário */
+html[data-theme="dark"] .dashboard-content .fc .fc-toolbar-chunk {
+    background: transparent !important;
+}
+
+html[data-theme="dark"] .dashboard-content .fc .fc-toolbar-chunk:nth-child(2) {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+html[data-theme="dark"] .dashboard-content .fc .fc-toolbar-title {
+    background: transparent !important;
+    text-shadow: none !important;
+}
+
+/* Tabela de relatórios recentes */
+html[data-theme="dark"] .recent-reports-table tbody tr:nth-child(even) {
+    background-color: #111827 !important;
+}
+
+html[data-theme="dark"] .recent-reports-table tbody tr:hover {
+    background-color: #1f2937 !important;
+}
+
+html[data-theme="dark"] .recent-reports-table .text-gray-400 {
+    color: #94a3b8 !important;
+}
+
+/* Fotos e vídeos */
+html[data-theme="dark"] .dashboard-photo-thumb,
+html[data-theme="dark"] .dashboard-video-thumb {
+    background: #0f172a !important;
+}
+
+html[data-theme="dark"] .dashboard-video-caption {
+    color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .dashboard-video-link {
+    color: #93c5fd !important;
+}
+
+html[data-theme="dark"] .dashboard-video-link:hover {
+    color: #bfdbfe !important;
+}
+
+/* Empty states */
+html[data-theme="dark"] .empty-state-title {
+    color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .empty-state-desc {
+    color: #cbd5e1 !important;
+}
+
+/* Bloco informações da obra */
+html[data-theme="dark"] .dashboard-project-info .text-sm {
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .dashboard-project-info .font-medium {
+    color: #f8fafc !important;
+}

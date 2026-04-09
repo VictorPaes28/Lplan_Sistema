@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views_api, views_controle
+from . import views_analise_obra, views_api, views_controle
 
 app_name = 'suprimentos'
 
@@ -18,5 +18,7 @@ urlpatterns = [
     path('scs/', views_api.listar_scs_disponiveis, name='listar_scs'),
     path('busca-mobile/', views_api.busca_rapida_mobile, name='busca_mobile'),
     path('dashboard2/alocar/', views_api.dashboard2_alocar, name='dashboard2_alocar'),
+    path('analise-obra/', views_analise_obra.analise_obra_api, name='analise_obra_api'),
+    path('analise-obra/drilldown/', views_analise_obra.analise_obra_drilldown_api, name='analise_obra_drilldown_api'),
 ]
 

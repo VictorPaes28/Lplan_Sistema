@@ -7,10 +7,12 @@ Popula:
 - Obras LPLAN (Entreáguas, Okena, Marghot, Sunrise) + locais (blocos, pavimentos)
 - Insumos variados
 - SCs / Recebimentos e Itens no Mapa de Suprimentos (com e sem SC, com alocações, etc.)
-- Diário de Obras: vários diários, fotos (placeholder), descrições, clima, progresso, ocorrências
+- Mapa de serviço (ItemMapaServico + referências de status) para Mapa de Controle e BI da Obra
+- Diário de Obras: vários diários (por padrão ~últimos 32 dias), fotos (placeholder), descrições, clima, progresso, ocorrências
 
 Uso:
     python manage.py seed_dados_demo_completo
+    python manage.py seed_dados_demo_completo --dias-diarios 32
     python manage.py seed_dados_demo_completo --dry-run
 
 Requisitos: DEBUG=True no settings (ou .env). Migrations aplicadas.
@@ -38,8 +40,14 @@ from core.models import (
 )
 from mapa_obras.models import Obra as ObraMapa, LocalObra
 from suprimentos.models import (
-    Insumo, ItemMapa, RecebimentoObra, AlocacaoRecebimento,
-    NotaFiscalEntrada, HistoricoAlteracao,
+    Insumo,
+    ItemMapa,
+    ItemMapaServico,
+    ItemMapaServicoStatusRef,
+    RecebimentoObra,
+    AlocacaoRecebimento,
+    NotaFiscalEntrada,
+    HistoricoAlteracao,
 )
 
 
@@ -382,6 +390,81 @@ def create_mapa_and_recebimentos(obras_mapa, insumos, user, dry_run=False):
         item.save(update_fields=["nao_aplica", "descricao_override"])
 
 
+def create_mapa_servico_controle(obras_mapa, dry_run=False):
+    """
+    Gera linhas de mapa de serviço (controle físico) com blocos × pavimentos × aptos e
+    percentuais variados — alimenta heatmap e KPIs do BI da Obra.
+    """
+    if dry_run:
+        return 0
+    rng = random.Random(42)
+    blocos = ["A", "B", "C"]
+    pavs = ["TÉRREO", "1", "2"]
+    aptos = ["101", "102", "201"]
+    atividades = [
+        "Alvenaria de vedação",
+        "Instalações elétricas",
+        "Instalações hidráulicas",
+        "Revestimento cerâmico",
+        "Pintura interna",
+        "Forro de gesso",
+    ]
+    situacoes = [
+        ("Concluído", Decimal("1.000")),
+        ("Em execução", Decimal("0.550")),
+        ("Em execução", Decimal("0.220")),
+        ("Não iniciado", Decimal("0")),
+        ("Parcial", Decimal("0.400")),
+        ("Aguardando material", Decimal("0.080")),
+        ("", Decimal("0.350")),
+    ]
+    created = 0
+    for obra in obras_mapa:
+        n = 0
+        for b in blocos:
+            for p in pavs:
+                for apto in aptos:
+                    for act in atividades:
+                        stxt, spct = situacoes[n % len(situacoes)]
+                        n += 1
+                        uid = f"DEMO|MOCK|{obra.pk}|{b}|{p}|{apto}|{act}"[:255]
+                        ItemMapaServico.objects.update_or_create(
+                            obra=obra,
+                            chave_uid=uid,
+                            defaults={
+                                "setor": "EDIFÍCIO",
+                                "bloco": b,
+                                "pavimento": p,
+                                "apto": apto,
+                                "atividade": act[:200],
+                                "grupo_servicos": "OBRA" if n % 2 else "ACABAMENTO",
+                                "status_texto": stxt,
+                                "status_percentual": spct,
+                            },
+                        )
+                        created += 1
+        for act in atividades:
+            key = act.upper()[:220]
+            ItemMapaServicoStatusRef.objects.update_or_create(
+                obra=obra,
+                atividade_chave=key,
+                defaults={
+                    "atividade": act,
+                    "status_macro": rng.choice(
+                        ["Planejado", "Em curso", "Concluído", "Atraso", "Crítico"]
+                    ),
+                    "situacao": (
+                        "Referência gerada para demonstração do mapa de controle e do BI da Obra."
+                    ),
+                    "prazo_execucao": "Conforme cronograma",
+                    "responsabilidade": rng.choice(
+                        ["Construtora", "Empreiteira", "Instaladora", "Pintura"]
+                    ),
+                },
+            )
+    return created
+
+
 def create_eap(project, dry_run=False):
     """Cria EAP (atividades) no projeto."""
     if dry_run:
@@ -644,7 +727,7 @@ def create_occurrences_and_tags(projects, user, dry_run=False):
         ConstructionDiary.objects.filter(
             project__in=projects,
             status=DiaryStatus.APROVADO,
-        ).order_by("-date")[:50]
+        ).order_by("-date")[:120]
     )
     descricoes = [
         "Atraso na entrega de material - reagendado para amanhã.",
@@ -660,7 +743,7 @@ def create_occurrences_and_tags(projects, user, dry_run=False):
         "DDS sobre uso de EPI e trabalho em altura.",
         "Infraestrutura de canteiro ampliada (banheiros e refeitório).",
     ]
-    for _ in range(min(50, len(diaries))):
+    for _ in range(min(140, len(diaries))):
         diary = random.choice(diaries)
         tag = random.choice(tags) if tags else None
         desc = random.choice(descricoes)
@@ -842,9 +925,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Apenas mostra o que seria feito, sem gravar.",
         )
+        parser.add_argument(
+            "--dias-diarios",
+            type=int,
+            default=32,
+            metavar="N",
+            help="Quantidade de dias (para trás a partir de hoje) para tentar criar diários de obra. Padrão: 32 (~1 mês).",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+        dias_diarios = max(1, min(options["dias_diarios"], 120))
         _check_local_only()
 
         if dry_run:
@@ -883,14 +974,25 @@ class Command(BaseCommand):
                 "Mapa de Suprimentos: itens, SCs, recebimentos e alocações (situações variadas)."
             )
 
+            n_ms = create_mapa_servico_controle(obras_mapa, dry_run=dry_run)
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Mapa de serviço (controle físico): {n_ms} linhas ItemMapaServico "
+                    "(bloco × pavimento × apto × atividades) + refs de status por obra."
+                )
+            )
+
             for proj in projects:
                 create_eap(proj, dry_run=dry_run)
             self.stdout.write("EAP (atividades) criada nos projetos.")
 
-            n_diaries = create_diaries_with_photos(projects, user, num_days=60, dry_run=dry_run)
+            n_diaries = create_diaries_with_photos(
+                projects, user, num_days=dias_diarios, dry_run=dry_run
+            )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Diários de obra: {n_diaries} criados (com fotos placeholder e descrições)."
+                    f"Diários de obra: {n_diaries} novos em até {dias_diarios} dias corridos "
+                    "(fotos placeholder, clima, ocorrências)."
                 )
             )
 
