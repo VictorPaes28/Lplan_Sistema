@@ -88,6 +88,22 @@ class TestAnaliseObraService(TestCase):
         out_concluido = svc_concluido.build_payload()
         self.assertEqual(out_concluido["controle"]["kpis"]["total_itens"], 1)
 
+    def test_status_texto_andando_parado_gera_avanco_e_em_andamento(self):
+        ItemMapaServico.objects.create(
+            obra=self.obra,
+            chave_uid="k4",
+            atividade="Instalação",
+            bloco="D",
+            pavimento="2",
+            status_percentual=None,
+            status_texto="Andando / parado",
+        )
+        p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
+        out = AnaliseObraService(self.obra, periodo=p).build_payload()
+        self.assertGreater(out["controle"]["kpis"]["em_andamento"], 0)
+        blocos = out["controle"]["blocos_mais_atrasados"]
+        self.assertTrue(any(b["bloco"] == "D" and b["percentual_medio"] > 0 for b in blocos))
+
     def test_build_section_meta(self):
         svc = AnaliseObraService(self.obra)
         sec = svc.build_section("meta")

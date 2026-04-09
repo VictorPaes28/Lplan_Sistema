@@ -51,13 +51,6 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     <div class="ao-hero-top">
       <div class="ao-hero-intro">
         <h1 class="ao-hero-title">BI da Obra</h1>
-        <p class="ao-hero-tagline d-none d-md-block">
-          Uma leitura só: <strong>obra</strong> + <strong>campo</strong> + <strong>material</strong>.
-          Isto não substitui o <em>Dashboard</em> de suprimentos nem as telas do Gestão.
-        </p>
-        <p class="ao-hero-tagline d-md-none small">
-          Obra · campo · material — visão integrada.
-        </p>
         {% if obra_selecionada %}
         <p class="ao-hero-meta mt-1">
           <strong>{{ obra_selecionada.nome }}</strong>
@@ -70,14 +63,10 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         <p class="ao-hero-meta">Escolha uma obra.</p>
         {% endif %}
       </div>
-      <div class="ao-hero-actions d-flex flex-column align-items-stretch align-items-md-end gap-2 w-100 w-md-auto">
-        <button type="button" class="ao-theme-toggle ao-theme-toggle--prominent align-self-stretch align-self-md-end" id="aoThemeToggle" aria-pressed="false" title="Alternar tema claro ou escuro do BI">
-          <i class="bi bi-sun-fill ao-icon-light" aria-hidden="true"></i>
-          <i class="bi bi-moon-stars-fill ao-icon-dark" aria-hidden="true"></i>
-          <span class="ms-2" id="aoThemeLabel">Modo escuro</span>
-        </button>
+      <div class="ao-hero-actions d-flex flex-column align-items-stretch align-items-md-end gap-1 w-100 w-md-auto">
         {% if analise_payload %}
-        <span class="ao-situacao {{ analise_payload.meta.situacao_executiva.nivel }} text-center text-md-end">
+        <span class="small text-secondary text-center text-md-end fw-semibold">Status geral da obra</span>
+        <span class="ao-situacao {{ analise_payload.meta.situacao_executiva.nivel }} text-center text-md-end mb-1">
           {{ analise_payload.meta.situacao_executiva.rotulo }}
         </span>
         <span class="text-secondary small text-center text-md-end ao-hero-gerado">{{ analise_payload.meta.gerado_em|slice:":16"|default:"—" }}</span>
@@ -113,6 +102,14 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     {% endif %}
     {% endif %}
   </header>
+
+  <div class="d-flex justify-content-end mb-2 mb-md-3">
+    <button type="button" class="ao-theme-toggle ao-theme-toggle--prominent" id="aoThemeToggle" aria-pressed="false" title="Alternar tema claro ou escuro do BI">
+      <i class="bi bi-sun-fill ao-icon-light" aria-hidden="true"></i>
+      <i class="bi bi-moon-stars-fill ao-icon-dark" aria-hidden="true"></i>
+      <span class="ms-2" id="aoThemeLabel">Modo escuro</span>
+    </button>
+  </div>
 
   <!-- Filtros: rápidos sempre visíveis; resto recolhível (melhor no celular) -->
   <form class="ao-filters" method="get" action="" id="formAnaliseFiltros">
@@ -327,52 +324,90 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       <div class="ao-card span-12">
         <div class="ao-card-head">
           <h3 class="ao-card-title">Últimas ocorrências (com evidência)</h3>
-          <span class="ao-badge-origem diario">Recentes</span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="ao-badge-origem diario">Todas no período</span>
+            <button
+              class="btn btn-outline-secondary btn-sm"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#aoOcorrenciasCollapse"
+              aria-expanded="false"
+              aria-controls="aoOcorrenciasCollapse">
+              Ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length }})
+            </button>
+          </div>
         </div>
-        <div class="ao-table-wrap">
-          <table class="ao-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Relatório</th>
-                <th>Prioridade</th>
-                <th>Tags</th>
-                <th>Descrição</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for o in analise_payload.diario.ocorrencias_recentes %}
-              <tr>
-                <td>{{ o.data }}</td>
-                <td>#{{ o.relatorio|default:"—" }}</td>
-                <td>
-                  {% if o.gravidade == 'critica' %}
-                  <span class="ao-sev-badge ao-sev-critica">URGENTE</span>
-                  {% elif o.gravidade == 'alta' %}
-                  <span class="ao-sev-badge ao-sev-alta">ALTA</span>
-                  {% elif o.gravidade == 'media' %}
-                  <span class="ao-sev-badge ao-sev-media">MEDIA</span>
-                  {% else %}
-                  <span class="ao-sev-badge ao-sev-baixa">BAIXA</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if o.tags %}
-                    {% for tag in o.tags %}
-                    <span class="ao-tag-inline">{{ tag }}</span>
-                    {% endfor %}
-                  {% else %}
-                    <span class="text-secondary">Sem tag</span>
-                  {% endif %}
-                </td>
-                <td>{{ o.descricao }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="5" class="ao-empty">Sem ocorrências recentes no recorte.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="collapse" id="aoOcorrenciasCollapse">
+          <div class="ao-occ-filter mb-2 d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm active" data-priority-filter="all">Todas</button>
+            <button type="button" class="btn btn-outline-danger btn-sm" data-priority-filter="critica">Urgente</button>
+            <button type="button" class="btn btn-outline-warning btn-sm" data-priority-filter="alta">Alta</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-priority-filter="media">Média</button>
+            <button type="button" class="btn btn-outline-success btn-sm" data-priority-filter="baixa">Baixa</button>
+          </div>
+          <div class="ao-table-wrap">
+            <table class="ao-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Relatório</th>
+                  <th>Prioridade</th>
+                  <th>Tags</th>
+                  <th>Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for o in analise_payload.diario.ocorrencias_recentes %}
+                <tr data-priority="{{ o.gravidade }}">
+                  <td>{{ o.data }}</td>
+                  <td>#{{ o.relatorio|default:"—" }}</td>
+                  <td>
+                    {% if o.gravidade == 'critica' %}
+                    <span class="ao-sev-badge ao-sev-critica">URGENTE</span>
+                    {% elif o.gravidade == 'alta' %}
+                    <span class="ao-sev-badge ao-sev-alta">ALTA</span>
+                    {% elif o.gravidade == 'media' %}
+                    <span class="ao-sev-badge ao-sev-media">MEDIA</span>
+                    {% else %}
+                    <span class="ao-sev-badge ao-sev-baixa">BAIXA</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if o.tags %}
+                      {% for tag in o.tags %}
+                      <span class="ao-tag-inline">{{ tag }}</span>
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-secondary">Sem tag</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ o.descricao }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="ao-empty">Sem ocorrências no recorte.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
+      <div class="ao-card span-12">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Ações recomendadas para hoje</h3>
+          <span class="ao-badge-origem cruzamento">Prioridade</span>
+        </div>
+        <ul class="ao-action-list mb-0">
+          {% for acao in analise_payload.cruzamento.acoes_recomendadas %}
+          <li>
+            <span class="ao-sev-badge {% if acao.prioridade == 'URGENTE' %}ao-sev-critica{% elif acao.prioridade == 'ALTA' %}ao-sev-alta{% elif acao.prioridade == 'MEDIA' or acao.prioridade == 'MÉDIA' %}ao-sev-media{% else %}ao-sev-baixa{% endif %}">
+              {{ acao.prioridade }}
+            </span>
+            <span>{{ acao.acao }}</span>
+          </li>
+          {% empty %}
+          <li><span class="text-secondary">Sem ação sugerida para o recorte atual.</span></li>
+          {% endfor %}
+        </ul>
       </div>
     </div>
   </section>
@@ -441,7 +476,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         </thead>
         <tbody>
           {% for c in analise_payload.heatmap.celulas %}
-          <tr class="ao-heat-row ao-crit-{{ c.criticidade }}" data-bloco="{{ c.bloco }}" data-pavimento="{{ c.pavimento }}">
+          <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-pavimento="{{ c.pavimento }}">
             <td>{{ c.bloco }}</td>
             <td>{{ c.pavimento }}</td>
             <td>{{ c.percentual_medio }}%</td>
@@ -455,6 +490,13 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         </tbody>
       </table>
     </div>
+    {% if analise_payload.heatmap.celulas|length > 4 %}
+    <div class="text-end mt-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="aoHeatmapShowMore" aria-expanded="false">
+        Ver mais
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   <!-- 2 · Campo (diário) -->

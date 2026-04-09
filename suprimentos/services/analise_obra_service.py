@@ -48,11 +48,18 @@ def _status_to_ratio(item: ItemMapaServico) -> float | None:
     txt = (item.status_texto or "").strip().lower()
     if not txt:
         return None
-    if "conclu" in txt or "final" in txt or "entreg" in txt:
+    if "conclu" in txt or "final" in txt or "entreg" in txt or "feito" in txt or "ok" == txt:
         return 1.0
-    if "exec" in txt or "andamento" in txt or "parcial" in txt:
+    if (
+        "exec" in txt
+        or "andamento" in txt
+        or "andando" in txt
+        or "parcial" in txt
+        or "iniciad" in txt
+        or "parado" in txt
+    ):
         return 0.5
-    if "nao" in txt or "não" in txt or "pend" in txt or "aguard" in txt:
+    if "nao" in txt or "não" in txt or "pend" in txt or "aguard" in txt or "bloq" in txt:
         return 0.0
     return None
 
@@ -354,26 +361,18 @@ class AnaliseObraService:
             bloco = _norm_key(item.bloco) or "SEM BLOCO"
             if ratio is not None:
                 by_bloco.setdefault(bloco, []).append(ratio)
-            if item.status_percentual is not None:
-                pct = float(item.status_percentual)
-                if pct > 1:
-                    pct = pct / 100.0
-                soma_pct += pct
+            if ratio is not None:
+                soma_pct += ratio
                 pct_count += 1
-                if pct >= 1:
+                if ratio >= 0.999:
                     concluidos += 1
-                elif pct <= 0:
+                elif ratio <= 0.0:
                     nao_iniciados += 1
                 else:
                     em_andamento += 1
             else:
-                st = (item.status_texto or "").lower()
-                if "conclu" in st:
-                    concluidos += 1
-                elif "exec" in st or "parcial" in st:
-                    em_andamento += 1
-                else:
-                    nao_iniciados += 1
+                # Sem sinal confiável: mantém contagem conservadora em "não iniciado".
+                nao_iniciados += 1
 
         pct_medio = round((soma_pct / pct_count) * 100, 2) if pct_count else 0.0
 
@@ -506,7 +505,7 @@ class AnaliseObraService:
         occ_recent_qs = (
             occ_qs.select_related("diary")
             .prefetch_related("tags")
-            .order_by("-diary__date", "-created_at")[:24]
+            .order_by("-diary__date", "-created_at")
         )
         for occ in occ_recent_qs:
             tags_list = [t.name for t in occ.tags.all()]
@@ -618,10 +617,48 @@ class AnaliseObraService:
 
         candidatos.sort(key=lambda x: x.get("score_risco", 0), reverse=True)
 
+        prioridades_diario = (diario.get("prioridades") or {}) if isinstance(diario, dict) else {}
+        p1 = int(prioridades_diario.get("p1_critica") or 0)
+        p2 = int(prioridades_diario.get("p2_alta") or 0)
+
+        acoes_recomendadas: list[dict[str, str]] = []
+        if candidatos:
+            top = candidatos[0]
+            top_local = top.get("local_norm") or "local crítico"
+            top_pri = (top.get("prioridade") or "alta").upper()
+            acoes_recomendadas.append(
+                {
+                    "prioridade": top_pri,
+                    "acao": f"Alinhar obra e suprimentos no {top_local} e remover bloqueio de material no mesmo turno.",
+                }
+            )
+        if p1 > 0:
+            acoes_recomendadas.append(
+                {
+                    "prioridade": "URGENTE",
+                    "acao": "Revisar ocorrências críticas de campo ainda hoje com responsável da obra e registrar plano de contenção.",
+                }
+            )
+        if p2 > 0:
+            acoes_recomendadas.append(
+                {
+                    "prioridade": "ALTA",
+                    "acao": "Priorizar pendências de suprimentos com impacto direto na execução para evitar paralisação.",
+                }
+            )
+        if not acoes_recomendadas:
+            acoes_recomendadas.append(
+                {
+                    "prioridade": "ROTINA",
+                    "acao": "Manter monitoramento diário e revisar novamente após atualização dos filtros.",
+                }
+            )
+
         return {
             "origem": "cruzamento",
             "descricao_curta": "Hipóteses de causa: combina sinais sem misturar definições.",
             "candidatos_atraso_suprimento_e_execucao": candidatos[:10],
+            "acoes_recomendadas": acoes_recomendadas[:3],
             "alertas_semanticos": [
                 "Ocorrência do diário ≠ pendência de suprimento ≠ percentual de serviço; cada card indica a origem.",
                 "Indicadores de suprimento medem abastecimento; percentual de serviço mede execução física.",

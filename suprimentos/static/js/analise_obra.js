@@ -87,6 +87,8 @@
     var data = series.map(function (r) {
       return r.total;
     });
+    var maxValue = data.length ? Math.max.apply(null, data) : 0;
+    var yMax = Math.max(2, maxValue + 1);
     var pal = chartPalette();
     var fillRgb = isDarkTheme() ? "56, 189, 248" : "2, 132, 199";
     new Chart(canvas, {
@@ -118,7 +120,15 @@
           },
           y: {
             beginAtZero: true,
-            ticks: { color: pal.text },
+            suggestedMax: yMax,
+            ticks: {
+              color: pal.text,
+              stepSize: 1,
+              precision: 0,
+              callback: function (value) {
+                return Number.isInteger(value) ? value : "";
+              },
+            },
             grid: { color: pal.grid },
           },
         },
@@ -380,6 +390,39 @@
       });
   }
 
+  function initOccurrencePriorityFilter() {
+    var buttons = document.querySelectorAll("[data-priority-filter]");
+    if (!buttons.length) return;
+    var rows = document.querySelectorAll("#aoOcorrenciasCollapse tbody tr[data-priority]");
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var target = btn.getAttribute("data-priority-filter");
+        buttons.forEach(function (b) {
+          b.classList.remove("active");
+        });
+        btn.classList.add("active");
+        rows.forEach(function (row) {
+          var pr = row.getAttribute("data-priority");
+          row.style.display = target === "all" || pr === target ? "" : "none";
+        });
+      });
+    });
+  }
+
+  function initHeatmapShowMore() {
+    var btn = document.getElementById("aoHeatmapShowMore");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var rows = document.querySelectorAll(".ao-heat-extra-row");
+      var expanded = btn.getAttribute("aria-expanded") === "true";
+      rows.forEach(function (row) {
+        row.classList.toggle("d-none", expanded);
+      });
+      btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      btn.textContent = expanded ? "Ver mais" : "Ver menos";
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     syncThemeUi();
 
@@ -394,6 +437,9 @@
     if (payload) {
       renderAllCharts(payload);
     }
+
+    initOccurrencePriorityFilter();
+    initHeatmapShowMore();
 
     document.querySelectorAll(".ao-heat-row").forEach(function (row) {
       row.addEventListener("click", function (ev) {
