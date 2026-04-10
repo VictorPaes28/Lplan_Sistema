@@ -770,17 +770,31 @@ body.bi-page-dark .main-content-wrapper {
   box-shadow: inset 0 0 0 1px var(--ao-border);
 }
 
+/* Tema claro: texto escuro sobre fundo ciano suave (o estilo anterior usava #e0f2fe e sumia no claro) */
 .ao-occ-toggle-btn {
-  border: 1px solid rgba(56, 189, 248, 0.55) !important;
-  background: rgba(14, 165, 233, 0.16) !important;
-  color: #e0f2fe !important;
+  border: 1px solid rgba(14, 165, 233, 0.45) !important;
+  background: rgba(14, 165, 233, 0.12) !important;
+  color: #0369a1 !important;
   font-weight: 600 !important;
   border-radius: 999px !important;
   padding: 0.28rem 0.8rem !important;
-  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.15);
 }
 
 .ao-occ-toggle-btn:hover {
+  border-color: rgba(3, 105, 161, 0.5) !important;
+  background: rgba(14, 165, 233, 0.2) !important;
+  color: #0c4a6e !important;
+}
+
+.analise-obra-page.analise-obra-page--dark .ao-occ-toggle-btn {
+  border: 1px solid rgba(56, 189, 248, 0.55) !important;
+  background: rgba(14, 165, 233, 0.16) !important;
+  color: #e0f2fe !important;
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.18);
+}
+
+.analise-obra-page.analise-obra-page--dark .ao-occ-toggle-btn:hover {
   border-color: rgba(125, 211, 252, 0.85) !important;
   background: rgba(14, 165, 233, 0.24) !important;
   color: #ffffff !important;

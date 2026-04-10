@@ -168,6 +168,25 @@ h2 {
     font-size: 12px;
 }
 
+@media (max-width: 991px) {
+    .lplan-avatar {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        border-radius: 8px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: rgba(99, 102, 241, 0.25) !important;
+        border: 1.5px solid rgba(99, 102, 241, 0.55) !important;
+        color: #e0e7ff !important;
+        padding: 0 !important;
+        letter-spacing: 0 !important;
+    }
+}
+
 .lplan-user-name {
     max-width: 180px;
     white-space: nowrap;

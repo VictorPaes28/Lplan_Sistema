@@ -185,3 +185,79 @@
     font-size: 1.05rem;
     color: var(--text-muted, #64748b);
 }
+
+/*
+ * Mobile: esta tela importa list_workorders.css, que converte .data-table em “cards” verticais.
+ * Aqui mantemos tabela real + scroll horizontal (como em landscape / desktop), só nesta página.
+ */
+@media (max-width: 768px) {
+    .list-users .table-container {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .list-users .data-table {
+        display: table !important;
+        width: 100%;
+        min-width: 720px;
+        border-collapse: collapse;
+    }
+
+    .list-users .data-table thead {
+        display: table-header-group !important;
+    }
+
+    .list-users .data-table tbody {
+        display: table-row-group !important;
+    }
+
+    .list-users .data-table tbody tr {
+        display: table-row !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .list-users .data-table tbody tr:hover {
+        transform: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .list-users .data-table th,
+    .list-users .data-table td {
+        display: table-cell !important;
+        justify-content: unset !important;
+        align-items: unset !important;
+        padding: 0.65rem 0.75rem !important;
+        border: none !important;
+        border-bottom: 1px solid var(--border-color, #e9ecef) !important;
+        text-align: left !important;
+        width: auto !important;
+        min-height: 0 !important;
+        font-size: 0.8125rem !important;
+        white-space: nowrap;
+    }
+
+    .list-users .data-table td[data-label="Grupos"],
+    .list-users .data-table td[data-label="Email"] {
+        white-space: normal;
+    }
+
+    .list-users .data-table td::before {
+        content: none !important;
+        display: none !important;
+        margin: 0 !important;
+        min-width: 0 !important;
+    }
+
+    .list-users .data-table td:last-child {
+        border-top: none !important;
+        margin-top: 0 !important;
+        padding-top: 0.65rem !important;
+    }
+}
