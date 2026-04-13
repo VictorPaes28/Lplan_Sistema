@@ -46,6 +46,11 @@
             background: rgba(59, 130, 246, 0.4) !important;
             border-left-color: #60a5fa;
         }
+        /* Item ativo no menu Mapa de Controle */
+        .lplan-navbar .navbar-nav .nav-link.active {
+            color: #fff !important;
+            background: rgba(255, 255, 255, 0.16) !important;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -81,6 +86,34 @@
                             </li>
                         {% endif %}
                         {% if user.groups.all %}
+                            {% if request.resolver_match.url_name == 'mapa_controle' or request.resolver_match.url_name == 'importar_mapa_controle' %}
+                            {# Cabeçalho focado no Mapa de Controle: sem Dashboard / atalho "Controle" / import Sienge (suprimentos) #}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:analise_obra' %}" title="BI da obra: leitura integrada">
+                                    <i class="bi bi-layers"></i> <span class="d-none d-sm-inline">BI </span><span>Obra</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'engenharia:mapa' %}" title="Mapa de suprimentos (planilha)">
+                                    <i class="bi bi-table"></i> <span>Mapa suprimentos</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'mapa_controle' %}active fw-semibold{% endif %}" href="{% url 'engenharia:mapa_controle' %}" title="Mapa de Controle — execução físico">
+                                    <i class="bi bi-clipboard2-data"></i> <span>Mapa de Controle</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'importar_mapa_controle' %}active fw-semibold{% endif %}" href="{% url 'engenharia:importar_mapa_controle' %}" title="Importar dados do Mapa de Controle (planilha)">
+                                    <i class="bi bi-upload"></i> <span>Importar Controle</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'mapa_obras:home' %}">
+                                    <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
+                                </a>
+                            </li>
+                            {% else %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:dashboard_2' %}">
                                     <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
@@ -111,13 +144,15 @@
                                     <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
                                 </a>
                             </li>
+                            {% endif %}
                         {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
-                        <!-- Seletor de Obra (Contexto Multi-Obra) -->
+                        {# Dropdown de obra: fluxo Mapa de Suprimentos / telas que usam obra_atual do módulo de obras. No Mapa de Controle a obra vem de ?obra= / sessão (formulário na página), não deste seletor. #}
                         {% if obras_disponiveis %}
+                        {% if request.resolver_match.url_name != 'mapa_controle' and request.resolver_match.url_name != 'importar_mapa_controle' %}
                         <li class="nav-item dropdown me-3">
                             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="obraDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-building me-1"></i>
@@ -141,6 +176,7 @@
                                 {% endfor %}
                             </ul>
                         </li>
+                        {% endif %}
                         {% endif %}
                         
                         <li class="nav-item dropdown">

@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unicodedata
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -77,6 +78,29 @@ def _layer_aggregates(queryset, group_field: str):
     )
 
 
+def _build_layers_navigation(raw_qs, selected: dict) -> dict:
+    """
+    Opções dos chips de camada: lista completa de irmãos no recorte geográfico.
+    Não aplica filtro de coluna (atividade), busca nem status — assim ao escolher
+    um bloco não somem os outros (A/B/C) nem os setores irmãos.
+    """
+    layers: dict[str, list] = {"setores": [], "blocos": [], "pavimentos": [], "aptos": []}
+    layers["setores"] = _layer_aggregates(raw_qs, "setor")
+    if not (selected.get("setor") or "").strip():
+        return layers
+    qs_bl = raw_qs.filter(setor=selected["setor"])
+    layers["blocos"] = _layer_aggregates(qs_bl, "bloco")
+    if not (selected.get("bloco") or "").strip():
+        return layers
+    qs_pav = qs_bl.filter(bloco=selected["bloco"])
+    layers["pavimentos"] = _layer_aggregates(qs_pav, "pavimento")
+    if not (selected.get("pavimento") or "").strip():
+        return layers
+    qs_ap = qs_pav.filter(pavimento=selected["pavimento"])
+    layers["aptos"] = _layer_aggregates(qs_ap, "apto")
+    return layers
+
+
 def _build_filters_from_request(request):
     try:
         limit = int(request.GET.get("limit", 200) or 200)
@@ -138,9 +162,118 @@ def _norm_key(value: object) -> str:
     return " ".join(text.split())
 
 
+def _parse_grid_pct_clicado(request) -> int | None:
+    """% exibido na célula ao clicar — só para exibição no detalhe (confiança do utilizador)."""
+    raw = (request.GET.get("grid_pct") or "").strip()
+    if not raw:
+        return None
+    try:
+        v = int(raw, 10)
+    except ValueError:
+        return None
+    if 0 <= v <= 100:
+        return v
+    return None
+
+
+def _resolve_matrix_mode(requested: str, selected: dict) -> str:
+    r = (requested or "").strip().lower()
+    if r not in ("bloco", "pavimento", "apto"):
+        r = "bloco"
+    if r == "apto" and selected.get("bloco") and selected.get("pavimento"):
+        return "apto"
+    if r == "pavimento" and selected.get("bloco"):
+        return "pavimento"
+    return "bloco"
+
+
+def _row_field_for_matrix_mode(mode: str) -> str:
+    return {"bloco": "bloco", "pavimento": "pavimento", "apto": "apto"}.get(mode, "bloco")
+
+
+def _default_label_for_row_field(row_field: str) -> str:
+    return {
+        "bloco": "SEM BLOCO",
+        "pavimento": "SEM PAVIMENTO",
+        "apto": "SEM APTO",
+    }.get(row_field, "SEM REGISTRO")
+
+
+def _build_matrix_grid(
+    matrix_scope_qs,
+    row_field: str,
+    atividades_max: int = 36,
+    rows_max: int = 60,
+) -> dict:
+    default_row = _default_label_for_row_field(row_field)
+    only_fields = [row_field, "atividade", "status_percentual", "status_texto"]
+    matrix_items = list(matrix_scope_qs.only(*only_fields).order_by(row_field, "atividade"))
+    agg: dict[tuple[str, str], dict] = {}
+    rows_set: set[str] = set()
+    atividades_set: set[str] = set()
+    for item in matrix_items:
+        raw = getattr(item, row_field, None)
+        row_val = (str(raw).strip() if raw is not None else "") or default_row
+        atividade = (item.atividade or "SEM ATIVIDADE").strip() or "SEM ATIVIDADE"
+        # Sempre registra linha e coluna; só agrega % quando há ratio interpretável.
+        # Antes: `continue` quando ratio era None — blocos inteiros sumiam da matriz.
+        rows_set.add(row_val)
+        atividades_set.add(atividade)
+        ratio = _status_to_ratio(item)
+        if ratio is None:
+            continue
+        key = (row_val, atividade)
+        if key not in agg:
+            agg[key] = {"sum": 0.0, "count": 0}
+        agg[key]["sum"] += ratio
+        agg[key]["count"] += 1
+
+    atividades = sorted(atividades_set)[:atividades_max]
+    rows_sorted = sorted(rows_set)[:rows_max]
+    rows_out = []
+    for row_val in rows_sorted:
+        cells = []
+        row_sum = 0.0
+        row_count = 0
+        for atividade in atividades:
+            data = agg.get((row_val, atividade))
+            if data and data["count"] > 0:
+                pct = round((data["sum"] / data["count"]) * 100)
+                row_sum += pct
+                row_count += 1
+                cells.append({"atividade": atividade, "pct": pct})
+            else:
+                cells.append({"atividade": atividade, "pct": None})
+        total_pct = round(row_sum / row_count) if row_count else None
+        rows_out.append(
+            {
+                "row_key": row_val,
+                "row_label": row_val,
+                "cells": cells,
+                "total": total_pct,
+            }
+        )
+
+    totais = []
+    for atividade in atividades:
+        col_values = []
+        for row_val in rows_sorted:
+            data = agg.get((row_val, atividade))
+            if data and data["count"] > 0:
+                col_values.append(round((data["sum"] / data["count"]) * 100))
+        totais.append(
+            {
+                "atividade": atividade,
+                "pct": round(sum(col_values) / len(col_values)) if col_values else None,
+            }
+        )
+
+    return {"atividades": atividades, "rows": rows_out, "totais": totais}
+
+
 def _build_confiabilidade_controle(total_itens: int, qualidade: dict) -> dict:
     if total_itens <= 0:
-        return {"score": 0.0, "nivel": "sem_dados"}
+        return {"score": 0.0, "nivel": "sem_dados", "nivel_display": "Sem dados"}
 
     sem_bloco = qualidade.get("sem_bloco", 0)
     sem_pavimento = qualidade.get("sem_pavimento", 0)
@@ -158,13 +291,65 @@ def _build_confiabilidade_controle(total_itens: int, qualidade: dict) -> dict:
     score = max(0.0, round(100 - penalidade, 2))
     if score >= 95:
         nivel = "excelente"
+        nivel_display = "Excelente"
     elif score >= 85:
         nivel = "bom"
+        nivel_display = "Bom"
     elif score >= 70:
         nivel = "atenção"
+        nivel_display = "Atenção"
     else:
         nivel = "crítico"
-    return {"score": score, "nivel": nivel}
+        nivel_display = "Crítico"
+    return {"score": score, "nivel": nivel, "nivel_display": nivel_display}
+
+
+def _macro_pulse(kpis: dict, confiabilidade: dict, qualidade: dict) -> dict | None:
+    """Uma linha de leitura rápida do escopo (correria) + opcional alerta de dados."""
+    total = int(kpis.get("total_itens") or 0)
+    if total <= 0:
+        return {
+            "headline": "Nenhum item neste recorte.",
+            "sub": "Ajuste filtros, busca ou chips.",
+            "tone": "neutral",
+            "visible": True,
+        }
+
+    c = int(kpis.get("concluidos") or 0)
+    e = int(kpis.get("em_andamento") or 0)
+    n = int(kpis.get("nao_iniciados") or 0)
+    pct_done = round(100 * c / total)
+    sem_pct = int(qualidade.get("sem_status_percentual") or 0)
+    nivel = (confiabilidade.get("nivel") or "").lower()
+    score = confiabilidade.get("score")
+
+    headline = (
+        f"{total} itens no escopo · {pct_done}% concluídos · "
+        f"{e} em andamento · {n} não iniciados"
+    )
+
+    sub_parts: list[str] = []
+    if nivel in ("crítico", "atenção") and score is not None:
+        sub_parts.append(
+            f"Qualidade dos dados: {confiabilidade.get('nivel_display', nivel)} ({score}%)"
+        )
+    if sem_pct and (sem_pct / total) >= 0.08:
+        sub_parts.append(f"{sem_pct} sem % tratável no escopo")
+
+    share_nao_ini = n / total
+    tone = "ok"
+    if nivel == "crítico" or share_nao_ini > 0.5:
+        tone = "bad"
+    elif nivel == "atenção" or pct_done < 35 or share_nao_ini > 0.3:
+        tone = "warn"
+
+    sub = " · ".join(sub_parts) if sub_parts else None
+    return {
+        "headline": headline,
+        "sub": sub,
+        "tone": tone,
+        "visible": bool(sub) or tone != "ok",
+    }
 
 
 @login_required
@@ -173,6 +358,7 @@ def _build_confiabilidade_controle(total_itens: int, qualidade: dict) -> dict:
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle(request):
     obras, obra = _resolve_obra_for_request(request)
+    grid_pct_clicado = _parse_grid_pct_clicado(request)
     selected = {
         "setor": (request.GET.get("setor") or "").strip(),
         "bloco": (request.GET.get("bloco") or "").strip(),
@@ -187,7 +373,13 @@ def mapa_controle(request):
     status_filter = selected["status"]
     layers = {"setores": [], "blocos": [], "pavimentos": [], "aptos": []}
     itens_atividade = []
-    matrix = {"atividades": [], "rows": [], "totais": []}
+    matrix = {
+        "atividades": [],
+        "rows": [],
+        "totais": [],
+        "mode": "bloco",
+        "header_first_col": "Bloco",
+    }
     kpis = {"total_itens": 0, "percentual_medio": 0.0, "concluidos": 0, "em_andamento": 0, "nao_iniciados": 0}
     qualidade = {
         "sem_bloco": 0,
@@ -196,10 +388,11 @@ def mapa_controle(request):
         "sem_status_percentual": 0,
         "sem_data_termino": 0,
     }
-    confiabilidade = {"score": 0.0, "nivel": "sem_dados"}
+    confiabilidade = {"score": 0.0, "nivel": "sem_dados", "nivel_display": "Sem dados"}
     quick_match = None
     importacao_info = None
     focus_detail = None
+    matrix_context = None
 
     if obra:
         raw_qs = ItemMapaServico.objects.filter(obra=obra)
@@ -285,67 +478,21 @@ def mapa_controle(request):
         if selected["apto"]:
             active_scope_qs = active_scope_qs.filter(apto=selected["apto"])
 
-        layers["setores"] = _layer_aggregates(base_qs, "setor")
+        layers = _build_layers_navigation(raw_qs, selected)
 
-        # MATRIZ GERENCIAL (sem inventar: bloco x atividade com %)
+        # MATRIZ GERENCIAL — bloco / pavimento / apto × atividade
         matrix_scope = active_scope_qs
-
-        matrix_items = list(
-            matrix_scope.only("bloco", "atividade", "status_percentual", "status_texto").order_by("bloco", "atividade")
-        )
-        agg = {}
-        blocos_set = set()
-        atividades_set = set()
-        for item in matrix_items:
-            bloco = (item.bloco or "SEM BLOCO").strip() or "SEM BLOCO"
-            atividade = (item.atividade or "SEM ATIVIDADE").strip() or "SEM ATIVIDADE"
-            ratio = _status_to_ratio(item)
-            if ratio is None:
-                continue
-            blocos_set.add(bloco)
-            atividades_set.add(atividade)
-            key = (bloco, atividade)
-            if key not in agg:
-                agg[key] = {"sum": 0.0, "count": 0}
-            agg[key]["sum"] += ratio
-            agg[key]["count"] += 1
-
-        # Mantém painel legível em tela sem perder referência do modelo original.
-        atividades = sorted(atividades_set)[:36]
-        blocos = sorted(blocos_set)[:60]
-        rows = []
-        totais = []
-
-        for bloco in blocos:
-            cells = []
-            row_sum = 0.0
-            row_count = 0
-            for atividade in atividades:
-                data = agg.get((bloco, atividade))
-                if data and data["count"] > 0:
-                    pct = round((data["sum"] / data["count"]) * 100)
-                    row_sum += pct
-                    row_count += 1
-                    cells.append({"atividade": atividade, "pct": pct})
-                else:
-                    cells.append({"atividade": atividade, "pct": None})
-            total_pct = round(row_sum / row_count) if row_count else None
-            rows.append({"bloco": bloco, "cells": cells, "total": total_pct})
-
-        for atividade in atividades:
-            col_values = []
-            for bloco in blocos:
-                data = agg.get((bloco, atividade))
-                if data and data["count"] > 0:
-                    col_values.append(round((data["sum"] / data["count"]) * 100))
-            totais.append(
-                {
-                    "atividade": atividade,
-                    "pct": round(sum(col_values) / len(col_values)) if col_values else None,
-                }
-            )
-
-        matrix = {"atividades": atividades, "rows": rows, "totais": totais}
+        matrix_mode = _resolve_matrix_mode(request.GET.get("matrix_mode") or "", selected)
+        row_field = _row_field_for_matrix_mode(matrix_mode)
+        rows_max = 80 if matrix_mode == "apto" else 60
+        matrix = _build_matrix_grid(matrix_scope, row_field, rows_max=rows_max)
+        matrix["mode"] = matrix_mode
+        matrix["row_field"] = row_field
+        matrix["header_first_col"] = {
+            "bloco": "Bloco",
+            "pavimento": "Pavimento",
+            "apto": "Apto / und.",
+        }.get(matrix_mode, "Bloco")
 
         # Detalhe contextual da célula escolhida (ex.: BL1 x ARMAÇÃO LAJE = 77%)
         if selected["bloco"] and selected["atividade"]:
@@ -432,9 +579,19 @@ def mapa_controle(request):
                 .only("status_macro", "situacao", "prazo_execucao", "responsabilidade")
                 .first()
             )
+            _recorte = []
+            if selected["setor"]:
+                _recorte.append(f"Setor: {selected['setor']}")
+            if selected["pavimento"]:
+                _recorte.append(f"Pavimento: {selected['pavimento']}")
+            if selected["apto"]:
+                _recorte.append(f"Unidade: {selected['apto']}")
             focus_detail = {
                 "bloco": selected["bloco"],
                 "atividade": selected["atividade"],
+                "recorte_linha": " · ".join(_recorte),
+                "registros_linhas": focus_qs.count(),
+                "pct_na_grade": grid_pct_clicado,
                 "media_pct": media_pct,
                 "total_aptos": len(apto_rows),
                 "concluidos": concluidos,
@@ -450,13 +607,10 @@ def mapa_controle(request):
         scoped_qs = base_qs
         if selected["setor"]:
             scoped_qs = scoped_qs.filter(setor=selected["setor"])
-            layers["blocos"] = _layer_aggregates(scoped_qs, "bloco")
         if selected["bloco"]:
             scoped_qs = scoped_qs.filter(bloco=selected["bloco"])
-            layers["pavimentos"] = _layer_aggregates(scoped_qs, "pavimento")
         if selected["pavimento"]:
             scoped_qs = scoped_qs.filter(pavimento=selected["pavimento"])
-            layers["aptos"] = _layer_aggregates(scoped_qs, "apto")
         if selected["apto"]:
             scoped_qs = scoped_qs.filter(apto=selected["apto"])
             itens_atividade = list(
@@ -526,6 +680,60 @@ def mapa_controle(request):
         }
         confiabilidade = _build_confiabilidade_controle(kpis["total_itens"], qualidade)
 
+        _st_lbl = {
+            "": "Qualquer status",
+            "concluido": "Só concluídos",
+            "em_andamento": "Só em andamento",
+            "nao_iniciado": "Só não iniciados",
+        }
+        _path_segs = []
+        if selected["setor"]:
+            _path_segs.append(f"Setor: {selected['setor']}")
+        if selected["bloco"]:
+            _path_segs.append(f"Bloco: {selected['bloco']}")
+        if selected["pavimento"]:
+            _path_segs.append(f"Pav.: {selected['pavimento']}")
+        if selected["apto"]:
+            _path_segs.append(f"Unid.: {selected['apto']}")
+        if selected["atividade"]:
+            _path_segs.append(f"Ativ. (coluna): {selected['atividade']}")
+        _modo_grade = {
+            "bloco": "Bloco × atividade",
+            "pavimento": "Pavimento × atividade",
+            "apto": "Unidade × atividade",
+        }.get(matrix.get("mode", "bloco"), "Bloco × atividade")
+        matrix_context = {
+            "obra_titulo": f"{obra.codigo_sienge} — {obra.nome}",
+            "caminho": " › ".join(_path_segs) if _path_segs else "Obra inteira — sem recorte de localização",
+            "status_filtro": _st_lbl.get(selected["status"], selected["status"] or "Qualquer status"),
+            "modo_grade_label": _modo_grade,
+            "n_grade_linhas": len(matrix.get("rows") or []),
+            "n_grade_cols": len(matrix.get("atividades") or []),
+            "cnt_setores": len(layers["setores"]),
+            "cnt_blocos_camada": len(layers["blocos"]) if layers["blocos"] else None,
+            "cnt_pavs_camada": len(layers["pavimentos"]) if layers["pavimentos"] else None,
+            "cnt_unids_camada": len(layers["aptos"]) if layers["aptos"] else None,
+        }
+
+    # Query estável para chips da matriz (filtros de texto/status; sem recorte setor/bloco/…).
+    matrix_stable_qs = ""
+    if obra:
+        matrix_stable_qs = urlencode(
+            {
+                "status": selected["status"],
+                "search": selected["search"],
+                "quick": selected["quick_find"],
+                "atividade": selected["atividade"],
+                "matrix_mode": matrix.get("mode") or "bloco",
+            }
+        )
+
+    coluna_filtrada_aviso = None
+    if obra and selected["atividade"] and not focus_detail:
+        coluna_filtrada_aviso = selected["atividade"]
+
+    macro_pulse = _macro_pulse(kpis, confiabilidade, qualidade) if obra else None
+
     return render(
         request,
         "suprimentos/mapa_controle.html",
@@ -542,6 +750,10 @@ def mapa_controle(request):
             "quick_match": quick_match,
             "importacao_info": importacao_info,
             "focus_detail": focus_detail,
+            "matrix_context": matrix_context,
+            "coluna_filtrada_aviso": coluna_filtrada_aviso,
+            "macro_pulse": macro_pulse,
+            "matrix_stable_qs": matrix_stable_qs,
         },
     )
 

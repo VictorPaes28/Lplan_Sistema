@@ -15,7 +15,7 @@
     {% if user.is_staff or user.is_superuser %}
     <div class="alert alert-light border d-flex flex-wrap gap-3 py-2 mb-2">
         <span><strong>Confiabilidade:</strong> {{ confiabilidade.score }}%</span>
-        <span><strong>Nível:</strong> {{ confiabilidade.nivel|title }}</span>
+        <span><strong>Nível:</strong> {% firstof confiabilidade.nivel_display confiabilidade.nivel %}</span>
         <span>Sem SC: {{ confiabilidade.sem_sc }}</span>
         <span>Sem código: {{ confiabilidade.sem_codigo_insumo }}</span>
         <span>Sem local: {{ confiabilidade.sem_local }}</span>

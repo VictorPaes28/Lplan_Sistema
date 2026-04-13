@@ -50,6 +50,7 @@ def _build_confiabilidade_suprimentos(itens_queryset):
         return {
             'score': 0.0,
             'nivel': 'sem_dados',
+            'nivel_display': 'Sem dados',
             'sem_local': 0,
             'sem_responsavel': 0,
             'sem_prazo': 0,
@@ -88,16 +89,21 @@ def _build_confiabilidade_suprimentos(itens_queryset):
     score = max(0.0, round(100 - penalidade, 2))
     if score >= 95:
         nivel = 'excelente'
+        nivel_display = 'Excelente'
     elif score >= 85:
         nivel = 'bom'
+        nivel_display = 'Bom'
     elif score >= 70:
         nivel = 'atenção'
+        nivel_display = 'Atenção'
     else:
         nivel = 'crítico'
+        nivel_display = 'Crítico'
 
     return {
         'score': score,
         'nivel': nivel,
+        'nivel_display': nivel_display,
         'sem_local': sem_local,
         'sem_responsavel': sem_responsavel,
         'sem_prazo': sem_prazo,

@@ -4,89 +4,208 @@
 {% block title %}Importar Mapa de Controle - LPLAN{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-3 mb-4">
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body">
-            <h4 class="mb-1">Importar Mapa de Controle</h4>
-            <p class="text-muted mb-0">Upload do arquivo Excel do mapa de serviço/controle da obra.</p>
+<style>
+    .table-cell-tabular { font-variant-numeric: tabular-nums; }
+    .table-cell-truncate {
+        max-width: 420px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .table-empty-cell { padding: 18px; }
+    .file-input-hidden { display: none; }
+    .file-pill-hidden { display: none !important; }
+</style>
+
+<div class="container-fluid lplan-page">
+    <!-- HERO -->
+    <div class="lplan-hero">
+        <div>
+            <h2 class="lplan-hero-title">Importar Mapa de Controle</h2>
+            <div class="lplan-hero-sub">
+                Envie a planilha Excel do <strong>mapa de serviço / controle físico</strong> da obra (aba padrão <strong>DADOS</strong>).
+                {% if obra_selecionada %}
+                <span class="ms-2 badge-mini neutral"><i class="bi bi-building"></i> Obra atual: {{ obra_selecionada.nome }}{% if obra_selecionada.codigo_sienge %} ({{ obra_selecionada.codigo_sienge }}){% endif %}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'engenharia:mapa_controle' %}" class="btn btn-sm btn-outline-light">
+                <i class="bi bi-clipboard2-data"></i> Mapa de Controle
+            </a>
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data" class="row g-3">
+    <!-- UPLOAD -->
+    <div class="lplan-card">
+        <div class="lplan-card-header">
+            <div class="lplan-card-title">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+                Upload da planilha
+            </div>
+            <div class="text-muted small">Excel (.xlsx / .xls)</div>
+        </div>
+        <div class="lplan-card-body">
+            <form method="post" enctype="multipart/form-data" id="mapaControleImportForm">
                 {% csrf_token %}
+                <input type="file" name="arquivo" id="mapaControleFileInput" accept=".xlsx,.xls" class="file-input-hidden" required>
 
-                <div class="col-md-4">
-                    <label for="obra_id" class="form-label">Obra</label>
-                    <select name="obra_id" id="obra_id" class="form-select" required>
-                        {% for obra in obras %}
-                            <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
-                                {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label for="sheet" class="form-label">Aba</label>
-                    <input type="text" class="form-control" id="sheet" name="sheet" value="DADOS">
-                </div>
-
-                <div class="col-md-4">
-                    <label for="arquivo" class="form-label">Arquivo Excel (.xlsx)</label>
-                    <input type="file" class="form-control" id="arquivo" name="arquivo" accept=".xlsx,.xls" required>
-                </div>
-
-                <div class="col-md-2 d-flex align-items-end">
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="limpar_antes" name="limpar_antes">
-                        <label class="form-check-label" for="limpar_antes">Limpar antes</label>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label for="obra_id" class="form-label small fw-semibold text-secondary mb-1">Obra</label>
+                        <select name="obra_id" id="obra_id" class="form-select form-select-sm" required>
+                            {% for obra in obras %}
+                                <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
+                                    {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} — {% endif %}{{ obra.nome }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="sheet" class="form-label small fw-semibold text-secondary mb-1">Aba</label>
+                        <input type="text" class="form-control form-control-sm" id="sheet" name="sheet" value="DADOS" placeholder="DADOS">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="limpar_antes" name="limpar_antes">
+                            <label class="form-check-label small" for="limpar_antes"><strong>Limpar antes</strong> — remove itens da obra antes de importar</label>
+                        </div>
                     </div>
                 </div>
 
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-upload me-1"></i> Importar arquivo
+                <div class="lplan-dropzone" id="mapaControleDropzone" role="button" tabindex="0" aria-label="Área para arrastar arquivo Excel">
+                    <div class="lplan-dropzone-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <p class="lplan-dropzone-hint">Arraste e solte o arquivo <strong>.xlsx</strong> ou <strong>.xls</strong> aqui</p>
+                    <div class="lplan-dropzone-subhint">
+                        ou clique para selecionar. O processamento usa a aba indicada acima (ex.: <strong>DADOS</strong>).
+                    </div>
+                    <div id="mapaControleFilePill" class="lplan-filepill file-pill-hidden">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span id="mapaControleFileName"></span>
+                        <span class="text-muted">•</span>
+                        <span id="mapaControleFileMeta" class="text-muted"></span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                    <div class="text-muted small">
+                        Após importar, o sistema redireciona para o <strong>Mapa de Controle</strong>. Use <strong>Limpar antes</strong> só quando quiser substituir o conjunto atual de linhas da obra.
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btnImportarMapaControle">
+                        <i class="bi bi-cloud-arrow-up"></i> Importar agora
                     </button>
-                    <a href="{% url 'engenharia:mapa_controle' %}" class="btn btn-outline-secondary ms-2">Voltar ao mapa</a>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <h6 class="mb-3">Últimas importações da obra selecionada</h6>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Arquivo</th>
-                            <th>Aba</th>
-                            <th>Importadas</th>
-                            <th>Lidas</th>
-                            <th>Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for imp in importacoes %}
-                        <tr>
-                            <td>{{ imp.nome_arquivo }}</td>
-                            <td>{{ imp.aba_origem }}</td>
-                            <td>{{ imp.total_linhas_importadas }}</td>
-                            <td>{{ imp.total_linhas_lidas }}</td>
-                            <td>{{ imp.created_at|date:"d/m/Y H:i" }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-3">Sem importações registradas para esta obra.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <!-- HISTÓRICO -->
+    <div class="lplan-card mt-3">
+        <div class="lplan-card-header">
+            <div class="lplan-card-title">
+                <i class="bi bi-clock-history"></i> Últimas importações
             </div>
+            <div class="text-muted small">Obra selecionada no contexto</div>
+        </div>
+        <div class="p-0">
+            <table class="lplan-grid mb-0">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Arquivo</th>
+                        <th>Aba</th>
+                        <th class="table-cell-tabular">Importadas</th>
+                        <th class="table-cell-tabular">Lidas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for imp in importacoes %}
+                    <tr>
+                        <td class="table-cell-tabular">{{ imp.created_at|date:"d/m/Y H:i" }}</td>
+                        <td class="table-cell-truncate" title="{{ imp.nome_arquivo }}">{{ imp.nome_arquivo }}</td>
+                        <td>{{ imp.aba_origem }}</td>
+                        <td class="table-cell-tabular">{{ imp.total_linhas_importadas }}</td>
+                        <td class="table-cell-tabular">{{ imp.total_linhas_lidas }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted table-empty-cell">Sem importações registradas para esta obra.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
+<script>
+(() => {
+    const dz = document.getElementById('mapaControleDropzone');
+    const input = document.getElementById('mapaControleFileInput');
+    const pill = document.getElementById('mapaControleFilePill');
+    const nameEl = document.getElementById('mapaControleFileName');
+    const metaEl = document.getElementById('mapaControleFileMeta');
+    const btn = document.getElementById('btnImportarMapaControle');
+    const form = document.getElementById('mapaControleImportForm');
+
+    if (!dz || !input) return;
+
+    const formatBytes = (bytes) => {
+        if (!bytes && bytes !== 0) return '';
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
+        const val = (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1);
+        return `${val} ${sizes[i]}`;
+    };
+
+    const updatePill = (file) => {
+        if (!file) {
+            pill.classList.add('file-pill-hidden');
+            pill.style.display = 'none';
+            return;
+        }
+        nameEl.textContent = file.name;
+        metaEl.textContent = `${(file.name.split('.').pop() || '').toUpperCase()} • ${formatBytes(file.size)}`;
+        pill.classList.remove('file-pill-hidden');
+        pill.style.display = 'inline-flex';
+    };
+
+    dz.addEventListener('click', () => input.click());
+    dz.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
+
+    input.addEventListener('change', () => updatePill(input.files && input.files[0]));
+
+    ['dragenter', 'dragover'].forEach(evt => {
+        dz.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dz.classList.add('is-dragover');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(evt => {
+        dz.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dz.classList.remove('is-dragover');
+        });
+    });
+
+    dz.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (!files || !files.length) return;
+        input.files = files;
+        updatePill(files[0]);
+    });
+
+    if (form && btn) {
+        form.addEventListener('submit', () => {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Importando...';
+        });
+    }
+})();
+</script>
 {% endblock %}
