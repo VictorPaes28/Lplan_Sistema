@@ -1,6 +1,6 @@
-/* BI da Obra — tema claro (padrão, alinhado ao layout LPlan) e tema escuro (toggle) */
+/* BI da Obra — modo escuro como padrão; modo claro via toggle (persistido em localStorage). */
 
-/* ——— Tema claro (default): fundo slate como o resto do sistema ——— */
+/* ——— Tema claro (opt-in): fundo slate como o resto do sistema ——— */
 .analise-obra-page {
   --ao-page-bg: #f8fafc;
   --ao-hero-accent: radial-gradient(120% 120% at 10% 0%, rgba(14, 165, 233, 0.06), transparent 55%);
@@ -242,6 +242,12 @@ body.bi-page-dark .main-content-wrapper {
     padding-left: clamp(1.25rem, 2.5vw, 3rem);
     padding-right: clamp(1.25rem, 2.5vw, 3rem);
   }
+}
+
+/* Barra do toggle de tema (acima do card BI da Obra) */
+.ao-theme-bar {
+  width: 100%;
+  flex-shrink: 0;
 }
 
 /* Toggle tema */
@@ -843,6 +849,22 @@ body.bi-page-dark .main-content-wrapper {
   line-height: 1.35;
 }
 
+tr.ao-bi-click-row {
+  cursor: pointer;
+}
+
+tr.ao-bi-click-row:hover {
+  filter: brightness(1.03);
+}
+
+.ao-tl-rdo-link {
+  color: var(--ao-link, #2563eb);
+}
+
+.analise-obra-page.analise-obra-page--dark .ao-tl-rdo-link {
+  color: #7dd3fc;
+}
+
 .ao-metric-big {
   font-size: 1.75rem;
   font-weight: 700;
@@ -872,6 +894,15 @@ body.bi-page-dark .main-content-wrapper {
   .ao-chart-box {
     height: 320px;
   }
+}
+
+/* Progressão dos blocos: gráfico alto — versão recolhida com scroll */
+.ao-chart-box.ao-chart-prog--limited {
+  height: auto !important;
+  min-height: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .ao-table-wrap {

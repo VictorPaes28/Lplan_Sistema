@@ -15,6 +15,7 @@ from mapa_obras.models import Obra
 
 from core.models import Project, ProjectMember
 from suprimentos.models import ItemMapaServico
+from suprimentos.services import analise_obra_service as analise_obra_service_mod
 from suprimentos.services.analise_obra_service import (
     AnaliseObraFilters,
     AnaliseObraPeriodo,
@@ -54,6 +55,17 @@ class TestAnaliseObraService(TestCase):
         self.assertIn("diario", out)
         self.assertIn("heatmap", out)
         self.assertEqual(out["controle"]["origem"], "mapa_controle_execucao")
+        self.assertIn("ranking_progressao_meta", out["controle"])
+        self.assertIn("progressao_eixos_completo", out["controle"])
+        c = out["controle"]
+        self.assertGreaterEqual(
+            len(c["progressao_eixos_completo"]),
+            len(c["blocos_mais_atrasados"]),
+        )
+        self.assertEqual(
+            len(c["progressao_eixos_completo"]),
+            c["ranking_progressao_meta"]["eixos_com_medicao"],
+        )
         self.assertEqual(out["suprimentos"]["origem"], "mapa_suprimentos")
         self.assertIn("celulas", out["heatmap"])
 
@@ -103,6 +115,87 @@ class TestAnaliseObraService(TestCase):
         self.assertGreater(out["controle"]["kpis"]["em_andamento"], 0)
         blocos = out["controle"]["blocos_mais_atrasados"]
         self.assertTrue(any(b["bloco"] == "D" and b["percentual_medio"] > 0 for b in blocos))
+
+    def test_blocos_mais_atrasados_usam_rotulo_mais_frequente_no_banco(self):
+        """Agrupa por _norm_key, mas expõe o texto de bloco mais comum (filtro exato no mapa)."""
+        ItemMapaServico.objects.create(
+            obra=self.obra,
+            chave_uid="kmix1",
+            atividade="X",
+            bloco="d",
+            pavimento="9",
+            status_percentual=Decimal("0.05"),
+        )
+        ItemMapaServico.objects.create(
+            obra=self.obra,
+            chave_uid="kmix2",
+            atividade="Y",
+            bloco="d",
+            pavimento="9",
+            status_percentual=Decimal("0.05"),
+        )
+        ItemMapaServico.objects.create(
+            obra=self.obra,
+            chave_uid="kmix3",
+            atividade="Z",
+            bloco="D",
+            pavimento="9",
+            status_percentual=Decimal("0.05"),
+        )
+        p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
+        out = AnaliseObraService(self.obra, periodo=p).build_payload()
+        row = next((b for b in out["controle"]["blocos_mais_atrasados"] if b.get("bloco_norm") == "D"), None)
+        self.assertIsNotNone(row)
+        self.assertEqual(row["bloco"], "d")
+        self.assertEqual(row["amostras"], 3)
+
+    def test_dois_setores_mesmo_codigo_bloco_geram_duas_linhas_no_ranking(self):
+        """Com 2+ setores, não mistura médias de torres que repetem a mesma letra de bloco."""
+        ItemMapaServico.objects.create(
+            obra=self.obra,
+            chave_uid="t1d",
+            setor="Torre A",
+            atividade="Alvenaria",
+            bloco="D",
+            pavimento="1",
+            status_percentual=Decimal("0.10"),
+        )
+        ItemMapaServico.objects.create(
+            obra=self.obra,
+            chave_uid="t2d",
+            setor="Torre B",
+            atividade="Alvenaria",
+            bloco="D",
+            pavimento="1",
+            status_percentual=Decimal("0.90"),
+        )
+        p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
+        out = AnaliseObraService(self.obra, periodo=p).build_payload()
+        self.assertEqual(out["controle"]["agrupamento_eixo"], "setor_bloco")
+        atrasados = out["controle"]["blocos_mais_atrasados"]
+        rotulos = {x["rotulo"] for x in atrasados}
+        self.assertTrue(len([x for x in atrasados if x.get("bloco_norm") == "D"]) >= 2)
+        self.assertGreaterEqual(len(rotulos.intersection({"Torre A · D", "Torre B · D"})), 2)
+
+    def test_piores_diversificam_por_setor(self):
+        """Com vários setores, o ranking não pode ser só o setor com mais blocos piores."""
+        rows = [
+            {"rotulo": "AC · A", "setor_norm": "AREA COMUM", "bloco_norm": "A", "percentual_medio": 1.0, "setor": "ÁREA COMUM", "bloco": "A", "amostras": 1},
+            {"rotulo": "AC · B", "setor_norm": "AREA COMUM", "bloco_norm": "B", "percentual_medio": 1.1, "setor": "ÁREA COMUM", "bloco": "B", "amostras": 1},
+            {"rotulo": "AC · C", "setor_norm": "AREA COMUM", "bloco_norm": "C", "percentual_medio": 1.2, "setor": "ÁREA COMUM", "bloco": "C", "amostras": 1},
+            {"rotulo": "AC · D", "setor_norm": "AREA COMUM", "bloco_norm": "D", "percentual_medio": 1.3, "setor": "ÁREA COMUM", "bloco": "D", "amostras": 1},
+            {"rotulo": "HAB · X", "setor_norm": "HABITACAO", "bloco_norm": "X", "percentual_medio": 8.0, "setor": "HABITAÇÃO", "bloco": "X", "amostras": 1},
+        ]
+        out = analise_obra_service_mod._diversificar_ranking_por_setor(
+            rows,
+            use_setor_grupo=True,
+            max_total=8,
+            max_por_setor=2,
+            piores=True,
+        )
+        setores = {analise_obra_service_mod._quota_setor_key(r) for r in out}
+        self.assertIn("AREA COMUM", setores)
+        self.assertIn("HABITACAO", setores)
 
     def test_build_section_meta(self):
         svc = AnaliseObraService(self.obra)

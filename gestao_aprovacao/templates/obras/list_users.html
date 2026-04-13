@@ -27,6 +27,15 @@
                        value="{{ search_query|default:'' }}" placeholder="Username, e-mail ou nome">
             </div>
             <div class="filter-group">
+                <label for="obra" class="filter-label">Obra</label>
+                <select id="obra" name="obra" class="filter-select">
+                    <option value="">Todas</option>
+                    {% for o in obras_filtro %}
+                    <option value="{{ o.pk }}" {% if obra_filter == o.pk|stringformat:"s" %}selected{% endif %}>{{ o.codigo }} — {{ o.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
                 <label for="grupo" class="filter-label">Grupo</label>
                 <select id="grupo" name="grupo" class="filter-select">
                     <option value="">Todos</option>
@@ -53,6 +62,7 @@
                     <th>Username</th>
                     <th>Nome</th>
                     <th>Email</th>
+                    <th>Obras</th>
                     <th>Grupos</th>
                     <th>Superusuário</th>
                     <th>Ações</th>
@@ -73,6 +83,15 @@
                         <td data-label="Username">{{ item.user.username }}</td>
                         <td data-label="Nome">{{ item.user.get_full_name|default:"—" }}</td>
                         <td data-label="Email">{{ item.user.email|default:"—" }}</td>
+                        <td data-label="Obras">
+                            <div class="group-badges obra-badges">
+                                {% for obra in item.obras_list %}
+                                    <span class="obra-badge" title="{{ obra.codigo }} — {{ obra.nome }}">{{ obra.nome }}</span>
+                                {% empty %}
+                                    <span class="group-badge group-badge-muted">Sem obra</span>
+                                {% endfor %}
+                            </div>
+                        </td>
                         <td data-label="Grupos">
                             <div class="group-badges">
                                 {% if item.groups %}
@@ -108,7 +127,7 @@
         {% if page_obj.has_other_pages %}
             <div class="pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Anterior</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Anterior</a>
                 {% endif %}
                 
                 <span class="pagination-info">
@@ -116,7 +135,7 @@
                 </span>
                 
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Próxima</a>
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Próxima</a>
                 {% endif %}
             </div>
         {% endif %}

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -33,6 +34,95 @@ def _norm_key(value: object) -> str:
         return ""
     text = unicodedata.normalize("NFKD", text).encode("ASCII", "ignore").decode("ASCII")
     return " ".join(text.split())
+
+
+def _representative_bloco_label(bloco_norm: str, votes: Counter[str]) -> str:
+    """
+    Rótulo para exibição e parâmetro `bloco=` no Mapa de Controle: valor mais frequente
+    no banco (match exato no ORM). `bloco_norm` é a chave de agrupamento (_norm_key).
+    """
+    if votes:
+        return votes.most_common(1)[0][0]
+    if bloco_norm == "SEM BLOCO":
+        return "SEM BLOCO"
+    return bloco_norm
+
+
+EIXO_SETOR_BLOCO_SEP = "\x1f"
+
+
+def _pair_votes_to_bloco_counter(votes: Counter[tuple[str, str]]) -> Counter[str]:
+    c: Counter[str] = Counter()
+    for (_rs, rb), n in votes.items():
+        if rb:
+            c[rb] += n
+    return c
+
+
+def _quota_setor_key(row: dict[str, Any]) -> str:
+    """Chave estável para limitar quantas linhas por setor no ranking."""
+    sn = (row.get("setor_norm") or "").strip()
+    if sn:
+        return sn
+    raw = (row.get("setor") or "").strip()
+    if raw:
+        return _norm_key(raw)
+    return "SEM SETOR"
+
+
+def _diversificar_ranking_por_setor(
+    bloco_scores: list[dict[str, Any]],
+    *,
+    use_setor_grupo: bool,
+    max_total: int,
+    max_por_setor: int,
+    piores: bool,
+) -> list[dict[str, Any]]:
+    """
+    Com vários setores, evita que um único (ex.: ÁREA COMUM) monopolize o gráfico:
+    percorre o ranking global (piores = % crescente, melhores = % decrescente) e só aceita
+    uma linha se ainda não atingiu o teto por setor.
+    """
+    if not bloco_scores:
+        return []
+    rev = not piores
+    ordenados = sorted(bloco_scores, key=lambda x: x["percentual_medio"], reverse=rev)
+    if not use_setor_grupo:
+        return ordenados[:max_total]
+
+    counts: dict[str, int] = defaultdict(int)
+    out: list[dict[str, Any]] = []
+    for row in ordenados:
+        k = _quota_setor_key(row)
+        if counts[k] >= max_por_setor:
+            continue
+        out.append(row)
+        counts[k] += 1
+        if len(out) >= max_total:
+            break
+    out.sort(key=lambda x: x["percentual_medio"], reverse=not piores)
+    return out
+
+
+def _representative_setor_bloco_from_votes(
+    votes: Counter[tuple[str, str]],
+    setor_key: str,
+    bloco_key: str,
+) -> tuple[str, str, str]:
+    """
+    A partir de votos (setor_raw, bloco_raw), devolve (rótulo UI, setor_raw, bloco_raw)
+    para links ?setor=&bloco= com strings existentes no banco.
+    """
+    if votes:
+        (rs, rb), _ = votes.most_common(1)[0]
+        parts = [p for p in [rs, rb] if p]
+        rotulo = " · ".join(parts) if parts else (bloco_key if bloco_key != "SEM BLOCO" else "SEM BLOCO")
+        return rotulo, rs or "", rb or ""
+    if setor_key and setor_key != "SEM SETOR":
+        rotulo = f"{setor_key} · {bloco_key}"
+        return rotulo, "", ""
+    rotulo = bloco_key if bloco_key != "SEM BLOCO" else "SEM BLOCO"
+    return rotulo, "", ""
 
 
 def _status_to_ratio(item: ItemMapaServico) -> float | None:
@@ -280,11 +370,14 @@ class AnaliseObraService:
             return {s: full[s]}
         return None
 
-    def build_drill_down(self, bloco: str, pavimento: str) -> dict[str, Any]:
+    def build_drill_down(self, bloco: str, pavimento: str, setor: str | None = None) -> dict[str, Any]:
         """Detalhe para drawer: recorte do controle + resumo de suprimentos por busca no local."""
         bloco = (bloco or "").strip()
         pavimento = (pavimento or "").strip()
+        setor = (setor or "").strip()
         qs = self.controle_base_queryset().filter(bloco=bloco)
+        if setor:
+            qs = qs.filter(setor=setor)
         if pavimento:
             qs = qs.filter(pavimento=pavimento)
 
@@ -417,18 +510,40 @@ class AnaliseObraService:
 
     def _build_controle(self) -> dict[str, Any]:
         qs = self.controle_base_queryset()
-        items = list(qs.only("status_percentual", "status_texto", "bloco", "pavimento", "atividade"))
+        items = list(
+            qs.only("status_percentual", "status_texto", "setor", "bloco", "pavimento", "atividade")
+        )
         total = len(items)
         soma_pct = 0.0
         pct_count = 0
         concluidos = em_andamento = nao_iniciados = 0
-        by_bloco: dict[str, list[float]] = {}
+
+        setores_ns = {_norm_key(it.setor) for it in items if (str(it.setor or "")).strip()}
+        use_setor_grupo = len(setores_ns) >= 2
+
+        by_eixo: dict[str, list[float]] = {}
+        pair_votes: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
 
         for item in items:
             ratio = _status_to_ratio(item)
-            bloco = _norm_key(item.bloco) or "SEM BLOCO"
+            sn = _norm_key(item.setor)
+            bn = _norm_key(item.bloco) or "SEM BLOCO"
+            raw_s = (str(item.setor or "")).strip()
+            raw_b = (str(item.bloco or "")).strip()
+
+            if use_setor_grupo:
+                sn_g = sn if sn else "SEM SETOR"
+                gkey = f"{sn_g}{EIXO_SETOR_BLOCO_SEP}{bn}"
+            else:
+                gkey = bn
+
             if ratio is not None:
-                by_bloco.setdefault(bloco, []).append(ratio)
+                by_eixo.setdefault(gkey, []).append(ratio)
+                if use_setor_grupo:
+                    if raw_s or raw_b:
+                        pair_votes[gkey][(raw_s, raw_b)] += 1
+                elif raw_b:
+                    pair_votes[gkey][("", raw_b)] += 1
             if ratio is not None:
                 soma_pct += ratio
                 pct_count += 1
@@ -445,19 +560,66 @@ class AnaliseObraService:
         pct_medio = round((soma_pct / pct_count) * 100, 2) if pct_count else 0.0
 
         bloco_scores = []
-        for bloco, ratios in by_bloco.items():
+        for gkey, ratios in by_eixo.items():
             if not ratios:
                 continue
             avg = sum(ratios) / len(ratios)
-            bloco_scores.append({"bloco": bloco, "percentual_medio": round(avg * 100, 1), "amostras": len(ratios)})
+            if use_setor_grupo:
+                sk, bk = gkey.split(EIXO_SETOR_BLOCO_SEP, 1)
+            else:
+                sk, bk = "", gkey
 
-        bloco_scores.sort(key=lambda x: x["percentual_medio"])
-        piores = bloco_scores[:8]
-        melhores = sorted(bloco_scores, key=lambda x: x["percentual_medio"], reverse=True)[:5]
+            votes = pair_votes.get(gkey, Counter())
+            rotulo, rs, rb = _representative_setor_bloco_from_votes(votes, sk, bk)
+            if not rb:
+                rb = _representative_bloco_label(bk, _pair_votes_to_bloco_counter(votes))
+
+            setor_norm_out = ""
+            if use_setor_grupo and sk and sk != "SEM SETOR":
+                setor_norm_out = sk
+
+            row = {
+                "rotulo": rotulo,
+                "setor": rs,
+                "bloco": rb,
+                "setor_norm": setor_norm_out,
+                "bloco_norm": bk,
+                "percentual_medio": round(avg * 100, 1),
+                "amostras": len(ratios),
+            }
+            bloco_scores.append(row)
+
+        piores = _diversificar_ranking_por_setor(
+            bloco_scores,
+            use_setor_grupo=use_setor_grupo,
+            max_total=16,
+            max_por_setor=3,
+            piores=True,
+        )
+        melhores = _diversificar_ranking_por_setor(
+            bloco_scores,
+            use_setor_grupo=use_setor_grupo,
+            max_total=10,
+            max_por_setor=2,
+            piores=False,
+        )
+
+        ordenado_pior_melhor = sorted(bloco_scores, key=lambda x: x["percentual_medio"])
+        _prog_max = 200
+        progressao_eixos_completo = ordenado_pior_melhor[:_prog_max]
+        ranking_meta = {
+            "eixos_listados": len(piores),
+            "eixos_com_medicao": len(bloco_scores),
+            "eixos_lista_completa": len(progressao_eixos_completo),
+            "limite_ranking": 16,
+            "lista_completa_cortada": len(bloco_scores) > _prog_max,
+        }
 
         return {
             "origem": "mapa_controle_execucao",
-            "descricao_curta": "Avanço físico por bloco, pavimento e atividade (importação do mapa de serviço).",
+            "descricao_curta": "Progressão física média por eixo (mapa de serviço): destaca eixos com menor % médio de execução; não compara prazos nem cronograma.",
+            "agrupamento_eixo": "setor_bloco" if use_setor_grupo else "bloco",
+            "ranking_progressao_meta": ranking_meta,
             "kpis": {
                 "total_itens": total,
                 "percentual_medio": pct_medio,
@@ -466,29 +628,66 @@ class AnaliseObraService:
                 "nao_iniciados": nao_iniciados,
             },
             "blocos_mais_atrasados": piores,
+            "progressao_eixos_completo": progressao_eixos_completo,
             "blocos_mais_avancados": melhores,
         }
 
     def _build_heatmap(self) -> dict[str, Any]:
         """Matriz bloco × pavimento com % médio e criticidade (somente controle)."""
         qs = self.controle_base_queryset()
-        items = list(qs.only("bloco", "pavimento", "status_percentual", "status_texto"))
-        agg: dict[tuple[str, str], list[float]] = {}
+        items = list(qs.only("setor", "bloco", "pavimento", "status_percentual", "status_texto"))
+        n_set = len({_norm_key(i.setor) for i in items if (str(i.setor or "")).strip()})
+        use_sg = n_set >= 2
+
+        agg: dict[tuple, list[float]] = {}
+        cell_pair_votes: dict[tuple, Counter[tuple[str, str]]] = defaultdict(Counter)
+
         for item in items:
-            b = (item.bloco or "").strip() or "SEM BLOCO"
-            p = (item.pavimento or "").strip() or "-"
             ratio = _status_to_ratio(item)
             if ratio is None:
                 continue
-            agg.setdefault((b, p), []).append(ratio)
+            p = (item.pavimento or "").strip() or "-"
+            raw_s = (str(item.setor or "")).strip()
+            raw_b = (str(item.bloco or "")).strip()
+            bn = _norm_key(item.bloco) or "SEM BLOCO"
+            if use_sg:
+                sn = _norm_key(item.setor)
+                sn_g = sn if sn else "SEM SETOR"
+                key = (sn_g, bn, p)
+                if raw_s or raw_b:
+                    cell_pair_votes[key][(raw_s, raw_b)] += 1
+            else:
+                key = (bn, p)
+                if raw_b:
+                    cell_pair_votes[key][("", raw_b)] += 1
+            agg.setdefault(key, []).append(ratio)
 
         celulas = []
-        for (b, p), ratios in agg.items():
+        for gkey, ratios in agg.items():
             avg = sum(ratios) / len(ratios)
             pct = round(avg * 100, 1)
+            votes = cell_pair_votes.get(gkey, Counter())
+            if use_sg:
+                sk, bk, p = gkey[0], gkey[1], gkey[2]
+                rotulo, rs, rb = _representative_setor_bloco_from_votes(votes, sk, bk)
+                if not rb:
+                    rb = _representative_bloco_label(bk, _pair_votes_to_bloco_counter(votes))
+                setor_norm_out = sk if sk and sk != "SEM SETOR" else ""
+            else:
+                bk, p = gkey[0], gkey[1]
+                sk = ""
+                rotulo, rs, rb = _representative_setor_bloco_from_votes(votes, "", bk)
+                if not rb:
+                    rb = _representative_bloco_label(bk, _pair_votes_to_bloco_counter(votes))
+                setor_norm_out = ""
+
             celulas.append(
                 {
-                    "bloco": b,
+                    "rotulo": rotulo,
+                    "setor": rs,
+                    "bloco": rb,
+                    "setor_norm": setor_norm_out,
+                    "bloco_norm": bk,
                     "pavimento": p,
                     "percentual_medio": pct,
                     "amostras": len(ratios),
@@ -497,12 +696,13 @@ class AnaliseObraService:
             )
         celulas.sort(key=lambda c: c["percentual_medio"])
 
-        blocos = sorted({c["bloco"] for c in celulas})[:24]
+        blocos = sorted({c["rotulo"] for c in celulas})[:24]
         pavs = sorted({c["pavimento"] for c in celulas})[:18]
 
         return {
             "origem": "mapa_controle_execucao",
             "descricao_curta": "Criticidade consolidada apenas do avanço físico (não mistura suprimento nem diário).",
+            "agrupamento_eixo": "setor_bloco" if use_sg else "bloco",
             "blocos_eixo": blocos,
             "pavimentos_eixo": pavs,
             "celulas": celulas[:400],
@@ -542,6 +742,12 @@ class AnaliseObraService:
         diarios_aprovados = diaries_qs.filter(status=DiaryStatus.APROVADO)
         total_diarios = diarios_aprovados.count()
 
+        # Um RDO por data (o mais recente se houver colisão) — para link do gráfico → detalhe do diário.
+        relatorio_id_por_data: dict[date, int] = {}
+        for d in diarios_aprovados.order_by("date", "-created_at"):
+            if d.date not in relatorio_id_por_data:
+                relatorio_id_por_data[d.date] = d.id
+
         occ_qs = DiaryOccurrence.objects.filter(diary__in=diarios_aprovados)
         if f.tag_ocorrencia_id:
             try:
@@ -555,7 +761,16 @@ class AnaliseObraService:
         total_ocorrencias = occ_qs.count()
 
         por_dia = occ_qs.values("diary__date").annotate(n=Count("id")).order_by("diary__date")
-        ocorrencias_por_dia = [{"data": row["diary__date"].isoformat(), "total": row["n"]} for row in por_dia]
+        ocorrencias_por_dia = []
+        for row in por_dia:
+            dia = row["diary__date"]
+            ocorrencias_por_dia.append(
+                {
+                    "data": dia.isoformat(),
+                    "total": row["n"],
+                    "relatorio_id": relatorio_id_por_data.get(dia),
+                }
+            )
         dias_com_ocorrencia = len(ocorrencias_por_dia)
         media_dia_com_evento = round((total_ocorrencias / dias_com_ocorrencia), 2) if dias_com_ocorrencia else 0.0
         dias_periodo = max(1, (d2 - d1).days + 1)
@@ -566,7 +781,9 @@ class AnaliseObraService:
             .annotate(n=Count("occurrences", filter=Q(occurrences__in=occ_qs), distinct=True))
             .order_by("-n", "name")[:12]
         )
-        tags_top = [{"nome": t.name, "cor": t.color or "#64748b", "total": t.n} for t in tags_qs]
+        tags_top = [
+            {"id": t.id, "nome": t.name, "cor": t.color or "#64748b", "total": t.n} for t in tags_qs
+        ]
 
         priorities = {"p1_critica": 0, "p2_alta": 0, "p3_media": 0, "p4_baixa": 0}
         ocorrencias_recentes = []
@@ -591,6 +808,7 @@ class AnaliseObraService:
                 {
                     "data": occ.diary.date.isoformat(),
                     "relatorio": occ.diary.report_number,
+                    "relatorio_id": occ.diary_id,
                     "descricao": (occ.description or "")[:220],
                     "gravidade": severity,
                     "tags": tags_list[:5],
@@ -622,6 +840,7 @@ class AnaliseObraService:
                 {
                     "data": d.date.isoformat(),
                     "relatorio": d.report_number,
+                    "relatorio_id": d.id,
                     "status": d.status,
                     "ocorrencias_no_dia": occ_n,
                     "resumo_clima": (d.weather_conditions or "")[:160],
@@ -658,7 +877,18 @@ class AnaliseObraService:
         rank_locais = (suprimentos.get("ranking") or {}).get("locais") or []
         locais_sup = {_norm_key(name): int(n) for name, n in rank_locais if name}
 
-        piores_blocos = {_norm_key(b.get("bloco")): b for b in (controle.get("blocos_mais_atrasados") or [])}
+        piores_blocos: dict[str, Any] = {}
+        for b in controle.get("blocos_mais_atrasados") or []:
+            sn = (b.get("setor_norm") or "").strip()
+            bn = (b.get("bloco_norm") or _norm_key(b.get("bloco")) or "").strip()
+            if sn and bn:
+                k = f"{sn}|{bn}"
+            elif bn:
+                k = bn
+            else:
+                k = (_norm_key(b.get("rotulo")) or "").strip()
+            if k:
+                piores_blocos[k] = b
 
         candidatos = []
         max_pend = max(locais_sup.values()) if locais_sup else 0
@@ -687,6 +917,9 @@ class AnaliseObraService:
                 candidatos.append(
                     {
                         "local_norm": bloco_key,
+                        "rotulo_exibicao": (ctrl.get("rotulo") or "").strip(),
+                        "bloco_mapa": (ctrl.get("bloco") or "").strip() or bloco_key,
+                        "setor_mapa": (ctrl.get("setor") or "").strip(),
                         "leitura": (
                             "Avanço físico abaixo do esperado e pendência relevante de material no mesmo eixo."
                         ),

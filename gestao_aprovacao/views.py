@@ -6,7 +6,8 @@ from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Min, Value, Prefetch
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
@@ -2434,22 +2435,64 @@ def list_users(request):
             Q(first_name__icontains=search_query) |
             Q(last_name__icontains=search_query)
         )
-    
+
+    # Obras disponíveis no filtro (mesmo recorte de permissão da tela)
+    if is_responsavel_empresa(request.user) and not is_admin(request.user):
+        _emp_filt = Empresa.objects.filter(responsavel=request.user, ativo=True)
+        obras_queryset = Obra.objects.filter(empresa__in=_emp_filt, ativo=True)
+    else:
+        obras_queryset = Obra.objects.filter(ativo=True)
+
+    obra_filter = (request.GET.get('obra') or '').strip()
+    obra_filter_id = None
+    if obra_filter.isdigit():
+        oid = int(obra_filter)
+        if obras_queryset.filter(pk=oid).exists():
+            obra_filter_id = oid
+            users = users.filter(
+                permissoes_obra__obra_id=oid,
+                permissoes_obra__ativo=True,
+            ).distinct()
+
+    users = users.annotate(
+        _obra_sort=Min(
+            'permissoes_obra__obra__nome',
+            filter=Q(permissoes_obra__ativo=True),
+        )
+    ).order_by(Coalesce('_obra_sort', Value('ZZZZZZZZZZ')), 'username')
+
+    users = users.prefetch_related(
+        Prefetch(
+            'permissoes_obra',
+            queryset=WorkOrderPermission.objects.filter(ativo=True).select_related('obra'),
+        )
+    )
+
     # Paginação
     paginator = Paginator(users, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # Obter grupos para cada usuário
+    # Obter grupos e obras (GestControll) para cada usuário
     users_with_groups = []
     for user in page_obj:
         grupos = user.groups.all()
+        obras_vistas = []
+        _seen = set()
+        for p in user.permissoes_obra.all():
+            if not p.obra_id or p.obra_id in _seen:
+                continue
+            _seen.add(p.obra_id)
+            obras_vistas.append(p.obra)
+        obras_vistas.sort(key=lambda o: (o.nome.lower(), o.codigo.lower()))
+
         users_with_groups.append({
             'user': user,
             'groups': grupos,
             'is_engenheiro': grupos.filter(name='Solicitante').exists(),
             'is_gestor': grupos.filter(name='Gestor').exists(),
             'is_admin': grupos.filter(name='Administrador').exists() or user.is_superuser,
+            'obras_list': obras_vistas,
         })
     
     # Verificar se é responsável por empresa para mostrar apenas empresas dele
@@ -2473,6 +2516,8 @@ def list_users(request):
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
         'is_admin': is_admin(request.user),
         'use_central_urls': _central,
+        'obras_filtro': obras_queryset.order_by('nome', 'codigo'),
+        'obra_filter': str(obra_filter_id) if obra_filter_id is not None else '',
     }
     return render(request, 'obras/list_users.html', context)
 

@@ -183,6 +183,7 @@ def analise_obra_drilldown_api(request):
     obra_id = request.GET.get("obra")
     bloco = (request.GET.get("bloco") or "").strip()
     pavimento = (request.GET.get("pavimento") or "").strip()
+    setor = (request.GET.get("setor") or "").strip()
     if not obra_id:
         return _json_error("Parâmetro obra é obrigatório.", 400)
     if not bloco:
@@ -196,5 +197,5 @@ def analise_obra_drilldown_api(request):
         return _json_error("Sem permissão para esta obra.", 403)
 
     svc, _, _, _ = _service_for_request(request, obra)
-    payload = svc.build_drill_down(bloco, pavimento)
+    payload = svc.build_drill_down(bloco, pavimento, setor=setor or None)
     return JsonResponse({"success": True, "data": payload})

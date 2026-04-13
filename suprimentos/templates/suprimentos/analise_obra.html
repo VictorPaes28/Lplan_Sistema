@@ -7,7 +7,7 @@
 
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block page_title %}BI da Obra{% endblock %}
-{% block page_subtitle %}Integração obra, campo e material{% endblock %}
+{% block page_subtitle %}Obra, campo e material{% endblock %}
 
 {% block extra_css %}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -28,25 +28,45 @@
 <script>
 window.__ANALISE_API_URL__ = "{% url 'suprimentos:analise_obra_api' %}";
 window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' %}";
+window.__AO_REPORTS_URL__ = "{% url 'report-list' %}";
+window.__AO_MAPA_CONTROLE_URL__ = "{% url 'engenharia:mapa_controle' %}";
+window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
+{% if obra_selecionada %}window.__AO_OBRA_ID__ = "{{ obra_selecionada.id }}";{% endif %}
 </script>
 
 <div class="analise-obra-page" id="ao-page-root">
-<script>
-(function () {
-  try {
-    var t = localStorage.getItem("lplan_ao_bi_theme");
-    if (t === "dark") {
-      var root = document.getElementById("ao-page-root");
-      if (root) root.classList.add("analise-obra-page--dark");
-      var main = document.querySelector("main.main-content--bi-obra");
-      if (main) main.classList.add("bi-page-dark");
-      if (document.body) document.body.classList.add("bi-page-dark");
-    }
-  } catch (e) {}
-})();
-</script>
 <div class="ao-wrap">
-  <!-- Cabeçalho: BI da obra ≠ Dashboard SC/PC ≠ Gestão -->
+  <div class="ao-theme-bar d-flex justify-content-end mb-2 mb-md-3">
+    <button type="button" class="ao-theme-toggle ao-theme-toggle--prominent" id="aoThemeToggle" aria-pressed="true" title="Tema claro ou escuro">
+      <i class="bi bi-sun-fill ao-icon-light" aria-hidden="true"></i>
+      <i class="bi bi-moon-stars-fill ao-icon-dark" aria-hidden="true"></i>
+      <span class="ms-2" id="aoThemeLabel">Modo claro</span>
+    </button>
+  </div>
+  <script>
+  (function () {
+    try {
+      var t = localStorage.getItem("lplan_ao_bi_theme");
+      var dark = t !== "light";
+      var root = document.getElementById("ao-page-root");
+      if (dark) {
+        if (root) root.classList.add("analise-obra-page--dark");
+        var mainEl = document.querySelector("main.main-content--bi-obra");
+        if (mainEl) mainEl.classList.add("bi-page-dark");
+        if (document.body) document.body.classList.add("bi-page-dark");
+      } else {
+        if (root) root.classList.remove("analise-obra-page--dark");
+        var mainEl2 = document.querySelector("main.main-content--bi-obra");
+        if (mainEl2) mainEl2.classList.remove("bi-page-dark");
+        if (document.body) document.body.classList.remove("bi-page-dark");
+      }
+      var lab = document.getElementById("aoThemeLabel");
+      if (lab) lab.textContent = dark ? "Modo claro" : "Modo escuro";
+      var btn = document.getElementById("aoThemeToggle");
+      if (btn) btn.setAttribute("aria-pressed", dark ? "true" : "false");
+    } catch (e) {}
+  })();
+  </script>
   <header class="ao-hero" role="banner">
     <div class="ao-hero-top">
       <div class="ao-hero-intro">
@@ -65,7 +85,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       </div>
       <div class="ao-hero-actions d-flex flex-column align-items-stretch align-items-md-end gap-1 w-100 w-md-auto">
         {% if analise_payload %}
-        <span class="small text-secondary text-center text-md-end fw-semibold">Status geral da obra</span>
+        <span class="small text-secondary text-center text-md-end fw-semibold">Situação</span>
         <span class="ao-situacao {{ analise_payload.meta.situacao_executiva.nivel }} text-center text-md-end mb-1">
           {{ analise_payload.meta.situacao_executiva.rotulo }}
         </span>
@@ -98,21 +118,12 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     </div>
     {% if analise_payload.meta.baseline_planejamento %}
     <p class="small text-secondary mb-0 mt-2" title="{{ analise_payload.meta.baseline_planejamento.mensagem }}">
-      Previsto × real automático: em breve <span class="d-none d-sm-inline">(depende da fonte de cronograma)</span>
+      Comparar previsto e real: em breve
     </p>
     {% endif %}
     {% endif %}
   </header>
 
-  <div class="d-flex justify-content-end mb-2 mb-md-3">
-    <button type="button" class="ao-theme-toggle ao-theme-toggle--prominent" id="aoThemeToggle" aria-pressed="false" title="Alternar tema claro ou escuro do BI">
-      <i class="bi bi-sun-fill ao-icon-light" aria-hidden="true"></i>
-      <i class="bi bi-moon-stars-fill ao-icon-dark" aria-hidden="true"></i>
-      <span class="ms-2" id="aoThemeLabel">Modo escuro</span>
-    </button>
-  </div>
-
-  <!-- Filtros: rápidos sempre visíveis; resto recolhível (melhor no celular) -->
   <form class="ao-filters" method="get" action="" id="formAnaliseFiltros">
     <div class="ao-filters-quick">
       <div>
@@ -133,7 +144,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       </div>
       <div>
         <label for="visao">Zoom</label>
-        <select name="visao" id="visao" class="form-select form-select-sm" title="Geral = visão ampla; Detalhe = mais recortes">
+        <select name="visao" id="visao" class="form-select form-select-sm" title="Geral: visão ampla · Detalhe: mais zoom">
           <option value="geral" {% if filtros_get.visao == 'geral' %}selected{% endif %}>Geral</option>
           <option value="detalhe" {% if filtros_get.visao == 'detalhe' %}selected{% endif %}>Detalhe</option>
         </select>
@@ -262,7 +273,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
       {% if obra_selecionada %}
       <a class="btn btn-outline-secondary btn-sm" href="?obra={{ obra_selecionada.id }}">Limpar</a>
-      <button type="button" class="btn btn-outline-info btn-sm" id="btnAnaliseRefreshApi" title="Sincronizar com o servidor">Atualizar</button>
+      <button type="button" class="btn btn-outline-info btn-sm" id="btnAnaliseRefreshApi" title="Atualizar dados">Atualizar</button>
       {% endif %}
     </div>
     </div>
@@ -271,17 +282,16 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
   </form>
 
   {% if not obra_selecionada %}
-  <p class="ao-empty">Nenhuma obra disponível para seu usuário.</p>
+  <p class="ao-empty">Nenhuma obra disponível para você.</p>
   {% elif not analise_payload %}
-  <p class="ao-empty">Não foi possível montar o payload de análise.</p>
+  <p class="ao-empty">Não foi possível carregar a análise.</p>
   {% else %}
 
-  <!-- 0 · Evidências executivas -->
   <section class="ao-section ao-section-evidence" aria-labelledby="sec-e0">
     <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-e0">0 · Resumo de ocorrências</h2>
+      <h2 class="ao-section-title" id="sec-e0">0 · Ocorrências</h2>
       <p class="ao-section-desc d-none d-md-block mb-0">
-        Leitura simples: o que aconteceu no campo, prioridade e evidências
+        Diário no período — prioridade e registro
         <span class="ao-badge-origem diario">diário</span>
       </p>
     </div>
@@ -292,7 +302,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <span class="ao-badge-origem diario">Campo</span>
         </div>
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_no_periodo|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Período selecionado: {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
+        <p class="ao-card-caption mb-0">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s) no período</p>
       </div>
       <div class="ao-card span-3">
         <div class="ao-card-head">
@@ -300,7 +310,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <span class="ao-badge-origem diario">Risco</span>
         </div>
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_criticas_no_periodo|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Requer atenção imediata</p>
+        <p class="ao-card-caption mb-0">Urgente</p>
       </div>
       <div class="ao-card span-3">
         <div class="ao-card-head">
@@ -308,7 +318,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <span class="ao-badge-origem diario">Campo</span>
         </div>
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.dias_com_ocorrencia|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s) do recorte</p>
+        <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
       </div>
       <div class="ao-card span-3">
         <div class="ao-card-head">
@@ -324,9 +334,9 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       </div>
       <div class="ao-card span-12">
         <div class="ao-card-head">
-          <h3 class="ao-card-title">Últimas ocorrências (com evidência)</h3>
+          <h3 class="ao-card-title">Últimas ocorrências</h3>
           <div class="d-flex align-items-center gap-2">
-            <span class="ao-badge-origem diario">Todas no período ({{ analise_payload.meta.periodo.dias|default:"—" }} dia(s))</span>
+            <span class="ao-badge-origem diario">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</span>
             <button
               class="btn btn-sm ao-occ-toggle-btn"
               type="button"
@@ -359,7 +369,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
               </thead>
               <tbody>
                 {% for o in analise_payload.diario.ocorrencias_recentes %}
-                <tr data-priority="{{ o.gravidade }}"{% if forloop.counter > 5 %} class="ao-occ-extra d-none"{% endif %}>
+                <tr data-priority="{{ o.gravidade }}"{% if o.relatorio_id %} class="ao-bi-click-row ao-bi-diary-row{% if forloop.counter > 5 %} ao-occ-extra d-none{% endif %}" data-diary-id="{{ o.relatorio_id }}" title="Abrir o RDO"{% elif forloop.counter > 5 %} class="ao-occ-extra d-none"{% endif %}>
                   <td>{{ o.data }}</td>
                   <td>#{{ o.relatorio|default:"—" }}</td>
                   <td>
@@ -385,7 +395,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
                   <td>{{ o.descricao }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="ao-empty">Sem ocorrências no recorte.</td></tr>
+                <tr><td colspan="5" class="ao-empty">Nenhuma ocorrência neste período.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -413,7 +423,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
             <span>{{ acao.acao }}</span>
           </li>
           {% empty %}
-          <li><span class="text-secondary">Sem ação sugerida para o recorte atual.</span></li>
+          <li><span class="text-secondary">Nada sugerido com estes filtros.</span></li>
           {% endfor %}
         </ul>
         {% if analise_payload.cruzamento.acoes_recomendadas|length > 2 %}
@@ -427,11 +437,10 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     </div>
   </section>
 
-  <!-- 1 · Obra (avanço físico) -->
   <section class="ao-section" aria-labelledby="sec-a">
     <div class="ao-section-head">
       <h2 class="ao-section-title" id="sec-a">1 · Obra</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">O que já foi executado no terreno <span class="ao-badge-origem controle">mapa serviço</span></p>
+      <p class="ao-section-desc d-none d-md-block mb-0">Mapa de serviço — o que já foi feito <span class="ao-badge-origem controle">obra</span></p>
     </div>
     <div class="ao-grid">
       <div class="ao-card span-4">
@@ -457,25 +466,40 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
       </div>
       <div class="ao-card span-12">
         <div class="ao-card-head">
-          <h3 class="ao-card-title">Blocos mais atrasados</h3>
+          <h3 class="ao-card-title">Progressão dos blocos</h3>
           <span class="ao-badge-origem controle">Obra</span>
         </div>
-        <div class="ao-chart-box">
-          <canvas id="chart-blocos-controle" aria-label="Avanço por bloco"></canvas>
+        <p class="ao-card-caption mb-0">Média do mapa por eixo: barra menor, menos avanço. Toque na barra para o controle.</p>
+        {% if analise_payload.controle.agrupamento_eixo == "setor_bloco" %}
+        <p class="ao-card-caption mb-1 small text-secondary">Cada eixo é setor e bloco juntos. No gráfico: até 16 eixos, no máximo 3 por setor.</p>
+        {% endif %}
+        {% if analise_payload.controle.ranking_progressao_meta %}
+        {% with m=analise_payload.controle.ranking_progressao_meta %}
+        {% if m.eixos_com_medicao > m.eixos_listados %}
+        <p class="ao-card-caption mb-1 small text-secondary">{{ m.eixos_com_medicao }} eixos com medição; o gráfico começa com {{ m.eixos_listados }}. «Ver todos os eixos» mostra todos.</p>
+        {% endif %}
+        {% endwith %}
+        {% endif %}
+        <div class="ao-chart-box{% if analise_payload.controle.blocos_mais_atrasados|length > 6 %} ao-chart-prog--limited{% endif %}" id="aoProgChartBox">
+          <canvas id="chart-blocos-controle" aria-label="Progressão por eixo no mapa"></canvas>
         </div>
+        {% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length or analise_payload.controle.blocos_mais_atrasados|length > 6 %}
+        <div class="text-end mt-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoProgChartExpand" aria-expanded="false" aria-controls="aoProgChartBox">{% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length %}Ver todos os eixos ({{ analise_payload.controle.progressao_eixos_completo|length }}){% else %}Expandir gráfico{% endif %}</button>
+        </div>
+        {% endif %}
       </div>
     </div>
   </section>
 
-  <!-- Mapa de calor -->
   <section class="ao-section" id="section-heatmap" aria-labelledby="sec-h">
     <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-h">Mapa · bloco × piso</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Toque na linha para abrir detalhe <span class="ao-badge-origem controle">só obra</span></p>
+      <h2 class="ao-section-title" id="sec-h">Mapa · bloco e piso</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">Toque na linha para ver o detalhe <span class="ao-badge-origem controle">obra</span></p>
     </div>
-    <p class="small text-secondary mb-2 d-md-none">Toque na linha · detalhe</p>
+    <p class="small text-secondary mb-2 d-md-none">Toque na linha para detalhar</p>
     <p class="ao-footnote small d-none d-md-block mb-2">
-      &lt;30% crítico · 30–55 alto · 55–75 médio · ≥75 ok
+      Quanto menor o % médio, pior a situação (&lt;30 · 30–55 · 55–75 · ≥75).
     </p>
     <div class="ao-table-wrap">
       <table class="ao-table ao-table-heatmap">
@@ -491,8 +515,8 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         </thead>
         <tbody>
           {% for c in analise_payload.heatmap.celulas %}
-          <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-pavimento="{{ c.pavimento }}">
-            <td>{{ c.bloco }}</td>
+          <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-setor="{{ c.setor|default:'' }}" data-pavimento="{{ c.pavimento }}">
+            <td>{{ c.rotulo|default:c.bloco }}</td>
             <td>{{ c.pavimento }}</td>
             <td>{{ c.percentual_medio }}%</td>
             <td>{{ c.amostras }}</td>
@@ -500,7 +524,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
             <td><button type="button" class="btn btn-sm ao-heat-open-btn ao-drill-btn">Abrir</button></td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" class="ao-empty">Sem células no recorte (ajuste filtros ou importe mapa de serviço).</td></tr>
+          <tr><td colspan="6" class="ao-empty">Nada neste filtro. Ajuste os filtros ou o mapa.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -514,13 +538,12 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     {% endif %}
   </section>
 
-  <!-- 2 · Campo (diário) -->
   <section class="ao-section" aria-labelledby="sec-b">
     <div class="ao-section-head">
       <h2 class="ao-section-title" id="sec-b">2 · Campo</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">O que aconteceu no dia <span class="ao-badge-origem diario">diário</span></p>
+      <p class="ao-section-desc d-none d-md-block mb-0">Diário no período <span class="ao-badge-origem diario">campo</span></p>
       {% if not analise_payload.diario.vinculo_projeto %}
-      <p class="small text-warning mb-0">Sem vínculo diário–obra (código Sienge).</p>
+      <p class="small text-warning mb-0">Diário não ligado à obra (código Sienge).</p>
       {% endif %}
     </div>
     <div class="ao-grid">
@@ -529,7 +552,12 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <h3 class="ao-card-title">Ocorrências no tempo</h3>
           <span class="ao-badge-origem diario">Campo</span>
         </div>
-        <p class="ao-card-caption mb-0">Recorte de {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
+        <p class="ao-card-caption mb-0">
+          {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s).
+          {% if analise_payload.diario.vinculo_projeto %}
+          <span class="d-none d-sm-inline"> </span><span class="ao-chart-click-hint">Toque no dia para o RDO.</span>
+          {% endif %}
+        </p>
         <div class="ao-chart-box">
           <canvas id="chart-ocorrencias-dia" aria-label="Ocorrências por dia"></canvas>
         </div>
@@ -539,8 +567,9 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <h3 class="ao-card-title">Tipos</h3>
           <span class="ao-badge-origem diario">Campo</span>
         </div>
+        <p class="ao-card-caption mb-0">Toque na fatia para filtrar por tag.</p>
         <div class="ao-chart-box">
-          <canvas id="chart-tags-diario" aria-label="Tags"></canvas>
+          <canvas id="chart-tags-diario" aria-label="Tags de ocorrência"></canvas>
         </div>
       </div>
       <div class="ao-card span-12">
@@ -556,8 +585,11 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
               <div class="ao-tl-date">{{ row.data }}</div>
               <div class="ao-tl-body">
                 #{{ row.relatorio|default:"—" }} · {{ row.ocorrencias_no_dia }} ocorr.
+                {% if row.relatorio_id %}
+                <a href="{% url 'diary-detail' row.relatorio_id %}" class="ao-tl-rdo-link small fw-semibold ms-1 text-decoration-none" onclick="event.stopPropagation();">Abrir RDO →</a>
+                {% endif %}
                 {% if row.resumo_clima %}<br><span class="text-secondary small">{{ row.resumo_clima }}</span>{% endif %}
-                <br><span class="ao-tl-open-hint">Clique para ver ocorrências do dia</span>
+                <br><span class="ao-tl-open-hint">Abrir o dia</span>
               </div>
             </summary>
             <div class="ao-tl-occ-list">
@@ -575,24 +607,23 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
                 </div>
                 {% endfor %}
               {% else %}
-                <p class="ao-empty mb-0">Sem ocorrências registradas neste dia.</p>
+                <p class="ao-empty mb-0">Nada registrado neste dia.</p>
               {% endif %}
             </div>
           </details>
           {% endfor %}
         </div>
         {% else %}
-        <p class="ao-empty">Sem registros no período.</p>
+        <p class="ao-empty">Nenhum registro neste período.</p>
         {% endif %}
       </div>
     </div>
   </section>
 
-  <!-- 3 · Material (resumo — painel completo continua no Dashboard / Mapa) -->
   <section class="ao-section" aria-labelledby="sec-c">
     <div class="ao-section-head">
       <h2 class="ao-section-title" id="sec-c">3 · Material</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Resumo do fluxo SC/PC — detalhe no <em>Dashboard</em> de suprimentos <span class="ao-badge-origem suprimentos">material</span></p>
+      <p class="ao-section-desc d-none d-md-block mb-0">Resumo de SC e PC — detalhes no dashboard de suprimentos <span class="ao-badge-origem suprimentos">material</span></p>
     </div>
     <div class="ao-grid">
       <div class="ao-card span-4">
@@ -601,10 +632,10 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <span class="ao-badge-origem suprimentos">Material</span>
         </div>
         <ul class="list-unstyled small mb-0" style="line-height:1.8;">
-          <li>Sem SC: <strong>{{ analise_payload.suprimentos.kpis.sem_sc }}</strong></li>
-          <li>Com SC sem PC: <strong>{{ analise_payload.suprimentos.kpis.sem_pc }}</strong></li>
-          <li>Com PC sem entrega: <strong>{{ analise_payload.suprimentos.kpis.sem_entrega }}</strong></li>
-          <li>Recebido sem alocação: <strong>{{ analise_payload.suprimentos.kpis.sem_alocacao }}</strong></li>
+          <li>Sem pedido (SC): <strong>{{ analise_payload.suprimentos.kpis.sem_sc }}</strong></li>
+          <li>SC sem compra (PC): <strong>{{ analise_payload.suprimentos.kpis.sem_pc }}</strong></li>
+          <li>PC sem entrega: <strong>{{ analise_payload.suprimentos.kpis.sem_entrega }}</strong></li>
+          <li>Entregue sem alocar: <strong>{{ analise_payload.suprimentos.kpis.sem_alocacao }}</strong></li>
         </ul>
       </div>
       <div class="ao-card span-8">
@@ -612,6 +643,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           <h3 class="ao-card-title">Onde mais pesa</h3>
           <span class="ao-badge-origem suprimentos">Material</span>
         </div>
+        <p class="ao-card-caption mb-0">Toque na barra para o dashboard daquele local.</p>
         <div class="ao-chart-box">
           <canvas id="chart-suprimentos-locais" aria-label="Pendências por local"></canvas>
         </div>
@@ -619,13 +651,12 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
     </div>
   </section>
 
-  <!-- 4 · Onde cruza -->
   <section class="ao-section" aria-labelledby="sec-d">
     <div class="ao-section-head">
       <h2 class="ao-section-title" id="sec-d">4 · Locais com risco de atraso</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Obra lenta + material pendente no mesmo eixo <span class="ao-badge-origem cruzamento">mistura</span></p>
+      <p class="ao-section-desc d-none d-md-block mb-0">Pouco avanço na obra e material pendente no mesmo lugar <span class="ao-badge-origem cruzamento">cruzamento</span></p>
     </div>
-    <p class="small text-secondary d-md-none mb-2">Obra atrasada + fila material</p>
+    <p class="small text-secondary d-md-none mb-2">Obra lenta e material atrasado juntos</p>
     <div class="ao-table-wrap">
       <table class="ao-table">
         <thead>
@@ -639,8 +670,8 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         </thead>
         <tbody>
           {% for c in analise_payload.cruzamento.candidatos_atraso_suprimento_e_execucao %}
-          <tr>
-            <td>{{ c.local_norm }}</td>
+          <tr class="ao-bi-click-row ao-bi-bloco-row" data-bloco="{{ c.bloco_mapa }}" data-setor="{{ c.setor_mapa|default:'' }}" title="Abrir o mapa neste bloco">
+            <td>{{ c.rotulo_exibicao|default:c.local_norm }}</td>
             <td>{{ c.controle.percentual_medio }}%</td>
             <td>{{ c.suprimentos.pendencias_pendentes_ranking }}</td>
             <td>
@@ -658,7 +689,7 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" class="ao-empty">Nada no recorte — mude filtros ou período.</td>
+            <td colspan="5" class="ao-empty">Nada com estes filtros.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -667,20 +698,20 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
   </section>
 
   <section class="ao-section" aria-labelledby="sec-t">
-    <h2 class="ao-section-title" id="sec-t">Blocos · ranking</h2>
+    <h2 class="ao-section-title" id="sec-t">Progressão por eixo — tabela</h2>
     <div class="ao-table-wrap">
       <table class="ao-table">
         <thead>
           <tr>
-            <th>Bloco</th>
+            <th>Eixo</th>
             <th>% médio</th>
-            <th>Amostras</th>
+            <th>Itens no mapa</th>
           </tr>
         </thead>
         <tbody>
-          {% for b in analise_payload.controle.blocos_mais_atrasados %}
-          <tr>
-            <td>{{ b.bloco }}</td>
+          {% for b in analise_payload.controle.progressao_eixos_completo %}
+          <tr class="ao-bi-click-row ao-bi-bloco-row{% if forloop.counter > 6 %} ao-prog-tabela-extra d-none{% endif %}" data-bloco="{{ b.bloco }}" data-setor="{{ b.setor|default:'' }}" title="Abrir o mapa neste eixo">
+            <td>{{ b.rotulo|default:b.bloco }}</td>
             <td>{{ b.percentual_medio }}</td>
             <td>{{ b.amostras }}</td>
           </tr>
@@ -688,24 +719,28 @@ window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' 
         </tbody>
       </table>
     </div>
+    {% if analise_payload.controle.progressao_eixos_completo|length > 6 %}
+    <div class="text-end mt-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="aoProgTabelaExpand" aria-expanded="false">Ver mais eixos</button>
+    </div>
+    {% endif %}
   </section>
 
   <p class="ao-footnote d-flex flex-wrap gap-2 gap-md-3 align-items-center">
-    <span class="text-secondary small">Ir para:</span>
+    <span class="text-secondary small">Atalhos:</span>
     <a href="{% url 'engenharia:dashboard_2' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Dashboard SC/PC</a>
     <a href="{% url 'engenharia:mapa' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Mapa</a>
     <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Controle físico</a>
     <a href="/reports/" class="ao-link-footer">Diários</a>
   </p>
 
-  <!-- Drawer drill-down -->
   <div class="offcanvas offcanvas-end ao-drill-offcanvas" tabindex="-1" id="aoDrilldown" aria-labelledby="aoDrilldownLabel" style="width:min(520px,100vw);">
     <div class="offcanvas-header ao-drill-offcanvas-header border-bottom">
-      <h2 class="offcanvas-title h5" id="aoDrilldownLabel">Recorte</h2>
+      <h2 class="offcanvas-title h5" id="aoDrilldownLabel">Detalhe</h2>
       <button type="button" class="btn-close ao-drill-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
     </div>
     <div class="offcanvas-body ao-drill-offcanvas-body" id="aoDrilldownBody">
-      <p class="small ao-drill-placeholder">Selecione uma linha na matriz ou use Detalhar.</p>
+      <p class="small ao-drill-placeholder">Escolha uma linha na tabela ou toque em Abrir.</p>
     </div>
   </div>
   {% endif %}
