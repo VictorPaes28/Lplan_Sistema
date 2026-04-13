@@ -7,9 +7,29 @@
 
 {% block extra_css %}
 <style>
-    .assistant-shell { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; }
-    .assistant-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; }
-    .assistant-chat { min-height: 60vh; max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; }
+    /* Assistente: menos “caixas empilhadas”, mais respiro e hierarquia suave */
+    .assistant-shell {
+        display: grid;
+        grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+        gap: 1.25rem;
+        align-items: stretch;
+        min-height: calc(100vh - 8rem);
+    }
+    .assistant-panel { background: #fff; border: 1px solid #e8ecf1; border-radius: 14px; padding: 1rem 1.1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+    .assistant-panel--chat {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .assistant-chat {
+        flex: 1;
+        min-height: 42vh;
+        max-height: min(68vh, calc(100vh - 220px));
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
     .assistant-msg { border-radius: 12px; padding: 0.85rem; border: 1px solid #e2e8f0; background: #f8fafc; }
     .assistant-msg.user { background: #0f172a; color: #fff; margin-left: 8%; }
     .assistant-msg.assistant { margin-right: 8%; background: #ffffff; }
@@ -19,7 +39,101 @@
     .assistant-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.55rem; background: #f8fafc; }
     .assistant-card .title { font-size: 0.75rem; color: #64748b; }
     .assistant-card .value { font-size: 1.2rem; font-weight: 700; }
-    .assistant-section-title { font-size: 0.78rem; color: #475569; font-weight: 700; margin-top: 0.7rem; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .assistant-section-title { font-size: 0.72rem; color: #64748b; font-weight: 600; margin-top: 0.65rem; margin-bottom: 0.4rem; letter-spacing: 0.02em; text-transform: none; }
+    .assistant-context-card {
+        margin-bottom: 0.85rem;
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+        border: 1px solid #e8ecf1;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        position: relative;
+        overflow: hidden;
+    }
+    .assistant-context-card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        border-radius: 12px 0 0 12px;
+        background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+    }
+    .assistant-context-card--pick::before { background: linear-gradient(180deg, #f97316, #ea580c); }
+    .assistant-context-card--empty::before { background: linear-gradient(180deg, #94a3b8, #64748b); }
+    .assistant-context-card > * { position: relative; }
+    .assistant-suggestions-head { margin-bottom: 0.65rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eef2f7; }
+    .assistant-suggestions-head h3 { font-size: 0.82rem; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; margin: 0 0 0.35rem; }
+    .assistant-suggestions-head p { margin: 0; font-size: 0.72rem; line-height: 1.45; color: #64748b; }
+    .assistant-topic { border: 1px solid #eef2f7; border-radius: 10px; margin-bottom: 0.5rem; background: #fafbfc; overflow: hidden; transition: box-shadow 0.2s ease; }
+    .assistant-topic[open] { box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06); }
+    .assistant-topic > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #334155;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        user-select: none;
+    }
+    .assistant-topic > summary::-webkit-details-marker { display: none; }
+    .assistant-topic > summary::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: #94a3b8;
+        flex-shrink: 0;
+    }
+    .assistant-topic--exec > summary::before { background: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2); }
+    .assistant-topic--supply > summary::before { background: #ea580c; box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2); }
+    .assistant-topic--diary > summary::before { background: #0d9488; box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2); }
+    .assistant-topic--flow > summary::before { background: #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2); }
+    .assistant-topic > summary::after { content: "▾"; font-size: 0.65rem; color: #94a3b8; display: inline-block; transition: transform 0.2s ease; }
+    .assistant-topic[open] > summary::after { transform: rotate(-180deg); }
+    .assistant-topic > summary:hover { background: #f1f5f9; }
+    .assistant-topic-body { padding: 0 0.5rem 0.55rem; display: flex; flex-direction: column; gap: 0.35rem; }
+    .assistant-topic-mega { border-style: dashed; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); border-color: #cbd5e1; }
+    .assistant-topic-mega > summary { font-size: 0.78rem; color: #475569; }
+    .assistant-topic-mega > summary::before { background: #64748b; }
+    .assistant-topic-mega .assistant-topic { margin-top: 0.35rem; background: #fff; }
+    .assistant-history { border: 1px solid #eef2f7; border-radius: 10px; background: #fafbfc; overflow: hidden; }
+    .assistant-history > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #475569;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        user-select: none;
+    }
+    .assistant-history > summary::-webkit-details-marker { display: none; }
+    .assistant-history > summary::after { content: "▾"; font-size: 0.65rem; color: #94a3b8; display: inline-block; transition: transform 0.15s ease; }
+    .assistant-history[open] > summary::after { transform: rotate(-180deg); }
+    .assistant-history > summary:hover { background: #f1f5f9; }
+    .assistant-history-body { padding: 0 0.5rem 0.55rem; max-height: 28vh; overflow-y: auto; }
+    .assistant-suggestion {
+        border-radius: 8px;
+        padding: 0.45rem 0.55rem;
+        font-size: 0.8rem;
+        line-height: 1.35;
+        text-align: left;
+        color: #334155;
+        background: #fff;
+        border: 1px solid #e8ecf1;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .assistant-suggestion:hover { background: #f8fafc; border-color: #cbd5e1; }
     .assistant-table-wrap { overflow-x: auto; margin-top: 0.6rem; }
     .assistant-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .assistant-table caption { text-align: left; color: #475569; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.35rem; }
@@ -31,7 +145,7 @@
     .assistant-timeline-dot { width: 8px; height: 8px; margin-top: 0.35rem; border-radius: 999px; background: #2563eb; flex-shrink: 0; }
     .assistant-timeline-text { font-size: 0.82rem; color: #334155; }
     .assistant-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; }
-    .assistant-btn { border-radius: 8px; padding: 0.45rem 0.7rem; font-size: 0.82rem; text-decoration: none; border: 1px solid #cbd5e1; color: #0f172a; background: #fff; }
+    .assistant-btn { border-radius: 8px; padding: 0.45rem 0.7rem; font-size: 0.82rem; text-decoration: none; border: 1px solid #e2e8f0; color: #334155; background: #fff; }
     .assistant-btn.primary { background: #0f172a; color: #fff; border-color: #0f172a; }
     .assistant-btn.main { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border-color: #ea580c; box-shadow: 0 6px 18px rgba(234, 88, 12, 0.28); font-weight: 700; }
     .assistant-btn.main:hover { filter: brightness(1.04); transform: translateY(-1px); }
@@ -58,9 +172,10 @@
     .assistant-recommended { margin-top: 0.6rem; padding: 0.55rem; border-radius: 10px; border: 1px solid #fdba74; background: #fff7ed; }
     .assistant-recommended-title { font-size: 0.72rem; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: .04em; }
     .assistant-recommended-label { margin-top: 0.2rem; font-size: 0.86rem; font-weight: 600; color: #7c2d12; }
-    .assistant-form { margin-top: 0.9rem; display: flex; gap: 0.5rem; align-items: center; }
-    .assistant-input { flex: 1; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0.65rem 0.8rem; }
-    .assistant-send { border: 0; border-radius: 10px; background: #2563eb; color: #fff; padding: 0.65rem 0.9rem; font-weight: 600; }
+    .assistant-form { margin-top: auto; padding-top: 0.85rem; flex-shrink: 0; display: flex; gap: 0.5rem; align-items: center; border-top: 1px solid #f1f5f9; }
+    .assistant-input { flex: 1; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.65rem 0.85rem; background: #fafbfc; }
+    .assistant-input:focus { outline: none; border-color: #93c5fd; background: #fff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+    .assistant-send { border: 0; border-radius: 10px; background: #2563eb; color: #fff; padding: 0.65rem 1rem; font-weight: 600; }
     .assistant-loading { display: none; font-size: 0.82rem; color: #475569; }
     .assistant-loading.show { display: inline-flex; align-items: center; gap: 0.35rem; }
     .assistant-dot { width: 7px; height: 7px; border-radius: 999px; background: #2563eb; animation: pulse 0.9s infinite alternate; }
@@ -76,37 +191,120 @@
     .assistant-feedback-note { min-height: 62px; resize: vertical; }
     .assistant-feedback-status { font-size: 0.75rem; color: #475569; }
     @keyframes pulse { from { opacity: .2; transform: translateY(1px); } to { opacity: 1; transform: translateY(-1px); } }
-    @media (max-width: 980px) { .assistant-shell { grid-template-columns: 1fr; } .assistant-msg.user, .assistant-msg.assistant { margin: 0; } }
+    .assistant-welcome-lines { font-size: 0.9rem; line-height: 1.55; color: #475569; }
+    .assistant-msg.assistant { border-color: #eef2f7; background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%); }
+    @media (max-width: 980px) { .assistant-shell { grid-template-columns: 1fr; min-height: auto; } .assistant-msg.user, .assistant-msg.assistant { margin: 0; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="assistant-shell">
+<div
+    id="assistant-app"
+    class="assistant-shell"
+    data-selected-project-id="{{ selected_project_id|default_if_none:'' }}"
+>
     <aside class="assistant-panel">
-        <h3 class="text-base font-semibold mb-2">Sugestões</h3>
-        <div class="space-y-2 mb-4">
-            {% for question in suggested_questions %}
-            <button class="assistant-btn w-full text-left js-suggested-question">{{ question }}</button>
-            {% endfor %}
+        {% if active_project %}
+        <div class="assistant-context-card text-sm text-slate-700">
+            <div class="font-semibold text-slate-900 tracking-tight">Obra priorizada</div>
+            <div class="mt-1"><span class="font-mono text-slate-800 bg-slate-100/80 px-1.5 py-0.5 rounded">{{ active_project.code }}</span> <span class="text-slate-600">—</span> {{ active_project.name|truncatechars:42 }}</div>
+            <div class="mt-2 text-xs text-slate-500 leading-relaxed">Contexto das sugestões e das respostas. Troque no seletor abaixo ou em <em>Selecionar obra</em>.</div>
         </div>
-        <h3 class="text-base font-semibold mb-2">Histórico recente</h3>
-        <div id="history-list" data-history-limit="{{ history_limit|default:20 }}" class="space-y-2 text-sm">
-            {% for item in history %}
-            <div class="p-2 rounded-lg border border-slate-200 bg-slate-50">
-                <div class="font-medium text-slate-700">{{ item.question }}</div>
-                <div class="text-slate-500 text-xs">{{ item.summary }}</div>
+        {% elif available_projects %}
+        <div class="assistant-context-card assistant-context-card--pick text-sm text-slate-800">
+            <div class="font-semibold text-slate-900 tracking-tight">Qual obra priorizar?</div>
+            <p class="mt-1.5 text-xs text-slate-600 leading-relaxed">Escolha uma obra para alinhar Diário, Mapa e GestControll. Você pode <strong>citar o código na pergunta</strong> a qualquer momento.</p>
+            <form method="post" action="{% url 'assistente_lplan:set_session_project' %}" class="mt-2 space-y-2">
+                {% csrf_token %}
+                <label class="sr-only" for="assistant-pick-project">Obra</label>
+                <select name="project_id" id="assistant-pick-project" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                    {% for p in available_projects %}
+                    <option value="{{ p.id }}">{{ p.code }} — {{ p.name|truncatechars:40 }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="assistant-btn primary w-full text-center text-sm font-semibold">Usar esta obra</button>
+            </form>
+            <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+                <a href="{% url 'select-project' %}" class="text-blue-700 underline font-medium">Abrir seleção completa</a>
+                <a href="{% url 'report-list' %}" class="text-blue-700 underline">Relatórios do diário</a>
             </div>
-            {% empty %}
-            <div class="text-slate-500 text-sm">Sem perguntas recentes.</div>
-            {% endfor %}
         </div>
+        {% else %}
+        <div class="assistant-context-card assistant-context-card--empty text-sm text-slate-700">
+            <div class="font-semibold text-slate-900 tracking-tight">Sem projeto vinculado</div>
+            <p class="mt-1.5 text-xs text-slate-600 leading-relaxed">Não há obras associadas ao seu usuário. Peça ao gestor o vínculo no Diário de Obra.</p>
+            <div class="mt-2 text-xs"><a href="{% url 'select-project' %}" class="text-blue-700 underline font-medium">Abrir página de obras</a></div>
+        </div>
+        {% endif %}
+        <div class="assistant-suggestions-head">
+            <h3>Sugestões por tema</h3>
+            {% if suggestion_groups_more %}
+            <p>Até <strong>três blocos</strong> ficam visíveis aqui; o restante está em <strong>Mais temas</strong>. O primeiro bloco abre sozinho.</p>
+            {% else %}
+            <p>Cada bloco agrupa um tipo de pergunta. O primeiro vem aberto para começar rápido.</p>
+            {% endif %}
+        </div>
+        <div class="mb-4 max-h-[48vh] overflow-y-auto pr-1 space-y-1">
+            {% if suggestion_groups_primary %}
+            {% for group in suggestion_groups_primary %}
+            <details class="assistant-topic{% if group.accent %} assistant-topic--{{ group.accent }}{% endif %}" {% if forloop.first %}open{% endif %}>
+                <summary>{{ group.title }}</summary>
+                <div class="assistant-topic-body">
+                    {% for question in group.questions %}
+                    <button type="button" class="assistant-suggestion js-suggested-question w-full">{{ question }}</button>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+            {% elif suggested_questions %}
+            {% for question in suggested_questions %}
+            <button type="button" class="assistant-suggestion js-suggested-question w-full">{{ question }}</button>
+            {% endfor %}
+            {% endif %}
+
+            {% if suggestion_groups_more %}
+            <details class="assistant-topic assistant-topic-mega">
+                <summary>Mais temas ({{ suggestion_groups_more|length }})</summary>
+                <div class="assistant-topic-body">
+                    {% for group in suggestion_groups_more %}
+                    <details class="assistant-topic{% if group.accent %} assistant-topic--{{ group.accent }}{% endif %}">
+                        <summary>{{ group.title }}</summary>
+                        <div class="assistant-topic-body">
+                            {% for question in group.questions %}
+                            <button type="button" class="assistant-suggestion js-suggested-question w-full">{{ question }}</button>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+        </div>
+
+        <details class="assistant-history mb-1">
+            <summary>Histórico recente{% if history %} ({{ history|length }}){% endif %}</summary>
+            <div class="assistant-history-body">
+                <div id="history-list" data-history-limit="{{ history_limit|default:20 }}" class="space-y-2 text-sm">
+                    {% for item in history %}
+                    <div class="p-2 rounded-lg border border-slate-200/80 bg-white">
+                        <div class="font-medium text-slate-700 text-xs leading-snug">{{ item.question }}</div>
+                        <div class="text-slate-500 text-xs mt-1">{{ item.summary }}</div>
+                    </div>
+                    {% empty %}
+                    <div class="text-slate-500 text-xs py-1">Sem perguntas recentes.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </details>
     </aside>
 
-    <section class="assistant-panel">
+    <section class="assistant-panel assistant-panel--chat">
         <div id="assistant-chat" class="assistant-chat">
             <div class="assistant-msg assistant">
-                <div class="font-semibold mb-1">Assistente LPLAN</div>
-                <div>Posso consultar suprimentos, aprovações, diário, usuários e gargalos com resposta estruturada.</div>
+                <div class="font-semibold mb-1 text-slate-900">Assistente LPLAN</div>
+                {% for line in welcome_lines %}
+                <div class="{% if not forloop.first %}mt-3{% endif %} assistant-welcome-lines">{{ line }}</div>
+                {% endfor %}
             </div>
         </div>
         <form id="assistant-form" class="assistant-form">

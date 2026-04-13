@@ -8,8 +8,19 @@ from assistente_lplan.schemas import AssistantResponse
 from .aprovacoes_service import AprovacoesAssistantService
 from .cross_domain_service import CrossDomainAssistantService
 from .diario_service import DiarioAssistantService
+from .clarification import (
+    INTENTS_REQUIRING_OBRA_CHOICE,
+    _has_obra_pointer,
+    _has_usuario,
+    accessible_projects_for_scope,
+    build_obra_clarification_response,
+    build_usuario_clarification_response,
+    inject_single_project_if_unique,
+    sample_users_for_clarification,
+)
 from .intents import (
     INTENT_FALLBACK,
+    INTENT_INTELIGENCIA_INTEGRADA,
     INTENT_LIST_OBRA_PENDING,
     INTENT_LIST_PENDING_APPROVALS,
     INTENT_LOCATE_SUPPLY,
@@ -17,6 +28,8 @@ from .intents import (
     INTENT_OBRA_SUMMARY,
     INTENT_RDO_BY_DATE,
     INTENT_REJECTED_REQUESTS,
+    INTENT_RELATORIO_LOCAL_MAPA,
+    INTENT_RELATORIO_RDO_PERIOD,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
 )
@@ -43,7 +56,7 @@ class AssistantOrchestrator:
 
         self.suprimentos = SuprimentosAssistantService(self.scope)
         self.aprovacoes = AprovacoesAssistantService(user, self.scope)
-        self.diario = DiarioAssistantService(self.scope)
+        self.diario = DiarioAssistantService(self.scope, user=user)
         self.obras = ObrasAssistantService(self.scope)
         self.usuarios = UsuariosAssistantService(user, self.scope, self.permission_service)
         self.cross = CrossDomainAssistantService(self.scope)
@@ -51,9 +64,116 @@ class AssistantOrchestrator:
     def handle(self, question: str, context: dict | None = None) -> tuple[AssistantResponse, dict]:
         context = context or {}
         intent, entities, used_llm, confidence, candidates, reason = self._detect_intent(question)
+        entities = dict(entities or {})
+
         selected_project_id = context.get("selected_project_id")
-        if selected_project_id and not entities.get("obra"):
+        if selected_project_id and not (entities.get("obra") or "").strip():
             entities["project_id"] = selected_project_id
+
+        entities = inject_single_project_if_unique(entities, self.scope)
+
+        if intent == INTENT_USER_STATUS and not _has_usuario(entities):
+            samples = sample_users_for_clarification(self.permission_service, self.scope, limit=12)
+            if len(samples) > 1:
+                response = build_usuario_clarification_response(intent=intent, sample_users=samples)
+                response = self._ensure_actionability(response, domain="clarification")
+                response = self._apply_primary_action_highlight(response=response, intent=intent, domain="clarification")
+                response.raw_data.update(
+                    {
+                        "intent": intent,
+                        "entities": entities,
+                        "domain": "clarification",
+                        "role": self.scope.role,
+                        "used_llm": False,
+                        "confidence": confidence,
+                        "reason": "precisa_usuario",
+                    }
+                )
+                return response, {
+                    "intent": intent,
+                    "entities": entities,
+                    "domain": "clarification",
+                    "used_llm": False,
+                    "context": context,
+                    "confidence": confidence,
+                    "reason": "precisa_usuario",
+                }
+
+        if intent in INTENTS_REQUIRING_OBRA_CHOICE and not _has_obra_pointer(entities):
+            projects = accessible_projects_for_scope(self.scope)
+            if not projects:
+                response = AssistantResponse(
+                    summary=(
+                        "Nao ha obra de projeto vinculada ao seu usuario. No Lplan, Diario, Mapa e GestControll "
+                        "usam a mesma obra (codigo de projeto). Peca ao gestor o vinculo ao projeto ou use Selecionar obra / Relatorios."
+                    ),
+                    badges=["Sem obra no escopo"],
+                    alerts=[
+                        {
+                            "level": "warning",
+                            "message": "Sem projeto associado nao da para cruzar os modulos.",
+                        }
+                    ],
+                    actions=[{"label": "Selecionar obra", "url": "/select-project/", "style": "primary"}],
+                    links=[
+                        {"label": "Relatorios do diario", "url": "/reports/"},
+                        {"label": "Selecionar obra", "url": "/select-project/"},
+                    ],
+                    raw_data={"clarification": "sem_projeto"},
+                )
+                response = self._ensure_actionability(response, domain="clarification")
+                response = self._apply_primary_action_highlight(response=response, intent=intent, domain="clarification")
+                response.raw_data.update(
+                    {
+                        "intent": intent,
+                        "entities": entities,
+                        "domain": "clarification",
+                        "role": self.scope.role,
+                        "used_llm": False,
+                        "confidence": confidence,
+                        "reason": "sem_obra_escopo",
+                    }
+                )
+                return response, {
+                    "intent": intent,
+                    "entities": entities,
+                    "domain": "clarification",
+                    "used_llm": False,
+                    "context": context,
+                    "confidence": confidence,
+                    "reason": "sem_obra_escopo",
+                }
+            if len(projects) > 1:
+                response = build_obra_clarification_response(
+                    intent=intent,
+                    user_question=question,
+                    scope=self.scope,
+                    projects=projects,
+                    llm=self.llm_provider,
+                )
+                response = self._ensure_actionability(response, domain="clarification")
+                response = self._apply_primary_action_highlight(response=response, intent=intent, domain="clarification")
+                response.raw_data.update(
+                    {
+                        "intent": intent,
+                        "entities": entities,
+                        "domain": "clarification",
+                        "role": self.scope.role,
+                        "used_llm": bool(self.llm_provider.can_use()),
+                        "confidence": confidence,
+                        "reason": "precisa_obra",
+                    }
+                )
+                return response, {
+                    "intent": intent,
+                    "entities": entities,
+                    "domain": "clarification",
+                    "used_llm": bool(self.llm_provider.can_use()),
+                    "context": context,
+                    "confidence": confidence,
+                    "reason": "precisa_obra",
+                }
+
         domain = self._domain_for_intent(intent)
 
         if intent == INTENT_FALLBACK:
@@ -82,10 +202,13 @@ class AssistantOrchestrator:
             }
             return response, meta
 
-        response = self._dispatch(intent, entities)
+        response = self._dispatch(intent, entities, question=question)
         response = self._ensure_actionability(response, domain=domain)
         response = self._apply_primary_action_highlight(response=response, intent=intent, domain=domain)
-        if response.summary:
+        if response.summary and domain not in ("inteligencia", "clarification") and intent not in (
+            INTENT_RELATORIO_LOCAL_MAPA,
+            INTENT_RELATORIO_RDO_PERIOD,
+        ):
             response.summary = self.llm_provider.improve_summary(response.summary, domain=domain)
         response.raw_data.update(
             {
@@ -127,7 +250,7 @@ class AssistantOrchestrator:
         parse = self.fallback_parser.parse(question)
         return parse.intent, parse.entities, False, parse.confidence, parse.candidates, parse.reason
 
-    def _dispatch(self, intent: str, entities: dict) -> AssistantResponse:
+    def _dispatch(self, intent: str, entities: dict, question: str = "") -> AssistantResponse:
         if intent == INTENT_LOCATE_SUPPLY:
             return self.suprimentos.localizar_insumo(entities)
         if intent == INTENT_LIST_OBRA_PENDING:
@@ -142,10 +265,16 @@ class AssistantOrchestrator:
             return self.usuarios.status_usuario(entities)
         if intent == INTENT_UNALLOCATED_ITEMS:
             return self.suprimentos.itens_sem_alocacao(entities)
+        if intent == INTENT_RELATORIO_LOCAL_MAPA:
+            return self.suprimentos.relatorio_local_mapa(entities, user_question=question)
+        if intent == INTENT_RELATORIO_RDO_PERIOD:
+            return self.diario.relatorio_rdo_periodo_pdf(entities, user_question=question)
         if intent == INTENT_REJECTED_REQUESTS:
             return self.aprovacoes.solicitacoes_reprovadas(entities)
         if intent == INTENT_OBRA_BOTTLENECKS:
             return self.cross.gargalos_obra(entities)
+        if intent == INTENT_INTELIGENCIA_INTEGRADA:
+            return self.cross.inteligencia_integrada(entities)
         if intent == INTENT_FALLBACK:
             fallback_summary = MessageCatalog.resolve(
                 "assistant.intent.ambiguous_summary",
@@ -298,6 +427,21 @@ class AssistantOrchestrator:
                 "O que esta travando a obra Y?",
                 "Gargalos atuais da obra selecionada",
             ],
+            INTENT_INTELIGENCIA_INTEGRADA: [
+                "Visao integrada da obra atual",
+                "Panorama consolidado da obra ALFA",
+                "Inteligencia integrada: como esta a obra no conjunto?",
+            ],
+            INTENT_RELATORIO_LOCAL_MAPA: [
+                "Como esta o apartamento 302 no mapa de controle da obra 260?",
+                "Situacao do apto 1201 no mapa de suprimentos obra X",
+                "Relatorio do local Bloco A Apto 201 no mapa de controle",
+            ],
+            INTENT_RELATORIO_RDO_PERIOD: [
+                "Gerar PDF dos ultimos 15 dias de RDO da obra ALFA",
+                "Relatorio em PDF do diario dos ultimos 7 dias obra 260",
+                "Baixar PDF consolidado RDO ultimos 30 dias",
+            ],
         }
 
     @staticmethod
@@ -320,6 +464,9 @@ class AssistantOrchestrator:
             INTENT_OBRA_SUMMARY: "obras",
             INTENT_USER_STATUS: "usuarios",
             INTENT_OBRA_BOTTLENECKS: "cross_domain",
+            INTENT_INTELIGENCIA_INTEGRADA: "inteligencia",
+            INTENT_RELATORIO_LOCAL_MAPA: "suprimentos",
+            INTENT_RELATORIO_RDO_PERIOD: "obras",
             INTENT_FALLBACK: "fallback",
         }
         return mapping.get(intent, "unknown")
@@ -351,6 +498,21 @@ class AssistantOrchestrator:
                     {"label": "Mapa de Suprimentos", "url": "/engenharia/mapa/"},
                 ],
             },
+            "inteligencia": {
+                "actions": [{"label": "Abrir Relatorios", "url": "/reports/", "style": "primary"}],
+                "links": [
+                    {"label": "Diario - Relatorios", "url": "/reports/"},
+                    {"label": "GestControll - Pedidos", "url": "/gestao/pedidos/"},
+                    {"label": "Mapa de Suprimentos", "url": "/engenharia/mapa/"},
+                ],
+            },
+            "clarification": {
+                "actions": [],
+                "links": [
+                    {"label": "Relatorios (definir obra)", "url": "/reports/"},
+                    {"label": "Selecionar obra", "url": "/select-project/"},
+                ],
+            },
             "fallback": {
                 "actions": [{"label": "Abrir Assistente", "url": "/assistente/", "style": "primary"}],
                 "links": [{"label": "Assistente LPLAN", "url": "/assistente/"}],
@@ -365,6 +527,8 @@ class AssistantOrchestrator:
 
     @staticmethod
     def _apply_primary_action_highlight(response: AssistantResponse, intent: str, domain: str) -> AssistantResponse:
+        if domain == "clarification":
+            return response
         if not response.actions:
             return response
 
@@ -394,7 +558,7 @@ class AssistantOrchestrator:
             card_values[title] = int(digits) if digits else 0
 
         chosen_idx = 0
-        if domain == "cross_domain":
+        if domain in ("cross_domain", "inteligencia"):
             itens_risco = max((v for k, v in card_values.items() if "item" in k), default=0)
             aprov_risco = max((v for k, v in card_values.items() if "aprova" in k), default=0)
             diario_risco = max((v for k, v in card_values.items() if "diario" in k), default=0)
@@ -404,12 +568,19 @@ class AssistantOrchestrator:
                 chosen_idx = find_idx("pedido") or find_idx("aprova") or 0
             elif diario_risco > 0:
                 chosen_idx = find_idx("relatorio") or find_idx("pedido") or 0
-        elif intent in (INTENT_LOCATE_SUPPLY, INTENT_UNALLOCATED_ITEMS) or domain == "suprimentos":
+        elif intent in (INTENT_LOCATE_SUPPLY, INTENT_UNALLOCATED_ITEMS, INTENT_RELATORIO_LOCAL_MAPA) or domain == "suprimentos":
             chosen_idx = find_idx("mapa") or find_idx("aloca") or 0
         elif intent in (INTENT_LIST_PENDING_APPROVALS, INTENT_REJECTED_REQUESTS) or domain == "aprovacoes":
             chosen_idx = find_idx("pedido") or find_idx("aprova") or 0
-        elif intent in (INTENT_LIST_OBRA_PENDING, INTENT_OBRA_SUMMARY, INTENT_RDO_BY_DATE) or domain == "obras":
-            if has_warning_alert or has_error_alert:
+        elif intent in (
+            INTENT_LIST_OBRA_PENDING,
+            INTENT_OBRA_SUMMARY,
+            INTENT_RDO_BY_DATE,
+            INTENT_RELATORIO_RDO_PERIOD,
+        ) or domain == "obras":
+            if intent == INTENT_RELATORIO_RDO_PERIOD:
+                chosen_idx = find_idx("pdf") or find_idx("baixar") or find_idx("relatorio") or 0
+            elif has_warning_alert or has_error_alert:
                 chosen_idx = find_idx("relatorio") or find_idx("pedido") or 0
             else:
                 chosen_idx = find_idx("relatorio") or 0

@@ -41,6 +41,7 @@ class AssistantResponse:
     actions: list[dict[str, Any]] = field(default_factory=list)
     links: list[dict[str, str]] = field(default_factory=list)
     raw_data: dict[str, Any] = field(default_factory=dict)
+    suggested_replies: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -59,4 +60,5 @@ class AssistantResponse:
             "actions": self.actions,
             "links": self.links,
             "raw_data": self.raw_data,
+            "suggested_replies": self.suggested_replies,
         }

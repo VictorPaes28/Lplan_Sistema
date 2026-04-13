@@ -25,6 +25,11 @@
         </div>
     </div>
     <div class="flex flex-wrap gap-2 diary-detail-actions">
+        <a href="{% url 'diary-pdf-reader' diary.id %}"
+           class="diary-detail-action-btn px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 flex items-center transition-colors duration-200"
+           title="Abrir o PDF em tela cheia com navegação entre relatórios">
+            <i class="fas fa-book-reader mr-3" aria-hidden="true"></i>Modo leitura
+        </a>
         <!-- Dropdown de Impressão -->
         <div class="relative" id="print-dropdown-container">
             <button type="button" 

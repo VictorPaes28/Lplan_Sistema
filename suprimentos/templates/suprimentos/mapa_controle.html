@@ -41,6 +41,7 @@
                 <input type="hidden" name="pavimento" value="{{ selected.pavimento|default:'' }}">
                 <input type="hidden" name="apto" value="{{ selected.apto|default:'' }}">
                 <input type="hidden" name="atividade" value="{{ selected.atividade|default:'' }}">
+                <input type="hidden" name="matrix_mode" value="{{ matrix.mode|default:'bloco' }}">
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-dark w-100">Aplicar</button>
                 </div>
@@ -68,14 +69,90 @@
     {% endif %}
 
     <div class="layer-block mb-2 mobile-priority-matrix">
-        <h6>Painel Matricial — Bloco x Atividade</h6>
+        <div class="matrix-panel-head">
+            <div>
+                <h6>Painel matricial</h6>
+                <p class="matrix-panel-sub mb-0">
+                    {% if matrix.mode == 'pavimento' %}Pavimento × atividade (com bloco selecionado na camada ou abaixo){% elif matrix.mode == 'apto' %}Unidade × atividade (com pavimento definido){% else %}Bloco × atividade{% endif %}
+                </p>
+            </div>
+            <div class="matrix-mode-switch" role="tablist" aria-label="Modo do painel matricial">
+                <a class="matrix-mode-pill {% if matrix.mode == 'bloco' %}active{% endif %}"
+                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=bloco">Bloco × ativ.</a>
+                {% if selected.bloco %}
+                <a class="matrix-mode-pill {% if matrix.mode == 'pavimento' %}active{% endif %}"
+                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=pavimento">Pavimento × ativ.</a>
+                {% else %}
+                <span class="matrix-mode-pill disabled" title="Selecione um bloco (chip abaixo ou linha da matriz)">Pavimento × ativ.</span>
+                {% endif %}
+                {% if selected.bloco and selected.pavimento %}
+                <a class="matrix-mode-pill {% if matrix.mode == 'apto' %}active{% endif %}"
+                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto">Unidade × ativ.</a>
+                {% else %}
+                <span class="matrix-mode-pill disabled" title="Selecione bloco e pavimento">Unidade × ativ.</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="matrix-escopo mb-2">
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Setor</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.setor %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">Todos</a>
+                    {% for row in layers.setores %}
+                    <a class="matrix-chip {% if selected.setor == row.setor %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">{{ row.setor|default:"Sem setor" }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if selected.setor %}
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Bloco</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.bloco %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">Todos</a>
+                    {% for row in layers.blocos %}
+                    <a class="matrix-chip {% if selected.bloco == row.bloco %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">{{ row.bloco|default:"Sem bloco" }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if selected.bloco %}
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Pavimento</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.pavimento %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">Todos</a>
+                    {% for row in layers.pavimentos %}
+                    <a class="matrix-chip {% if selected.pavimento == row.pavimento %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">{{ row.pavimento|default:"Sem pav." }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if selected.pavimento %}
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Unidade</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.apto %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">Todas</a>
+                    {% for row in layers.aptos %}
+                    <a class="matrix-chip {% if selected.apto == row.apto %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">{{ row.apto|default:"Sem apto" }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
         <div class="matrix-wrap">
             <table class="matrix-table">
                 <thead>
                     <tr>
-                        <th class="sticky-left">Bloco</th>
+                        <th class="sticky-left">{{ matrix.header_first_col|default:"Bloco" }}</th>
                         {% for atividade in matrix.atividades %}
-                        <th class="vertical">{{ atividade }}</th>
+                        <th class="vertical">
+                            <a class="matrix-col-head-link" title="Filtrar por esta atividade"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ atividade|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ atividade }}</a>
+                        </th>
                         {% endfor %}
                         <th>Total</th>
                     </tr>
@@ -84,49 +161,60 @@
                     {% for row in matrix.rows %}
                     <tr>
                         <td class="sticky-left row-name">
+                            {% if matrix.mode == 'pavimento' %}
                             <a class="cell-link row-link"
-                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
-                                {{ row.bloco }}
-                            </a>
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% elif matrix.mode == 'apto' %}
+                            <a class="cell-link row-link"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% else %}
+                            <a class="cell-link row-link"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% endif %}
                         </td>
                         {% for cell in row.cells %}
-                            {% if cell.pct == None %}
-                            <td class="cell-empty">-</td>
-                            {% elif cell.pct >= 90 %}
-                            <td class="cell-pct cell-90">
-                                <a class="cell-link"
-                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
-                                    {{ cell.pct }}%
-                                </a>
-                            </td>
-                            {% elif cell.pct >= 70 %}
-                            <td class="cell-pct cell-70">
-                                <a class="cell-link"
-                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
-                                    {{ cell.pct }}%
-                                </a>
-                            </td>
-                            {% elif cell.pct >= 40 %}
-                            <td class="cell-pct cell-40">
-                                <a class="cell-link"
-                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
-                                    {{ cell.pct }}%
-                                </a>
-                            </td>
-                            {% elif cell.pct > 0 %}
-                            <td class="cell-pct cell-10">
-                                <a class="cell-link"
-                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
-                                    {{ cell.pct }}%
-                                </a>
-                            </td>
+                            {% if matrix.mode == 'pavimento' %}
+                                {% if cell.pct == None %}
+                                <td class="cell-empty">-</td>
+                                {% elif cell.pct >= 90 %}
+                                <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 70 %}
+                                <td class="cell-pct cell-70"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 40 %}
+                                <td class="cell-pct cell-40"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct > 0 %}
+                                <td class="cell-pct cell-10"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% else %}
+                                <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% endif %}
+                            {% elif matrix.mode == 'apto' %}
+                                {% if cell.pct == None %}
+                                <td class="cell-empty">-</td>
+                                {% elif cell.pct >= 90 %}
+                                <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 70 %}
+                                <td class="cell-pct cell-70"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 40 %}
+                                <td class="cell-pct cell-40"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct > 0 %}
+                                <td class="cell-pct cell-10"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% else %}
+                                <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% endif %}
                             {% else %}
-                            <td class="cell-pct cell-0">
-                                <a class="cell-link"
-                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
-                                    {{ cell.pct }}%
-                                </a>
-                            </td>
+                                {% if cell.pct == None %}
+                                <td class="cell-empty">-</td>
+                                {% elif cell.pct >= 90 %}
+                                <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 70 %}
+                                <td class="cell-pct cell-70"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 40 %}
+                                <td class="cell-pct cell-40"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct > 0 %}
+                                <td class="cell-pct cell-10"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% else %}
+                                <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
                         <td class="total-col">{% if row.total != None %}{{ row.total }}%{% else %}-{% endif %}</td>
@@ -143,7 +231,7 @@
                             {% else %}
                             <td class="total-col">
                                 <a class="cell-link"
-                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}#detalhe-celula">
                                     {{ total.pct }}%
                                 </a>
                             </td>
@@ -174,7 +262,7 @@
             <div class="col-md-2"><div class="kpi-box"><small>Concluídos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Andamento</small><strong>{{ focus_detail.em_andamento }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Não iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
-            <div class="col-md-2 d-flex align-items-end"><a class="btn btn-outline-secondary btn-sm w-100" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">Fechar detalhe</a></div>
+            <div class="col-md-2 d-flex align-items-end"><a class="btn btn-outline-secondary btn-sm w-100" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">Fechar detalhe</a></div>
         </div>
         <div class="table-responsive">
             <table class="table table-sm table-striped table-compact align-middle mb-0">
@@ -209,23 +297,23 @@
 
     <div class="layer-path mb-2 mobile-priority-path">
         <a class="path-pill {% if selected.setor %}active{% endif %}"
-           href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+           href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Setor: {{ selected.setor|default:"-" }}
         </a>
         <a class="path-pill {% if selected.bloco %}active{% endif %}"
-           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Bloco: {{ selected.bloco|default:"-" }}
         </a>
         <a class="path-pill {% if selected.pavimento %}active{% endif %}"
-           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Pavimento: {{ selected.pavimento|default:"-" }}
         </a>
         <a class="path-pill {% if selected.apto %}active{% endif %}"
-           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Apto: {{ selected.apto|default:"-" }}
         </a>
         <a class="path-pill {% if selected.atividade %}active{% endif %}"
-           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Atividade: {{ selected.atividade|default:"-" }}
         </a>
     </div>
@@ -243,7 +331,7 @@
         <div class="layer-grid">
             {% for row in layers.setores %}
             <a class="layer-card {% if selected.setor == row.setor %}active{% endif %}"
-               href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+               href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
                 <span class="name">{{ row.setor|default:"Sem setor" }}</span>
                 <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
@@ -264,7 +352,7 @@
         <div class="layer-grid">
             {% for row in layers.blocos %}
             <a class="layer-card {% if selected.bloco == row.bloco %}active{% endif %}"
-               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
                 <span class="name">{{ row.bloco|default:"Sem bloco" }}</span>
                 <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
@@ -286,7 +374,7 @@
         <div class="layer-grid">
             {% for row in layers.pavimentos %}
             <a class="layer-card {% if selected.pavimento == row.pavimento %}active{% endif %}"
-               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
                 <span class="name">{{ row.pavimento|default:"Sem pavimento" }}</span>
                 <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
@@ -308,7 +396,7 @@
         <div class="layer-grid">
             {% for row in layers.aptos %}
             <a class="layer-card {% if selected.apto == row.apto %}active{% endif %}"
-               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
                 <span class="name">{{ row.apto|default:"Sem apto" }}</span>
                 <span class="meta">{{ row.total }} ativ. • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">

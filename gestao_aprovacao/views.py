@@ -665,7 +665,8 @@ def export_list_workorders_pdf(request):
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     fname = f"relatorio_pedidos_{timezone.now().strftime('%Y%m%d_%H%M')}.pdf"
-    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    disp = 'inline' if request.GET.get('inline') == '1' else 'attachment'
+    response['Content-Disposition'] = f'{disp}; filename="{fname}"'
     return response
 
 
@@ -1402,8 +1403,26 @@ def exportar_snapshot_workorder_pdf(request, pk):
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     nome_arquivo = f'pedido_{workorder.codigo}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
-    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    disp = 'inline' if request.GET.get('inline') == '1' else 'attachment'
+    response['Content-Disposition'] = f'{disp}; filename="{nome_arquivo}"'
     return response
+
+
+@login_required
+def leitura_lista_pedidos_pdf(request):
+    """Modo leitura web: PDF da listagem de pedidos (mesmos filtros GET) em iframe."""
+    return render(request, 'obras/pdf_reader_pedidos_lista.html', {
+        'query_string': request.GET.urlencode(),
+    })
+
+
+@login_required
+def leitura_pedido_pdf(request, pk):
+    """Modo leitura web: PDF de snapshot de um pedido em iframe."""
+    workorder = get_object_or_404(WorkOrder, pk=pk)
+    return render(request, 'obras/pdf_reader_pedido.html', {
+        'workorder': workorder,
+    })
 
 
 @login_required

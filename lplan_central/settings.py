@@ -392,6 +392,9 @@ if DEBUG and CSRF_TRUSTED_ORIGINS:
 # Requisições AJAX que falharem na CSRF recebem JSON 403 em vez de HTML
 CSRF_FAILURE_VIEW = 'core.csrf_views.csrf_failure_json'
 
+# Assistente LPLAN / narrativa inteligência obra: variáveis via .env (lidas em assistente_lplan.services.llm_provider)
+# ASSISTENTE_LPLAN_AI_ENABLED=True | OPENAI_API_KEY=sk-... | ASSISTENTE_LPLAN_AI_MODEL=gpt-4o-mini
+
 # Logging: arquivo + console para quem for dar suporte conseguir diagnosticar sem o desenvolvedor
 LOG_DIR = BASE_DIR / 'logs'
 LOGGING = {

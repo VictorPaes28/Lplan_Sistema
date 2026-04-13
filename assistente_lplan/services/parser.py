@@ -6,6 +6,7 @@ from difflib import SequenceMatcher
 
 from .intents import (
     INTENT_FALLBACK,
+    INTENT_INTELIGENCIA_INTEGRADA,
     INTENT_LIST_OBRA_PENDING,
     INTENT_LIST_PENDING_APPROVALS,
     INTENT_LOCATE_SUPPLY,
@@ -13,6 +14,8 @@ from .intents import (
     INTENT_OBRA_SUMMARY,
     INTENT_RDO_BY_DATE,
     INTENT_REJECTED_REQUESTS,
+    INTENT_RELATORIO_LOCAL_MAPA,
+    INTENT_RELATORIO_RDO_PERIOD,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
 )
@@ -60,6 +63,84 @@ class RuleBasedIntentParser:
             )
 
         rules = [
+            (
+                INTENT_RELATORIO_LOCAL_MAPA,
+                [
+                    "mapa de controle",
+                    "mapa de suprimentos",
+                    "apartamento",
+                    "apto ",
+                    "apt ",
+                    "unidade ",
+                    "local no mapa",
+                    "situacao do apartamento",
+                    "situação do apartamento",
+                    "como esta o apartamento",
+                    "como está o apartamento",
+                    "como esta o apto",
+                    "o que falta no apartamento",
+                    "relatorio do apartamento",
+                    "relatório do apartamento",
+                    "pavimento",
+                    "bloco ",
+                    "andar ",
+                    "setor ",
+                    "como vai o",
+                    "como vai a",
+                    "status do apartamento",
+                    "status do apto",
+                    "status do local",
+                    "situacao do mapa",
+                    "situação do mapa",
+                    "mapa controle",
+                    "pendencias do apartamento",
+                    "pendências do apartamento",
+                    "unidade habitacional",
+                    "comparar com outros locais",
+                    "comparar com a obra",
+                    "desempenho do local",
+                    "indicadores do local",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RELATORIO_RDO_PERIOD,
+                [
+                    "ultimos",
+                    "últimos",
+                    "pdf",
+                    "gerar pdf",
+                    "baixar pdf",
+                    "relatorio em pdf",
+                    "relatório em pdf",
+                    "exportar",
+                    "consolidado",
+                    "periodo do rdo",
+                    "rdo dos ultimos",
+                    "rdo dos últimos",
+                    "diario dos ultimos",
+                    "diário dos últimos",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_INTELIGENCIA_INTEGRADA,
+                [
+                    "inteligencia integrada",
+                    "inteligência integrada",
+                    "visao integrada",
+                    "visão integrada",
+                    "panorama da obra",
+                    "analise consolidada",
+                    "análise consolidada",
+                    "leitura integrada da obra",
+                    "centro de inteligencia",
+                    "centro de inteligência",
+                    "visao geral da obra",
+                    "visão geral da obra",
+                ],
+                0.0,
+            ),
             (
                 INTENT_LOCATE_SUPPLY,
                 ["onde esta", "onde está", "localizar", "localizacao", "localização", "insumo", "cimento"],
@@ -141,8 +222,51 @@ class RuleBasedIntentParser:
                 score += 0.25
             if intent in (INTENT_OBRA_SUMMARY, INTENT_LIST_OBRA_PENDING, INTENT_OBRA_BOTTLENECKS) and "obra" in entities:
                 score += 0.2
+            if intent == INTENT_INTELIGENCIA_INTEGRADA and any(
+                t in normalized_text for t in ["integrad", "inteligen", "panorama", "consolidad", "visao ger", "visão ger"]
+            ):
+                score += 0.42
+            if intent == INTENT_RELATORIO_LOCAL_MAPA:
+                if any(
+                    t in normalized_text
+                    for t in [
+                        "apartament",
+                        "apto",
+                        "unidad",
+                        "local no mapa",
+                        "mapa de control",
+                        "paviment",
+                        "setor",
+                        "bloco",
+                        "andar",
+                    ]
+                ):
+                    score += 0.38
+                if "obra" in entities or "project_id" in entities:
+                    score += 0.22
+                if "referencia_local" in entities or "local" in entities or "bloco" in entities:
+                    score += 0.18
+                if "mapa" in normalized_text and any(
+                    t in normalized_text for t in ["local", "unidad", "bloco", "apartament", "apto", "paviment", "setor"]
+                ):
+                    score += 0.14
+            if intent == INTENT_RELATORIO_RDO_PERIOD:
+                if any(t in normalized_text for t in ["pdf", "gerar", "baixar", "export", "consolidad"]):
+                    score += 0.36
+                if "dias" in normalized_text or re.search(r"\b\d{1,2}\s*dia", normalized_text):
+                    score += 0.26
+                if any(t in normalized_text for t in ["rdo", "diario", "diário", "relatorio", "relatório"]):
+                    score += 0.28
+                if "obra" in entities or "project_id" in entities:
+                    score += 0.18
+                if "dias" in entities or re.search(r"\b\d{1,2}\s*dias?\b", normalized_text):
+                    score += 0.12
             if intent == INTENT_OBRA_SUMMARY and any(t in normalized_text for t in ["rdo", "diario", "obra atual"]):
                 score += 0.35
+            if intent == INTENT_OBRA_SUMMARY and any(t in normalized_text for t in ["apartament", "apto ", "mapa de control", "local no mapa"]):
+                score *= 0.25
+            if intent == INTENT_RDO_BY_DATE and "ultimos" in normalized_text and "dias" in normalized_text:
+                score *= 0.12
             if intent == INTENT_LOCATE_SUPPLY and ("insumo" in entities or "bloco" in entities):
                 score += 0.2
 
@@ -206,6 +330,38 @@ class RuleBasedIntentParser:
         if bloco_match:
             entities["bloco"] = bloco_match.group(1).strip(" .,:;")
 
+        apt_match = re.search(
+            r"\b(?:apartamento|apto\.?|apt\.?)\s+([a-z0-9\-_/]+)",
+            text,
+            re.I,
+        )
+        if apt_match:
+            entities["referencia_local"] = apt_match.group(1).strip()
+            entities["apartamento"] = entities["referencia_local"]
+
+        comp_match = re.search(
+            r"\bbloco\s+([a-z0-9\-_/]+).*?(?:apartamento|apto\.?|apt\.?)\s+([a-z0-9\-_/]+)",
+            text,
+            re.I,
+        )
+        if comp_match:
+            entities["referencia_local"] = (
+                f"Bloco {comp_match.group(1).strip()} Apto {comp_match.group(2).strip()}"
+            )
+
+        pav_match = re.search(r"\b(?:pavimento|pav\.?|andar)\s+([a-z0-9\-_/]+)", text, re.I)
+        if pav_match:
+            pv = pav_match.group(1).strip()
+            entities["pavimento"] = pv
+            if entities.get("bloco"):
+                entities["referencia_local"] = f"Bloco {entities['bloco']} Pavimento {pv}"
+            elif not entities.get("referencia_local"):
+                entities["referencia_local"] = f"Pavimento {pv}"
+
+        st_match = re.search(r"\bsetor\s+([a-z0-9\-_/]+)", text, re.I)
+        if st_match and not entities.get("referencia_local"):
+            entities["referencia_local"] = f"Setor {st_match.group(1).strip()}"
+
         if any(tok == "cimento" or self._token_similarity(tok, "cimento") >= 0.82 for tok in normalized_tokens):
             entities["insumo"] = "cimento"
         else:
@@ -219,6 +375,14 @@ class RuleBasedIntentParser:
         parsed_date = self._extract_date_entity(normalized_text)
         if parsed_date:
             entities["data"] = parsed_date
+
+        tl = text.lower()
+        dias_m = re.search(r"(?:últimos?|ultimos?)\s*(\d{1,2})\s*dias?", tl)
+        if not dias_m:
+            dias_m = re.search(r"\b(\d{1,2})\s*dias?\b", tl)
+        if dias_m:
+            nd = max(1, min(30, int(dias_m.group(1))))
+            entities["dias"] = str(nd)
 
         return {k: v for k, v in entities.items() if v}
 

@@ -1,14 +1,27 @@
+import re
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
+from django.core import signing
+from django.urls import reverse
 from django.utils import timezone
 
 from assistente_lplan.schemas import AssistantResponse
+from assistente_lplan.services.messages import MessageCatalog
 from core.models import ConstructionDiary, DiaryStatus, Project
 
 
 class DiarioAssistantService:
-    def __init__(self, scope):
+    RDO_PERIOD_SIGN_SALT = "assistente.rdo-period-pdf.v1"
+
+    def __init__(self, scope, user=None):
         self.scope = scope
+        self.user = user
+
+    def _user_id(self) -> int:
+        if not self.user or not getattr(self.user, "is_authenticated", False):
+            return 0
+        return int(self.user.pk)
 
     def listar_pendencias_obra(self, entities: dict) -> AssistantResponse:
         project = self._resolve_project(entities)
@@ -191,4 +204,94 @@ class DiarioAssistantService:
             except ValueError:
                 continue
         return None
+
+    def relatorio_rdo_periodo_pdf(self, entities: dict, user_question: str = "") -> AssistantResponse:
+        """Prepara link assinado para PDF consolidado dos últimos N dias (1–30) de RDO."""
+        project = self._resolve_project(entities)
+        if not project:
+            msg = MessageCatalog.resolve("assistant.obras.project_missing", {"domain": "obras"})
+            return AssistantResponse(
+                summary=msg["text"],
+                alerts=[{"level": "warning", "message": msg["next_steps"][0]}],
+                raw_data={"message_code": msg["code"], "message_kind": msg["kind"]},
+            )
+
+        nd = self._resolve_ndias(entities, user_question)
+        date_to = timezone.now().date()
+        date_from = date_to - timedelta(days=max(1, nd) - 1)
+
+        diaries_n = ConstructionDiary.objects.filter(
+            project=project, date__gte=date_from, date__lte=date_to
+        ).count()
+        if diaries_n == 0:
+            return AssistantResponse(
+                summary=(
+                    f"Nao ha diarios (RDO) registrados entre {date_from.strftime('%d/%m/%Y')} e "
+                    f"{date_to.strftime('%d/%m/%Y')} na obra {project.code}."
+                ),
+                badges=["RDO", "Sem registros"],
+                alerts=[{"level": "info", "message": "Crie ou aprove RDOs nesse intervalo para gerar o PDF."}],
+                actions=[{"label": "Abrir relatorios", "url": "/reports/", "style": "primary"}],
+                links=[{"label": "Relatorios da obra", "url": "/reports/"}],
+                raw_data={"project_id": project.id, "date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+            )
+
+        uid = self._user_id()
+        if not uid:
+            return AssistantResponse(
+                summary="Sessao invalida para gerar link de download do PDF.",
+                badges=["Erro"],
+                alerts=[{"level": "error", "message": "Faca login novamente."}],
+            )
+
+        token = signing.dumps(
+            {"u": uid, "p": project.id, "d0": date_from.isoformat(), "d1": date_to.isoformat()},
+            salt=self.RDO_PERIOD_SIGN_SALT,
+        )
+        download_path = f"{reverse('assistente_lplan:rdo_period_pdf')}?t={quote(token, safe='')}"
+
+        return AssistantResponse(
+            summary=(
+                f"PDF consolidado do RDO da obra {project.code}: ultimos {nd} dia(s) "
+                f"({date_from.strftime('%d/%m/%Y')} a {date_to.strftime('%d/%m/%Y')}), "
+                f"{diaries_n} dia(s) com registro. Clique para baixar. "
+                "O documento reune textos e atividades; fotos e anexos seguem nos PDFs por dia."
+            ),
+            cards=[
+                {"title": "Janela (dias)", "value": str(nd), "tone": "info"},
+                {"title": "Dias com RDO", "value": str(diaries_n), "tone": "success"},
+            ],
+            badges=["RDO", "PDF", project.code],
+            actions=[{"label": "Baixar PDF consolidado", "url": download_path, "style": "primary"}],
+            links=[
+                {"label": "Relatorios da obra", "url": "/reports/"},
+                {"label": "Baixar PDF", "url": download_path},
+            ],
+            raw_data={
+                "project_id": project.id,
+                "dias": nd,
+                "date_from": date_from.isoformat(),
+                "date_to": date_to.isoformat(),
+                "diarios_no_periodo": diaries_n,
+            },
+        )
+
+    def _resolve_ndias(self, entities: dict, user_question: str) -> int:
+        raw = (entities or {}).get("dias") or (entities or {}).get("ndias")
+        if raw is not None and str(raw).strip().isdigit():
+            return max(1, min(30, int(str(raw).strip())))
+        text = (user_question or "").lower()
+        m = re.search(r"(?:últimos?|ultimos?)\s*(\d{1,2})\s*dias?", text)
+        if m:
+            return max(1, min(30, int(m.group(1))))
+        m = re.search(r"\b(\d{1,2})\s*dias?\b", text)
+        if m:
+            return max(1, min(30, int(m.group(1))))
+        if "duas semanas" in text or "2 semanas" in text:
+            return 14
+        if "uma semana" in text or "1 semana" in text:
+            return 7
+        if "mes" in text and "um" in text:
+            return 30
+        return 15
 

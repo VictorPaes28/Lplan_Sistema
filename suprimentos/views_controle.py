@@ -138,6 +138,101 @@ def _norm_key(value: object) -> str:
     return " ".join(text.split())
 
 
+def _resolve_matrix_mode(requested: str, selected: dict) -> str:
+    """Modos alternativos exigem camadas mínimas para fazer sentido na obra."""
+    r = (requested or "").strip().lower()
+    if r not in ("bloco", "pavimento", "apto"):
+        r = "bloco"
+    if r == "apto" and selected.get("bloco") and selected.get("pavimento"):
+        return "apto"
+    if r == "pavimento" and selected.get("bloco"):
+        return "pavimento"
+    return "bloco"
+
+
+def _row_field_for_matrix_mode(mode: str) -> str:
+    return {"bloco": "bloco", "pavimento": "pavimento", "apto": "apto"}.get(mode, "bloco")
+
+
+def _default_label_for_row_field(row_field: str) -> str:
+    return {
+        "bloco": "SEM BLOCO",
+        "pavimento": "SEM PAVIMENTO",
+        "apto": "SEM APTO",
+    }.get(row_field, "SEM REGISTRO")
+
+
+def _build_matrix_grid(
+    matrix_scope_qs,
+    row_field: str,
+    atividades_max: int = 36,
+    rows_max: int = 60,
+) -> dict:
+    """Agrega percentuais em uma grade (linha x atividade), ex.: bloco×atividade ou pavimento×atividade."""
+    default_row = _default_label_for_row_field(row_field)
+    only_fields = [row_field, "atividade", "status_percentual", "status_texto"]
+    matrix_items = list(matrix_scope_qs.only(*only_fields).order_by(row_field, "atividade"))
+    agg: dict[tuple[str, str], dict] = {}
+    rows_set: set[str] = set()
+    atividades_set: set[str] = set()
+    for item in matrix_items:
+        raw = getattr(item, row_field, None)
+        row_val = (str(raw).strip() if raw is not None else "") or default_row
+        atividade = (item.atividade or "SEM ATIVIDADE").strip() or "SEM ATIVIDADE"
+        ratio = _status_to_ratio(item)
+        if ratio is None:
+            continue
+        rows_set.add(row_val)
+        atividades_set.add(atividade)
+        key = (row_val, atividade)
+        if key not in agg:
+            agg[key] = {"sum": 0.0, "count": 0}
+        agg[key]["sum"] += ratio
+        agg[key]["count"] += 1
+
+    atividades = sorted(atividades_set)[:atividades_max]
+    rows_sorted = sorted(rows_set)[:rows_max]
+    rows_out = []
+    for row_val in rows_sorted:
+        cells = []
+        row_sum = 0.0
+        row_count = 0
+        for atividade in atividades:
+            data = agg.get((row_val, atividade))
+            if data and data["count"] > 0:
+                pct = round((data["sum"] / data["count"]) * 100)
+                row_sum += pct
+                row_count += 1
+                cells.append({"atividade": atividade, "pct": pct})
+            else:
+                cells.append({"atividade": atividade, "pct": None})
+        total_pct = round(row_sum / row_count) if row_count else None
+        rows_out.append(
+            {
+                "row_key": row_val,
+                "row_label": row_val,
+                "cells": cells,
+                "total": total_pct,
+            }
+        )
+
+    totais = []
+    for atividade in atividades:
+        col_values = []
+        for row_val in rows_sorted:
+            data = agg.get((row_val, atividade))
+            if data and data["count"] > 0:
+                col_values.append(round((data["sum"] / data["count"]) * 100))
+        totais.append(
+            {
+                "atividade": atividade,
+                "pct": round(sum(col_values) / len(col_values)) if col_values else None,
+            }
+        )
+
+    return {"atividades": atividades, "rows": rows_out, "totais": totais}
+
+
 def _build_confiabilidade_controle(total_itens: int, qualidade: dict) -> dict:
     if total_itens <= 0:
         return {"score": 0.0, "nivel": "sem_dados"}
@@ -187,7 +282,13 @@ def mapa_controle(request):
     status_filter = selected["status"]
     layers = {"setores": [], "blocos": [], "pavimentos": [], "aptos": []}
     itens_atividade = []
-    matrix = {"atividades": [], "rows": [], "totais": []}
+    matrix = {
+        "atividades": [],
+        "rows": [],
+        "totais": [],
+        "mode": "bloco",
+        "header_first_col": "Bloco",
+    }
     kpis = {"total_itens": 0, "percentual_medio": 0.0, "concluidos": 0, "em_andamento": 0, "nao_iniciados": 0}
     qualidade = {
         "sem_bloco": 0,
@@ -287,65 +388,19 @@ def mapa_controle(request):
 
         layers["setores"] = _layer_aggregates(base_qs, "setor")
 
-        # MATRIZ GERENCIAL (sem inventar: bloco x atividade com %)
+        # MATRIZ GERENCIAL — modo bloco / pavimento / apto (mesma agregação, dimensão de linha variável)
         matrix_scope = active_scope_qs
-
-        matrix_items = list(
-            matrix_scope.only("bloco", "atividade", "status_percentual", "status_texto").order_by("bloco", "atividade")
-        )
-        agg = {}
-        blocos_set = set()
-        atividades_set = set()
-        for item in matrix_items:
-            bloco = (item.bloco or "SEM BLOCO").strip() or "SEM BLOCO"
-            atividade = (item.atividade or "SEM ATIVIDADE").strip() or "SEM ATIVIDADE"
-            ratio = _status_to_ratio(item)
-            if ratio is None:
-                continue
-            blocos_set.add(bloco)
-            atividades_set.add(atividade)
-            key = (bloco, atividade)
-            if key not in agg:
-                agg[key] = {"sum": 0.0, "count": 0}
-            agg[key]["sum"] += ratio
-            agg[key]["count"] += 1
-
-        # Mantém painel legível em tela sem perder referência do modelo original.
-        atividades = sorted(atividades_set)[:36]
-        blocos = sorted(blocos_set)[:60]
-        rows = []
-        totais = []
-
-        for bloco in blocos:
-            cells = []
-            row_sum = 0.0
-            row_count = 0
-            for atividade in atividades:
-                data = agg.get((bloco, atividade))
-                if data and data["count"] > 0:
-                    pct = round((data["sum"] / data["count"]) * 100)
-                    row_sum += pct
-                    row_count += 1
-                    cells.append({"atividade": atividade, "pct": pct})
-                else:
-                    cells.append({"atividade": atividade, "pct": None})
-            total_pct = round(row_sum / row_count) if row_count else None
-            rows.append({"bloco": bloco, "cells": cells, "total": total_pct})
-
-        for atividade in atividades:
-            col_values = []
-            for bloco in blocos:
-                data = agg.get((bloco, atividade))
-                if data and data["count"] > 0:
-                    col_values.append(round((data["sum"] / data["count"]) * 100))
-            totais.append(
-                {
-                    "atividade": atividade,
-                    "pct": round(sum(col_values) / len(col_values)) if col_values else None,
-                }
-            )
-
-        matrix = {"atividades": atividades, "rows": rows, "totais": totais}
+        matrix_mode = _resolve_matrix_mode(request.GET.get("matrix_mode") or "", selected)
+        row_field = _row_field_for_matrix_mode(matrix_mode)
+        rows_max = 80 if matrix_mode == "apto" else 60
+        matrix = _build_matrix_grid(matrix_scope, row_field, rows_max=rows_max)
+        matrix["mode"] = matrix_mode
+        matrix["row_field"] = row_field
+        matrix["header_first_col"] = {
+            "bloco": "Bloco",
+            "pavimento": "Pavimento",
+            "apto": "Apto / und.",
+        }.get(matrix_mode, "Bloco")
 
         # Detalhe contextual da célula escolhida (ex.: BL1 x ARMAÇÃO LAJE = 77%)
         if selected["bloco"] and selected["atividade"]:

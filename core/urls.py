@@ -4,6 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from .htmx_views import project_activities_tree, activity_children
 from . import central_views
+from .offline_views import rdo_offline_service_worker
 from .frontend_views import (
     login_view,
     logout_view,
@@ -17,6 +18,12 @@ from .frontend_views import (
     diary_detail_view,
     diary_form_view,
     diary_pdf_view,
+    diary_pdf_inline_view,
+    diary_pdf_reader_view,
+    client_diary_pdf_view,
+    client_diary_pdf_inline_view,
+    client_diary_pdf_reader_view,
+    diary_bulk_pdf_zip_view,
     diary_excel_view,
     diary_delete_view,
     diary_request_edit_view,
@@ -58,6 +65,8 @@ from .frontend_views import (
 )
 
 urlpatterns = [
+    # Service Worker: modo offline RDO (escopo / via header Service-Worker-Allowed)
+    path('sw-rdo-offline.js', rdo_offline_service_worker, name='rdo-offline-service-worker'),
     # Rota raiz - página inicial = seleção de sistema (login obrigatório via select_system_view)
     path('', RedirectView.as_view(pattern_name='select-system', permanent=False), name='home'),
     # Frontend views (devem vir ANTES do router para ter prioridade)
@@ -114,6 +123,7 @@ urlpatterns = [
     path('analytics/', analytics_view, name='analytics'),
     path('calendar-events/', calendar_events_view, name='calendar-events'),
     path('reports/', report_list_view, name='report-list'),
+    path('reports/exportar-pdfs-zip/', diary_bulk_pdf_zip_view, name='diary-bulk-pdf-zip'),
     path('projects/', project_list_view, name='central_project_list'),  # Listagem Central (não confundir com API project-list)
     path('projects/new/', project_form_view, name='project-new'),
     path('projects/<int:pk>/edit/', project_form_view, name='project-edit'),
@@ -123,6 +133,9 @@ urlpatterns = [
     # Portal do dono da obra (cliente): visualizar diário e comentar (24h)
     path('cliente/diarios/', client_diary_list_view, name='client-diary-list'),
     path('cliente/diarios/<int:pk>/', client_diary_detail_view, name='client-diary-detail'),
+    path('cliente/diarios/<int:pk>/pdf/', client_diary_pdf_view, {'pdf_type': 'normal'}, name='client-diary-pdf'),
+    path('cliente/diarios/<int:pk>/pdf/inline/', client_diary_pdf_inline_view, {'pdf_type': 'normal'}, name='client-diary-pdf-inline'),
+    path('cliente/diarios/<int:pk>/pdf/leitura/', client_diary_pdf_reader_view, name='client-diary-pdf-reader'),
     path('cliente/diarios/<int:pk>/comentar/', client_diary_add_comment_view, name='client-diary-add-comment'),
     path('diaries/<int:pk>/edit/', diary_form_view, name='diary-edit'),
     path('diaries/<int:pk>/delete/', diary_delete_view, name='diary-delete'),
@@ -132,6 +145,8 @@ urlpatterns = [
     path('diaries/<int:pk>/pdf/', diary_pdf_view, {'pdf_type': 'normal'}, name='diary-pdf'),
     path('diaries/<int:pk>/pdf/detalhado/', diary_pdf_view, {'pdf_type': 'detailed'}, name='diary-pdf-detailed'),
     path('diaries/<int:pk>/pdf/sem-fotos/', diary_pdf_view, {'pdf_type': 'no_photos'}, name='diary-pdf-no-photos'),
+    path('diaries/<int:pk>/pdf/inline/', diary_pdf_inline_view, {'pdf_type': 'normal'}, name='diary-pdf-inline'),
+    path('diaries/<int:pk>/pdf/leitura/', diary_pdf_reader_view, name='diary-pdf-reader'),
     path('diaries/<int:pk>/excel/', diary_excel_view, name='diary-excel'),
     
     # HTMX views
