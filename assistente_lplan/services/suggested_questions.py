@@ -28,7 +28,8 @@ def build_assistant_home_context(request) -> dict:
     Retorna:
       - active_project: {id, code, name} | None
       - suggestion_groups: [{"title": str, "questions": [str, ...]}, ...]
-      - welcome_lines: [str] — texto inicial do chat
+      - welcome_chat: dict — conteúdo estruturado do primeiro bloco do chat (título, modo, textos)
+      - welcome_lines: [str] — texto plano do chat (compatível com versões antigas / fallback)
       - selected_project_id: int | None — para o JS enviar em contexto
       - persist_session_project: bool — gravar selected_project_id na sessão (obra única inferida)
       - available_projects: list[{id, code, name}] — obras escolhíveis quando não há sessão e há várias
@@ -123,18 +124,27 @@ def build_assistant_home_context(request) -> dict:
 
         if is_gestao_user:
             ordem_hint = (
-                "Ordem sugerida: visão e risco → GestControll → mapa → diário. "
+                "Ordem sugerida na barra lateral: visão e risco → GestControll → mapa → diário. "
                 "Perguntas em 'meu acesso' podem incluir várias obras."
             )
         else:
             ordem_hint = (
-                "Ordem sugerida: visão e risco → mapa → diário → pedidos no seu acesso. "
+                "Ordem sugerida na barra lateral: visão e risco → mapa → diário → pedidos no seu acesso. "
                 "Perguntas em 'meu acesso' podem incluir várias obras."
             )
+        welcome_chat = {
+            "mode": "project",
+            "title": "Comece por aqui",
+            "project_code": code,
+            "project_name": nome_curto,
+            "hint_other_project": (
+                "Outro projeto? Cite só o código na pergunta; caso contrário uso a obra do painel."
+            ),
+            "order_detail": ordem_hint,
+        }
         welcome_lines = [
-            f"Obra ativa: {code} — {nome_curto}.",
-            ordem_hint,
-            "Cite outro código na pergunta só se quiser outro projeto; caso contrário uso a obra do painel.",
+            f"Pergunte sobre a obra {code} ({nome_curto}) ou use as sugestões ao lado.",
+            welcome_chat["hint_other_project"],
         ]
     else:
         if available_projects:
@@ -149,10 +159,15 @@ def build_assistant_home_context(request) -> dict:
                     ],
                 },
             ]
-            welcome_lines = [
-                "Varias obras no seu acesso: escolha uma ao lado ou cite o codigo na pergunta.",
-                "A escolha no painel vale para Diario, Mapa e GestControll.",
-            ]
+            welcome_chat = {
+                "mode": "pick_project",
+                "title": "Escolha o contexto",
+                "lines": [
+                    "Várias obras no seu acesso: escolha uma ao lado ou cite o código na pergunta.",
+                    "A escolha no painel vale para Diário, Mapa e GestControll.",
+                ],
+            }
+            welcome_lines = list(welcome_chat["lines"])
         else:
             groups = [
                 {
@@ -163,10 +178,15 @@ def build_assistant_home_context(request) -> dict:
                     ],
                 }
             ]
-            welcome_lines = [
-                "Nenhum projeto vinculado a este usuario ainda.",
-                "Quando houver acesso, as sugestões serão montadas pelo codigo da obra.",
-            ]
+            welcome_chat = {
+                "mode": "no_access",
+                "title": "Sem projeto vinculado",
+                "lines": [
+                    "Nenhum projeto vinculado a este usuário ainda.",
+                    "Quando houver acesso, as sugestões serão montadas pelo código da obra.",
+                ],
+            }
+            welcome_lines = list(welcome_chat["lines"])
 
     # Lista plana para compatibilidade com JS que itera botões (primeiro grupo primeiro, etc.)
     flat: list[str] = []
@@ -185,6 +205,7 @@ def build_assistant_home_context(request) -> dict:
         "suggestion_groups_primary": suggestion_groups_primary,
         "suggestion_groups_more": suggestion_groups_more,
         "suggested_questions": flat,
+        "welcome_chat": welcome_chat,
         "welcome_lines": welcome_lines,
         "selected_project_id": project.id if project else None,
         "persist_session_project": persist_session_project,

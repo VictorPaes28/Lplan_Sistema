@@ -72,6 +72,7 @@ def assistant_home(request):
             "suggestion_groups_more": assistant_ctx.get("suggestion_groups_more") or [],
             "active_project": assistant_ctx["active_project"],
             "welcome_lines": assistant_ctx["welcome_lines"],
+            "welcome_chat": assistant_ctx["welcome_chat"],
             "selected_project_id": assistant_ctx["selected_project_id"],
             "available_projects": assistant_ctx.get("available_projects") or [],
             "history_limit": MAX_UI_HISTORY_ITEMS,

@@ -361,5 +361,26 @@
         input.focus();
         form.requestSubmit();
     });
+
+    const welcomeOrder = document.getElementById("assistant-welcome-order");
+    if (welcomeOrder) {
+        const LS_ORDER = "lplan_assistant_welcome_order_seen";
+        try {
+            if (localStorage.getItem(LS_ORDER) === "1") {
+                welcomeOrder.removeAttribute("open");
+            }
+        } catch (e) {
+            /* private mode / storage blocked */
+        }
+        welcomeOrder.addEventListener("toggle", () => {
+            if (!welcomeOrder.open) {
+                try {
+                    localStorage.setItem(LS_ORDER, "1");
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        });
+    }
 })();
 
