@@ -785,6 +785,16 @@
                 <p class="central-action-desc">Acompanhar erros e avisos com filtros e exportação CSV.</p>
                 <span class="central-action-link">Abrir logs <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
             </a>
+            {% if painel_comunicados %}
+            <a href="{% url 'comunicados_painel_lista' %}" class="central-action-card">
+                <div class="central-action-icon" style="background:#e0f2fe;color:#0369a1;">
+                    <i class="fas fa-bullhorn" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Comunicados</h2>
+                <p class="central-action-desc">Anúncios e avisos administrativos para os usuários.</p>
+                <span class="central-action-link">Gerenciar <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+            {% endif %}
         </div>
     </div>
     
@@ -817,6 +827,18 @@
                     </div>
                     <i class="fas fa-chevron-right action-arrow"></i>
                 </a>
+                {% if painel_comunicados %}
+                <a href="{% url 'comunicados_painel_lista' %}" class="action-card">
+                    <div class="action-icon" style="background: #e0f2fe; color: #0369a1;">
+                        <i class="fas fa-bullhorn" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <div class="action-title">Comunicados</div>
+                        <div class="action-desc">Anúncios administrativos no sistema</div>
+                    </div>
+                    <i class="fas fa-chevron-right action-arrow" aria-hidden="true"></i>
+                </a>
+                {% endif %}
                 <a href="{% url 'accounts:admin_analise_usuarios' %}" class="action-card">
                     <div class="action-icon" style="background: #e0e7ff; color: #4f46e5;">
                         <i class="fas fa-chart-line"></i>

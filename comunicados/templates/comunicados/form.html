@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo_pagina }} — Comunicados{% endblock %}
+{% block page_title %}{{ titulo_pagina }}{% endblock %}
+{% block page_subtitle %}Painel do sistema — Comunicados administrativos{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+.admin-page { max-width: 900px; }
+.admin-breadcrumb { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem; flex-wrap: wrap; }
+.admin-breadcrumb a { color: #3b82f6; text-decoration: none; font-weight: 500; }
+.admin-breadcrumb .sep { color: #cbd5e1; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #f1f5f9; }
+.field-row { margin-bottom: 1rem; }
+.field-row label { display: block; font-size: 0.8125rem; font-weight: 500; color: #334155; margin-bottom: 0.35rem; }
+.field-error { color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem; }
+.tipo-fld { display: none; }
+.tipo-fld.is-on { display: block; }
+#wrap-max-ex, #wrap-dias { display: none; }
+#wrap-max-ex.is-on, #wrap-dias.is-on { display: block; }
+#publico-restrito { display: none; }
+#publico-restrito.is-on { display: block; }
+ul.errorlist { color: #dc2626; font-size: 0.85rem; margin: 0 0 0.5rem; padding-left: 1.2rem; }
+.checkbox-multi ul { list-style: none; padding-left: 0; max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem 0.75rem; }
+.checkbox-multi li { margin-bottom: 0.35rem; }
+select.select-m2m-click-toggle[multiple] { width: 100%; max-width: 100%; min-height: 10rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <nav class="admin-breadcrumb">
+        <a href="{% url 'accounts:admin_central' %}">Painel do sistema</a>
+        <span class="sep">/</span>
+        <a href="{% url 'comunicados_painel_lista' %}">Comunicados</a>
+        <span class="sep">/</span>
+        <span style="color:#64748b;">{% if modo == 'criar' %}Novo{% else %}Editar{% endif %}</span>
+    </nav>
+
+    <form method="post" enctype="multipart/form-data" id="form-comunicado" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <ul class="errorlist">{{ form.non_field_errors }}</ul>
+        {% endif %}
+
+        <section class="central-section">
+            <h3 class="central-section-title"><i class="fas fa-info-circle" aria-hidden="true"></i> Informações básicas</h3>
+            <div class="field-row">
+                <label for="id_titulo">Título (interno) *</label>
+                {{ form.titulo }}
+                {% if form.titulo.errors %}<div class="field-error">{{ form.titulo.errors }}</div>{% endif %}
+            </div>
+            <div class="field-row">
+                <label for="id_descricao_interna">Descrição interna</label>
+                {{ form.descricao_interna }}
+            </div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">
+                {{ form.ativo }}
+                <label for="id_ativo" style="margin:0;">Ativo</label>
+            </div>
+            <div class="field-row">
+                <label for="id_tipo_conteudo">Tipo de conteúdo</label>
+                {{ form.tipo_conteudo }}
+            </div>
+        </section>
+
+        <section class="central-section">
+            <h3 class="central-section-title"><i class="fas fa-align-left" aria-hidden="true"></i> Conteúdo visível</h3>
+
+            <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                <div class="field-row"><label for="id_titulo_visivel">Título visível</label>{{ form.titulo_visivel }}</div>
+            </div>
+            <div class="tipo-fld" data-tipos="TEXTO,FORMULARIO">
+                <div class="field-row"><label for="id_subtitulo">Subtítulo</label>{{ form.subtitulo }}</div>
+            </div>
+            <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                <div class="field-row"><label for="id_texto_principal">Texto principal</label>{{ form.texto_principal }}</div>
+            </div>
+            <div class="tipo-fld" data-tipos="IMAGEM,IMAGEM_LINK">
+                <div class="field-row"><label for="id_imagem">Imagem *</label>{{ form.imagem }}{% if form.imagem.errors %}<div class="field-error">{{ form.imagem.errors }}</div>{% endif %}</div>
+            </div>
+            <div class="tipo-fld" data-tipos="IMAGEM_LINK">
+                <div class="field-row"><label for="id_link_destino">Link de destino</label>{{ form.link_destino }}</div>
+                <div class="field-row"><label for="id_texto_botao">Texto do botão</label>{{ form.texto_botao }}</div>
+            </div>
+            <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                <div class="field-row"><label for="id_destaque_visual">Destaque visual</label>{{ form.destaque_visual }}</div>
+            </div>
+        </section>
+
+        <section class="central-section">
+            <h3 class="central-section-title"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Regras de exibição</h3>
+            <div class="field-row"><label for="id_tipo_exibicao">Tipo de exibição</label>{{ form.tipo_exibicao }}</div>
+            <div class="field-row" id="wrap-max-ex"><label for="id_max_exibicoes_por_usuario">Máx. exibições por usuário</label>{{ form.max_exibicoes_por_usuario }}{% if form.max_exibicoes_por_usuario.errors %}<div class="field-error">{{ form.max_exibicoes_por_usuario.errors }}</div>{% endif %}</div>
+            <div class="field-row"><label for="id_data_inicio">Data de início</label>{{ form.data_inicio }}{% if form.data_inicio.errors %}<div class="field-error">{{ form.data_inicio.errors }}</div>{% endif %}</div>
+            <div class="field-row"><label for="id_data_fim">Data de fim</label>{{ form.data_fim }}{% if form.data_fim.errors %}<div class="field-error">{{ form.data_fim.errors }}</div>{% endif %}</div>
+            <div class="field-row" id="wrap-dias"><label for="id_dias_ativo">Dias ativo</label>{{ form.dias_ativo }}{% if form.dias_ativo.errors %}<div class="field-error">{{ form.dias_ativo.errors }}</div>{% endif %}</div>
+            <div class="field-row"><label for="id_prioridade">Prioridade</label>{{ form.prioridade }}</div>
+        </section>
+
+        <section class="central-section">
+            <h3 class="central-section-title"><i class="fas fa-users" aria-hidden="true"></i> Público</h3>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">
+                {{ form.publico_todos }}
+                <label for="id_publico_todos" style="margin:0;">Público: todos os usuários autenticados</label>
+            </div>
+            <div id="publico-restrito">
+                <p style="font-size:0.85rem;color:#64748b;margin-bottom:0.75rem;">Defina grupos, usuários ou obras permitidas.</p>
+                <div class="field-row checkbox-multi"><label>Grupos permitidos</label>{{ form.grupos_permitidos }}</div>
+                <div class="field-row">
+                    <label for="id_usuarios_permitidos">Usuários permitidos</label>
+                    {{ form.usuarios_permitidos }}
+                    {% if form.usuarios_permitidos.errors %}<div class="field-error">{{ form.usuarios_permitidos.errors }}</div>{% endif %}
+                </div>
+                <div class="field-row">
+                    <label for="id_obras_permitidas">Obras permitidas</label>
+                    {{ form.obras_permitidas }}
+                    {% if form.obras_permitidas.errors %}<div class="field-error">{{ form.obras_permitidas.errors }}</div>{% endif %}
+                </div>
+                <div class="field-row checkbox-multi"><label>Grupos excluídos</label>{{ form.grupos_excluidos }}</div>
+                <div class="field-row">
+                    <label for="id_usuarios_excluidos">Usuários excluídos</label>
+                    {{ form.usuarios_excluidos }}
+                    {% if form.usuarios_excluidos.errors %}<div class="field-error">{{ form.usuarios_excluidos.errors }}</div>{% endif %}
+                </div>
+            </div>
+        </section>
+
+        <section class="central-section">
+            <h3 class="central-section-title"><i class="fas fa-sliders-h" aria-hidden="true"></i> Comportamento</h3>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.pode_fechar }}<label style="margin:0;">Pode fechar</label></div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.exige_confirmacao }}<label style="margin:0;">Exige confirmação de leitura</label></div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.exige_resposta }}<label style="margin:0;">Exige resposta</label></div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.bloquear_ate_acao }}<label style="margin:0;">Bloquear até ação</label></div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.abrir_automaticamente }}<label style="margin:0;">Abrir automaticamente</label></div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.mostrar_apos_fechar }}<label style="margin:0;">Mostrar após fechar</label></div>
+            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.permitir_nao_mostrar_novamente }}<label style="margin:0;">Permitir “não mostrar novamente”</label></div>
+        </section>
+
+        <div class="form-actions">
+            <button type="submit" name="salvar" value="1" class="central-btn-primary">Salvar</button>
+            <button type="submit" name="salvar_visualizar" value="1" class="central-btn-secondary" style="background:#1e40af;color:#fff;border-color:#1e3a8a;">Salvar e visualizar desempenho</button>
+            <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+  var tipoSel = document.getElementById('id_tipo_conteudo');
+  var exSel = document.getElementById('id_tipo_exibicao');
+  var pub = document.getElementById('id_publico_todos');
+  var wrapMax = document.getElementById('wrap-max-ex');
+  var wrapDias = document.getElementById('wrap-dias');
+  var restrito = document.getElementById('publico-restrito');
+
+  function setTipoFlds() {
+    var t = tipoSel ? tipoSel.value : 'TEXTO';
+    document.querySelectorAll('.tipo-fld').forEach(function(el) {
+      var tipos = (el.getAttribute('data-tipos') || '').split(',');
+      el.classList.toggle('is-on', tipos.indexOf(t) !== -1);
+    });
+  }
+
+  function setExibicao() {
+    var v = exSel ? exSel.value : '';
+    if (wrapMax) wrapMax.classList.toggle('is-on', v === 'X_VEZES');
+    if (wrapDias) wrapDias.classList.toggle('is-on', v === 'X_DIAS');
+  }
+
+  /** Evita enviar grupos/usuários/obras permitidos com "Público: todos" (secção oculta ainda podia submeter M2M). */
+  function limparSomentePermitidos() {
+    if (!restrito) return;
+    restrito.querySelectorAll('input[name="grupos_permitidos"]').forEach(function (inp) {
+      inp.checked = false;
+    });
+    ['usuarios_permitidos', 'obras_permitidas'].forEach(function (n) {
+      var sel = restrito.querySelector('select[name="' + n + '"]');
+      if (!sel) return;
+      Array.prototype.forEach.call(sel.options, function (o) { o.selected = false; });
+    });
+  }
+
+  function setPublico() {
+    if (!restrito || !pub) return;
+    restrito.classList.toggle('is-on', !pub.checked);
+    if (pub.checked) {
+      limparSomentePermitidos();
+    }
+  }
+
+  if (tipoSel) tipoSel.addEventListener('change', setTipoFlds);
+  if (exSel) exSel.addEventListener('change', setExibicao);
+  if (pub) pub.addEventListener('change', setPublico);
+
+  setTipoFlds();
+  setExibicao();
+  setPublico();
+
+  /** Select múltiplo: clique alterna seleção do item sem Ctrl (comportamento nativo anulado no mousedown da option). */
+  document.querySelectorAll('select.select-m2m-click-toggle[multiple]').forEach(function (sel) {
+    sel.addEventListener('mousedown', function (e) {
+      var t = e.target;
+      if (!t || t.tagName !== 'OPTION') {
+        return;
+      }
+      e.preventDefault();
+      t.selected = !t.selected;
+      sel.focus();
+      try {
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (err) {
+        var ev = document.createEvent('HTMLEvents');
+        ev.initEvent('change', true, true);
+        sel.dispatchEvent(ev);
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

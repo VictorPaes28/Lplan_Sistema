@@ -1,0 +1,20 @@
+{# Modal de comunicados — exibido via comunicados.js #}
+<div id="comunicados-root" class="comunicados-root" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="comunicados-titulo">
+  <div id="comunicados-overlay" tabindex="-1"></div>
+  <div id="comunicados-dialog" class="comunicados-destaque-PADRAO">
+    <div id="comunicados-header" class="comunicados-header-bar comunicados-header--padrao">
+      <div id="comunicados-header-text">
+        <h2 id="comunicados-titulo"></h2>
+        <p id="comunicados-subtitulo" style="display:none;"></p>
+      </div>
+      <button type="button" id="comunicados-close" aria-label="Fechar" style="display:none;">&times;</button>
+    </div>
+    <div id="comunicados-body"></div>
+    <div id="comunicados-footer">
+      <div id="comunicados-actions"></div>
+      <div id="comunicados-nunca-wrap" style="display:none;">
+        <button type="button" id="comunicados-nunca">Não mostrar novamente</button>
+      </div>
+    </div>
+  </div>
+</div>
