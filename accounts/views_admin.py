@@ -130,6 +130,7 @@ def admin_central(request):
         'stats_email_logs': stats_email_logs,
         'stats_system_logs': stats_system_logs,
         'pending_diary_edit_requests_count': pending_diary_edit_requests_count,
+        'painel_comunicados': request.user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists(),
     }
 
     return render(request, 'accounts/admin_central.html', context)

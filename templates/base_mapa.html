@@ -204,6 +204,12 @@
     <!-- Custom JS (v=8: corrige SyntaxError variável t redeclarada) -->
     <script src="{% static 'js/supplymap.js' %}?v=8"></script>
     
+    {% if user.is_authenticated %}
+    <link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}">
+    {% include 'comunicados/modal.html' %}
+    <script src="{% static 'comunicados/js/comunicados.js' %}" defer></script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>
