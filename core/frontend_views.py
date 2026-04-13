@@ -4266,14 +4266,10 @@ def diary_form_view(request, pk=None):
     return render(request, 'core/daily_log_form.html', context)
 
 
-@login_required
-@project_required
-def diary_pdf_view(request, pk, pdf_type='normal'):
+def _ensure_diary_pdf_generator_loaded(request):
     """
-    View para gerar e retornar PDF do diário.
-    pdf_type: 'normal', 'detailed', 'no_photos'
+    Importação lazy do PDFGenerator (ReportLab). Mantém o mesmo comportamento de erro da view de PDF.
     """
-    # Importação lazy do PDFGenerator (ReportLab)
     global PDFGenerator, REPORTLAB_AVAILABLE
 
     if PDFGenerator is None:
@@ -4292,7 +4288,116 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
             )
             REPORTLAB_AVAILABLE = False
             messages.error(request, "Geração de PDF não disponível neste ambiente.")
-            return redirect('diary-detail', pk=pk)
+            return False
+
+    return True
+
+
+def _diary_pdf_http_response(diary, pdf_type, disposition='attachment'):
+    """
+    Monta HttpResponse com o PDF gerado do diário.
+    disposition: 'attachment' (download, fluxo existente) ou 'inline' (visualização/embed no navegador).
+    """
+    pdf_buffer = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
+
+    if not pdf_buffer:
+        return None
+
+    pdf_buffer.seek(0)
+    pdf_bytes = pdf_buffer.read()
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    type_suffix = {
+        'normal': '',
+        'detailed': '_detalhado',
+        'no_photos': '_sem_fotos'
+    }.get(pdf_type, '')
+    try:
+        from .utils.pdf_generator import get_rdo_pdf_filename
+        filename = get_rdo_pdf_filename(diary.project, diary.date, suffix=type_suffix)
+    except Exception:
+        filename = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
+    safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
+    disp = 'attachment' if disposition == 'attachment' else 'inline'
+    response['Content-Disposition'] = f'{disp}; filename="{safe_name}"'
+    response['Content-Length'] = len(pdf_bytes)
+    return response
+
+
+def _diary_pdf_sequence_for_project(project):
+    """
+    Ordem cronológica dos relatórios da obra para navegação entre PDFs.
+    Critério: data do diário; desempate: data/hora de criação; depois id.
+    (Alinhado ao modelo: no máximo um diário por dia por obra; desempates cobrem migrações/dados legados.)
+    """
+    return ConstructionDiary.objects.filter(project=project).order_by(
+        'date', 'created_at', 'pk',
+    )
+
+
+def _diaries_queryset_for_report_filters(project, get_dict):
+    """
+    Mesmos filtros da listagem de relatórios (report_list), ordenação cronológica para exportação ZIP.
+    get_dict: request.GET (QueryDict ou dict-like).
+    """
+    diaries = ConstructionDiary.objects.filter(project=project).select_related('project')
+    search = get_dict.get('search')
+    if search:
+        diaries = diaries.filter(
+            Q(project__code__icontains=search) |
+            Q(project__name__icontains=search) |
+            Q(general_notes__icontains=search)
+        )
+    date_start = get_dict.get('date_start')
+    if date_start:
+        try:
+            diaries = diaries.filter(date__gte=date_start)
+        except ValueError:
+            pass
+    date_end = get_dict.get('date_end')
+    if date_end:
+        try:
+            diaries = diaries.filter(date__lte=date_end)
+        except ValueError:
+            pass
+    status = get_dict.get('status')
+    if status:
+        diaries = diaries.filter(status=status)
+    return diaries.order_by('date', 'created_at', 'pk')
+
+
+def _client_portal_accessible_diary(user, pk):
+    """
+    Diário visível no portal do cliente: dono da obra, aprovado e já enviado ao dono.
+    """
+    diary = get_object_or_404(
+        ConstructionDiary.objects.select_related('project'),
+        pk=pk,
+    )
+    if not _client_can_access_diary(user, diary):
+        raise Http404('Diário não encontrado.')
+    if diary.status != DiaryStatus.APROVADO or diary.sent_to_owner_at is None:
+        raise Http404('Diário não disponível.')
+    return diary
+
+
+def _client_diary_pdf_sequence_for_project(project):
+    """Sequência de navegação no portal: só diários aprovados já enviados ao dono."""
+    return ConstructionDiary.objects.filter(
+        project=project,
+        status=DiaryStatus.APROVADO,
+        sent_to_owner_at__isnull=False,
+    ).order_by('date', 'created_at', 'pk')
+
+
+@login_required
+@project_required
+def diary_pdf_view(request, pk, pdf_type='normal'):
+    """
+    View para gerar e retornar PDF do diário (download — Content-Disposition: attachment).
+    pdf_type: 'normal', 'detailed', 'no_photos'
+    """
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('diary-detail', pk=pk)
 
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
@@ -4302,35 +4407,211 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
         return redirect('diary-detail', pk=pk)
 
     try:
-        pdf_buffer = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
-        
-        if pdf_buffer:
-            pdf_buffer.seek(0)
-            pdf_bytes = pdf_buffer.read()
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            type_suffix = {
-                'normal': '',
-                'detailed': '_detalhado',
-                'no_photos': '_sem_fotos'
-            }.get(pdf_type, '')
-            try:
-                from .utils.pdf_generator import get_rdo_pdf_filename
-                filename = get_rdo_pdf_filename(diary.project, diary.date, suffix=type_suffix)
-            except Exception:
-                filename = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
-            safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
-            response['Content-Disposition'] = f'attachment; filename="{safe_name}"'
-            response['Content-Length'] = len(pdf_bytes)
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='attachment')
+        if response:
             return response
-        else:
-            messages.error(request, "Erro ao gerar PDF. Tente novamente.")
-            return redirect('diary-detail', pk=pk)
+        messages.error(request, "Erro ao gerar PDF. Tente novamente.")
+        return redirect('diary-detail', pk=pk)
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
         logger.error("Erro ao gerar PDF do diário %s: %s\n%s", diary.id, e, tb, exc_info=False)
         messages.error(request, f"Erro ao gerar PDF: {str(e)}")
         return redirect('diary-detail', pk=pk)
+
+
+@login_required
+@project_required
+def diary_pdf_inline_view(request, pk, pdf_type='normal'):
+    """
+    Mesmo PDF que diary_pdf_view, porém com Content-Disposition: inline para exibição no navegador (iframe / nova aba).
+    Não substitui o fluxo de download; rota adicional.
+    """
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('diary-detail', pk=pk)
+
+    project = get_selected_project(request)
+    diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, "Geração de PDF não disponível neste ambiente.")
+        return redirect('diary-detail', pk=pk)
+
+    try:
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='inline')
+        if response:
+            return response
+        messages.error(request, "Erro ao gerar PDF. Tente novamente.")
+        return redirect('diary-detail', pk=pk)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("Erro ao gerar PDF inline do diário %s: %s\n%s", diary.id, e, tb, exc_info=False)
+        messages.error(request, f"Erro ao gerar PDF: {str(e)}")
+        return redirect('diary-detail', pk=pk)
+
+
+@login_required
+@project_required
+def diary_pdf_reader_view(request, pk):
+    """
+    Tela de leitura: PDF embutido na interface com navegação anterior/próximo na sequência do diário da obra.
+    O download continua disponível pela rota diary-pdf (attachment).
+    """
+    project = get_selected_project(request)
+    diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+
+    qs = _diary_pdf_sequence_for_project(project)
+    ids = list(qs.values_list('pk', flat=True))
+    idx = ids.index(diary.pk)
+
+    total = len(ids)
+    position = idx + 1 if total else 0
+    prev_pk = ids[idx - 1] if idx > 0 else None
+    next_pk = ids[idx + 1] if idx < len(ids) - 1 else None
+
+    context = {
+        'diary': diary,
+        'project': project,
+        'reader_position': position,
+        'reader_total': total,
+        'reader_prev_pk': prev_pk,
+        'reader_next_pk': next_pk,
+    }
+    return render(request, 'core/diary_pdf_reader.html', context)
+
+
+@login_required
+def client_diary_pdf_view(request, pk, pdf_type='normal'):
+    """
+    PDF do RDO para o portal do cliente (download). Mesma geração do diário interno; sem obra na sessão.
+    """
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('client-diary-detail', pk=pk)
+    diary = _client_portal_accessible_diary(request.user, pk)
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, 'Geração de PDF não disponível neste ambiente.')
+        return redirect('client-diary-detail', pk=pk)
+    try:
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='attachment')
+        if response:
+            return response
+        messages.error(request, 'Erro ao gerar PDF. Tente novamente.')
+        return redirect('client-diary-detail', pk=pk)
+    except Exception as e:
+        logger.error('Erro ao gerar PDF (cliente) diário %s: %s', diary.id, e, exc_info=False)
+        messages.error(request, f'Erro ao gerar PDF: {str(e)}')
+        return redirect('client-diary-detail', pk=pk)
+
+
+@login_required
+def client_diary_pdf_inline_view(request, pk, pdf_type='normal'):
+    """PDF inline para iframe / nova aba no portal do cliente."""
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('client-diary-detail', pk=pk)
+    diary = _client_portal_accessible_diary(request.user, pk)
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, 'Geração de PDF não disponível neste ambiente.')
+        return redirect('client-diary-detail', pk=pk)
+    try:
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='inline')
+        if response:
+            return response
+        messages.error(request, 'Erro ao gerar PDF. Tente novamente.')
+        return redirect('client-diary-detail', pk=pk)
+    except Exception as e:
+        logger.error('Erro ao gerar PDF inline (cliente) diário %s: %s', diary.id, e, exc_info=False)
+        messages.error(request, f'Erro ao gerar PDF: {str(e)}')
+        return redirect('client-diary-detail', pk=pk)
+
+
+@login_required
+def client_diary_pdf_reader_view(request, pk):
+    """Modo leitura com navegação apenas entre diários visíveis no portal do cliente."""
+    diary = _client_portal_accessible_diary(request.user, pk)
+    qs = _client_diary_pdf_sequence_for_project(diary.project)
+    ids = list(qs.values_list('pk', flat=True))
+    idx = ids.index(diary.pk)
+    total = len(ids)
+    position = idx + 1 if total else 0
+    prev_pk = ids[idx - 1] if idx > 0 else None
+    next_pk = ids[idx + 1] if idx < len(ids) - 1 else None
+    context = {
+        'diary': diary,
+        'project': diary.project,
+        'reader_position': position,
+        'reader_total': total,
+        'reader_prev_pk': prev_pk,
+        'reader_next_pk': next_pk,
+    }
+    return render(request, 'core/client_diary_pdf_reader.html', context)
+
+
+BULK_PDF_ZIP_MAX_DIARIES = 250
+
+
+@login_required
+@project_required
+def diary_bulk_pdf_zip_view(request):
+    """
+    Exporta vários PDFs de RDO da obra atual em um arquivo ZIP (mesmos filtros GET da listagem).
+    """
+    import io
+    import zipfile
+
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('report-list')
+    project = get_selected_project(request)
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, 'Geração de PDF não disponível neste ambiente.')
+        return redirect('report-list')
+
+    diaries = _diaries_queryset_for_report_filters(project, request.GET)
+    count = diaries.count()
+    if count == 0:
+        messages.warning(request, 'Nenhum relatório encontrado com os filtros atuais.')
+        return redirect('report-list')
+    if count > BULK_PDF_ZIP_MAX_DIARIES:
+        messages.error(
+            request,
+            f'Há {count} relatórios no filtro. O limite por arquivo ZIP é {BULK_PDF_ZIP_MAX_DIARIES}. '
+            'Reduza o período ou refine a pesquisa.',
+        )
+        return redirect('report-list')
+
+    buf = io.BytesIO()
+    added = 0
+    try:
+        with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            for diary in diaries:
+                try:
+                    resp = _diary_pdf_http_response(diary, 'normal', disposition='attachment')
+                    if not resp:
+                        continue
+                    pdf_bytes = resp.content
+                    try:
+                        from .utils.pdf_generator import get_rdo_pdf_filename
+                        fname = get_rdo_pdf_filename(diary.project, diary.date, suffix='')
+                    except Exception:
+                        fname = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}.pdf"
+                    safe_inner = ''.join(c if c.isalnum() or c in '-_.' else '_' for c in fname)
+                    zf.writestr(safe_inner, pdf_bytes)
+                    added += 1
+                except Exception as ex:
+                    logger.warning('ZIP RDO: falha no diário %s: %s', diary.pk, ex)
+        if added == 0:
+            messages.error(request, 'Não foi possível gerar nenhum PDF para o ZIP.')
+            return redirect('report-list')
+        buf.seek(0)
+        zip_name = f"RDOs_{project.code}_{timezone.now().strftime('%Y%m%d_%H%M')}.zip"
+        zip_safe = ''.join(c if c.isalnum() or c in '-_.' else '_' for c in zip_name)
+        response = HttpResponse(buf.read(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{zip_safe}"'
+        return response
+    except Exception as e:
+        logger.exception('Erro ao montar ZIP de RDOs: %s', e)
+        messages.error(request, f'Erro ao gerar arquivo ZIP: {str(e)}')
+        return redirect('report-list')
 
 
 @login_required

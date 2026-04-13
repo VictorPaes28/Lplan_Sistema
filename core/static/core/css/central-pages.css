@@ -369,6 +369,37 @@
 .central-project-delete-form {
   display: inline-flex;
 }
+
+/* Lista de obras (project_list): mobile retrato — coluna clara: dados → botões com wrap (complementa correção em mobile.css) */
+@media (max-width: 768px) and (orientation: portrait) {
+  .central-project-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .central-project-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+    justify-content: flex-start;
+    align-content: flex-start;
+  }
+  .central-project-actions .central-project-btn-email,
+  .central-project-actions .central-project-btn-primary {
+    flex: 1 1 auto;
+    min-width: min(100%, 10rem);
+  }
+  .central-project-actions .central-project-btn-icon {
+    flex: 0 0 auto;
+  }
+  .central-project-delete-form {
+    flex: 0 0 auto;
+  }
+}
 .central-project-btn-delete {
   background: #fef2f2;
   color: #dc2626;
@@ -441,6 +472,7 @@
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
+/* Mobile em landscape / telas estreitas: carrossel horizontal (retrato sobrescrito abaixo) */
 @media (max-width: 640px) {
   .manutencao-stats-grid {
     display: flex;
@@ -453,6 +485,40 @@
   }
   .manutencao-stats-grid .manutencao-stat-card {
     flex: 0 0 min(78vw, 260px);
+  }
+}
+
+/* Mobile retrato: empilhar os 3 cards (sem corte lateral); landscape mantém regra de 640px acima */
+@media (max-width: 768px) and (orientation: portrait) {
+  .central-manutencao-page {
+    max-width: 100% !important;
+    width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+  .central-manutencao-page .central-section {
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  .central-manutencao-page .manutencao-stats-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    overflow-x: hidden !important;
+    overflow-y: visible;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .central-manutencao-page .manutencao-stats-grid .manutencao-stat-card {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
   }
 }
 .manutencao-stat-card {

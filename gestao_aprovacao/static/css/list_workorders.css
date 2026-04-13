@@ -1332,19 +1332,76 @@
         display: none;
     }
 
-    /* Coluna Analisado (mobile): garantir que o checkbox receba o toque */
-    .workorders-table td[data-label="Analisado"],
-    .data-table td[data-label="Analisado"] {
+    /* Coluna Analisado (mobile): só listagem de pedidos */
+    .workorders-table.workorders-table--pedidos td[data-label="Analisado"] {
         position: relative;
         z-index: 0;
     }
-    .workorders-table td[data-label="Analisado"] .checkbox-analisado,
-    .data-table td[data-label="Analisado"] .checkbox-analisado {
+    .workorders-table.workorders-table--pedidos td[data-label="Analisado"] .checkbox-analisado {
         z-index: 4;
     }
-    .workorders-table td[data-label="Analisado"]::before,
-    .data-table td[data-label="Analisado"]::before {
+    .workorders-table.workorders-table--pedidos td[data-label="Analisado"]::before {
         pointer-events: none;
+    }
+
+    /*
+     * Listagem de pedidos — Código / Tipo / Status (não aplicar em outras telas que reutilizam .workorders-table).
+     */
+    .workorders-table.workorders-table--pedidos td[data-label="Código"],
+    .workorders-table.workorders-table--pedidos td[data-label="Tipo"],
+    .workorders-table.workorders-table--pedidos td[data-label="Status"] {
+        justify-content: flex-start;
+        gap: 0.75rem;
+        text-align: left !important;
+    }
+
+    .workorders-table.workorders-table--pedidos td[data-label="Código"]::before,
+    .workorders-table.workorders-table--pedidos td[data-label="Tipo"]::before,
+    .workorders-table.workorders-table--pedidos td[data-label="Status"]::before {
+        margin-right: 0;
+    }
+
+    .workorders-table.workorders-table--pedidos td[data-label="Código"] > .code-link {
+        flex: 1 1 auto;
+        min-width: 0;
+        justify-content: flex-start;
+    }
+
+    .workorders-table.workorders-table--pedidos td[data-label="Tipo"] > .tipo-badge,
+    .workorders-table.workorders-table--pedidos td[data-label="Status"] > .status-badge {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .workorders-table.workorders-table--pedidos td[data-label="Status"].text-center .status-badge {
+        margin-left: 0 !important;
+        margin-right: auto;
+    }
+
+    /* Gerenciar obras — label + valor à esquerda; status só no tamanho do conteúdo */
+    .workorders-table.workorders-table--obras tbody td {
+        justify-content: flex-start;
+        gap: 0.75rem;
+        text-align: left !important;
+    }
+
+    .workorders-table.workorders-table--obras tbody td::before {
+        margin-right: 0;
+    }
+
+    .workorders-table.workorders-table--obras tbody td.text-center {
+        justify-content: flex-start;
+    }
+
+    .workorders-table.workorders-table--obras tbody td .status-badge {
+        margin-left: 0 !important;
+        flex: 0 1 auto;
+        width: auto;
+        max-width: 100%;
+    }
+
+    .workorders-table.workorders-table--obras tbody td[data-label="Empresa"] {
+        align-items: flex-start;
     }
 
     .pagination-wrapper {
@@ -1369,6 +1426,17 @@
 
     .stat-divider {
         height: 24px;
+    }
+}
+
+/* Retrato: badges Tipo / Status só no tamanho do texto (evita flex:1 1 auto esticar na linha inteira) */
+@media (max-width: 768px) and (orientation: portrait) {
+    .workorders-table.workorders-table--pedidos td[data-label="Tipo"] > .tipo-badge,
+    .workorders-table.workorders-table--pedidos td[data-label="Status"] > .status-badge {
+        flex: 0 1 auto !important;
+        width: auto !important;
+        max-width: fit-content !important;
+        align-self: flex-start;
     }
 }
 
@@ -1426,15 +1494,13 @@
         display: inline-block;
     }
 
-    .workorders-table td[data-label="Status"] .status-badge,
-    .data-table td[data-label="Status"] .status-badge {
-        margin-left: auto;
+    .workorders-table.workorders-table--pedidos td[data-label="Status"] .status-badge {
+        margin-left: 0 !important;
         max-width: calc(100% - 100px);
     }
 
-    .workorders-table td[data-label="Tipo"] .tipo-badge,
-    .data-table td[data-label="Tipo"] .tipo-badge {
-        margin-left: auto;
+    .workorders-table.workorders-table--pedidos td[data-label="Tipo"] .tipo-badge {
+        margin-left: 0 !important;
         max-width: calc(100% - 100px);
     }
 
@@ -1444,5 +1510,12 @@
         min-height: 44px;
         width: 100%;
         justify-content: center;
+    }
+}
+
+@media (max-width: 480px) and (orientation: portrait) {
+    .workorders-table.workorders-table--pedidos td[data-label="Tipo"] .tipo-badge,
+    .workorders-table.workorders-table--pedidos td[data-label="Status"] .status-badge {
+        max-width: fit-content !important;
     }
 }

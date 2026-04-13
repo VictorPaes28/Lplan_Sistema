@@ -69,7 +69,7 @@
                     <span class="lplan-wordmark-sub">ENGENHARIA INTEGRADA</span>
                 </span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" style="display:inline-flex;align-items:center;justify-content:center;padding:6px;">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -139,11 +139,6 @@
                                     <i class="bi bi-upload"></i> <span>Importar</span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'mapa_obras:home' %}">
-                                    <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
-                                </a>
-                            </li>
                             {% endif %}
                         {% endif %}
                     {% endif %}
@@ -178,7 +173,6 @@
                         </li>
                         {% endif %}
                         {% endif %}
-                        
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                                 <span class="lplan-avatar">{{ user.username|slice:":1"|upper }}</span>

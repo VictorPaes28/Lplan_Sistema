@@ -324,7 +324,9 @@
     if (!body || !data) return;
     var c = data.controle || {};
     var s = data.suprimentos || {};
-    var lines = (c.linhas || [])
+    var rx = data.resumo_executivo || {};
+    var rs = c.resumo_status || {};
+    var lines = (c.linhas_preview || c.linhas || [])
       .map(function (row) {
         return (
           "<tr><td>" +
@@ -339,18 +341,72 @@
         );
       })
       .join("");
+    var travadas = (c.atividades_criticas || [])
+      .map(function (row) {
+        return (
+          "<tr><td>" +
+          escapeHtml(row.atividade) +
+          "</td><td>" +
+          escapeHtml(row.apto) +
+          "</td><td>" +
+          escapeHtml(row.status_texto) +
+          "</td><td>" +
+          escapeHtml(row.percentual) +
+          "%</td></tr>"
+        );
+      })
+      .join("");
+    var materiais = (s.materiais_criticos || [])
+      .map(function (row) {
+        return (
+          "<li><strong>" +
+          escapeHtml(row.local) +
+          "</strong>: " +
+          escapeHtml(row.pendencias) +
+          " pend.</li>"
+        );
+      })
+      .join("");
+    var prioridade = (rx.prioridade || "media").toLowerCase();
     body.innerHTML =
       '<p class="small ao-drill-muted mb-2">Recorte · bloco ' +
       escapeHtml((data.chave || {}).bloco) +
       " · pav. " +
       escapeHtml((data.chave || {}).pavimento || "—") +
       "</p>" +
-      '<p><span class="ao-badge-origem controle">Controle</span> % médio local: <strong>' +
-      (c.percentual_medio_local != null ? c.percentual_medio_local + "%" : "—") +
-      "</strong> · linhas: " +
-      (c.total_linhas || 0) +
+      '<div class="ao-drill-priority ao-priority-' +
+      escapeHtml(prioridade) +
+      '"><span>Prioridade: <strong>' +
+      escapeHtml((rx.prioridade || "media").toUpperCase()) +
+      "</strong></span><span>Score: <strong>" +
+      escapeHtml(rx.score) +
+      "</strong></span></div>" +
+      '<p class="small mt-2 mb-2">' +
+      escapeHtml(rx.acao || "") +
       "</p>" +
-      '<div class="ao-table-wrap my-3"><table class="ao-table"><thead><tr><th>Atividade</th><th>Apto</th><th>Status</th><th>%</th></tr></thead><tbody>' +
+      '<div class="ao-drill-kpi-grid"><div class="ao-drill-kpi"><small>% médio local</small><strong>' +
+      (c.percentual_medio_local != null ? c.percentual_medio_local + "%" : "—") +
+      '</strong></div><div class="ao-drill-kpi"><small>Linhas totais</small><strong>' +
+      (c.total_linhas || 0) +
+      '</strong></div><div class="ao-drill-kpi"><small>Concluídas</small><strong>' +
+      (rs.concluidos || 0) +
+      '</strong></div><div class="ao-drill-kpi"><small>Em andamento</small><strong>' +
+      (rs.em_andamento || 0) +
+      '</strong></div><div class="ao-drill-kpi"><small>Não iniciadas</small><strong>' +
+      (rs.nao_iniciados || 0) +
+      '</strong></div><div class="ao-drill-kpi"><small>Sem dado</small><strong>' +
+      (rs.sem_dado || 0) +
+      "</strong></div></div>" +
+      '<h6 class="mt-3 mb-2">Top 5 atividades travadas</h6>' +
+      '<div class="ao-table-wrap my-2"><table class="ao-table"><thead><tr><th>Atividade</th><th>Apto</th><th>Status</th><th>%</th></tr></thead><tbody>' +
+      (travadas || '<tr><td colspan="4" class="ao-empty">Sem atividades críticas</td></tr>') +
+      "</tbody></table></div>" +
+      '<h6 class="mt-3 mb-2">Materiais críticos do local</h6>' +
+      '<ul class="ao-drill-list">' +
+      (materiais || '<li class="ao-drill-muted">Sem pendências críticas no recorte.</li>') +
+      "</ul>" +
+      '<p class="small mt-3"><span class="ao-badge-origem controle">Controle</span> Prévia de linhas do local (12 primeiras)</p>' +
+      '<div class="ao-table-wrap my-2"><table class="ao-table"><thead><tr><th>Atividade</th><th>Apto</th><th>Status</th><th>%</th></tr></thead><tbody>' +
       (lines || '<tr><td colspan="4" class="ao-empty">Sem linhas</td></tr>') +
       "</tbody></table></div>" +
       '<p class="small"><span class="ao-badge-origem suprimentos">Suprimentos</span> ' +
@@ -409,6 +465,20 @@
     });
   }
 
+  function initOccurrenceShowMore() {
+    var btn = document.getElementById("aoOccShowMore");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var rows = document.querySelectorAll(".ao-occ-extra");
+      var expanded = btn.getAttribute("aria-expanded") === "true";
+      rows.forEach(function (row) {
+        row.classList.toggle("d-none", expanded);
+      });
+      btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      btn.textContent = expanded ? "Ver mais ocorrências (" + rows.length + ")" : "Ver menos ocorrências";
+    });
+  }
+
   function initHeatmapShowMore() {
     var btn = document.getElementById("aoHeatmapShowMore");
     if (!btn) return;
@@ -421,6 +491,36 @@
       btn.setAttribute("aria-expanded", expanded ? "false" : "true");
       btn.textContent = expanded ? "Ver mais" : "Ver menos";
     });
+  }
+
+  function initActionShowMore() {
+    var btn = document.getElementById("aoActionShowMore");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var rows = document.querySelectorAll(".ao-action-extra");
+      var expanded = btn.getAttribute("aria-expanded") === "true";
+      rows.forEach(function (row) {
+        row.classList.toggle("d-none", expanded);
+      });
+      btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      btn.textContent = expanded ? "Ver mais ações (" + rows.length + ")" : "Ver menos ações";
+    });
+  }
+
+  function initOccurrenceCollapseButton() {
+    var btn = document.querySelector('[data-bs-target="#aoOcorrenciasCollapse"]');
+    var panel = document.getElementById("aoOcorrenciasCollapse");
+    if (!btn || !panel) return;
+    var total = btn.textContent.match(/\((\d+)\)/);
+    var countText = total ? " (" + total[1] + ")" : "";
+    function syncLabel() {
+      var open = panel.classList.contains("show");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.textContent = (open ? "Ocultar ocorrências" : "Mostrar ocorrências") + countText;
+    }
+    panel.addEventListener("shown.bs.collapse", syncLabel);
+    panel.addEventListener("hidden.bs.collapse", syncLabel);
+    syncLabel();
   }
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -439,7 +539,10 @@
     }
 
     initOccurrencePriorityFilter();
+    initOccurrenceShowMore();
     initHeatmapShowMore();
+    initActionShowMore();
+    initOccurrenceCollapseButton();
 
     document.querySelectorAll(".ao-heat-row").forEach(function (row) {
       row.addEventListener("click", function (ev) {

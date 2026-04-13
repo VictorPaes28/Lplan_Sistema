@@ -177,6 +177,7 @@ def _parse_grid_pct_clicado(request) -> int | None:
 
 
 def _resolve_matrix_mode(requested: str, selected: dict) -> str:
+    """Modos alternativos exigem camadas mínimas para fazer sentido na obra."""
     r = (requested or "").strip().lower()
     if r not in ("bloco", "pavimento", "apto"):
         r = "bloco"
@@ -205,6 +206,7 @@ def _build_matrix_grid(
     atividades_max: int = 36,
     rows_max: int = 60,
 ) -> dict:
+    """Agrega percentuais em uma grade (linha x atividade), ex.: bloco×atividade ou pavimento×atividade."""
     default_row = _default_label_for_row_field(row_field)
     only_fields = [row_field, "atividade", "status_percentual", "status_texto"]
     matrix_items = list(matrix_scope_qs.only(*only_fields).order_by(row_field, "atividade"))
@@ -480,7 +482,7 @@ def mapa_controle(request):
 
         layers = _build_layers_navigation(raw_qs, selected)
 
-        # MATRIZ GERENCIAL — bloco / pavimento / apto × atividade
+        # MATRIZ GERENCIAL — bloco / pavimento / apto × atividade (dimensão de linha variável)
         matrix_scope = active_scope_qs
         matrix_mode = _resolve_matrix_mode(request.GET.get("matrix_mode") or "", selected)
         row_field = _row_field_for_matrix_mode(matrix_mode)

@@ -78,7 +78,8 @@
 
 <!-- Filtros HTMX (mantém hx-get, hx-target, hx-trigger e names para não quebrar HTMX) -->
 <div class="filter-form-card mb-6">
-    <form hx-get="{% url 'report-list' %}" 
+    <form id="report-list-filter-form"
+          hx-get="{% url 'report-list' %}" 
           hx-target="#report-list" 
           hx-trigger="change, keyup delay:500ms"
           class="filter-form">
@@ -109,11 +110,17 @@
             </button>
         </div>
     </form>
-    <div class="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+    <div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-slate-100">
         <a href="{% url 'report-list' %}" 
            class="text-sm text-slate-600 hover:text-slate-800 font-medium">
             <i class="fas fa-redo mr-1"></i> Limpar filtros
         </a>
+        <button type="button"
+                class="text-sm font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200"
+                onclick="window.location.href='{% url 'diary-bulk-pdf-zip' %}?'+new URLSearchParams(new FormData(document.getElementById('report-list-filter-form'))).toString()"
+                title="Gera um ZIP com o PDF de cada relatório do filtro (máx. 250)">
+            <i class="fas fa-file-archive text-amber-700"></i> Exportar PDFs (ZIP)
+        </button>
     </div>
 </div>
 
@@ -162,6 +169,10 @@
                                class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                                title="Baixar PDF" aria-label="PDF do relatório {{ diary.date|date:'d/m/Y' }}"
                                onclick="event.stopPropagation();"><i class="fas fa-file-pdf"></i></a>
+                            <a href="{% url 'diary-pdf-reader' diary.id %}"
+                               class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                               title="Modo leitura (PDF no navegador)" aria-label="Modo leitura PDF {{ diary.date|date:'d/m/Y' }}"
+                               onclick="event.stopPropagation();"><i class="fas fa-book-reader"></i></a>
                             {% if diary|can_edit:user %}
                             <a href="{% url 'diary-edit' diary.id %}" 
                                class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -215,6 +226,7 @@
                 </div>
                 <div class="flex items-center gap-2 pt-3 border-t border-slate-100" onclick="event.preventDefault(); event.stopPropagation();">
                     <a href="{% url 'diary-pdf' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200" onclick="event.stopPropagation();"><i class="fas fa-file-pdf mr-1"></i>PDF</a>
+                    <a href="{% url 'diary-pdf-reader' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200" onclick="event.stopPropagation();" title="Modo leitura"><i class="fas fa-book-reader mr-1"></i>Leitura</a>
                     {% if diary|can_edit:user %}
                     <a href="{% url 'diary-edit' diary.id %}" class="flex-1 py-2 text-center text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700" onclick="event.stopPropagation();"><i class="fas fa-edit mr-1"></i>Editar</a>
                     {% else %}

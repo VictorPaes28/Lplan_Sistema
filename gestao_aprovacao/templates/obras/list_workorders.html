@@ -200,9 +200,14 @@
                     <span class="filter-advanced-footer-title">Download em PDF</span>
                     <span class="filter-advanced-footer-hint">Usa os mesmos filtros da tabela abaixo.</span>
                 </div>
+                <div class="filter-advanced-footer-actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
                 <button type="button" class="btn filter-btn btn-export-pdf" id="export-list-pdf-btn">
                     <span class="btn-export-pdf__label">Gerar PDF</span>
                 </button>
+                <button type="button" class="btn filter-btn btn-secondary" id="leitura-lista-pdf-btn" title="Abrir o PDF no navegador com opção de baixar">
+                    <i class="fas fa-book-reader" style="margin-right:0.35rem;"></i>Modo leitura
+                </button>
+                </div>
             </div>
         </div>
     </form>
@@ -235,7 +240,7 @@
 <!-- Lista de Pedidos -->
 {% if workorders %}
     <div class="card table-container">
-        <table class="workorders-table">
+        <table class="workorders-table workorders-table--pedidos">
             <thead>
                 <tr>
                     {% if pode_marcar_analisado %}
@@ -571,18 +576,30 @@ function toggleFilters() {
 // Ordenação clicável
 document.addEventListener('DOMContentLoaded', function() {
     var exportPdfBtn = document.getElementById('export-list-pdf-btn');
+    function _gestaoListPdfQueryString() {
+        var form = document.getElementById('filters-form');
+        if (!form) return '';
+        var params = new URLSearchParams(new FormData(form));
+        params.delete('page');
+        var cur = new URLSearchParams(window.location.search);
+        if (cur.get('order_by')) {
+            params.set('order_by', cur.get('order_by'));
+        }
+        return params.toString();
+    }
     if (exportPdfBtn) {
         exportPdfBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            var form = document.getElementById('filters-form');
-            if (!form) return;
-            var params = new URLSearchParams(new FormData(form));
-            params.delete('page');
-            var cur = new URLSearchParams(window.location.search);
-            if (cur.get('order_by')) {
-                params.set('order_by', cur.get('order_by'));
-            }
-            window.location.href = "{% url 'gestao:export_list_workorders_pdf' %}?" + params.toString();
+            var q = _gestaoListPdfQueryString();
+            window.location.href = "{% url 'gestao:export_list_workorders_pdf' %}?" + q;
+        });
+    }
+    var leituraListaBtn = document.getElementById('leitura-lista-pdf-btn');
+    if (leituraListaBtn) {
+        leituraListaBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var q = _gestaoListPdfQueryString();
+            window.location.href = "{% url 'gestao:leitura_lista_pedidos_pdf' %}?" + q;
         });
     }
     const hasFilters = {% if obra_filter or tipo_solicitacao_filter or credor_filter or engenheiro_filter or data_inicio or data_fim %}true{% else %}false{% endif %};

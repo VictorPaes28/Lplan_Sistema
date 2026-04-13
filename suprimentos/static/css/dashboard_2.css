@@ -2565,7 +2565,8 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
     letter-spacing: 0.3px;
     padding: 2px 6px;
     border-radius: 3px;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
     line-height: 1.3;
 }
 
@@ -3226,6 +3227,13 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
 .pedido-gap::before {
     content: '⚠️';
     font-size: 12px;
+}
+
+/* Desktop + landscape: ocultar o badge vermelho abaixo de "NÃO SOLICITADO"
+   — o texto já comunica o status; o badge é redundante e visualmente poluído.
+   Seletor irmão adjacente garante que o pedido-gap após SC é preservado. */
+.pedido-sem-sc + .pedido-gap {
+    display: none;
 }
 
 /* Coluna Recebido - QUANTIDADE GRANDE */
@@ -4212,7 +4220,13 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
         max-width: 100%;
     }
 
+    /* STATUS sempre visível no portrait — sem toggle */
+    .dashboard-filtros-bar-mobile-toggle {
+        display: none !important;
+    }
+
     .dashboard-filtros-bar-content {
+        display: flex !important;
         border: 1px solid var(--dark-border);
         border-radius: 8px;
         padding: 10px;
@@ -4224,12 +4238,18 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
         overflow-x: auto;
         overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 8px;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+    }
+
+    .dashboard-filtros-chips-wrapper::-webkit-scrollbar {
+        display: none;
     }
     
     .dashboard-filtros-chips {
         display: flex;
-        gap: 8px;
+        flex-wrap: nowrap;
+        gap: 6px;
         min-width: max-content;
     }
     
@@ -4301,6 +4321,16 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
+
+    /* Portrait: manter badge compacto sem quebra de linha e badge vermelho visível */
+    .pipeline-badge {
+        white-space: nowrap !important;
+        word-break: normal !important;
+    }
+
+    .pedido-sem-sc + .pedido-gap {
+        display: inline-flex !important;
+    }
 }
 
 /* Mobile Landscape (768px - 1024px em landscape) - OTIMIZAR PARA VER TABELA COMPLETA */
@@ -4327,90 +4357,198 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
         max-width: 100% !important;
     }
     
-    /* Header MÍNIMO - máximo espaço para tabela */
+    /* ===================================================================
+       LANDSCAPE — 4 linhas compactas
+       Técnica: display:contents em .dashboard-controls E .dashboard-filtros-bar
+       promove todos os filhos ao header flex container, permitindo ordenação
+       livre via order sem alterar o HTML.
+       =================================================================== */
+
+    /* Header: flex-wrap para acomodar as 4 linhas */
     .dashboard-header {
-        padding: 4px 8px !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        padding: 3px 6px !important;
         min-height: auto !important;
-        width: 100% !important;
+        gap: 3px !important;
     }
-    
+
+    /* Título oculto */
     .dashboard-title {
-        font-size: 11px !important;
-        line-height: 1.1 !important;
-    }
-    
-    .dashboard-title-main {
-        font-size: 11px !important;
-    }
-    
-    .dashboard-title-sub {
         display: none !important;
     }
-    
+
+    /* Controls vira transparente: botões e obra-select sobem ao header */
     .dashboard-controls {
-        max-width: none !important;
-        flex: 1 !important;
+        display: contents !important;
+    }
+
+    /* === LINHA 1: Atualizar | Tema escuro | Modo Tabela ===
+       Cada botão com flex: 1 1 0 preenche 100% da linha, forçando
+       obra-select (order: 4) a quebrar para a linha 2. */
+    .btn-header-action {
+        order: 1 !important;
+        flex: 1 1 0 !important;
+        justify-content: center !important;
+        font-size: 10px !important;
+        padding: 4px 6px !important;
+        min-height: 28px !important;
         gap: 4px !important;
     }
-    
+
+    .btn-header-label {
+        display: inline !important;
+        font-size: 10px !important;
+    }
+
+    /* === LINHA 2: obra 1 (dropdown) | Buscar insumo === */
     .dashboard-obra-select {
+        order: 4 !important;
+        flex: 0 1 auto !important;
         font-size: 9px !important;
         padding: 3px 6px !important;
-        min-width: 100px !important;
+        min-width: 90px !important;
+        max-width: 160px !important;
     }
-    
-    .btn-theme-toggle {
-        width: 28px !important;
-        height: 28px !important;
-        font-size: 12px !important;
-    }
-    
-    /* Barra de filtros MÍNIMA */
+
+    /* Filtros-bar vira transparente: busca, toggle, chips sobem ao header */
     .dashboard-filtros-bar {
-        padding: 3px 6px !important;
-        gap: 4px !important;
-        min-height: auto !important;
-        width: 100% !important;
+        display: contents !important;
     }
-    
-    .dashboard-filtros-bar .dashboard-busca {
-        min-width: 140px !important;
-        max-width: 200px !important;
+
+    /* Busca: linha 2, ao lado do obra-select, preenche espaço restante */
+    .dashboard-busca-sticky-mobile {
+        order: 5 !important;
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
-    
+
     .dashboard-busca-input {
         font-size: 9px !important;
-        padding: 3px 6px !important;
+        padding: 3px 20px 3px 22px !important;
+        width: 100% !important;
     }
-    
+
     .dashboard-busca-icon {
         font-size: 11px !important;
         left: 6px !important;
     }
-    
-    .filtro-chip-home {
-        padding: 2px 5px !important;
-        font-size: 8px !important;
-        min-height: auto !important;
-        gap: 2px !important;
+
+    /* Toggle oculto */
+    .dashboard-filtros-bar-mobile-toggle {
+        display: none !important;
+        order: 0 !important;
     }
-    
+
+    /* === LINHA 3: STATUS chips — largura total, scroll horizontal === */
+    .dashboard-filtros-bar-content {
+        display: flex !important;
+        order: 6 !important;
+        flex: 0 0 100% !important;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 6px !important;
+        padding: 4px 6px !important;
+        background: var(--bg-industrial-800) !important;
+        border-top: 1px solid var(--dark-border) !important;
+        scrollbar-width: none !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .dashboard-filtros-bar-content::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .dashboard-filtros-chips-wrapper {
+        display: flex !important;
+        flex: 1 !important;
+        align-items: center !important;
+        gap: 6px !important;
+        overflow: visible !important;
+        padding-bottom: 0 !important;
+        min-width: 0 !important;
+    }
+
+    .filtros-chips-label {
+        flex-shrink: 0 !important;
+        font-size: 10px !important;
+    }
+
+    .dashboard-filtros-chips {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        min-width: max-content !important;
+        gap: 6px !important;
+    }
+
+    /* STATUS: mesmo tamanho e proporção do portrait */
+    .filtro-chip-home {
+        padding: 5px 10px !important;
+        font-size: 11px !important;
+        gap: 6px !important;
+        white-space: nowrap !important;
+        min-height: auto !important;
+    }
+
     .filtro-chip-home i {
+        font-size: 13px !important;
+    }
+
+    /* Linha 4: KPI bar visível */
+    .kpi-bar {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        padding: 4px 6px !important;
+        gap: 4px !important;
+    }
+
+    .kpi-item {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        padding: 4px 6px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+
+    .kpi-icon-mini {
+        width: 16px !important;
+        height: 16px !important;
         font-size: 9px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .kpi-value {
+        font-size: 0.75rem !important;
+        line-height: 1 !important;
+    }
+
+    .kpi-label {
+        font-size: 0.5rem !important;
+        line-height: 1 !important;
+    }
+
+    /* Ajustar altura da tabela para acomodar os 4 blocos acima */
+    .tabela-container-vertical {
+        max-height: calc(100vh - 170px) !important;
     }
     
     /* Tabela - MÁXIMA COMPACTAÇÃO PARA MUITOS INSUMOS */
     .tabela-container-vertical {
         max-height: calc(100vh - 75px) !important;
-        overflow-x: auto;
-        overflow-y: auto;
+        overflow-x: auto !important;
+        overflow-y: auto !important;
         width: 100% !important;
     }
     
+    /* Tabela: table-layout fixed + 100% para colunas proporcionais sem scroll */
     .matriz-table {
         font-size: 8px !important;
-        min-width: 600px !important;
+        min-width: 0 !important;
         width: 100% !important;
+        table-layout: fixed !important;
         line-height: 1.1 !important;
     }
     
@@ -4427,117 +4565,115 @@ body.modo-matriz-tatica #tabelaContainer .matriz-table tbody tr {
         font-size: 8px !important;
         line-height: 1.2 !important;
         vertical-align: top !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
-    
-    .insumo-nome {
+
+    /* === TAMANHOS DE TEXTO PADRONIZADOS ===
+       Nível 1 (9px): valores principais — nome, quantidades, NÃO SOLICITADO, Sem planejamento
+       Nível 2 (8px): código do insumo — ligeiramente menor que o nome
+       Nível 3 (7px): unidades, labels secundários, gaps */
+
+    /* Nível 1 — 9px */
+    .insumo-nome,
+    .plano-valor,
+    .plano-zero,
+    .pedido-sc,
+    .pedido-sem-sc,
+    .patio-valor,
+    .destino-linha-unica,
+    .destino-qtd {
         font-size: 9px !important;
+        font-weight: 700 !important;
+        margin-bottom: 0px !important;
         line-height: 1.1 !important;
+    }
+
+    /* Nível 2 — 8px */
+    .insumo-codigo,
+    .pedido-qtd {
+        font-size: 8px !important;
         margin-bottom: 0px !important;
     }
-    
+
+    /* Nível 3 — 7px */
     .insumo-meta {
         font-size: 7px !important;
         margin-top: 0px !important;
         gap: 2px !important;
     }
-    
-    .insumo-codigo {
-        font-size: 7px !important;
-    }
-    
-    .insumo-unidade {
-        font-size: 7px !important;
-    }
-    
-    .insumo-categoria {
-        font-size: 6px !important;
-        margin-top: 0px !important;
-    }
-    
-    .plano-valor,
-    .patio-valor,
-    .destino-qtd {
-        font-size: 9px !important;
-        font-weight: 700 !important;
-        margin-bottom: 0px !important;
-        line-height: 1.0 !important;
-    }
-    
+
+    .insumo-unidade,
     .plano-unidade,
     .patio-unidade,
-    .destino-unidade {
-        font-size: 7px !important;
-    }
-    
-    .plano-zero {
-        font-size: 6px !important;
-        margin-top: 0px !important;
-    }
-    
-    .pedido-sc {
-        font-size: 9px !important;
-        font-weight: 700 !important;
-        margin-bottom: 0px !important;
-        line-height: 1.0 !important;
-    }
-    
-    .pedido-qtd {
-        font-size: 8px !important;
-        margin-bottom: 0px !important;
-    }
-    
-    .pedido-gap {
-        font-size: 7px !important;
-        padding: 1px 3px !important;
-        margin-top: 0px !important;
-    }
-    
-    .pedido-sem-sc {
-        font-size: 8px !important;
-        margin-bottom: 0px !important;
-    }
-    
-    .patio-gap {
-        font-size: 7px !important;
-        padding: 1px 3px !important;
-        margin-top: 0px !important;
-    }
-    
-    .destino-local {
-        font-size: 7px !important;
-        margin-top: 0px !important;
-    }
-    
+    .destino-unidade,
+    .insumo-categoria,
+    .pedido-gap,
+    .patio-gap,
+    .destino-local,
     .destino-gap {
         font-size: 7px !important;
-        padding: 1px 3px !important;
         margin-top: 0px !important;
     }
+
+    .insumo-categoria {
+        margin-top: 0px !important;
+    }
+
+    .pedido-gap,
+    .patio-gap,
+    .destino-gap {
+        padding: 1px 3px !important;
+    }
+
+    /* Remover emoji ⚠️ do pedido-gap no landscape — ícone Bootstrap já indica o alerta */
+    .pedido-gap::before {
+        display: none !important;
+    }
     
-    /* Colunas - LARGURAS MÍNIMAS ABSOLUTAS */
+    /* Colunas - PROPORCIONAIS (table-layout: fixed distribui 100% da largura da tela)
+       Com LOCAL: 8+28+12+9+14+11+18 = 100%
+       Sem LOCAL: 8+28+9+14+11+18 = 88% → restante distribuído no col-insumo */
+    .col-status-mini {
+        width: 8% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
     .col-insumo {
-        min-width: 120px !important;
-        max-width: 160px !important;
+        width: 28% !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
-    
+
+    .col-local {
+        width: 12% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
     .col-plano {
-        min-width: 55px !important;
-        max-width: 65px !important;
+        width: 9% !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
-    
+
     .col-pedido {
-        min-width: 90px !important;
-        max-width: 115px !important;
+        width: 14% !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
-    
+
     .col-patio {
-        min-width: 75px !important;
-        max-width: 95px !important;
+        width: 11% !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
-    
+
     .col-destino {
-        min-width: 115px !important;
-        max-width: 145px !important;
+        width: 18% !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
     
     /* Header de itens MÍNIMO */

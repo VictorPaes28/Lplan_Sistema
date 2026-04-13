@@ -72,17 +72,20 @@
                 Fluxo semi-automático: lançou no Sienge → exportou (CSV/XLSX) → upload aqui.
                 <strong>Use CSV ou Excel (XLSX)</strong> — PDF não é suportado; exporte do Sienge em CSV ou planilha.
                 {% if obra_contexto %}
-                <span class="ms-2 badge-mini neutral"><i class="bi bi-building"></i> Obra atual: {{ obra_contexto.nome }} ({{ obra_contexto.codigo_sienge }})</span>
+                <span class="ms-2 badge-mini neutral badge-obra-desktop"><i class="bi bi-building"></i> Obra atual: {{ obra_contexto.nome }} ({{ obra_contexto.codigo_sienge }})</span>
                 {% endif %}
             </div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{% url 'engenharia:mapa' %}" class="btn btn-sm btn-outline-light">
+        <div class="d-flex gap-2 lplan-hero-actions">
+            <a href="{% url 'engenharia:mapa' %}" class="btn btn-sm btn-outline-light lplan-hero-btn">
                 <i class="bi bi-table"></i> Mapa
             </a>
-            <a href="{% url 'engenharia:dashboard_2' %}" class="btn btn-sm btn-outline-light">
+            <a href="{% url 'engenharia:dashboard_2' %}" class="btn btn-sm btn-outline-light lplan-hero-btn">
                 <i class="bi bi-speedometer"></i> Dashboard
             </a>
+            {% if obra_contexto %}
+            <span class="badge-mini neutral badge-obra-mobile"><i class="bi bi-building"></i> Obra atual: {{ obra_contexto.nome }} ({{ obra_contexto.codigo_sienge }})</span>
+            {% endif %}
         </div>
     </div>
 
