@@ -61,3 +61,6 @@ else:
         path(settings.STATIC_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
         path(settings.MEDIA_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
     ] + urlpatterns
+
+# 400 customizado: POST muito grande / muitos campos retornam JSON com código (ex.: UPLOAD_BODY_TOO_LARGE)
+handler400 = 'core.error_handlers.bad_request'

@@ -6,6 +6,11 @@
 
 {% block extra_css %}
 <style>
+    /* Tela inicial: não exibir botão de voltar */
+    #top-bar-back-link {
+        display: none !important;
+    }
+
     /* System Cards */
     .system-card {
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -73,6 +78,8 @@
     .system-card.mapa .card-inner::before { background: #10b981; }
     .system-card.controle:hover:not(.disabled) .card-inner { border-color: #f97316; }
     .system-card.controle .card-inner::before { background: #f97316; }
+    .system-card.biobra:hover:not(.disabled) .card-inner { border-color: #0ea5e9; }
+    .system-card.biobra .card-inner::before { background: #0ea5e9; }
     .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
     .system-card.central .card-inner::before { background: #475569; }
 
@@ -94,6 +101,7 @@
     .system-card.diario .system-icon { background: linear-gradient(135deg, #667eea, #764ba2); box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35); }
     .system-card.gestao .system-icon { background: linear-gradient(135deg, #f093fb, #f5576c); box-shadow: 0 4px 14px rgba(245, 87, 108, 0.35); }
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
+    .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
     .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
 
     /* Badges */
@@ -148,6 +156,7 @@
     .system-card.diario .card-arrow { color: #3b82f6; }
     .system-card.gestao .card-arrow { color: #a855f7; }
     .system-card.mapa .card-arrow   { color: #10b981; }
+    .system-card.biobra .card-arrow { color: #0ea5e9; }
     .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
 
@@ -643,6 +652,32 @@
             </div>
         </a>
 
+        <!-- BI da Obra (visão integrada por obra vinculada) -->
+        <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra {% if not has_bi_obra %}disabled{% endif %}" aria-label="Acessar BI da Obra" {% if not has_bi_obra %}data-tooltip="Sem acesso"{% endif %}>
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-chart-pie"></i></div>
+                    {% if has_bi_obra %}
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">BI da Obra</h3>
+                <p class="text-sm text-slate-500 mb-4">Obra, campo e material numa leitura só</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-sky-500"></i>Indicadores por obra</li>
+                        <li><i class="fas fa-check-circle text-sky-500"></i>Diário + mapa + suprimentos</li>
+                        <li><i class="fas fa-check-circle text-sky-500"></i>Gráficos e mapa de calor</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Abrir <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+
         <!-- Mapa de Controle -->
         <a href="{% url 'engenharia:mapa_controle' %}" class="system-card controle {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Mapa de Controle" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
             <div class="card-inner">
@@ -672,22 +707,23 @@
     </div>
 
     <!-- Card de Suporte -->
-    <section class="support-card" aria-label="Entrar em contato com o suporte">
+    <section class="support-card" aria-label="Abrir chamado com o suporte">
         <div class="support-card-icon"><i class="fas fa-headset"></i></div>
         <div class="support-card-content">
             <div class="support-card-title">Suporte</div>
-            <p class="support-card-text">Se aparecer erro ou dúvida, envie para <strong>suporte@lplan.com.br</strong> com um print e o horário. Isso acelera muito a correção.</p>
+            <p class="support-card-text">Abra um chamado dentro do sistema e acompanhe o retorno da equipe sem depender de e-mail.</p>
             <div class="support-card-actions">
                 <button type="button" id="open-support-modal-btn" class="support-card-btn support-card-btn-secondary">
-                    <i class="fas fa-bug"></i>Reportar erro
+                    <i class="fas fa-bug"></i>Novo chamado
                 </button>
-                <a id="support-webmail-link"
-                   href="https://lplan.com.br/webmail/"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   class="support-card-btn support-card-btn-primary">
-                    <i class="fas fa-envelope"></i>Abrir Webmail LPLAN
+                <a href="{% url 'support-ticket-list' %}" class="support-card-btn support-card-btn-primary">
+                    <i class="fas fa-list"></i>Meus chamados
                 </a>
+                {% if can_manage_support_tickets %}
+                <a href="{% url 'support-ticket-admin-list' %}" class="support-card-btn support-card-btn-primary">
+                    <i class="fas fa-headset"></i>Painel suporte
+                </a>
+                {% endif %}
             </div>
         </div>
     </section>
@@ -697,8 +733,8 @@
     <div class="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
         <div class="support-modal-header">
             <div>
-                <div id="support-modal-title" class="support-modal-title">Enviar erro para o suporte</div>
-                <div class="support-form-helper">Formato recomendado para correção mais rápida.</div>
+                <div id="support-modal-title" class="support-modal-title">Novo chamado</div>
+                <div class="support-form-helper">Explique o problema em poucas linhas.</div>
             </div>
             <button type="button" class="support-modal-close" id="close-support-modal-btn" aria-label="Fechar">
                 <i class="fas fa-times"></i>
@@ -707,43 +743,44 @@
         <form id="support-form" class="support-modal-body" novalidate>
             {% csrf_token %}
             <div class="support-form-grid">
-                <div class="support-form-field full">
-                    <label>Atalhos rápidos</label>
-                    <div class="support-shortcuts">
-                        <button type="button" class="support-shortcut-btn" data-shortcut="login">Erro de login</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="diario">Erro no diário</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="pdf">Erro em PDF</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="gestao">Erro no GestControll</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="exclusao">Exclusão de pedido</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="analisado">Marcação de analisado</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="anexo">Erro com anexo</button>
-                        <button type="button" class="support-shortcut-btn" data-shortcut="mobile">Bug no mobile</button>
-                    </div>
-                </div>
-
                 <div class="support-form-field">
-                    <label for="support-category">Categoria <span class="support-required">*</span></label>
+                    <label for="support-category">Área do problema <span class="support-required">*</span></label>
                     <select id="support-category" required>
                         <option value="">Selecione...</option>
-                        <option value="Login/Acesso">Login/Acesso</option>
-                        <option value="Diário de Obra">Diário de Obra</option>
-                        <option value="PDF/Relatórios">PDF/Relatórios</option>
-                        <option value="Fotos/Vídeos">Fotos/Vídeos</option>
-                        <option value="Mobile/Responsivo">Mobile/Responsivo</option>
-                        <option value="Permissões/Usuário">Permissões/Usuário</option>
-                        <option value="Outro">Outro</option>
+                        {% for category in support_categories %}
+                        <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
                     </select>
+                    <div class="support-form-helper">Escolha o módulo mais próximo para agilizar o atendimento.</div>
                 </div>
                 <div class="support-form-field">
-                    <label for="support-severity">Severidade <span class="support-required">*</span></label>
+                    <label for="support-severity">Impacto do problema <span class="support-required">*</span></label>
                     <select id="support-severity" required>
                         <option value="">Selecione...</option>
-                        <option value="Bloqueante">Bloqueante</option>
-                        <option value="Importante">Importante</option>
-                        <option value="Médio">Médio</option>
-                        <option value="Baixo/Dúvida">Baixo/Dúvida</option>
+                        <option value="BL">Sistema parado (urgente)</option>
+                        <option value="IM">Prejudica bastante o trabalho</option>
+                        <option value="MD">Incomoda, mas dá para continuar</option>
+                        <option value="LW">Dúvida ou ajuste simples</option>
                     </select>
                 </div>
+                {% if support_projects|length > 1 %}
+                <div class="support-form-field full">
+                    <label for="support-project">Obra relacionada <span class="support-required">*</span></label>
+                    <select id="support-project" required>
+                        <option value="">Selecione a obra...</option>
+                        {% for p in support_projects %}
+                        <option value="{{ p.id }}">{{ p.code }} - {{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% elif support_auto_project %}
+                <div class="support-form-field full">
+                    <label>Obra relacionada</label>
+                    <input type="text" value="{{ support_auto_project.code }} - {{ support_auto_project.name }}" readonly>
+                    <input type="hidden" id="support-project" value="{{ support_auto_project.id }}">
+                    <div class="support-form-helper">A obra foi vinculada automaticamente, pois você tem acesso a apenas uma.</div>
+                </div>
+                {% endif %}
 
                 <div class="support-form-field full">
                     <label for="support-title">Título <span class="support-required">*</span></label>
@@ -752,14 +789,19 @@
 
                 <div class="support-form-field full">
                     <label for="support-desc">Descrição do problema <span class="support-required">*</span></label>
-                    <textarea id="support-desc" required placeholder="1) O que você estava fazendo&#10;2) O que esperava que acontecesse&#10;3) O que aconteceu na prática&#10;4) Se possível, cole a mensagem de erro"></textarea>
+                    <textarea id="support-desc" required placeholder="Descreva o que aconteceu e como reproduzir."></textarea>
+                </div>
+                <div class="support-form-field full">
+                    <label for="support-attachments">Anexos (opcional)</label>
+                    <input id="support-attachments" type="file" multiple>
+                    <div class="support-form-helper">Print da tela já ajuda bastante.</div>
                 </div>
             </div>
             <div class="support-modal-footer">
                 <div class="support-card-actions" style="margin-top:0;">
                     <button type="button" id="cancel-support-btn" class="support-card-btn support-card-btn-secondary">Cancelar</button>
                     <button type="button" id="send-support-btn" class="support-card-btn support-card-btn-primary">
-                        <i class="fas fa-paper-plane"></i>Montar e-mail
+                        <i class="fas fa-paper-plane"></i>Abrir chamado
                     </button>
                 </div>
             </div>
@@ -769,8 +811,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var supportEmail = 'suporte@lplan.com.br';
-    var webmailLink = document.getElementById('support-webmail-link');
+    var supportCreateUrl = "{% url 'support-ticket-create' %}";
     var openModalBtn = document.getElementById('open-support-modal-btn');
     var modalOverlay = document.getElementById('support-modal-overlay');
     var closeModalBtn = document.getElementById('close-support-modal-btn');
@@ -779,8 +820,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var supportForm = document.getElementById('support-form');
     var supportCategory = document.getElementById('support-category');
     var supportSeverity = document.getElementById('support-severity');
+    var supportProject = document.getElementById('support-project');
     var supportTitle = document.getElementById('support-title');
     var supportDesc = document.getElementById('support-desc');
+    var supportAttachments = document.getElementById('support-attachments');
 
     // Mantém hover/tooltip dos cards sem acesso, mas bloqueia navegação.
     var disabledSystemCards = document.querySelectorAll('.system-card.disabled');
@@ -805,22 +848,6 @@ document.addEventListener('DOMContentLoaded', function () {
         modalOverlay.setAttribute('aria-hidden', 'true');
     }
 
-    if (webmailLink) {
-        var userLabel = '{{ user.username|escapejs }}';
-        var subject = 'LPLAN - Reporte de erro';
-        var bodyText =
-            'Olá, equipe de suporte.\n\n' +
-            'Preencha abaixo para agilizar a análise:\n\n' +
-            '1) O que estava fazendo:\n\n' +
-            '2) O que deveria acontecer:\n\n' +
-            '3) O que aconteceu:\n\n' +
-            '4) Mensagem de erro exibida (se houver):\n\n' +
-            'Usuário: ' + userLabel + '\n' +
-            'Tela: ' + window.location.pathname + '\n' +
-            'Horário aproximado: ____\n\n' +
-            'Anexo recomendado: print/vídeo curto do erro.';
-        webmailLink.href = 'https://lplan.com.br/webmail/';
-    }
     if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (openModalBtn) openModalBtn.disabled = false;
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
@@ -836,61 +863,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    function setShortcut(kind) {
-        if (!supportCategory || !supportSeverity || !supportTitle) return;
-        if (kind === 'login') {
-            supportCategory.value = 'Login/Acesso';
-            supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'Erro de login/acesso';
-        } else if (kind === 'diario') {
-            supportCategory.value = 'Diário de Obra';
-            supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'Falha no Diário de Obra';
-        } else if (kind === 'pdf') {
-            supportCategory.value = 'PDF/Relatórios';
-            supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'Erro ao gerar PDF do relatório';
-        } else if (kind === 'gestao') {
-            supportCategory.value = 'Permissões/Usuário';
-            supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'Falha no GestControll';
-        } else if (kind === 'exclusao') {
-            supportCategory.value = 'Permissões/Usuário';
-            supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'Solicitação/aprovação de exclusão não funciona';
-        } else if (kind === 'analisado') {
-            supportCategory.value = 'Permissões/Usuário';
-            supportSeverity.value = supportSeverity.value || 'Médio';
-            supportTitle.value = 'Checkbox de analisado não marca/desmarca';
-        } else if (kind === 'anexo') {
-            supportCategory.value = 'Fotos/Vídeos';
-            supportSeverity.value = supportSeverity.value || 'Importante';
-            supportTitle.value = 'Erro ao enviar/remover anexo';
-        } else if (kind === 'mobile') {
-            supportCategory.value = 'Mobile/Responsivo';
-            supportSeverity.value = supportSeverity.value || 'Médio';
-            supportTitle.value = 'Problema de layout no mobile';
-        }
-        if (supportDesc && !supportDesc.value.trim()) {
-            supportDesc.value =
-                'Passos para reproduzir:\n' +
-                '1) \n' +
-                '2) \n\n' +
-                'Resultado esperado:\n' +
-                '- \n\n' +
-                'Resultado atual:\n' +
-                '- \n\n' +
-                'Mensagem de erro (se houver):\n' +
-                '- ';
-        }
-    }
-    var shortcutButtons = document.querySelectorAll('.support-shortcut-btn');
-    shortcutButtons.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            setShortcut(btn.getAttribute('data-shortcut'));
-        });
-    });
-
     if (supportCategory && supportTitle) {
         supportCategory.addEventListener('change', function () {
             if (!supportTitle.value && supportCategory.value) {
@@ -902,27 +874,53 @@ document.addEventListener('DOMContentLoaded', function () {
     if (sendSupportBtn) {
         sendSupportBtn.addEventListener('click', function () {
             if (!supportCategory.value || !supportSeverity.value || !supportTitle.value.trim() || !supportDesc.value.trim()) {
-                alert('Preencha Categoria, Severidade, Título e Descrição.');
+                alert('Preencha Categoria, Impacto, Título e Descrição.');
                 return;
             }
-            var bodyLines = [
-                'Categoria: ' + supportCategory.value,
-                'Severidade: ' + supportSeverity.value,
-                'Titulo: ' + supportTitle.value.trim(),
-                '',
-                'Descricao:',
-                supportDesc.value.trim(),
-                '',
-                'Anexo sugerido: print da tela/erro.'
-            ];
-            var subject = 'LPLAN - ' + supportSeverity.value + ' - ' + supportTitle.value.trim();
-            var bodyText = bodyLines.join('\n');
-            var mailto = 'mailto:' + supportEmail +
-                '?subject=' + encodeURIComponent(subject) +
-                '&body=' + encodeURIComponent(bodyText);
-            window.location.href = mailto;
-            closeModal();
-            if (supportForm) supportForm.reset();
+            if (supportProject && !supportProject.value) {
+                alert('Selecione a obra relacionada.');
+                return;
+            }
+            sendSupportBtn.disabled = true;
+            var formData = new FormData();
+            formData.append('category', supportCategory.value);
+            formData.append('severity', supportSeverity.value);
+            formData.append('title', supportTitle.value.trim());
+            formData.append('description', supportDesc.value.trim());
+            if (supportProject && supportProject.value) {
+                formData.append('project_id', supportProject.value);
+            }
+            formData.append('screen_path', window.location.pathname);
+            if (supportAttachments && supportAttachments.files) {
+                for (var i = 0; i < supportAttachments.files.length; i++) {
+                    formData.append('attachments', supportAttachments.files[i]);
+                }
+            }
+            fetch(supportCreateUrl, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': '{{ csrf_token|escapejs }}' },
+                credentials: 'same-origin'
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data.success) {
+                        throw new Error((result.data && result.data.error) || 'Não foi possível criar o chamado.');
+                    }
+                    closeModal();
+                    if (supportForm) supportForm.reset();
+                    window.location.href = result.data.detail_url || "{% url 'support-ticket-list' %}";
+                })
+                .catch(function (error) {
+                    alert(error.message || 'Falha ao criar chamado de suporte.');
+                })
+                .finally(function () {
+                    sendSupportBtn.disabled = false;
+                });
         });
     }
 });

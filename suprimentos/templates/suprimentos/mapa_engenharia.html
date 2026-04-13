@@ -10,8 +10,18 @@
      MAPA DE SUPRIMENTOS - Tabela Responsiva
      ============================================ -->
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="mb-0">Mapa de Suprimentos - Engenharia</h2>
+        <h2 class="mb-0">Central de Suprimentos</h2>
     </div>
+    {% if user.is_staff or user.is_superuser %}
+    <div class="alert alert-light border d-flex flex-wrap gap-3 py-2 mb-2">
+        <span><strong>Confiabilidade:</strong> {{ confiabilidade.score }}%</span>
+        <span><strong>Nível:</strong> {% firstof confiabilidade.nivel_display confiabilidade.nivel %}</span>
+        <span>Sem SC: {{ confiabilidade.sem_sc }}</span>
+        <span>Sem código: {{ confiabilidade.sem_codigo_insumo }}</span>
+        <span>Sem local: {{ confiabilidade.sem_local }}</span>
+        <span>Inconsistência aloc.: {{ confiabilidade.inconsistencia_alocacao }}</span>
+    </div>
+    {% endif %}
 
 <!-- KPIs - Barra compacta melhorada -->
 <div class="kpi-container">
@@ -194,27 +204,8 @@
 <!-- Filtros -->
 <div class="filtros-container">
     <form id="filtro-form" method="get" action="{% url 'engenharia:mapa' %}">
+        <input type="hidden" name="obra" value="{{ filtros.obra_id|default:'' }}">
         <div class="filtros-row">
-            <div class="filtro-item">
-                <label for="obra_search" class="form-label">Buscar Obra:</label>
-                <input type="text"
-                       id="obra_search"
-                       class="form-control"
-                       placeholder="Digite nome ou código da obra...">
-            </div>
-            <div class="filtro-item">
-                <label for="obra" class="form-label">Obra:</label>
-                <select name="obra" id="obra" class="form-select" onchange="this.form.submit()">
-                    <option value="">Selecione uma obra</option>
-                    {% for obra in obras %}
-                        <option value="{{ obra.id }}"
-                                data-search="{{ obra.nome|lower }} {{ obra.codigo_sienge|default:''|lower }}"
-                                {% if filtros.obra_id == obra.id|stringformat:"s" %}selected{% endif %}>
-                            {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
             <div class="filtro-item">
                 <label for="categoria" class="form-label">Categoria:</label>
                 <select name="categoria" id="categoria" class="form-select" onchange="this.form.submit()">
@@ -453,6 +444,7 @@
                             style="min-width: 70px; max-width: 90px;">
                         <option value="" {% if not item.insumo.unidade or item.insumo.unidade == '' %}selected{% endif %}>--</option>
                         <option value="UND" {% if item.insumo.unidade == 'UND' %}selected{% endif %}>UND</option>
+                        <option value="PÇ" {% if item.insumo.unidade == 'PÇ' %}selected{% endif %}>PÇ</option>
                         <option value="KG" {% if item.insumo.unidade == 'KG' %}selected{% endif %}>KG</option>
                         <option value="M3" {% if item.insumo.unidade == 'M3' %}selected{% endif %}>m³</option>
                         <option value="M2" {% if item.insumo.unidade == 'M2' %}selected{% endif %}>m²</option>

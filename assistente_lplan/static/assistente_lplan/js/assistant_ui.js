@@ -4,7 +4,11 @@
     const input = document.getElementById("assistant-input");
     const loading = document.getElementById("assistant-loading");
     const historyList = document.getElementById("history-list");
+    const app = document.getElementById("assistant-app");
     const maxHistoryItems = Number.parseInt(historyList?.dataset?.historyLimit || "20", 10) || 20;
+    const rawPid = app?.dataset?.selectedProjectId;
+    const selectedProjectId =
+        rawPid && String(rawPid).trim() !== "" ? Number.parseInt(String(rawPid), 10) : null;
 
     if (!chat || !form || !input) return;
 
@@ -145,6 +149,24 @@
         `;
     }
 
+    function renderSuggestedReplies(replies) {
+        if (!Array.isArray(replies) || !replies.length) return "";
+        return `
+            <div class="assistant-section-title">Respostas rapidas sugeridas</div>
+            <div class="assistant-actions" style="flex-direction:column;align-items:stretch;">
+                ${replies
+                    .map(
+                        (text) => `
+                    <button type="button" class="assistant-btn text-left js-suggested-reply" style="width:100%;white-space:normal;">
+                        ${escapeHtml(text)}
+                    </button>
+                `
+                    )
+                    .join("")}
+            </div>
+        `;
+    }
+
     function renderAlerts(alerts) {
         if (!Array.isArray(alerts) || !alerts.length) return "";
         return `
@@ -197,6 +219,7 @@
             ${renderTable(payload.table)}
             ${renderTimeline(payload.timeline)}
             ${renderAlerts(payload.alerts)}
+            ${renderSuggestedReplies(payload.suggested_replies)}
             ${renderFeedback(payload)}
         `;
     }
@@ -230,13 +253,17 @@
         loading && loading.classList.add("show");
 
         try {
+            const payload = { pergunta: question };
+            if (selectedProjectId != null && !Number.isNaN(selectedProjectId)) {
+                payload.contexto = { selected_project_id: selectedProjectId };
+            }
             const response = await fetch("/assistente/perguntar/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "X-CSRFToken": getCsrfToken(),
                 },
-                body: JSON.stringify({ pergunta: question }),
+                body: JSON.stringify(payload),
             });
             const payload = await response.json();
             appendMessage("assistant", renderResponse(payload));
@@ -326,5 +353,34 @@
             input.focus();
         });
     });
+
+    chat.addEventListener("click", function (event) {
+        const btn = event.target.closest(".js-suggested-reply");
+        if (!btn) return;
+        input.value = btn.textContent.trim();
+        input.focus();
+        form.requestSubmit();
+    });
+
+    const welcomeOrder = document.getElementById("assistant-welcome-order");
+    if (welcomeOrder) {
+        const LS_ORDER = "lplan_assistant_welcome_order_seen";
+        try {
+            if (localStorage.getItem(LS_ORDER) === "1") {
+                welcomeOrder.removeAttribute("open");
+            }
+        } catch (e) {
+            /* private mode / storage blocked */
+        }
+        welcomeOrder.addEventListener("toggle", () => {
+            if (!welcomeOrder.open) {
+                try {
+                    localStorage.setItem(LS_ORDER, "1");
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+        });
+    }
 })();
 

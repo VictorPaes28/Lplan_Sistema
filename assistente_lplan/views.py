@@ -3,20 +3,26 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.conf import settings
+from django.core import signing
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
-from django.http import JsonResponse
-from django.shortcuts import render
+from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from assistente_lplan.models import AssistantQuestionLog, AssistantResponseLog
+from assistente_lplan.services.diario_service import DiarioAssistantService
 from assistente_lplan.services.orchestrator import AssistantOrchestrator
+from assistente_lplan.services.permissions import AssistantPermissionService
 from assistente_lplan.services.learning import GuidedLearningService
 from assistente_lplan.services.messages import MessageCatalog
+from assistente_lplan.services.suggested_questions import build_assistant_home_context
+from core.models import Project
+from core.utils.rdo_period_pdf import generate_rdo_period_pdf_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -43,29 +49,61 @@ CACHE_TTL_SECONDS = 1000
 @login_required
 def assistant_home(request):
     history = _load_persistent_history(request.user, limit=MAX_UI_HISTORY_ITEMS)
-    suggested_questions = [
-        "Onde esta o cimento do bloco C?",
-        "Quais itens dessa obra estao sem alocacao?",
-        "Quais aprovacoes estao pendentes?",
-        "Quero o RDO do dia 15/03/2026",
-        "Mostre o diario da obra ALFA em 2026-03-15",
-        "Resuma a situacao da obra atual",
-        "Como Joao esta nos ultimos 30 dias?",
-        "Status do usuario Stan nos ultimos 30 dias",
-        "Quais solicitacoes foram reprovadas na obra ALFA?",
-        "Reprovados por aprovador Stan nos ultimos 30 dias",
-        "Quais pendencias da obra ALFA hoje?",
-        "Quais sao os gargalos da obra X?",
-    ]
+    assistant_ctx = build_assistant_home_context(request)
+    if assistant_ctx.get("persist_session_project") and assistant_ctx.get("selected_project_id"):
+        try:
+            p = Project.objects.get(pk=int(assistant_ctx["selected_project_id"]), is_active=True)
+        except (Project.DoesNotExist, TypeError, ValueError):
+            pass
+        else:
+            request.session["selected_project_id"] = p.id
+            request.session["selected_project_name"] = p.name
+            request.session["selected_project_code"] = p.code
+            request.session.modified = True
+
     return render(
         request,
         "assistente_lplan/home.html",
         {
             "history": history,
-            "suggested_questions": suggested_questions,
+            "suggested_questions": assistant_ctx["suggested_questions"],
+            "suggestion_groups": assistant_ctx["suggestion_groups"],
+            "suggestion_groups_primary": assistant_ctx.get("suggestion_groups_primary") or [],
+            "suggestion_groups_more": assistant_ctx.get("suggestion_groups_more") or [],
+            "active_project": assistant_ctx["active_project"],
+            "welcome_lines": assistant_ctx["welcome_lines"],
+            "welcome_chat": assistant_ctx["welcome_chat"],
+            "selected_project_id": assistant_ctx["selected_project_id"],
+            "available_projects": assistant_ctx.get("available_projects") or [],
             "history_limit": MAX_UI_HISTORY_ITEMS,
         },
     )
+
+
+@login_required
+@require_http_methods(["POST"])
+def set_session_project(request):
+    """Define a obra na sessão a partir do assistente (acesso validado)."""
+    pid_raw = (request.POST.get("project_id") or "").strip()
+    try:
+        pid = int(pid_raw)
+    except (TypeError, ValueError):
+        return redirect("assistente_lplan:home")
+
+    perm = AssistantPermissionService(request.user)
+    scope = perm.build_scope()
+    qs = Project.objects.filter(is_active=True, id=pid)
+    if scope.role != "admin":
+        qs = qs.filter(id__in=scope.project_ids)
+    project = qs.first()
+    if not project:
+        return redirect("assistente_lplan:home")
+
+    request.session["selected_project_id"] = project.id
+    request.session["selected_project_name"] = project.name
+    request.session["selected_project_code"] = project.code
+    request.session.modified = True
+    return redirect("assistente_lplan:home")
 
 
 @login_required
@@ -162,6 +200,47 @@ def perguntar(request):
         )
         _schedule_user_history_cleanup(request.user.id)
         return JsonResponse(fallback_payload, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def download_rdo_period_pdf(request):
+    """Download do PDF consolidado de RDO (token assinado gerado pelo assistente)."""
+    token = (request.GET.get("t") or "").strip()
+    if not token:
+        raise Http404()
+
+    try:
+        data = signing.loads(token, salt=DiarioAssistantService.RDO_PERIOD_SIGN_SALT, max_age=86400 * 7)
+    except signing.BadSignature:
+        raise Http404() from None
+
+    if int(data.get("u", 0)) != int(request.user.id):
+        return HttpResponseForbidden("Link invalido para este usuario.")
+
+    try:
+        pid = int(data["p"])
+        d0 = date.fromisoformat(data["d0"])
+        d1 = date.fromisoformat(data["d1"])
+    except (KeyError, TypeError, ValueError):
+        raise Http404() from None
+
+    perm = AssistantPermissionService(request.user)
+    scope = perm.build_scope()
+    qs = Project.objects.filter(is_active=True, id=pid)
+    if scope.role != "admin":
+        qs = qs.filter(id__in=scope.project_ids)
+    project = qs.first()
+    if not project:
+        raise Http404()
+
+    buf = generate_rdo_period_pdf_bytes(project, d0, d1)
+    if not buf:
+        raise Http404()
+
+    code = (project.code or "obra").replace(" ", "_")
+    fname = f"RDO_consolidado_{code}_{d0}_{d1}.pdf"
+    return FileResponse(buf, content_type="application/pdf", as_attachment=True, filename=fname)
 
 
 @login_required
@@ -300,5 +379,6 @@ def _normalize_response_payload(payload: dict) -> dict:
     payload.setdefault("links", [])
     payload.setdefault("raw_data", {})
     payload.setdefault("question_log_id", None)
+    payload.setdefault("suggested_replies", [])
     return payload
 

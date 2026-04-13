@@ -1,9 +1,13 @@
 from django.db.models import Count, Q
 
 from assistente_lplan.schemas import AssistantResponse
+from core.kpi_queries import (
+    count_diarios_nao_aprovados,
+    count_itens_sem_alocacao_efetiva,
+    count_pedidos_pendentes,
+)
 from core.models import ConstructionDiary, DiaryStatus, Project
 from gestao_aprovacao.models import WorkOrder
-from suprimentos.models import ItemMapa
 
 from .messages import MessageCatalog
 from .radar_obra_service import RadarObraService
@@ -24,15 +28,9 @@ class ObrasAssistantService:
                 raw_data={"message_code": msg["code"], "message_kind": msg["kind"]},
             )
 
-        diarios_pend = (
-            ConstructionDiary.objects.filter(project=project).exclude(status=DiaryStatus.APROVADO).count()
-        )
-        pedidos_pend = WorkOrder.objects.filter(obra__project=project, status="pendente").count()
-        itens_sem_aloc = ItemMapa.objects.filter(
-            obra__codigo_sienge=project.code,
-            quantidade_planejada__gt=0,
-            alocacoes__isnull=True,
-        ).count()
+        diarios_pend = count_diarios_nao_aprovados(project)
+        pedidos_pend = count_pedidos_pendentes(project)
+        itens_sem_aloc = count_itens_sem_alocacao_efetiva(project)
 
         if diarios_pend == 0 and pedidos_pend == 0 and itens_sem_aloc == 0:
             msg = MessageCatalog.resolve("assistant.obras.pending_empty", {"domain": "obras", "obra": project.code})

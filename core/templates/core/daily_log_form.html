@@ -13,7 +13,8 @@
 {% block content %}
 <div class="min-h-screen diary-form-page py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <form method="post" enctype="multipart/form-data" id="diary-form" class="diary-form-inner space-y-6">
+        <form method="post" enctype="multipart/form-data" id="diary-form" class="diary-form-inner space-y-6"
+              data-rdo-sw-url="{% url 'rdo-offline-service-worker' %}">
             {% csrf_token %}
             <input type="hidden" name="partial_save" id="partial_save_flag" value="">
             <input type="hidden" name="work_logs_json" id="work_logs_json_input" value="">
@@ -48,6 +49,10 @@
                             <p class="text-sm text-slate-500 diary-form-subtitle">Preencha os dados do dia</p>
                             <p class="text-xs text-amber-700 mt-1 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
                                 <i class="fas fa-info-circle mr-1"></i><strong>Obrigatórios:</strong> Data do relatório; em cada atividade, a <strong>Descrição</strong>. Para <strong>Salvar Diário</strong> (não rascunho), a assinatura é obrigatória.
+                            </p>
+                            <p class="text-xs text-slate-600 mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <i class="fas fa-cloud-download-alt text-slate-500"></i>
+                                <span><strong>Modo campo:</strong> sem internet, o texto do relatório fica guardado neste aparelho; ao voltar a rede, envie com <strong>Salvar rascunho</strong> ou <strong>Salvar diário</strong>. Fotos exigem conexão.</span>
                             </p>
                         </div>
                     </div>
@@ -5044,4 +5049,8 @@ function saveSignature(canvasId) {
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/rdo-offline.js' %}" defer></script>
 {% endblock %}

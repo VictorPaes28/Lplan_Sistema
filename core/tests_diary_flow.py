@@ -1011,6 +1011,40 @@ class DiaryApprovalFlowByManagerTestCase(TestCase):
         self.assertIsNone(diary.approved_at)
         self.assertIsNone(diary.sent_to_owner_at)
 
+    def test_waiting_approval_diary_is_editable_before_approval(self):
+        """Enquanto estiver em AG, diário deve permitir edição sem solicitar liberação."""
+        diary = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+            created_by=self.author,
+        )
+        self._login_and_select_project(self.author)
+        resp = self.client.get(reverse('diary-edit', kwargs={'pk': diary.pk}))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_edit_waiting_approval_diary_keeps_waiting_status(self):
+        """Editar e salvar diário em AG deve manter status aguardando aprovação."""
+        diary = ConstructionDiary.objects.create(
+            project=self.project,
+            date=date.today(),
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+            created_by=self.author,
+        )
+        self._login_and_select_project(self.author)
+        post = _minimal_diary_post(
+            self.project,
+            diary.date,
+            partial_save=False,
+            signature_inspection='data:image/png;base64,iVBORw0KGgo=',
+        )
+        post['general_notes'] = 'Ajuste antes da aprovação final'
+        resp = self.client.post(reverse('diary-edit', kwargs={'pk': diary.pk}), post)
+        self.assertEqual(resp.status_code, 302)
+        diary.refresh_from_db()
+        self.assertEqual(diary.status, DiaryStatus.AGUARDANDO_APROVACAO_GESTOR)
+        self.assertEqual(diary.general_notes, 'Ajuste antes da aprovação final')
+
     def test_manager_can_approve_and_transitions_to_approved(self):
         """Aprovador pode aprovar e diário vira AP com timestamps."""
         diary = ConstructionDiary.objects.create(

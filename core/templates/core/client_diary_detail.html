@@ -191,6 +191,17 @@
         </a>
     </div>
 
+    <div class="cdd-pdf-actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+        <a href="{% url 'client-diary-pdf-reader' diary.pk %}"
+           style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.5rem 0.9rem;border-radius:8px;font-size:0.85rem;font-weight:600;background:#475569;color:#fff;text-decoration:none;">
+            <i class="fas fa-book-reader"></i> Ver PDF (modo leitura)
+        </a>
+        <a href="{% url 'client-diary-pdf' diary.pk %}"
+           style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.5rem 0.9rem;border-radius:8px;font-size:0.85rem;font-weight:600;background:#fff;color:#334155;border:1px solid #e2e8f0;text-decoration:none;">
+            <i class="fas fa-download"></i> Baixar PDF
+        </a>
+    </div>
+
     <!-- ═══ Cabeçalho ═══ -->
     <div class="cdd-card">
         <div class="cdd-header">

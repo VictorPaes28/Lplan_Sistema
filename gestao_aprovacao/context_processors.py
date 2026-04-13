@@ -2,7 +2,13 @@
 Context processors para adicionar variáveis globais aos templates.
 """
 from .models import Notificacao, WorkOrderPermission
-from .utils import get_user_profile, is_admin, is_responsavel_empresa, is_engenheiro
+from .utils import (
+    get_user_profile,
+    is_admin,
+    is_responsavel_empresa,
+    is_engenheiro,
+    usuario_pode_marcar_pedido_analisado,
+)
 
 
 def notificacoes_count(request):
@@ -40,11 +46,14 @@ def user_context(request):
             is_admin(user)
         )
         context['pode_criar_pedido'] = pode_criar_pedido
+        # Lista de pedidos: checkbox "Analisado" (Luizes + EMAIL_DEPARTAMENTOS_APROVACAO)
+        context['pode_marcar_analisado'] = usuario_pode_marcar_pedido_analisado(user)
     else:
         context['user_profile'] = None
         context['is_admin'] = False
         context['is_responsavel_empresa'] = False
         context['pode_criar_pedido'] = False
+        context['pode_marcar_analisado'] = False
     
     return context
 

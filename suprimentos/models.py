@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.utils import timezone
@@ -6,6 +7,8 @@ from decimal import Decimal
 from mapa_obras.models import Obra, LocalObra
 from django.contrib.auth.models import User
 from django.db.models import Sum
+
+from .recebimento_match import descricao_item_compativel
 
 
 def _normalizar_numero_sc_model(valor):
@@ -191,6 +194,15 @@ class RecebimentoObra(models.Model):
     # Auditoria
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    importacao = models.ForeignKey(
+        'ImportacaoSienge',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recebimentos',
+        help_text='Última importação MAPA_CONTROLE que criou ou atualizou este registro',
+    )
 
     class Meta:
         # Permite múltiplos insumos na mesma SC (ex: sapato 32, 36, 38 no mesmo pedido)
@@ -501,6 +513,22 @@ class ItemMapa(models.Model):
             if (rec.insumo and _normalizar_codigo_insumo_model(rec.insumo.codigo_sienge) == chave_insumo
                     and _normalizar_numero_sc_model(rec.numero_sc) == chave_sc):
                 return rec
+        # SM-LEV: vínculo levantamento → RecebimentoObra já importado (ver recebimento_match).
+        # Não altera regras do MAPA (múltiplas linhas Excel, MÁXIMO entregue, blocos no mapa).
+        if self.insumo and (self.insumo.codigo_sienge or '').startswith('SM-LEV-'):
+            sc_only = [
+                r for r in candidatos
+                if _normalizar_numero_sc_model(r.numero_sc) == chave_sc
+            ]
+            if len(sc_only) == 1:
+                return sc_only[0]
+            alvo = (self.descricao_override or self.insumo.descricao or '').strip()
+            por_desc = [
+                r for r in sc_only
+                if descricao_item_compativel(alvo, r.descricao_item)
+            ]
+            if len(por_desc) == 1:
+                return por_desc[0]
         return None
 
     @property
@@ -1045,6 +1073,40 @@ class AlocacaoRecebimento(models.Model):
         super().save(*args, **kwargs)
 
 
+class ImportacaoSienge(models.Model):
+    """
+    Registro de um upload do MAPA_CONTROLE (CSV/XLSX) para auditoria e desfazer.
+    RecebimentoObra vinculados via importacao podem ser removidos em lote.
+    """
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='importacoes_sienge',
+        help_text='Obra do contexto no upload; vazio se o arquivo tinha várias obras.',
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='importacoes_sienge',
+    )
+    nome_arquivo = models.CharField(max_length=255)
+    sha256_arquivo = models.CharField(max_length=64, db_index=True)
+    insumos_criados_ids = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Importação Sienge (MAPA)'
+        verbose_name_plural = 'Importações Sienge (MAPA)'
+
+    def __str__(self):
+        return f'{self.created_at:%d/%m/%Y %H:%M} — {self.nome_arquivo}'
+
+
 class HistoricoAlteracao(models.Model):
     """
     Registro de todas as alterações feitas no sistema.
@@ -1091,6 +1153,14 @@ class HistoricoAlteracao(models.Model):
     )
     data_hora = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    importacao_sienge = models.ForeignKey(
+        'ImportacaoSienge',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historico_alteracoes',
+    )
     
     class Meta:
         ordering = ['-data_hora']
@@ -1107,7 +1177,8 @@ class HistoricoAlteracao(models.Model):
     
     @classmethod
     def registrar(cls, obra, usuario, tipo, descricao, item_mapa=None, 
-                  campo_alterado='', valor_anterior='', valor_novo='', ip_address=None):
+                  campo_alterado='', valor_anterior='', valor_novo='', ip_address=None,
+                  importacao_sienge=None):
         """Método auxiliar para registrar alterações facilmente."""
         return cls.objects.create(
             obra=obra,
@@ -1120,5 +1191,142 @@ class HistoricoAlteracao(models.Model):
             insumo_nome=(item_mapa.insumo.descricao or '')[:200] if item_mapa and item_mapa.insumo else '',
             local_nome=item_mapa.local_aplicacao.nome if item_mapa and item_mapa.local_aplicacao else '',
             usuario=usuario,
-            ip_address=ip_address
+            ip_address=ip_address,
+            importacao_sienge=importacao_sienge,
         )
+
+
+class ImportacaoMapaServico(models.Model):
+    """Registro de upload/importação do mapa de serviço (Excel)."""
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="importacoes_mapa_servico",
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="importacoes_mapa_servico",
+    )
+    nome_arquivo = models.CharField(max_length=255)
+    aba_origem = models.CharField(max_length=120, default="DADOS")
+    total_linhas_lidas = models.PositiveIntegerField(default=0)
+    total_linhas_importadas = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Importação Mapa de Serviço"
+        verbose_name_plural = "Importações do Mapa de Serviço"
+
+    def __str__(self):
+        return f"{self.created_at:%d/%m/%Y %H:%M} — {self.nome_arquivo}"
+
+
+class ItemMapaServico(models.Model):
+    """
+    Linha canônica do mapa de serviço.
+    Hierarquia principal: setor > bloco > pavimento > apto > atividade.
+    """
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="itens_mapa_servico",
+    )
+    importacao = models.ForeignKey(
+        ImportacaoMapaServico,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="itens",
+    )
+
+    setor = models.CharField(max_length=120, blank=True, default="")
+    bloco = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    pavimento = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    apto = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    atividade = models.CharField(max_length=200, db_index=True)
+    grupo_servicos = models.CharField(max_length=120, blank=True, default="", db_index=True)
+
+    status_texto = models.CharField(max_length=100, blank=True, default="")
+    status_percentual = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.000"))],
+        help_text="Faixa esperada: 0.000 até 1.000 (ou vazio).",
+    )
+    custo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    observacao = models.TextField(blank=True, default="")
+    data_termino = models.DateField(null=True, blank=True)
+
+    # Chave natural para upsert por obra.
+    chave_uid = models.CharField(max_length=255, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["setor", "bloco", "pavimento", "apto", "atividade"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["obra", "chave_uid"],
+                name="uniq_item_mapa_servico_por_obra_chave",
+            )
+        ]
+        verbose_name = "Item do Mapa de Serviço"
+        verbose_name_plural = "Itens do Mapa de Serviço"
+
+    def __str__(self):
+        local = " / ".join([p for p in [self.bloco, self.pavimento, self.apto] if p])
+        local = local or "Sem local"
+        return f"{self.atividade} ({local})"
+
+
+class ItemMapaServicoStatusRef(models.Model):
+    """
+    Referência auxiliar importada da aba STATUS (por atividade).
+    Enriquece o detalhe do clique no mapa de controle.
+    """
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="itens_status_mapa_servico",
+    )
+    importacao = models.ForeignKey(
+        ImportacaoMapaServico,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="status_refs",
+    )
+
+    atividade = models.CharField(max_length=200, db_index=True)
+    atividade_chave = models.CharField(max_length=220, db_index=True)
+    status_macro = models.CharField(max_length=80, blank=True, default="")
+    situacao = models.TextField(blank=True, default="")
+    prazo_execucao = models.CharField(max_length=50, blank=True, default="")
+    responsabilidade = models.CharField(max_length=120, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["atividade"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["obra", "atividade_chave"],
+                name="uniq_status_ref_mapa_servico_por_obra_atividade",
+            )
+        ]
+        verbose_name = "Status de Referência do Mapa de Serviço"
+        verbose_name_plural = "Status de Referência do Mapa de Serviço"
+
+    def __str__(self):
+        return f"{self.atividade} ({self.status_macro or 'sem status'})"

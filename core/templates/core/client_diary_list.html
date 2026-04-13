@@ -27,11 +27,20 @@
     .cdl-diary-item {
         display: flex; align-items: center; justify-content: space-between;
         padding: 0.85rem 1.25rem; border-bottom: 1px solid #f8fafc;
-        text-decoration: none; color: #334155; transition: background 0.1s;
         gap: 0.75rem;
     }
     .cdl-diary-item:last-child { border-bottom: none; }
     .cdl-diary-item:hover { background: #f8fafc; }
+    .cdl-diary-item-link {
+        flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between;
+        text-decoration: none; color: #334155; transition: background 0.1s; gap: 0.75rem;
+    }
+    .cdl-diary-pdf-link {
+        flex-shrink: 0; font-size: 0.78rem; font-weight: 600; color: #475569;
+        padding: 0.4rem 0.65rem; border-radius: 8px; border: 1px solid #e2e8f0;
+        background: #fff; text-decoration: none; white-space: nowrap;
+    }
+    .cdl-diary-pdf-link:hover { background: #f1f5f9; color: #1e293b; border-color: #cbd5e1; }
     .cdl-diary-left { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
     .cdl-diary-icon {
         width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
@@ -95,34 +104,39 @@
                 <h2>{{ item.project.name }} {% if item.project.code %}<span class="code">({{ item.project.code }})</span>{% endif %}</h2>
             </div>
             {% for entry in item.diaries %}
-            <a href="{% url 'client-diary-detail' entry.diary.pk %}" class="cdl-diary-item">
-                <div class="cdl-diary-left">
-                    <div class="cdl-diary-icon {% if entry.can_comment %}open{% else %}closed{% endif %}">
-                        <i class="fas {% if entry.can_comment %}fa-comment-dots{% else %}fa-file-alt{% endif %}"></i>
-                    </div>
-                    <div>
-                        <div class="cdl-diary-date">{{ entry.diary.date|date:"d/m/Y" }}{% if entry.diary.report_number %} · #{{ entry.diary.report_number }}{% endif %}</div>
-                        <div class="cdl-diary-meta">
-                            {% if entry.can_comment %}
-                                Aberto para comentários até {{ entry.deadline|date:"d/m H:i" }}
-                            {% else %}
-                                Prazo encerrado em {{ entry.deadline|date:"d/m H:i" }}
-                            {% endif %}
+            <div class="cdl-diary-item">
+                <a href="{% url 'client-diary-detail' entry.diary.pk %}" class="cdl-diary-item-link">
+                    <div class="cdl-diary-left">
+                        <div class="cdl-diary-icon {% if entry.can_comment %}open{% else %}closed{% endif %}">
+                            <i class="fas {% if entry.can_comment %}fa-comment-dots{% else %}fa-file-alt{% endif %}"></i>
+                        </div>
+                        <div>
+                            <div class="cdl-diary-date">{{ entry.diary.date|date:"d/m/Y" }}{% if entry.diary.report_number %} · #{{ entry.diary.report_number }}{% endif %}</div>
+                            <div class="cdl-diary-meta">
+                                {% if entry.can_comment %}
+                                    Aberto para comentários até {{ entry.deadline|date:"d/m H:i" }}
+                                {% else %}
+                                    Prazo encerrado em {{ entry.deadline|date:"d/m H:i" }}
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="cdl-diary-right">
-                    {% if entry.comment_count > 0 %}
-                    <span class="cdl-comment-count">
-                        <i class="fas fa-comment"></i> {{ entry.comment_count }}
-                    </span>
-                    {% endif %}
-                    <span class="cdl-status-badge {% if entry.can_comment %}open{% else %}closed{% endif %}">
-                        {% if entry.can_comment %}<i class="fas fa-unlock" style="font-size:0.6rem;"></i> Aberto{% else %}<i class="fas fa-lock" style="font-size:0.6rem;"></i> Encerrado{% endif %}
-                    </span>
-                    <i class="fas fa-chevron-right" style="color: #cbd5e1; font-size: 0.75rem;"></i>
-                </div>
-            </a>
+                    <div class="cdl-diary-right">
+                        {% if entry.comment_count > 0 %}
+                        <span class="cdl-comment-count">
+                            <i class="fas fa-comment"></i> {{ entry.comment_count }}
+                        </span>
+                        {% endif %}
+                        <span class="cdl-status-badge {% if entry.can_comment %}open{% else %}closed{% endif %}">
+                            {% if entry.can_comment %}<i class="fas fa-unlock" style="font-size:0.6rem;"></i> Aberto{% else %}<i class="fas fa-lock" style="font-size:0.6rem;"></i> Encerrado{% endif %}
+                        </span>
+                        <i class="fas fa-chevron-right" style="color: #cbd5e1; font-size: 0.75rem;"></i>
+                    </div>
+                </a>
+                <a href="{% url 'client-diary-pdf-reader' entry.diary.pk %}" class="cdl-diary-pdf-link" title="Ver PDF oficial do relatório">
+                    <i class="fas fa-book-reader"></i> Ver PDF
+                </a>
+            </div>
             {% endfor %}
         </div>
         {% endfor %}

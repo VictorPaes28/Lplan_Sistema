@@ -2,14 +2,16 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.views.decorators.http import require_POST
 from django.views.decorators.cache import cache_control
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
-from suprimentos.models import ItemMapa, Insumo, HistoricoAlteracao, RecebimentoObra, AlocacaoRecebimento
+from suprimentos.models import ItemMapa, Insumo, HistoricoAlteracao, RecebimentoObra, AlocacaoRecebimento, ImportacaoSienge
 from suprimentos.forms import InsumoForm, ItemMapaForm, SiengeImportUploadForm
 from collections import defaultdict
 from datetime import datetime
@@ -40,6 +42,75 @@ def get_obra_da_sessao(request):
     if obra:
         request.session['obra_id'] = obra.id
     return obra
+
+
+def _build_confiabilidade_suprimentos(itens_queryset):
+    total = itens_queryset.count()
+    if total <= 0:
+        return {
+            'score': 0.0,
+            'nivel': 'sem_dados',
+            'nivel_display': 'Sem dados',
+            'sem_local': 0,
+            'sem_responsavel': 0,
+            'sem_prazo': 0,
+            'sem_codigo_insumo': 0,
+            'sem_sc': 0,
+            'inconsistencia_alocacao': 0,
+        }
+
+    itens_lista = list(itens_queryset)
+    sem_local = itens_queryset.filter(local_aplicacao__isnull=True).count()
+    sem_responsavel = itens_queryset.filter(Q(responsavel__isnull=True) | Q(responsavel__exact='')).count()
+    sem_prazo = itens_queryset.filter(prazo_necessidade__isnull=True).count()
+    sem_codigo_insumo = itens_queryset.filter(
+        Q(insumo__codigo_sienge__isnull=True)
+        | Q(insumo__codigo_sienge__exact='')
+        | Q(insumo__codigo_sienge__startswith='SM-LEV-')
+    ).count()
+    sem_sc = itens_queryset.filter(Q(numero_sc__isnull=True) | Q(numero_sc__exact='')).count()
+    inconsistencia_alocacao = sum(
+        1
+        for item in itens_lista
+        if (
+            (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local > item.quantidade_solicitada_sienge)
+            or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local > item.quantidade_planejada)
+        )
+    )
+
+    penalidade = (
+        (sem_local / total) * 10
+        + (sem_responsavel / total) * 10
+        + (sem_prazo / total) * 10
+        + (sem_codigo_insumo / total) * 20
+        + (sem_sc / total) * 20
+        + (inconsistencia_alocacao / total) * 30
+    )
+    score = max(0.0, round(100 - penalidade, 2))
+    if score >= 95:
+        nivel = 'excelente'
+        nivel_display = 'Excelente'
+    elif score >= 85:
+        nivel = 'bom'
+        nivel_display = 'Bom'
+    elif score >= 70:
+        nivel = 'atenção'
+        nivel_display = 'Atenção'
+    else:
+        nivel = 'crítico'
+        nivel_display = 'Crítico'
+
+    return {
+        'score': score,
+        'nivel': nivel,
+        'nivel_display': nivel_display,
+        'sem_local': sem_local,
+        'sem_responsavel': sem_responsavel,
+        'sem_prazo': sem_prazo,
+        'sem_codigo_insumo': sem_codigo_insumo,
+        'sem_sc': sem_sc,
+        'inconsistencia_alocacao': inconsistencia_alocacao,
+    }
 
 
 @login_required
@@ -217,23 +288,25 @@ def mapa_engenharia(request):
     
     # KPIs
     itens_queryset = itens
+    itens_lista = list(itens_queryset)
     kpis = {
-        'total': itens_queryset.count(),
-        'atrasados': sum(1 for item in itens_queryset if item.is_atrasado),
+        'total': len(itens_lista),
+        'atrasados': sum(1 for item in itens_lista if item.is_atrasado),
         'solicitados': itens_queryset.exclude(numero_sc='').count(),
         'em_compra': itens_queryset.exclude(numero_sc='').filter(numero_pc='').count(),
         # Parciais: tem alocação mas não completou (baseado em alocação manual, não recebimento)
-        'parciais': sum(1 for item in itens_queryset if 
+        'parciais': sum(1 for item in itens_lista if
             item.quantidade_alocada_local > 0 and 
             ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge) or
              (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada))
         ),
         # Entregues: totalmente alocado (baseado em alocação manual, não recebimento)
-        'entregues': sum(1 for item in itens_queryset if 
+        'entregues': sum(1 for item in itens_lista if
             ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local >= item.quantidade_solicitada_sienge) or
              (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local >= item.quantidade_planejada))
         ),
     }
+    confiabilidade = _build_confiabilidade_suprimentos(itens_queryset)
     
     categorias_opcoes = ItemMapa.CATEGORIA_CHOICES
     categorias_opcoes_values = [v for v, _ in categorias_opcoes]
@@ -257,6 +330,7 @@ def mapa_engenharia(request):
             )
         ).order_by('ordem_categoria', 'categoria', 'insumo__descricao'),
         'kpis': kpis,
+        'confiabilidade': confiabilidade,
         # filtros: obra_id sempre string para o template (comparação com option value)
         'filtros': {
             'obra_id': str(obra_id) if obra_id else None,
@@ -907,6 +981,9 @@ def importar_sienge_upload(request):
     import_history = HistoricoAlteracao.objects.filter(
         tipo='IMPORTACAO'
     ).select_related('usuario', 'obra').order_by('-data_hora')[:25]
+    importacoes_desfazer = ImportacaoSienge.objects.filter(
+        Q(obra_id__in=[o.id for o in obras]) | Q(obra__isnull=True, usuario=request.user)
+    ).select_related('obra', 'usuario').order_by('-created_at')[:40]
 
     if request.method == 'POST':
         form = SiengeImportUploadForm(request.POST, request.FILES)
@@ -926,24 +1003,53 @@ def importar_sienge_upload(request):
                 arquivo.seek(0)
             except Exception:
                 pass
+
+            forcar = form.cleaned_data.get('forcar_reimportacao') is True
             
-            if obra_fallback:
+            if not forcar and obra_fallback:
                 ja_importado = HistoricoAlteracao.objects.filter(
                     obra=obra_fallback,
                     tipo='IMPORTACAO',
                     valor_anterior=file_hash
                 ).order_by('-data_hora').first()
-                if ja_importado:
+                ja_imp = ImportacaoSienge.objects.filter(
+                    obra=obra_fallback, sha256_arquivo=file_hash
+                ).exists()
+                if ja_importado or ja_imp:
+                    if ja_importado:
+                        msg_extra = (
+                            f' em {ja_importado.data_hora.strftime("%d/%m %H:%M")} '
+                            f'por {ja_importado.usuario.username if ja_importado.usuario else "usuário"}'
+                        )
+                    else:
+                        msg_extra = ' anteriormente'
                     messages.warning(
                         request,
-                        f'Este mesmo arquivo já foi importado em {ja_importado.data_hora.strftime("%d/%m %H:%M")} '
-                        f'por {ja_importado.usuario.username if ja_importado.usuario else "usuário"} (evitando duplicação).'
+                        f'Este mesmo arquivo já foi importado{msg_extra} (evitando duplicação).'
                     )
                     return render(request, 'suprimentos/importar_sienge.html', {
                         'form': form,
                         'obras': obras,
                         'log_output': None,
+                        'obra_contexto': obra_contexto,
+                        'import_history': import_history,
+                        'importacoes_desfazer': importacoes_desfazer,
                     })
+            elif not forcar and ImportacaoSienge.objects.filter(
+                obra__isnull=True, usuario=request.user, sha256_arquivo=file_hash
+            ).exists():
+                messages.warning(
+                    request,
+                    'Este mesmo arquivo já foi importado por você neste modo multi-obra (evitando duplicação).'
+                )
+                return render(request, 'suprimentos/importar_sienge.html', {
+                    'form': form,
+                    'obras': obras,
+                    'log_output': None,
+                    'obra_contexto': obra_contexto,
+                    'import_history': import_history,
+                    'importacoes_desfazer': importacoes_desfazer,
+                })
 
             # Salvar em arquivo temporário
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -1009,6 +1115,10 @@ def importar_sienge_upload(request):
                                 col0 = df_try.iloc[:, 0]
                                 mask_rodape = col0.astype(str).str.strip().str.match(r'^\d{1,2}/\d{1,2}/\d{4}\s*[-–]\s*\d{1,2}:\d{2}', na=False)
                                 df_try = df_try.loc[~mask_rodape]
+                                # Colunas “vazias” (nan) no meio da linha de cabeçalho variam entre exports (ex.: Rpontes:
+                                # SC + col vazia + Obra + col vazia + insumo vs SC + Obra + col vazia + insumo). Ao descartar só
+                                # colunas sem nome, o pandas mantém cada valor na coluna certa pelo rótulo — importação é por
+                                # nome, nunca por índice físico. Não reordenar por posição aqui.
                                 df_try = df_try.loc[:, [c for c in df_try.columns if str(c).strip() not in ('', 'nan')]]
 
                                 # identificar colunas principais
@@ -1053,9 +1163,38 @@ def importar_sienge_upload(request):
 
                             df = best.copy()  # Criar cópia para evitar referência ao Excel
 
+                            # Sub-linhas só com datas/NF (layout Rpontes e similares): repetem SC/insumo após ffill mas sem item real
+                            cols_norm_df = {c: norm_xlsx(c) for c in df.columns}
+                            desc_col_g = next(
+                                (c for c, cn in cols_norm_df.items() if 'DESCRICAO' in cn and 'INSUMO' in cn),
+                                None,
+                            )
+                            qt_sol_col_g = next((c for c, cn in cols_norm_df.items() if 'SOLICIT' in cn), None)
+                            qtd_ent_col_g = next((c for c, cn in cols_norm_df.items() if 'ENTREGUE' in cn), None)
+                            removidas_ghost = 0
+                            if desc_col_g and qt_sol_col_g and qtd_ent_col_g:
+
+                                def _cel_vazia_imp(v):
+                                    if pd.isna(v):
+                                        return True
+                                    s = str(v).strip().lower()
+                                    return s in ('', 'nan', 'none', '<na>')
+
+                                mask_ghost = df.apply(
+                                    lambda r: _cel_vazia_imp(r[desc_col_g])
+                                    and _cel_vazia_imp(r[qt_sol_col_g])
+                                    and _cel_vazia_imp(r[qtd_ent_col_g]),
+                                    axis=1,
+                                )
+                                removidas_ghost = int(mask_ghost.sum())
+                                if removidas_ghost:
+                                    df = df.loc[~mask_ghost]
+
                             msg_linhas = f'Linhas lidas: {len(df)}.'
                             if best_removidas_header:
                                 msg_linhas += f' (Removidas {best_removidas_header} linhas de cabeçalho repetido na coluna SC.)'
+                            if removidas_ghost:
+                                msg_linhas += f' (Removidas {removidas_ghost} linhas vazias de layout / continuação.)'
                             messages.info(
                                 request,
                                 f'Excel detectado: aba "{best_sheet}", header na linha {best_header_row + 1}. {msg_linhas}'
@@ -1099,6 +1238,9 @@ def importar_sienge_upload(request):
                             'form': form,
                             'obras': obras,
                             'log_output': None,
+                            'obra_contexto': obra_contexto,
+                            'import_history': import_history,
+                            'importacoes_desfazer': importacoes_desfazer,
                         })
                     except Exception as e:
                         # Garantir que o arquivo seja fechado mesmo em caso de exceção
@@ -1112,6 +1254,9 @@ def importar_sienge_upload(request):
                             'form': form,
                             'obras': obras,
                             'log_output': None,
+                            'obra_contexto': obra_contexto,
+                            'import_history': import_history,
+                            'importacoes_desfazer': importacoes_desfazer,
                         })
 
                 # Auto-detect "skiprows" (quando o arquivo tem linhas antes do cabeçalho)
@@ -1153,12 +1298,19 @@ def importar_sienge_upload(request):
                 obra_codigo_fallback = obra_fallback.codigo_sienge if (obra_fallback and not tem_coluna_obra) else None
 
                 out = StringIO()
+                imp = ImportacaoSienge.objects.create(
+                    obra=obra_fallback,
+                    usuario=request.user,
+                    nome_arquivo=arquivo.name,
+                    sha256_arquivo=file_hash,
+                )
                 try:
                     call_command(
                         'importar_mapa_controle',
                         file=path_to_import,
                         obra_codigo=obra_codigo_fallback,
                         skiprows=skiprows,
+                        importacao_id=imp.id,
                         stdout=out
                     )
                     log_output = out.getvalue()
@@ -1173,11 +1325,16 @@ def importar_sienge_upload(request):
                             campo_alterado='SUCESSO',
                             valor_anterior=file_hash,
                             valor_novo=arquivo.name,
-                            ip_address=request.META.get('REMOTE_ADDR')
+                            ip_address=request.META.get('REMOTE_ADDR'),
+                            importacao_sienge=imp,
                         )
 
                     messages.success(request, 'Importação concluída com sucesso.')
                 except Exception as e:
+                    try:
+                        imp.delete()
+                    except Exception:
+                        pass
                     log_output = out.getvalue() or None
                     messages.error(request, f'Erro ao importar: {str(e)}')
                     if obra_fallback:
@@ -1195,6 +1352,9 @@ def importar_sienge_upload(request):
     import_history = HistoricoAlteracao.objects.filter(
         tipo='IMPORTACAO'
     ).select_related('usuario', 'obra').order_by('-data_hora')[:25]
+    importacoes_desfazer = ImportacaoSienge.objects.filter(
+        Q(obra_id__in=[o.id for o in obras]) | Q(obra__isnull=True, usuario=request.user)
+    ).select_related('obra', 'usuario').order_by('-created_at')[:40]
 
     return render(request, 'suprimentos/importar_sienge.html', {
         'form': form,
@@ -1202,7 +1362,66 @@ def importar_sienge_upload(request):
         'log_output': log_output,
         'obra_contexto': obra_contexto,
         'import_history': import_history,
+        'importacoes_desfazer': importacoes_desfazer,
     })
+
+
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
+@require_POST
+def excluir_importacao_sienge(request, pk):
+    """Remove recebimentos vinculados a uma importação e apaga o registro da importação."""
+    from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
+
+    obras = _get_obras_for_user(request)
+    obra_ids = {o.id for o in obras}
+    imp = get_object_or_404(
+        ImportacaoSienge.objects.select_related('obra', 'usuario'),
+        pk=pk,
+    )
+    if imp.obra_id and imp.obra_id not in obra_ids:
+        messages.error(request, 'Sem permissão para desfazer esta importação.')
+        return redirect('engenharia:importar_sienge')
+    if imp.obra_id and not _user_can_access_obra(request, imp.obra):
+        messages.error(request, 'Sem permissão para esta obra.')
+        return redirect('engenharia:importar_sienge')
+    if imp.obra is None and imp.usuario_id != request.user.id:
+        messages.error(request, 'Só quem fez esta importação multi-obra pode desfazê-la.')
+        return redirect('engenharia:importar_sienge')
+
+    nome_arquivo = imp.nome_arquivo
+    obra_para_historico = imp.obra
+    n_rec = RecebimentoObra.objects.filter(importacao=imp).count()
+    with transaction.atomic():
+        RecebimentoObra.objects.filter(importacao=imp).delete()
+        ids_insumos = list(imp.insumos_criados_ids or [])
+        HistoricoAlteracao.objects.filter(importacao_sienge=imp).delete()
+        imp.delete()
+        for iid in ids_insumos:
+            try:
+                ins = Insumo.objects.get(pk=iid)
+            except Insumo.DoesNotExist:
+                continue
+            if not ins.recebimentos.exists() and not ins.itens_mapa.exists():
+                ins.delete()
+
+    obra_registro = obra_para_historico or Obra.objects.filter(id__in=obra_ids).first()
+    if obra_registro:
+        HistoricoAlteracao.registrar(
+            obra=obra_registro,
+            usuario=request.user,
+            tipo='EXCLUSAO',
+            descricao=f'Desfeita importação Sienge: {nome_arquivo} ({n_rec} recebimento(s) removidos)',
+            campo_alterado='IMPORTACAO_DESFEITA',
+            valor_anterior=str(pk),
+            valor_novo='',
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
+    messages.success(
+        request,
+        f'Importação removida: {n_rec} recebimento(ns) excluído(s). Arquivo: {nome_arquivo}.',
+    )
+    return redirect('engenharia:importar_sienge')
 
 
 @login_required

@@ -57,7 +57,7 @@ class TestMapaViewsFuncionando(TestCase):
         r = self.client.get(reverse('engenharia:mapa'))
         self.assertEqual(r.status_code, 302, 'Sem login deve redirecionar')
         self.client.login(username='teste_mapa', password='senha123')
-        r = self.client.get(reverse('engenharia:mapa'))
+        r = self.client.get(reverse('engenharia:mapa'), follow=True)
         self.assertEqual(r.status_code, 200, 'Com login e grupo Mapa deve retornar 200')
 
     def test_url_engenharia_importar_sienge_requer_login(self):

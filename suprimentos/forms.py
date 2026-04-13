@@ -13,6 +13,15 @@ class SiengeImportUploadForm(forms.Form):
         required=True,
         help_text='Envie o arquivo exportado do Sienge (.csv ou .xlsx).'
     )
+    forcar_reimportacao = forms.BooleanField(
+        required=False,
+        initial=False,
+        label='Forçar reimportação do mesmo arquivo',
+        help_text=(
+            'Use quando o sistema bloqueou por arquivo idêntico, mas você corrigiu obras/códigos no cadastro '
+            'e precisa processar de novo o mesmo Excel (bytes iguais = mesmo hash).'
+        ),
+    )
 
     def clean_arquivo(self):
         f = self.cleaned_data['arquivo']
@@ -35,6 +44,7 @@ class InsumoForm(forms.ModelForm):
     
     UNIDADE_CHOICES = [
         ('UND', 'UND (Unidade)'),
+        ('PÇ', 'PÇ (Peça)'),
         ('KG', 'KG (Quilograma)'),
         ('M', 'M (Metro)'),
         ('M²', 'M² (Metro Quadrado)'),

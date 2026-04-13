@@ -14,6 +14,8 @@ from decimal import Decimal
 from uuid import uuid4
 import json
 
+from .recebimento_match import descricao_item_compativel
+
 
 def _normalizar_numero_sc(valor):
     """Normaliza o número da SC como no import (remove espaços, pontos, hífens, underscores).
@@ -46,6 +48,7 @@ def _aplicar_dados_recebimento_obra(item):
     Usado ao editar numero_sc ou insumo_codigo para que o restante dos dados seja atualizado.
     Retorna True se encontrou RecebimentoObra e preencheu pelo menos um campo.
     Busca tolerante: numero_sc (85, 085, 85.0) e codigo_insumo (15666, 15666.0) normalizados.
+    Se o item ainda usa insumo provisório (SM-LEV-*), tenta casar por SC única ou descrição compatível.
     """
     from .models import RecebimentoObra
     numero_sc = _normalizar_numero_sc(item.numero_sc)
@@ -60,6 +63,22 @@ def _aplicar_dados_recebimento_obra(item):
         if _normalizar_numero_sc(r.numero_sc) == numero_sc
         and _normalizar_codigo_insumo(r.insumo.codigo_sienge if r.insumo else '') == codigo_insumo_item
     ]
+    # Insumo provisório (SM-LEV-*): casar com recebimento já consolidado pelo import
+    # (não interfere na agrupagem MÁXIMO/Excel — isso é só em importar_mapa_controle).
+    if not recebimentos_todos and item.insumo and (item.insumo.codigo_sienge or '').startswith('SM-LEV-'):
+        sc_only = [
+            r for r in candidatos
+            if _normalizar_numero_sc(r.numero_sc) == numero_sc
+        ]
+        if len(sc_only) == 1:
+            recebimentos_todos = sc_only
+            item.insumo = sc_only[0].insumo
+        else:
+            alvo = (item.descricao_override or item.insumo.descricao or '').strip()
+            por_desc = [r for r in sc_only if descricao_item_compativel(alvo, r.descricao_item)]
+            if len(por_desc) == 1:
+                recebimentos_todos = por_desc
+                item.insumo = por_desc[0].insumo
     if not recebimentos_todos:
         return False
     pc_consolidado = ''
@@ -100,7 +119,7 @@ def _aplicar_dados_recebimento_obra(item):
 @require_http_methods(["GET"])
 def item_detalhe(request, item_id):
     """Retorna detalhes do item para modal."""
-    item = get_object_or_404(ItemMapa, id=item_id)
+    item = get_object_or_404(ItemMapa.objects.select_related('criado_por'), id=item_id)
     
     # Validar que o item pertence à obra da sessão
     obra_sessao_id = request.session.get('obra_id')
@@ -129,6 +148,12 @@ def item_detalhe(request, item_id):
     # Falta Alocar: baseado no que foi recebido na obra, não no planejado
     saldo_a_alocar = max(qtd_recebida_obra - qtd_alocada_local, Decimal('0.00'))
     
+    # Nome do responsável pelo levantamento
+    if item.criado_por:
+        criado_por_nome = item.criado_por.get_full_name() or item.criado_por.username
+    else:
+        criado_por_nome = '-'
+
     from accounts.groups import GRUPOS
     pode_excluir = (
         request.user.is_superuser or
@@ -163,6 +188,10 @@ def item_detalhe(request, item_id):
     <div class="detalhe-item">
         <div class="detalhe-label">Prazo Necessidade:</div>
         <div class="detalhe-valor">{item.prazo_necessidade or '-'}</div>
+    </div>
+    <div class="detalhe-item">
+        <div class="detalhe-label">Responsável pelo Levantamento:</div>
+        <div class="detalhe-valor"><strong>{criado_por_nome}</strong></div>
     </div>
         </div>
         <div class="col-md-6">
@@ -644,7 +673,10 @@ def item_atualizar_campo(request):
                     
                     alvo_desc = (item.descricao_override or item.insumo.descricao or '').strip()
                     if alvo_desc:
-                        match = next((r for r in recebimentos_obra_sc if (r.descricao_item or '').strip().lower() == alvo_desc.lower()), None)
+                        match = next(
+                            (r for r in recebimentos_obra_sc if descricao_item_compativel(alvo_desc, r.descricao_item)),
+                            None,
+                        )
                         if match:
                             # Ajustar insumo (se era provisório) e item_sc
                             if (item.insumo.codigo_sienge or '').startswith('SM-LEV-') or item.insumo_id != match.insumo_id:
@@ -706,7 +738,10 @@ def item_atualizar_campo(request):
                         # Limpar item_sc para itens manuais (permitir múltiplos RecebimentoObra)
                         # Mas manter item_sc se foi setado acima (linha específica encontrada)
                         # Apenas limpar se não foi encontrada linha específica
-                        if not item.item_sc or (alvo_desc and not any((r.descricao_item or '').strip().lower() == alvo_desc.lower() for r in recebimentos_obra_sc)):
+                        if not item.item_sc or (
+                            alvo_desc
+                            and not any(descricao_item_compativel(alvo_desc, r.descricao_item) for r in recebimentos_obra_sc)
+                        ):
                             item.item_sc = ''  # Permitir vinculação com múltiplos RecebimentoObra
                         filled_from_sienge = True  # Front deve recarregar para mostrar PC, prazo, quantidade, etc.
                             
@@ -715,6 +750,10 @@ def item_atualizar_campo(request):
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f"Erro ao atualizar dados do Sienge ao vincular SC {numero_sc_atual}: {e}")
+
+                # Se ainda não achou recebimento (ex.: SM-LEV vs código Sienge), tenta mesma lógica ampliada
+                if not filled_from_sienge:
+                    filled_from_sienge = _aplicar_dados_recebimento_obra(item)
 
             # Se existir um "placeholder do Sienge" (A CLASSIFICAR, sem local) para a mesma SC+Insumo,
             # e agora já existe pelo menos 1 item "real" (ex: com local ou criado pela engenharia),

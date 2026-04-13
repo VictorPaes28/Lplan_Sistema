@@ -24,7 +24,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db import models
 from mapa_obras.models import Obra
-from suprimentos.models import ItemMapa, RecebimentoObra, Insumo
+from suprimentos.models import ItemMapa, RecebimentoObra, Insumo, ImportacaoSienge
+from suprimentos.utils_importacao import sanitizar_texto_sienge
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
 import pandas as pd
@@ -59,6 +61,12 @@ class Command(BaseCommand):
             action='store_true',
             help='Incluir insumos pequenos e cimentos (padrão: apenas macroelementos entram no mapa)'
         )
+        parser.add_argument(
+            '--importacao-id',
+            type=int,
+            default=None,
+            help='ID do registro ImportacaoSienge (vínculo para desfazer importação)',
+        )
 
     def parse_date(self, val):
         """Converte string de data para objeto date."""
@@ -66,16 +74,19 @@ class Command(BaseCommand):
             return None
         if isinstance(val, datetime):
             return val.date()
+
+        # Evita propagar pandas.NaT para o ORM (gera erro "NaTType ... utcoffset").
+        parsed = pd.to_datetime(val, errors='coerce', dayfirst=True)
+        if pd.isna(parsed):
+            return None
+
         try:
-            return pd.to_datetime(val, format='%d/%m/%Y', errors='coerce').date()
+            return parsed.date()
         except Exception:
             try:
-                return pd.to_datetime(val, format='%Y-%m-%d', errors='coerce').date()
+                return parsed.to_pydatetime().date()
             except Exception:
-                try:
-                    return pd.to_datetime(val, errors='coerce').date()
-                except Exception:
-                    return None
+                return None
 
     def parse_decimal(self, val):
         """Converte valor para Decimal, tratando formato brasileiro (1.000,00)."""
@@ -112,6 +123,14 @@ class Command(BaseCommand):
         obra_codigo_fallback = options['obra_codigo']
         skiprows = options['skiprows']
         incluir_pequenos = options.get('incluir_pequenos', False)
+        importacao_id = options.get('importacao_id')
+        importacao = None
+        if importacao_id:
+            importacao = ImportacaoSienge.objects.filter(pk=importacao_id).first()
+            if not importacao:
+                self.stdout.write(self.style.WARNING(
+                    f'   [!] ImportacaoSienge id={importacao_id} não encontrada; importação sem vínculo.'
+                ))
         
         if not os.path.exists(file_path):
             self.stdout.write(self.style.ERROR(f'Arquivo não encontrado: {file_path}'))
@@ -153,12 +172,13 @@ class Command(BaseCommand):
             'descricao_insumo': ['DESCRIÇÃO DO INSUMO', 'DESCRICAO DO INSUMO', 'DESCRIÇÃO', 'DESCRICAO', 'DESC INSUMO', 'DESCRIÇÃO DO INSUMO', 'DESC. INSUMO'],
             'quantidade_solicitada': ['QT. SOLICITADA', 'QT SOLICITADA', 'QUANTIDADE SOLICITADA', 'QTD SOLICITADA', 'QUANT SOLICITADA', 'QT SOLICITADA'],
             'data_sc': ['DATA DA SC', 'DATA SC', 'DATA_SOLICITACAO', 'DATA SC'],
-            'numero_sc': ['Nº DA SC', 'N DA SC', 'NUMERO SC', 'NUMERO_DA_SC', 'SC', 'NSC', 'N. DA SC', 'N. SC'],
-            'numero_pc': ['Nº DO PC', 'N DO PC', 'NUMERO PC', 'NUMERO_DO_PC', 'PC', 'NPC', 'N. DO PC', 'N. PC'],
+            # "NO ..." = export sem símbolo º ou com Nº normalizado diferente do Sienge padrão (ex.: Rpontes)
+            'numero_sc': ['Nº DA SC', 'NO DA SC', 'N DA SC', 'NUMERO SC', 'NUMERO_DA_SC', 'SC', 'NSC', 'N. DA SC', 'N. SC'],
+            'numero_pc': ['Nº DO PC', 'NO DO PC', 'N DO PC', 'NUMERO PC', 'NUMERO_DO_PC', 'PC', 'NPC', 'N. DO PC', 'N. PC'],
             'previsao_entrega': ['PREVISÃO DE ENTREGA', 'PREVISAO DE ENTREGA', 'PRAZO ENTREGA', 'PRAZO_RECEBIMENTO', 'PREVISÃO ENTREGA'],
             'quantidade_entregue': ['QUANT. ENTREGUE', 'QUANT ENTREGUE', 'QTD ENTREGUE', 'QUANTIDADE ENTREGUE', 'QTD_ENTREGUE', 'QT. ENTREGUE'],
             'saldo': ['SALDO', 'SALDO A ENTREGAR', 'SALDO_A_ENTREGAR', 'SALDO ENTREGAR'],
-            'numero_nf': ['Nº DA NF', 'N DA NF', 'NUMERO NF', 'NUMERO_DA_NF', 'NF', 'NNF', 'N. DA NF', 'N. NF'],
+            'numero_nf': ['Nº DA NF', 'NO DA NF', 'N DA NF', 'NUMERO NF', 'NUMERO_DA_NF', 'NF', 'NNF', 'N. DA NF', 'N. NF'],
             'data_nf': ['DATA DA NF', 'DATA NF', 'DATA_NOTA_FISCAL', 'DATA NF'],
             'data_emissao_pc': ['DATA EMISSÃO DO PC', 'DATA EMISSAO DO PC', 'DATA_PC', 'DATA DO PC', 'DATA EMISSÃO PC'],
             'empresa_fornecedora': ['FORNECEDOR', 'EMPRESA', 'EMPRESA FORNECEDORA', 'RAZAO SOCIAL', 'EMPRESA FORNECEDORA'],
@@ -194,43 +214,85 @@ class Command(BaseCommand):
         
         self.stdout.write(f'   [DATA] Colunas: {", ".join(colunas_encontradas.values())}')
         self.stdout.write(f'   [INFO] Linhas: {len(df)}')
+
+        def _txt(v, max_length=None):
+            return sanitizar_texto_sienge(v, max_length=max_length)
+
+        def _codigo(v):
+            return _txt(v, max_length=100)
         
         # Caches
         obras_cache = {}
         insumos_cache = {}
-        
+
+        def _chave_desc_recon(s):
+            """Casar descrição CSV ↔ insumo SM-LEV sem iexact/LIKE no MySQL (erro 1267 collation)."""
+            if s is None:
+                return ''
+            s = sanitizar_texto_sienge(s)
+            return ' '.join(str(s).strip().split()).lower()
+
+        # Índice em memória: insumos com código SM-LEV-* (um scan no início; lookups O(1))
+        sm_lev_por_desc = defaultdict(list)
+        for ins in Insumo.objects.only(
+            'id', 'codigo_sienge', 'descricao', 'unidade', 'eh_macroelemento', 'ativo'
+        ).iterator(chunk_size=500):
+            code = ins.codigo_sienge or ''
+            if not code.startswith('SM-LEV-'):
+                continue
+            sm_lev_por_desc[_chave_desc_recon(ins.descricao)].append(ins)
+
+        # Código principal + codigos_sienge_alternativos, com variantes numéricas (42, 0042, …)
+        obra_chave_map = {}
+        for ob in Obra.objects.filter(ativa=True):
+            for k in ob.chaves_sienge_busca_importacao():
+                if k in obra_chave_map and obra_chave_map[k].pk != ob.pk:
+                    self.stdout.write(self.style.WARNING(
+                        f'   [!] Código Sienge "{k}" associado a mais de uma obra; '
+                        f'mantida {obra_chave_map[k].codigo_sienge} - {obra_chave_map[k].nome}.'
+                    ))
+                    continue
+                obra_chave_map[k] = ob
+
+        def expand_codigo_obra_csv(codigo):
+            """Variações do código vindo do CSV para bater no mapa de obras."""
+            s = str(codigo).strip()
+            out = []
+            if not s or s.lower() == 'nan':
+                return out
+            out.append(s)
+            if s.replace('.', '', 1).replace(',', '', 1).isdigit():
+                try:
+                    n = str(int(float(s.replace(',', '.'))))
+                    out.append(n)
+                    for width in (4, 5):
+                        out.append(n.zfill(width))
+                except (ValueError, TypeError):
+                    pass
+            elif s.isdigit():
+                n = str(int(s))
+                out.append(n)
+                for width in (4, 5):
+                    out.append(n.zfill(width))
+            return list(dict.fromkeys(out))
+
         def get_obra(codigo):
-            """Busca obra por código Sienge. Normaliza: strip; 224 e 0224 considerados iguais."""
+            """Resolve obra pelo código Sienge do arquivo (principal, alternativos e variantes numéricas)."""
             codigo_str = str(codigo).strip()
             if not codigo_str or codigo_str.lower() == 'nan':
                 return None
             if codigo_str not in obras_cache:
-                try:
-                    obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=codigo_str)
-                except Obra.DoesNotExist:
-                    obras_cache[codigo_str] = None
-                if obras_cache[codigo_str] is None and codigo_str.isdigit():
-                    # CSV "224" vs BD "0224" ou vice-versa: tentar forma normalizada
-                    normalizado = str(int(codigo_str))
-                    try:
-                        obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=normalizado)
-                    except Obra.DoesNotExist:
-                        pass
-                if obras_cache[codigo_str] is None and codigo_str.isdigit() and len(codigo_str) < 6:
-                    # Tentar com zeros à esquerda (ex.: BD "0224", CSV "224")
-                    for width in (4, 5):
-                        padded = codigo_str.zfill(width)
-                        if padded != codigo_str:
-                            try:
-                                obras_cache[codigo_str] = Obra.objects.get(codigo_sienge=padded)
-                                break
-                            except Obra.DoesNotExist:
-                                continue
+                obra = None
+                for v in expand_codigo_obra_csv(codigo_str):
+                    if v in obra_chave_map:
+                        obra = obra_chave_map[v]
+                        break
+                obras_cache[codigo_str] = obra
             return obras_cache[codigo_str]
         
         def get_insumo(codigo):
             # Mantido por compatibilidade interna: agora usamos get_or_create_insumo
-            codigo_str = str(codigo).strip()
+            codigo_str = _codigo(codigo)
             if not codigo_str:
                 return None
             if codigo_str not in insumos_cache:
@@ -241,8 +303,8 @@ class Command(BaseCommand):
             return insumos_cache[codigo_str]
 
         def normalizar_desc(desc):
-            s = '' if desc is None else str(desc)
-            return ' '.join(s.strip().split())
+            s = sanitizar_texto_sienge(desc)
+            return s[:500] if s else ''
 
         def get_insumo_ou_none(codigo, descricao):
             """
@@ -251,7 +313,7 @@ class Command(BaseCommand):
             - Se não existir, tenta reconciliar com insumo criado no Levantamento (SM-LEV-*) pelo NOME
             - Se não achar, CRIA novo Insumo com código e descrição do arquivo para armazenar o recebimento
             """
-            codigo_str = str(codigo).strip()
+            codigo_str = _codigo(codigo)
             if not codigo_str or codigo_str == 'nan':
                 return None, False
 
@@ -270,10 +332,10 @@ class Command(BaseCommand):
                 return existente, False
 
             if desc_norm:
-                candidato = Insumo.objects.filter(
-                    descricao__iexact=desc_norm,
-                    codigo_sienge__startswith='SM-LEV-'
-                ).first()
+                # Reconciliar com SM-LEV via sm_lev_por_desc (sem ORM iexact/startswith → sem LIKE no MySQL)
+                k = _chave_desc_recon(descricao)
+                cands = sm_lev_por_desc.get(k, [])
+                candidato = cands[0] if cands else None
                 if candidato:
                     candidato.codigo_sienge = codigo_str
                     candidato.descricao = desc_norm[:500]
@@ -281,6 +343,9 @@ class Command(BaseCommand):
                         candidato.unidade = 'UND'
                     candidato.eh_macroelemento = candidato.identificar_eh_macroelemento()
                     candidato.save()
+                    sm_lev_por_desc[k] = [x for x in cands if x.pk != candidato.pk]
+                    if not sm_lev_por_desc[k]:
+                        del sm_lev_por_desc[k]
                     insumos_cache[codigo_str] = candidato
                     return candidato, False
 
@@ -302,12 +367,13 @@ class Command(BaseCommand):
         # A quantidade entregue vem repetida no CSV para o mesmo insumo, então pegamos apenas o maior valor
         grupos_sc = {}  # Chave: (obra, numero_sc, codigo_insumo) -> dados consolidados
         obras_ignoradas = set()
-        insumos_criados_agora = set()  # Códigos de insumos criados neste import
+        insumos_criados_agora = set()  # Códigos de insumos criados neste import (log)
+        insumos_criados_ids = []  # IDs para possível exclusão ao desfazer importação
         
         for idx, row in df.iterrows():
             # Limpar e validar número da SC
             numero_sc_raw = row[colunas_encontradas['numero_sc']]
-            numero_sc = str(numero_sc_raw).strip() if pd.notna(numero_sc_raw) else ''
+            numero_sc = _txt(numero_sc_raw, max_length=100) if pd.notna(numero_sc_raw) else ''
             
             numero_sc = numero_sc.replace(' ', '').replace('-', '').replace('_', '')
             # Normalizar numérico antes de remover ponto: 85.0 -> 85, 085 -> 85 (igual à API)
@@ -328,7 +394,7 @@ class Command(BaseCommand):
             
             # Código da obra
             if tem_coluna_obra:
-                codigo_obra = str(row[colunas_encontradas['codigo_obra']]).strip()
+                codigo_obra = _codigo(row[colunas_encontradas['codigo_obra']])
                 if not codigo_obra or codigo_obra == 'nan':
                     codigo_obra = obra_codigo_fallback or ''
                 # Normalizar "224.0" (Excel) para "224"
@@ -352,7 +418,7 @@ class Command(BaseCommand):
             insumo_obj = None
             codigo_insumo = ''
             if tem_coluna_insumo:
-                codigo_insumo = str(row[colunas_encontradas['codigo_insumo']]).strip()
+                codigo_insumo = _codigo(row[colunas_encontradas['codigo_insumo']])
                 if codigo_insumo and codigo_insumo != 'nan':
                     # Normalizar: 15666.0 (Excel) -> 15666
                     if codigo_insumo.replace('.', '', 1).replace(',', '', 1).isdigit():
@@ -361,12 +427,14 @@ class Command(BaseCommand):
                         except (ValueError, TypeError):
                             pass
                     desc_insumo = row[colunas_encontradas['descricao_insumo']] if 'descricao_insumo' in colunas_encontradas else ''
-                    desc_insumo = str(desc_insumo).strip() if desc_insumo is not None and not (isinstance(desc_insumo, float) and pd.isna(desc_insumo)) else ''
+                    desc_insumo = _txt(desc_insumo, max_length=500)
                     insumo_obj, foi_criado = get_insumo_ou_none(codigo_insumo, desc_insumo)
                     if insumo_obj is None:
                         continue  # Código vazio ou inválido
                     if foi_criado:
                         insumos_criados_agora.add(f"{codigo_insumo} ({str(desc_insumo)[:30] if desc_insumo else 'sem descricao'})")
+                        if insumo_obj.pk and insumo_obj.pk not in insumos_criados_ids:
+                            insumos_criados_ids.append(insumo_obj.pk)
 
             if not insumo_obj:
                 continue  # Sem coluna de insumo ou código vazio
@@ -398,8 +466,7 @@ class Command(BaseCommand):
             
             # Atualizar descrição se disponível
             if 'descricao_insumo' in colunas_encontradas:
-                desc_val = row[colunas_encontradas['descricao_insumo']]
-                desc_val = str(desc_val).strip() if desc_val is not None and not (isinstance(desc_val, float) and pd.isna(desc_val)) else ''
+                desc_val = _txt(row[colunas_encontradas['descricao_insumo']], max_length=500)
                 if desc_val and desc_val != 'nan' and not grupos_sc[chave]['descricao_insumo']:
                     grupos_sc[chave]['descricao_insumo'] = desc_val
             
@@ -411,7 +478,7 @@ class Command(BaseCommand):
             
             # Atualizar numero_pc (usar primeira encontrada)
             if 'numero_pc' in colunas_encontradas:
-                pc_val = str(row[colunas_encontradas['numero_pc']]).strip()
+                pc_val = _txt(row[colunas_encontradas['numero_pc']], max_length=100)
                 if pc_val and pc_val != 'nan' and pc_val != '' and not grupos_sc[chave]['numero_pc']:
                     grupos_sc[chave]['numero_pc'] = pc_val
             
@@ -452,7 +519,7 @@ class Command(BaseCommand):
             
             # NF: usar primeira encontrada (geralmente é a mesma para todas as linhas)
             if 'numero_nf' in colunas_encontradas:
-                nf_val = str(row[colunas_encontradas['numero_nf']]).strip()
+                nf_val = _txt(row[colunas_encontradas['numero_nf']], max_length=100)
                 if nf_val and nf_val != 'nan' and not grupos_sc[chave]['numero_nf']:
                     grupos_sc[chave]['numero_nf'] = nf_val
             
@@ -462,7 +529,7 @@ class Command(BaseCommand):
                     grupos_sc[chave]['data_nf'] = data_nf_val
             
             if 'empresa_fornecedora' in colunas_encontradas:
-                fornecedor_val = str(row[colunas_encontradas['empresa_fornecedora']]).strip()
+                fornecedor_val = _txt(row[colunas_encontradas['empresa_fornecedora']], max_length=200)
                 if fornecedor_val and fornecedor_val != 'nan' and not grupos_sc[chave]['empresa_fornecedora']:
                     grupos_sc[chave]['empresa_fornecedora'] = fornecedor_val
         
@@ -474,13 +541,10 @@ class Command(BaseCommand):
                 '   Dica: Cadastre essas obras em Mapa de Obras com código Sienge igual ao do arquivo (ex.: 224, 242, 259).'
             ))
         
-        if not incluir_pequenos:
-            self.stdout.write(self.style.SUCCESS(
-                f'   [OK] Todas as linhas do arquivo serão registradas (insumos não cadastrados são criados automaticamente).'
-            ))
-        else:
+        if incluir_pequenos:
             self.stdout.write(self.style.WARNING(
-                f'   [!] Modo inclusivo: Todos os insumos serão incluídos (incluindo pequenos e cimentos)'
+                '   [!] --incluir-pequenos está deprecado e atualmente não altera o comportamento '
+                '(todas as linhas válidas já são consideradas).'
             ))
         
         if insumos_criados_agora:
@@ -539,24 +603,29 @@ class Command(BaseCommand):
                     # === 1. CRIAR/ATUALIZAR RecebimentoObra ===
                     # Registrar todas as linhas do arquivo (obra + SC + insumo) para vínculo posterior no mapa
                     if insumo:
+                        rec_defaults = {
+                            'data_sc': dados['data_sc'],
+                            'numero_pc': dados['numero_pc'],
+                            'data_pc': dados['data_emissao_pc'],
+                            'empresa_fornecedora': dados['empresa_fornecedora'],
+                            'prazo_recebimento': dados['previsao_entrega'],
+                            'descricao_item': sanitizar_texto_sienge(
+                                str(dados.get('descricao_insumo') or ''), max_length=500
+                            ),
+                            'quantidade_solicitada': dados['quantidade_solicitada'],
+                            'quantidade_recebida': dados['quantidade_entregue'],
+                            'saldo_a_entregar': saldo_final,
+                            'numero_nf': dados['numero_nf'],
+                            'data_nf': dados['data_nf'],
+                        }
+                        if importacao:
+                            rec_defaults['importacao'] = importacao
                         recebimento, created = RecebimentoObra.objects.update_or_create(
                             obra=obra,
                             numero_sc=numero_sc,
                             insumo=insumo,
                             item_sc='',
-                            defaults={
-                                'data_sc': dados['data_sc'],
-                                'numero_pc': dados['numero_pc'],
-                                'data_pc': dados['data_emissao_pc'],
-                                'empresa_fornecedora': dados['empresa_fornecedora'],
-                                'prazo_recebimento': dados['previsao_entrega'],
-                                'descricao_item': (str(dados.get('descricao_insumo') or '')[:500]),
-                                'quantidade_solicitada': dados['quantidade_solicitada'],
-                                'quantidade_recebida': dados['quantidade_entregue'],
-                                'saldo_a_entregar': saldo_final,
-                                'numero_nf': dados['numero_nf'],
-                                'data_nf': dados['data_nf'],
-                            }
+                            defaults=rec_defaults,
                         )
                         if created:
                             total_recebimentos_criados += 1
@@ -723,3 +792,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f'\n[!] {len(erros)} erros:'))
             for erro in erros[:10]:
                 self.stdout.write(self.style.WARNING(f'   - {erro}'))
+
+        if importacao:
+            importacao.insumos_criados_ids = insumos_criados_ids
+            importacao.save(update_fields=['insumos_criados_ids'])

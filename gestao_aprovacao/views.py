@@ -1,16 +1,18 @@
 from django.shortcuts import render, redirect, get_object_or_404
 # auth import removido - autenticação centralizada no app 'accounts'
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q, DateTimeField
+from django.db.models import Q, Min, Value, Prefetch
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
-from datetime import timedelta, datetime
+from django.urls import reverse
+from datetime import timedelta, datetime, time
 from urllib.parse import urlencode
 import os
 import csv
@@ -29,7 +31,18 @@ from .models import (
     WorkOrderPermission, UserEmpresa, UserProfile, Notificacao, Comment, Lembrete, TagErro, EmailLog
 )
 from .forms import EmpresaForm, ObraForm, WorkOrderForm, AttachmentForm
-from .utils import get_user_profile, is_engenheiro, is_gestor, is_admin, is_responsavel_empresa, is_aprovador, gestor_required, criar_notificacao, admin_required
+from .utils import (
+    get_user_profile,
+    is_engenheiro,
+    is_gestor,
+    is_admin,
+    is_responsavel_empresa,
+    is_aprovador,
+    gestor_required,
+    criar_notificacao,
+    admin_required,
+    usuario_pode_marcar_pedido_analisado,
+)
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from accounts.groups import GRUPOS
 from accounts.models import UserSignupRequest
@@ -99,20 +112,6 @@ def _no_cache_form_response(response):
 from core.models import Project, ProjectMember
 
 logger = logging.getLogger(__name__)
-
-# Coluna "analisado" (checkbox) em list_workorders — só estes e-mails + superuser.
-_EMAILS_MARCAR_PEDIDO_ANALISADO = frozenset({
-    "luiz.henrique@lplan.com.br",
-    "luizdomingos@lplan.com.br",
-})
-
-
-def _usuario_pode_marcar_pedido_analisado(user):
-    if getattr(user, "is_superuser", False):
-        return True
-    email = (getattr(user, "email", None) or "").strip().lower()
-    return bool(email and email in _EMAILS_MARCAR_PEDIDO_ANALISADO)
-
 
 def _grupos_ordenados_por_sistema():
     """Retorna os grupos na ordem: Gestão (Admin, Responsável, Aprovador, Solicitante), Diário de Obra, Mapa de Suprimentos."""
@@ -309,12 +308,57 @@ def _workorders_base_queryset_and_obras(user):
     return workorders, obras_disponiveis
 
 
+def _parse_workorder_list_date(s):
+    """Aceita YYYY-MM-DD (input date), DD/MM/YYYY ou DD-MM-YYYY."""
+    s = (s or '').strip()
+    if not s:
+        return None
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _filter_workorders_by_envio_or_created_date(workorders, start_date, end_date):
+    """
+    Data de referência = data_envio quando preenchida; senão created_at.
+    Equivalente ao Coalesce(data_envio, created_at) em filtros por dia.
+    Evita lookups __date para não depender de tabelas de timezone no MySQL.
+    """
+    eff_end = end_date if end_date is not None else timezone.localdate()
+    if start_date and start_date > eff_end:
+        start_date, eff_end = eff_end, start_date
+
+    current_tz = timezone.get_current_timezone()
+    start_dt = None
+    if start_date:
+        start_dt = timezone.make_aware(datetime.combine(start_date, time.min), current_tz)
+    end_exclusive = timezone.make_aware(
+        datetime.combine(eff_end + timedelta(days=1), time.min),
+        current_tz,
+    )
+
+    q_branch1 = Q(data_envio__isnull=False)
+    if start_dt:
+        q_branch1 &= Q(data_envio__gte=start_dt)
+    q_branch1 &= Q(data_envio__lt=end_exclusive)
+
+    q_branch2 = Q(data_envio__isnull=True)
+    if start_dt:
+        q_branch2 &= Q(created_at__gte=start_dt)
+    q_branch2 &= Q(created_at__lt=end_exclusive)
+
+    return workorders.filter(q_branch1 | q_branch2)
+
+
 def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_params):
     """
     Aplica filtros GET (ORM apenas). Valida obra contra obras_disponiveis.
-    Intervalo de datas: data de referência = Coalesce(data_envio, created_at).
-    Se data_fim vazia e houver data_inicio, fim = hoje local.
-    Se ambos vazios, não filtra por data.
+    Período (De/Até): usa data de envio; se não houver, a data de criação do pedido.
+    Se data_fim vazia e houver filtro de datas, fim = hoje local.
+    Se ambos os campos de data vazios, não filtra por data.
     """
     obra_filter = get_params.get('obra')
     obra_filter_out = ''
@@ -351,29 +395,22 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
     data_inicio_raw = (get_params.get('data_inicio') or '').strip()
     data_fim_raw = (get_params.get('data_fim') or '').strip()
 
-    start_date = None
-    if data_inicio_raw:
-        try:
-            start_date = datetime.strptime(data_inicio_raw, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            data_inicio_raw = ''
+    start_date = _parse_workorder_list_date(data_inicio_raw) if data_inicio_raw else None
+    end_date = _parse_workorder_list_date(data_fim_raw) if data_fim_raw else None
+    if data_inicio_raw and start_date is None:
+        data_inicio_raw = ''
+    if data_fim_raw and end_date is None:
+        data_fim_raw = ''
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
 
-    end_date = None
-    if data_fim_raw:
-        try:
-            end_date = datetime.strptime(data_fim_raw, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            data_fim_raw = ''
-            end_date = None
+    data_inicio = start_date.strftime('%Y-%m-%d') if start_date else ''
+    data_fim = end_date.strftime('%Y-%m-%d') if end_date else ''
 
     if data_inicio_raw or data_fim_raw:
-        workorders = workorders.annotate(
-            ref_dt=Coalesce('data_envio', 'created_at', output_field=DateTimeField())
+        workorders = _filter_workorders_by_envio_or_created_date(
+            workorders, start_date, end_date
         )
-        if start_date:
-            workorders = workorders.filter(ref_dt__date__gte=start_date)
-        eff_end = end_date if end_date is not None else timezone.localdate()
-        workorders = workorders.filter(ref_dt__date__lte=eff_end)
 
     search_query = (get_params.get('search') or '').strip()
     if search_query:
@@ -399,14 +436,15 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
         'credor_filter': credor_filter,
         'engenheiro_filter': engenheiro_filter if engenheiro_filter and (is_aprovador(user) or is_admin(user)) else '',
         'analisado_filter': analisado_filter,
-        'data_inicio': data_inicio_raw,
-        'data_fim': data_fim_raw,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
         'search_query': search_query,
         'order_by': order_by,
     }
 
 
 @login_required
+@ensure_csrf_cookie
 def list_workorders(request):
     """
     Lista pedidos de obra. Regra única no GestControll:
@@ -443,20 +481,18 @@ def list_workorders(request):
         is_admin(user)
     )
     
-    pode_marcar_analisado = _usuario_pode_marcar_pedido_analisado(user)
-    
     # Aviso para solicitante sem obras vinculadas (regra única: acesso é por obra)
     aviso_sem_obras = (
         user_profile == 'solicitante' and not is_admin(user) and not is_aprovador(user)
         and not obras_disponiveis.exists()
     )
+    _gestao_marcar_pk_ph = 999001999
     context = {
         'page_obj': page_obj,
         'workorders': page_obj,
         'user_profile': user_profile,
         'obras_disponiveis': obras_disponiveis,
         'engenheiros_list': engenheiros_list,
-        'pode_marcar_analisado': pode_marcar_analisado,
         'pode_criar_pedido': pode_criar_pedido,
         'aviso_sem_obras': aviso_sem_obras,
         'status_choices': [
@@ -466,6 +502,13 @@ def list_workorders(request):
             ('reaprovacao', 'Reaprovação'),
         ],
         'tipo_solicitacao_choices': WorkOrder.TIPO_SOLICITACAO_CHOICES,
+        # Front (JS): URLs resolvidas pelo Django — evita path fixo errado em subpath/proxy
+        'gestao_csrf_api_url': reverse('api_csrf_token'),
+        'gestao_marcar_analisado_url_tpl': reverse(
+            'gestao:marcar_pedido_analisado',
+            args=[_gestao_marcar_pk_ph],
+        ),
+        'gestao_marcar_url_pk_placeholder': str(_gestao_marcar_pk_ph),
         **filter_ctx,
     }
     return render(request, 'obras/list_workorders.html', context)
@@ -540,7 +583,7 @@ def export_list_workorders_pdf(request):
         filtros_bits.append(f"Credor: {_pdf_esc(filter_ctx['credor_filter'])}")
     if filter_ctx.get('data_inicio') or filter_ctx.get('data_fim'):
         filtros_bits.append(
-            f"Período (ref. envio/criação): {_pdf_esc(filter_ctx.get('data_inicio') or '—')} a {_pdf_esc(filter_ctx.get('data_fim') or timezone.localdate().strftime('%Y-%m-%d'))}"
+            f"Período (envio ou criação): {_pdf_esc(filter_ctx.get('data_inicio') or '—')} a {_pdf_esc(filter_ctx.get('data_fim') or timezone.localdate().strftime('%Y-%m-%d'))}"
         )
     title_sub = Paragraph(
         "<font size='8' color='#1A3A5C'>GestControll · " + " · ".join(filtros_bits) + "</font>",
@@ -582,7 +625,7 @@ def export_list_workorders_pdf(request):
         Paragraph('Status', th),
         Paragraph('Solicitante', th),
         Paragraph('Data envio', th),
-        Paragraph('Criado em', th),
+        Paragraph('Data aprovação', th),
     ]]
     for wo in items:
         sol = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
@@ -595,10 +638,10 @@ def export_list_workorders_pdf(request):
             Paragraph(_pdf_esc(status_dict.get(wo.status, wo.status or '')), normal),
             Paragraph(_pdf_esc(sol[:28]), normal),
             Paragraph(_pdf_esc(wo.data_envio.strftime('%d/%m/%Y %H:%M') if wo.data_envio else '—'), normal),
-            Paragraph(_pdf_esc(wo.created_at.strftime('%d/%m/%Y %H:%M') if wo.created_at else '—'), normal),
+            Paragraph(_pdf_esc(wo.data_aprovacao.strftime('%d/%m/%Y %H:%M') if wo.data_aprovacao else '—'), normal),
         ])
 
-    tbl = LongTable(data_rows, colWidths=[2.0 * cm, 2.4 * cm, 3.0 * cm, 2.2 * cm, 1.9 * cm, 2.2 * cm, 1.85 * cm, 1.85 * cm], repeatRows=1)
+    tbl = LongTable(data_rows, colWidths=[2.0 * cm, 2.4 * cm, 2.8 * cm, 2.0 * cm, 1.85 * cm, 2.0 * cm, 1.75 * cm, 1.75 * cm], repeatRows=1)
     tbl.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), color_primary),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -623,7 +666,8 @@ def export_list_workorders_pdf(request):
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     fname = f"relatorio_pedidos_{timezone.now().strftime('%Y%m%d_%H%M')}.pdf"
-    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    disp = 'inline' if request.GET.get('inline') == '1' else 'attachment'
+    response['Content-Disposition'] = f'{disp}; filename="{fname}"'
     return response
 
 
@@ -1360,8 +1404,26 @@ def exportar_snapshot_workorder_pdf(request, pk):
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     nome_arquivo = f'pedido_{workorder.codigo}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
-    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    disp = 'inline' if request.GET.get('inline') == '1' else 'attachment'
+    response['Content-Disposition'] = f'{disp}; filename="{nome_arquivo}"'
     return response
+
+
+@login_required
+def leitura_lista_pedidos_pdf(request):
+    """Modo leitura web: PDF da listagem de pedidos (mesmos filtros GET) em iframe."""
+    return render(request, 'obras/pdf_reader_pedidos_lista.html', {
+        'query_string': request.GET.urlencode(),
+    })
+
+
+@login_required
+def leitura_pedido_pdf(request, pk):
+    """Modo leitura web: PDF de snapshot de um pedido em iframe."""
+    workorder = get_object_or_404(WorkOrder, pk=pk)
+    return render(request, 'obras/pdf_reader_pedido.html', {
+        'workorder': workorder,
+    })
 
 
 @login_required
@@ -2373,22 +2435,64 @@ def list_users(request):
             Q(first_name__icontains=search_query) |
             Q(last_name__icontains=search_query)
         )
-    
+
+    # Obras disponíveis no filtro (mesmo recorte de permissão da tela)
+    if is_responsavel_empresa(request.user) and not is_admin(request.user):
+        _emp_filt = Empresa.objects.filter(responsavel=request.user, ativo=True)
+        obras_queryset = Obra.objects.filter(empresa__in=_emp_filt, ativo=True)
+    else:
+        obras_queryset = Obra.objects.filter(ativo=True)
+
+    obra_filter = (request.GET.get('obra') or '').strip()
+    obra_filter_id = None
+    if obra_filter.isdigit():
+        oid = int(obra_filter)
+        if obras_queryset.filter(pk=oid).exists():
+            obra_filter_id = oid
+            users = users.filter(
+                permissoes_obra__obra_id=oid,
+                permissoes_obra__ativo=True,
+            ).distinct()
+
+    users = users.annotate(
+        _obra_sort=Min(
+            'permissoes_obra__obra__nome',
+            filter=Q(permissoes_obra__ativo=True),
+        )
+    ).order_by(Coalesce('_obra_sort', Value('ZZZZZZZZZZ')), 'username')
+
+    users = users.prefetch_related(
+        Prefetch(
+            'permissoes_obra',
+            queryset=WorkOrderPermission.objects.filter(ativo=True).select_related('obra'),
+        )
+    )
+
     # Paginação
     paginator = Paginator(users, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # Obter grupos para cada usuário
+    # Obter grupos e obras (GestControll) para cada usuário
     users_with_groups = []
     for user in page_obj:
         grupos = user.groups.all()
+        obras_vistas = []
+        _seen = set()
+        for p in user.permissoes_obra.all():
+            if not p.obra_id or p.obra_id in _seen:
+                continue
+            _seen.add(p.obra_id)
+            obras_vistas.append(p.obra)
+        obras_vistas.sort(key=lambda o: (o.nome.lower(), o.codigo.lower()))
+
         users_with_groups.append({
             'user': user,
             'groups': grupos,
             'is_engenheiro': grupos.filter(name='Solicitante').exists(),
             'is_gestor': grupos.filter(name='Gestor').exists(),
             'is_admin': grupos.filter(name='Administrador').exists() or user.is_superuser,
+            'obras_list': obras_vistas,
         })
     
     # Verificar se é responsável por empresa para mostrar apenas empresas dele
@@ -2412,6 +2516,8 @@ def list_users(request):
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
         'is_admin': is_admin(request.user),
         'use_central_urls': _central,
+        'obras_filtro': obras_queryset.order_by('nome', 'codigo'),
+        'obra_filter': str(obra_filter_id) if obra_filter_id is not None else '',
     }
     return render(request, 'obras/list_users.html', context)
 
@@ -5017,9 +5123,9 @@ def reenviar_email(request, log_id):
 def marcar_pedido_analisado(request, pk):
     """
     View para marcar/desmarcar pedido como analisado via AJAX.
-    Apenas os e-mails fixos em _EMAILS_MARCAR_PEDIDO_ANALISADO ou superuser.
+    Apenas e-mails em usuario_pode_marcar_pedido_analisado (utils) ou superuser.
     """
-    if not _usuario_pode_marcar_pedido_analisado(request.user):
+    if not usuario_pode_marcar_pedido_analisado(request.user):
         return JsonResponse({
             'success': False, 
             'error': 'Você não tem permissão para usar esta funcionalidade.'

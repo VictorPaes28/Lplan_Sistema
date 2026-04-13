@@ -5,12 +5,12 @@ from functools import wraps
 import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.http import require_http_methods
-from django.db.models import Q, Count, Avg, Sum
+from django.db.models import Q, Count, Avg, Sum, OuterRef, Subquery
 from django.db import IntegrityError
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -20,6 +20,10 @@ from .models import (
     ProjectMember,
     ProjectOwner,
     ProjectDiaryApprover,
+    SupportTicket,
+    SupportTicketMessage,
+    SupportTicketAttachment,
+    Notification,
     ConstructionDiary,
     DiaryCorrectionRequestLog,
     DiaryApprovalHistory,
@@ -48,6 +52,22 @@ logger = logging.getLogger(__name__)
 # PDFGenerator será importado apenas quando necessário (lazy import)
 PDFGenerator = None
 REPORTLAB_AVAILABLE = False
+
+SUPPORT_CATEGORY_CHOICES = (
+    "Diário de Obra (criação/edição)",
+    "RDO - Aprovação de gestor",
+    "Relatórios e PDF/Excel",
+    "Fotos, vídeos e anexos",
+    "GestControll - Pedidos",
+    "GestControll - Aprovação/Reprovação",
+    "Mapa de Controle / Engenharia",
+    "Painel do sistema (obras/usuários)",
+    "Acesso e permissões",
+    "Notificações e e-mails",
+    "Lentidão/Performance",
+    "Dúvida de uso do sistema",
+    "Outro (descrever no texto)",
+)
 
 # Mapeamento obra → contratante para autopreencher o formulário do diário.
 # Chave: substring normalizada (lower) do nome ou código da obra.
@@ -331,18 +351,570 @@ def select_system_view(request):
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    # BI da Obra: mesma base de obras (projeto vinculado); visível para quem usa Diário ou Mapa
+    has_bi_obra = user.is_superuser or user.is_staff or has_diario or has_mapa
     has_central = user.is_superuser or user.is_staff
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
     if not (has_diario or has_gestao or has_mapa or has_central) and _is_work_owner(user):
         return redirect('client-diary-list')
+    support_projects = list(_get_support_projects_for_user(user))
     context = {
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_mapa': has_mapa,
+        'has_bi_obra': has_bi_obra,
         'has_admin': user.is_superuser or user.is_staff,
         'has_central': has_central,
+        'can_manage_support_tickets': user.is_superuser or user.is_staff,
+        'support_projects': support_projects,
+        'support_auto_project': support_projects[0] if len(support_projects) == 1 else None,
+        'support_categories': SUPPORT_CATEGORY_CHOICES,
     }
     return render(request, 'core/select_system.html', context)
+
+
+def _can_manage_support_tickets(user):
+    return bool(user and user.is_authenticated and (user.is_superuser or user.is_staff))
+
+
+def _support_sla_windows(severity):
+    if severity == SupportTicket.Severity.BLOCKER:
+        return timedelta(minutes=30), timedelta(hours=4)
+    if severity == SupportTicket.Severity.IMPORTANT:
+        return timedelta(hours=2), timedelta(hours=24)
+    if severity == SupportTicket.Severity.LOW:
+        return timedelta(hours=24), timedelta(hours=120)
+    return timedelta(hours=8), timedelta(hours=72)
+
+
+def _notify_support_staff(title, message, exclude_user_id=None):
+    staff_users = User.objects.filter(
+        is_active=True,
+    ).filter(
+        Q(is_superuser=True) | Q(is_staff=True)
+    )
+    if exclude_user_id:
+        staff_users = staff_users.exclude(id=exclude_user_id)
+    notifications = [
+        Notification(
+            user=u,
+            notification_type='system',
+            title=title[:255],
+            message=message,
+        )
+        for u in staff_users
+    ]
+    if notifications:
+        Notification.objects.bulk_create(notifications)
+
+
+def _notify_user(user, title, message):
+    if not user:
+        return
+    Notification.objects.create(
+        user=user,
+        notification_type='system',
+        title=title[:255],
+        message=message,
+    )
+
+
+def _support_can_transition(current_status, target_status):
+    transitions = {
+        SupportTicket.Status.OPEN: {
+            SupportTicket.Status.TRIAGE,
+            SupportTicket.Status.IN_PROGRESS,
+            SupportTicket.Status.WAITING_USER,
+            SupportTicket.Status.WAITING_DEPLOY,
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        },
+        SupportTicket.Status.TRIAGE: {
+            SupportTicket.Status.IN_PROGRESS,
+            SupportTicket.Status.WAITING_USER,
+            SupportTicket.Status.WAITING_DEPLOY,
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        },
+        SupportTicket.Status.IN_PROGRESS: {
+            SupportTicket.Status.WAITING_USER,
+            SupportTicket.Status.WAITING_DEPLOY,
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        },
+        SupportTicket.Status.WAITING_USER: {
+            SupportTicket.Status.IN_PROGRESS,
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        },
+        SupportTicket.Status.WAITING_DEPLOY: {
+            SupportTicket.Status.IN_PROGRESS,
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        },
+        SupportTicket.Status.RESOLVED: {
+            SupportTicket.Status.CLOSED,
+            SupportTicket.Status.REOPENED,
+        },
+        SupportTicket.Status.CLOSED: {
+            SupportTicket.Status.REOPENED,
+        },
+        SupportTicket.Status.REOPENED: {
+            SupportTicket.Status.TRIAGE,
+            SupportTicket.Status.IN_PROGRESS,
+            SupportTicket.Status.WAITING_USER,
+            SupportTicket.Status.WAITING_DEPLOY,
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        },
+    }
+    return target_status == current_status or target_status in transitions.get(current_status, set())
+
+
+def _support_attention_tag(ticket, viewer_is_manager=False):
+    """
+    Tag operacional para leitura rápida do histórico/filas.
+    Não substitui o status oficial do chamado.
+    """
+    if ticket.status == SupportTicket.Status.CLOSED:
+        return ('Fechado', 'closed')
+    if ticket.status == SupportTicket.Status.RESOLVED:
+        return ('Resolvido', 'resolved')
+    if ticket.status == SupportTicket.Status.REOPENED:
+        return ('Reaberto', 'reopened')
+    if ticket.status == SupportTicket.Status.WAITING_USER:
+        return ('Aguardando solicitante', 'waiting-requester')
+    if ticket.status == SupportTicket.Status.WAITING_DEPLOY:
+        return ('Aguardando deploy', 'waiting-requester')
+
+    public_count = getattr(ticket, 'public_message_count', None) or 0
+    last_author_id = getattr(ticket, 'last_public_author_id', None)
+    last_is_staff = bool(getattr(ticket, 'last_public_author_is_staff', False))
+    last_is_superuser = bool(getattr(ticket, 'last_public_author_is_superuser', False))
+    last_from_team = bool(last_is_staff or last_is_superuser)
+
+    if ticket.status in (SupportTicket.Status.TRIAGE, SupportTicket.Status.IN_PROGRESS):
+        if public_count <= 1:
+            return ('Em atendimento', 'in-progress')
+        if viewer_is_manager:
+            return ('Aguardando solicitante', 'responded') if last_from_team else ('Aguardando equipe', 'waiting-team')
+        return ('Respondido', 'responded') if last_from_team else ('Aguardando equipe', 'waiting-team')
+
+    if ticket.status == SupportTicket.Status.OPEN:
+        if public_count <= 1:
+            return ('Novo', 'new')
+        if viewer_is_manager:
+            return ('Aguardando solicitante', 'responded') if last_from_team else ('Aguardando equipe', 'waiting-team')
+        if last_from_team:
+            return ('Respondido', 'responded')
+        if last_author_id:
+            return ('Aguardando equipe', 'waiting-team')
+        return ('Novo', 'new')
+    if viewer_is_manager:
+        return ('Aguardando solicitante', 'responded') if last_from_team else ('Aguardando equipe', 'waiting-team')
+    if last_from_team:
+        return ('Respondido', 'responded')
+    if last_author_id:
+        return ('Aguardando equipe', 'waiting-team')
+    return ('Em atendimento', 'in-progress')
+
+
+@login_required
+@require_http_methods(["POST"])
+def support_ticket_create_view(request):
+    """Cria chamado de suporte interno pelo modal da tela inicial."""
+    category = (request.POST.get('category') or '').strip()[:80]
+    severity = (request.POST.get('severity') or '').strip()
+    title = (request.POST.get('title') or '').strip()[:120]
+    description = (request.POST.get('description') or '').strip()
+    screen_path = (request.POST.get('screen_path') or '').strip()[:255]
+    project_id_raw = (request.POST.get('project_id') or '').strip()
+    browser_info = (request.META.get('HTTP_USER_AGENT') or '')[:255]
+    accessible_projects_qs = _get_support_projects_for_user(request.user)
+    accessible_count = accessible_projects_qs.count()
+    related_project = None
+    if project_id_raw:
+        try:
+            project_id = int(project_id_raw)
+        except ValueError:
+            return JsonResponse({'success': False, 'error': 'Obra inválida.'}, status=400)
+        related_project = accessible_projects_qs.filter(pk=project_id).first()
+        if related_project is None:
+            return JsonResponse({'success': False, 'error': 'Você não tem acesso a esta obra.'}, status=403)
+    elif accessible_count == 1:
+        related_project = accessible_projects_qs.first()
+    elif accessible_count > 1:
+        return JsonResponse({'success': False, 'error': 'Selecione a obra relacionada ao chamado.'}, status=400)
+    else:
+        related_project = None
+
+    if not category or not severity or not title or not description:
+        return JsonResponse(
+            {'success': False, 'error': 'Preencha categoria, impacto, título e descrição.'},
+            status=400,
+        )
+    if category not in SUPPORT_CATEGORY_CHOICES:
+        return JsonResponse({'success': False, 'error': 'Categoria inválida.'}, status=400)
+
+    valid_severities = {choice[0] for choice in SupportTicket.Severity.choices}
+    if severity not in valid_severities:
+        return JsonResponse({'success': False, 'error': 'Severidade inválida.'}, status=400)
+
+    now = timezone.now()
+    first_window, resolution_window = _support_sla_windows(severity)
+    ticket = SupportTicket.objects.create(
+        created_by=request.user,
+        category=category,
+        severity=severity,
+        title=title,
+        description=description,
+        related_project=related_project,
+        screen_path=screen_path,
+        browser_info=browser_info,
+        first_response_due_at=now + first_window,
+        resolution_due_at=now + resolution_window,
+    )
+    SupportTicketMessage.objects.create(
+        ticket=ticket,
+        author=request.user,
+        message=description,
+        is_internal_note=False,
+    )
+
+    for f in request.FILES.getlist('attachments'):
+        SupportTicketAttachment.objects.create(
+            ticket=ticket,
+            uploaded_by=request.user,
+            file=f,
+            original_name=(getattr(f, 'name', '') or '')[:255],
+        )
+    _notify_support_staff(
+        title=f"Novo chamado #{ticket.pk}",
+        message=f"{request.user.get_full_name() or request.user.username} abriu: {ticket.title}",
+        exclude_user_id=request.user.id,
+    )
+
+    return JsonResponse(
+        {
+            'success': True,
+            'ticket_id': ticket.pk,
+            'detail_url': f"/support/tickets/{ticket.pk}/",
+            'message': 'Chamado criado com sucesso.',
+        }
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def support_ticket_list_view(request):
+    """Lista chamados do usuário logado."""
+    last_public_author_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).order_by('-created_at').values('author_id')[:1]
+    last_public_author_is_staff_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).order_by('-created_at').values('author__is_staff')[:1]
+    last_public_author_is_superuser_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).order_by('-created_at').values('author__is_superuser')[:1]
+    public_count_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).values('ticket').annotate(c=Count('id')).values('c')[:1]
+    tickets = list(
+        SupportTicket.objects.filter(created_by=request.user)
+        .select_related('assigned_to', 'related_project')
+        .annotate(
+            last_public_author_id=Subquery(last_public_author_subq),
+            last_public_author_is_staff=Subquery(last_public_author_is_staff_subq),
+            last_public_author_is_superuser=Subquery(last_public_author_is_superuser_subq),
+            public_message_count=Subquery(public_count_subq),
+        )
+        .order_by('-created_at')
+    )
+    for t in tickets:
+        t.attention_label, t.attention_tone = _support_attention_tag(t, viewer_is_manager=False)
+    return render(
+        request,
+        'core/support_ticket_list.html',
+        {
+            'tickets': tickets,
+            'can_manage_support_tickets': _can_manage_support_tickets(request.user),
+            'now': timezone.now(),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def support_ticket_detail_view(request, pk):
+    """Detalhe de chamado com conversa e anexos."""
+    ticket = get_object_or_404(
+        SupportTicket.objects.select_related('created_by', 'assigned_to', 'related_project'),
+        pk=pk,
+    )
+    can_manage = _can_manage_support_tickets(request.user)
+    if not can_manage and ticket.created_by_id != request.user.id:
+        raise Http404()
+
+    messages_qs = ticket.messages.select_related('author').order_by('created_at')
+    if not can_manage:
+        messages_qs = messages_qs.filter(is_internal_note=False)
+    public_messages_qs = ticket.messages.filter(is_internal_note=False).order_by('-created_at')
+    ticket.public_message_count = public_messages_qs.count()
+    last_public_message = public_messages_qs.select_related('author').first()
+    ticket.last_public_author_id = getattr(last_public_message, 'author_id', None)
+    ticket.last_public_author_is_staff = bool(
+        getattr(getattr(last_public_message, 'author', None), 'is_staff', False)
+    )
+    ticket.last_public_author_is_superuser = bool(
+        getattr(getattr(last_public_message, 'author', None), 'is_superuser', False)
+    )
+    attachments = ticket.attachments.select_related('uploaded_by').order_by('-uploaded_at')
+    admins = []
+    if can_manage:
+        admins = User.objects.filter(
+            is_active=True,
+        ).filter(
+            Q(is_superuser=True) | Q(is_staff=True)
+        ).order_by('first_name', 'username')
+
+    return render(
+        request,
+        'core/support_ticket_detail.html',
+        {
+            'ticket': ticket,
+            'ticket_messages': messages_qs,
+            'attachments': attachments,
+            'can_manage_support_tickets': can_manage,
+            'admin_users': admins,
+            'status_choices': SupportTicket.Status.choices,
+            'can_reopen': ticket.can_be_reopened_by_user(request.user),
+            'attention_tag': _support_attention_tag(
+                ticket,
+                viewer_is_manager=can_manage,
+            ),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["POST"])
+def support_ticket_reply_view(request, pk):
+    """Responde chamado e permite gestão por admin/superuser."""
+    ticket = get_object_or_404(SupportTicket, pk=pk)
+    can_manage = _can_manage_support_tickets(request.user)
+    if not can_manage and ticket.created_by_id != request.user.id:
+        raise Http404()
+    if (not can_manage) and ticket.status in (SupportTicket.Status.RESOLVED, SupportTicket.Status.CLOSED):
+        messages.error(request, 'Chamado encerrado. Use a opção de reabrir chamado quando disponível.')
+        return redirect('support-ticket-detail', pk=ticket.pk)
+
+    message_text = (request.POST.get('message') or '').strip()
+    is_internal_note = bool(request.POST.get('is_internal_note')) and can_manage
+
+    if message_text:
+        SupportTicketMessage.objects.create(
+            ticket=ticket,
+            author=request.user,
+            message=message_text,
+            is_internal_note=is_internal_note,
+        )
+        if can_manage and not is_internal_note and not ticket.first_response_at:
+            ticket.first_response_at = timezone.now()
+    fields_to_update = set()
+    if can_manage and not is_internal_note and message_text and ticket.first_response_at:
+        fields_to_update.add('first_response_at')
+
+    for f in request.FILES.getlist('attachments'):
+        SupportTicketAttachment.objects.create(
+            ticket=ticket,
+            uploaded_by=request.user,
+            file=f,
+            original_name=(getattr(f, 'name', '') or '')[:255],
+        )
+
+    if can_manage:
+        old_status = ticket.status
+        old_assigned_to_id = ticket.assigned_to_id
+        status = (request.POST.get('status') or '').strip()
+        if not status and message_text and not is_internal_note and old_status in (
+            SupportTicket.Status.RESOLVED,
+            SupportTicket.Status.CLOSED,
+        ):
+            status = SupportTicket.Status.REOPENED
+        if not status and message_text and not is_internal_note:
+            # Resposta da equipe sem escolha manual de status: deixa claro que agora aguardamos o solicitante.
+            if old_status in (
+                SupportTicket.Status.OPEN,
+                SupportTicket.Status.TRIAGE,
+                SupportTicket.Status.IN_PROGRESS,
+                SupportTicket.Status.REOPENED,
+            ):
+                status = SupportTicket.Status.WAITING_USER
+        valid_statuses = {choice[0] for choice in SupportTicket.Status.choices}
+        if status in valid_statuses:
+            if not _support_can_transition(old_status, status):
+                messages.error(request, 'Transição de status inválida para este chamado.')
+                return redirect('support-ticket-detail', pk=ticket.pk)
+            ticket.status = status
+            if status in (SupportTicket.Status.RESOLVED, SupportTicket.Status.CLOSED) and not ticket.resolved_at:
+                ticket.resolved_at = timezone.now()
+            elif status not in (SupportTicket.Status.RESOLVED, SupportTicket.Status.CLOSED):
+                ticket.resolved_at = None
+            fields_to_update.update({'status', 'resolved_at'})
+        if 'assigned_to' in request.POST:
+            assigned_to = (request.POST.get('assigned_to') or '').strip()
+            if assigned_to:
+                try:
+                    ticket.assigned_to_id = int(assigned_to)
+                except ValueError:
+                    pass
+            else:
+                ticket.assigned_to = None
+            fields_to_update.add('assigned_to')
+        if fields_to_update:
+            ticket.save(update_fields=list(fields_to_update | {'updated_at'}))
+
+        if ticket.assigned_to_id and ticket.assigned_to_id != old_assigned_to_id:
+            _notify_user(
+                ticket.assigned_to,
+                f"Chamado #{ticket.pk} atribuído a você",
+                f"Ticket: {ticket.title}",
+            )
+        if message_text and not is_internal_note:
+            _notify_user(
+                ticket.created_by,
+                f"Nova resposta no chamado #{ticket.pk}",
+                f"A equipe respondeu: {ticket.title}",
+            )
+        if old_status != ticket.status:
+            _notify_user(
+                ticket.created_by,
+                f"Status do chamado #{ticket.pk} atualizado",
+                f"Novo status: {ticket.get_status_display()}",
+            )
+    else:
+        if message_text and not is_internal_note:
+            if ticket.status in (
+                SupportTicket.Status.OPEN,
+                SupportTicket.Status.TRIAGE,
+                SupportTicket.Status.WAITING_USER,
+                SupportTicket.Status.REOPENED,
+            ):
+                ticket.status = SupportTicket.Status.IN_PROGRESS
+                ticket.save(update_fields=['status', 'updated_at'])
+            if ticket.assigned_to_id:
+                _notify_user(
+                    ticket.assigned_to,
+                    f"Solicitante respondeu chamado #{ticket.pk}",
+                    f"{request.user.get_full_name() or request.user.username} enviou nova mensagem.",
+                )
+            else:
+                _notify_support_staff(
+                    title=f"Atualização no chamado #{ticket.pk}",
+                    message=f"Solicitante enviou nova mensagem em: {ticket.title}",
+                    exclude_user_id=request.user.id,
+                )
+
+    messages.success(request, 'Chamado atualizado com sucesso.')
+    return redirect('support-ticket-detail', pk=ticket.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def support_ticket_reopen_view(request, pk):
+    """Permite reabertura pelo solicitante em até 7 dias após resolução/fechamento."""
+    ticket = get_object_or_404(SupportTicket, pk=pk)
+    if ticket.created_by_id != request.user.id:
+        raise Http404()
+    if not ticket.can_be_reopened_by_user(request.user):
+        messages.error(request, 'Prazo de reabertura expirado ou chamado não elegível.')
+        return redirect('support-ticket-detail', pk=ticket.pk)
+
+    reason = (request.POST.get('reason') or '').strip()
+    ticket.status = SupportTicket.Status.REOPENED
+    ticket.resolved_at = None
+    ticket.save(update_fields=['status', 'resolved_at', 'updated_at'])
+    if reason:
+        SupportTicketMessage.objects.create(
+            ticket=ticket,
+            author=request.user,
+            message=f"Reabertura solicitada: {reason}",
+            is_internal_note=False,
+        )
+    _notify_support_staff(
+        title=f"Chamado #{ticket.pk} reaberto",
+        message=f"{request.user.get_full_name() or request.user.username} reabriu o chamado: {ticket.title}",
+        exclude_user_id=request.user.id,
+    )
+    messages.success(request, 'Chamado reaberto com sucesso.')
+    return redirect('support-ticket-detail', pk=ticket.pk)
+
+
+@login_required
+@require_http_methods(["GET"])
+def support_ticket_admin_list_view(request):
+    """Fila administrativa de chamados para superuser/admin."""
+    if not _can_manage_support_tickets(request.user):
+        raise PermissionDenied("Acesso restrito ao painel de suporte.")
+
+    last_public_author_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).order_by('-created_at').values('author_id')[:1]
+    last_public_author_is_staff_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).order_by('-created_at').values('author__is_staff')[:1]
+    last_public_author_is_superuser_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).order_by('-created_at').values('author__is_superuser')[:1]
+    public_count_subq = SupportTicketMessage.objects.filter(
+        ticket=OuterRef('pk'),
+        is_internal_note=False,
+    ).values('ticket').annotate(c=Count('id')).values('c')[:1]
+    tickets = SupportTicket.objects.select_related('created_by', 'assigned_to', 'related_project').annotate(
+        last_public_author_id=Subquery(last_public_author_subq),
+        last_public_author_is_staff=Subquery(last_public_author_is_staff_subq),
+        last_public_author_is_superuser=Subquery(last_public_author_is_superuser_subq),
+        public_message_count=Subquery(public_count_subq),
+    ).all()
+    q = (request.GET.get('q') or '').strip()
+    status = (request.GET.get('status') or '').strip()
+    severity = (request.GET.get('severity') or '').strip()
+    if q:
+        tickets = tickets.filter(
+            Q(title__icontains=q)
+            | Q(description__icontains=q)
+            | Q(created_by__username__icontains=q)
+            | Q(created_by__first_name__icontains=q)
+        )
+    if status:
+        tickets = tickets.filter(status=status)
+    if severity:
+        tickets = tickets.filter(severity=severity)
+
+    tickets = list(tickets.order_by('-created_at'))
+    for t in tickets:
+        t.attention_label, t.attention_tone = _support_attention_tag(t, viewer_is_manager=True)
+    return render(
+        request,
+        'core/support_ticket_admin_list.html',
+        {
+            'tickets': tickets,
+            'status_choices': SupportTicket.Status.choices,
+            'severity_choices': SupportTicket.Severity.choices,
+            'current_q': q,
+            'current_status': status,
+            'current_severity': severity,
+            'now': timezone.now(),
+        },
+    )
 
 
 @login_required
@@ -412,6 +984,27 @@ def _get_projects_for_user(request):
     )
     combined_ids = sorted(set(project_ids + approver_project_ids))
     return Project.objects.filter(pk__in=combined_ids, is_active=True).order_by('-created_at')
+
+
+def _get_support_projects_for_user(user):
+    """
+    Obras permitidas no chamado de suporte.
+    Regra: somente obras em que o usuário está vinculado.
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return Project.objects.none()
+
+    owner_project_ids = list(
+        ProjectOwner.objects.filter(user=user).values_list('project_id', flat=True)
+    )
+    member_project_ids = list(
+        ProjectMember.objects.filter(user=user).values_list('project_id', flat=True)
+    )
+    approver_project_ids = list(
+        ProjectDiaryApprover.objects.filter(user=user, is_active=True).values_list('project_id', flat=True)
+    )
+    linked_ids = sorted(set(owner_project_ids + member_project_ids + approver_project_ids))
+    return Project.objects.filter(pk__in=linked_ids, is_active=True).order_by('-created_at')
 
 
 def _user_can_access_project(user, project):
@@ -817,6 +1410,11 @@ def report_list_view(request):
     """View de listagem de relatórios com filtros HTMX."""
     project = get_selected_project(request)
     diaries = ConstructionDiary.objects.filter(project=project).select_related('project').all()
+    can_review_diaries = _is_project_rdo_approver(request.user, project) if project else False
+    pending_approval_diaries = ConstructionDiary.objects.filter(
+        project=project,
+        status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+    ).select_related('created_by').order_by('date', 'report_number')
     
     # Filtros
     search = request.GET.get('search')
@@ -862,6 +1460,8 @@ def report_list_view(request):
         'user': request.user,  # Adiciona user ao contexto para can_be_edited_by
         'project': project,  # Adiciona projeto ao contexto para o modal
         'all_projects': all_projects,  # Projetos acessíveis para o select do modal
+        'can_review_diaries': can_review_diaries,
+        'pending_approval_diaries': pending_approval_diaries,
     }
     
     # Se for requisição HTMX, retorna apenas o conteúdo
@@ -3666,14 +4266,10 @@ def diary_form_view(request, pk=None):
     return render(request, 'core/daily_log_form.html', context)
 
 
-@login_required
-@project_required
-def diary_pdf_view(request, pk, pdf_type='normal'):
+def _ensure_diary_pdf_generator_loaded(request):
     """
-    View para gerar e retornar PDF do diário.
-    pdf_type: 'normal', 'detailed', 'no_photos'
+    Importação lazy do PDFGenerator (ReportLab). Mantém o mesmo comportamento de erro da view de PDF.
     """
-    # Importação lazy do PDFGenerator (ReportLab)
     global PDFGenerator, REPORTLAB_AVAILABLE
 
     if PDFGenerator is None:
@@ -3692,7 +4288,116 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
             )
             REPORTLAB_AVAILABLE = False
             messages.error(request, "Geração de PDF não disponível neste ambiente.")
-            return redirect('diary-detail', pk=pk)
+            return False
+
+    return True
+
+
+def _diary_pdf_http_response(diary, pdf_type, disposition='attachment'):
+    """
+    Monta HttpResponse com o PDF gerado do diário.
+    disposition: 'attachment' (download, fluxo existente) ou 'inline' (visualização/embed no navegador).
+    """
+    pdf_buffer = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
+
+    if not pdf_buffer:
+        return None
+
+    pdf_buffer.seek(0)
+    pdf_bytes = pdf_buffer.read()
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    type_suffix = {
+        'normal': '',
+        'detailed': '_detalhado',
+        'no_photos': '_sem_fotos'
+    }.get(pdf_type, '')
+    try:
+        from .utils.pdf_generator import get_rdo_pdf_filename
+        filename = get_rdo_pdf_filename(diary.project, diary.date, suffix=type_suffix)
+    except Exception:
+        filename = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
+    safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
+    disp = 'attachment' if disposition == 'attachment' else 'inline'
+    response['Content-Disposition'] = f'{disp}; filename="{safe_name}"'
+    response['Content-Length'] = len(pdf_bytes)
+    return response
+
+
+def _diary_pdf_sequence_for_project(project):
+    """
+    Ordem cronológica dos relatórios da obra para navegação entre PDFs.
+    Critério: data do diário; desempate: data/hora de criação; depois id.
+    (Alinhado ao modelo: no máximo um diário por dia por obra; desempates cobrem migrações/dados legados.)
+    """
+    return ConstructionDiary.objects.filter(project=project).order_by(
+        'date', 'created_at', 'pk',
+    )
+
+
+def _diaries_queryset_for_report_filters(project, get_dict):
+    """
+    Mesmos filtros da listagem de relatórios (report_list), ordenação cronológica para exportação ZIP.
+    get_dict: request.GET (QueryDict ou dict-like).
+    """
+    diaries = ConstructionDiary.objects.filter(project=project).select_related('project')
+    search = get_dict.get('search')
+    if search:
+        diaries = diaries.filter(
+            Q(project__code__icontains=search) |
+            Q(project__name__icontains=search) |
+            Q(general_notes__icontains=search)
+        )
+    date_start = get_dict.get('date_start')
+    if date_start:
+        try:
+            diaries = diaries.filter(date__gte=date_start)
+        except ValueError:
+            pass
+    date_end = get_dict.get('date_end')
+    if date_end:
+        try:
+            diaries = diaries.filter(date__lte=date_end)
+        except ValueError:
+            pass
+    status = get_dict.get('status')
+    if status:
+        diaries = diaries.filter(status=status)
+    return diaries.order_by('date', 'created_at', 'pk')
+
+
+def _client_portal_accessible_diary(user, pk):
+    """
+    Diário visível no portal do cliente: dono da obra, aprovado e já enviado ao dono.
+    """
+    diary = get_object_or_404(
+        ConstructionDiary.objects.select_related('project'),
+        pk=pk,
+    )
+    if not _client_can_access_diary(user, diary):
+        raise Http404('Diário não encontrado.')
+    if diary.status != DiaryStatus.APROVADO or diary.sent_to_owner_at is None:
+        raise Http404('Diário não disponível.')
+    return diary
+
+
+def _client_diary_pdf_sequence_for_project(project):
+    """Sequência de navegação no portal: só diários aprovados já enviados ao dono."""
+    return ConstructionDiary.objects.filter(
+        project=project,
+        status=DiaryStatus.APROVADO,
+        sent_to_owner_at__isnull=False,
+    ).order_by('date', 'created_at', 'pk')
+
+
+@login_required
+@project_required
+def diary_pdf_view(request, pk, pdf_type='normal'):
+    """
+    View para gerar e retornar PDF do diário (download — Content-Disposition: attachment).
+    pdf_type: 'normal', 'detailed', 'no_photos'
+    """
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('diary-detail', pk=pk)
 
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
@@ -3702,35 +4407,211 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
         return redirect('diary-detail', pk=pk)
 
     try:
-        pdf_buffer = PDFGenerator.generate_diary_pdf(diary.id, pdf_type=pdf_type)
-        
-        if pdf_buffer:
-            pdf_buffer.seek(0)
-            pdf_bytes = pdf_buffer.read()
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            type_suffix = {
-                'normal': '',
-                'detailed': '_detalhado',
-                'no_photos': '_sem_fotos'
-            }.get(pdf_type, '')
-            try:
-                from .utils.pdf_generator import get_rdo_pdf_filename
-                filename = get_rdo_pdf_filename(diary.project, diary.date, suffix=type_suffix)
-            except Exception:
-                filename = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
-            safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
-            response['Content-Disposition'] = f'attachment; filename="{safe_name}"'
-            response['Content-Length'] = len(pdf_bytes)
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='attachment')
+        if response:
             return response
-        else:
-            messages.error(request, "Erro ao gerar PDF. Tente novamente.")
-            return redirect('diary-detail', pk=pk)
+        messages.error(request, "Erro ao gerar PDF. Tente novamente.")
+        return redirect('diary-detail', pk=pk)
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
         logger.error("Erro ao gerar PDF do diário %s: %s\n%s", diary.id, e, tb, exc_info=False)
         messages.error(request, f"Erro ao gerar PDF: {str(e)}")
         return redirect('diary-detail', pk=pk)
+
+
+@login_required
+@project_required
+def diary_pdf_inline_view(request, pk, pdf_type='normal'):
+    """
+    Mesmo PDF que diary_pdf_view, porém com Content-Disposition: inline para exibição no navegador (iframe / nova aba).
+    Não substitui o fluxo de download; rota adicional.
+    """
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('diary-detail', pk=pk)
+
+    project = get_selected_project(request)
+    diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, "Geração de PDF não disponível neste ambiente.")
+        return redirect('diary-detail', pk=pk)
+
+    try:
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='inline')
+        if response:
+            return response
+        messages.error(request, "Erro ao gerar PDF. Tente novamente.")
+        return redirect('diary-detail', pk=pk)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("Erro ao gerar PDF inline do diário %s: %s\n%s", diary.id, e, tb, exc_info=False)
+        messages.error(request, f"Erro ao gerar PDF: {str(e)}")
+        return redirect('diary-detail', pk=pk)
+
+
+@login_required
+@project_required
+def diary_pdf_reader_view(request, pk):
+    """
+    Tela de leitura: PDF embutido na interface com navegação anterior/próximo na sequência do diário da obra.
+    O download continua disponível pela rota diary-pdf (attachment).
+    """
+    project = get_selected_project(request)
+    diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+
+    qs = _diary_pdf_sequence_for_project(project)
+    ids = list(qs.values_list('pk', flat=True))
+    idx = ids.index(diary.pk)
+
+    total = len(ids)
+    position = idx + 1 if total else 0
+    prev_pk = ids[idx - 1] if idx > 0 else None
+    next_pk = ids[idx + 1] if idx < len(ids) - 1 else None
+
+    context = {
+        'diary': diary,
+        'project': project,
+        'reader_position': position,
+        'reader_total': total,
+        'reader_prev_pk': prev_pk,
+        'reader_next_pk': next_pk,
+    }
+    return render(request, 'core/diary_pdf_reader.html', context)
+
+
+@login_required
+def client_diary_pdf_view(request, pk, pdf_type='normal'):
+    """
+    PDF do RDO para o portal do cliente (download). Mesma geração do diário interno; sem obra na sessão.
+    """
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('client-diary-detail', pk=pk)
+    diary = _client_portal_accessible_diary(request.user, pk)
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, 'Geração de PDF não disponível neste ambiente.')
+        return redirect('client-diary-detail', pk=pk)
+    try:
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='attachment')
+        if response:
+            return response
+        messages.error(request, 'Erro ao gerar PDF. Tente novamente.')
+        return redirect('client-diary-detail', pk=pk)
+    except Exception as e:
+        logger.error('Erro ao gerar PDF (cliente) diário %s: %s', diary.id, e, exc_info=False)
+        messages.error(request, f'Erro ao gerar PDF: {str(e)}')
+        return redirect('client-diary-detail', pk=pk)
+
+
+@login_required
+def client_diary_pdf_inline_view(request, pk, pdf_type='normal'):
+    """PDF inline para iframe / nova aba no portal do cliente."""
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('client-diary-detail', pk=pk)
+    diary = _client_portal_accessible_diary(request.user, pk)
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, 'Geração de PDF não disponível neste ambiente.')
+        return redirect('client-diary-detail', pk=pk)
+    try:
+        response = _diary_pdf_http_response(diary, pdf_type, disposition='inline')
+        if response:
+            return response
+        messages.error(request, 'Erro ao gerar PDF. Tente novamente.')
+        return redirect('client-diary-detail', pk=pk)
+    except Exception as e:
+        logger.error('Erro ao gerar PDF inline (cliente) diário %s: %s', diary.id, e, exc_info=False)
+        messages.error(request, f'Erro ao gerar PDF: {str(e)}')
+        return redirect('client-diary-detail', pk=pk)
+
+
+@login_required
+def client_diary_pdf_reader_view(request, pk):
+    """Modo leitura com navegação apenas entre diários visíveis no portal do cliente."""
+    diary = _client_portal_accessible_diary(request.user, pk)
+    qs = _client_diary_pdf_sequence_for_project(diary.project)
+    ids = list(qs.values_list('pk', flat=True))
+    idx = ids.index(diary.pk)
+    total = len(ids)
+    position = idx + 1 if total else 0
+    prev_pk = ids[idx - 1] if idx > 0 else None
+    next_pk = ids[idx + 1] if idx < len(ids) - 1 else None
+    context = {
+        'diary': diary,
+        'project': diary.project,
+        'reader_position': position,
+        'reader_total': total,
+        'reader_prev_pk': prev_pk,
+        'reader_next_pk': next_pk,
+    }
+    return render(request, 'core/client_diary_pdf_reader.html', context)
+
+
+BULK_PDF_ZIP_MAX_DIARIES = 250
+
+
+@login_required
+@project_required
+def diary_bulk_pdf_zip_view(request):
+    """
+    Exporta vários PDFs de RDO da obra atual em um arquivo ZIP (mesmos filtros GET da listagem).
+    """
+    import io
+    import zipfile
+
+    if not _ensure_diary_pdf_generator_loaded(request):
+        return redirect('report-list')
+    project = get_selected_project(request)
+    if not REPORTLAB_AVAILABLE:
+        messages.error(request, 'Geração de PDF não disponível neste ambiente.')
+        return redirect('report-list')
+
+    diaries = _diaries_queryset_for_report_filters(project, request.GET)
+    count = diaries.count()
+    if count == 0:
+        messages.warning(request, 'Nenhum relatório encontrado com os filtros atuais.')
+        return redirect('report-list')
+    if count > BULK_PDF_ZIP_MAX_DIARIES:
+        messages.error(
+            request,
+            f'Há {count} relatórios no filtro. O limite por arquivo ZIP é {BULK_PDF_ZIP_MAX_DIARIES}. '
+            'Reduza o período ou refine a pesquisa.',
+        )
+        return redirect('report-list')
+
+    buf = io.BytesIO()
+    added = 0
+    try:
+        with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            for diary in diaries:
+                try:
+                    resp = _diary_pdf_http_response(diary, 'normal', disposition='attachment')
+                    if not resp:
+                        continue
+                    pdf_bytes = resp.content
+                    try:
+                        from .utils.pdf_generator import get_rdo_pdf_filename
+                        fname = get_rdo_pdf_filename(diary.project, diary.date, suffix='')
+                    except Exception:
+                        fname = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}.pdf"
+                    safe_inner = ''.join(c if c.isalnum() or c in '-_.' else '_' for c in fname)
+                    zf.writestr(safe_inner, pdf_bytes)
+                    added += 1
+                except Exception as ex:
+                    logger.warning('ZIP RDO: falha no diário %s: %s', diary.pk, ex)
+        if added == 0:
+            messages.error(request, 'Não foi possível gerar nenhum PDF para o ZIP.')
+            return redirect('report-list')
+        buf.seek(0)
+        zip_name = f"RDOs_{project.code}_{timezone.now().strftime('%Y%m%d_%H%M')}.zip"
+        zip_safe = ''.join(c if c.isalnum() or c in '-_.' else '_' for c in zip_name)
+        response = HttpResponse(buf.read(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{zip_safe}"'
+        return response
+    except Exception as e:
+        logger.exception('Erro ao montar ZIP de RDOs: %s', e)
+        messages.error(request, f'Erro ao gerar arquivo ZIP: {str(e)}')
+        return redirect('report-list')
 
 
 @login_required

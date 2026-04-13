@@ -517,6 +517,36 @@ def sanitize_filename(filename):
     return name + ext.lower()
 
 
+def sanitize_attachment_nome(nome, max_len=200):
+    """
+    Sanitiza o valor salvo em Attachment.nome para evitar erros de charset no banco.
+    Garante também limite final do campo CharField.
+    """
+    nome = (nome or '').strip()
+    if not nome:
+        return ''
+    cleaned = sanitize_filename(nome)
+    if len(cleaned) <= max_len:
+        return cleaned
+    base, ext = os.path.splitext(cleaned)
+    keep = max_len - len(ext)
+    if keep <= 0:
+        return cleaned[:max_len]
+    return f"{base[:keep]}{ext}"
+
+
+def sanitize_mysql_text_value(value):
+    """
+    Normaliza texto para persistência em MySQL e evita DataError 1366 (Incorrect string value)
+    quando a coluna é legada (latin1/utf8 antigo) ou o texto vem em NFD com diacríticos combinantes.
+    """
+    if value is None:
+        return None
+    s = unicodedata.normalize('NFC', str(value))
+    # Remove surrogate pairs inválidos (raro; quebra insert em alguns drivers)
+    return ''.join(c for c in s if not (0xD800 <= ord(c) <= 0xDFFF))
+
+
 def attachment_upload_path(instance, filename):
     """
     Função para gerar o caminho de upload de anexos com nome sanitizado.
@@ -626,6 +656,17 @@ class Attachment(models.Model):
             return nome.split('.')[-1].upper()
         return ''
 
+    def save(self, *args, **kwargs):
+        """
+        Normaliza e sanitiza o nome antes de persistir para evitar
+        `Incorrect string value` em ambientes MySQL com charset mais restritivo.
+        """
+        source_name = (self.nome or '').strip()
+        if not source_name and self.arquivo:
+            source_name = os.path.basename(self.arquivo.name)
+        self.nome = sanitize_attachment_nome(source_name, max_len=200)
+        super().save(*args, **kwargs)
+
 
 class StatusHistory(models.Model):
     """
@@ -684,6 +725,11 @@ class StatusHistory(models.Model):
         indexes = [
             models.Index(fields=['work_order', '-created_at']),
         ]
+
+    def save(self, *args, **kwargs):
+        if self.observacao is not None:
+            self.observacao = sanitize_mysql_text_value(self.observacao)
+        super().save(*args, **kwargs)
     
     def __str__(self):
         status_ant = self.status_anterior or 'N/A'

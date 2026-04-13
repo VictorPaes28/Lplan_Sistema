@@ -8,159 +8,517 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-2 controle-page">
-    <div class="controle-hero">
-        <div>
-            <span class="controle-badge">ENGENHARIA</span>
-            <h2>Mapa de Controle - Engenharia</h2>
-            <p>Visão rápida de pendências para decisão imediata.</p>
-        </div>
-        <div class="header-actions">
-            <a id="btn-abrir-mapa" class="btn btn-outline-primary btn-sm" href="{% url 'engenharia:mapa' %}">
-                <i class="bi bi-table"></i> Abrir Mapa de Suprimentos
-            </a>
-            <a class="btn btn-outline-secondary btn-sm" href="{% url 'engenharia:importar_sienge' %}">
-                <i class="bi bi-upload"></i> Importar Sienge
-            </a>
-        </div>
-    </div>
-
-    <div class="controle-block">
-        <div class="controle-topbar">
-            <h6 class="controle-section-title">Indicadores operacionais</h6>
-            <div class="controle-topbar-actions">
-                <small id="controle-last-update" class="controle-meta">Atualizando...</small>
-                <button id="btn-toggle-detalhes" type="button" class="btn btn-outline-secondary btn-sm">
-                    Ver detalhes
-                </button>
-            </div>
-        </div>
-        <div class="kpi-container controle-kpi-compacto" id="kpi-container"></div>
-    </div>
-
-    <div class="controle-block">
-        <h6 class="controle-section-title">Filtros de controle</h6>
-        <div class="filtros-container">
-            <form id="filtro-form-controle">
-                <div class="filtros-row">
-                    <div class="filtro-item">
-                        <label for="filtro-obra" class="form-label">Obra:</label>
-                        <select id="filtro-obra" class="form-select" name="obra">
-                            {% for obra in obras %}
-                            <option value="{{ obra.id }}" {% if obra_selecionada and obra.id == obra_selecionada.id %}selected{% endif %}>
-                                {% if obra.codigo_sienge %}{{ obra.codigo_sienge }} - {% endif %}{{ obra.nome }}
-                            </option>
-                            {% endfor %}
+<div class="container-fluid mt-2 controle-camadas-page">
+    <section class="mapa-controle-top mb-3 mobile-priority-filters" aria-label="Obra e filtros">
+        <header class="mapa-controle-top__head">
+            <h2 class="mapa-controle-top__title">Mapa de Controle</h2>
+            {% if macro_pulse and macro_pulse.visible %}
+            <p class="mapa-controle-pulse mapa-controle-pulse--{{ macro_pulse.tone }}" role="status">{{ macro_pulse.headline }}{% if macro_pulse.sub %} — {{ macro_pulse.sub }}{% endif %}</p>
+            {% endif %}
+        </header>
+        <div class="mapa-controle-top__grid">
+            <form method="get" id="mapaControleObraForm" class="mapa-controle-obra-form">
+                <label class="mapa-controle-field-label" for="mapaControleObra">Obra</label>
+                <select class="form-select mapa-controle-obra-select" name="obra" id="mapaControleObra" {% if not obras %}disabled{% endif %} title="Trocar a obra zera o recorte (setor, bloco…); mantém estes filtros.">
+                    {% for o in obras %}
+                    <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>
+                        {% if o.codigo_sienge %}{{ o.codigo_sienge }} — {% endif %}{{ o.nome }}
+                    </option>
+                    {% empty %}
+                    <option value="">Nenhuma obra disponível</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <form method="get" class="mapa-controle-filter-form" id="mapaControleFilterForm">
+                <input type="hidden" name="obra" value="{{ obra_selecionada.id|default:'' }}">
+                <input type="hidden" name="setor" value="{{ selected.setor|default:'' }}">
+                <input type="hidden" name="bloco" value="{{ selected.bloco|default:'' }}">
+                <input type="hidden" name="pavimento" value="{{ selected.pavimento|default:'' }}">
+                <input type="hidden" name="apto" value="{{ selected.apto|default:'' }}">
+                <input type="hidden" name="atividade" value="{{ selected.atividade|default:'' }}">
+                <input type="hidden" name="matrix_mode" value="{{ matrix.mode|default:'bloco' }}">
+                <div class="mapa-controle-filter-fields">
+                    <div class="mapa-controle-field">
+                        <label class="mapa-controle-field-label" for="filtro-status-mc">Status</label>
+                        <select class="form-select mapa-controle-input" id="filtro-status-mc" name="status">
+                            <option value="" {% if not selected.status %}selected{% endif %}>Todos</option>
+                            <option value="concluido" {% if selected.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                            <option value="em_andamento" {% if selected.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+                            <option value="nao_iniciado" {% if selected.status == 'nao_iniciado' %}selected{% endif %}>Não iniciado</option>
                         </select>
                     </div>
-                    <div class="filtro-item">
-                        <label for="filtro-categoria" class="form-label">Categoria:</label>
-                        <select id="filtro-categoria" class="form-select" name="categoria">
-                            <option value="">Todas</option>
-                        </select>
+                    <div class="mapa-controle-field mapa-controle-field--grow">
+                        <label class="mapa-controle-field-label" for="filtro-search-mc">Filtrar texto</label>
+                        <input class="form-control mapa-controle-input" id="filtro-search-mc" name="search" value="{{ selected.search|default:'' }}" placeholder="Atividade, grupo, unidade…" autocomplete="off" />
                     </div>
-                    <div class="filtro-item">
-                        <label for="filtro-local" class="form-label">Local:</label>
-                        <select id="filtro-local" class="form-select" name="local">
-                            <option value="">Todos</option>
-                        </select>
+                    <div class="mapa-controle-field mapa-controle-field--grow">
+                        <label class="mapa-controle-field-label" for="filtro-quick-mc">Ir para</label>
+                        <input class="form-control mapa-controle-input" id="filtro-quick-mc" name="quick" value="{{ selected.quick_find|default:'' }}" placeholder="Apto, torre, pavimento…" autocomplete="off" title="Leva direto a um recorte quando encontrar correspondência" />
                     </div>
-                    <div class="filtro-item">
-                        <label for="filtro-prioridade" class="form-label">Prioridade:</label>
-                        <select id="filtro-prioridade" class="form-select" name="prioridade">
-                            <option value="">Todas</option>
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-status" class="form-label">Status:</label>
-                        <select id="filtro-status" class="form-select" name="status">
-                            <option value="">Todos</option>
-                        </select>
-                    </div>
-                    <div class="filtro-item">
-                        <label for="filtro-search" class="form-label">Busca:</label>
-                        <input id="filtro-search" name="search" class="form-control" placeholder="Insumo, SC, PC, fornecedor..." />
+                    <div class="mapa-controle-field mapa-controle-field--actions">
+                        <button type="submit" class="btn mapa-controle-btn-apply">Aplicar</button>
+                        <a class="mapa-controle-link-quiet" href="?obra={{ obra_selecionada.id|default:'' }}">Limpar recorte</a>
                     </div>
                 </div>
             </form>
         </div>
-    </div>
-
-    <section id="controle-detalhes" class="d-none controle-block">
-        <h6 class="controle-section-title">Leitura avançada</h6>
-        <div class="controle-alertas">
-            <div class="controle-alerta">
-                <strong>Sem SC</strong>
-                <span>Itens levantados sem solicitação de compra.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Sem PC</strong>
-                <span>SC criada, aguardando compra emitir PC.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Sem Entrega</strong>
-                <span>PC emitido, sem material recebido na obra.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Sem Alocação</strong>
-                <span>Material recebido sem distribuição por local.</span>
-            </div>
-            <div class="controle-alerta">
-                <strong>Atrasados</strong>
-                <span>Prazo vencido e item ainda não entregue/alocado.</span>
-            </div>
-        </div>
-
-        <div class="legenda-cores">
-            <div class="legenda-item"><div class="legenda-cor status-branco"></div><span class="legenda-texto">1) Levantamento</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-vermelho"></div><span class="legenda-texto">2) Aguard. Compra</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-azul"></div><span class="legenda-texto">3) Aguard. Entrega</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-amarelo"></div><span class="legenda-texto">4) Aguard. Alocação</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-laranja"></div><span class="legenda-texto">5) Parcial</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-verde"></div><span class="legenda-texto">Entregue</span></div>
-            <div class="legenda-item"><div class="legenda-cor status-atrasado"></div><span class="legenda-texto">Atrasado</span></div>
-        </div>
-
-        <div class="row g-2 mb-2">
-            <div class="col-md-3"><div class="insights-card"><h6>Top locais pendentes</h6><ul id="ranking-locais" class="insights-list"></ul></div></div>
-            <div class="col-md-3"><div class="insights-card"><h6>Top categorias de risco</h6><ul id="ranking-categorias" class="insights-list"></ul></div></div>
-            <div class="col-md-3"><div class="insights-card"><h6>Top fornecedores</h6><ul id="ranking-fornecedores" class="insights-list"></ul></div></div>
-            <div class="col-md-3"><div class="insights-card"><h6>Quem cobrar agora</h6><ul id="quem-cobrar" class="insights-list"></ul></div></div>
-        </div>
     </section>
 
-    <div class="controle-block">
-        <h6 class="controle-section-title">Lista detalhada de pendências</h6>
-        <div class="table-responsive controle-table-wrap">
-            <table class="table table-hover align-middle mb-0 controle-table">
+    {% if quick_match %}
+    <p class="mapa-controle-quick-result mb-2">Local encontrado para “{{ quick_match.query }}”: {{ quick_match.setor }} › {{ quick_match.bloco }} › {{ quick_match.pavimento }} › {{ quick_match.apto }}</p>
+    {% endif %}
+
+    <div class="layer-block mb-2 mobile-priority-matrix">
+        <div class="matrix-panel-head">
+            <div class="matrix-panel-top">
+                <div class="matrix-panel-title-block">
+                    <h6 class="matrix-panel-h">Matriz</h6>
+                </div>
+            </div>
+            <div class="matrix-mode-switch" role="tablist" aria-label="O que cada linha da tabela representa">
+                <a class="matrix-mode-pill {% if matrix.mode == 'bloco' %}active{% endif %}"
+                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=bloco">Por bloco</a>
+                {% if selected.bloco %}
+                <a class="matrix-mode-pill {% if matrix.mode == 'pavimento' %}active{% endif %}"
+                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=pavimento">Por pavimento</a>
+                {% else %}
+                <span class="matrix-mode-pill disabled" title="Escolha um bloco nos chips abaixo">Por pavimento</span>
+                {% endif %}
+                {% if selected.bloco and selected.pavimento %}
+                <a class="matrix-mode-pill {% if matrix.mode == 'apto' %}active{% endif %}"
+                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto">Por unidade</a>
+                {% else %}
+                <span class="matrix-mode-pill disabled" title="Defina bloco e pavimento nos chips">Por unidade</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if matrix_context %}
+        <div class="matrix-context-compact">
+            <p class="matrix-context-compact__where" title="{{ matrix_context.obra_titulo }}">{{ matrix_context.caminho }}</p>
+            <p class="matrix-context-compact__stats">
+                <span title="Linhas × colunas da grade">{{ matrix_context.n_grade_linhas }}×{{ matrix_context.n_grade_cols }}</span>
+                <span class="matrix-context-compact__sep">·</span>
+                <span>{{ matrix_context.status_filtro }}</span>
+                <span class="matrix-context-compact__sep">·</span>
+                <span title="Itens no recorte">{{ kpis.total_itens }} itens</span>
+                {% if kpis.percentual_medio %}<span class="matrix-context-compact__sep">·</span><span>média {{ kpis.percentual_medio }}%</span>{% endif %}
+                <span class="matrix-context-compact__sep">·</span>
+                <span class="matrix-context-compact__st" title="Concluídos / em andamento / não iniciados">{{ kpis.concluidos }} / {{ kpis.em_andamento }} / {{ kpis.nao_iniciados }}</span>
+                <span class="matrix-context-compact__sep">·</span>
+                <span title="Qualidade dos dados neste recorte">{{ confiabilidade.score }}% {% firstof confiabilidade.nivel_display confiabilidade.nivel %}</span>
+                {% if selected.search %}<span class="matrix-context-compact__sep">·</span><span>“{{ selected.search }}”</span>{% endif %}
+                {% if selected.quick_find %}<span class="matrix-context-compact__sep">·</span><span>ir: {{ selected.quick_find }}</span>{% endif %}
+            </p>
+            {% if importacao_info %}
+            <p class="matrix-context-compact__import" title="{{ importacao_info.nome_arquivo }} · {{ importacao_info.aba_origem }} · {{ importacao_info.total_linhas_importadas }}/{{ importacao_info.total_linhas_lidas }} linhas">Dados: {{ importacao_info.created_at|date:"d/m/Y H:i" }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <nav class="matrix-camadas" aria-label="Recorte: setor, bloco, pavimento e unidade">
+            <div class="matrix-escopo matrix-escopo--camadas mb-2">
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Setor</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.setor %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&{{ matrix_stable_qs }}">Todos</a>
+                    {% for row in layers.setores %}
+                    <a class="matrix-chip {% if selected.setor == row.setor %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&{{ matrix_stable_qs }}">{{ row.setor|default:"Sem setor" }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if selected.setor %}
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Bloco</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.bloco %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&{{ matrix_stable_qs }}">Todos</a>
+                    {% for row in layers.blocos %}
+                    <a class="matrix-chip {% if selected.bloco == row.bloco %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&{{ matrix_stable_qs }}">{{ row.bloco|default:"Sem bloco" }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if selected.bloco %}
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Pavimento</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.pavimento %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&{{ matrix_stable_qs }}">Todos</a>
+                    {% for row in layers.pavimentos %}
+                    <a class="matrix-chip {% if selected.pavimento == row.pavimento %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&{{ matrix_stable_qs }}">{{ row.pavimento|default:"Sem pav." }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if selected.pavimento %}
+            <div class="matrix-chip-row">
+                <span class="matrix-chip-label">Unidade</span>
+                <div class="matrix-chip-scroll">
+                    <a class="matrix-chip {% if not selected.apto %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&{{ matrix_stable_qs }}">Todas</a>
+                    {% for row in layers.aptos %}
+                    <a class="matrix-chip {% if selected.apto == row.apto %}active{% endif %}"
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&{{ matrix_stable_qs }}">{{ row.apto|default:"Sem apto" }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            </div>
+        </nav>
+
+        {% if coluna_filtrada_aviso %}
+        <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver unidades.</p>
+        {% endif %}
+
+        <div class="matrix-wrap">
+            <table class="matrix-table">
                 <thead>
-                <tr>
-                    <th style="min-width: 270px;">Insumo</th>
-                    <th style="min-width: 160px;">Local</th>
-                    <th style="min-width: 120px;">Responsável</th>
-                    <th style="min-width: 90px;">SC</th>
-                    <th style="min-width: 90px;">PC</th>
-                    <th style="min-width: 140px;">Fornecedor</th>
-                    <th style="min-width: 130px;">Quem cobrar</th>
-                    <th style="min-width: 110px;">Planejado</th>
-                    <th style="min-width: 110px;">Recebido</th>
-                    <th style="min-width: 110px;">Alocado</th>
-                    <th style="min-width: 110px;">Saldo</th>
-                    <th style="min-width: 80px;">%</th>
-                    <th style="min-width: 160px;">Status</th>
-                </tr>
+                    <tr>
+                        <th class="sticky-left">{{ matrix.header_first_col|default:"Bloco" }}</th>
+                        {% for atividade in matrix.atividades %}
+                        <th class="vertical">
+                            <a class="matrix-col-head-link" title="Filtrar por esta atividade"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ atividade|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ atividade }}</a>
+                        </th>
+                        {% endfor %}
+                        <th>Total</th>
+                    </tr>
                 </thead>
-                <tbody id="itens-body">
-                    <tr class="controle-loading-row"><td colspan="13">Carregando...</td></tr>
+                <tbody>
+                    {% for row in matrix.rows %}
+                    <tr>
+                        <td class="sticky-left row-name">
+                            {% if matrix.mode == 'pavimento' %}
+                            <a class="cell-link row-link"
+                               title="Ver unidades (aptos) deste pavimento na matriz"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% elif matrix.mode == 'apto' %}
+                            <a class="cell-link row-link"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% else %}
+                            <a class="cell-link row-link"
+                               title="Ver pavimentos deste bloco na matriz"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% endif %}
+                        </td>
+                        {% for cell in row.cells %}
+                            {% if matrix.mode == 'pavimento' %}
+                                {% if cell.pct == None %}
+                                <td class="cell-empty">-</td>
+                                {% elif cell.pct >= 90 %}
+                                <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 70 %}
+                                <td class="cell-pct cell-70"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 40 %}
+                                <td class="cell-pct cell-40"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct > 0 %}
+                                <td class="cell-pct cell-10"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% else %}
+                                <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=pavimento&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% endif %}
+                            {% elif matrix.mode == 'apto' %}
+                                {% if cell.pct == None %}
+                                <td class="cell-empty">-</td>
+                                {% elif cell.pct >= 90 %}
+                                <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 70 %}
+                                <td class="cell-pct cell-70"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 40 %}
+                                <td class="cell-pct cell-40"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct > 0 %}
+                                <td class="cell-pct cell-10"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% else %}
+                                <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% endif %}
+                            {% else %}
+                                {% if cell.pct == None %}
+                                <td class="cell-empty">-</td>
+                                {% elif cell.pct >= 90 %}
+                                <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 70 %}
+                                <td class="cell-pct cell-70"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct >= 40 %}
+                                <td class="cell-pct cell-40"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% elif cell.pct > 0 %}
+                                <td class="cell-pct cell-10"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% else %}
+                                <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&matrix_mode=bloco&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        <td class="total-col">{% if row.total != None %}{{ row.total }}%{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
+                    {% endfor %}
+                    {% if matrix.atividades %}
+                    <tr class="totals-row">
+                        <td class="sticky-left row-name">Total</td>
+                        {% for total in matrix.totais %}
+                            {% if total.pct == None %}
+                            <td class="cell-empty">-</td>
+                            {% elif selected.bloco %}
+                            <td class="total-col">
+                                <a class="cell-link"
+                                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ total.pct }}#detalhe-celula"
+                                   title="Abrir detalhe por unidade (bloco já selecionado)">
+                                    {{ total.pct }}%
+                                </a>
+                            </td>
+                            {% else %}
+                            <td class="total-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da média da coluna">{{ total.pct }}%</td>
+                            {% endif %}
+                        {% endfor %}
+                        <td class="total-col">-</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
     </div>
-</div>
 
-{{ summary_payload|default:"{}"|json_script:"mapa-controle-inicial" }}
+    {% if focus_detail %}
+    <div id="detalhe-celula" class="layer-block mb-2 mobile-priority-focus focus-detail-panel">
+        <div class="focus-detail-header mb-2">
+            <h6 class="focus-detail-title mb-1">{{ focus_detail.atividade }}</h6>
+            <p class="focus-detail-local mb-1 text-muted small">{{ focus_detail.bloco }}{% if focus_detail.recorte_linha %} · {{ focus_detail.recorte_linha }}{% endif %} · {{ focus_detail.registros_linhas }} linhas</p>
+        </div>
+        {% if focus_detail.pct_na_grade != None or focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
+        <div class="focus-block focus-block--macro mb-2" aria-label="Resumo e ficha STATUS">
+            {% if focus_detail.pct_na_grade != None %}
+            <div class="focus-grade-match mb-0">
+                <span class="focus-grade-match-pct">{{ focus_detail.pct_na_grade }}%</span>
+                <span class="focus-grade-match-label">na grade</span>
+                {% if focus_detail.media_pct != None and focus_detail.media_pct != focus_detail.pct_na_grade %}
+                <p class="focus-grade-match-note mb-0" title="Várias linhas por unidade ou % não tratável em alguns registos">Média no recorte: <strong>{{ focus_detail.media_pct }}%</strong> — pode divergir.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
+            <div class="data-info-banner mb-0 {% if focus_detail.pct_na_grade != None %}mt-2{% endif %}">
+                {% if focus_detail.status_macro %}<span><strong>Status macro:</strong> {{ focus_detail.status_macro }}</span>{% endif %}
+                {% if focus_detail.situacao %}<span><strong>Situação:</strong> {{ focus_detail.situacao }}</span>{% endif %}
+                {% if focus_detail.responsabilidade %}<span><strong>Resp.:</strong> {{ focus_detail.responsabilidade }}</span>{% endif %}
+                {% if focus_detail.prazo_execucao %}<span><strong>Prazo:</strong> {{ focus_detail.prazo_execucao }}</span>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="focus-block focus-block--micro mb-2" aria-label="Detalhe por unidade">
+        <div class="row g-2 mb-2">
+            <div class="col-md-2"><div class="kpi-box"><small>Média da célula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Aptos</small><strong>{{ focus_detail.total_aptos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Concluídos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Andamento</small><strong>{{ focus_detail.em_andamento }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Não iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
+            <div class="col-md-2 d-flex align-items-end justify-content-md-end"><a class="mapa-controle-link-quiet" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">Fechar detalhe</a></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-compact align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Pav.</th>
+                        <th>Apto</th>
+                        <th>%</th>
+                        <th>Status</th>
+                        <th>Término</th>
+                        <th>Obs.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in focus_detail.rows %}
+                    <tr>
+                        <td>{{ row.pavimento }}</td>
+                        <td>{{ row.apto }}</td>
+                        <td>{% if row.pct != None %}{{ row.pct }}%{% else %}-{% endif %}</td>
+                        <td>
+                            {% if row.status_bucket == 'concluido' %}<span class="focus-badge focus-badge-ok">Concl.</span>
+                            {% elif row.status_bucket == 'em_andamento' %}<span class="focus-badge focus-badge-mid">Andam.</span>
+                            {% elif row.status_bucket == 'nao_iniciado' %}<span class="focus-badge focus-badge-bad">Não ini.</span>
+                            {% else %}<span class="focus-badge focus-badge-unk">—</span>{% endif %}
+                            <span class="focus-status-txt">{{ row.status_texto|default:"-" }}</span>
+                        </td>
+                        <td>{% if row.data_termino %}{{ row.data_termino|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                        <td>{{ row.observacao|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-3">Sem registros para este detalhe.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <nav class="layer-path mb-2 mobile-priority-path" aria-label="Atalhos do recorte (clique para voltar um nível)">
+        <a class="path-pill {% if selected.setor %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+            Setor <span class="path-pill__v">{{ selected.setor|default:"(todos)" }}</span>
+        </a>
+        <a class="path-pill {% if selected.bloco %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+            Bloco <span class="path-pill__v">{{ selected.bloco|default:"—" }}</span>
+        </a>
+        <a class="path-pill {% if selected.pavimento %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+            Pav. <span class="path-pill__v">{{ selected.pavimento|default:"—" }}</span>
+        </a>
+        <a class="path-pill {% if selected.apto %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+            Unid. <span class="path-pill__v">{{ selected.apto|default:"—" }}</span>
+        </a>
+        <a class="path-pill {% if selected.atividade %}active{% endif %}"
+           href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+            Coluna <span class="path-pill__v">{{ selected.atividade|default:"—" }}</span>
+        </a>
+    </nav>
+
+    {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_apto or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
+    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, unid. {{ qualidade.sem_apto }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
+    {% endif %}
+
+    <div class="layer-block mb-3 mobile-priority-layer1">
+        <h6>Setores</h6>
+        <div class="layer-grid">
+            {% for row in layers.setores %}
+            <a class="layer-card {% if selected.setor == row.setor %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+                <span class="name">{{ row.setor|default:"Sem setor" }}</span>
+                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para setor.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if selected.setor %}
+    <div class="layer-block mb-3 mobile-priority-layer2">
+        <h6>Blocos <span class="layer-block__sub">({{ selected.setor }})</span></h6>
+        <div class="layer-grid">
+            {% for row in layers.blocos %}
+            <a class="layer-card {% if selected.bloco == row.bloco %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+                <span class="name">{{ row.bloco|default:"Sem bloco" }}</span>
+                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para bloco.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected.bloco %}
+    <div class="layer-block mb-3 mobile-priority-layer3">
+        <h6>Pavimentos <span class="layer-block__sub">({{ selected.bloco }})</span></h6>
+        <div class="layer-grid">
+            {% for row in layers.pavimentos %}
+            <a class="layer-card {% if selected.pavimento == row.pavimento %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+                <span class="name">{{ row.pavimento|default:"Sem pavimento" }}</span>
+                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para pavimento.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected.pavimento %}
+    <div class="layer-block mb-3 mobile-priority-layer4">
+        <h6>Unidades <span class="layer-block__sub">({{ selected.pavimento }})</span></h6>
+        <div class="layer-grid">
+            {% for row in layers.aptos %}
+            <a class="layer-card {% if selected.apto == row.apto %}active{% endif %}"
+               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
+                <span class="name">{{ row.apto|default:"Sem apto" }}</span>
+                <span class="meta">{{ row.total }} ativ. • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <div class="meta-inline">
+                    <span class="s-ok">{{ row.concluidos }}</span>
+                    <span class="s-mid">{{ row.em_andamento }}</span>
+                    <span class="s-bad">{{ row.nao_iniciados }}</span>
+                </div>
+            </a>
+            {% empty %}
+            <div class="layer-empty">Sem dados para apto.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected.apto %}
+    <div class="layer-block mb-3 mobile-priority-layer5">
+        <h6>Atividades <span class="layer-block__sub">({{ selected.apto }})</span></h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-compact align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Atividade</th>
+                        <th>Status</th>
+                        <th>%</th>
+                        <th>Término</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in itens_atividade %}
+                    <tr>
+                        <td>{{ item.atividade }}</td>
+                        <td>{{ item.status_texto|default:"-" }}</td>
+                        <td>{% if item.pct_display != None %}{{ item.pct_display }}%{% else %}-{% endif %}</td>
+                        <td>{% if item.data_termino %}{{ item.data_termino|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center text-muted py-3">Sem atividades nessa camada.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/mapa_controle.js' %}?v=2"></script>
+<script>
+(function () {
+    var sel = document.getElementById('mapaControleObra');
+    var obraForm = document.getElementById('mapaControleObraForm');
+    var filtForm = document.getElementById('mapaControleFilterForm');
+    if (!sel || !obraForm || !filtForm) return;
+    sel.addEventListener('change', function () {
+        ['status', 'search', 'quick', 'matrix_mode'].forEach(function (name) {
+            var el = filtForm.querySelector('[name="' + name + '"]');
+            if (!el) return;
+            var h = obraForm.querySelector('input[name="' + name + '"]');
+            if (!h) {
+                h = document.createElement('input');
+                h.type = 'hidden';
+                h.name = name;
+                obraForm.appendChild(h);
+            }
+            h.value = el.value;
+        });
+        obraForm.submit();
+    });
+})();
+</script>
 {% endblock %}

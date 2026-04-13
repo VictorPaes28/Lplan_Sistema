@@ -972,6 +972,7 @@ def importar_sienge_upload(request):
                                 df_try = raw.iloc[header_row + 1:].copy()
                                 df_try.columns = raw.iloc[header_row].tolist()
                                 df_try = df_try.dropna(how='all')
+                                # Colunas nan no cabeçalho variam entre exports; valores ficam ligados ao rótulo da coluna, não à posição.
                                 df_try = df_try.loc[:, [c for c in df_try.columns if str(c).strip() not in ('', 'nan')]]
 
                                 # identificar colunas principais
@@ -1006,9 +1007,39 @@ def importar_sienge_upload(request):
 
                             df = best.copy()  # Criar cópia para evitar referência ao Excel
 
+                            # Sub-linhas só com datas/NF (layout Rpontes e similares): repetem SC/insumo após ffill mas sem item real
+                            cols_norm_df = {c: norm_xlsx(c) for c in df.columns}
+                            desc_col_g = next(
+                                (c for c, cn in cols_norm_df.items() if 'DESCRICAO' in cn and 'INSUMO' in cn),
+                                None,
+                            )
+                            qt_sol_col_g = next((c for c, cn in cols_norm_df.items() if 'SOLICIT' in cn), None)
+                            qtd_ent_col_g = next((c for c, cn in cols_norm_df.items() if 'ENTREGUE' in cn), None)
+                            removidas_ghost = 0
+                            if desc_col_g and qt_sol_col_g and qtd_ent_col_g:
+
+                                def _cel_vazia_imp(v):
+                                    if pd.isna(v):
+                                        return True
+                                    s = str(v).strip().lower()
+                                    return s in ('', 'nan', 'none', '<na>')
+
+                                mask_ghost = df.apply(
+                                    lambda r: _cel_vazia_imp(r[desc_col_g])
+                                    and _cel_vazia_imp(r[qt_sol_col_g])
+                                    and _cel_vazia_imp(r[qtd_ent_col_g]),
+                                    axis=1,
+                                )
+                                removidas_ghost = int(mask_ghost.sum())
+                                if removidas_ghost:
+                                    df = df.loc[~mask_ghost]
+
+                            msg_linhas = f'Linhas lidas: {len(df)}.'
+                            if removidas_ghost:
+                                msg_linhas += f' (Removidas {removidas_ghost} linhas vazias de layout / continuação.)'
                             messages.info(
                                 request,
-                                f'Excel detectado: aba "{best_sheet}", header na linha {best_header_row + 1}. Linhas lidas: {len(df)}.'
+                                f'Excel detectado: aba "{best_sheet}", header na linha {best_header_row + 1}. {msg_linhas}'
                             )
 
                             # Garantir que todas as colunas sejam convertidas para string antes de salvar

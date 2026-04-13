@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 from django.core.validators import MinLengthValidator
 
@@ -11,6 +13,13 @@ class Obra(models.Model):
         validators=[MinLengthValidator(1)],
         help_text="Código único da obra no Sienge"
     )
+    codigos_sienge_alternativos = models.TextField(
+        blank=True,
+        help_text=(
+            "Outros códigos do Sienge que identificam a mesma obra (ex.: MAPA exporta 42 e o cadastro principal é 242). "
+            "Separar por vírgula, ponto e vírgula ou quebra de linha."
+        ),
+    )
     nome = models.CharField(max_length=200)
     ativa = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -23,6 +32,31 @@ class Obra(models.Model):
 
     def __str__(self):
         return f"{self.codigo_sienge} - {self.nome}"
+
+    def chaves_sienge_busca_importacao(self):
+        """
+        Conjunto de strings que devem resolver para esta obra na importação MAPA_CONTROLE
+        (código principal + alternativos, com variantes numéricas comuns).
+        """
+        keys = set()
+
+        def expand(s):
+            s = (s or "").strip()
+            if not s:
+                return
+            keys.add(s)
+            if s.isdigit():
+                n = str(int(s))
+                keys.add(n)
+                for width in (4, 5):
+                    keys.add(n.zfill(width))
+
+        expand(self.codigo_sienge)
+        raw = (self.codigos_sienge_alternativos or "").strip()
+        if raw:
+            for part in re.split(r"[,;\n]+", raw):
+                expand(part.strip())
+        return keys
 
 
 class LocalObra(models.Model):
