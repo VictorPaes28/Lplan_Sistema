@@ -89,11 +89,14 @@ class ComunicadoAdmin(admin.ModelAdmin):
             {
                 'fields': (
                     'publico_todos',
+                    'publico_escopo_criterios',
+                    'publico_restrito_perfil',
                     'grupos_permitidos',
                     'usuarios_permitidos',
                     'obras_permitidas',
                     'grupos_excluidos',
                     'usuarios_excluidos',
+                    'obras_excluidas',
                 ),
             },
         ),

@@ -44,6 +44,21 @@ class StatusFinalVisualizacao(models.TextChoices):
     IGNORADO = 'IGNORADO', 'Ignorado'
 
 
+class PublicoEscopoCriterios(models.TextChoices):
+    """Como combinar grupos, usuários e obras permitidos (quando o público não é “todos”)."""
+
+    QUALQUER = 'QUALQUER', 'Qualquer critério (OU)'
+    TODOS = 'TODOS', 'Todos os critérios (E)'
+
+
+class PublicoRestricaoPerfil(models.TextChoices):
+    """Filtro adicional por perfil Django, aplicado depois das regras de público e exclusões."""
+
+    NENHUMA = 'NENHUMA', 'Sem restrição de perfil'
+    APENAS_STAFF = 'APENAS_STAFF', 'Apenas staff'
+    APENAS_SUPERUSER = 'APENAS_SUPERUSER', 'Apenas superusuários'
+
+
 class Comunicado(models.Model):
     titulo = models.CharField(max_length=255, verbose_name='Título (interno)')
     slug = models.SlugField(
@@ -147,6 +162,23 @@ class Comunicado(models.Model):
     )
 
     publico_todos = models.BooleanField(default=True, verbose_name='Público: todos')
+    publico_escopo_criterios = models.CharField(
+        max_length=16,
+        choices=PublicoEscopoCriterios.choices,
+        default=PublicoEscopoCriterios.QUALQUER,
+        verbose_name='Combinação dos critérios',
+        help_text=(
+            'Com público restrito: OU = basta grupo, usuário ou obra; '
+            'E = tem de cumprir todos os tipos que estiverem preenchidos (ex.: grupo e obra).'
+        ),
+    )
+    publico_restrito_perfil = models.CharField(
+        max_length=20,
+        choices=PublicoRestricaoPerfil.choices,
+        default=PublicoRestricaoPerfil.NENHUMA,
+        verbose_name='Restrição de perfil',
+        help_text='Aplicado depois do público e das exclusões; útil para avisos só à equipa interna.',
+    )
     grupos_permitidos = models.ManyToManyField(
         'auth.Group',
         blank=True,
@@ -176,6 +208,16 @@ class Comunicado(models.Model):
         blank=True,
         related_name='comunicados_usuarios_excluidos',
         verbose_name='Usuários excluídos',
+    )
+    obras_excluidas = models.ManyToManyField(
+        'gestao_aprovacao.Obra',
+        blank=True,
+        related_name='comunicados_obras_excluidas',
+        verbose_name='Obras excluídas',
+        help_text=(
+            'Usuários vinculados a estes projetos (membro da obra) deixam de ver o comunicado. '
+            'Só obras com projeto do Diário associado têm efeito.'
+        ),
     )
 
     pode_fechar = models.BooleanField(default=True, verbose_name='Pode fechar')

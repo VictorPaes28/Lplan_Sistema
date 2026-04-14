@@ -1,11 +1,17 @@
 from django import forms
 from django.contrib.auth.models import Group, User
-from django.core.exceptions import ValidationError
 from django.utils import timezone as dj_tz
 
 from gestao_aprovacao.models import Obra
 
-from .models import Comunicado, DestaqueVisual, Prioridade, TipoConteudo, TipoExibicao
+from .models import (
+    Comunicado,
+    DestaqueVisual,
+    Prioridade,
+    PublicoEscopoCriterios,
+    TipoConteudo,
+    TipoExibicao,
+)
 
 
 class ComunicadoForm(forms.ModelForm):
@@ -30,11 +36,11 @@ class ComunicadoForm(forms.ModelForm):
             'dias_ativo',
             'prioridade',
             'publico_todos',
+            'publico_escopo_criterios',
+            'publico_restrito_perfil',
             'grupos_permitidos',
             'usuarios_permitidos',
             'obras_permitidas',
-            'grupos_excluidos',
-            'usuarios_excluidos',
             'pode_fechar',
             'exige_confirmacao',
             'exige_resposta',
@@ -67,15 +73,17 @@ class ComunicadoForm(forms.ModelForm):
             'dias_ativo': forms.NumberInput(attrs={'class': 'central-input', 'min': 1}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'central-input'}),
             'grupos_permitidos': forms.CheckboxSelectMultiple(),
-            'grupos_excluidos': forms.CheckboxSelectMultiple(),
             'usuarios_permitidos': forms.SelectMultiple(
-                attrs={'class': 'central-input select-m2m-click-toggle', 'size': '12'}
-            ),
-            'usuarios_excluidos': forms.SelectMultiple(
                 attrs={'class': 'central-input select-m2m-click-toggle', 'size': '12'}
             ),
             'obras_permitidas': forms.SelectMultiple(
                 attrs={'class': 'central-input select-m2m-click-toggle', 'size': '12'}
+            ),
+            'publico_escopo_criterios': forms.Select(
+                attrs={'class': 'central-input', 'id': 'id_publico_escopo_criterios'}
+            ),
+            'publico_restrito_perfil': forms.Select(
+                attrs={'class': 'central-input', 'id': 'id_publico_restrito_perfil'}
             ),
             'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_ativo'}),
             'publico_todos': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_publico_todos'}),
@@ -91,10 +99,8 @@ class ComunicadoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['grupos_permitidos'].queryset = Group.objects.order_by('name')
-        self.fields['grupos_excluidos'].queryset = Group.objects.order_by('name')
         uq = User.objects.filter(is_active=True).order_by('first_name', 'last_name', 'username')
         self.fields['usuarios_permitidos'].queryset = uq
-        self.fields['usuarios_excluidos'].queryset = uq
         self.fields['obras_permitidas'].queryset = Obra.objects.order_by('nome', 'codigo')
 
         def _label_user(obj):
@@ -104,7 +110,6 @@ class ComunicadoForm(forms.ModelForm):
             return f'{obj.nome} ({obj.codigo})'
 
         self.fields['usuarios_permitidos'].label_from_instance = _label_user
-        self.fields['usuarios_excluidos'].label_from_instance = _label_user
         self.fields['obras_permitidas'].label_from_instance = _label_obra
         self.fields['tipo_conteudo'].choices = TipoConteudo.choices
         self.fields['tipo_exibicao'].choices = TipoExibicao.choices
@@ -153,6 +158,7 @@ class ComunicadoForm(forms.ModelForm):
         # Senão o HTML pode ainda enviar checkboxes marcados (secção oculta) e o backend grava
         # publico_todos=True com M2M preenchido — em services o 1.º if (publico_todos) libera todos.
         if cleaned.get('publico_todos'):
+            cleaned['publico_escopo_criterios'] = PublicoEscopoCriterios.QUALQUER
             if 'grupos_permitidos' in cleaned:
                 cleaned['grupos_permitidos'] = self.fields['grupos_permitidos'].queryset.none()
             if 'usuarios_permitidos' in cleaned:

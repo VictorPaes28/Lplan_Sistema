@@ -3,41 +3,56 @@
 
 {% block title %}{{ titulo_pagina }} — Comunicados{% endblock %}
 {% block page_title %}{{ titulo_pagina }}{% endblock %}
-{% block page_subtitle %}Painel do sistema — Comunicados administrativos{% endblock %}
+{% block page_subtitle %}
+    {% if modo == 'criar' %}
+        Defina o conteúdo, o público e como o aviso aparece no LPLAN.
+    {% else %}
+        Ajuste o comunicado e as regras de exibição.
+    {% endif %}
+{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
-<style>
-.admin-page { max-width: 900px; }
-.admin-breadcrumb { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem; flex-wrap: wrap; }
-.admin-breadcrumb a { color: #3b82f6; text-decoration: none; font-weight: 500; }
-.admin-breadcrumb .sep { color: #cbd5e1; }
-.form-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #f1f5f9; }
-.field-row { margin-bottom: 1rem; }
-.field-row label { display: block; font-size: 0.8125rem; font-weight: 500; color: #334155; margin-bottom: 0.35rem; }
-.field-error { color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem; }
-.tipo-fld { display: none; }
-.tipo-fld.is-on { display: block; }
-#wrap-max-ex, #wrap-dias { display: none; }
-#wrap-max-ex.is-on, #wrap-dias.is-on { display: block; }
-#publico-restrito { display: none; }
-#publico-restrito.is-on { display: block; }
-ul.errorlist { color: #dc2626; font-size: 0.85rem; margin: 0 0 0.5rem; padding-left: 1.2rem; }
-.checkbox-multi ul { list-style: none; padding-left: 0; max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem 0.75rem; }
-.checkbox-multi li { margin-bottom: 0.35rem; }
-select.select-m2m-click-toggle[multiple] { width: 100%; max-width: 100%; min-height: 10rem; }
-</style>
+<link rel="stylesheet" href="{% static 'comunicados/css/painel.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="admin-page">
-    <nav class="admin-breadcrumb">
+<div class="admin-page comunicados-painel">
+    <a class="comunicados-skip-actions" href="#form-comunicado-acoes">Ir para salvar</a>
+
+    <nav class="admin-breadcrumb" aria-label="Navegação">
         <a href="{% url 'accounts:admin_central' %}">Painel do sistema</a>
-        <span class="sep">/</span>
+        <span class="sep" aria-hidden="true">/</span>
         <a href="{% url 'comunicados_painel_lista' %}">Comunicados</a>
-        <span class="sep">/</span>
-        <span style="color:#64748b;">{% if modo == 'criar' %}Novo{% else %}Editar{% endif %}</span>
+        <span class="sep" aria-hidden="true">/</span>
+        <span aria-current="page">{% if modo == 'criar' %}Novo{% else %}Editar{% endif %}</span>
     </nav>
+
+    <header class="comunicado-page-head">
+        <div>
+            <h2>{% if modo == 'criar' %}Novo comunicado{% else %}Editar comunicado{% endif %}</h2>
+            <p class="head-meta">
+                {% if modo == 'criar' %}
+                    O título interno identifica o aviso no painel; o restante é o que os usuários veem no modal Megafone.
+                {% else %}
+                    Alterações passam a valer conforme as datas e o público definidos abaixo.
+                {% endif %}
+            </p>
+        </div>
+        <div class="head-actions">
+            <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary"><i class="fas fa-list" aria-hidden="true"></i> Lista</a>
+        </div>
+    </header>
+
+    {% if modo == 'criar' %}
+    <div class="central-help-card comunicado-help-top">
+        <div class="central-help-title">Antes de publicar</div>
+        <p class="central-help-desc">
+            Escolha o <strong>tipo de conteúdo</strong> primeiro: os campos mudam automaticamente.
+            Para imagem, envie o ficheiro antes de gravar. Use <strong>prioridade</strong> e <strong>bloquear até ação</strong> só quando o aviso for realmente obrigatório.
+        </p>
+    </div>
+    {% endif %}
 
     <form method="post" enctype="multipart/form-data" id="form-comunicado" novalidate>
         {% csrf_token %}
@@ -45,103 +60,156 @@ select.select-m2m-click-toggle[multiple] { width: 100%; max-width: 100%; min-hei
             <ul class="errorlist">{{ form.non_field_errors }}</ul>
         {% endif %}
 
-        <section class="central-section">
-            <h3 class="central-section-title"><i class="fas fa-info-circle" aria-hidden="true"></i> Informações básicas</h3>
-            <div class="field-row">
-                <label for="id_titulo">Título (interno) *</label>
-                {{ form.titulo }}
-                {% if form.titulo.errors %}<div class="field-error">{{ form.titulo.errors }}</div>{% endif %}
-            </div>
-            <div class="field-row">
-                <label for="id_descricao_interna">Descrição interna</label>
-                {{ form.descricao_interna }}
-            </div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">
-                {{ form.ativo }}
-                <label for="id_ativo" style="margin:0;">Ativo</label>
-            </div>
-            <div class="field-row">
-                <label for="id_tipo_conteudo">Tipo de conteúdo</label>
-                {{ form.tipo_conteudo }}
-            </div>
-        </section>
+        <div class="comunicado-form-grid">
+            <div class="comunicado-form-main">
+                <section class="central-section" aria-labelledby="sec-basico">
+                    <h3 id="sec-basico" class="central-section-title"><i class="fas fa-info-circle" aria-hidden="true"></i> Informações básicas</h3>
+                    <p class="comunicado-section-desc">Nome e notas só para administradores; definem como filtrar e rever o comunicado no painel.</p>
+                    <div class="field-row">
+                        <label for="id_titulo">Título (interno) *</label>
+                        {{ form.titulo }}
+                        {% if form.titulo.errors %}<div class="field-error">{{ form.titulo.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field-row">
+                        <label for="id_descricao_interna">Descrição interna</label>
+                        {{ form.descricao_interna }}
+                        <p class="field-hint">Opcional. Não aparece para os usuários finais.</p>
+                    </div>
+                    <div class="field-row comunicado-toggle-row">
+                        {{ form.ativo }}
+                        <label for="id_ativo">Comunicado ativo (pode ser exibido quando couber nas regras abaixo)</label>
+                    </div>
+                    <div class="field-row">
+                        <label for="id_tipo_conteudo">Tipo de conteúdo</label>
+                        {{ form.tipo_conteudo }}
+                        <p class="field-hint">Define quais blocos de “Conteúdo visível” ficam disponíveis.</p>
+                    </div>
+                </section>
 
-        <section class="central-section">
-            <h3 class="central-section-title"><i class="fas fa-align-left" aria-hidden="true"></i> Conteúdo visível</h3>
+                <section class="central-section" aria-labelledby="sec-conteudo">
+                    <h3 id="sec-conteudo" class="central-section-title"><i class="fas fa-align-left" aria-hidden="true"></i> Conteúdo visível</h3>
+                    <p class="comunicado-section-desc">Texto, imagem e estilo do modal que o usuário vê ao usar o sistema.</p>
 
-            <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
-                <div class="field-row"><label for="id_titulo_visivel">Título visível</label>{{ form.titulo_visivel }}</div>
-            </div>
-            <div class="tipo-fld" data-tipos="TEXTO,FORMULARIO">
-                <div class="field-row"><label for="id_subtitulo">Subtítulo</label>{{ form.subtitulo }}</div>
-            </div>
-            <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
-                <div class="field-row"><label for="id_texto_principal">Texto principal</label>{{ form.texto_principal }}</div>
-            </div>
-            <div class="tipo-fld" data-tipos="IMAGEM,IMAGEM_LINK">
-                <div class="field-row"><label for="id_imagem">Imagem *</label>{{ form.imagem }}{% if form.imagem.errors %}<div class="field-error">{{ form.imagem.errors }}</div>{% endif %}</div>
-            </div>
-            <div class="tipo-fld" data-tipos="IMAGEM_LINK">
-                <div class="field-row"><label for="id_link_destino">Link de destino</label>{{ form.link_destino }}</div>
-                <div class="field-row"><label for="id_texto_botao">Texto do botão</label>{{ form.texto_botao }}</div>
-            </div>
-            <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
-                <div class="field-row"><label for="id_destaque_visual">Destaque visual</label>{{ form.destaque_visual }}</div>
-            </div>
-        </section>
+                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                        <div class="field-row"><label for="id_titulo_visivel">Título visível</label>{{ form.titulo_visivel }}</div>
+                    </div>
+                    <div class="tipo-fld" data-tipos="TEXTO,FORMULARIO">
+                        <div class="field-row"><label for="id_subtitulo">Subtítulo</label>{{ form.subtitulo }}</div>
+                    </div>
+                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                        <div class="field-row"><label for="id_texto_principal">Texto principal</label>{{ form.texto_principal }}</div>
+                    </div>
+                    <div class="tipo-fld" data-tipos="IMAGEM,IMAGEM_LINK">
+                        <div class="field-row">
+                            <label for="id_imagem">Imagem *</label>
+                            {{ form.imagem }}
+                            <p class="field-hint">Obrigatório para tipos baseados em imagem. Formatos comuns: PNG, JPG, WebP.</p>
+                            {% if form.imagem.errors %}<div class="field-error">{{ form.imagem.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="tipo-fld" data-tipos="IMAGEM_LINK">
+                        <div class="field-row"><label for="id_link_destino">Link de destino</label>{{ form.link_destino }}</div>
+                        <div class="field-row"><label for="id_texto_botao">Texto do botão</label>{{ form.texto_botao }}</div>
+                    </div>
+                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                        <div class="field-row"><label for="id_destaque_visual">Destaque visual</label>{{ form.destaque_visual }}</div>
+                    </div>
+                </section>
 
-        <section class="central-section">
-            <h3 class="central-section-title"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Regras de exibição</h3>
-            <div class="field-row"><label for="id_tipo_exibicao">Tipo de exibição</label>{{ form.tipo_exibicao }}</div>
-            <div class="field-row" id="wrap-max-ex"><label for="id_max_exibicoes_por_usuario">Máx. exibições por usuário</label>{{ form.max_exibicoes_por_usuario }}{% if form.max_exibicoes_por_usuario.errors %}<div class="field-error">{{ form.max_exibicoes_por_usuario.errors }}</div>{% endif %}</div>
-            <div class="field-row"><label for="id_data_inicio">Data de início</label>{{ form.data_inicio }}{% if form.data_inicio.errors %}<div class="field-error">{{ form.data_inicio.errors }}</div>{% endif %}</div>
-            <div class="field-row"><label for="id_data_fim">Data de fim</label>{{ form.data_fim }}{% if form.data_fim.errors %}<div class="field-error">{{ form.data_fim.errors }}</div>{% endif %}</div>
-            <div class="field-row" id="wrap-dias"><label for="id_dias_ativo">Dias ativo</label>{{ form.dias_ativo }}{% if form.dias_ativo.errors %}<div class="field-error">{{ form.dias_ativo.errors }}</div>{% endif %}</div>
-            <div class="field-row"><label for="id_prioridade">Prioridade</label>{{ form.prioridade }}</div>
-        </section>
-
-        <section class="central-section">
-            <h3 class="central-section-title"><i class="fas fa-users" aria-hidden="true"></i> Público</h3>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">
-                {{ form.publico_todos }}
-                <label for="id_publico_todos" style="margin:0;">Público: todos os usuários autenticados</label>
+                <section class="central-section" aria-labelledby="sec-regras">
+                    <h3 id="sec-regras" class="central-section-title"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Regras de exibição</h3>
+                    <p class="comunicado-section-desc">Frequência, janela de tempo e ordem em relação a outros comunicados.</p>
+                    <div class="field-row">
+                        <label for="id_tipo_exibicao">Tipo de exibição</label>
+                        {{ form.tipo_exibicao }}
+                    </div>
+                    <div class="field-row" id="wrap-max-ex">
+                        <label for="id_max_exibicoes_por_usuario">Máx. exibições por usuário</label>
+                        {{ form.max_exibicoes_por_usuario }}
+                        {% if form.max_exibicoes_por_usuario.errors %}<div class="field-error">{{ form.max_exibicoes_por_usuario.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field-row">
+                        <label for="id_data_inicio">Data de início</label>
+                        {{ form.data_inicio }}
+                        {% if form.data_inicio.errors %}<div class="field-error">{{ form.data_inicio.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field-row">
+                        <label for="id_data_fim">Data de fim</label>
+                        {{ form.data_fim }}
+                        {% if form.data_fim.errors %}<div class="field-error">{{ form.data_fim.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field-row" id="wrap-dias">
+                        <label for="id_dias_ativo">Dias ativo</label>
+                        {{ form.dias_ativo }}
+                        {% if form.dias_ativo.errors %}<div class="field-error">{{ form.dias_ativo.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field-row">
+                        <label for="id_prioridade">Prioridade</label>
+                        {{ form.prioridade }}
+                        <p class="field-hint">Comunicados mais prioritários competem primeiro pela atenção do usuário.</p>
+                    </div>
+                </section>
             </div>
-            <div id="publico-restrito">
-                <p style="font-size:0.85rem;color:#64748b;margin-bottom:0.75rem;">Defina grupos, usuários ou obras permitidas.</p>
-                <div class="field-row checkbox-multi"><label>Grupos permitidos</label>{{ form.grupos_permitidos }}</div>
-                <div class="field-row">
-                    <label for="id_usuarios_permitidos">Usuários permitidos</label>
-                    {{ form.usuarios_permitidos }}
-                    {% if form.usuarios_permitidos.errors %}<div class="field-error">{{ form.usuarios_permitidos.errors }}</div>{% endif %}
-                </div>
-                <div class="field-row">
-                    <label for="id_obras_permitidas">Obras permitidas</label>
-                    {{ form.obras_permitidas }}
-                    {% if form.obras_permitidas.errors %}<div class="field-error">{{ form.obras_permitidas.errors }}</div>{% endif %}
-                </div>
-                <div class="field-row checkbox-multi"><label>Grupos excluídos</label>{{ form.grupos_excluidos }}</div>
-                <div class="field-row">
-                    <label for="id_usuarios_excluidos">Usuários excluídos</label>
-                    {{ form.usuarios_excluidos }}
-                    {% if form.usuarios_excluidos.errors %}<div class="field-error">{{ form.usuarios_excluidos.errors }}</div>{% endif %}
-                </div>
+
+            <div class="comunicado-form-aside">
+                <section class="central-section" aria-labelledby="sec-publico">
+                    <h3 id="sec-publico" class="central-section-title"><i class="fas fa-users" aria-hidden="true"></i> Público</h3>
+                    <p class="comunicado-section-desc">Escolha <strong>quem vê</strong>: todos os logados ou grupos, usuários e obras abaixo (combinação <strong>OU</strong> ou <strong>E</strong>). Opcionalmente limite a staff/superusuários. <span class="field-hint" style="display:inline;margin:0;">Ao salvar neste painel, listas de exclusão são esvaziadas (inclusão só por aqui).</span></p>
+                    <div class="field-row comunicado-toggle-row">
+                        {{ form.publico_todos }}
+                        <label for="id_publico_todos">Todos os usuários autenticados</label>
+                    </div>
+                    <div class="field-row">
+                        <label for="id_publico_restrito_perfil">Restrição de perfil</label>
+                        {{ form.publico_restrito_perfil }}
+                        <p class="field-hint">Filtra por staff ou superusuário em cima do público acima (útil para avisos internos).</p>
+                        {% if form.publico_restrito_perfil.errors %}<div class="field-error">{{ form.publico_restrito_perfil.errors }}</div>{% endif %}
+                    </div>
+                    <div id="publico-restrito">
+                        <h4 class="comunicado-subsection-title comunicado-subsection-title--inline">Quem vê (escolha os destinatários)</h4>
+                        <div class="field-row">
+                            <label for="id_publico_escopo_criterios">Combinar estas escolhas</label>
+                            {{ form.publico_escopo_criterios }}
+                            <p class="field-hint"><strong>OU</strong> — basta estar num grupo escolhido, na lista de usuários ou numa obra. <strong>E</strong> — tem de cumprir cada tipo que preencher (ex.: grupo <em>e</em> obra).</p>
+                            {% if form.publico_escopo_criterios.errors %}<div class="field-error">{{ form.publico_escopo_criterios.errors }}</div>{% endif %}
+                        </div>
+                        <p class="field-hint field-hint--emphasis">Marque pelo menos um grupo, usuário ou obra.</p>
+                        <div class="field-row checkbox-multi"><label>Grupos</label>{{ form.grupos_permitidos }}</div>
+                        <div class="field-row">
+                            <label for="id_usuarios_permitidos">Usuários</label>
+                            <p class="field-hint field-hint--tight">Clique nas linhas para marcar ou desmarcar (sem Ctrl).</p>
+                            {{ form.usuarios_permitidos }}
+                            {% if form.usuarios_permitidos.errors %}<div class="field-error">{{ form.usuarios_permitidos.errors }}</div>{% endif %}
+                        </div>
+                        <div class="field-row">
+                            <label for="id_obras_permitidas">Obras</label>
+                            <p class="field-hint field-hint--tight">Membros destas obras (com projeto no Diário) veem o comunicado.</p>
+                            {{ form.obras_permitidas }}
+                            {% if form.obras_permitidas.errors %}<div class="field-error">{{ form.obras_permitidas.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="central-section" aria-labelledby="sec-comportamento">
+                    <h3 id="sec-comportamento" class="central-section-title"><i class="fas fa-sliders-h" aria-hidden="true"></i> Comportamento do modal</h3>
+                    <p class="comunicado-section-desc">Como o usuário interage e o que é obrigatório antes de continuar a trabalhar.</p>
+                    <div class="comportamento-grid">
+                        <div class="comportamento-item">{{ form.pode_fechar }}<label for="{{ form.pode_fechar.id_for_label }}">Pode fechar</label></div>
+                        <div class="comportamento-item">{{ form.exige_confirmacao }}<label for="{{ form.exige_confirmacao.id_for_label }}">Exige confirmação de leitura</label></div>
+                        <div class="comportamento-item">{{ form.exige_resposta }}<label for="{{ form.exige_resposta.id_for_label }}">Exige resposta</label></div>
+                        <div class="comportamento-item">{{ form.bloquear_ate_acao }}<label for="{{ form.bloquear_ate_acao.id_for_label }}">Bloquear até ação</label></div>
+                        <div class="comportamento-item">{{ form.abrir_automaticamente }}<label for="{{ form.abrir_automaticamente.id_for_label }}">Abrir automaticamente</label></div>
+                        <div class="comportamento-item">{{ form.mostrar_apos_fechar }}<label for="{{ form.mostrar_apos_fechar.id_for_label }}">Mostrar após fechar</label></div>
+                        <div class="comportamento-item comportamento-item--full">{{ form.permitir_nao_mostrar_novamente }}<label for="{{ form.permitir_nao_mostrar_novamente.id_for_label }}">Permitir “não mostrar novamente”</label></div>
+                    </div>
+                </section>
             </div>
-        </section>
+        </div>
 
-        <section class="central-section">
-            <h3 class="central-section-title"><i class="fas fa-sliders-h" aria-hidden="true"></i> Comportamento</h3>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.pode_fechar }}<label style="margin:0;">Pode fechar</label></div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.exige_confirmacao }}<label style="margin:0;">Exige confirmação de leitura</label></div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.exige_resposta }}<label style="margin:0;">Exige resposta</label></div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.bloquear_ate_acao }}<label style="margin:0;">Bloquear até ação</label></div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.abrir_automaticamente }}<label style="margin:0;">Abrir automaticamente</label></div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.mostrar_apos_fechar }}<label style="margin:0;">Mostrar após fechar</label></div>
-            <div class="field-row" style="display:flex;align-items:center;gap:0.5rem;">{{ form.permitir_nao_mostrar_novamente }}<label style="margin:0;">Permitir “não mostrar novamente”</label></div>
-        </section>
-
-        <div class="form-actions">
-            <button type="submit" name="salvar" value="1" class="central-btn-primary">Salvar</button>
-            <button type="submit" name="salvar_visualizar" value="1" class="central-btn-secondary" style="background:#1e40af;color:#fff;border-color:#1e3a8a;">Salvar e visualizar desempenho</button>
+        <div class="form-actions" id="form-comunicado-acoes">
+            <p class="form-actions-hint">Grava o rascunho agora; pode voltar a editar antes de ativar ou alargar o público.</p>
+            <button type="submit" name="salvar" value="1" class="central-btn-primary"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
+            <button type="submit" name="salvar_visualizar" value="1" class="central-btn-secondary comunicado-btn-accent"><i class="fas fa-chart-line" aria-hidden="true"></i> Salvar e ver desempenho</button>
             <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary">Cancelar</a>
         </div>
     </form>
@@ -170,7 +238,6 @@ select.select-m2m-click-toggle[multiple] { width: 100%; max-width: 100%; min-hei
     if (wrapDias) wrapDias.classList.toggle('is-on', v === 'X_DIAS');
   }
 
-  /** Evita enviar grupos/usuários/obras permitidos com "Público: todos" (secção oculta ainda podia submeter M2M). */
   function limparSomentePermitidos() {
     if (!restrito) return;
     restrito.querySelectorAll('input[name="grupos_permitidos"]').forEach(function (inp) {
@@ -199,7 +266,6 @@ select.select-m2m-click-toggle[multiple] { width: 100%; max-width: 100%; min-hei
   setExibicao();
   setPublico();
 
-  /** Select múltiplo: clique alterna seleção do item sem Ctrl (comportamento nativo anulado no mousedown da option). */
   document.querySelectorAll('select.select-m2m-click-toggle[multiple]').forEach(function (sel) {
     sel.addEventListener('mousedown', function (e) {
       var t = e.target;

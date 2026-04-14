@@ -7,46 +7,24 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
-<style>
-.admin-page { max-width: 1280px; }
-.admin-breadcrumb { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem; flex-wrap: wrap; }
-.admin-breadcrumb a { color: #3b82f6; text-decoration: none; font-weight: 500; }
-.admin-breadcrumb a:hover { color: #1d4ed8; }
-.admin-breadcrumb .sep { color: #cbd5e1; }
-.page-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
-.admin-table-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow-x: auto; }
-.admin-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 960px; }
-.admin-table th { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; padding: 0.65rem 0.75rem; border-bottom: 2px solid #e2e8f0; text-align: left; background: #fafbfc; }
-.admin-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid #f1f5f9; font-size: 0.82rem; vertical-align: top; }
-.admin-table tr:hover td { background: #f8fafc; }
-.pri-CRITICA { color: #dc2626; font-weight: 700; }
-.pri-ALTA { color: #ea580c; font-weight: 700; }
-.pri-NORMAL { color: #2563eb; font-weight: 600; }
-.pri-BAIXA { color: #64748b; font-weight: 600; }
-.st-encerrado { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 600; }
-.st-ativo { background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 600; }
-.st-inativo { background: #fee2e2; color: #b91c1c; padding: 2px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 600; }
-.acoes-wrap { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
-.acoes-wrap form { display: inline; }
-.link-acao { font-size: 0.78rem; color: #2563eb; font-weight: 600; text-decoration: none; background: none; border: none; cursor: pointer; padding: 0; }
-.link-acao:hover { text-decoration: underline; }
-.link-perigo { color: #dc2626; }
-.sep-acoes { color: #cbd5e1; font-size: 0.75rem; }
-</style>
+<link rel="stylesheet" href="{% static 'comunicados/css/painel.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="admin-page">
+<div class="admin-page comunicados-painel comunicados-painel--lista">
     <nav class="admin-breadcrumb" aria-label="Navegação">
         <a href="{% url 'accounts:admin_central' %}">Painel do sistema</a>
-        <span class="sep">/</span>
-        <span style="color:#64748b;">Comunicados</span>
+        <span class="sep" aria-hidden="true">/</span>
+        <span aria-current="page">Comunicados</span>
     </nav>
 
-    <div class="page-header-row">
-        <h2 style="margin:0;font-size:1.2rem;font-weight:700;color:#0f172a;">Lista de comunicados</h2>
+    <header class="comunicado-list-header">
+        <div>
+            <h2>Lista de comunicados</h2>
+            <p class="sub">Megafone — modais institucionais e métricas de leitura</p>
+        </div>
         <a href="{% url 'comunicados_painel_criar' %}" class="central-btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> Novo comunicado</a>
-    </div>
+    </header>
 
     <div class="admin-table-wrap">
         <table class="admin-table">
@@ -68,23 +46,29 @@
                 {% for row in rows %}
                 {% with c=row.obj %}
                 <tr>
-                    <td><strong>{{ c.titulo }}</strong></td>
+                    <td class="cell-title">{{ c.titulo }}</td>
                     <td>{{ c.get_tipo_conteudo_display }}</td>
                     <td><span class="{% if row.status_key == 'encerrado' %}st-encerrado{% elif row.status_key == 'ativo' %}st-ativo{% else %}st-inativo{% endif %}">{{ row.status_label }}</span></td>
                     <td><span class="pri-{{ c.prioridade }}">{{ c.get_prioridade_display }}</span></td>
                     <td style="white-space:nowrap;font-size:0.78rem;">
                         {% if c.data_inicio %}{{ c.data_inicio|date:"d/m/Y H:i" }}{% else %}—{% endif %}
-                        <br><span style="color:#94a3b8;">até</span><br>
+                        <br><span class="pub-badge-meta">até</span><br>
                         {% if c.data_fim %}{{ c.data_fim|date:"d/m/Y H:i" }}{% else %}sem limite{% endif %}
                     </td>
                     <td style="font-size:0.78rem;">
                         {% if c.publico_todos %}
-                            <span style="color:#15803d;font-weight:600;">Todos</span>
+                            <span class="pub-badge pub-badge--todos">Todos</span>
                         {% else %}
-                            <span style="color:#b45309;">Restrito</span>
+                            <span class="pub-badge pub-badge--restrito">Restrito</span>
+                            {% if c.publico_escopo_criterios == 'TODOS' %}<span class="pub-mini pub-mini--e" title="Critérios em E (AND)">E</span>{% endif %}
                             {% if c.grupos_permitidos.count or c.obras_permitidas.count %}
-                                <span style="color:#94a3b8;">({{ c.grupos_permitidos.count }} grp. / {{ c.obras_permitidas.count }} obras)</span>
+                                <span class="pub-badge-meta"> ({{ c.grupos_permitidos.count }} grp. / {{ c.obras_permitidas.count }} obras)</span>
                             {% endif %}
+                        {% endif %}
+                        {% if c.publico_restrito_perfil == 'APENAS_STAFF' %}
+                            <span class="pub-mini pub-mini--staff">Staff</span>
+                        {% elif c.publico_restrito_perfil == 'APENAS_SUPERUSER' %}
+                            <span class="pub-mini pub-mini--su">Super</span>
                         {% endif %}
                     </td>
                     <td>{{ row.vis_total }}</td>
@@ -93,29 +77,37 @@
                     <td>
                         <div class="acoes-wrap">
                             <a href="{% url 'comunicados_painel_editar' c.pk %}" class="link-acao">Editar</a>
-                            <span class="sep-acoes">|</span>
+                            <span class="sep-acoes" aria-hidden="true">|</span>
                             <form method="post" action="{% url 'comunicados_painel_duplicar' c.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="link-acao">Duplicar</button>
                             </form>
-                            <span class="sep-acoes">|</span>
+                            <span class="sep-acoes" aria-hidden="true">|</span>
                             <form method="post" action="{% url 'comunicados_painel_toggle' c.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="link-acao">{% if c.ativo %}Desativar{% else %}Ativar{% endif %}</button>
                             </form>
-                            <span class="sep-acoes">|</span>
+                            {% if row.status_key != 'encerrado' %}
+                            <span class="sep-acoes" aria-hidden="true">|</span>
                             <form method="post" action="{% url 'comunicados_painel_encerrar' c.pk %}" onsubmit="return confirm('Encerrar este comunicado agora (definir data de fim)?');">
                                 {% csrf_token %}
                                 <button type="submit" class="link-acao link-perigo">Encerrar</button>
                             </form>
-                            <span class="sep-acoes">|</span>
+                            {% endif %}
+                            <span class="sep-acoes" aria-hidden="true">|</span>
                             <a href="{% url 'comunicados_painel_desempenho' c.pk %}" class="link-acao">Desempenho</a>
                         </div>
                     </td>
                 </tr>
                 {% endwith %}
                 {% empty %}
-                <tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:2rem;">Nenhum comunicado cadastrado.</td></tr>
+                <tr>
+                    <td colspan="10" class="table-empty">
+                        <div class="table-empty-icon" aria-hidden="true"><i class="fas fa-bullhorn"></i></div>
+                        <p>Nenhum comunicado cadastrado. Crie o primeiro aviso para aparecer no Megafone aos usuários.</p>
+                        <a href="{% url 'comunicados_painel_criar' %}" class="central-btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> Novo comunicado</a>
+                    </td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>

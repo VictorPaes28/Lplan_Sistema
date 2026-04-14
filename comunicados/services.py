@@ -17,6 +17,8 @@ from .models import (
     Comunicado,
     ComunicadoVisualizacao,
     Prioridade,
+    PublicoEscopoCriterios,
+    PublicoRestricaoPerfil,
     StatusFinalVisualizacao,
     TipoConteudo,
     TipoExibicao,
@@ -52,8 +54,8 @@ def _passa_janela_temporal(c: Comunicado, now) -> bool:
 
 def _usuario_em_publico_alvo(user, c: Comunicado, user_group_ids: set[int], user_project_ids: set[int]) -> bool:
     """
-    - publico_todos=True → qualquer utilizador autenticado (exceto regras de exclusão antes).
-    - publico_todos=False → o utilizador tem de coincidir com pelo menos um critério permitido.
+    - publico_todos=True → qualquer utilizador autenticado (antes de exclusões e restrição de perfil).
+    - publico_todos=False → critérios permitidos combinados por publico_escopo_criterios (OU ou E).
       Se não houver nenhum grupo/usuário/obra permitidos definidos, ninguém é elegível.
     """
     if c.publico_todos:
@@ -76,22 +78,28 @@ def _usuario_em_publico_alvo(user, c: Comunicado, user_group_ids: set[int], user
             )
         return False
 
-    ok = False
-    if user_group_ids & perm_g:
-        ok = True
-    elif user.pk in permitidos:
-        ok = True
-    elif user_project_ids & obras_proj:
-        ok = True
+    tem_g = bool(perm_g)
+    tem_u = bool(permitidos)
+    tem_p = bool(obras_proj)
+    ok_g = bool(user_group_ids & perm_g) if tem_g else None
+    ok_u = user.pk in permitidos if tem_u else None
+    ok_p = bool(user_project_ids & obras_proj) if tem_p else None
+
+    if c.publico_escopo_criterios == PublicoEscopoCriterios.TODOS:
+        partes = [x for x in (ok_g, ok_u, ok_p) if x is not None]
+        ok = all(partes) if partes else False
+    else:
+        ok = any(x is True for x in (ok_g, ok_u, ok_p))
 
     if settings.DEBUG:
         logger.debug(
-            'comunicados: elegibilidade comunicado=%s user=%s ok=%s publico_todos=%s perm_g=%s '
+            'comunicados: elegibilidade comunicado=%s user=%s ok=%s publico_todos=%s escopo=%s perm_g=%s '
             'permitidos_u=%s obras_proj=%s user_g=%s user_proj=%s',
             c.pk,
             user.pk,
             ok,
             c.publico_todos,
+            c.publico_escopo_criterios,
             perm_g,
             permitidos,
             obras_proj,
@@ -101,11 +109,31 @@ def _usuario_em_publico_alvo(user, c: Comunicado, user_group_ids: set[int], user
     return ok
 
 
-def _usuario_excluido(user, c: Comunicado, user_group_ids: set[int]) -> bool:
+def _usuario_excluido(user, c: Comunicado, user_group_ids: set[int], user_project_ids: set[int]) -> bool:
     if user.pk in {u.pk for u in c.usuarios_excluidos.all()}:
         return True
     excl_g = {g.pk for g in c.grupos_excluidos.all()}
-    return bool(user_group_ids & excl_g)
+    if user_group_ids & excl_g:
+        return True
+    excl_proj: set[int] = set()
+    for obra in c.obras_excluidas.all():
+        pid = obra.project_id
+        if pid:
+            excl_proj.add(pid)
+    if excl_proj and user_project_ids & excl_proj:
+        return True
+    return False
+
+
+def _passa_restricao_perfil(user, c: Comunicado) -> bool:
+    perfil = c.publico_restrito_perfil
+    if perfil == PublicoRestricaoPerfil.NENHUMA:
+        return True
+    if perfil == PublicoRestricaoPerfil.APENAS_STAFF:
+        return bool(getattr(user, 'is_staff', False))
+    if perfil == PublicoRestricaoPerfil.APENAS_SUPERUSER:
+        return bool(getattr(user, 'is_superuser', False))
+    return True
 
 
 def _passa_regra_exibicao(c: Comunicado, vis: ComunicadoVisualizacao | None, now, hoje) -> bool:
@@ -192,6 +220,7 @@ def listar_comunicados_pendentes(user) -> list[Comunicado]:
             'obras_permitidas',
             'grupos_excluidos',
             'usuarios_excluidos',
+            'obras_excluidas',
         )
         .order_by('pk')
     )
@@ -205,12 +234,15 @@ def listar_comunicados_pendentes(user) -> list[Comunicado]:
     for c in candidatos:
         if not _passa_janela_temporal(c, now):
             continue
-        if _usuario_excluido(user, c, user_group_ids):
+        if _usuario_excluido(user, c, user_group_ids, user_project_ids):
             continue
         if not _usuario_em_publico_alvo(user, c, user_group_ids, user_project_ids):
             continue
+        if not _passa_restricao_perfil(user, c):
+            continue
         vis = vis_map.get(c.pk)
-        # Já fechou o modal e o comunicado não pede "mostrar após fechar" → não voltar a exibir (evita reabrir ao dar POST fechou).
+        # Fechou=True evita reabrir na mesma sessão (e impede loop quando a API volta a devolver o mesmo pendente).
+        # Para "Sempre" voltar após novo login, ver `reset_comunicados_sempre_fechou` em accounts.signals.
         if vis and vis.fechou and not c.mostrar_apos_fechar:
             continue
         if not _passa_regra_exibicao(c, vis, now, hoje):

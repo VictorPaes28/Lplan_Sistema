@@ -7,38 +7,23 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
-<style>
-.admin-page { max-width: 1100px; }
-.admin-breadcrumb { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem; flex-wrap: wrap; }
-.admin-breadcrumb a { color: #3b82f6; text-decoration: none; font-weight: 500; }
-.admin-breadcrumb .sep { color: #cbd5e1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
-.kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; text-align: center; }
-.kpi-val { font-size: 1.5rem; font-weight: 800; color: #0f172a; }
-.kpi-lbl { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.25rem; }
-.admin-table-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow-x: auto; margin-bottom: 1.5rem; }
-.admin-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 880px; font-size: 0.82rem; }
-.admin-table th { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b; padding: 0.65rem 0.75rem; border-bottom: 2px solid #e2e8f0; text-align: left; background: #fafbfc; }
-.admin-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f1f5f9; }
-.admin-table tr:hover td { background: #f8fafc; }
-.sim { color: #15803d; font-weight: 600; }
-.nao { color: #94a3b8; }
-</style>
+<link rel="stylesheet" href="{% static 'comunicados/css/painel.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="admin-page">
-    <nav class="admin-breadcrumb">
+<div class="admin-page comunicados-painel comunicados-painel--desempenho">
+    <nav class="admin-breadcrumb" aria-label="Navegação">
         <a href="{% url 'accounts:admin_central' %}">Painel do sistema</a>
-        <span class="sep">/</span>
+        <span class="sep" aria-hidden="true">/</span>
         <a href="{% url 'comunicados_painel_lista' %}">Comunicados</a>
-        <span class="sep">/</span>
-        <span style="color:#64748b;">Desempenho</span>
+        <span class="sep" aria-hidden="true">/</span>
+        <span aria-current="page">Desempenho</span>
     </nav>
 
-    <p style="margin:0 0 1rem;font-size:0.9rem;color:#475569;">
-        <a href="{% url 'comunicados_painel_editar' comunicado.pk %}" class="central-btn-secondary" style="display:inline-flex;padding:0.35rem 0.75rem;font-size:0.8rem;">Editar comunicado</a>
-    </p>
+    <div class="desempenho-toolbar">
+        <a href="{% url 'comunicados_painel_editar' comunicado.pk %}" class="central-btn-secondary"><i class="fas fa-pen" aria-hidden="true"></i> Editar comunicado</a>
+        <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary"><i class="fas fa-list" aria-hidden="true"></i> Lista</a>
+    </div>
 
     <div class="kpi-grid">
         <div class="kpi"><div class="kpi-val">{{ n_deveriam }}</div><div class="kpi-lbl">Deveriam ver</div></div>
@@ -51,7 +36,7 @@
         <div class="kpi"><div class="kpi-val">{{ taxa_resp }}%</div><div class="kpi-lbl">Taxa resposta</div></div>
     </div>
 
-    <h3 class="central-section-title" style="margin-bottom:0.75rem;"><i class="fas fa-table" aria-hidden="true"></i> Detalhe por usuário (público elegível)</h3>
+    <h3 class="desempenho-section-title"><i class="fas fa-table" aria-hidden="true"></i> Detalhe por usuário (público elegível)</h3>
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
@@ -77,14 +62,14 @@
                     <td>{% if row.vis %}{{ row.vis.get_status_final_display }}{% else %}Pendente{% endif %}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:1.5rem;">Nenhum usuário elegível para este público.</td></tr>
+                <tr><td colspan="7" class="table-empty-cell">Nenhum usuário elegível para este público.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
     {% if respostas %}
-    <h3 class="central-section-title" style="margin-bottom:0.75rem;"><i class="fas fa-comments" aria-hidden="true"></i> Respostas recebidas</h3>
+    <h3 class="desempenho-section-title"><i class="fas fa-comments" aria-hidden="true"></i> Respostas recebidas</h3>
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>

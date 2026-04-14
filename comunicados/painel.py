@@ -23,6 +23,13 @@ from .models import Comunicado, ComunicadoResposta, ComunicadoVisualizacao, Tipo
 User = get_user_model()
 
 
+def _limpar_exclusoes_comunicado(comunicado: Comunicado) -> None:
+    """O painel só gere público por inclusão; exclusões ficam para o admin Django."""
+    comunicado.grupos_excluidos.clear()
+    comunicado.usuarios_excluidos.clear()
+    comunicado.obras_excluidas.clear()
+
+
 def _status_comunicado(comunicado, agora):
     if comunicado.data_fim and comunicado.data_fim < agora:
         return 'encerrado', 'Encerrado'
@@ -76,6 +83,7 @@ def criar(request):
             obj.criado_por = request.user
             obj.save()
             form.save_m2m()
+            _limpar_exclusoes_comunicado(obj)
             messages.success(request, 'Comunicado criado com sucesso.')
             if 'salvar_visualizar' in request.POST:
                 return redirect('comunicados_painel_desempenho', pk=obj.pk)
@@ -92,6 +100,8 @@ def editar(request, pk):
         form = ComunicadoForm(request.POST, request.FILES, instance=comunicado)
         if form.is_valid():
             form.save()
+            form.save_m2m()
+            _limpar_exclusoes_comunicado(comunicado)
             messages.success(request, 'Alterações salvas.')
             if 'salvar_visualizar' in request.POST:
                 return redirect('comunicados_painel_desempenho', pk=comunicado.pk)
@@ -134,6 +144,8 @@ def duplicar(request, pk):
             dias_ativo=orig.dias_ativo,
             prioridade=orig.prioridade,
             publico_todos=orig.publico_todos,
+            publico_escopo_criterios=orig.publico_escopo_criterios,
+            publico_restrito_perfil=orig.publico_restrito_perfil,
             pode_fechar=orig.pode_fechar,
             exige_confirmacao=orig.exige_confirmacao,
             exige_resposta=orig.exige_resposta,
@@ -151,8 +163,6 @@ def duplicar(request, pk):
         novo.grupos_permitidos.set(orig.grupos_permitidos.all())
         novo.usuarios_permitidos.set(orig.usuarios_permitidos.all())
         novo.obras_permitidas.set(orig.obras_permitidas.all())
-        novo.grupos_excluidos.set(orig.grupos_excluidos.all())
-        novo.usuarios_excluidos.set(orig.usuarios_excluidos.all())
     messages.success(request, 'Comunicado duplicado. Revise e ative quando desejar.')
     return redirect('comunicados_painel_editar', pk=novo.pk)
 
@@ -171,7 +181,11 @@ def toggle(request, pk):
 @require_POST
 def encerrar(request, pk):
     c = get_object_or_404(Comunicado, pk=pk)
-    c.data_fim = timezone.now()
+    agora = timezone.now()
+    if c.data_fim and c.data_fim < agora:
+        messages.info(request, 'Este comunicado já está encerrado.')
+        return redirect('comunicados_painel_lista')
+    c.data_fim = agora
     c.save()
     messages.success(request, 'Comunicado encerrado (data de fim definida para agora).')
     return redirect('comunicados_painel_lista')

@@ -16,3 +16,20 @@ def log_user_login(sender, request, user, **kwargs):
         UserLoginLog.objects.create(user=user)
     except Exception:
         pass  # Não quebrar o login em caso de falha (ex.: migração pendente)
+
+
+@receiver(user_logged_in)
+def reset_comunicados_sempre_fechou(sender, request, user, **kwargs):
+    """
+    Comunicados com exibição "Sempre" reabrem após novo login.
+    Na mesma sessão, fechou=True continua a esconder (evita modal em loop a cada poll).
+    """
+    try:
+        from comunicados.models import ComunicadoVisualizacao, StatusFinalVisualizacao, TipoExibicao
+
+        ComunicadoVisualizacao.objects.filter(
+            usuario=user,
+            comunicado__tipo_exibicao=TipoExibicao.SEMPRE,
+        ).exclude(status_final=StatusFinalVisualizacao.IGNORADO).update(fechou=False)
+    except Exception:
+        pass
