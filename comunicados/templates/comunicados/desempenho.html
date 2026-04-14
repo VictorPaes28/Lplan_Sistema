@@ -22,6 +22,7 @@
 
     <div class="desempenho-toolbar">
         <a href="{% url 'comunicados_painel_editar' comunicado.pk %}" class="central-btn-secondary"><i class="fas fa-pen" aria-hidden="true"></i> Editar comunicado</a>
+        <a href="{% url 'comunicados_painel_desempenho_exportar_csv' comunicado.pk %}" class="central-btn-secondary"><i class="fas fa-download" aria-hidden="true"></i> Exportar CSV</a>
         <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary"><i class="fas fa-list" aria-hidden="true"></i> Lista</a>
     </div>
 

@@ -83,7 +83,16 @@
   function setDestaqueClasses(c) {
     var d = c.destaque_visual || 'PADRAO';
     elDialog.className = 'comunicados-destaque-' + d;
-    elHeader.className = 'comunicados-header-bar comunicados-header--' + d;
+    /* O CSS usa .comunicados-header--padrao (minúsculas); o valor do modelo é PADRAO. */
+    var hdrMap = {
+      PADRAO: 'padrao',
+      INFO: 'INFO',
+      ALERTA: 'ALERTA',
+      CRITICO: 'CRITICO',
+      SUCESSO: 'SUCESSO',
+    };
+    var h = hdrMap[d] || 'padrao';
+    elHeader.className = 'comunicados-header-bar comunicados-header--' + h;
   }
 
   function clearNode(node) {

@@ -14,6 +14,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
 <link rel="stylesheet" href="{% static 'comunicados/css/painel.css' %}">
+<link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -208,13 +209,38 @@
 
         <div class="form-actions" id="form-comunicado-acoes">
             <p class="form-actions-hint">Grava o rascunho agora; pode voltar a editar antes de ativar ou alargar o público.</p>
+            <button type="button" class="central-btn-secondary" id="btn-megafone-prev"><i class="fas fa-eye" aria-hidden="true"></i> Pré-visualizar (Megafone)</button>
             <button type="submit" name="salvar" value="1" class="central-btn-primary"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
             <button type="submit" name="salvar_visualizar" value="1" class="central-btn-secondary comunicado-btn-accent"><i class="fas fa-chart-line" aria-hidden="true"></i> Salvar e ver desempenho</button>
             <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary">Cancelar</a>
         </div>
     </form>
+
+    <div id="megafone-prev-root" class="megafone-prev-hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="megafone-prev-titulo">
+        <div id="megafone-prev-overlay" tabindex="-1"></div>
+        <div id="megafone-prev-dialog" class="comunicados-destaque-PADRAO">
+            <div id="megafone-prev-banner">Pré-visualização — o utilizador vê algo neste estilo (não grava dados).</div>
+            <div id="megafone-prev-header" class="comunicados-header-bar comunicados-header--padrao">
+                <div id="megafone-prev-header-text" style="flex:1;min-width:0;">
+                    <h2 id="megafone-prev-titulo" style="margin:0;font-size:1.125rem;">Comunicado</h2>
+                    <p id="megafone-prev-subtitulo" style="display:none;margin:0.35rem 0 0;font-size:0.875rem;color:#64748b;"></p>
+                </div>
+                <button type="button" id="megafone-prev-close" aria-label="Fechar pré-visualização" style="background:none;border:none;font-size:1.5rem;line-height:1;cursor:pointer;color:#64748b;">&times;</button>
+            </div>
+            <div id="megafone-prev-body"></div>
+            <div id="megafone-prev-footer">
+                <div id="megafone-prev-actions"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
+{% if comunicado and comunicado.imagem %}
+<script>
+window.__MEGAFONE_PREVIEW_IMG_URL__ = "{{ request.scheme }}://{{ request.get_host }}{{ comunicado.imagem.url }}";
+</script>
+{% endif %}
+<script src="{% static 'comunicados/js/megafone-preview.js' %}"></script>
 <script>
 (function() {
   var tipoSel = document.getElementById('id_tipo_conteudo');

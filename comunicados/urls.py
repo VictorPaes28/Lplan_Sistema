@@ -13,4 +13,9 @@ urlpatterns = [
     path('toggle/<int:pk>/', painel.toggle, name='comunicados_painel_toggle'),
     path('encerrar/<int:pk>/', painel.encerrar, name='comunicados_painel_encerrar'),
     path('desempenho/<int:pk>/', painel.desempenho, name='comunicados_painel_desempenho'),
+    path(
+        'desempenho/<int:pk>/exportar.csv',
+        painel.desempenho_exportar_csv,
+        name='comunicados_painel_desempenho_exportar_csv',
+    ),
 ]
