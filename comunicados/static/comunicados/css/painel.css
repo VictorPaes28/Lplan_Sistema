@@ -348,6 +348,65 @@
   flex-shrink: 0;
 }
 
+/*
+ * Mobile / viewport estreito: base.css aplica em touch (hover:none + pointer:coarse)
+ * min-height:44px em label:has(checkbox) e checkbox ~22px — a lista "Grupos" fica com
+ * linhas altas e texto desalinhado em relação à caixa. Aqui compactamos e centralizamos
+ * só em telas estreitas; desktop largo permanece como antes.
+ */
+@media (max-width: 1023.98px) {
+  .comunicados-painel .checkbox-multi label {
+    align-items: center;
+    min-height: 0 !important;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .comunicados-painel .checkbox-multi input[type="checkbox"] {
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 1.125rem !important;
+    min-height: 1.125rem !important;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  /* Toggles (Comunicado ativo, Todos os usuários autenticados, etc.): irmãos checkbox+label */
+  .comunicados-painel .comunicado-toggle-row {
+    align-items: center;
+  }
+  .comunicados-painel .comunicado-toggle-row input[type="checkbox"] {
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 1.125rem !important;
+    min-height: 1.125rem !important;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .comunicados-painel .comunicado-toggle-row label {
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Comportamento do modal — cards em grelha */
+  .comunicados-painel .comportamento-item {
+    align-items: center;
+  }
+  .comunicados-painel .comportamento-item input[type="checkbox"] {
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 1.125rem !important;
+    min-height: 1.125rem !important;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .comunicados-painel .comportamento-item label {
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+
 /* Toggles principais */
 .comunicado-toggle-row {
   display: flex;
