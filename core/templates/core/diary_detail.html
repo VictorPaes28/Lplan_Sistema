@@ -571,7 +571,11 @@
         <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
             <i class="fas fa-tools text-slate-500 mr-2 text-sm"></i>
             Equipamentos utilizados
-            {% if equipment_list %}<span class="ml-2 text-xs font-normal text-gray-500">({{ equipment_list|length }})</span>{% endif %}
+            {% if equipment_list %}
+            <span class="ml-2 text-xs font-normal text-gray-500">
+                ({{ equipment_list|length }} tipo{{ equipment_list|length|pluralize:"s" }} · {{ equipment_total_quantity }} un.)
+            </span>
+            {% endif %}
         </h3>
         {% if equipment_list %}
         <div class="diary-detail-compact-block">

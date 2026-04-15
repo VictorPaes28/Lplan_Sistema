@@ -361,7 +361,7 @@ class PDFGenerator:
             logger.error("ReportLab não disponível. Instale: pip install reportlab")
             raise RuntimeError("Geração de PDF requer a biblioteca ReportLab.")
 
-        from core.models import ConstructionDiary, DiaryLaborEntry
+        from core.models import ConstructionDiary
 
         try:
             diary = ConstructionDiary.objects.select_related(
@@ -437,26 +437,10 @@ class PDFGenerator:
 
         labor_entries_by_category = None
         try:
-            entries = DiaryLaborEntry.objects.filter(diary=diary).select_related(
-                'cargo', 'cargo__category'
-            ).order_by('cargo__category__order', 'company', 'cargo__name')
-            if entries.exists():
-                labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': {}}
-                for e in entries:
-                    slug = e.cargo.category.slug
-                    qty = _safe_int(e.quantity, 0)
-                    item = {'cargo_name': e.cargo.name, 'quantity': qty}
-                    if slug == 'terceirizada':
-                        company = e.company or '(Sem empresa)'
-                        if company not in labor_entries_by_category['terceirizada']:
-                            labor_entries_by_category['terceirizada'][company] = []
-                        labor_entries_by_category['terceirizada'][company].append(item)
-                    elif slug in labor_entries_by_category:
-                        labor_entries_by_category[slug].append(item)
-                labor_entries_by_category['terceirizada'] = [
-                    {'company': k, 'items': v}
-                    for k, v in labor_entries_by_category['terceirizada'].items()
-                ]
+            from core.utils.diary_labor import build_labor_entries_by_category
+
+            labor_entries_by_category = build_labor_entries_by_category(diary)
+            if labor_entries_by_category:
                 total_indirect = sum((x.get('quantity') or 0) for x in labor_entries_by_category['indireta'])
                 total_direct = sum((x.get('quantity') or 0) for x in labor_entries_by_category['direta'])
                 total_third_party = sum(

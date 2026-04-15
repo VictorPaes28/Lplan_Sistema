@@ -297,37 +297,10 @@ def _build_diary_equipment_list(diary):
 
 
 def _build_labor_entries_by_category(diary):
-    """
-    Agrupa DiaryLaborEntry por categoria (indireta/direta/terceirizada).
-    Retorna None se não houver linhas (UI usa agregação legada por M2M).
-    """
-    try:
-        from .models import DiaryLaborEntry
+    """Delega para ``core.utils.diary_labor`` (consolida cargos duplicados no mesmo dia)."""
+    from core.utils.diary_labor import build_labor_entries_by_category
 
-        entries = (
-            DiaryLaborEntry.objects.filter(diary=diary)
-            .select_related('cargo', 'cargo__category')
-            .order_by('cargo__category__order', 'company', 'cargo__name')
-        )
-        if not entries.exists():
-            return None
-        labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': {}}
-        for e in entries:
-            slug = e.cargo.category.slug
-            item = {'cargo_name': e.cargo.name, 'quantity': e.quantity}
-            if slug == 'terceirizada':
-                company = e.company or '(Sem empresa)'
-                if company not in labor_entries_by_category['terceirizada']:
-                    labor_entries_by_category['terceirizada'][company] = []
-                labor_entries_by_category['terceirizada'][company].append(item)
-            elif slug in labor_entries_by_category:
-                labor_entries_by_category[slug].append(item)
-        labor_entries_by_category['terceirizada'] = [
-            {'company': k, 'items': v} for k, v in labor_entries_by_category['terceirizada'].items()
-        ]
-        return labor_entries_by_category
-    except Exception:
-        return None
+    return build_labor_entries_by_category(diary)
 
 
 def _diary_labor_totals(labor_by_type, labor_entries_by_category):
@@ -1978,6 +1951,7 @@ def diary_detail_view(request, pk):
     
     # Equipamentos agregados por diário (mesma regra do PDF)
     equipment_list = _build_diary_equipment_list(diary)
+    equipment_total_quantity = sum(int(x.get('quantity') or 0) for x in equipment_list)
 
     # Mão de obra por categorias (DiaryLaborEntry) — tabela detalhada + totais corretos (quantity)
     labor_entries_by_category = _build_labor_entries_by_category(diary)
@@ -2031,6 +2005,7 @@ def diary_detail_view(request, pk):
         'total_direct_labor': total_direct_labor,
         'total_third_party_labor': total_third_party_labor,
         'equipment_list': equipment_list,
+        'equipment_total_quantity': equipment_total_quantity,
         'labor_entries_by_category': labor_entries_by_category,
         'weekday_name': weekday_name,
         'view_count': view_count,
@@ -2193,6 +2168,7 @@ def client_diary_detail_view(request, pk):
         labor_by_type, labor_entries_by_category
     )
     equipment_list = _build_diary_equipment_list(diary)
+    equipment_total_quantity = sum(int(x.get('quantity') or 0) for x in equipment_list)
     project = diary.project
     project_days_total = (project.end_date - project.start_date).days if project.end_date and project.start_date else 0
     project_days_elapsed = (diary.date - project.start_date).days if project.end_date and project.start_date else 0
@@ -2208,6 +2184,7 @@ def client_diary_detail_view(request, pk):
         'comment_deadline': comment_deadline,
         'labor_by_type': labor_by_type,
         'equipment_list': equipment_list,
+        'equipment_total_quantity': equipment_total_quantity,
         'project_days_total': project_days_total,
         'project_days_elapsed': project_days_elapsed,
         'project_days_remaining': project_days_remaining,

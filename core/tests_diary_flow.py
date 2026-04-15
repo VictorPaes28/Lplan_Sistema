@@ -1230,3 +1230,34 @@ class DiaryLaborTotalsHelpersTestCase(TestCase):
         self.assertEqual(td, 1)
         self.assertEqual(ti, 0)
         self.assertEqual(tt, 0)
+
+
+class DiaryLaborMergeByCargoTestCase(TestCase):
+    """Mesmo cargo com várias linhas no mesmo dia deve aparecer uma vez com quantidade somada."""
+
+    def test_build_labor_entries_sums_quantities_per_cargo(self):
+        from core.utils.diary_labor import build_labor_entries_by_category
+
+        user = User.objects.create_user('merge_lab', 'ml@test.com', 'pass')
+        project = Project.objects.create(
+            code='MERGE-LAB',
+            name='Proj merge labor',
+            start_date=date.today() - timedelta(days=1),
+            end_date=date.today() + timedelta(days=30),
+        )
+        ProjectMember.objects.get_or_create(user=user, project=project)
+        cat = LaborCategory.objects.get(slug='indireta')
+        cargo = LaborCargo.objects.filter(category=cat).first()
+        self.assertIsNotNone(cargo, 'Migração seed deve ter cargo indireto')
+        diary = ConstructionDiary.objects.create(
+            project=project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=user,
+        )
+        DiaryLaborEntry.objects.create(diary=diary, cargo=cargo, quantity=1)
+        DiaryLaborEntry.objects.create(diary=diary, cargo=cargo, quantity=2)
+        out = build_labor_entries_by_category(diary)
+        self.assertIsNotNone(out)
+        self.assertEqual(len(out['indireta']), 1)
+        self.assertEqual(out['indireta'][0]['quantity'], 3)
