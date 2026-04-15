@@ -130,6 +130,34 @@
     border-top: 1px solid #e2e8f0;
 }
 
+/* Mão de obra: Direta | Indireta | Terceirizada lado a lado (terceirizada = várias empresas na mesma coluna) */
+.diary-detail-labor-columns {
+    display: grid;
+    gap: 0.75rem;
+    align-items: start;
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+    .diary-detail-labor-columns {
+        /* 2–3 colunas conforme espaço; 1 categoria ocupa a célula sem “vazios” forçados */
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    background: #fff;
+    min-width: 0;
+}
+
+/* Dentro da grelha, não usar o separador horizontal entre secções empilhadas */
+.diary-detail-labor-columns > .diary-detail-compact-section + .diary-detail-compact-section {
+    border-top: none;
+}
+
+
 .diary-detail-data-table {
     width: 100%;
     border-collapse: collapse;
