@@ -130,7 +130,7 @@
     border-top: 1px solid #e2e8f0;
 }
 
-/* Mão de obra: Direta | Indireta | Terceirizada lado a lado (gaps compactos; terceirizada com subfluxo) */
+/* Mão de obra: Indireta | Direta | Terceirizada (mesma ordem que o PDF); grelha com largura mínima para não cortar a coluna Qtd. */
 .diary-detail-labor-columns {
     display: grid;
     column-gap: 0.45rem;
@@ -142,8 +142,7 @@
 
 @media (min-width: 768px) {
     .diary-detail-labor-columns {
-        /* Colunas um pouco mais estreitas = caixas visualmente mais próximas */
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     }
 }
 
@@ -153,7 +152,8 @@
     min-height: 0;
     max-height: min(72vh, 44rem);
     overflow-y: auto;
-    overflow-x: hidden;
+    /* auto: evita cortar dígitos da Qtd. quando o cartão fica estreito (overflow hidden truncava à direita) */
+    overflow-x: auto;
     scrollbar-gutter: stable;
     padding-right: 0.15rem;
 }
@@ -245,9 +245,16 @@
 }
 
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) .diary-detail-data-table__num {
-    width: auto;
-    min-width: 1.5rem;
+    /* Truco de tabela: Qtd. não encolhe abaixo do número inteiro; não depender só de width fixo global */
+    width: 1%;
+    min-width: 2.75rem;
+    max-width: none;
     padding-left: 1.0625rem;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody td.text-slate-800 {
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody td:not(.diary-detail-data-table__label):not(.diary-detail-data-table__num) {

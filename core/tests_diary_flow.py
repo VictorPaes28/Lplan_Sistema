@@ -28,6 +28,7 @@ from core.models import (
     DiaryStatus,
     DiaryApprovalHistory,
     DiaryLaborEntry,
+    Labor,
     LaborCategory,
     LaborCargo,
     DiaryOccurrence,
@@ -1261,6 +1262,71 @@ class DiaryLaborMergeByCargoTestCase(TestCase):
         self.assertIsNotNone(out)
         self.assertEqual(len(out['indireta']), 1)
         self.assertEqual(out['indireta'][0]['quantity'], 3)
+
+
+class DiaryLaborM2mFallbackMergeTestCase(TestCase):
+    """Detalhe HTML: categorias vazias em DiaryLaborEntry devem receber o M2M como no PDF."""
+
+    def test_merge_fills_empty_indireta_when_m2m_has_indirect(self):
+        from core.utils.diary_labor import (
+            build_labor_entries_by_category,
+            merge_labor_entries_m2m_fallback_for_html,
+        )
+        from core.frontend_views import _diary_labor_totals
+
+        user = User.objects.create_user('m2m_fb', 'm2m@test.com', 'pass')
+        project = Project.objects.create(
+            code='M2M-FB',
+            name='Proj m2m fallback',
+            start_date=date.today() - timedelta(days=1),
+            end_date=date.today() + timedelta(days=30),
+        )
+        ProjectMember.objects.get_or_create(user=user, project=project)
+        activity = Activity.add_root(
+            project=project,
+            name='Ativ',
+            code='1.0',
+            weight=Decimal('100.00'),
+        )
+        cat_d = LaborCategory.objects.get(slug='direta')
+        cargo_d = LaborCargo.objects.filter(category=cat_d).first()
+        self.assertIsNotNone(cargo_d)
+        diary = ConstructionDiary.objects.create(
+            project=project,
+            date=date.today(),
+            status=DiaryStatus.SALVAMENTO_PARCIAL,
+            created_by=user,
+        )
+        DiaryLaborEntry.objects.create(diary=diary, cargo=cargo_d, quantity=2)
+        lab_i = Labor.objects.create(name='Eng. Teste', labor_type='I', role='EN')
+        wl = DailyWorkLog.objects.create(
+            diary=diary,
+            activity=activity,
+            percentage_executed_today=Decimal('5.00'),
+            accumulated_progress_snapshot=Decimal('10.00'),
+        )
+        wl.resources_labor.add(lab_i)
+
+        raw = build_labor_entries_by_category(diary)
+        self.assertIsNotNone(raw)
+        self.assertEqual(len(raw['indireta']), 0)
+        self.assertGreater(len(raw['direta']), 0)
+
+        merged = merge_labor_entries_m2m_fallback_for_html(raw, diary)
+        self.assertEqual(len(merged['indireta']), 1)
+        self.assertEqual(merged['indireta'][0]['cargo_name'], 'Eng. Teste')
+        self.assertEqual(merged['indireta'][0]['quantity'], 1)
+
+        labor_by_type = {'Direto': {}, 'Indireto': {'Eng. Teste': 1}, 'Terceiros': {}}
+        td, ti, tt = _diary_labor_totals(labor_by_type, merged)
+        self.assertEqual(ti, 1)
+        self.assertEqual(td, 2)
+        self.assertEqual(tt, 0)
+
+    def test_merge_returns_none_when_no_diary_labor_entries(self):
+        from core.utils.diary_labor import merge_labor_entries_m2m_fallback_for_html
+
+        self.assertIsNone(merge_labor_entries_m2m_fallback_for_html(None, None))
 
 
 class PartitionListFilterTestCase(TestCase):

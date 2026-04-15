@@ -303,6 +303,13 @@ def _build_labor_entries_by_category(diary):
     return build_labor_entries_by_category(diary)
 
 
+def _merge_labor_entries_m2m_fallback_for_html(labor_entries_by_category, diary):
+    """Preenche categorias vazias com M2M como no PDF (``merge_labor_entries_m2m_fallback_for_html``)."""
+    from core.utils.diary_labor import merge_labor_entries_m2m_fallback_for_html
+
+    return merge_labor_entries_m2m_fallback_for_html(labor_entries_by_category, diary)
+
+
 def _diary_labor_totals(labor_by_type, labor_entries_by_category):
     """
     Totais para o resumo (Direto/Indireto/Terceiros).
@@ -1955,6 +1962,9 @@ def diary_detail_view(request, pk):
 
     # Mão de obra por categorias (DiaryLaborEntry) — tabela detalhada + totais corretos (quantity)
     labor_entries_by_category = _build_labor_entries_by_category(diary)
+    labor_entries_by_category = _merge_labor_entries_m2m_fallback_for_html(
+        labor_entries_by_category, diary
+    )
 
     total_direct_labor, total_indirect_labor, total_third_party_labor = _diary_labor_totals(
         labor_by_type, labor_entries_by_category
@@ -2164,6 +2174,9 @@ def client_diary_detail_view(request, pk):
             elif labor_type == 'T':
                 labor_by_type['Terceiros'][labor.name] = labor_by_type['Terceiros'].get(labor.name, 0) + 1
     labor_entries_by_category = _build_labor_entries_by_category(diary)
+    labor_entries_by_category = _merge_labor_entries_m2m_fallback_for_html(
+        labor_entries_by_category, diary
+    )
     total_direct_labor, total_indirect_labor, total_third_party_labor = _diary_labor_totals(
         labor_by_type, labor_entries_by_category
     )
