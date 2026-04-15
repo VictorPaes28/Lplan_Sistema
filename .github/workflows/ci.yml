@@ -1,0 +1,32 @@
+# Apps em INSTALLED_APPS (integrations está pausado e quebra unittest se descoberto a partir da raiz).
+name: CI
+
+on:
+  push:
+    branches: [main, master, victor]
+  pull_request:
+
+jobs:
+  django:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Tests (apps ativos)
+        run: >
+          python manage.py test
+          core gestao_aprovacao mapa_obras accounts suprimentos assistente_lplan comunicados
+          --verbosity=1

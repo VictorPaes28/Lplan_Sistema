@@ -1,14 +1,16 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block main_extra_class %} main-content--diary-pdf-reader{% endblock %}
 {% block back_url %}{% url 'client-diary-list' %}{% endblock %}
 {% block page_title %}PDF do relatório{% endblock %}
 {% block page_subtitle %}Modo leitura · {{ project.name }}{% endblock %}
 
 {% block content %}
-<div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+<div class="diary-pdf-reader-page">
+<div class="mb-2 md:mb-4 flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-start lg:justify-between diary-pdf-reader-toolbar-wrap">
     <div class="min-w-0">
-        <div class="flex items-center gap-2 flex-wrap text-sm text-slate-600">
+        <div class="hidden md:flex items-center gap-2 flex-wrap text-sm text-slate-600">
             <span class="font-medium text-slate-800">{{ project.name }}</span>
             <span class="text-slate-300" aria-hidden="true">·</span>
             <span>Diário de {{ diary.date|date:"d/m/Y" }}{% if diary.report_number %} · Rel. #{{ diary.report_number }}{% endif %}</span>
@@ -17,52 +19,62 @@
             <span class="text-slate-500">Documento {{ reader_position }} de {{ reader_total }}</span>
             {% endif %}
         </div>
-        <p class="text-xs text-slate-400 mt-1">PDF oficial do RDO (com fotos). Use os botões abaixo para navegar ou baixar.</p>
+        <p class="md:hidden text-sm text-slate-700 font-medium">
+            {{ diary.date|date:"d/m/Y" }}{% if diary.report_number %} · Rel. #{{ diary.report_number }}{% endif %}{% if reader_total %}
+            <span class="text-slate-500 font-normal"> · {{ reader_position }}/{{ reader_total }}</span>{% endif %}
+        </p>
+        <p class="text-xs text-slate-400 mt-1 hidden md:block">PDF oficial do RDO (com fotos). Use os botões abaixo para navegar ou baixar.</p>
     </div>
-    <div class="flex flex-wrap items-center gap-2 shrink-0">
+    <div class="flex flex-wrap items-center gap-1.5 md:gap-2 shrink-0 diary-pdf-reader-actions">
         {% if reader_prev_pk %}
         <a href="{% url 'client-diary-pdf-reader' reader_prev_pk %}"
            id="reader-prev"
-           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
-            <i class="fas fa-chevron-left text-xs" aria-hidden="true"></i>Anterior
+           class="diary-pdf-nav-btn inline-flex items-center justify-center gap-2 px-2.5 py-2 md:px-3 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+           aria-label="Relatório anterior">
+            <i class="fas fa-chevron-left text-xs" aria-hidden="true"></i><span class="hidden md:inline">Anterior</span>
         </a>
         {% else %}
-        <span class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed select-none" aria-disabled="true">
-            <i class="fas fa-chevron-left text-xs" aria-hidden="true"></i>Anterior
+        <span class="diary-pdf-nav-btn inline-flex items-center justify-center gap-2 px-2.5 py-2 md:px-3 rounded-lg text-sm font-medium bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed select-none" aria-disabled="true">
+            <i class="fas fa-chevron-left text-xs" aria-hidden="true"></i><span class="hidden md:inline">Anterior</span>
         </span>
         {% endif %}
         {% if reader_next_pk %}
         <a href="{% url 'client-diary-pdf-reader' reader_next_pk %}"
            id="reader-next"
-           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
-            Próximo<i class="fas fa-chevron-right text-xs" aria-hidden="true"></i>
+           class="diary-pdf-nav-btn inline-flex items-center justify-center gap-2 px-2.5 py-2 md:px-3 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+           aria-label="Próximo relatório">
+            <span class="hidden md:inline">Próximo</span><i class="fas fa-chevron-right text-xs" aria-hidden="true"></i>
         </a>
         {% else %}
-        <span class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed select-none" aria-disabled="true">
-            Próximo<i class="fas fa-chevron-right text-xs" aria-hidden="true"></i>
+        <span class="diary-pdf-nav-btn inline-flex items-center justify-center gap-2 px-2.5 py-2 md:px-3 rounded-lg text-sm font-medium bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed select-none" aria-disabled="true">
+            <span class="hidden md:inline">Próximo</span><i class="fas fa-chevron-right text-xs" aria-hidden="true"></i>
         </span>
         {% endif %}
         <a href="{% url 'client-diary-pdf' diary.id %}"
-           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition-colors">
-            <i class="fas fa-download text-xs" aria-hidden="true"></i>Baixar PDF
+           class="inline-flex items-center justify-center gap-2 px-2.5 py-2 md:px-3 rounded-lg text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition-colors"
+           aria-label="Baixar PDF">
+            <i class="fas fa-download text-xs" aria-hidden="true"></i><span class="hidden sm:inline">Baixar PDF</span><span class="sm:hidden">PDF</span>
         </a>
         <a href="{% url 'client-diary-pdf-inline' diary.id %}"
            target="_blank" rel="noopener noreferrer"
-           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
+           class="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
             <i class="fas fa-external-link-alt text-xs" aria-hidden="true"></i>Abrir PDF em nova aba
         </a>
         <a href="{% url 'client-diary-detail' diary.id %}"
-           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
-            <i class="fas fa-align-left text-xs" aria-hidden="true"></i>Ver página do relatório
+           class="inline-flex items-center justify-center gap-2 px-2.5 py-2 md:px-3 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+            <i class="fas fa-align-left text-xs" aria-hidden="true"></i>
+            <span class="md:hidden">Relatório</span>
+            <span class="hidden md:inline">Ver página do relatório</span>
         </a>
     </div>
 </div>
 
-<div class="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm">
+<div class="diary-pdf-reader-frame-wrap rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm md:shadow-sm">
     <iframe src="{% url 'client-diary-pdf-inline' diary.id %}"
             class="w-full border-0 bg-white block diary-pdf-reader-iframe"
             style="height: min(92vh, 1400px); min-height: 78vh;"
             title="PDF do relatório diário de obra de {{ diary.date|date:'d/m/Y' }}"></iframe>
+</div>
 </div>
 {% endblock %}
 

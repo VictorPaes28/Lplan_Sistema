@@ -1,6 +1,7 @@
 """
 Central: gestão de usuários (e obras = /projects/) fora do GestControll.
-Apenas staff/superuser. As views de usuário delegam ao gestao com request._central_redirect=True
+Acesso: superuser ou grupo Administrador (ver accounts.painel_sistema_access).
+As views de usuário delegam ao gestao com request._central_redirect=True
 para que os redirects apontem para /central/usuarios/.
 """
 from django.shortcuts import redirect, render, get_object_or_404
@@ -26,6 +27,7 @@ from django.contrib.auth.models import User
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from accounts.groups import GRUPOS
+from accounts.painel_sistema_access import user_is_painel_sistema_admin
 from core.models import (
     Project,
     ProjectOwner,
@@ -38,7 +40,7 @@ from core.user_messages import flash_message, resolve_message
 
 def _staff_required(f):
     def wrapper(request, *args, **kwargs):
-        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+        if not (request.user.is_authenticated and user_is_painel_sistema_admin(request.user)):
             raise PermissionDenied('Acesso restrito ao central.')
         return f(request, *args, **kwargs)
     return wrapper

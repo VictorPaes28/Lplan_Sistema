@@ -140,11 +140,14 @@ def create_empresa_and_obras():
             og.save()
         obras_gestao.append(og)
 
-        # Mapa: Obra (codigo_sienge = code para usuário ver pelo Project)
+        # Mapa: Obra (codigo_sienge = code; FK project alinhada ao Diário)
         om, _ = ObraMapa.objects.get_or_create(
             codigo_sienge=code,
-            defaults={'nome': name, 'ativa': True}
+            defaults={'nome': name, 'ativa': True, 'project_id': proj.pk},
         )
+        if om.project_id != proj.pk:
+            om.project_id = proj.pk
+            om.save(update_fields=['project'])
         obras_mapa.append(om)
 
     return empresa, projects, obras_gestao, obras_mapa

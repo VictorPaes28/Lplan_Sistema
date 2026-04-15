@@ -16,13 +16,15 @@ def _get_system_access(user):
     if not user or not user.is_authenticated:
         return False, False, False, False
     from accounts.groups import GRUPOS
+    from accounts.painel_sistema_access import user_is_painel_sistema_admin
+
     user_groups = set(user.groups.values_list('name', flat=True))
     has_diario = user.is_superuser or user.is_staff or GRUPOS.GERENTES in user_groups
     has_gestao = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
-    has_central = user.is_superuser or user.is_staff
+    has_central = user_is_painel_sistema_admin(user)
     return has_diario, has_gestao, has_mapa, has_central
 
 
@@ -37,13 +39,17 @@ def sidebar_systems(request):
             'has_gestao': False,
             'has_mapa': False,
             'has_central': False,
+            'can_manage_central_projects': False,
         }
     has_diario, has_gestao, has_mapa, has_central = _get_system_access(request.user)
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
+
     return {
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_mapa': has_mapa,
         'has_central': has_central,
+        'can_manage_central_projects': user_can_central_obras_diario_e_mapa(request.user),
     }
 
 

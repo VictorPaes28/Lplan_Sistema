@@ -11,15 +11,11 @@ import csv
 from mapa_obras.models import Obra
 from suprimentos.models import ItemMapa, Insumo
 from .groups import GRUPOS
-
-
-def is_staff_or_superuser(user):
-    """Verifica se o usuário é staff ou superusuário."""
-    return user.is_staff or user.is_superuser
+from .painel_sistema_access import user_is_painel_sistema_admin
 
 
 @login_required
-@user_passes_test(is_staff_or_superuser)
+@user_passes_test(user_is_painel_sistema_admin)
 def admin_central(request):
     """Página central de administração - Sistema Unificado LPLAN."""
     from core.models import Project, ConstructionDiary, Activity
@@ -208,7 +204,7 @@ def _analise_usuarios_queryset(request):
 
 
 @login_required
-@user_passes_test(is_staff_or_superuser)
+@user_passes_test(user_is_painel_sistema_admin)
 def analise_usuarios(request):
     """Página de análise geral de usuários para o admin (visão única, métricas e filtros)."""
     now = timezone.now()
@@ -557,7 +553,7 @@ def _produtividade_para_usuarios(user_ids, last_30_days):
 
 
 @login_required
-@user_passes_test(is_staff_or_superuser)
+@user_passes_test(user_is_painel_sistema_admin)
 def analise_usuarios_export_csv(request):
     """Exporta a lista filtrada de usuários para CSV (com produtividade 30d)."""
     usuarios = list(_analise_usuarios_queryset(request))
@@ -617,61 +613,25 @@ def analise_usuarios_export_csv(request):
 
 
 @login_required
-@user_passes_test(is_staff_or_superuser)
+@user_passes_test(user_is_painel_sistema_admin)
 def criar_obra(request):
-    """Cria uma nova obra."""
-    # GET: evitar que Voltar do navegador retorne ao formulário já submetido
-    if request.method == 'GET':
-        if request.session.pop('_prevent_back_criar_obra', None):
-            return redirect('accounts:admin_central')
-    
-    if request.method == 'POST':
-        codigo_sienge = request.POST.get('codigo_sienge')
-        nome = request.POST.get('nome')
-        ativa = request.POST.get('ativa') == 'on'
-        
-        if not codigo_sienge or not nome:
-            messages.error(request, 'Código e nome são obrigatórios.')
-            return render(request, 'accounts/criar_obra.html')
-        
-        if Obra.objects.filter(codigo_sienge=codigo_sienge).exists():
-            messages.error(request, 'Já existe uma obra com este código.')
-            return render(request, 'accounts/criar_obra.html')
-        
-        obra = Obra.objects.create(
-            codigo_sienge=codigo_sienge,
-            nome=nome,
-            ativa=ativa
-        )
-        
-        messages.success(request, f'Obra "{obra.nome}" criada!')
-        request.session['_prevent_back_criar_obra'] = True
+    """
+    Redirecionamento: cadastro unificado em /projects/new/ (sincroniza Diário + Mapa + Gestão).
+    """
+    if request.method == 'GET' and request.session.pop('_prevent_back_criar_obra', None):
         return redirect('accounts:admin_central')
-    
-    response = render(request, 'accounts/criar_obra.html')
-    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response['Pragma'] = 'no-cache'
-    response['Expires'] = '0'
-    return response
+    if request.method == 'POST':
+        messages.info(
+            request,
+            'O cadastro de obras foi unificado em «Obras»: use Nova Obra — o Mapa de Suprimentos '
+            'é atualizado automaticamente pelo código do projeto.',
+        )
+    return redirect('project-new')
 
 
 @login_required
-@user_passes_test(is_staff_or_superuser)
+@user_passes_test(user_is_painel_sistema_admin)
 def gerenciar_obras(request):
-    """Lista e gerencia obras."""
-    obras = Obra.objects.all().order_by('nome')
-    
-    # Filtro
-    ativa_filtro = request.GET.get('ativa')
-    if ativa_filtro == '1':
-        obras = obras.filter(ativa=True)
-    elif ativa_filtro == '0':
-        obras = obras.filter(ativa=False)
-    
-    context = {
-        'obras': obras,
-        'ativa_filtro': ativa_filtro,
-    }
-    
-    return render(request, 'accounts/gerenciar_obras.html', context)
+    """Redirecionamento: listagem única em /projects/."""
+    return redirect('central_project_list')
 

@@ -5,8 +5,8 @@
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
 {% endblock %}
 
-{% block page_title %}Obras (Diário de Obra){% endblock %}
-{% block page_subtitle %}Cadastre obras, configure e-mails e aprovadores do RDO por obra{% endblock %}
+{% block page_title %}Obras{% endblock %}
+{% block page_subtitle %}Cadastro único: Diário de Obra, Mapa de Suprimentos (código Sienge = código do projeto) e locais do mapa por obra{% endblock %}
 
 {% block content %}
 <div class="mb-4">
@@ -16,7 +16,7 @@
 <header class="project-list-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
         <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Obras</h2>
-        <p class="text-slate-500 text-sm mt-0.5 max-w-xl">Obras do <strong>Diário de Obra</strong>: cadastro, e-mails de envio automático e aprovadores do RDO antes do envio ao cliente. (Não confundir com aprovações do GestControll.)</p>
+        <p class="text-slate-500 text-sm mt-0.5 max-w-xl">Cada obra alimenta o <strong>Diário</strong> (RDO), o <strong>Mapa de Suprimentos</strong> (mesmo código) e os <strong>locais</strong> (blocos, pavimentos, etc.). Aqui também configura e-mails e aprovadores do PDF do diário.</p>
     </div>
     <a href="{% url 'project-new' %}" class="central-btn-primary inline-flex shrink-0 w-fit items-center gap-2" id="project-list-primary-cta">
         <i class="fas fa-plus" aria-hidden="true"></i> Nova Obra
@@ -43,9 +43,16 @@
                 <span>Atividades</span>
                 <strong>{{ project.activities_count }}</strong>
             </div>
+            <div class="flex items-center justify-between central-project-stat">
+                <span>Locais (mapa)</span>
+                <strong>{{ project.n_locais_mapa|default:0 }}</strong>
+            </div>
         </div>
 
         <div class="central-project-actions">
+            <a href="{% url 'project-locais-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);color:#047857;border:1px solid #6ee7b7;" title="Hierarquia de locais para o Mapa de Suprimentos">
+                <i class="fas fa-map-pin" aria-hidden="true"></i> Locais do mapa
+            </a>
             <a href="{% url 'central_diary_emails' project.id %}" class="central-project-btn central-project-btn-email" title="E-mails que recebem o PDF do diário por e-mail, todo dia">
                 <i class="fas fa-envelope" aria-hidden="true"></i> E-mails do diário
             </a>

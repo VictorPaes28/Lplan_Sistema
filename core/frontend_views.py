@@ -353,7 +353,9 @@ def select_system_view(request):
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
     # BI da Obra: mesma base de obras (projeto vinculado); visível para quem usa Diário ou Mapa
     has_bi_obra = user.is_superuser or user.is_staff or has_diario or has_mapa
-    has_central = user.is_superuser or user.is_staff
+    from accounts.painel_sistema_access import user_is_painel_sistema_admin
+
+    has_central = user_is_painel_sistema_admin(user)
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
     if not (has_diario or has_gestao or has_mapa or has_central) and _is_work_owner(user):
         return redirect('client-diary-list')
@@ -5169,12 +5171,12 @@ def analytics_view(request):
 def project_form_view(request, pk=None):
     """View para criar/editar projetos."""
     from django.contrib import messages
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from .forms import ProjectForm
     from django.core.exceptions import PermissionDenied
-    
-    # Verifica permissão
-    if not (request.user.is_staff or request.user.is_superuser):
-        raise PermissionDenied("Você não tem permissão para criar ou editar projetos.")
+
+    if not user_can_central_obras_diario_e_mapa(request.user):
+        raise PermissionDenied('Você não tem permissão para criar ou editar projetos.')
     
     if pk:
         project = get_object_or_404(Project, pk=pk)
@@ -5226,41 +5228,54 @@ def _redirect_anonymous_to_login(view_func):
 def project_list_view(request):
     """
     View de listagem de projetos (Central).
-    Apenas usuários staff/superuser podem acessar. Gerentes usam select-project.
+    Staff/superuser ou grupo Administrador (mesmo critério do antigo «Gerenciar obras»).
     """
-    from django.db.models import Count
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from django.core.exceptions import PermissionDenied
-    
-    # Anônimo: sempre redirect (302). Evita 403 quando decorators não redirecionam (ex.: em testes).
+    from django.db.models import Count, IntegerField, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+    from mapa_obras.models import LocalObra
+
     if not getattr(request.user, 'is_authenticated', False):
         from django.contrib.auth.views import redirect_to_login
         return redirect_to_login(request.get_full_path())
-    # Apenas staff/superuser; Gerentes sem staff recebem 403
-    if not (request.user.is_staff or request.user.is_superuser):
-        raise PermissionDenied("Você não tem permissão para acessar esta página.")
-    
-    # Lista todas as obras (ativas e inativas) para aparecer no Painel; inativas podem ser reativadas ao editar
+    if not user_can_central_obras_diario_e_mapa(request.user):
+        raise PermissionDenied('Você não tem permissão para acessar esta página.')
+
+    # Contagem de locais em subconsulta: evita JOIN cartesiano com diaries/activities
+    # (vários Count em relações diferentes na mesma query podem distorcer resultados).
+    # Usa codigo_sienge da obra mapa = project.code (válido com ou sem FK project preenchida).
+    _locais_sq = Subquery(
+        LocalObra.objects.filter(obra__codigo_sienge=OuterRef('code'))
+        .values('obra')
+        .annotate(_n=Count('id'))
+        .values('_n')[:1],
+        output_field=IntegerField(),
+    )
+
     projects = Project.objects.annotate(
         diaries_count=Count('diaries', distinct=True),
-        activities_count=Count('activities', distinct=True)
+        activities_count=Count('activities', distinct=True),
+        n_locais_mapa=Coalesce(_locais_sq, 0),
     ).order_by('-created_at')
-    
+
     context = {
         'projects': projects,
     }
-    
+
     return render(request, 'core/project_list.html', context)
 
 
 @login_required
 @require_http_methods(["POST"])
 def project_delete_view(request, pk):
-    """Exclui uma obra (apenas staff/superuser). Remove também a obra no GestControll."""
+    """Exclui uma obra. Remove também a obra no GestControll."""
     from django.contrib import messages
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from django.core.exceptions import PermissionDenied
 
-    if not (request.user.is_staff or request.user.is_superuser):
-        raise PermissionDenied("Você não tem permissão para excluir obras.")
+    if not user_can_central_obras_diario_e_mapa(request.user):
+        raise PermissionDenied('Você não tem permissão para excluir obras.')
 
     project = get_object_or_404(Project, pk=pk)
     name = project.name

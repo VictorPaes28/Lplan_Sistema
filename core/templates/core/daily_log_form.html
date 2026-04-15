@@ -1243,21 +1243,25 @@
                                     </div>
                                     <div class="mb-4">
                                         <label class="block text-sm font-medium text-slate-700 mb-2.5">Assinatura Manual</label>
-                                        <div class="relative">
-                                        <canvas id="signature-canvas-1" 
-                                                    class="w-full border-2 border-slate-300 rounded-lg cursor-crosshair bg-white shadow-sm signature-canvas"></canvas>
-                                            <div class="absolute top-2 right-2">
-                                            <button type="button" 
+                                        <div class="flex flex-wrap gap-1.5 justify-end mb-2">
+                                            <button type="button"
+                                                    onclick="if (typeof copyLastSignature === 'function') { copyLastSignature(1); } return false;"
+                                                    class="px-2.5 py-1.5 bg-white text-slate-700 rounded-md hover:bg-emerald-50 text-xs font-medium transition-all shadow-sm border border-slate-200"
+                                                    title="Carrega a sua última assinatura neste navegador (por utilizador; após desenhar ou gravar um diário com assinatura)">
+                                                <i class="fas fa-copy mr-1" aria-hidden="true"></i><span class="hidden sm:inline">Usar última assinatura</span><span class="sm:hidden">Última</span>
+                                            </button>
+                                            <button type="button"
                                                     onclick="if(typeof clearSignature === 'function') { clearSignature(1); } else { console.error('Função clearSignature não encontrada'); }"
-                                                        class="px-3 py-1.5 bg-white text-slate-700 rounded-md hover:bg-blue-50 text-xs font-medium transition-all shadow-sm border border-slate-200"
-                                                        title="Limpar assinatura">
+                                                    class="px-3 py-1.5 bg-white text-slate-700 rounded-md hover:bg-blue-50 text-xs font-medium transition-all shadow-sm border border-slate-200"
+                                                    title="Limpar assinatura">
                                                 <i class="fas fa-undo mr-1"></i>Limpar
                                             </button>
                                         </div>
-                                        </div>
-                                        <p class="text-xs text-slate-500 mt-2 flex items-center">
-                                            <i class="fas fa-info-circle mr-1.5"></i>
-                                            Desenhe sua assinatura na área acima
+                                        <canvas id="signature-canvas-1"
+                                                class="w-full border-2 border-slate-300 rounded-lg cursor-crosshair bg-white shadow-sm signature-canvas block"></canvas>
+                                        <p class="text-xs text-slate-500 mt-2 flex items-start gap-1.5">
+                                            <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+                                            <span>Desenhe a sua assinatura acima ou use <strong>Última</strong> para reutilizar a última guardada <strong>para o seu utilizador</strong> neste aparelho (após assinar uma vez ou abrir um diário com a sua assinatura).</span>
                                         </p>
                                         <input type="hidden" name="signature_inspection" id="signature-data-1" value="{{ signature_inspection_value|default:'' }}">
                                     </div>
@@ -3977,6 +3981,16 @@ function updateAttachmentCount() {
 // Funções para gerenciar Assinaturas
 var signatureContexts = {};
 var signatureStates = {};
+/* Ultima assinatura por utilizador neste navegador (localStorage). */
+var LPLAN_LAST_SIGNATURE_STORAGE_KEY = 'lplan_diary_last_signature_inspection_v1_u{% if user.is_authenticated %}{{ user.pk }}{% else %}0{% endif %}';
+
+function persistLastSignatureToStorage(dataUrl) {
+    try {
+        if (dataUrl && dataUrl.indexOf('data:image') === 0) {
+            localStorage.setItem(LPLAN_LAST_SIGNATURE_STORAGE_KEY, dataUrl);
+        }
+    } catch (e) { /* quota / modo privado */ }
+}
 
 function getSignatureCanvasHeight() {
     return window.matchMedia('(max-width: 768px)').matches ? 180 : 220;
@@ -3998,6 +4012,7 @@ function restoreSignatureFromHidden(canvasId) {
                 ctx.drawImage(img, 0, 0, rect.width, getSignatureCanvasHeight());
                 if (!signatureStates[canvasId]) signatureStates[canvasId] = {};
                 signatureStates[canvasId].hasInk = true;
+                persistLastSignatureToStorage(dataInput.value);
             } catch (drawErr) {
                 console.warn('restoreSignatureFromHidden.drawImage:', drawErr);
             }
@@ -4173,6 +4188,60 @@ window.clearSignature = function(canvasId) {
     return false; // Previne qualquer comportamento padrão
 }
 
+/** Cola no quadro a última assinatura guardada neste navegador. */
+window.copyLastSignature = function(canvasId) {
+    var dataUrl = null;
+    try {
+        dataUrl = localStorage.getItem(LPLAN_LAST_SIGNATURE_STORAGE_KEY);
+    } catch (e) {
+        dataUrl = null;
+    }
+    if (!dataUrl || dataUrl.indexOf('data:image') !== 0) {
+        alert('Não há assinatura guardada para o seu utilizador neste navegador.\n\nDesenhe uma vez no quadro (e grave o diário) ou abra um relatório que já tenha a sua assinatura; depois poderá reutilizar com este botão.');
+        return false;
+    }
+    var canvas = document.getElementById('signature-canvas-' + canvasId);
+    if (!canvas) return false;
+    initSignatureCanvas(canvasId);
+    var state = signatureStates[canvasId] || {};
+    signatureStates[canvasId] = state;
+    state.hasInk = false;
+
+    function applyStored() {
+        var rect = canvas.getBoundingClientRect();
+        if (!rect.width) {
+            setTimeout(applyStored, 120);
+            return;
+        }
+        if (typeof canvas.__signatureResize === 'function') {
+            canvas.__signatureResize();
+        }
+        rect = canvas.getBoundingClientRect();
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        var width = rect.width;
+        var height = getSignatureCanvasHeight();
+        var img = new Image();
+        img.onload = function() {
+            try {
+                ctx.clearRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                state.hasInk = true;
+                saveSignature(canvasId);
+            } catch (err) {
+                console.warn('copyLastSignature:', err);
+                alert('Não foi possível aplicar a assinatura guardada. Tente desenhar de novo.');
+            }
+        };
+        img.onerror = function() {
+            alert('A assinatura guardada não pôde ser lida. Limpe o armazenamento ou desenhe novamente.');
+        };
+        img.src = dataUrl;
+    }
+    applyStored();
+    return false;
+};
+
 function saveSignature(canvasId) {
     try {
         var canvas = document.getElementById('signature-canvas-' + canvasId);
@@ -4182,6 +4251,9 @@ function saveSignature(canvasId) {
         var dataInput = document.getElementById('signature-data-' + canvasId);
         if (dataInput) {
             dataInput.value = hasContent ? canvas.toDataURL('image/png') : '';
+            if (hasContent && dataInput.value) {
+                persistLastSignatureToStorage(dataInput.value);
+            }
         }
     } catch (err) {
         console.warn('saveSignature:', err);

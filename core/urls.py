@@ -5,6 +5,7 @@ from django.urls import reverse_lazy
 from .htmx_views import project_activities_tree, activity_children
 from . import central_views
 from .offline_views import rdo_offline_service_worker
+from .project_locais_views import project_locais_manage_view
 from .frontend_views import (
     login_view,
     logout_view,
@@ -126,6 +127,11 @@ urlpatterns = [
     path('reports/exportar-pdfs-zip/', diary_bulk_pdf_zip_view, name='diary-bulk-pdf-zip'),
     path('projects/', project_list_view, name='central_project_list'),  # Listagem Central (não confundir com API project-list)
     path('projects/new/', project_form_view, name='project-new'),
+    path(
+        'projects/<int:project_id>/locais/',
+        project_locais_manage_view,
+        name='project-locais-manage',
+    ),
     path('projects/<int:pk>/edit/', project_form_view, name='project-edit'),
     path('projects/<int:pk>/delete/', project_delete_view, name='project-delete'),
     path('diaries/<int:pk>/', diary_detail_view, name='diary-detail'),

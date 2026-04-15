@@ -805,27 +805,17 @@
             <div class="section-title">
                 <i class="fas fa-bolt" style="color: #f59e0b;"></i> Mapa, análise e navegação
             </div>
-            <p class="admin-p-intro" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.85rem; line-height: 1.4;">Obras do Mapa de Suprimentos, métricas de uso e volta à seleção de sistemas.</p>
+            <p class="admin-p-intro" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.85rem; line-height: 1.4;">Cadastro único de obras (Diário + Mapa), locais do suprimentos e métricas de uso.</p>
             <div class="action-grid">
-                <a href="{% url 'accounts:criar_obra' %}" class="action-card">
-                    <div class="action-icon" style="background: #dcfce7; color: #16a34a;">
-                        <i class="fas fa-map-marked-alt"></i>
+                <a href="{% url 'central_project_list' %}" class="action-card">
+                    <div class="action-icon" style="background: #e0e7ff; color: #4338ca;">
+                        <i class="fas fa-building" aria-hidden="true"></i>
                     </div>
                     <div>
-                        <div class="action-title">Criar obra (Mapa)</div>
-                        <div class="action-desc">Cadastrar obra no Mapa de Suprimentos</div>
+                        <div class="action-title">Obras e locais do mapa</div>
+                        <div class="action-desc">Lista em /projects/: cadastro, locais (blocos/pavimentos), e-mails e aprovadores do RDO</div>
                     </div>
-                    <i class="fas fa-chevron-right action-arrow"></i>
-                </a>
-                <a href="{% url 'accounts:gerenciar_obras' %}" class="action-card">
-                    <div class="action-icon" style="background: #fae8ff; color: #a855f7;">
-                        <i class="fas fa-city"></i>
-                    </div>
-                    <div>
-                        <div class="action-title">Gerenciar obras (Mapa)</div>
-                        <div class="action-desc">Obras do Mapa de Suprimentos</div>
-                    </div>
-                    <i class="fas fa-chevron-right action-arrow"></i>
+                    <i class="fas fa-chevron-right action-arrow" aria-hidden="true"></i>
                 </a>
                 {% if painel_comunicados %}
                 <a href="{% url 'comunicados_painel_lista' %}" class="action-card">
@@ -948,7 +938,7 @@
                                 <div class="system-desc">Suprimentos e insumos</div>
                             </div>
                         </div>
-                        <a href="{% url 'accounts:gerenciar_obras' %}" class="system-link">
+                        <a href="{% url 'central_project_list' %}" class="system-link">
                             Obras <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
                         </a>
                     </div>
@@ -1094,8 +1084,8 @@
     <div class="admin-section anim-6" style="margin-bottom: 1.5rem;">
         <div class="admin-section-header">
             <h3><i class="fas fa-building" style="color: #22c55e;"></i> Obras ativas (Mapa de Suprimentos)</h3>
-            <a href="{% url 'accounts:gerenciar_obras' %}" class="admin-section-link">
-                Gerenciar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+            <a href="{% url 'central_project_list' %}" class="admin-section-link">
+                Abrir obras <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
             </a>
         </div>
         <div class="obras-grid">

@@ -72,6 +72,10 @@ Com base no que seu sistema ja mostra (Mapa de Suprimentos, Mapa de Controle, Di
 - O preco cresce por blocos de usuarios e obras.
 - IA entra como add-on com franquia de uso.
 
+### 4.3 Modelo de entrega: instância dedicada por cliente
+
+A precificação acima assume **módulos por contrato**; a forma de **entregar** o software pode ser **uma instalação por empresa** (hospedagem e base de dados separadas), em vez de um único SaaS multi-empresa na mesma máquina. Implicações de produto, white-label e lacunas técnicas no repositório estão descritas em **[PRODUTO_INSTANCIA_DEDICADA_E_PACOTES.md](PRODUTO_INSTANCIA_DEDICADA_E_PACOTES.md)**.
+
 ---
 
 ## 5) Tabela de Precificacao Recomendada (para usar como parametro)

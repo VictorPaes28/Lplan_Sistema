@@ -5,111 +5,99 @@
 {% block page_subtitle %}Fila de chamados para admin/superuser{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-    <a href="{% url 'select-system' %}" class="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800">
-        <i class="fas fa-arrow-left"></i> Voltar
-    </a>
-</div>
-
-<form method="get" class="mb-4 space-y-3">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <input type="text" name="q" value="{{ current_q }}" placeholder="Buscar chamado..." class="md:col-span-2 rounded-xl border border-slate-300 px-3 py-2 text-sm">
-        <select name="status" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-            <option value="">Todos os status</option>
-            {% for status_value, status_label in status_choices %}
-            <option value="{{ status_value }}" {% if current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
-            {% endfor %}
-        </select>
+<div class="st-queue-page">
+    <div class="st-queue-toolbar">
+        <a href="{% url 'select-system' %}" class="st-queue-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar
+        </a>
     </div>
 
-    <details class="rounded-xl border border-slate-200 px-3 py-2">
-        <summary class="cursor-pointer text-sm text-slate-600">Mais filtros</summary>
-        <div class="pt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <select name="severity" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Todas as severidades</option>
-                {% for severity_value, severity_label in severity_choices %}
-                <option value="{{ severity_value }}" {% if current_severity == severity_value %}selected{% endif %}>{{ severity_label }}</option>
+    <form method="get" class="st-queue-filters">
+        <div class="st-queue-filters-inner">
+            <input type="text" name="q" value="{{ current_q }}" placeholder="Buscar chamado…" class="st-queue-field st-queue-filters-span-2" autocomplete="off">
+            <select name="status" class="st-queue-field">
+                <option value="">Todos os status</option>
+                {% for status_value, status_label in status_choices %}
+                <option value="{{ status_value }}" {% if current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
                 {% endfor %}
             </select>
         </div>
-    </details>
 
-    <div class="flex flex-wrap gap-2">
-        <button type="submit" class="rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm px-4 py-2 font-medium">Aplicar</button>
-        <a href="{% url 'support-ticket-admin-list' %}" class="rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm px-4 py-2 font-medium">Limpar</a>
-    </div>
-</form>
-
-<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-    {% if tickets %}
-    <div class="divide-y divide-slate-100">
-        {% for ticket in tickets %}
-        <a href="{% url 'support-ticket-detail' ticket.id %}" class="block px-4 py-4 hover:bg-slate-50 transition-colors">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="min-w-0">
-                    <p class="font-semibold text-slate-900 truncate">#{{ ticket.id }} - {{ ticket.title }}</p>
-                    <p class="text-sm text-slate-500 mt-0.5">
-                        Solicitante: {{ ticket.created_by.get_full_name|default:ticket.created_by.username }}
-                        {% if ticket.related_project %} • {{ ticket.related_project.code }}{% endif %}
-                        {% if ticket.assigned_to %} • Resp.: {{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}{% endif %}
-                    </p>
-                </div>
-                <div class="text-right text-xs space-y-1">
-                    <p class="text-slate-500">{{ ticket.updated_at|date:"d/m/Y H:i" }}</p>
-                    <p>
-                        <span class="px-2 py-1 rounded-full font-semibold border-2
-                            {% if ticket.attention_tone == 'closed' %}bg-slate-200 text-slate-700 border-slate-400
-                            {% elif ticket.attention_tone == 'resolved' %}bg-emerald-100 text-emerald-700 border border-emerald-200
-                            {% elif ticket.attention_tone == 'reopened' %}bg-purple-100 text-purple-700 border-purple-300
-                            {% elif ticket.attention_tone == 'new' %}bg-blue-100 text-blue-700 border-blue-300
-                            {% elif ticket.attention_tone == 'waiting-team' %}bg-amber-100 text-amber-700 border border-amber-200
-                            {% elif ticket.attention_tone == 'waiting-requester' %}bg-amber-100 text-amber-700 border-amber-300
-                            {% elif ticket.attention_tone == 'responded' %}bg-blue-100 text-blue-700 border-blue-300
-                            {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
-                            {{ ticket.attention_label }}
-                        </span>
-                        {% if ticket.attention_label != ticket.get_status_display %}
-                        <span class="px-2 py-1 rounded-full font-semibold border-2
-                            {% if ticket.severity == 'BL' %}bg-red-100 text-red-700 border border-red-200
-                            {% elif ticket.severity == 'IM' %}bg-orange-100 text-orange-700 border border-orange-200
-                            {% elif ticket.severity == 'MD' %}bg-amber-100 text-amber-700 border border-amber-200
-                            {% else %}bg-slate-100 text-slate-600 border-slate-300{% endif %}">
-                            {{ ticket.get_severity_display }}
-                        </span>
-                        <span class="px-2 py-1 rounded-full font-semibold border-2
-                            {% if ticket.status == 'OP' %}bg-blue-100 text-blue-700 border-blue-300
-                            {% elif ticket.status == 'TR' %}bg-blue-100 text-blue-700 border-blue-300
-                            {% elif ticket.status == 'IP' %}bg-blue-100 text-blue-700 border-blue-300
-                            {% elif ticket.status == 'WU' %}bg-amber-100 text-amber-700 border-amber-300
-                            {% elif ticket.status == 'WD' %}bg-amber-100 text-amber-700 border-amber-300
-                            {% elif ticket.status == 'RS' %}bg-emerald-100 text-emerald-700 border-emerald-300
-                            {% elif ticket.status == 'CL' %}bg-slate-200 text-slate-700 border-slate-400
-                            {% elif ticket.status == 'RO' %}bg-purple-100 text-purple-700 border-purple-300
-                            {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
-                            {{ ticket.get_status_display }}
-                        </span>
-                        {% else %}
-                        <span class="px-2 py-1 rounded-full font-semibold border-2
-                            {% if ticket.severity == 'BL' %}bg-red-100 text-red-700 border border-red-200
-                            {% elif ticket.severity == 'IM' %}bg-orange-100 text-orange-700 border border-orange-200
-                            {% elif ticket.severity == 'MD' %}bg-amber-100 text-amber-700 border border-amber-200
-                            {% else %}bg-slate-100 text-slate-600 border-slate-300{% endif %}">
-                            {{ ticket.get_severity_display }}
-                        </span>
-                        {% endif %}
-                    </p>
-                    {% if ticket.is_first_response_overdue %}
-                    <p class="text-red-600 font-medium">Atrasado</p>
-                    {% elif ticket.is_resolution_overdue %}
-                    <p class="text-red-600 font-medium">Atrasado</p>
-                    {% endif %}
-                </div>
+        <details class="st-queue-details">
+            <summary>Mais filtros</summary>
+            <div class="st-queue-filters-inner">
+                <select name="severity" class="st-queue-field">
+                    <option value="">Todas as severidades</option>
+                    {% for severity_value, severity_label in severity_choices %}
+                    <option value="{{ severity_value }}" {% if current_severity == severity_value %}selected{% endif %}>{{ severity_label }}</option>
+                    {% endfor %}
+                </select>
             </div>
-        </a>
-        {% endfor %}
+        </details>
+
+        <div class="st-queue-btn-row">
+            <button type="submit" class="st-queue-btn st-queue-btn--primary">Aplicar filtros</button>
+            <a href="{% url 'support-ticket-admin-list' %}" class="st-queue-btn st-queue-btn--ghost">Limpar</a>
+        </div>
+    </form>
+
+    <div class="st-queue-legend" role="note">
+        <span class="st-queue-legend-item"><span class="st-queue-legend-swatch st-queue-legend-swatch--team" aria-hidden="true"></span> Em aberto na equipa</span>
+        <span class="st-queue-legend-item"><span class="st-queue-legend-swatch st-queue-legend-swatch--client" aria-hidden="true"></span> Aguardando o solicitante</span>
+        <span class="st-queue-legend-item"><span class="st-queue-legend-swatch st-queue-legend-swatch--done" aria-hidden="true"></span> Encerrado / arquivado</span>
     </div>
-    {% else %}
-    <div class="p-6 text-sm text-slate-500">Nenhum chamado encontrado com os filtros atuais.</div>
-    {% endif %}
+
+    <div class="st-queue-shell">
+        {% if tickets %}
+        <div class="st-queue-list">
+            {% for ticket in tickets %}
+            {% with tone=ticket.attention_tone %}
+            <a href="{% url 'support-ticket-detail' ticket.id %}" class="st-queue-card {% if tone == 'closed' or tone == 'resolved' %}st-queue-card--done{% elif tone == 'waiting-requester' or tone == 'responded' %}st-queue-card--client{% else %}st-queue-card--team{% endif %}">
+                {% if tone == 'closed' or tone == 'resolved' %}
+                <span class="st-queue-card__watermark" aria-hidden="true"><i class="fas fa-circle-check"></i></span>
+                {% endif %}
+                <span class="st-queue-card__chevron" aria-hidden="true">›</span>
+                <div class="st-queue-card__body">
+                    <div class="st-queue-card__main">
+                        {% if tone == 'closed' or tone == 'resolved' %}
+                        <p class="st-queue-card__kicker"><i class="fas fa-box-archive" aria-hidden="true"></i> Encerrado</p>
+                        {% elif tone == 'waiting-requester' or tone == 'responded' %}
+                        <p class="st-queue-card__kicker"><i class="fas fa-reply" aria-hidden="true"></i> Aguardando o solicitante</p>
+                        {% else %}
+                        <p class="st-queue-card__kicker"><span class="st-queue-card__kicker-dot" aria-hidden="true"></span> Na fila da equipa</p>
+                        {% endif %}
+                        <p class="st-queue-card__title">#{{ ticket.id }} — {{ ticket.title }}</p>
+                        <p class="st-queue-card__meta">
+                            Solicitante: {{ ticket.created_by.get_full_name|default:ticket.created_by.username }}
+                            {% if ticket.related_project %} · {{ ticket.related_project.code }}{% endif %}
+                            {% if ticket.assigned_to %} · Resp.: {{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}{% endif %}
+                        </p>
+                    </div>
+                    <div class="st-queue-card__aside">
+                        <p class="st-queue-card__time">Atualizado {{ ticket.updated_at|date:"d/m/Y H:i" }}</p>
+                        <div class="st-queue-card__pills">
+                            <span class="st-queue-pill {% if tone == 'closed' %}st-queue-pill--att-closed{% elif tone == 'resolved' %}st-queue-pill--att-resolved{% elif tone == 'reopened' %}st-queue-pill--att-reopened{% elif tone == 'new' %}st-queue-pill--att-new{% elif tone == 'waiting-team' %}st-queue-pill--att-waiting-team{% elif tone == 'waiting-requester' %}st-queue-pill--att-waiting-requester{% elif tone == 'responded' %}st-queue-pill--att-responded{% elif tone == 'in-progress' %}st-queue-pill--att-in-progress{% else %}st-queue-pill--att-default{% endif %}">{{ ticket.attention_label }}</span>
+                            {% if ticket.attention_label != ticket.get_status_display %}
+                            <span class="st-queue-pill {% if ticket.severity == 'BL' %}st-queue-pill--sev-bl{% elif ticket.severity == 'IM' %}st-queue-pill--sev-im{% elif ticket.severity == 'MD' %}st-queue-pill--sev-md{% else %}st-queue-pill--sev-default{% endif %}">{{ ticket.get_severity_display }}</span>
+                            <span class="st-queue-pill {% if ticket.status == 'OP' %}st-queue-pill--st-op{% elif ticket.status == 'TR' %}st-queue-pill--st-tr{% elif ticket.status == 'IP' %}st-queue-pill--st-ip{% elif ticket.status == 'WU' %}st-queue-pill--st-wu{% elif ticket.status == 'WD' %}st-queue-pill--st-wd{% elif ticket.status == 'RS' %}st-queue-pill--st-rs{% elif ticket.status == 'CL' %}st-queue-pill--st-cl{% elif ticket.status == 'RO' %}st-queue-pill--st-ro{% else %}st-queue-pill--st-default{% endif %}">{{ ticket.get_status_display }}</span>
+                            {% else %}
+                            <span class="st-queue-pill {% if ticket.severity == 'BL' %}st-queue-pill--sev-bl{% elif ticket.severity == 'IM' %}st-queue-pill--sev-im{% elif ticket.severity == 'MD' %}st-queue-pill--sev-md{% else %}st-queue-pill--sev-default{% endif %}">{{ ticket.get_severity_display }}</span>
+                            {% endif %}
+                        </div>
+                        {% if ticket.is_first_response_overdue %}
+                        <p class="st-queue-alert">Atrasado · 1ª resposta</p>
+                        {% elif ticket.is_resolution_overdue %}
+                        <p class="st-queue-alert">Atrasado · resolução</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% endwith %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="st-queue-empty">Nenhum chamado encontrado com os filtros atuais.</div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
