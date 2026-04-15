@@ -277,3 +277,76 @@
 #comunicados-nunca:hover {
   color: #64748b;
 }
+
+/* ─── Pré-visualização (painel criar/editar) — mesmo aspeto, z-index acima do resto ─── */
+#megafone-prev-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+#megafone-prev-root.megafone-prev--open {
+  display: flex;
+}
+#megafone-prev-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+#megafone-prev-dialog {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  max-height: min(90vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+#megafone-prev-dialog.comunicados-destaque-PADRAO { border-top: 4px solid #64748b; }
+#megafone-prev-dialog.comunicados-destaque-INFO { border-top: 4px solid #2563eb; }
+#megafone-prev-dialog.comunicados-destaque-ALERTA { border-top: 4px solid #ea580c; }
+#megafone-prev-dialog.comunicados-destaque-CRITICO { border-top: 4px solid #dc2626; }
+#megafone-prev-dialog.comunicados-destaque-SUCESSO { border-top: 4px solid #16a34a; }
+#megafone-prev-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem 1rem 0.75rem;
+  background: #fff;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #0f172a;
+}
+#megafone-prev-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+#megafone-prev-body .comunicados-img-wrap {
+  margin: 0.5rem 0;
+}
+#megafone-prev-footer {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem 1rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+#megafone-prev-banner {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+  padding: 0.35rem 0.5rem;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+}

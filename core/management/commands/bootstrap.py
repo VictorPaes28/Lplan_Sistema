@@ -142,20 +142,27 @@ class Command(BaseCommand):
                         stats['project_updated'] += 1
                     self.stdout.write(f'   [EXISTE] Project: {proj.code}')
 
-                # 2) mapa_obras.Obra (Mapa de Suprimentos)
+                # 2) mapa_obras.Obra (Mapa de Suprimentos) + vínculo explícito ao Project
                 obra_mapa, created_mapa = ObraMapa.objects.get_or_create(
                     codigo_sienge=codigo,
-                    defaults={'nome': nome, 'ativa': True},
+                    defaults={'nome': nome, 'ativa': True, 'project_id': proj.pk},
                 )
                 if created_mapa:
                     stats['obra_mapa_created'] += 1
                     if not dry_run:
                         self.stdout.write(self.style.SUCCESS(f'   [OK] Obra (Mapa): {obra_mapa.codigo_sienge} – {obra_mapa.nome}'))
                 else:
-                    if obra_mapa.nome != nome and not dry_run:
-                        obra_mapa.nome = nome
-                        obra_mapa.save(update_fields=['nome'])
-                        stats['obra_mapa_updated'] += 1
+                    if not dry_run:
+                        upd_m = []
+                        if obra_mapa.nome != nome:
+                            obra_mapa.nome = nome
+                            upd_m.append('nome')
+                        if obra_mapa.project_id != proj.pk:
+                            obra_mapa.project_id = proj.pk
+                            upd_m.append('project')
+                        if upd_m:
+                            obra_mapa.save(update_fields=upd_m)
+                            stats['obra_mapa_updated'] += 1
                     self.stdout.write(f'   [EXISTE] Obra (Mapa): {obra_mapa.codigo_sienge}')
 
                 # 3) Locais padrão por obra (Bloco A/B, Pavimentos, Setores)

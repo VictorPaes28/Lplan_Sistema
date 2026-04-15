@@ -5,75 +5,70 @@
 {% block page_subtitle %}Acompanhe respostas do suporte no sistema{% endblock %}
 
 {% block content %}
-<div class="mb-4 flex flex-wrap gap-2">
-    <a href="{% url 'select-system' %}" class="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800">
-        <i class="fas fa-arrow-left"></i> Voltar
-    </a>
-    {% if can_manage_support_tickets %}
-    <a href="{% url 'support-ticket-admin-list' %}" class="inline-flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900">
-        <i class="fas fa-headset"></i> Painel de suporte
-    </a>
-    {% endif %}
-</div>
-
-<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-    <div class="px-4 py-3 border-b border-slate-200 bg-slate-50">
-        <h2 class="text-sm font-semibold text-slate-700">Chamados criados por você</h2>
-    </div>
-    {% if tickets %}
-    <div class="divide-y divide-slate-100">
-        {% for ticket in tickets %}
-        <a href="{% url 'support-ticket-detail' ticket.id %}" class="block px-4 py-4 hover:bg-slate-50 transition-colors">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="min-w-0">
-                    <p class="font-semibold text-slate-900 truncate">#{{ ticket.id }} - {{ ticket.title }}</p>
-                    <p class="text-sm text-slate-500 mt-0.5">
-                        {{ ticket.category }}{% if ticket.related_project %} • {{ ticket.related_project.code }}{% endif %}
-                    </p>
-                </div>
-                <div class="flex items-center gap-2 text-xs shrink-0">
-                    <span class="px-2 py-1 rounded-full font-semibold border-2
-                        {% if ticket.attention_tone == 'closed' %}bg-slate-200 text-slate-700 border-slate-400
-                        {% elif ticket.attention_tone == 'resolved' %}bg-emerald-100 text-emerald-700 border border-emerald-200
-                        {% elif ticket.attention_tone == 'reopened' %}bg-purple-100 text-purple-700 border-purple-300
-                        {% elif ticket.attention_tone == 'new' %}bg-blue-100 text-blue-700 border-blue-300
-                        {% elif ticket.attention_tone == 'waiting-team' %}bg-amber-100 text-amber-700 border border-amber-200
-                        {% elif ticket.attention_tone == 'waiting-requester' %}bg-amber-100 text-amber-700 border-amber-300
-                        {% elif ticket.attention_tone == 'responded' %}bg-blue-100 text-blue-700 border-blue-300
-                        {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
-                        {{ ticket.attention_label }}
-                    </span>
-                    {% if ticket.attention_label != ticket.get_status_display %}
-                    <span class="px-2 py-1 rounded-full font-semibold border-2
-                        {% if ticket.status == 'OP' %}bg-blue-100 text-blue-700 border-blue-300
-                        {% elif ticket.status == 'TR' %}bg-blue-100 text-blue-700 border-blue-300
-                        {% elif ticket.status == 'IP' %}bg-blue-100 text-blue-700 border-blue-300
-                        {% elif ticket.status == 'WU' %}bg-amber-100 text-amber-700 border-amber-300
-                        {% elif ticket.status == 'WD' %}bg-amber-100 text-amber-700 border-amber-300
-                        {% elif ticket.status == 'RS' %}bg-emerald-100 text-emerald-700 border-emerald-300
-                        {% elif ticket.status == 'CL' %}bg-slate-200 text-slate-700 border-slate-400
-                        {% elif ticket.status == 'RO' %}bg-purple-100 text-purple-700 border-purple-300
-                        {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
-                        {{ ticket.get_status_display }}
-                    </span>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="flex items-center gap-2 mt-2">
-                <p class="text-xs text-slate-400">{{ ticket.created_at|date:"d/m/Y H:i" }}</p>
-                <span class="text-[11px] px-2 py-0.5 rounded-full
-                    {% if ticket.severity == 'BL' %}bg-red-100 text-red-700 border border-red-200
-                    {% elif ticket.severity == 'IM' %}bg-orange-100 text-orange-700 border border-orange-200
-                    {% elif ticket.severity == 'MD' %}bg-amber-100 text-amber-700 border border-amber-200
-                    {% else %}bg-slate-100 text-slate-600 border border-slate-200{% endif %}">
-                    {{ ticket.get_severity_display }}
-                </span>
-            </div>
+<div class="st-queue-page">
+    <div class="st-queue-toolbar">
+        <a href="{% url 'select-system' %}" class="st-queue-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar
         </a>
-        {% endfor %}
+        {% if can_manage_support_tickets %}
+        <a href="{% url 'support-ticket-admin-list' %}" class="st-queue-back st-queue-back--accent">
+            <i class="fas fa-headset" aria-hidden="true"></i> Painel de suporte
+        </a>
+        {% endif %}
     </div>
-    {% else %}
-    <div class="px-4 py-8 text-sm text-slate-500">Você ainda não abriu chamados pelo sistema.</div>
-    {% endif %}
+
+    <div class="st-queue-shell">
+        <div class="st-queue-shell-header">
+            <h2>Chamados criados por você</h2>
+            <div class="st-queue-legend" role="note">
+                <span class="st-queue-legend-item"><span class="st-queue-legend-swatch st-queue-legend-swatch--team" aria-hidden="true"></span> Em andamento no suporte</span>
+                <span class="st-queue-legend-item"><span class="st-queue-legend-swatch st-queue-legend-swatch--client" aria-hidden="true"></span> Precisa da sua resposta</span>
+                <span class="st-queue-legend-item"><span class="st-queue-legend-swatch st-queue-legend-swatch--done" aria-hidden="true"></span> Encerrado</span>
+            </div>
+        </div>
+        {% if tickets %}
+        <div class="st-queue-list">
+            {% for ticket in tickets %}
+            {% with tone=ticket.attention_tone %}
+            <a href="{% url 'support-ticket-detail' ticket.id %}" class="st-queue-card {% if tone == 'closed' or tone == 'resolved' %}st-queue-card--done{% elif tone == 'waiting-requester' or tone == 'responded' %}st-queue-card--client{% else %}st-queue-card--team{% endif %}">
+                {% if tone == 'closed' or tone == 'resolved' %}
+                <span class="st-queue-card__watermark" aria-hidden="true"><i class="fas fa-circle-check"></i></span>
+                {% endif %}
+                <span class="st-queue-card__chevron" aria-hidden="true">›</span>
+                <div class="st-queue-card__body">
+                    <div class="st-queue-card__main">
+                        {% if tone == 'closed' or tone == 'resolved' %}
+                        <p class="st-queue-card__kicker"><i class="fas fa-box-archive" aria-hidden="true"></i> Encerrado</p>
+                        {% elif tone == 'waiting-requester' or tone == 'responded' %}
+                        <p class="st-queue-card__kicker"><i class="fas fa-reply" aria-hidden="true"></i> Aguardando você</p>
+                        {% else %}
+                        <p class="st-queue-card__kicker"><span class="st-queue-card__kicker-dot" aria-hidden="true"></span> Em andamento</p>
+                        {% endif %}
+                        <p class="st-queue-card__title">#{{ ticket.id }} — {{ ticket.title }}</p>
+                        <p class="st-queue-card__meta">
+                            {{ ticket.category }}{% if ticket.related_project %} · {{ ticket.related_project.code }}{% endif %}
+                        </p>
+                    </div>
+                    <div class="st-queue-card__aside">
+                        <div class="st-queue-card__pills">
+                            <span class="st-queue-pill {% if tone == 'closed' %}st-queue-pill--att-closed{% elif tone == 'resolved' %}st-queue-pill--att-resolved{% elif tone == 'reopened' %}st-queue-pill--att-reopened{% elif tone == 'new' %}st-queue-pill--att-new{% elif tone == 'waiting-team' %}st-queue-pill--att-waiting-team{% elif tone == 'waiting-requester' %}st-queue-pill--att-waiting-requester{% elif tone == 'responded' %}st-queue-pill--att-responded{% elif tone == 'in-progress' %}st-queue-pill--att-in-progress{% else %}st-queue-pill--att-default{% endif %}">{{ ticket.attention_label }}</span>
+                            {% if ticket.attention_label != ticket.get_status_display %}
+                            <span class="st-queue-pill {% if ticket.status == 'OP' %}st-queue-pill--st-op{% elif ticket.status == 'TR' %}st-queue-pill--st-tr{% elif ticket.status == 'IP' %}st-queue-pill--st-ip{% elif ticket.status == 'WU' %}st-queue-pill--st-wu{% elif ticket.status == 'WD' %}st-queue-pill--st-wd{% elif ticket.status == 'RS' %}st-queue-pill--st-rs{% elif ticket.status == 'CL' %}st-queue-pill--st-cl{% elif ticket.status == 'RO' %}st-queue-pill--st-ro{% else %}st-queue-pill--st-default{% endif %}">{{ ticket.get_status_display }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="st-queue-card__footer">
+                    <p class="st-queue-card__time">Aberto em {{ ticket.created_at|date:"d/m/Y H:i" }}</p>
+                    <span class="st-queue-pill {% if ticket.severity == 'BL' %}st-queue-pill--sev-bl{% elif ticket.severity == 'IM' %}st-queue-pill--sev-im{% elif ticket.severity == 'MD' %}st-queue-pill--sev-md{% else %}st-queue-pill--sev-default{% endif %}">{{ ticket.get_severity_display }}</span>
+                </div>
+            </a>
+            {% endwith %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="st-queue-empty">Você ainda não abriu chamados pelo sistema.</div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

@@ -240,6 +240,7 @@
                     <th>Nome da Obra</th>
                     <th>Status</th>
                     <th>Data Criação</th>
+                    <th>Locais</th>
                 </tr>
             </thead>
             <tbody>
@@ -255,10 +256,17 @@
                         {% endif %}
                     </td>
                     <td style="color: #94a3b8; font-size: 0.82rem;">{{ obra.created_at|date:"d/m/Y" }}</td>
+                    <td>
+                        <span style="font-size:0.78rem;color:#64748b;font-variant-numeric:tabular-nums;">{{ obra.n_locais }}</span>
+                        <span style="color:#cbd5e1;">·</span>
+                        <a href="{% url 'accounts:locais_obra_manage' obra.pk %}" style="font-size:0.82rem;font-weight:600;color:#059669;text-decoration:none;">
+                            <i class="fas fa-map-pin" aria-hidden="true"></i> Gerir
+                        </a>
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="4">
+                    <td colspan="5">
                         <div class="empty-state">
                             <div class="empty-icon">
                                 <i class="fas fa-building"></i>

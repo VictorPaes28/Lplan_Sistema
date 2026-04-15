@@ -26,6 +26,45 @@
         <a href="{% url 'comunicados_painel_criar' %}" class="central-btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> Novo comunicado</a>
     </header>
 
+    <form method="get" class="comunicado-lista-filtros" action="{% url 'comunicados_painel_lista' %}">
+        <div class="comunicado-filtro-grupo">
+            <label class="comunicado-filtro-label" for="id_lista_q">Pesquisar</label>
+            <input type="search" name="q" id="id_lista_q" class="central-input comunicado-filtro-input" value="{{ q_busca }}" placeholder="Título interno…" autocomplete="off">
+        </div>
+        <div class="comunicado-filtro-grupo">
+            <label class="comunicado-filtro-label" for="id_lista_status">Status</label>
+            <select name="status" id="id_lista_status" class="central-input comunicado-filtro-select">
+                <option value="" {% if not status_filtro %}selected{% endif %}>Todos</option>
+                <option value="ativo" {% if status_filtro == 'ativo' %}selected{% endif %}>Ativo (no prazo)</option>
+                <option value="encerrado" {% if status_filtro == 'encerrado' %}selected{% endif %}>Encerrado</option>
+                <option value="inativo" {% if status_filtro == 'inativo' %}selected{% endif %}>Inativo</option>
+            </select>
+        </div>
+        <div class="comunicado-filtro-acoes">
+            <button type="submit" class="central-btn-primary comunicado-filtro-btn"><i class="fas fa-filter" aria-hidden="true"></i> Aplicar</button>
+            {% if q_busca or status_filtro %}
+            <a href="{% url 'comunicados_painel_lista' %}" class="central-btn-secondary comunicado-filtro-btn">Limpar</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if page_obj.paginator.count == 0 and not q_busca and not status_filtro %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <tbody>
+                <tr>
+                    <td colspan="10" class="table-empty">
+                        <div class="table-empty-icon" aria-hidden="true"><i class="fas fa-bullhorn"></i></div>
+                        <p>Nenhum comunicado cadastrado. Crie o primeiro aviso para aparecer no Megafone aos usuários.</p>
+                        <a href="{% url 'comunicados_painel_criar' %}" class="central-btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> Novo comunicado</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% elif not rows %}
+    <p class="comunicado-lista-sem-resultados">Nenhum resultado com estes filtros. <a href="{% url 'comunicados_painel_lista' %}">Limpar pesquisa</a>.</p>
+    {% else %}
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
@@ -83,13 +122,13 @@
                                 <button type="submit" class="link-acao">Duplicar</button>
                             </form>
                             <span class="sep-acoes" aria-hidden="true">|</span>
-                            <form method="post" action="{% url 'comunicados_painel_toggle' c.pk %}">
+                            <form method="post" action="{% url 'comunicados_painel_toggle' c.pk %}{% if redirect_lista_qs %}?{{ redirect_lista_qs }}{% endif %}">
                                 {% csrf_token %}
                                 <button type="submit" class="link-acao">{% if c.ativo %}Desativar{% else %}Ativar{% endif %}</button>
                             </form>
                             {% if row.status_key != 'encerrado' %}
                             <span class="sep-acoes" aria-hidden="true">|</span>
-                            <form method="post" action="{% url 'comunicados_painel_encerrar' c.pk %}" onsubmit="return confirm('Encerrar este comunicado agora (definir data de fim)?');">
+                            <form method="post" action="{% url 'comunicados_painel_encerrar' c.pk %}{% if redirect_lista_qs %}?{{ redirect_lista_qs }}{% endif %}" onsubmit="return confirm('Encerrar este comunicado agora (definir data de fim)?');">
                                 {% csrf_token %}
                                 <button type="submit" class="link-acao link-perigo">Encerrar</button>
                             </form>
@@ -100,17 +139,24 @@
                     </td>
                 </tr>
                 {% endwith %}
-                {% empty %}
-                <tr>
-                    <td colspan="10" class="table-empty">
-                        <div class="table-empty-icon" aria-hidden="true"><i class="fas fa-bullhorn"></i></div>
-                        <p>Nenhum comunicado cadastrado. Crie o primeiro aviso para aparecer no Megafone aos usuários.</p>
-                        <a href="{% url 'comunicados_painel_criar' %}" class="central-btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> Novo comunicado</a>
-                    </td>
-                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="comunicado-pagination" aria-label="Paginação da lista">
+        <div class="comunicado-pagination-inner">
+            {% if page_obj.has_previous %}
+            <a class="central-btn-secondary comunicado-page-link" href="?{% if preserve_qs %}{{ preserve_qs }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">« Anterior</a>
+            {% endif %}
+            <span class="comunicado-page-info">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} comunicado{% if page_obj.paginator.count != 1 %}s{% endif %})</span>
+            {% if page_obj.has_next %}
+            <a class="central-btn-secondary comunicado-page-link" href="?{% if preserve_qs %}{{ preserve_qs }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Seguinte »</a>
+            {% endif %}
+        </div>
+    </nav>
+    {% endif %}
+    {% endif %}
 </div>
 {% endblock %}

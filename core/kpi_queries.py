@@ -36,7 +36,10 @@ def count_diarios_aguardando_gestor(project: Project) -> int:
 
 
 def mapa_obra_for_project(project: Project) -> MapaObra | None:
-    """Obra do mapa alinhada ao código do projeto do diário."""
+    """Obra do mapa para o projeto: preferir FK ``obra_mapa``; fallback código Sienge."""
+    o = MapaObra.objects.filter(project_id=project.pk, ativa=True).first()
+    if o:
+        return o
     return MapaObra.objects.filter(codigo_sienge=project.code, ativa=True).first()
 
 

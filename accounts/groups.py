@@ -33,6 +33,7 @@ class _Grupos:
     # ──────────────────────────────────────────────
     # Gestão de Aprovação (GestControll)
     # ──────────────────────────────────────────────
+    # Painel do sistema (accounts/admin-central, locais por obra, análise): ver accounts.painel_sistema_access
     ADMINISTRADOR = 'Administrador'
     RESPONSAVEL_EMPRESA = 'Responsavel Empresa'
     APROVADOR = 'Aprovador'

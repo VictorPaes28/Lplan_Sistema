@@ -113,15 +113,6 @@ def create_obras_and_projects():
     projects = []
     for codigo, nome, contratante, responsavel in OBRAS_LPLAN:
         display = f"{nome} ({contratante})" if contratante else nome
-        om, _ = ObraMapa.objects.get_or_create(
-            codigo_sienge=codigo,
-            defaults={"nome": display, "ativa": True},
-        )
-        if not om.ativa:
-            om.ativa = True
-            om.save(update_fields=["ativa"])
-        obras_mapa.append(om)
-
         proj, created = Project.objects.get_or_create(
             code=codigo,
             defaults={
@@ -137,6 +128,18 @@ def create_obras_and_projects():
             proj.responsible = responsavel or proj.responsible
             proj.save(update_fields=["responsible"])
         projects.append(proj)
+
+        om, _ = ObraMapa.objects.get_or_create(
+            codigo_sienge=codigo,
+            defaults={"nome": display, "ativa": True, "project_id": proj.pk},
+        )
+        if not om.ativa:
+            om.ativa = True
+            om.save(update_fields=["ativa"])
+        if om.project_id != proj.pk:
+            om.project_id = proj.pk
+            om.save(update_fields=["project"])
+        obras_mapa.append(om)
     return obras_mapa, projects
 
 

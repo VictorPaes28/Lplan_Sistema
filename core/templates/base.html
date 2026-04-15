@@ -159,17 +159,12 @@
                 <span class="font-medium">Início</span>
             </a>
             <div class="mt-2 mb-2 px-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mapa de Suprimentos</p>
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obras e mapa</p>
             </div>
-            <a href="{% url 'accounts:criar_obra' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'criar_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-plus-circle w-5 mr-3"></i>
-                <span class="font-medium">Criar obra (Mapa)</span>
-            </a>
-            <a href="{% url 'accounts:gerenciar_obras' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'gerenciar_obras' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <a href="{% url 'central_project_list' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' or request.resolver_match.url_name == 'project-new' or request.resolver_match.url_name == 'project-edit' or request.resolver_match.url_name == 'project-locais-manage' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
-                <span class="font-medium">Gerenciar obras (Mapa)</span>
+                <span class="font-medium">Obras e locais</span>
             </a>
 
             {% elif '/gestao/' in request.path %}
@@ -302,10 +297,10 @@
             
             {% endif %}
             
-            <!-- Obras - Lista de projetos (core), apenas para Admin/Staff -->
-            {% if user.is_staff or user.is_superuser %}
-            <a href="/projects/" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <!-- Obras — mesmo critério que /projects/ (staff, superuser ou Administrador) -->
+            {% if can_manage_central_projects %}
+            <a href="{% url 'central_project_list' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' or request.resolver_match.url_name == 'project-new' or request.resolver_match.url_name == 'project-edit' or request.resolver_match.url_name == 'project-locais-manage' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-building w-5 mr-3"></i>
                 <span class="font-medium">Obras</span>
             </a>

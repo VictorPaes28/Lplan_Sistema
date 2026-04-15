@@ -6,6 +6,17 @@ from django.core.validators import MinLengthValidator
 
 class Obra(models.Model):
     """Obra/Local onde os suprimentos são aplicados."""
+    project = models.OneToOneField(
+        'core.Project',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='obra_mapa',
+        help_text=(
+            'Projeto canónico do Diário de Obra. Preenchido pela sincronização ao guardar o projeto; '
+            'mantém o vínculo explícito além do código Sienge.'
+        ),
+    )
     codigo_sienge = models.CharField(
         max_length=50,
         unique=True,

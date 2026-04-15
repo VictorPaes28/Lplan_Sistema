@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Locais por obra — Painel{% endblock %}
+{% block page_title %}Locais do Mapa de Suprimentos{% endblock %}
+{% block page_subtitle %}Escolha uma obra para criar ou editar blocos, pavimentos, apartamentos e outros locais{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .locais-page { max-width: 1000px; margin: 0 auto; }
+    .admin-breadcrumb { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem; flex-wrap: wrap; }
+    .admin-breadcrumb a { color: #2563eb; text-decoration: none; font-weight: 500; }
+    .admin-breadcrumb a:hover { text-decoration: underline; }
+    .admin-breadcrumb .sep { color: #cbd5e1; }
+    .locais-toolbar {
+        display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;
+        margin-bottom: 1.25rem; padding: 1rem 1.25rem;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .locais-toolbar .field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1 1 180px; min-width: 140px; }
+    .locais-toolbar label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+    .locais-toolbar input, .locais-toolbar select {
+        padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;
+    }
+    .locais-toolbar button {
+        padding: 0.55rem 1.1rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem;
+        background: #0f172a; color: #fff; border: none; cursor: pointer;
+    }
+    .locais-toolbar button:hover { background: #1e293b; }
+    .locais-table-wrap {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .locais-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .locais-table th {
+        text-align: left; padding: 0.85rem 1rem; background: #f8fafc; color: #475569;
+        font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .locais-table td { padding: 0.85rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .locais-table tr:last-child td { border-bottom: none; }
+    .locais-table tr:hover td { background: #fafafa; }
+    .codigo-pill {
+        font-family: ui-monospace, monospace; font-size: 0.8rem; font-weight: 600;
+        background: #e0f2fe; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 6px;
+    }
+    .badge-locais {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        font-size: 0.8rem; font-weight: 600; color: #0f766e; background: #ccfbf1; padding: 0.25rem 0.65rem; border-radius: 999px;
+    }
+    .btn-gerir {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        padding: 0.45rem 0.9rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem;
+        background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none;
+    }
+    .btn-gerir:hover { color: #fff; filter: brightness(1.05); }
+    .empty-locais { padding: 2.5rem 1.5rem; text-align: center; color: #64748b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="locais-page">
+    <nav class="admin-breadcrumb" aria-label="Navegação">
+        <a href="{% url 'accounts:admin_central' %}">Painel do sistema</a>
+        <span class="sep">/</span>
+        <span aria-current="page">Locais por obra</span>
+    </nav>
+
+    <form method="get" class="locais-toolbar" action="">
+        <div class="field">
+            <label for="id_q">Pesquisar</label>
+            <input type="search" name="q" id="id_q" value="{{ q }}" placeholder="Nome ou código Sienge…" autocomplete="off">
+        </div>
+        <div class="field">
+            <label for="id_ativa">Obra</label>
+            <select name="ativa" id="id_ativa">
+                <option value="">Todas</option>
+                <option value="1" {% if ativa_filtro == "1" %}selected{% endif %}>Apenas ativas</option>
+                <option value="0" {% if ativa_filtro == "0" %}selected{% endif %}>Apenas inativas</option>
+            </select>
+        </div>
+        <button type="submit"><i class="fas fa-filter" aria-hidden="true"></i> Aplicar</button>
+        {% if q or ativa_filtro %}
+        <a href="{% url 'accounts:locais_obras_index' %}" class="central-btn-secondary" style="align-self:center;padding:0.55rem 1rem;border-radius:8px;text-decoration:none;">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="locais-table-wrap">
+        <table class="locais-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Obra</th>
+                    <th>Status</th>
+                    <th>Locais</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obra in obras %}
+                <tr>
+                    <td><span class="codigo-pill">{{ obra.codigo_sienge }}</span></td>
+                    <td style="font-weight:600;color:#1e293b;">{{ obra.nome }}</td>
+                    <td>
+                        {% if obra.ativa %}
+                        <span style="color:#15803d;font-size:0.8rem;font-weight:600;">Ativa</span>
+                        {% else %}
+                        <span style="color:#94a3b8;font-size:0.8rem;">Inativa</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge-locais"><i class="fas fa-map-pin" aria-hidden="true"></i> {{ obra.n_locais }}</span></td>
+                    <td style="text-align:right;">
+                        <a href="{% url 'accounts:locais_obra_manage' obra.pk %}" class="btn-gerir">
+                            Gerir locais <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-locais">
+                            <p style="margin:0 0 0.5rem;font-weight:600;color:#334155;">Nenhuma obra encontrada.</p>
+                            <p style="margin:0;font-size:0.85rem;">Crie obras em <a href="{% url 'central_project_list' %}">Obras</a> (/projects/) ou ajuste os filtros.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

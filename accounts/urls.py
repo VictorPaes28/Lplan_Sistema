@@ -1,6 +1,6 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
-from . import views, views_admin
+from . import views, views_admin, views_locais_obra
 
 app_name = 'accounts'
 
@@ -16,5 +16,11 @@ urlpatterns = [
     path('admin-central/analise-usuarios/exportar-csv/', views_admin.analise_usuarios_export_csv, name='admin_analise_usuarios_export_csv'),
     path('admin-central/criar-obra/', views_admin.criar_obra, name='criar_obra'),
     path('admin-central/gerenciar-obras/', views_admin.gerenciar_obras, name='gerenciar_obras'),
+    path('admin-central/locais-obras/', views_locais_obra.locais_obras_index, name='locais_obras_index'),
+    path(
+        'admin-central/locais-obras/<int:obra_id>/',
+        views_locais_obra.locais_obra_manage,
+        name='locais_obra_manage',
+    ),
     # Gestão de usuários: staff/superuser usam o Central (/central/usuarios/); demais usam /gestao/usuarios/ (gestao:list_users)
 ]
