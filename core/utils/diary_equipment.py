@@ -7,6 +7,10 @@ Regra (igual em todo o sistema):
   Isso evita supercontagem quando o mesmo equipamento é associado a várias atividades.
 - Caso contrário (diários só com M2M antigo) → quantidade 1 por equipamento único do dia,
   ordem pela primeira ocorrência na ordem explícita dos work_logs (atividade, pk).
+
+Parâmetro ``limit_to_work_logs`` restringe o cálculo a um subconjunto de serviços do dia
+(ex.: uma atividade no histograma); a regra do maior ``quantity`` por equipamento aplica-se
+dentro desse subconjunto.
 """
 from __future__ import annotations
 
@@ -19,20 +23,35 @@ if TYPE_CHECKING:
 def aggregate_equipment_for_diary(
     diary: 'ConstructionDiary',
     work_logs_ordered: Optional[List] = None,
+    *,
+    limit_to_work_logs: bool = False,
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
     Retorna (rows, total_geral).
 
     Cada row: ``equipment_id`` (int), ``equipment`` (instância Equipment), ``quantity`` (int).
+
+    ``limit_to_work_logs`` (filtro por atividade / subconjunto de serviços):
+    quando True, ``work_logs_ordered`` deve ser a lista de ``DailyWorkLog`` desse diário
+    a considerar. O *through* e o fallback M2M limitam-se a esses registros; dentro deles,
+    para o mesmo ``equipment_id``, usa-se a maior ``quantity`` (igual à regra diária).
     """
     from core.models import DailyWorkLogEquipment
 
     order_eids: List[int] = []
     by_id: Dict[int, Dict[str, Any]] = {}
 
-    through_qs = DailyWorkLogEquipment.objects.filter(
-        work_log__diary=diary
-    ).select_related('equipment').order_by('work_log_id', 'pk')
+    if limit_to_work_logs:
+        if not work_logs_ordered:
+            return [], 0
+        wl_ids = [wl.pk for wl in work_logs_ordered]
+        through_qs = DailyWorkLogEquipment.objects.filter(
+            work_log_id__in=wl_ids
+        ).select_related('equipment').order_by('work_log_id', 'pk')
+    else:
+        through_qs = DailyWorkLogEquipment.objects.filter(
+            work_log__diary=diary
+        ).select_related('equipment').order_by('work_log_id', 'pk')
 
     if through_qs.exists():
         for row in through_qs:
@@ -50,8 +69,10 @@ def aggregate_equipment_for_diary(
                 if qty > by_id[eid]['quantity']:
                     by_id[eid]['quantity'] = qty
     else:
-        if work_logs_ordered is not None:
-            wls = work_logs_ordered
+        if limit_to_work_logs:
+            wls = list(work_logs_ordered or [])
+        elif work_logs_ordered is not None:
+            wls = list(work_logs_ordered)
         else:
             wls = list(
                 diary.work_logs.select_related('activity').order_by(

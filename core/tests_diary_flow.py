@@ -624,6 +624,62 @@ class DiaryFlowTestCase(TestCase):
         self.assertEqual(by_id.get(eq.id), 6)
         self.assertEqual(total, 6)
 
+    def test_aggregate_equipment_limit_to_work_logs_empty_returns_empty(self):
+        rows, total = aggregate_equipment_for_diary(
+            self.source_diary, work_logs_ordered=[], limit_to_work_logs=True
+        )
+        self.assertEqual(rows, [])
+        self.assertEqual(total, 0)
+
+    def test_aggregate_equipment_limit_to_work_logs_max_in_subset(self):
+        """
+        Com limit_to_work_logs=True, só entram os work_logs passados;
+        maior quantity por equipamento dentro desse subconjunto (histograma por atividade).
+        """
+        eq = Equipment.objects.create(
+            code='AGG-LIM-01',
+            name='Equip Lim',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        second_activity = Activity.add_root(
+            project=self.project,
+            name='Atividade Subconjunto',
+            code='1.2',
+            weight=Decimal('1.00'),
+        )
+        wl2 = DailyWorkLog.objects.create(
+            diary=self.source_diary,
+            activity=second_activity,
+            location='Setor B',
+            percentage_executed_today=0,
+            accumulated_progress_snapshot=0,
+            notes='',
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=self.source_worklog,
+            equipment=eq,
+            quantity=4,
+        )
+        DailyWorkLogEquipment.objects.create(
+            work_log=wl2,
+            equipment=eq,
+            quantity=9,
+        )
+        rows_a, tot_a = aggregate_equipment_for_diary(
+            self.source_diary,
+            work_logs_ordered=[self.source_worklog],
+            limit_to_work_logs=True,
+        )
+        self.assertEqual(tot_a, 4)
+        rows_ab, tot_ab = aggregate_equipment_for_diary(
+            self.source_diary,
+            work_logs_ordered=[self.source_worklog, wl2],
+            limit_to_work_logs=True,
+        )
+        self.assertEqual({r['equipment_id']: r['quantity'] for r in rows_ab}, {eq.id: 9})
+        self.assertEqual(tot_ab, 9)
+
     def test_copy_then_save_equipment_matches_pdf_aggregate(self):
         """
         Copiar relatório (GET) e salvar com equipment_data: o banco deve refletir as quantidades

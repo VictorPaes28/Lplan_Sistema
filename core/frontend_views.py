@@ -2908,50 +2908,85 @@ def labor_histogram_view(request):
 @login_required
 @project_required
 def equipment_histogram_view(request):
-    """View para histograma de equipamentos."""
+    """Histograma de equipamentos — mesma regra que detalhe do RDO e PDF (aggregate_equipment_for_diary)."""
+    from collections import defaultdict
+
+    from core.utils.diary_equipment import aggregate_equipment_for_diary
+
     project = get_selected_project(request)
-    
-    # Busca todos os work_logs do projeto
+
+    date_start = request.GET.get('date_start')
+    date_end = request.GET.get('date_end')
+    activity_id = (request.GET.get('activity_id') or '').strip()
+
     work_logs = DailyWorkLog.objects.filter(
         diary__project=project
     ).select_related('diary', 'activity').prefetch_related('resources_equipment')
-    
-    # Filtros
-    date_start = request.GET.get('date_start')
-    date_end = request.GET.get('date_end')
-    activity_id = request.GET.get('activity_id')
-    
+
     if date_start:
         try:
             work_logs = work_logs.filter(diary__date__gte=date_start)
         except ValueError:
             pass
-    
+
     if date_end:
         try:
             work_logs = work_logs.filter(diary__date__lte=date_end)
         except ValueError:
             pass
-    
-    if activity_id:
-        work_logs = work_logs.filter(activity_id=activity_id)
-    
-    # Agrupa por quantidade do through (DailyWorkLogEquipment), evitando contagem por presença.
-    from .models import DailyWorkLogEquipment
+
     equipment_stats = {}
     equipment_by_date = {}
-    through_rows = DailyWorkLogEquipment.objects.filter(work_log__in=work_logs).select_related('work_log__diary', 'equipment')
-    for row in through_rows:
-        eq_name = _normalize_equipment_name(getattr(row.equipment, 'name', ''))
-        if not eq_name:
-            continue
-        qty = _safe_positive_int(getattr(row, 'quantity', 1), default=1, minimum=1)
+
+    def _bump_histogram(eq_name: str, qty: int, date_key: str) -> None:
+        if not eq_name or qty <= 0:
+            return
         equipment_stats[eq_name] = equipment_stats.get(eq_name, 0) + qty
-        date_key = row.work_log.diary.date.isoformat()
         if date_key not in equipment_by_date:
             equipment_by_date[date_key] = {}
         equipment_by_date[date_key][eq_name] = equipment_by_date[date_key].get(eq_name, 0) + qty
-    
+
+    if not activity_id:
+        diaries_qs = ConstructionDiary.objects.filter(project=project)
+        if date_start:
+            try:
+                diaries_qs = diaries_qs.filter(date__gte=date_start)
+            except ValueError:
+                pass
+        if date_end:
+            try:
+                diaries_qs = diaries_qs.filter(date__lte=date_end)
+            except ValueError:
+                pass
+        for diary in diaries_qs.order_by('date'):
+            rows, _total = aggregate_equipment_for_diary(diary)
+            dk = diary.date.isoformat()
+            for row in rows:
+                nm = _normalize_equipment_name(getattr(row['equipment'], 'name', '') or '')
+                _bump_histogram(nm, int(row['quantity'] or 0), dk)
+    else:
+        filtered = work_logs.filter(activity_id=activity_id)
+        wls = list(filtered.order_by('diary__date', 'activity__code', 'activity__name', 'pk'))
+        by_diary = defaultdict(list)
+        for wl in wls:
+            by_diary[wl.diary_id].append(wl)
+        for _did, group in by_diary.items():
+            group.sort(
+                key=lambda wl: (
+                    (wl.activity.code or '') if getattr(wl, 'activity', None) else '',
+                    (wl.activity.name or '') if getattr(wl, 'activity', None) else '',
+                    wl.pk,
+                )
+            )
+            diary = group[0].diary
+            rows, _total = aggregate_equipment_for_diary(
+                diary, work_logs_ordered=group, limit_to_work_logs=True
+            )
+            dk = diary.date.isoformat()
+            for row in rows:
+                nm = _normalize_equipment_name(getattr(row['equipment'], 'name', '') or '')
+                _bump_histogram(nm, int(row['quantity'] or 0), dk)
+
     context = {
         'equipment_stats': equipment_stats,
         'equipment_by_date': equipment_by_date,
