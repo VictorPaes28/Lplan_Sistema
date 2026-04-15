@@ -296,6 +296,78 @@ def _build_diary_equipment_list(diary):
     return equipment_list
 
 
+def _build_labor_entries_by_category(diary):
+    """
+    Agrupa DiaryLaborEntry por categoria (indireta/direta/terceirizada).
+    Retorna None se não houver linhas (UI usa agregação legada por M2M).
+    """
+    try:
+        from .models import DiaryLaborEntry
+
+        entries = (
+            DiaryLaborEntry.objects.filter(diary=diary)
+            .select_related('cargo', 'cargo__category')
+            .order_by('cargo__category__order', 'company', 'cargo__name')
+        )
+        if not entries.exists():
+            return None
+        labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': {}}
+        for e in entries:
+            slug = e.cargo.category.slug
+            item = {'cargo_name': e.cargo.name, 'quantity': e.quantity}
+            if slug == 'terceirizada':
+                company = e.company or '(Sem empresa)'
+                if company not in labor_entries_by_category['terceirizada']:
+                    labor_entries_by_category['terceirizada'][company] = []
+                labor_entries_by_category['terceirizada'][company].append(item)
+            elif slug in labor_entries_by_category:
+                labor_entries_by_category[slug].append(item)
+        labor_entries_by_category['terceirizada'] = [
+            {'company': k, 'items': v} for k, v in labor_entries_by_category['terceirizada'].items()
+        ]
+        return labor_entries_by_category
+    except Exception:
+        return None
+
+
+def _diary_labor_totals(labor_by_type, labor_entries_by_category):
+    """
+    Totais para o resumo (Direto/Indireto/Terceiros).
+
+    Com DiaryLaborEntry, soma ``quantity`` por categoria (fonte correta).
+    Sem isso, usa contagem legada no M2M ``resources_labor`` (+1 por vínculo), que
+    subrepresenta quando a quantidade está só em DiaryLaborEntry.
+    """
+    td = sum(labor_by_type['Direto'].values())
+    ti = sum(labor_by_type['Indireto'].values())
+    tt = sum(labor_by_type['Terceiros'].values())
+    if labor_entries_by_category:
+        td = sum(
+            int(e.get('quantity') or 0)
+            for e in (labor_entries_by_category.get('direta') or [])
+        )
+        ti = sum(
+            int(e.get('quantity') or 0)
+            for e in (labor_entries_by_category.get('indireta') or [])
+        )
+        tt = 0
+        for block in labor_entries_by_category.get('terceirizada') or []:
+            for it in (block.get('items') or []):
+                tt += int(it.get('quantity') or 0)
+    return td, ti, tt
+
+
+def _labor_histogram_bucket_from_category_slug(slug):
+    """Mapeia slug de LaborCategory para chave do histograma (Direto/Indireto/Terceiros)."""
+    if slug == 'direta':
+        return 'Direto'
+    if slug == 'indireta':
+        return 'Indireto'
+    if slug == 'terceirizada':
+        return 'Terceiros'
+    return None
+
+
 def login_view(request):
     """View de login."""
     if request.user.is_authenticated:
@@ -1907,27 +1979,13 @@ def diary_detail_view(request, pk):
     # Equipamentos agregados por diário (mesma regra do PDF)
     equipment_list = _build_diary_equipment_list(diary)
 
-    # Mão de obra por categorias (DiaryLaborEntry) - preferência sobre work_log.resources_labor
-    labor_entries_by_category = None
-    try:
-        from .models import DiaryLaborEntry
-        entries = DiaryLaborEntry.objects.filter(diary=diary).select_related('cargo', 'cargo__category').order_by('cargo__category__order', 'company', 'cargo__name')
-        if entries.exists():
-            labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': {}}
-            for e in entries:
-                slug = e.cargo.category.slug
-                item = {'cargo_name': e.cargo.name, 'quantity': e.quantity}
-                if slug == 'terceirizada':
-                    company = e.company or '(Sem empresa)'
-                    if company not in labor_entries_by_category['terceirizada']:
-                        labor_entries_by_category['terceirizada'][company] = []
-                    labor_entries_by_category['terceirizada'][company].append(item)
-                elif slug in labor_entries_by_category:
-                    labor_entries_by_category[slug].append(item)
-            labor_entries_by_category['terceirizada'] = [{'company': k, 'items': v} for k, v in labor_entries_by_category['terceirizada'].items()]
-    except Exception:
-        pass
-    
+    # Mão de obra por categorias (DiaryLaborEntry) — tabela detalhada + totais corretos (quantity)
+    labor_entries_by_category = _build_labor_entries_by_category(diary)
+
+    total_direct_labor, total_indirect_labor, total_third_party_labor = _diary_labor_totals(
+        labor_by_type, labor_entries_by_category
+    )
+
     # Assinaturas
     signatures = diary.signatures.all().select_related('signer')
     signature_inspection = signatures.filter(signature_type='inspection').first()
@@ -1969,9 +2027,9 @@ def diary_detail_view(request, pk):
         'project_days_total': project_days_total,
         'project_days_elapsed': project_days_elapsed,
         'project_days_remaining': project_days_remaining,
-        'total_indirect_labor': sum(labor_by_type['Indireto'].values()),
-        'total_direct_labor': sum(labor_by_type['Direto'].values()),
-        'total_third_party_labor': sum(labor_by_type['Terceiros'].values()),
+        'total_indirect_labor': total_indirect_labor,
+        'total_direct_labor': total_direct_labor,
+        'total_third_party_labor': total_third_party_labor,
         'equipment_list': equipment_list,
         'labor_entries_by_category': labor_entries_by_category,
         'weekday_name': weekday_name,
@@ -2130,6 +2188,10 @@ def client_diary_detail_view(request, pk):
                 labor_by_type['Indireto'][labor.name] = labor_by_type['Indireto'].get(labor.name, 0) + 1
             elif labor_type == 'T':
                 labor_by_type['Terceiros'][labor.name] = labor_by_type['Terceiros'].get(labor.name, 0) + 1
+    labor_entries_by_category = _build_labor_entries_by_category(diary)
+    total_direct_labor, total_indirect_labor, total_third_party_labor = _diary_labor_totals(
+        labor_by_type, labor_entries_by_category
+    )
     equipment_list = _build_diary_equipment_list(diary)
     project = diary.project
     project_days_total = (project.end_date - project.start_date).days if project.end_date and project.start_date else 0
@@ -2150,9 +2212,9 @@ def client_diary_detail_view(request, pk):
         'project_days_elapsed': project_days_elapsed,
         'project_days_remaining': project_days_remaining,
         'weekday_name': weekday_name,
-        'total_indirect_labor': sum(labor_by_type['Indireto'].values()),
-        'total_direct_labor': sum(labor_by_type['Direto'].values()),
-        'total_third_party_labor': sum(labor_by_type['Terceiros'].values()),
+        'total_indirect_labor': total_indirect_labor,
+        'total_direct_labor': total_direct_labor,
+        'total_third_party_labor': total_third_party_labor,
     }
     return render(request, 'core/client_diary_detail.html', context)
 
@@ -2745,15 +2807,14 @@ def labor_histogram_view(request):
     """View para histograma de mão de obra."""
     project = get_selected_project(request)
     
-    # Busca todos os work_logs do projeto
-    work_logs = DailyWorkLog.objects.filter(
-        diary__project=project
-    ).select_related('diary', 'activity').prefetch_related('resources_labor')
-    
     # Filtros
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
-    activity_id = request.GET.get('activity_id')
+    activity_id = (request.GET.get('activity_id') or '').strip()
+    
+    work_logs = DailyWorkLog.objects.filter(
+        diary__project=project
+    ).select_related('diary', 'activity').prefetch_related('resources_labor')
     
     if date_start:
         try:
@@ -2770,30 +2831,67 @@ def labor_histogram_view(request):
     if activity_id:
         work_logs = work_logs.filter(activity_id=activity_id)
     
-    # Agrupa mão de obra por tipo e nome
     labor_stats = {
         'Direto': {},
         'Indireto': {},
         'Terceiros': {},
     }
-    
-    for work_log in work_logs:
-        for labor in work_log.resources_labor.all():
-            labor_type = 'Direto' if labor.labor_type == 'D' else ('Indireto' if labor.labor_type == 'I' else 'Terceiros')
-            if labor.name not in labor_stats[labor_type]:
-                labor_stats[labor_type][labor.name] = 0
-            labor_stats[labor_type][labor.name] += 1
-    
-    # Estatísticas por data
     labor_by_date = {}
-    for work_log in work_logs:
-        date_key = work_log.diary.date.isoformat()
-        if date_key not in labor_by_date:
-            labor_by_date[date_key] = {'Direto': 0, 'Indireto': 0, 'Terceiros': 0}
-        
-        for labor in work_log.resources_labor.all():
-            labor_type = 'Direto' if labor.labor_type == 'D' else ('Indireto' if labor.labor_type == 'I' else 'Terceiros')
-            labor_by_date[date_key][labor_type] += 1
+
+    if activity_id:
+        # Filtro por atividade: apenas vínculos M2M nos work logs dessa atividade (legado).
+        for work_log in work_logs:
+            for labor in work_log.resources_labor.all():
+                labor_type = 'Direto' if labor.labor_type == 'D' else ('Indireto' if labor.labor_type == 'I' else 'Terceiros')
+                labor_stats[labor_type][labor.name] = labor_stats[labor_type].get(labor.name, 0) + 1
+        for work_log in work_logs:
+            date_key = work_log.diary.date.isoformat()
+            if date_key not in labor_by_date:
+                labor_by_date[date_key] = {'Direto': 0, 'Indireto': 0, 'Terceiros': 0}
+            for labor in work_log.resources_labor.all():
+                labor_type = 'Direto' if labor.labor_type == 'D' else ('Indireto' if labor.labor_type == 'I' else 'Terceiros')
+                labor_by_date[date_key][labor_type] += 1
+    else:
+        # Sem filtro de atividade: por dia, preferir DiaryLaborEntry (quantidade) como no detalhe/PDF;
+        # senão contagem legada por M2M resources_labor.
+        diaries_qs = ConstructionDiary.objects.filter(project=project)
+        if date_start:
+            try:
+                diaries_qs = diaries_qs.filter(date__gte=date_start)
+            except ValueError:
+                pass
+        if date_end:
+            try:
+                diaries_qs = diaries_qs.filter(date__lte=date_end)
+            except ValueError:
+                pass
+        diaries_qs = diaries_qs.order_by('date').prefetch_related(
+            'labor_entries__cargo__category',
+            'work_logs__resources_labor',
+        )
+        for diary in diaries_qs:
+            date_key = diary.date.isoformat()
+            if date_key not in labor_by_date:
+                labor_by_date[date_key] = {'Direto': 0, 'Indireto': 0, 'Terceiros': 0}
+            entries = list(diary.labor_entries.all())
+            if entries:
+                for e in entries:
+                    slug = e.cargo.category.slug
+                    bucket = _labor_histogram_bucket_from_category_slug(slug)
+                    if bucket is None:
+                        continue
+                    name = e.cargo.name
+                    qty = int(e.quantity or 0)
+                    labor_stats[bucket][name] = labor_stats[bucket].get(name, 0) + qty
+                    labor_by_date[date_key][bucket] += qty
+            else:
+                for work_log in diary.work_logs.all():
+                    for labor in work_log.resources_labor.all():
+                        labor_type = 'Direto' if labor.labor_type == 'D' else (
+                            'Indireto' if labor.labor_type == 'I' else 'Terceiros'
+                        )
+                        labor_stats[labor_type][labor.name] = labor_stats[labor_type].get(labor.name, 0) + 1
+                        labor_by_date[date_key][labor_type] += 1
     
     context = {
         'labor_stats': labor_stats,

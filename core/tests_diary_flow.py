@@ -1120,3 +1120,57 @@ class DiaryApprovalFlowByManagerTestCase(TestCase):
                 decision=DiaryApprovalHistory.DECISAO_REPROVAR,
             ).exists()
         )
+
+
+class DiaryLaborTotalsHelpersTestCase(TestCase):
+    """
+    Garante que totais Direto/Indireto/Terceiros no detalhe do diário
+    usam DiaryLaborEntry.quantity quando existir, e não só M2M legado.
+    """
+
+    def test_diary_labor_totals_m2m_when_no_entries(self):
+        from core.frontend_views import _diary_labor_totals
+
+        labor_by_type = {
+            'Direto': {'Pedreiro': 2, 'Servente': 1},
+            'Indireto': {'Eng': 1},
+            'Terceiros': {},
+        }
+        td, ti, tt = _diary_labor_totals(labor_by_type, None)
+        self.assertEqual(td, 3)
+        self.assertEqual(ti, 1)
+        self.assertEqual(tt, 0)
+
+    def test_diary_labor_totals_from_diary_labor_entry_structure(self):
+        from core.frontend_views import _diary_labor_totals
+
+        labor_by_type = {
+            'Direto': {'X': 1},
+            'Indireto': {},
+            'Terceiros': {},
+        }
+        lec = {
+            'direta': [{'cargo_name': 'Armador', 'quantity': 8}],
+            'indireta': [{'cargo_name': 'Topo', 'quantity': 2}],
+            'terceirizada': [
+                {'company': 'Emp A', 'items': [{'cargo_name': 'Eletricista', 'quantity': 4}]},
+            ],
+        }
+        td, ti, tt = _diary_labor_totals(labor_by_type, lec)
+        self.assertEqual(td, 8)
+        self.assertEqual(ti, 2)
+        self.assertEqual(tt, 4)
+
+    def test_diary_labor_totals_empty_terceirizada_blocks(self):
+        from core.frontend_views import _diary_labor_totals
+
+        labor_by_type = {'Direto': {}, 'Indireto': {}, 'Terceiros': {}}
+        lec = {
+            'direta': [{'cargo_name': 'A', 'quantity': 1}],
+            'indireta': [],
+            'terceirizada': [],
+        }
+        td, ti, tt = _diary_labor_totals(labor_by_type, lec)
+        self.assertEqual(td, 1)
+        self.assertEqual(ti, 0)
+        self.assertEqual(tt, 0)
