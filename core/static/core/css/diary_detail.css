@@ -157,6 +157,49 @@
     border-top: none;
 }
 
+/* Tabelas nos cartões em grelha (MO em colunas + equipamentos fatiados): mesmo acabamento que .diary-detail-compact-block */
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody td {
+    padding: 0.5rem 0.55rem;
+    border-bottom: 1px solid #e8edf3;
+    vertical-align: top;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody tr:hover {
+    background-color: #f1f5f9;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table thead {
+    background: #f8fafc;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table thead th {
+    padding: 0.45rem 0.5rem 0.5rem;
+    border-bottom-color: #e2e8f0;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) {
+    width: max-content;
+    max-width: 100%;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) .diary-detail-data-table__num {
+    width: auto;
+    min-width: 1.5rem;
+    padding-left: 1.0625rem;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody td:not(.diary-detail-data-table__label):not(.diary-detail-data-table__num) {
+    color: #0f172a;
+}
+
 
 .diary-detail-data-table {
     width: 100%;

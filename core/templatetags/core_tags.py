@@ -83,6 +83,25 @@ def report_status_style(diary):
 
 
 @register.filter
+def chunk_list(value, chunk_size):
+    """
+    Divide uma sequência em sublistas com até ``chunk_size`` itens (útil para colunas no detalhe do RDO).
+
+    Uso: {% for chunk in equipment_list|chunk_list:6 %}
+    """
+    try:
+        n = int(chunk_size)
+    except (TypeError, ValueError):
+        n = 6
+    if n < 1:
+        n = 6
+    if value is None:
+        return []
+    seq = list(value)
+    return [seq[i : i + n] for i in range(0, len(seq), n)]
+
+
+@register.filter
 def get_item(dictionary, key):
     """Obtém um item de um dicionário."""
     if dictionary and isinstance(dictionary, dict):

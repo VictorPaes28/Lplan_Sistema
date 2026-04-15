@@ -584,8 +584,10 @@
             {% endif %}
         </h3>
         {% if equipment_list %}
-        <div class="diary-detail-compact-block">
-            <div class="diary-detail-compact-section">
+        {# Até 6 linhas por caixa; várias caixas em grelha (igual à mão de obra); empilha em ecrã estreito #}
+        <div class="diary-detail-labor-columns diary-detail-equipment-columns">
+            {% for chunk in equipment_list|chunk_list:6 %}
+            <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
                 <table class="diary-detail-data-table">
                     <thead>
                         <tr>
@@ -594,7 +596,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                    {% for equipment in equipment_list %}
+                    {% for equipment in chunk %}
                     <tr>
                         <td class="text-slate-800">{{ equipment.name }}</td>
                         <td class="diary-detail-data-table__num">{{ equipment.quantity }}</td>
@@ -603,6 +605,7 @@
                     </tbody>
                 </table>
             </div>
+            {% endfor %}
         </div>
         {% else %}
         <p class="diary-detail-empty">Nenhum equipamento registrado para este dia.</p>
