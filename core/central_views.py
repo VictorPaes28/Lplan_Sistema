@@ -22,12 +22,18 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import re
 import csv
+import json
+from urllib.parse import urlencode
+
+from django.urls import reverse
 
 from django.contrib.auth.models import User
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from accounts.groups import GRUPOS
-from accounts.painel_sistema_access import user_is_painel_sistema_admin
+from accounts.painel_sistema_access import user_can_view_audit_events, user_is_painel_sistema_admin
+from audit.action_codes import AuditAction
+from audit.models import AuditEvent
 from core.models import (
     Project,
     ProjectOwner,
@@ -44,6 +50,52 @@ def _staff_required(f):
             raise PermissionDenied('Acesso restrito ao central.')
         return f(request, *args, **kwargs)
     return wrapper
+
+
+def _audit_viewer_required(f):
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            raise PermissionDenied('É necessário iniciar sessão.')
+        if not user_can_view_audit_events(request.user):
+            raise PermissionDenied('Sem permissão para auditoria.')
+        return f(request, *args, **kwargs)
+    return wrapper
+
+
+def _audit_access_mode(request):
+    full = user_is_painel_sistema_admin(request.user)
+    scoped = (not full) and request.user.groups.filter(name=GRUPOS.RESPONSAVEL_EMPRESA).exists()
+    return full, scoped
+
+
+def _audit_event_deep_links(event: AuditEvent, *, use_gestao_user_links: bool) -> list[dict]:
+    p = event.payload if isinstance(event.payload, dict) else {}
+    links: list[dict] = []
+    if event.subject_user_id:
+        u = event.subject_user
+        label = f'Governança: {u.get_username()}' if u else 'Governança (utilizador alvo)'
+        if use_gestao_user_links:
+            url = reverse('gestao:user_governance', kwargs={'pk': event.subject_user_id})
+        else:
+            url = reverse('central_user_governance', kwargs={'pk': event.subject_user_id})
+        links.append({'label': label, 'url': url})
+    before = p.get('before') if isinstance(p.get('before'), dict) else {}
+    after = p.get('after') if isinstance(p.get('after'), dict) else {}
+    eid = p.get('empresa_id') or after.get('empresa_id') or before.get('empresa_id')
+    if eid:
+        links.append(
+            {'label': 'Empresa (GestControll)', 'url': reverse('gestao:detail_empresa', kwargs={'pk': eid})}
+        )
+    oid = p.get('obra_id') or after.get('obra_id') or before.get('obra_id')
+    if oid:
+        links.append({'label': 'Obra (GestControll)', 'url': reverse('gestao:detail_obra', kwargs={'pk': oid})})
+    proj = p.get('project_id')
+    if proj:
+        links.append({'label': 'Projeto (Diário)', 'url': reverse('project-edit', kwargs={'pk': proj})})
+    did = p.get('diary_id')
+    if did:
+        links.append({'label': 'Diário (RDO)', 'url': reverse('diary-detail', kwargs={'pk': did})})
+    return links
 
 
 def _signup_approver_required(f):
@@ -85,6 +137,15 @@ def central_edit_user(request, pk):
 def central_delete_user(request, pk):
     request._central_redirect = True
     return _get_gestao_user_views()[3](request, pk=pk)
+
+
+@login_required
+@_staff_required
+def central_user_governance(request, pk):
+    request._central_redirect = True
+    from gestao_aprovacao import views as gestao_views
+
+    return gestao_views.user_governance_panel(request, pk=pk)
 
 
 @login_required
@@ -398,6 +459,183 @@ def central_system_logs_view(request):
     return render(request, 'core/central_system_logs.html', context)
 
 
+def _audit_action_code_choices():
+    codes = {
+        getattr(AuditAction, name)
+        for name in dir(AuditAction)
+        if not name.startswith('_') and isinstance(getattr(AuditAction, name, None), str)
+    }
+    try:
+        db_codes = set(
+            AuditEvent.objects.order_by('action_code')
+            .values_list('action_code', flat=True)
+            .distinct()[:500]
+        )
+    except Exception:
+        db_codes = set()
+    return sorted(codes | db_codes)
+
+
+@login_required
+@_audit_viewer_required
+def central_audit_events_view(request):
+    """
+    Lista de AuditEvent com filtros e exportação CSV.
+    Acesso: administradores do painel (visão global) ou Responsável Empresa (recorte).
+    """
+    full_access, scoped = _audit_access_mode(request)
+    today = timezone.now().date()
+    date_from_raw = (request.GET.get('date_from') or '').strip()
+    date_to_raw = (request.GET.get('date_to') or '').strip()
+    try:
+        date_to = datetime.strptime(date_to_raw, '%Y-%m-%d').date() if date_to_raw else today
+    except ValueError:
+        date_to = today
+    try:
+        date_from = (
+            datetime.strptime(date_from_raw, '%Y-%m-%d').date()
+            if date_from_raw
+            else (date_to - timedelta(days=30))
+        )
+    except ValueError:
+        date_from = date_to - timedelta(days=30)
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    module = (request.GET.get('module') or '').strip()
+    action_code = (request.GET.get('action_code') or '').strip()
+    q = (request.GET.get('q') or '').strip()
+    actor_u = (request.GET.get('actor') or '').strip()
+    subject_q = (request.GET.get('subject') or '').strip()
+
+    qs = AuditEvent.objects.select_related('actor', 'subject_user').order_by('-created_at')
+    qs = qs.filter(created_at__date__gte=date_from, created_at__date__lte=date_to)
+    if module:
+        qs = qs.filter(module=module)
+    if action_code:
+        qs = qs.filter(action_code=action_code)
+    if actor_u:
+        qs = qs.filter(actor__username__icontains=actor_u)
+    if subject_q:
+        qs = qs.filter(
+            Q(subject_user__username__icontains=subject_q)
+            | Q(subject_user__email__icontains=subject_q)
+        )
+    if q:
+        qs = qs.filter(Q(summary__icontains=q) | Q(action_code__icontains=q))
+
+    if scoped:
+        from gestao_aprovacao.services.audit_scope import filter_audit_events_for_responsavel
+
+        qs = filter_audit_events_for_responsavel(request.user, qs)
+
+    export_params = {k: v for k, v in request.GET.items() if k != 'page' and v}
+    export_params['format'] = 'csv'
+    export_url = f"{reverse('central_audit_events')}?{urlencode(export_params)}"
+
+    csv_limit = 10_000
+    if (request.GET.get('format') or '').strip().lower() == 'csv':
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="auditoria_eventos.csv"'
+        response.write('\ufeff')
+        writer = csv.writer(response, delimiter=';')
+        writer.writerow(
+            [
+                'created_at',
+                'module',
+                'action_code',
+                'actor',
+                'subject_user',
+                'subject_user_id',
+                'summary',
+                'ip_address',
+                'user_agent',
+                'payload_json',
+            ]
+        )
+        for ev in qs[:csv_limit]:
+            writer.writerow(
+                [
+                    ev.created_at.strftime('%Y-%m-%d %H:%M:%S') if ev.created_at else '',
+                    ev.module,
+                    ev.action_code,
+                    ev.actor.get_username() if ev.actor_id else '',
+                    ev.subject_user.get_username() if ev.subject_user_id else '',
+                    ev.subject_user_id or '',
+                    (ev.summary or '').replace('\n', ' ').strip(),
+                    ev.ip_address or '',
+                    (ev.user_agent or '')[:200],
+                    json.dumps(ev.payload, ensure_ascii=False) if ev.payload else '',
+                ]
+            )
+        return response
+
+    try:
+        module_choices = list(
+            AuditEvent.objects.order_by('module').values_list('module', flat=True).distinct()[:50]
+        )
+    except Exception:
+        module_choices = []
+    module_choices = sorted(set(module_choices) | {'gestao', 'accounts'})
+
+    paginator = Paginator(qs, 50)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'page_obj': page_obj,
+        'date_from': date_from.isoformat(),
+        'date_to': date_to.isoformat(),
+        'module': module,
+        'module_choices': module_choices,
+        'action_code': action_code,
+        'action_code_choices': _audit_action_code_choices(),
+        'q': q,
+        'actor': actor_u,
+        'subject': subject_q,
+        'export_url': export_url,
+        'csv_limit': csv_limit,
+        'total_filtered': paginator.count,
+        'audit_scoped_mode': scoped,
+        'audit_full_access': full_access,
+        'use_gestao_governance_links': scoped,
+    }
+    return render(request, 'core/central_audit_events.html', context)
+
+
+@login_required
+@_audit_viewer_required
+def central_audit_event_detail(request, pk):
+    ev = get_object_or_404(
+        AuditEvent.objects.select_related('actor', 'subject_user'),
+        pk=pk,
+    )
+    full_access, scoped = _audit_access_mode(request)
+    if scoped:
+        from gestao_aprovacao.services.audit_scope import responsavel_may_view_audit_event
+
+        if not responsavel_may_view_audit_event(request.user, ev):
+            raise PermissionDenied('Este evento está fora do seu âmbito.')
+
+    use_gestao_links = scoped
+    try:
+        payload_pretty = json.dumps(ev.payload, ensure_ascii=False, indent=2, default=str)
+    except (TypeError, ValueError):
+        payload_pretty = str(ev.payload)
+
+    back_q = {k: v for k, v in request.GET.items() if k != 'page' and v}
+    list_url = f"{reverse('central_audit_events')}?{urlencode(back_q)}" if back_q else reverse('central_audit_events')
+
+    context = {
+        'event': ev,
+        'payload_pretty': payload_pretty,
+        'deep_links': _audit_event_deep_links(ev, use_gestao_user_links=use_gestao_links),
+        'audit_scoped_mode': scoped,
+        'audit_full_access': full_access,
+        'list_url': list_url,
+    }
+    return render(request, 'core/central_audit_event_detail.html', context)
+
+
 @login_required
 @_staff_required
 def central_diary_emails_view(request, project_id):
@@ -588,6 +826,16 @@ def central_signup_request_approve(request, pk):
         msg = resolve_message("central.signup.approve.failed")
         messages.error(request, f'{msg["text"]} Detalhe técnico: {exc}')
     else:
+        from accounts.audit_signup import record_signup_approved
+
+        record_signup_approved(
+            request,
+            request.user,
+            signup_request,
+            user,
+            selected_groups,
+            selected_projects,
+        )
         if signup_request.requested_by and signup_request.requested_by != request.user:
             try:
                 from gestao_aprovacao.utils import criar_notificacao
@@ -627,6 +875,10 @@ def central_signup_request_reject(request, pk):
     signup_request.save(
         update_fields=['status', 'approved_by', 'rejected_at', 'rejection_reason', 'updated_at']
     )
+
+    from accounts.audit_signup import record_signup_rejected
+
+    record_signup_rejected(request, request.user, signup_request, rejection_reason)
 
     if signup_request.email:
         site_url = (getattr(settings, 'SITE_URL', '') or '').rstrip('/') or '/'
@@ -953,6 +1205,28 @@ def central_diary_grant_provisional_edit(request, pk):
             granted_at=now,
             granted_by=request.user,
         )
+    from audit.action_codes import AuditAction
+    from audit.recording import record_audit_event
+
+    record_audit_event(
+        actor=request.user,
+        subject_user=diary.edit_requested_by,
+        action_code=AuditAction.DIARY_PROVISIONAL_EDIT_GRANTED,
+        summary=(
+            f'Edição provisória liberada — RDO nº {diary.report_number or diary.pk} '
+            f'({diary.project.code})'
+        ),
+        payload={
+            'schema': 'diary_provisional_edit_v1',
+            'entity': 'construction_diary',
+            'diary_id': diary.pk,
+            'project_id': diary.project_id,
+            'project_code': diary.project.code,
+            'report_number': diary.report_number,
+        },
+        module='core',
+        request=request,
+    )
     messages.success(
         request,
         f'Edição liberada para o relatório nº {diary.report_number or diary.pk} ({diary.project.code}).',

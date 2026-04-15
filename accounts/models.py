@@ -18,6 +18,16 @@ class UserLoginLog(models.Model):
         related_name='login_logs',
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        verbose_name='IP',
+    )
+    user_agent = models.CharField(
+        max_length=256,
+        blank=True,
+        verbose_name='User-Agent',
+    )
 
     class Meta:
         ordering = ['-created_at']

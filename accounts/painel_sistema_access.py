@@ -22,6 +22,22 @@ def user_is_painel_sistema_admin(user) -> bool:
     return user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists()
 
 
+def user_can_view_audit_events(user) -> bool:
+    """
+    Lista de auditoria na Central: administradores do painel (ou superuser) ou
+    Responsável Empresa (recorte por empresas sob sua responsabilidade).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user_is_painel_sistema_admin(user):
+        return True
+    if not user.groups.filter(name=GRUPOS.RESPONSAVEL_EMPRESA).exists():
+        return False
+    from gestao_aprovacao.models import Empresa
+
+    return Empresa.objects.filter(responsavel=user, ativo=True).exists()
+
+
 def user_can_central_obras_diario_e_mapa(user) -> bool:
     """
     Obras do Diário (/projects/), locais do mapa e fluxos equivalentes ao antigo

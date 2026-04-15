@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Auditoria{% endblock %}
+{% block page_subtitle %}Eventos registrados no sistema (governança e rastreabilidade){% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .audit-filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem; }
+    .audit-filters label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; font-weight: 600; color: #475569; }
+    .audit-filters input, .audit-filters select { border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 0.55rem; font-size: 0.875rem; min-width: 8rem; }
+    .audit-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+    .audit-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+    .audit-table th, .audit-table td { text-align: left; padding: 0.55rem 0.65rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .audit-table th { background: #f8fafc; color: #64748b; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .audit-meta { font-size: 0.75rem; color: #94a3b8; }
+    .audit-payload { max-width: 280px; max-height: 4.5rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 0.72rem; background: #f8fafc; padding: 0.35rem; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+    .audit-toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; justify-content: space-between; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    {% if audit_scoped_mode %}
+    <p class="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+        <strong>Âmbito restrito:</strong> só são listados eventos ligados às suas empresas (utilizadores vinculados, obras, projetos ou payloads com essas referências).
+    </p>
+    {% endif %}
+    <div class="audit-toolbar">
+        <p class="text-slate-600 text-sm m-0">{{ total_filtered }} evento(s) no período e filtros atuais. Exportação CSV limitada a {{ csv_limit }} linhas.</p>
+        <div class="flex gap-2 flex-wrap">
+            <a href="{{ export_url }}" class="btn btn-primary-cta">Exportar CSV</a>
+            <a href="{% url 'accounts:admin_central' %}" class="btn btn-secondary">Voltar ao painel</a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">
+        <form method="get" class="audit-filters">
+            <label>De
+                <input type="date" name="date_from" value="{{ date_from }}">
+            </label>
+            <label>Até
+                <input type="date" name="date_to" value="{{ date_to }}">
+            </label>
+            <label>Módulo
+                <select name="module">
+                    <option value="">Todos</option>
+                    {% for m in module_choices %}
+                    <option value="{{ m }}" {% if module == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Ação
+                <select name="action_code">
+                    <option value="">Todas</option>
+                    {% for ac in action_code_choices %}
+                    <option value="{{ ac }}" {% if action_code == ac %}selected{% endif %}>{{ ac }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Ator (username)
+                <input type="text" name="actor" value="{{ actor }}" placeholder="contém…" autocomplete="off">
+            </label>
+            <label>Usuário alvo
+                <input type="text" name="subject" value="{{ subject }}" placeholder="username ou e-mail" autocomplete="off">
+            </label>
+            <label>Texto livre
+                <input type="search" name="q" value="{{ q }}" placeholder="resumo ou código" autocomplete="off">
+            </label>
+            <button type="submit" class="btn btn-primary-cta">Filtrar</button>
+            <a href="{% url 'central_audit_events' %}" class="btn btn-secondary">Limpar</a>
+        </form>
+    </div>
+
+    <div class="audit-table-wrap">
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>Quando</th>
+                    <th>Módulo / ação</th>
+                    <th>Ator</th>
+                    <th>Alvo</th>
+                    <th>Resumo</th>
+                    <th>IP</th>
+                    <th>Detalhe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ev in page_obj %}
+                <tr>
+                    <td>{{ ev.created_at|date:"d/m/Y H:i:s" }}</td>
+                    <td>
+                        <strong>{{ ev.action_code }}</strong>
+                        <div class="audit-meta">{{ ev.module }}</div>
+                    </td>
+                    <td>{% if ev.actor %}{{ ev.actor.username }}{% else %}—{% endif %}</td>
+                    <td>
+                        {% if ev.subject_user %}
+                            {% if use_gestao_governance_links %}
+                            <a href="{% url 'gestao:user_governance' ev.subject_user.pk %}">{{ ev.subject_user.username }}</a>
+                            {% else %}
+                            <a href="{% url 'central_user_governance' ev.subject_user.pk %}">{{ ev.subject_user.username }}</a>
+                            {% endif %}
+                            <div class="audit-meta">{{ ev.subject_user.email|default:"" }}</div>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ ev.summary }}</td>
+                    <td class="audit-meta">{{ ev.ip_address|default:"—" }}</td>
+                    <td><a href="{% url 'central_audit_event_detail' ev.pk %}" class="btn btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;">Ver</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="p-6 text-center text-slate-500">Nenhum evento encontrado.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="flex items-center gap-3 mt-4 text-sm">
+        {% if page_obj.has_previous %}
+        <a class="btn btn-secondary" href="?date_from={{ date_from }}&date_to={{ date_to }}&module={{ module }}&action_code={{ action_code }}&actor={{ actor|urlencode }}&subject={{ subject|urlencode }}&q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+        {% endif %}
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="btn btn-secondary" href="?date_from={{ date_from }}&date_to={{ date_to }}&module={{ module }}&action_code={{ action_code }}&actor={{ actor|urlencode }}&subject={{ subject|urlencode }}&q={{ q|urlencode }}&page={{ page_obj.next_page_number }}">Próxima</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

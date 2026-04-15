@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'suprimentos',  # Mapa_Controle/suprimentos
     'assistente_lplan',
     'comunicados',
+    'audit',
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 

@@ -286,3 +286,13 @@
         padding-top: 0.65rem !important;
     }
 }
+
+/* Link para o painel de governança (username na listagem) */
+.list-users .user-governance-link {
+    color: var(--primary-color, #2563eb);
+    text-decoration: none;
+    font-weight: 600;
+}
+.list-users .user-governance-link:hover {
+    text-decoration: underline;
+}

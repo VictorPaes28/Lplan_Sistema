@@ -151,6 +151,19 @@
                             <span class="action-text">Gerenciar Empresas</span>
                         </a>
                         {% endif %}
+                        {% if pode_ver_auditoria %}
+                        <a href="{% url 'central_audit_events' %}" class="action-btn">
+                            <div class="action-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                </svg>
+                            </div>
+                            <span class="action-text">Auditoria</span>
+                        </a>
+                        {% endif %}
                         {% if is_admin %}
                         <a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="action-btn">
                             <div class="action-icon">
