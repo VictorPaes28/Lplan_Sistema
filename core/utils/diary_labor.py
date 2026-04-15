@@ -39,7 +39,6 @@ def build_labor_entries_by_category(diary: 'ConstructionDiary') -> Optional[Dict
             slug = e.cargo.category.slug
             cid = e.cargo_id
             qty = int(e.quantity or 0)
-            item_base = {'cargo_name': e.cargo.name, 'quantity': qty}
 
             if slug == 'terceirizada':
                 company = e.company or '(Sem empresa)'
