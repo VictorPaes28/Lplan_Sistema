@@ -12,6 +12,7 @@ from .models import (
     ProjectDiaryApprover,
     Activity,
     ConstructionDiary,
+    DiaryNoReportDay,
     DiaryApprovalHistory,
     DiaryImage,
     DailyWorkLog,
@@ -108,6 +109,15 @@ class ConstructionDiaryAdmin(admin.ModelAdmin):
     list_filter = ['status', 'date', 'project']
     search_fields = ['project__code', 'project__name', 'general_notes']
     readonly_fields = ['created_at', 'updated_at', 'approved_at', 'sent_to_owner_at']
+    date_hierarchy = 'date'
+
+
+@admin.register(DiaryNoReportDay)
+class DiaryNoReportDayAdmin(admin.ModelAdmin):
+    list_display = ['project', 'date', 'reason', 'created_by', 'created_at']
+    list_filter = ['reason', 'project', 'date']
+    search_fields = ['project__code', 'project__name', 'note']
+    readonly_fields = ['created_at', 'updated_at']
     date_hierarchy = 'date'
 
 

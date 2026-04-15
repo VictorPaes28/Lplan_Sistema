@@ -1,68 +1,42 @@
-{% if can_review_diaries %}
-<div class="mb-6 rounded-xl border border-blue-200 bg-blue-50/70 p-4">
-    <div class="flex items-center justify-between gap-3 mb-3">
-        <div>
-            <h2 class="text-base font-semibold text-slate-900">Fila de aprovação do RDO</h2>
-            <p class="text-sm text-slate-600">
-                {{ pending_approval_diaries|length }} relatório{{ pending_approval_diaries|length|pluralize }} aguardando decisão nesta obra.
-            </p>
-        </div>
-        <span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-            <i class="fas fa-user-check"></i> Aprovador
-        </span>
-    </div>
-    {% if pending_approval_diaries %}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {% for pending in pending_approval_diaries %}
-        <div class="bg-white border border-slate-200 rounded-lg p-3">
-            <div class="flex items-start justify-between gap-3 mb-2">
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">RDO #{{ pending.report_number|default:"-" }} - {{ pending.date|date:"d/m/Y" }}</p>
-                    <p class="text-xs text-slate-500">Criado por {{ pending.created_by.get_full_name|default:pending.created_by.username|default:"Usuário" }}</p>
-                </div>
-                <a href="{% url 'diary-detail' pending.id %}" class="text-xs text-blue-700 hover:text-blue-900 font-medium">
-                    Ver diário
-                </a>
+{% load core_tags %}
+<!-- Apenas o que o HTMX substitui em #report-list (fila de aprovação fica fora do alvo) -->
+<details class="report-list-collapsible report-list-collapsible--emphasis" id="report-list-main-collapsible" open>
+    <summary class="report-list-collapsible__summary flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden"
+             title="Clique para expandir ou recolher a lista de relatórios">
+        <div class="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+            <span class="report-list-collapsible__icon-wrap flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" aria-hidden="true">
+                <i class="fas fa-file-alt text-sm"></i>
+            </span>
+            <div class="min-w-0">
+                <span class="report-list-collapsible__title">Lista de relatórios</span>
+                <span class="report-list-collapsible__hint">RDOs e dias justificados (sem relatório) na mesma linha do tempo. Ordene por Data, N° ou Status.</span>
+                <span class="sr-only">Mostrar ou ocultar a lista de relatórios.</span>
             </div>
-            <form id="approval-form-{{ pending.id }}" method="post" action="{% url 'diary-review-decision' pending.id %}" class="flex items-center gap-2">
-                {% csrf_token %}
-                <input type="hidden" name="comment" id="approval-comment-{{ pending.id }}" value="">
-                <button type="button"
-                        onclick="submitApprovalDecision({{ pending.id }}, 'approve')"
-                        class="px-3 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 text-sm font-medium">
-                    <i class="fas fa-check mr-1"></i>Aprovar
-                </button>
-                <button type="button"
-                        onclick="submitApprovalDecision({{ pending.id }}, 'reject')"
-                        class="px-3 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 text-sm font-medium">
-                    <i class="fas fa-times mr-1"></i>Reprovar
-                </button>
-            </form>
         </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="bg-white border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-        Nenhum RDO aguardando aprovação no momento.
-    </div>
-    {% endif %}
-</div>
-{% endif %}
-
+        <div class="report-list-collapsible__actions flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
+            <span class="report-list-collapsible__count-badge tabular-nums">{% if report_list_total %}{% if report_list_page_obj.start_index %}{{ report_list_page_obj.start_index }}–{{ report_list_page_obj.end_index }}{% else %}0{% endif %} de {{ report_list_total }}{% else %}0{% endif %}</span>
+            <span class="report-list-collapsible__chev-wrap inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md" aria-hidden="true">
+                <i class="report-list-collapsible__chev fas fa-chevron-down"></i>
+            </span>
+        </div>
+    </summary>
+    <div class="report-list-collapsible__panel">
 <!-- Desktop: Tabela -->
-<div class="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+<div class="hidden md:block report-list-table-shell bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     <table class="min-w-full divide-y divide-slate-200 report-list-table">
-        <thead class="bg-slate-50">
+        <thead class="report-list-table__head">
             <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Data</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">N°</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Fotos</th>
-                <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Ações</th>
+                <th scope="col" class="report-list-table__th px-4 py-3 text-left">{% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.date label='Data' sort_col='date' %}</th>
+                <th scope="col" class="report-list-table__th px-4 py-3 text-left">{% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.report_number label='N°' sort_col='report_number' %}</th>
+                <th scope="col" class="report-list-table__th px-4 py-3 text-left">{% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.status label='Status' sort_col='status' %}</th>
+                <th scope="col" class="report-list-table__th px-4 py-3 text-left">Fotos</th>
+                <th scope="col" class="report-list-table__th report-list-table__actions-head py-3 text-right">Ações</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-slate-200">
-            {% for diary in diaries %}
+            {% for kind, row_obj in report_list_page_obj %}
+            {% if kind == 'diary' %}
+            {% with diary=row_obj %}
             <tr class="report-list-row hover:bg-slate-50 transition-colors cursor-pointer" onclick="window.location.href='{% url 'diary-detail' diary.id %}'">
                 <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex items-center gap-3">
@@ -83,29 +57,83 @@
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
                     <span class="inline-flex items-center gap-1 text-sm text-slate-600">
-                        <i class="fas fa-camera text-slate-400"></i>{{ diary.images.count }}
+                        <i class="fas fa-camera text-slate-400"></i>{{ diary.image_count }}
                     </span>
                 </td>
-                <td class="px-4 py-3 whitespace-nowrap text-right" onclick="event.stopPropagation();">
-                    <div class="flex items-center justify-end gap-1">
-                        <a href="{% url 'diary-pdf' diary.id %}" 
+                <td class="report-list-table__actions-cell py-3 whitespace-nowrap text-right align-middle" onclick="event.stopPropagation();">
+                    <div class="report-list-table__actions-inner">
+                        <a href="{% url 'diary-pdf' diary.id %}"
                            class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                            title="Baixar PDF" onclick="event.stopPropagation();"><i class="fas fa-file-pdf"></i></a>
                         <a href="{% url 'diary-pdf-reader' diary.id %}"
                            class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                            title="Modo leitura (PDF no navegador)" onclick="event.stopPropagation();"><i class="fas fa-book-reader"></i></a>
                         {% if diary|can_edit:user %}
-                        <a href="{% url 'diary-edit' diary.id %}" 
+                        <a href="{% url 'diary-edit' diary.id %}"
                            class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                            title="Editar" onclick="event.stopPropagation();"><i class="fas fa-edit"></i></a>
                         {% else %}
-                        <a href="{% url 'diary-detail' diary.id %}" 
+                        <a href="{% url 'diary-detail' diary.id %}"
                            class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                            title="Ver detalhes" onclick="event.stopPropagation();"><i class="fas fa-eye"></i></a>
                         {% endif %}
                     </div>
                 </td>
             </tr>
+            {% endwith %}
+            {% else %}
+            {% with j=row_obj %}
+            <tr class="report-list-row report-list-row--no-rdo hover:bg-slate-50/90">
+                <td class="px-4 py-3 whitespace-nowrap">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-500">
+                            <i class="fas fa-calendar-day text-slate-600 text-xs" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ j.date|date:"d/m/Y" }}</p>
+                            <p class="text-xs text-slate-500">{{ j.date|date:"l"|capfirst }} · <span class="text-slate-400">sem RDO</span></p>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-50 text-slate-400 border border-slate-100 tabular-nums">—</span>
+                </td>
+                <td class="px-4 py-3 min-w-0 max-w-md">
+                    <div class="flex items-center gap-2 min-w-0">
+                        {% if j.reason == 'FE' %}
+                        <span class="report-status report-status--nr-holiday shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i>{{ j.get_reason_display }}</span>
+                        {% elif j.reason == 'FS' %}
+                        <span class="report-status report-status--nr-weekend shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i>{{ j.get_reason_display }}</span>
+                        {% else %}
+                        <span class="report-status report-status--nr-idle shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i>{{ j.get_reason_display }}</span>
+                        {% endif %}
+                        {% if j.note %}
+                        <span class="text-xs text-slate-500 truncate min-w-0" title="{{ j.note }}">{{ j.note }}</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1 text-sm text-slate-400">
+                        <i class="fas fa-camera text-slate-300" aria-hidden="true"></i>0
+                    </span>
+                </td>
+                <td class="report-list-table__actions-cell py-3 whitespace-nowrap text-right align-middle">
+                    <div class="report-list-table__actions-inner">
+                        {% if user.is_superuser or j.created_by_id == user.id %}
+                        <form method="post" action="{% url 'diary-no-report-day-delete' j.pk %}" class="inline-flex m-0" onsubmit="return confirm('Remover esta justificativa?');">
+                            {% csrf_token %}
+                            <button type="submit" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover justificativa" aria-label="Remover justificativa de {{ j.date|date:'d/m/Y' }}">
+                                <i class="fas fa-trash-can text-sm" aria-hidden="true"></i>
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="inline-flex p-2 text-slate-200" title="Apenas quem registou pode remover"><i class="fas fa-trash-can text-sm opacity-40" aria-hidden="true"></i></span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endwith %}
+            {% endif %}
             {% empty %}
             <tr>
                 <td colspan="5" class="px-6 py-16">
@@ -121,12 +149,33 @@
             </tr>
             {% endfor %}
         </tbody>
+        {% if report_list_paginator.num_pages > 1 %}
+        <tfoot>
+            <tr>
+                <td colspan="5" class="report-list-table__foot">
+                    {% include 'core/report_list_pagination.html' %}
+                </td>
+            </tr>
+        </tfoot>
+        {% endif %}
     </table>
+</div>
+
+<!-- Mobile: ordenação rápida -->
+<div class="report-list-sort-bar md:hidden">
+    <span class="report-list-sort-bar__label">Ordenar</span>
+    <div class="report-list-sort-bar__chips">
+        {% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.date label='Data' sort_col='date' extra_class='report-list-sort-bar__chip' %}
+        {% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.report_number label='N°' sort_col='report_number' extra_class='report-list-sort-bar__chip' %}
+        {% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.status label='Status' sort_col='status' extra_class='report-list-sort-bar__chip' %}
+    </div>
 </div>
 
 <!-- Mobile: Cards -->
 <div class="block md:hidden space-y-3">
-    {% for diary in diaries %}
+    {% for kind, row_obj in report_list_page_obj %}
+    {% if kind == 'diary' %}
+    {% with diary=row_obj %}
     <a href="{% url 'diary-detail' diary.id %}" class="block bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md hover:border-slate-300 transition-all">
         <div class="p-4">
             <div class="flex items-start justify-between gap-3 mb-3">
@@ -136,7 +185,7 @@
                     </div>
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-900">{{ diary.date|date:"d/m/Y" }}</p>
-                        <p class="text-xs text-slate-500">N° {{ diary.report_number|default:"-" }} · {{ diary.images.count }} foto{{ diary.images.count|pluralize }}</p>
+                        <p class="text-xs text-slate-500">N° {{ diary.report_number|default:"-" }} · {{ diary.image_count }} foto{{ diary.image_count|pluralize }}</p>
                     </div>
                 </div>
                 <span class="report-status {{ diary|report_status_css }} flex-shrink-0" style="{{ diary|report_status_style }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
@@ -152,6 +201,46 @@
             </div>
         </div>
     </a>
+    {% endwith %}
+    {% else %}
+    {% with j=row_obj %}
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div class="p-4">
+            <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-500">
+                        <i class="fas fa-calendar-day text-slate-600" aria-hidden="true"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-slate-900">{{ j.date|date:"d/m/Y" }}</p>
+                        <p class="text-xs text-slate-500">Sem RDO · <span class="tabular-nums">0</span> fotos</p>
+                    </div>
+                </div>
+                {% if j.reason == 'FE' %}
+                <span class="report-status report-status--nr-holiday flex-shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i>{{ j.get_reason_display }}</span>
+                {% elif j.reason == 'FS' %}
+                <span class="report-status report-status--nr-weekend flex-shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i>{{ j.get_reason_display }}</span>
+                {% else %}
+                <span class="report-status report-status--nr-idle flex-shrink-0"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i>{{ j.get_reason_display }}</span>
+                {% endif %}
+            </div>
+            {% if j.note %}
+            <p class="text-xs text-slate-500 mb-3 pl-[3.25rem]">{{ j.note }}</p>
+            {% endif %}
+            {% if user.is_superuser or j.created_by_id == user.id %}
+            <div class="flex items-center gap-2 pt-3 border-t border-slate-100">
+                <form method="post" action="{% url 'diary-no-report-day-delete' j.pk %}" class="flex-1 m-0" onsubmit="return confirm('Remover esta justificativa?');">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full py-2 text-center text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 border border-slate-200">
+                        <i class="fas fa-trash-can mr-1.5" aria-hidden="true"></i>Remover
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endwith %}
+    {% endif %}
     {% empty %}
     <div class="bg-white rounded-xl border border-slate-200 p-10 text-center">
         <div class="empty-state-container">
@@ -165,3 +254,10 @@
     </div>
     {% endfor %}
 </div>
+{% if report_list_paginator.num_pages > 1 %}
+<div class="md:hidden report-list-table-shell__foot">
+    {% include 'core/report_list_pagination.html' %}
+</div>
+{% endif %}
+</div>
+</details>

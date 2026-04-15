@@ -7,7 +7,7 @@ Dispara ações automáticas quando modelos são criados/atualizados:
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 import logging
-from .models import DailyWorkLog
+from .models import DailyWorkLog, ConstructionDiary, DiaryNoReportDay
 from .services import ProgressService
 
 logger = logging.getLogger(__name__)
@@ -47,4 +47,21 @@ def update_progress_on_worklog_delete(sender, instance, **kwargs):
     except Exception as e:
         # Log do erro mas não interrompe o delete
         logger.error(f"Erro ao atualizar progresso após deleção de worklog {instance.id}: {e}", exc_info=True)
+
+
+@receiver(post_save, sender=ConstructionDiary)
+def remove_no_report_day_when_diary_saved(sender, instance, **kwargs):
+    """Se existir justificativa de dia sem RDO para a mesma obra/data, remove ao criar/editar o diário."""
+    try:
+        DiaryNoReportDay.objects.filter(
+            project_id=instance.project_id,
+            date=instance.date,
+        ).delete()
+    except Exception as e:
+        logger.warning(
+            'remove_no_report_day_when_diary_saved: diary=%s err=%s',
+            getattr(instance, 'pk', None),
+            e,
+            exc_info=True,
+        )
 

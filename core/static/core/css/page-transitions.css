@@ -1,0 +1,624 @@
+/**
+ * Transições globais: entrada da área principal, barra de topo ao navegar,
+ * e micro-transição em swaps HTMX.
+ */
+
+/* --------------------------------------------------------------------------
+   Entrada da página (área principal + top bar dentro do wrapper)
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+    /* Só "forwards": evita fill backwards (opacity 0) antes do 1º frame se o CSS atrasar */
+    .main-content-wrapper {
+        animation: lplan-main-enter 0.44s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes lplan-main-enter {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Barra de progresso no topo (feedback em navegação full-page)
+   -------------------------------------------------------------------------- */
+.lplan-nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 10050;
+    pointer-events: none;
+    overflow: hidden;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.22s ease;
+}
+
+.lplan-nav-progress.is-active {
+    opacity: 1;
+}
+
+.lplan-nav-progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    border-radius: 0 2px 2px 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(59, 130, 246, 0.15),
+        #3b82f6,
+        #6366f1,
+        rgba(99, 102, 241, 0.15),
+        transparent
+    );
+    animation: lplan-nav-progress-move 0.95s ease-in-out infinite;
+}
+
+@keyframes lplan-nav-progress-move {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(350%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lplan-nav-progress::after {
+        animation: none;
+        left: 0;
+        width: 100%;
+        opacity: 0.85;
+    }
+}
+
+html[data-theme='dark'] .lplan-nav-progress::after {
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(96, 165, 250, 0.2),
+        #60a5fa,
+        #818cf8,
+        rgba(129, 140, 248, 0.2),
+        transparent
+    );
+}
+
+/* --------------------------------------------------------------------------
+   HTMX: conteúdo recém-trocado
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+    .lplan-swap-enter {
+        animation: lplanSwapIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes lplanSwapIn {
+        from {
+            opacity: 0.72;
+            transform: translateY(6px);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Modal “dia sem RDO” (dashboard): o nó é criado em JS e anexado ao body só ao
+   abrir. Não use visibility:hidden no overlay com filhos visibility:visible —
+   o fundo some e o painel continua visível sobre o calendário.
+   -------------------------------------------------------------------------- */
+#modal-missing-day[hidden] {
+    display: none !important;
+}
+
+/* id + classe: especificidade acima de regras genéricas que possam mexer em div {} */
+#modal-missing-day.modal-missing-day-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    margin: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#modal-missing-day.modal-missing-day-overlay.modal-missing-day--open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-missing-day-panel {
+    width: 100%;
+    max-width: 26.5rem;
+    max-height: min(90vh, 640px);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow:
+        0 25px 50px -12px rgba(15, 23, 42, 0.18),
+        0 0 0 1px rgba(15, 23, 42, 0.05);
+    transform: scale(0.94) translateY(16px);
+    opacity: 0;
+    transition:
+        transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#modal-missing-day.modal-missing-day-overlay.modal-missing-day--open .modal-missing-day-panel {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+}
+
+.modal-missing-day-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.125rem 1.25rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-missing-day-title {
+    margin: 0 0 0.35rem 0;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+}
+
+.modal-missing-day-subtitle {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.modal-missing-day-close {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.85);
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+
+.modal-missing-day-close:hover {
+    background: #fff;
+    color: #0f172a;
+}
+
+.modal-missing-day-close:active {
+    transform: scale(0.96);
+}
+
+.modal-missing-day-body {
+    padding: 1.25rem 1.25rem 1.35rem;
+}
+
+.modal-missing-day-hint {
+    margin: 0 0 1rem 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+    line-height: 1.45;
+}
+
+/* Passo oculto não empurra altura do painel (evita modal gigante) */
+.missing-day-steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    position: relative;
+    align-items: start;
+}
+
+.missing-day-step {
+    grid-area: 1 / 1;
+    min-width: 0;
+    transition:
+        opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0.2s linear;
+}
+
+.missing-day-step--hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    width: 100%;
+    transform: translateY(8px) scale(0.985);
+    z-index: 0;
+}
+
+.missing-day-step--visible {
+    opacity: 1;
+    visibility: visible;
+    position: relative;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+    z-index: 1;
+}
+
+.missing-day-opt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.missing-day-opt-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    width: 100%;
+    margin: 0;
+    padding: 0.9rem 1rem;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: #0f172a;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #fafafa;
+    cursor: pointer;
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.22s ease,
+        transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.missing-day-opt-btn:hover {
+    border-color: #cbd5e1;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
+    transform: translateY(-1px);
+}
+
+.missing-day-opt-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.missing-day-opt-btn__icon {
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.625rem;
+    font-size: 1rem;
+}
+
+.missing-day-opt-btn--primary .missing-day-opt-btn__icon {
+    background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1d4ed8;
+}
+
+.missing-day-opt-btn--secondary .missing-day-opt-btn__icon {
+    background: linear-gradient(145deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
+}
+
+.missing-day-opt-btn--primary {
+    border-color: #bfdbfe;
+    background: linear-gradient(180deg, #fff 0%, #eff6ff 100%);
+}
+
+.missing-day-opt-btn--secondary {
+    border-color: #a7f3d0;
+    background: linear-gradient(180deg, #fff 0%, #ecfdf5 100%);
+}
+
+.missing-day-opt-btn__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.missing-day-opt-btn__label {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.missing-day-opt-btn__desc {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #64748b;
+}
+
+.missing-day-form-hint {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.45;
+}
+
+.missing-day-link-rdo {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #2563eb;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.missing-day-link-rdo:hover {
+    color: #1d4ed8;
+}
+
+.missing-day-reason-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0 0 0.85rem 0;
+}
+
+.missing-day-reason-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0;
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.missing-day-reason-item:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.missing-day-reason-item:has(input:checked) {
+    border-color: #10b981;
+    background: #ecfdf5;
+}
+
+.missing-day-reason-item input {
+    accent-color: #059669;
+}
+
+.missing-day-reason-item span {
+    font-size: 0.8125rem;
+    color: #1e293b;
+}
+
+.missing-day-field-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #475569;
+}
+
+.missing-day-field-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.8125rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.missing-day-field-input:focus {
+    outline: none;
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.missing-day-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.missing-day-btn-ghost {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: #475569;
+    background: transparent;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.missing-day-btn-ghost:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.missing-day-btn-submit {
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: linear-gradient(180deg, #059669 0%, #047857 100%);
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(5, 150, 105, 0.25);
+    transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.missing-day-btn-submit:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+}
+
+.missing-day-btn-submit:active {
+    transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #modal-missing-day.modal-missing-day-overlay,
+    .modal-missing-day-panel,
+    .missing-day-step,
+    .missing-day-opt-btn,
+    .missing-day-btn-submit {
+        transition: none !important;
+    }
+
+    #modal-missing-day.modal-missing-day-overlay.modal-missing-day--open .modal-missing-day-panel {
+        transform: none;
+    }
+
+    .missing-day-step--hidden {
+        transform: none;
+    }
+}
+
+html[data-theme='dark'] .modal-missing-day-panel {
+    background: #1e293b;
+    box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(148, 163, 184, 0.12);
+}
+
+html[data-theme='dark'] .modal-missing-day-header {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border-bottom-color: #334155;
+}
+
+html[data-theme='dark'] .modal-missing-day-title {
+    color: #f8fafc;
+}
+
+html[data-theme='dark'] .modal-missing-day-subtitle,
+html[data-theme='dark'] .modal-missing-day-hint,
+html[data-theme='dark'] .missing-day-form-hint {
+    color: #94a3b8;
+}
+
+html[data-theme='dark'] .missing-day-link-rdo {
+    color: #60a5fa;
+}
+
+html[data-theme='dark'] .missing-day-link-rdo:hover {
+    color: #93c5fd;
+}
+
+html[data-theme='dark'] .modal-missing-day-close {
+    background: rgba(30, 41, 59, 0.9);
+    color: #94a3b8;
+}
+
+html[data-theme='dark'] .modal-missing-day-close:hover {
+    background: #334155;
+    color: #f8fafc;
+}
+
+html[data-theme='dark'] .missing-day-opt-btn {
+    background: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+html[data-theme='dark'] .missing-day-opt-btn:hover {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+html[data-theme='dark'] .missing-day-opt-btn__label {
+    color: #f8fafc;
+}
+
+html[data-theme='dark'] .missing-day-opt-btn__desc {
+    color: #94a3b8;
+}
+
+html[data-theme='dark'] .missing-day-opt-btn--primary {
+    border-color: #1e40af;
+    background: linear-gradient(180deg, #1e293b 0%, #172554 100%);
+}
+
+html[data-theme='dark'] .missing-day-opt-btn--secondary {
+    border-color: #047857;
+    background: linear-gradient(180deg, #1e293b 0%, #064e3b 100%);
+}
+
+html[data-theme='dark'] .missing-day-reason-item {
+    border-color: #334155;
+    background: #0f172a;
+}
+
+html[data-theme='dark'] .missing-day-reason-item:hover {
+    background: #1e293b;
+}
+
+html[data-theme='dark'] .missing-day-reason-item:has(input:checked) {
+    border-color: #10b981;
+    background: rgba(6, 78, 59, 0.35);
+}
+
+html[data-theme='dark'] .missing-day-reason-item span {
+    color: #e2e8f0;
+}
+
+html[data-theme='dark'] .missing-day-field-input {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+html[data-theme='dark'] .missing-day-footer {
+    border-top-color: #334155;
+}
+
+html[data-theme='dark'] .missing-day-btn-ghost {
+    color: #cbd5e1;
+    border-color: #475569;
+}
+
+html[data-theme='dark'] .missing-day-btn-ghost:hover {
+    background: #334155;
+}

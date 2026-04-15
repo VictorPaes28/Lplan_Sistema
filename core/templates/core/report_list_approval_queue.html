@@ -1,0 +1,58 @@
+{% if can_review_diaries %}
+<details class="report-list-approval">
+    <summary class="report-list-approval__summary flex flex-wrap items-center justify-between gap-2 sm:gap-3 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden"
+             title="Clique para expandir ou recolher a fila de aprovação">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <span class="report-list-approval__icon" aria-hidden="true">
+                <i class="fas fa-user-check text-xs"></i>
+            </span>
+            <div class="min-w-0">
+                <span class="report-list-approval__title">Fila de aprovação do RDO</span>
+                <span class="report-list-approval__hint">Decisões pendentes nesta obra.</span>
+                <span class="sr-only">Mostrar ou ocultar a fila de aprovação.</span>
+            </div>
+        </div>
+        <div class="report-list-approval__actions flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
+            <span class="report-list-approval__badge tabular-nums">{{ pending_approval_diaries|length }} pendente{{ pending_approval_diaries|length|pluralize }}</span>
+            <span class="report-list-approval__chev-wrap" aria-hidden="true">
+                <i class="report-list-approval__chev fas fa-chevron-down"></i>
+            </span>
+        </div>
+    </summary>
+    <div class="report-list-approval__body">
+        {% if pending_approval_diaries %}
+        <div class="report-list-approval__grid">
+            {% for pending in pending_approval_diaries %}
+            <div class="report-list-approval__card">
+                <div class="report-list-approval__card-head">
+                    <div>
+                        <p class="report-list-approval__card-title">RDO #{{ pending.report_number|default:"-" }} · {{ pending.date|date:"d/m/Y" }}</p>
+                        <p class="report-list-approval__card-meta">Criado por {{ pending.created_by.get_full_name|default:pending.created_by.username|default:"Usuário" }}</p>
+                    </div>
+                    <a href="{% url 'diary-detail' pending.id %}" class="report-list-approval__link">
+                        Ver diário
+                    </a>
+                </div>
+                <form id="approval-form-{{ pending.id }}" method="post" action="{% url 'diary-review-decision' pending.id %}" class="report-list-approval__form">
+                    {% csrf_token %}
+                    <input type="hidden" name="comment" id="approval-comment-{{ pending.id }}" value="">
+                    <button type="button"
+                            onclick="submitApprovalDecision({{ pending.id }}, 'approve')"
+                            class="report-list-approval__btn report-list-approval__btn--approve">
+                        <i class="fas fa-check" aria-hidden="true"></i>Aprovar
+                    </button>
+                    <button type="button"
+                            onclick="submitApprovalDecision({{ pending.id }}, 'reject')"
+                            class="report-list-approval__btn report-list-approval__btn--reject">
+                        <i class="fas fa-times" aria-hidden="true"></i>Reprovar
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="report-list-approval__empty">Nenhum RDO aguardando aprovação no momento.</p>
+        {% endif %}
+    </div>
+</details>
+{% endif %}

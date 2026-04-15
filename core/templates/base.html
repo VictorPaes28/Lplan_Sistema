@@ -12,13 +12,15 @@
     
     <!-- Custom CSS - Tailwind Utilities Replacement -->
     {% load core_tags %}
-    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}">
-    <link rel="stylesheet" href="{% static 'core/css/base.css' %}">
-    <link rel="stylesheet" href="{% static 'core/css/alpine-fixes.css' %}">
-    <link rel="stylesheet" href="{% static 'core/css/ux-improvements.css' %}">
-    <link rel="stylesheet" href="{% static 'core/css/video-fixes.css' %}">
-    <link rel="stylesheet" href="{% static 'core/css/filters.css' %}">
-    <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}">
+    {% if debug %}{% now "U" as lplan_static_cb %}{% endif %}
+    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/base.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/alpine-fixes.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/ux-improvements.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/video-fixes.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/filters.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/page-transitions.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -89,6 +91,8 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-slate-50">
+    <!-- Feedback visual em navegação (full page); ver page-transitions.css / .js -->
+    <div id="lplan-nav-progress" class="lplan-nav-progress" hidden aria-hidden="true"></div>
     <!-- Mobile Topbar -->
     <div id="mobile-app-header" class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
         <button id="mobile-sidebar-toggle" type="button" class="mobile-menu-btn text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-800 rounded-lg transition-colors" style="position:relative;" aria-label="Abrir menu de navegação" aria-expanded="false">
@@ -395,12 +399,14 @@
             <!-- Top Bar - Primeiro elemento, no topo -->
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
                 <div class="flex flex-col gap-1">
+                    {% block top_bar_back %}
                     <a href="{% block back_url %}#{% endblock %}" id="top-bar-back-link"
                        class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 -ml-1 transition-all duration-200"
                        aria-label="Voltar">
                         <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
                         <span>Voltar</span>
                     </a>
+                    {% endblock %}
                     <h2 class="top-bar-title">{% block page_title %}Dashboard{% endblock %}</h2>
                     <p class="top-bar-subtitle">{% block page_subtitle %}Visão geral do sistema{% endblock %}</p>
                 </div>
@@ -606,10 +612,11 @@
     <!-- Scripts - Carregados no final do body para melhor performance -->
     <!-- Accordion Manager - Sistema robusto de seções expansíveis -->
     {% load static %}
-    <script src="{% static 'core/js/accordion.js' %}"></script>
+    <script src="{% static 'core/js/accordion.js' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}"></script>
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="{% static 'core/js/page-transitions.js' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}"></script>
     
     <!-- Flatpickr JS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

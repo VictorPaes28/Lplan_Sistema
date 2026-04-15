@@ -140,6 +140,10 @@
                     <i class="fas fa-user-clock" aria-hidden="true"></i>
                     Aguardando aprovação
                 </span>
+                <span class="dashboard-legend-item dashboard-legend-justified">
+                    <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                    Sem RDO (justif.)
+                </span>
             </div>
         </div>
         <div class="dashboard-calendar-wrapper">
@@ -400,6 +404,9 @@
 
 {% endblock %}
 
+{# Modal “dia sem RDO” é criado só em JS no clique — evita vazamento no layout e bug de visibility nos passos #}
+{% block page_modals %}{% endblock %}
+
 {% block extra_js %}
 <!-- FullCalendar JS -->
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.js"></script>
@@ -409,9 +416,332 @@
 // URLs base geradas pelo Django (evita hardcode)
 const DIARY_DETAIL_URL = "{% url 'diary-detail' 0 %}".replace('/0/', '/{id}/');
 const DIARY_NEW_URL = "{% url 'diary-new' %}";
+const REPORT_LIST_URL = "{% url 'report-list' %}";
+const MISSING_DAY_CREATE_URL = "{% url 'diary-no-report-day-create' %}";
+const MISSING_DAY_CSRF = "{{ csrf_token }}";
+const MISSING_DAY_REASONS = [
+    {% for val, label in no_report_reasons %}
+    { value: "{{ val|escapejs }}", label: "{{ label|escapejs }}" }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+var _missingDayModalEl = null;
+var _missingDayEscapeHandler = null;
+var _missingDayModalRemovalTimer = null;
+var _dashboardCalendar = null;
+
+function _escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function _escAttr(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;');
+}
+
+function _detachMissingDayModalListeners() {
+    if (_missingDayEscapeHandler) {
+        document.removeEventListener('keydown', _missingDayEscapeHandler);
+        _missingDayEscapeHandler = null;
+    }
+}
+
+function _forceRemoveMissingDayModal() {
+    _detachMissingDayModalListeners();
+    if (_missingDayModalRemovalTimer) {
+        clearTimeout(_missingDayModalRemovalTimer);
+        _missingDayModalRemovalTimer = null;
+    }
+    var stale = _missingDayModalEl || document.getElementById('modal-missing-day');
+    _missingDayModalEl = null;
+    if (!stale) return;
+    if (stale.parentNode) stale.parentNode.removeChild(stale);
+}
+
+var _justifiedDetailEscapeHandler = null;
+
+function _forceRemoveJustifiedDetailModal() {
+    if (_justifiedDetailEscapeHandler) {
+        document.removeEventListener('keydown', _justifiedDetailEscapeHandler);
+        _justifiedDetailEscapeHandler = null;
+    }
+    var el = document.getElementById('modal-justified-detail');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function openJustifiedDetailModal(dateStr, reasonLabel, note) {
+    _forceRemoveMissingDayModal();
+    _forceRemoveJustifiedDetailModal();
+    var wrap = document.createElement('div');
+    wrap.id = 'modal-justified-detail';
+    wrap.className = 'lplan-justified-detail-overlay';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-labelledby', 'lplan-justified-detail-title');
+    wrap.addEventListener('click', function(e) {
+        if (e.target === wrap) _forceRemoveJustifiedDetailModal();
+    });
+    var noteHtml = note
+        ? '<p class="lplan-justified-detail__note"><span class="lplan-justified-detail__k">Observação</span><span class="lplan-justified-detail__v">' + _escHtml(note) + '</span></p>'
+        : '';
+    var rdoHref = DIARY_NEW_URL + (dateStr ? ('?date=' + encodeURIComponent(dateStr)) : '');
+    wrap.innerHTML =
+        '<div class="lplan-justified-detail__panel" onclick="event.stopPropagation()">' +
+        '<div class="lplan-justified-detail__hdr">' +
+        '<div><h3 id="lplan-justified-detail-title" class="lplan-justified-detail__title">Dia sem relatório (justificado)</h3>' +
+        '<p class="lplan-justified-detail__sub">' + _escHtml(_formatMissingDaySubtitle(dateStr)) + '</p></div>' +
+        '<button type="button" class="lplan-justified-detail__close" aria-label="Fechar"><i class="fas fa-times" aria-hidden="true"></i></button></div>' +
+        '<div class="lplan-justified-detail__body">' +
+        '<p class="lplan-justified-detail__reason"><span class="lplan-justified-detail__k">Motivo</span>' +
+        '<span class="lplan-justified-detail__v">' + _escHtml(reasonLabel || '—') + '</span></p>' +
+        noteHtml +
+        '<p class="lplan-justified-detail__hint">É possível criar o RDO para qualquer dia da semana, inclusive sábado e domingo. Ao guardar o relatório, a justificativa deste dia deixa de aplicar-se.</p>' +
+        '<div class="lplan-justified-detail__actions">' +
+        '<button type="button" class="lplan-justified-detail__btn lplan-justified-detail__btn--ghost">Fechar</button>' +
+        '<a href="' + _escAttr(REPORT_LIST_URL) + '" class="lplan-justified-detail__btn lplan-justified-detail__btn--primary">Ver relatórios</a>' +
+        '<a href="' + _escAttr(rdoHref) + '" class="lplan-justified-detail__btn lplan-justified-detail__btn--cta">Preencher RDO neste dia</a></div></div></div>';
+    var close = function() { _forceRemoveJustifiedDetailModal(); };
+    wrap.querySelector('.lplan-justified-detail__close').addEventListener('click', close);
+    wrap.querySelector('.lplan-justified-detail__btn--ghost').addEventListener('click', close);
+    document.body.appendChild(wrap);
+    _justifiedDetailEscapeHandler = function(e) {
+        if (e.key === 'Escape') _forceRemoveJustifiedDetailModal();
+    };
+    document.addEventListener('keydown', _justifiedDetailEscapeHandler);
+    requestAnimationFrame(function() {
+        _focusNoScroll(wrap.querySelector('.lplan-justified-detail__close'));
+    });
+}
+
+function _missingDayDateStrFromEvent(info) {
+    // Preferir startStr (YYYY-MM-DD em eventos allDay): evita deslocamento UTC vs calendário local.
+    var ss = info.event.startStr;
+    if (typeof ss === 'string' && ss.length >= 10) {
+        return ss.slice(0, 10);
+    }
+    const eventDate = info.event.start;
+    if (eventDate instanceof Date) {
+        const y = eventDate.getFullYear();
+        const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const d = String(eventDate.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+    }
+    return String(eventDate).split('T')[0];
+}
+
+function _formatMissingDaySubtitle(dateStr) {
+    var parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    var months = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+    var d = parseInt(parts[2], 10);
+    var m = parseInt(parts[1], 10) - 1;
+    if (m < 0 || m > 11) return dateStr;
+    return d + ' de ' + months[m] + ' de ' + parts[0];
+}
+
+function _focusNoScroll(el) {
+    if (!el || typeof el.focus !== 'function') return;
+    try {
+        el.focus({ preventScroll: true });
+    } catch (e) {
+        el.focus();
+    }
+}
+
+function _resetMissingDaySteps(modal) {
+    if (!modal) return;
+    var choice = modal.querySelector('#missing-day-step-choice');
+    var justify = modal.querySelector('#missing-day-step-justify');
+    if (choice && justify) {
+        choice.classList.add('missing-day-step--visible');
+        choice.classList.remove('missing-day-step--hidden');
+        justify.classList.add('missing-day-step--hidden');
+        justify.classList.remove('missing-day-step--visible');
+    }
+}
+
+function _buildMissingDayModal() {
+    var wrap = document.createElement('div');
+    wrap.id = 'modal-missing-day';
+    wrap.className = 'modal-missing-day-overlay';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-labelledby', 'modal-missing-day-title');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.addEventListener('click', function(e) {
+        if (e.target === wrap) closeMissingDayModal();
+    });
+
+    var reasonsHtml = '';
+    for (var i = 0; i < MISSING_DAY_REASONS.length; i++) {
+        var r = MISSING_DAY_REASONS[i];
+        var chk = i === 0 ? ' checked' : '';
+        reasonsHtml += '<label class="missing-day-reason-item"><input type="radio" name="reason" value="' +
+            _escAttr(r.value) + '"' + chk + ' required><span>' + _escHtml(r.label) + '</span></label>';
+    }
+
+    wrap.innerHTML =
+        '<div class="modal-missing-day-panel" data-lplan-missing-day-panel>' +
+        '<div class="modal-missing-day-header">' +
+        '<div class="modal-missing-day-header-text">' +
+        '<h3 id="modal-missing-day-title" class="modal-missing-day-title">Sem relatório neste dia</h3>' +
+        '<p id="modal-missing-day-subtitle" class="modal-missing-day-subtitle" aria-live="polite"></p></div>' +
+        '<button type="button" class="modal-missing-day-close" data-lplan-missing-day-close aria-label="Fechar">' +
+        '<i class="fas fa-times" aria-hidden="true"></i></button></div>' +
+        '<div class="modal-missing-day-body"><div class="missing-day-steps">' +
+        '<div id="missing-day-step-choice" class="missing-day-step missing-day-step--visible">' +
+        '<p class="modal-missing-day-hint">Escolha como quer registrar esta data na obra.</p>' +
+        '<div class="missing-day-opt-list">' +
+        '<button type="button" id="missing-day-btn-fill" class="missing-day-opt-btn missing-day-opt-btn--primary">' +
+        '<span class="missing-day-opt-btn__icon" aria-hidden="true"><i class="fas fa-file-alt"></i></span>' +
+        '<span class="missing-day-opt-btn__text"><span class="missing-day-opt-btn__label">Preencher relatório completo</span>' +
+        '<span class="missing-day-opt-btn__desc">Abre o formulário do RDO com a data já selecionada</span></span></button>' +
+        '<button type="button" id="missing-day-btn-justify" class="missing-day-opt-btn missing-day-opt-btn--secondary">' +
+        '<span class="missing-day-opt-btn__icon" aria-hidden="true"><i class="fas fa-calendar-minus"></i></span>' +
+        '<span class="missing-day-opt-btn__text"><span class="missing-day-opt-btn__label">Só justificar o dia</span>' +
+        '<span class="missing-day-opt-btn__desc">Feriado, fim de semana ou obra sem atividade</span></span></button>' +
+        '</div></div>' +
+        '<div id="missing-day-step-justify" class="missing-day-step missing-day-step--hidden">' +
+        '<p class="missing-day-form-hint" style="margin-bottom:0.75rem"><button type="button" id="missing-day-btn-switch-to-rdo" class="missing-day-link-rdo">Abrir formulário do RDO completo para esta data</button> <span style="color:#94a3b8;font-weight:400">(substitui a justificativa ao guardar)</span></p>' +
+        '<form method="post" action="' + _escAttr(MISSING_DAY_CREATE_URL) + '">' +
+        '<input type="hidden" name="csrfmiddlewaretoken" value="' + _escAttr(MISSING_DAY_CSRF) + '">' +
+        '<input type="hidden" name="return_to" value="dashboard">' +
+        '<input type="hidden" name="date" id="missing-day-justify-date" value="">' +
+        '<p class="missing-day-form-hint">Registro rápido — não substitui um RDO completo quando houver obra em andamento.</p>' +
+        '<fieldset class="border-0 p-0 m-0"><legend class="missing-day-field-label">Motivo</legend>' +
+        '<div class="missing-day-reason-list">' + reasonsHtml + '</div></fieldset>' +
+        '<div><label for="missing-day-justify-note" class="missing-day-field-label">Observação <span style="font-weight:400;color:#94a3b8;">(opcional)</span></label>' +
+        '<input type="text" name="note" id="missing-day-justify-note" maxlength="300" class="missing-day-field-input" placeholder="Ex.: Feriado municipal"></div>' +
+        '<div class="missing-day-footer">' +
+        '<button type="button" id="missing-day-btn-back" class="missing-day-btn-ghost">Voltar</button>' +
+        '<button type="submit" class="missing-day-btn-submit">Confirmar</button></div></form></div></div></div></div>';
+
+    var panel = wrap.querySelector('[data-lplan-missing-day-panel]');
+    if (panel) {
+        panel.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+
+    var btnClose = wrap.querySelector('[data-lplan-missing-day-close]');
+    if (btnClose) btnClose.addEventListener('click', closeMissingDayModal);
+    // Não remover o modal no submit: isso pode interromper a navegação do form
+    // em alguns navegadores e impedir o registo da justificativa.
+
+    var btnFill = wrap.querySelector('#missing-day-btn-fill');
+    var btnJustify = wrap.querySelector('#missing-day-btn-justify');
+    var btnBack = wrap.querySelector('#missing-day-btn-back');
+    var stepChoice = wrap.querySelector('#missing-day-step-choice');
+    var stepJustify = wrap.querySelector('#missing-day-step-justify');
+    if (btnFill && stepChoice && stepJustify) {
+        btnFill.addEventListener('click', function() {
+            var d = wrap.querySelector('#missing-day-justify-date');
+            var ds = (d && d.value) ? d.value : '';
+            closeMissingDayModal();
+            if (ds) {
+                window.location.href = DIARY_NEW_URL + '?date=' + encodeURIComponent(ds);
+            } else {
+                window.location.href = DIARY_NEW_URL;
+            }
+        });
+    }
+    if (btnJustify && stepChoice && stepJustify) {
+        btnJustify.addEventListener('click', function() {
+            stepChoice.classList.remove('missing-day-step--visible');
+            stepChoice.classList.add('missing-day-step--hidden');
+            stepJustify.classList.remove('missing-day-step--hidden');
+            stepJustify.classList.add('missing-day-step--visible');
+            var firstRadio = stepJustify.querySelector('input[type="radio"]');
+            _focusNoScroll(firstRadio);
+        });
+    }
+    if (btnBack && stepChoice && stepJustify) {
+        btnBack.addEventListener('click', function() {
+            stepJustify.classList.remove('missing-day-step--visible');
+            stepJustify.classList.add('missing-day-step--hidden');
+            stepChoice.classList.remove('missing-day-step--hidden');
+            stepChoice.classList.add('missing-day-step--visible');
+            _focusNoScroll(wrap.querySelector('#missing-day-btn-fill'));
+        });
+    }
+    var btnSwitchRdo = wrap.querySelector('#missing-day-btn-switch-to-rdo');
+    if (btnSwitchRdo) {
+        btnSwitchRdo.addEventListener('click', function() {
+            var d = wrap.querySelector('#missing-day-justify-date');
+            var ds = (d && d.value) ? d.value : '';
+            closeMissingDayModal();
+            if (ds) {
+                window.location.href = DIARY_NEW_URL + '?date=' + encodeURIComponent(ds);
+            } else {
+                window.location.href = DIARY_NEW_URL;
+            }
+        });
+    }
+
+    return wrap;
+}
+
+function openMissingDayModal(dateStr) {
+    _forceRemoveJustifiedDetailModal();
+    _forceRemoveMissingDayModal();
+
+    var modal = _buildMissingDayModal();
+    _missingDayModalEl = modal;
+    document.body.appendChild(modal);
+
+    var sub = modal.querySelector('#modal-missing-day-subtitle');
+    var dateInput = modal.querySelector('#missing-day-justify-date');
+    if (sub) sub.textContent = _formatMissingDaySubtitle(dateStr);
+    if (dateInput) dateInput.value = dateStr;
+    var note = modal.querySelector('#missing-day-justify-note');
+    if (note) note.value = '';
+
+    modal.classList.remove('modal-missing-day--closed');
+    modal.classList.add('modal-missing-day--open');
+    modal.setAttribute('aria-hidden', 'false');
+
+    _missingDayEscapeHandler = function(e) {
+        if (e.key !== 'Escape') return;
+        if (_missingDayModalEl && _missingDayModalEl.classList.contains('modal-missing-day--open')) {
+            closeMissingDayModal();
+        }
+    };
+    document.addEventListener('keydown', _missingDayEscapeHandler);
+
+    requestAnimationFrame(function() {
+        _focusNoScroll(modal.querySelector('#missing-day-btn-fill'));
+    });
+}
+
+function closeMissingDayModal() {
+    _detachMissingDayModalListeners();
+    var modal = _missingDayModalEl || document.getElementById('modal-missing-day');
+    if (!modal) return;
+    modal.classList.remove('modal-missing-day--open');
+    modal.classList.add('modal-missing-day--closed');
+    modal.setAttribute('aria-hidden', 'true');
+    var el = modal;
+    _missingDayModalEl = null;
+    if (_missingDayModalRemovalTimer) {
+        clearTimeout(_missingDayModalRemovalTimer);
+        _missingDayModalRemovalTimer = null;
+    }
+    _missingDayModalRemovalTimer = setTimeout(function() {
+        _missingDayModalRemovalTimer = null;
+        _resetMissingDaySteps(el);
+        if (el.parentNode) el.parentNode.removeChild(el);
+    }, 280);
+}
 
 // Aguarda a top bar estar visível antes de renderizar o calendário
 document.addEventListener('DOMContentLoaded', function() {
+    _forceRemoveMissingDayModal();
+    _forceRemoveJustifiedDetailModal();
     // Pequeno delay para garantir que a top bar esteja renderizada
     setTimeout(function() {
         const calendarEl = document.getElementById('calendar');
@@ -439,6 +769,9 @@ document.addEventListener('DOMContentLoaded', function() {
         events: {
             url: '{% url "calendar-events" %}',
             method: 'GET',
+            extraParams: function() {
+                return { _: String(Date.now()) };
+            },
             failure: function() {
                 // Erro ao carregar eventos - não interrompe a experiência do usuário
                 console.warn('Não foi possível carregar eventos do calendário. Tente recarregar a página.');
@@ -449,7 +782,9 @@ document.addEventListener('DOMContentLoaded', function() {
             var short = (props && props.short_title) ? props.short_title : arg.event.title;
             var icon = 'fa-check-circle';
             var compactMobile = window.innerWidth < 768 && arg.view.type === 'dayGridMonth';
-            if (props && props.missing) {
+            if (props && props.no_report_justified) {
+                icon = 'fa-calendar-check';
+            } else if (props && props.missing) {
                 icon = (props.status === 'Atraso') ? 'fa-exclamation-triangle' : 'fa-calendar-day';
             } else if (props && (props.status === 'Aguardando aprovação' || props.status === 'Aguardando aprovação do gestor')) {
                 icon = 'fa-user-clock';
@@ -477,7 +812,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const status = props.status;
             const hasDiary = props.has_diary !== false; // Default true se não especificado
             const isMissing = props.missing === true;
-            
+
+            if (props.no_report_justified) {
+                info.el.classList.add('fc-event--justificado');
+                info.el.style.cursor = 'pointer';
+                info.el.style.opacity = '1';
+                var t = info.event.title || '';
+                if (t) info.el.setAttribute('title', t);
+                return;
+            }
+
             // Classes para garantir contraste de texto via CSS
             if (isMissing) {
                 if (status === 'Atraso') {
@@ -570,29 +914,33 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         eventClick: function(info) {
             const props = info.event.extendedProps;
-            
+
             // Se tem relatório, vai para detalhes
             if (props.diary_id) {
                 const diaryId = props.diary_id;
                 window.location.href = DIARY_DETAIL_URL.replace('{id}', diaryId);
             }
+            // Dia já justificado (sem RDO): mostra motivo / observação
+            else if (props.no_report_justified) {
+                if (info.jsEvent && info.jsEvent.preventDefault) {
+                    info.jsEvent.preventDefault();
+                }
+                openJustifiedDetailModal(
+                    _missingDayDateStrFromEvent(info),
+                    props.no_report_reason || '',
+                    props.no_report_note || ''
+                );
+            }
             // Dia futuro: não dá para preencher relatório antes da data
             else if (props.missing === true && props.status === 'Futuro') {
                 return; // Não faz nada; opcional: mostrar tooltip "Preencha na data"
             }
-            // Dia atrasado (Falta): cria novo relatório com data pré-selecionada
+            // Dia atrasado (Falta): escolher RDO completo ou justificativa rápida
             else if (props.missing === true && props.status === 'Atraso') {
-                const eventDate = info.event.start;
-                let dateStr;
-                if (eventDate instanceof Date) {
-                    const year = eventDate.getFullYear();
-                    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-                    const day = String(eventDate.getDate()).padStart(2, '0');
-                    dateStr = `${year}-${month}-${day}`;
-                } else {
-                    dateStr = eventDate.split('T')[0];
+                if (info.jsEvent && info.jsEvent.preventDefault) {
+                    info.jsEvent.preventDefault();
                 }
-                window.location.href = '{% url "diary-new" %}?date=' + dateStr;
+                openMissingDayModal(_missingDayDateStrFromEvent(info));
             }
         },
         height: 'auto',
@@ -600,6 +948,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
         calendar.render();
+        _dashboardCalendar = calendar;
         
         // Ajusta view ao redimensionar
         window.addEventListener('resize', function() {
@@ -631,6 +980,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+});
+
+window.addEventListener('pageshow', function() {
+    // Ao voltar (incl. bfcache), o FullCalendar pode manter eventos antigos em memória.
+    _forceRemoveMissingDayModal();
+    _forceRemoveJustifiedDetailModal();
+    if (_dashboardCalendar) {
+        _dashboardCalendar.refetchEvents();
+    }
 });
 
 </script>

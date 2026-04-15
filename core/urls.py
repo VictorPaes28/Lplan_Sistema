@@ -1,4 +1,5 @@
-from django.urls import path, include
+from django.http import HttpResponseRedirect
+from django.urls import path, include, reverse
 from django.views.generic import RedirectView
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
@@ -16,6 +17,8 @@ from .frontend_views import (
     dashboard_view,
     calendar_events_view,
     report_list_view,
+    diary_no_report_day_create_view,
+    diary_no_report_day_delete_view,
     diary_detail_view,
     diary_form_view,
     diary_pdf_view,
@@ -64,6 +67,16 @@ from .frontend_views import (
     diary_add_owner_comment_view,
     # teams_chat_embed_view,  # Pausado — retomar quando ativar Teams/Azure
 )
+
+
+def diaries_alias_redirect(request):
+    """Alias amigável: /diaries/ aponta para a lista de relatórios (/reports/)."""
+    url = reverse('report-list')
+    query = request.GET.urlencode()
+    if query:
+        url = f'{url}?{query}'
+    return HttpResponseRedirect(url)
+
 
 urlpatterns = [
     # Service Worker: modo offline RDO (escopo / via header Service-Worker-Allowed)
@@ -124,7 +137,10 @@ urlpatterns = [
     path('analytics/', analytics_view, name='analytics'),
     path('calendar-events/', calendar_events_view, name='calendar-events'),
     path('reports/', report_list_view, name='report-list'),
+    path('reports/no-report-day/', diary_no_report_day_create_view, name='diary-no-report-day-create'),
+    path('reports/no-report-day/<int:pk>/delete/', diary_no_report_day_delete_view, name='diary-no-report-day-delete'),
     path('reports/exportar-pdfs-zip/', diary_bulk_pdf_zip_view, name='diary-bulk-pdf-zip'),
+    path('diaries/', diaries_alias_redirect, name='diary-list-alias'),
     path('projects/', project_list_view, name='central_project_list'),  # Listagem Central (não confundir com API project-list)
     path('projects/new/', project_form_view, name='project-new'),
     path(

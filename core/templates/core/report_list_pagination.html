@@ -1,0 +1,27 @@
+{% if report_list_paginator.num_pages > 1 %}
+<nav class="report-list-pagination" aria-label="Paginação da lista de relatórios">
+    <div class="report-list-pagination__inner">
+        {% if report_list_page_obj.has_previous %}
+        <a href="{% url 'report-list' %}?{% if report_list_pagination_query %}{{ report_list_pagination_query }}&{% endif %}page={{ report_list_page_obj.previous_page_number }}"
+           hx-get="{% url 'report-list' %}?{% if report_list_pagination_query %}{{ report_list_pagination_query }}&{% endif %}page={{ report_list_page_obj.previous_page_number }}"
+           hx-target="#report-list"
+           hx-push-url="true"
+           class="report-list-pagination__btn">Anterior</a>
+        {% else %}
+        <span class="report-list-pagination__btn report-list-pagination__btn--disabled" aria-disabled="true">Anterior</span>
+        {% endif %}
+        <span class="report-list-pagination__status tabular-nums">
+            Página <strong>{{ report_list_page_obj.number }}</strong> de {{ report_list_paginator.num_pages }}
+        </span>
+        {% if report_list_page_obj.has_next %}
+        <a href="{% url 'report-list' %}?{% if report_list_pagination_query %}{{ report_list_pagination_query }}&{% endif %}page={{ report_list_page_obj.next_page_number }}"
+           hx-get="{% url 'report-list' %}?{% if report_list_pagination_query %}{{ report_list_pagination_query }}&{% endif %}page={{ report_list_page_obj.next_page_number }}"
+           hx-target="#report-list"
+           hx-push-url="true"
+           class="report-list-pagination__btn">Seguinte</a>
+        {% else %}
+        <span class="report-list-pagination__btn report-list-pagination__btn--disabled" aria-disabled="true">Seguinte</span>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}

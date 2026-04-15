@@ -1279,6 +1279,58 @@ class DiarySignature(models.Model):
         return f"Assinatura de {assinante} em {self.diary} ({self.get_signature_type_display()})"
 
 
+class DiaryNoReportDay(models.Model):
+    """
+    Justificativa rápida para um dia sem relatório RDO (feriado, fim de semana, etc.).
+    Não substitui o diário: quando um ConstructionDiary é criado para a mesma data,
+    este registo é removido automaticamente (ver core.signals).
+    """
+    class Reason(models.TextChoices):
+        HOLIDAY = 'FE', 'Feriado'
+        WEEKEND = 'FS', 'Fim de semana'
+        NO_ACTIVITY = 'SP', 'Obra sem atividade neste dia'
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='no_report_days',
+        verbose_name='Projeto',
+    )
+    date = models.DateField(verbose_name='Data')
+    reason = models.CharField(
+        max_length=2,
+        choices=Reason.choices,
+        verbose_name='Motivo',
+    )
+    note = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name='Observação (opcional)',
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='diary_no_report_days',
+        verbose_name='Registado por',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Dia sem relatório (justificado)'
+        verbose_name_plural = 'Dias sem relatório (justificados)'
+        ordering = ['-date', '-created_at']
+        unique_together = [['project', 'date']]
+        indexes = [
+            models.Index(fields=['project', '-date']),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.project.code} {self.date} {self.get_reason_display()}'
+
+
 class DiaryImage(models.Model):
     """
     Modelo para imagens associadas ao Diário de Obra.

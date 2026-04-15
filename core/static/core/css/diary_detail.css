@@ -1,0 +1,998 @@
+/* Visualização do RDO — tom documental, paleta restrita (slate + um acento) */
+
+/* Esta página pode ser mais larga que o resto do sistema (relatório denso em desktop) */
+@media (min-width: 1280px) {
+    .main-content.diary-main--wide {
+        max-width: 1680px;
+    }
+}
+
+@media (min-width: 1920px) {
+    .main-content.diary-main--wide {
+        max-width: 1760px;
+    }
+}
+
+/* Usa toda a largura do .main-content — sem coluna estreita extra */
+.diary-detail-page {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding-bottom: 1.5rem;
+}
+
+/* Desktop: leitura um pouco mais confortável (tipografia + UI proporcional) */
+@media (min-width: 1024px) {
+    .diary-detail-page {
+        zoom: 1.04;
+    }
+}
+
+@media print {
+    .diary-detail-page {
+        zoom: 1;
+    }
+}
+
+/* Grelha densa: preenche a linha com o máximo de cartões úteis */
+.diary-detail-kv-grid {
+    display: grid;
+    gap: 0.5rem 0.625rem;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+}
+
+@media (min-width: 640px) {
+    .diary-detail-kv-grid {
+        grid-template-columns: repeat(auto-fill, minmax(11.25rem, 1fr));
+    }
+}
+
+@media (min-width: 1280px) {
+    .diary-detail-kv-grid {
+        grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    }
+}
+
+/* Totais / mão de obra / equipamentos — células pequenas */
+.diary-detail-kv-grid--stats {
+    grid-template-columns: repeat(auto-fill, minmax(6.75rem, 1fr));
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-kv-grid--stats {
+        grid-template-columns: repeat(auto-fill, minmax(7.25rem, 1fr));
+    }
+}
+
+/* Ocorrências / atividades: blocos de texto — mínimo legível */
+.diary-detail-kv-grid--blocks {
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+
+@media (min-width: 1280px) {
+    .diary-detail-kv-grid--blocks {
+        grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    }
+}
+
+/* Célula de campo (label + valor) */
+.diary-detail-kv {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    padding: 0.45rem 0.6rem;
+    min-width: 0;
+}
+
+.diary-detail-kv--stat {
+    text-align: center;
+    padding: 0.4rem 0.45rem;
+}
+
+.diary-detail-kv--stat .text-lg {
+    font-size: 0.9375rem !important;
+    line-height: 1.3;
+}
+
+.diary-detail-kv .text-lg.font-bold {
+    font-size: 0.9375rem !important;
+    font-weight: 600 !important;
+    line-height: 1.35;
+}
+
+.diary-detail-kv .text-base.font-semibold {
+    font-size: 0.875rem !important;
+    line-height: 1.35;
+}
+
+/* Mão de obra / equipamentos: leitura contínua (sem uma caixa por linha) */
+.diary-detail-compact-block {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.diary-detail-compact-section {
+    padding: 0.65rem 0.75rem;
+}
+
+@media (min-width: 640px) {
+    .diary-detail-compact-section {
+        padding: 0.75rem 1rem;
+    }
+}
+
+.diary-detail-compact-section + .diary-detail-compact-section {
+    border-top: 1px solid #e2e8f0;
+}
+
+.diary-detail-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    table-layout: auto;
+}
+
+.diary-detail-data-table thead th {
+    padding: 0 0 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.diary-detail-data-table thead th.diary-detail-data-table__num {
+    text-align: right;
+}
+
+.diary-detail-compact-block .diary-detail-data-table tbody td {
+    padding: 0.5rem 0.55rem;
+    border-bottom: 1px solid #e8edf3;
+    vertical-align: top;
+}
+
+.diary-detail-compact-block .diary-detail-data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Faixas alternadas + hover: leitura horizontal (padrão listas densas / 2024+) */
+.diary-detail-compact-block .diary-detail-data-table tbody tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
+.diary-detail-compact-block .diary-detail-data-table tbody tr:hover {
+    background-color: #f1f5f9;
+}
+
+.diary-detail-compact-block .diary-detail-data-table thead {
+    background: #f8fafc;
+}
+
+.diary-detail-compact-block .diary-detail-data-table thead th {
+    padding: 0.45rem 0.5rem 0.5rem;
+    border-bottom-color: #e2e8f0;
+}
+
+/* Metadados/clima (Campo | Valor): alinhar respiro entre colunas ao corpo da tabela */
+.diary-detail-compact-block .diary-detail-data-table:has(tbody td.diary-detail-data-table__label) thead th:first-child {
+    padding-right: 0.75rem;
+}
+
+.diary-detail-data-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #0f172a;
+    white-space: nowrap;
+    width: 3.75rem;
+    padding-left: 0.65rem;
+    box-sizing: content-box;
+}
+
+/* Nome + quantidade (mão de obra, equipamentos, resumo): largura = conteúdo — coluna Qtd. com respiro explícito */
+.diary-detail-compact-block .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) {
+    width: max-content;
+    max-width: 100%;
+}
+
+.diary-detail-compact-block .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) .diary-detail-data-table__num {
+    width: auto;
+    min-width: 1.5rem;
+    padding-left: 1.0625rem;
+}
+
+/* Metadados: rótulos recuados (segundo plano) — valor e linhas-chave levam o olhar */
+.diary-detail-data-table tbody td.diary-detail-data-table__label {
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    width: 1%;
+    padding-right: 0.9rem;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+/* Telas estreitas: rótulos podem quebrar em duas linhas em vez de empurrar o layout */
+@media (max-width: 520px) {
+    .diary-detail-data-table tbody td.diary-detail-data-table__label {
+        white-space: normal;
+        max-width: 11rem;
+    }
+}
+
+.diary-detail-data-table tbody td.diary-detail-data-table__value {
+    color: #0f172a;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    width: auto;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.diary-detail-data-table tbody td.diary-detail-data-table__value.font-normal {
+    font-weight: 400;
+    color: #334155;
+}
+
+/* Linhas de orientação (nº do relatório, data, nome da obra): leitura rápida em obra */
+.diary-detail-data-table tbody td.diary-detail-data-table__value--primary {
+    font-weight: 700;
+    color: #020617;
+    letter-spacing: -0.015em;
+}
+
+/* Células sem classe própria (mão de obra, equipamento, resumo): mesmo contraste do valor */
+.diary-detail-compact-block .diary-detail-data-table tbody td:not(.diary-detail-data-table__label):not(.diary-detail-data-table__num) {
+    color: #0f172a;
+}
+
+/* Lista contínua (ocorrências, atividades) — uma moldura, divisórias internas */
+.diary-detail-stack {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    background: #fff;
+}
+
+.diary-detail-stack__item {
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+}
+
+@media (min-width: 640px) {
+    .diary-detail-stack__item {
+        padding: 0.75rem 1rem;
+    }
+}
+
+.diary-detail-stack__item:last-child {
+    border-bottom: none;
+}
+
+.diary-detail-stack__title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #475569;
+    margin-bottom: 0.35rem;
+}
+
+/* Ocorrências: linebreaks gera <p> com margem — remove “buraco” entre texto e tags; padding um pouco mais seco */
+.diary-detail-stack__item.diary-detail-occurrence {
+    padding: 0.5rem 0.75rem;
+}
+
+@media (min-width: 640px) {
+    .diary-detail-stack__item.diary-detail-occurrence {
+        padding: 0.55rem 1rem;
+    }
+}
+
+.diary-detail-occurrence__text {
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: #1e293b;
+}
+
+.diary-detail-occurrence__text p {
+    margin: 0;
+}
+
+.diary-detail-occurrence__text p + p {
+    margin-top: 0.45rem;
+}
+
+.diary-detail-occurrence__tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.diary-detail-occurrence-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e8edf3;
+}
+
+.diary-detail-stack__item:hover {
+    background-color: #f1f5f9;
+}
+
+/* Estados vazios — sem “caixão” cinza */
+.diary-detail-empty {
+    font-size: 0.8125rem;
+    color: #475569;
+    padding: 0.5rem 0;
+    margin: 0;
+}
+
+/* Secções fora do cartão principal: separador leve, sem segundo cartão branco */
+.diary-detail-page > .diary-detail-section {
+    padding: 0 0 1.25rem 0 !important;
+    margin-bottom: 1.25rem !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    background: transparent !important;
+}
+
+.diary-detail-section {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    border-radius: 0.375rem !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-section {
+        padding: 1.125rem 1.25rem !important;
+    }
+}
+
+/*
+ * Fotos / vídeos: evitar minmax(..., 1fr) sem teto — com poucas fotos as colunas esticam,
+ * o max-height na img virava faixa larga e baixa (cover cortando tudo). Colunas com largura máxima + frame 4:3.
+ */
+.diary-detail-photo-grid {
+    display: grid;
+    gap: 0.625rem;
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, min(20rem, 100%)));
+    justify-content: start;
+}
+
+@media (min-width: 640px) {
+    .diary-detail-photo-grid {
+        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fill, minmax(13.5rem, min(21rem, 100%)));
+    }
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-photo-grid {
+        grid-template-columns: repeat(auto-fill, minmax(14rem, min(22rem, 100%)));
+    }
+}
+
+/* position: relative vem do utilitário no HTML — necessário para a foto em absolute preencher o 4:3 */
+.diary-detail-photo-frame {
+    position: relative;
+    width: 100%;
+    max-width: 22rem;
+    aspect-ratio: 4 / 3;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    background: #f1f5f9;
+}
+
+.diary-detail-photo-frame:hover {
+    border-color: #94a3b8;
+}
+
+/*
+ * inset:0 + object-fit: contain — evidência: mostrar a foto inteira (sem crop).
+ * Cover recortava retratos/paisagens para preencher o 4:3; o fundo #f1f5f9 preenche o “letterbox”.
+ */
+.diary-detail-photo-frame__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    cursor: pointer;
+    display: block;
+}
+
+/* Vídeos: mesma lógica de teto de coluna + altura alinhada à “peso” visual das fotos */
+.diary-detail-video-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, min(36rem, 100%)));
+    justify-content: start;
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-video-grid {
+        grid-template-columns: repeat(auto-fill, minmax(18rem, min(40rem, 100%)));
+    }
+}
+
+/* Vídeos no detalhe do RDO: priorizar área útil (sobre o preview compacto global em base.css) */
+.diary-detail-page .diary-detail-video-grid .diary-video-preview .diary-video-player {
+    width: 100%;
+    max-width: 40rem;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    background: #0f172a;
+    max-height: min(52vh, 26rem);
+    border-radius: 0.375rem;
+}
+
+/* Legenda sob a miniatura — não sobrepõe pixels da foto */
+.diary-detail-photo-caption-below {
+    display: block;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    color: #475569;
+    margin-top: 0.35rem;
+    padding: 0 0.15rem;
+}
+
+/*
+ * Hierarquia visual (leitura de obra): título do doc e estado > secções > rótulos de tabela > corpo.
+ * Ícones nos h3 ficam discretos para o texto e o dado dominarem.
+ */
+.diary-detail-doc-header {
+    margin-bottom: 1rem !important;
+    padding-bottom: 1rem !important;
+}
+
+.diary-detail-doc-header h2 {
+    color: #020617 !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+}
+
+@media (min-width: 640px) {
+    .diary-detail-doc-header h2 {
+        font-size: 1.125rem !important;
+    }
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-doc-header h2 {
+        font-size: 1.1875rem !important;
+    }
+}
+
+.diary-detail-page h3.text-lg.font-semibold {
+    margin-bottom: 0.5rem !important;
+    font-size: 0.9375rem !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.012em;
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-page h3.text-lg.font-semibold {
+        font-size: 1rem !important;
+    }
+}
+
+/* Secções “operacionais” (risco / interrupções): destaque sem competir com o título do documento */
+.diary-detail-page h3.diary-detail-heading-risk {
+    color: #7c2d12 !important;
+}
+
+.diary-detail-page h3.text-lg.font-semibold i {
+    color: #94a3b8 !important;
+}
+
+.diary-detail-page h3.diary-detail-heading-risk i {
+    color: #c2410c !important;
+}
+
+/* Subtítulos dentro dos blocos (Mão de obra indireta, etc.): categoria, não competir com h3 */
+.diary-detail-compact-section > h4.text-xs.font-semibold.uppercase,
+.diary-detail-compact-block h4.text-xs.font-semibold.uppercase {
+    color: #64748b !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.06em !important;
+}
+
+/* Menos “respiro” entre blocos — melhor densidade no desktop */
+.diary-detail-page .mb-6 {
+    margin-bottom: 1rem !important;
+}
+
+/* Estado do RDO: precisa saltar à vista (aprovação / envio) */
+.diary-detail-page .report-status {
+    border-radius: 0.375rem !important;
+    padding: 0.22rem 0.55rem !important;
+    font-size: 0.6875rem !important;
+    font-weight: 600 !important;
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-page .report-status {
+        font-size: 0.75rem !important;
+        padding: 0.28rem 0.65rem !important;
+    }
+}
+
+/* Barra superior: navegação + hierarquia de ações */
+.diary-detail-toolbar {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.diary-detail-toolbar--layout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
+    position: relative;
+    z-index: 0;
+}
+
+.diary-detail-nav {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+}
+
+.diary-detail-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.375rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.diary-detail-nav-btn:hover:not(.diary-detail-nav-btn--disabled) {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.diary-detail-nav-btn:focus-visible {
+    outline: 2px solid #64748b;
+    outline-offset: 2px;
+}
+
+.diary-detail-nav-btn--disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
+.diary-detail-nav-position {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    padding: 0 0.25rem;
+    user-select: none;
+}
+
+.diary-detail-nav-position__sep {
+    opacity: 0.55;
+    margin: 0 0.12rem;
+    font-weight: 500;
+}
+
+@media (max-width: 480px) {
+    .diary-detail-nav-btn__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .diary-detail-nav-btn {
+        min-width: 2.5rem;
+        padding-left: 0.55rem;
+        padding-right: 0.55rem;
+    }
+}
+
+.diary-detail-toolbar__clusters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 0.5rem 1rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.diary-detail-toolbar__correction {
+    flex: 0 0 auto;
+    align-self: center;
+    border-left: 1px solid #e2e8f0;
+    padding-left: 1rem;
+    margin-left: 0.25rem;
+}
+
+@media (max-width: 768px) {
+    .diary-detail-toolbar__correction {
+        border-left: none;
+        padding-left: 0;
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+/* Só os botões do grupo principal: outline (não afeta “Solicitar correção”) */
+.diary-detail-toolbar .diary-detail-tools .diary-detail-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 2.375rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    background: #fff !important;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.diary-detail-toolbar .diary-detail-tools .diary-detail-action-btn:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+/* Destaque: modo leitura (PDF reader) */
+.diary-detail-toolbar .diary-detail-tools a.diary-detail-action-btn[href*="/pdf/leitura/"] {
+    background: #1e293b !important;
+    color: #fff !important;
+    border-color: #1e293b !important;
+}
+
+.diary-detail-toolbar .diary-detail-tools a.diary-detail-action-btn[href*="/pdf/leitura/"]:hover {
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #fff !important;
+}
+
+/* Excluir: só borda e texto vermelho */
+.diary-detail-toolbar .diary-detail-tools button.diary-detail-action-btn[type="submit"] {
+    background: #fff !important;
+    color: #991b1b !important;
+    border-color: #fecaca !important;
+}
+
+.diary-detail-toolbar .diary-detail-tools button.diary-detail-action-btn[type="submit"]:hover {
+    background: #fef2f2 !important;
+    border-color: #f87171 !important;
+    color: #7f1d1d !important;
+}
+
+/* Imprimir: mesmo ID que antes era forçado em base.css — manter contraste explícito (claro e escuro) */
+.diary-detail-toolbar #print-dropdown-button.diary-detail-action-btn {
+    background: #fff !important;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+.diary-detail-toolbar #print-dropdown-button.diary-detail-action-btn:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+.diary-detail-toolbar #print-dropdown-button.diary-detail-print-is-open,
+.diary-detail-toolbar #print-dropdown-button.diary-detail-action-btn[aria-expanded="true"] {
+    background: #f1f5f9 !important;
+    border-color: #64748b !important;
+    color: #0f172a !important;
+}
+
+html[data-theme="dark"] .diary-detail-toolbar #print-dropdown-button.diary-detail-action-btn {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+    border-color: #475569 !important;
+}
+
+html[data-theme="dark"] .diary-detail-toolbar #print-dropdown-button.diary-detail-action-btn:hover,
+html[data-theme="dark"] .diary-detail-toolbar #print-dropdown-button.diary-detail-action-btn[aria-expanded="true"],
+html[data-theme="dark"] .diary-detail-toolbar #print-dropdown-button.diary-detail-print-is-open {
+    background: #334155 !important;
+    border-color: #64748b !important;
+    color: #f8fafc !important;
+}
+
+/* Alertas contextuais — fundo neutro, borda esquerda discreta */
+.diary-detail-page .diary-detail-banner {
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+    border-left-width: 3px;
+    border-left-color: #94a3b8;
+}
+
+.diary-detail-page .diary-detail-banner--pending {
+    border-left-color: #64748b;
+}
+
+.diary-detail-page .diary-detail-banner--warn {
+    border-left-color: #ca8a04;
+    background: #fafaf9;
+}
+
+/* Cartão principal do relatório */
+.diary-detail-document {
+    border-radius: 0.375rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: none;
+    padding: 1rem 0.875rem;
+}
+
+@media (min-width: 640px) {
+    .diary-detail-document {
+        padding: 1.125rem 1.25rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .diary-detail-document {
+        padding: 1.25rem 1.5rem;
+    }
+}
+
+/* Cartões de métrica / info — uma linguagem visual */
+.diary-detail-page .bg-slate-50.rounded-lg.p-4,
+.diary-detail-page .bg-blue-50,
+.diary-detail-page .bg-green-50,
+.diary-detail-page .bg-purple-50,
+.diary-detail-page .bg-orange-50,
+.diary-detail-page .bg-yellow-50,
+.diary-detail-page .bg-red-50,
+.diary-detail-page .bg-emerald-50,
+.diary-detail-page .bg-indigo-50,
+.diary-detail-page .from-yellow-50,
+.diary-detail-page .to-orange-50,
+.diary-detail-page .from-blue-50,
+.diary-detail-page .to-cyan-50,
+.diary-detail-page .from-indigo-50,
+.diary-detail-page .to-purple-50 {
+    background-color: #f8fafc !important;
+    background-image: none !important;
+}
+
+.diary-detail-page .border-blue-200,
+.diary-detail-page .border-green-200,
+.diary-detail-page .border-purple-200,
+.diary-detail-page .border-orange-200,
+.diary-detail-page .border-yellow-200,
+.diary-detail-page .border-red-200,
+.diary-detail-page .border-indigo-200,
+.diary-detail-page .border-amber-200 {
+    border-color: #e2e8f0 !important;
+}
+
+.diary-detail-page .text-blue-700,
+.diary-detail-page .text-blue-800,
+.diary-detail-page .text-green-700,
+.diary-detail-page .text-green-800,
+.diary-detail-page .text-purple-700,
+.diary-detail-page .text-orange-800,
+.diary-detail-page .text-yellow-800,
+.diary-detail-page .text-red-800,
+.diary-detail-page .text-indigo-500 {
+    color: #0f172a !important;
+}
+
+.diary-detail-page .text-blue-900,
+.diary-detail-page .text-blue-800 {
+    color: #1e293b !important;
+}
+
+/* Bordas laterais coloridas → cinza */
+.diary-detail-page [class*="border-l-4"] {
+    border-left-color: #94a3b8 !important;
+}
+
+.diary-detail-page .border-red-500,
+.diary-detail-page .border-orange-500,
+.diary-detail-page .border-yellow-500,
+.diary-detail-page .border-blue-500,
+.diary-detail-page .border-green-500,
+.diary-detail-page .border-amber-500 {
+    border-color: #94a3b8 !important;
+}
+
+/* Tags de ocorrência */
+.diary-detail-page .bg-red-100.text-red-800 {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #e2e8f0;
+}
+
+/* Chips de estágio (work log) */
+.diary-detail-page .bg-emerald-100,
+.diary-detail-page .bg-sky-100,
+.diary-detail-page .bg-amber-100 {
+    background: #f1f5f9 !important;
+}
+
+.diary-detail-page .text-emerald-800,
+.diary-detail-page .text-sky-800,
+.diary-detail-page .text-amber-800 {
+    color: #334155 !important;
+}
+
+/* Histórico de aprovação */
+.diary-detail-page .bg-emerald-50,
+.diary-detail-page .bg-red-50 {
+    background: #f8fafc !important;
+}
+
+.diary-detail-page .text-emerald-800,
+.diary-detail-page .text-red-800 {
+    color: #0f172a !important;
+}
+
+/* Comentários — ambos neutros, direção mantida pelo layout */
+.diary-detail-page .diary-comment-bubble.bg-blue-100,
+.diary-detail-page .diary-comment-bubble.bg-slate-100 {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+    border: 1px solid #e2e8f0;
+}
+
+/* Secções fora do cartão principal (mídia, etc.) */
+.diary-detail-page .rounded-lg.shadow-sm.border.border-slate-200.p-6 {
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+/* Auditoria rodapé */
+.diary-detail-page .bg-gray-50.rounded-lg.border.border-gray-200 {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* Modal log de edições */
+#edit-logs-modal .diary-detail-modal-head {
+    background: #f8fafc !important;
+    border-bottom-color: #e2e8f0 !important;
+}
+
+#edit-logs-modal .border-l-4.border-blue-500.pl-4.py-3.bg-blue-50 {
+    border-left-color: #94a3b8 !important;
+    background: #f8fafc !important;
+}
+
+/* Ícones clima (sol/lua) — menos saturado */
+.diary-detail-page .text-yellow-500,
+.diary-detail-page .text-orange-500,
+.diary-detail-page .text-indigo-500 {
+    color: #64748b !important;
+}
+
+.diary-detail-page .text-red-500,
+.diary-detail-page .text-red-600,
+.diary-detail-page .text-green-500 {
+    color: #64748b !important;
+}
+
+/* Formulário aprovação inline (AG): campos neutros */
+.diary-detail-page .border-blue-200.rounded-lg {
+    border-color: #cbd5e1 !important;
+}
+
+.diary-detail-page .focus\:ring-blue-500:focus {
+    --tw-ring-color: #64748b !important;
+}
+
+.diary-detail-page .focus\:border-blue-500:focus {
+    border-color: #64748b !important;
+}
+
+.diary-detail-page .bg-green-700 {
+    background: #334155 !important;
+}
+
+.diary-detail-page .hover\:bg-green-800:hover {
+    background: #1e293b !important;
+}
+
+.diary-detail-page .bg-red-600.diary-detail-action-btn,
+.diary-detail-page button.bg-red-600 {
+    background: #fff !important;
+    color: #991b1b !important;
+    border: 1px solid #fecaca !important;
+}
+
+.diary-detail-page button.bg-red-600:hover,
+.diary-detail-page .hover\:bg-red-700:hover {
+    background: #fef2f2 !important;
+    color: #7f1d1d !important;
+}
+
+.diary-detail-page .diary-detail-banner .text-blue-800,
+.diary-detail-page .diary-detail-banner .text-blue-900,
+.diary-detail-page .diary-detail-banner .text-blue-700 {
+    color: #334155 !important;
+}
+
+.diary-detail-page a.text-blue-600,
+.diary-detail-page button.text-blue-600 {
+    color: #475569 !important;
+}
+
+.diary-detail-page a.text-blue-600:hover {
+    color: #0f172a !important;
+}
+
+.diary-detail-page form button[type="submit"].bg-blue-600 {
+    background: #334155 !important;
+    color: #fff !important;
+    border: 1px solid #334155 !important;
+}
+
+.diary-detail-page form button[type="submit"].bg-blue-600:hover {
+    background: #1e293b !important;
+    border-color: #1e293b !important;
+}
+
+#edit-logs-modal .bg-gradient-to-r.from-blue-50,
+#edit-logs-modal .to-blue-100 {
+    background-image: none !important;
+    background-color: #f8fafc !important;
+}

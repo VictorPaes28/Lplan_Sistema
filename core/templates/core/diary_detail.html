@@ -2,132 +2,155 @@
 {% load static %}
 {% load core_tags %}
 
-{% block back_url %}{% url 'report-list' %}{% endblock %}
+{% block top_bar_back %}{% endblock %}
 {% block page_title %}Diário de Obras — Detalhes do Relatório{% endblock %}
 {% block page_subtitle %}Relatório Diário de Obra{% endblock %}
 
+{% block main_extra_class %} diary-main--wide{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/diary_detail.css' %}">
+{% endblock %}
+
 {% block content %}
-<!-- Header com Voltar -->
-<div class="mb-6 flex items-center justify-between flex-wrap gap-3">
-    <div class="flex items-center min-w-0">
-        <a href="{% url 'report-list' %}" 
-           class="diary-detail-back-link text-slate-600 hover:text-slate-900 mr-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg p-2 -ml-2 transition-colors hover:bg-slate-100"
-           aria-label="Voltar"
-           title="Voltar"
-           id="diary-detail-back-link">
-            <i class="fas fa-arrow-left text-lg" aria-hidden="true"></i>
+<div class="diary-detail-page">
+<!-- Barra: navegação cronológica | ações principais | correção (se aplicável) -->
+<div class="diary-detail-toolbar diary-detail-toolbar--layout">
+    <nav class="diary-detail-nav" aria-label="Navegação entre relatórios da obra (ordem cronológica)">
+        {% if diary_nav_prev_pk %}
+        <a href="{% url 'diary-detail' diary_nav_prev_pk %}"
+           class="diary-detail-nav-btn"
+           title="Relatório anterior (mais antigo)">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            <span class="diary-detail-nav-btn__label">Anterior</span>
         </a>
-        <div class="min-w-0">
-            <h1 class="text-xl font-bold text-slate-800 tracking-tight">
-                Detalhes do relatório
-            </h1>
-            <p class="text-sm text-slate-500 mt-0.5">RDO · {{ diary.date|date:"d/m/Y" }}{% if diary.report_number %} · #{{ diary.report_number }}{% endif %}</p>
-        </div>
-    </div>
-    <div class="flex flex-wrap gap-2 diary-detail-actions">
-        <a href="{% url 'diary-pdf-reader' diary.id %}"
-           class="diary-detail-action-btn px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 flex items-center transition-colors duration-200"
-           title="Abrir o PDF em tela cheia com navegação entre relatórios">
-            <i class="fas fa-book-reader mr-3" aria-hidden="true"></i>Modo leitura
+        {% else %}
+        <span class="diary-detail-nav-btn diary-detail-nav-btn--disabled" aria-disabled="true" title="Não há relatório anterior nesta obra">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            <span class="diary-detail-nav-btn__label">Anterior</span>
+        </span>
+        {% endif %}
+        {% if diary_nav_total %}
+        <span class="diary-detail-nav-position tabular-nums" title="Posição nesta obra">
+            {{ diary_nav_position }}<span class="diary-detail-nav-position__sep">/</span>{{ diary_nav_total }}
+        </span>
+        {% endif %}
+        {% if diary_nav_next_pk %}
+        <a href="{% url 'diary-detail' diary_nav_next_pk %}"
+           class="diary-detail-nav-btn"
+           title="Próximo relatório (mais recente)">
+            <span class="diary-detail-nav-btn__label">Próximo</span>
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
         </a>
-        <!-- Dropdown de Impressão -->
-        <div class="relative" id="print-dropdown-container">
-            <button type="button" 
-                    id="print-dropdown-button"
-                    class="diary-detail-action-btn px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 flex items-center transition-colors duration-200"
-                    aria-expanded="false">
-                <i class="fas fa-print mr-3"></i>Imprimir
-                <i class="fas fa-chevron-down ml-2 text-xs transition-transform duration-200" id="print-dropdown-chevron"></i>
-            </button>
-            <div id="print-dropdown-menu"
-                 style="display: none;"
-                 class="diary-detail-print-menu absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                <div class="py-2">
-                    <a href="{% url 'diary-pdf' diary.id %}" target="_blank" rel="noopener noreferrer"
-                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório (PDF com fotos)
-                    </a>
-                    <a href="{% url 'diary-pdf-no-photos' diary.id %}" target="_blank" rel="noopener noreferrer"
-                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-file-pdf text-red-500 mr-3"></i>Imprimir relatório sem fotos (PDF)
-                    </a>
-                    <div class="border-t border-gray-200 my-1"></div>
-                    <a href="{% url 'diary-excel' diary.id %}" 
-                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-file-excel text-green-500 mr-3"></i>Excel (xlsx)
-                    </a>
+        {% else %}
+        <span class="diary-detail-nav-btn diary-detail-nav-btn--disabled" aria-disabled="true" title="Não há próximo relatório nesta obra">
+            <span class="diary-detail-nav-btn__label">Próximo</span>
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </span>
+        {% endif %}
+    </nav>
+    <div class="diary-detail-toolbar__clusters">
+        <div class="diary-detail-tools flex flex-wrap items-center gap-2 diary-detail-actions">
+            <a href="{% url 'diary-pdf-reader' diary.id %}"
+               class="diary-detail-action-btn px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 inline-flex items-center gap-2 transition-colors duration-200"
+               title="Abrir o PDF em tela cheia com navegação entre relatórios">
+                <i class="fas fa-book-reader" aria-hidden="true"></i><span>Modo leitura</span>
+            </a>
+            <div class="relative" id="print-dropdown-container">
+                <button type="button"
+                        id="print-dropdown-button"
+                        class="diary-detail-action-btn px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 inline-flex items-center gap-2 transition-colors duration-200"
+                        aria-expanded="false">
+                    <i class="fas fa-print" aria-hidden="true"></i><span>Imprimir</span>
+                    <i class="fas fa-chevron-down text-xs transition-transform duration-200" id="print-dropdown-chevron" aria-hidden="true"></i>
+                </button>
+                <div id="print-dropdown-menu"
+                     style="display: none;"
+                     class="diary-detail-print-menu absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                    <div class="py-2">
+                        <a href="{% url 'diary-pdf' diary.id %}" target="_blank" rel="noopener noreferrer"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-file-pdf text-slate-500 mr-3" aria-hidden="true"></i>Imprimir relatório (PDF com fotos)
+                        </a>
+                        <a href="{% url 'diary-pdf-no-photos' diary.id %}" target="_blank" rel="noopener noreferrer"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-file-pdf text-slate-500 mr-3" aria-hidden="true"></i>Imprimir relatório sem fotos (PDF)
+                        </a>
+                        <div class="border-t border-gray-200 my-1"></div>
+                        <a href="{% url 'diary-excel' diary.id %}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-file-excel text-slate-500 mr-3" aria-hidden="true"></i>Excel (xlsx)
+                        </a>
+                    </div>
                 </div>
             </div>
+            {% if diary|can_edit:user %}
+            <a href="{% url 'diary-edit' diary.id %}"
+               class="diary-detail-action-btn px-3 py-2 rounded-lg inline-flex items-center gap-2 transition-colors">
+                <i class="fas fa-edit" aria-hidden="true"></i><span>Editar</span>
+            </a>
+            {% endif %}
+            {% if user.is_superuser %}
+            <form action="{% url 'diary-delete' diary.id %}" method="post" class="inline-flex" onsubmit="return confirm('Excluir este relatório? Esta ação não pode ser desfeita.');">
+                {% csrf_token %}
+                <button type="submit" class="diary-detail-action-btn px-3 py-2 rounded-lg inline-flex items-center gap-2 transition-colors" title="Excluir relatório">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i><span>Excluir</span>
+                </button>
+            </form>
+            {% endif %}
         </div>
-        {% if diary|can_edit:user %}
-        <a href="{% url 'diary-edit' diary.id %}" 
-           class="diary-detail-action-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors">
-            <i class="fas fa-edit mr-3"></i>Editar
-        </a>
-        {% endif %}
-        {% if user.is_superuser %}
-        <form action="{% url 'diary-delete' diary.id %}" method="post" class="inline" onsubmit="return confirm('Excluir este relatório? Esta ação não pode ser desfeita.');">
-            {% csrf_token %}
-            <button type="submit" class="diary-detail-action-btn px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center transition-colors" title="Excluir relatório">
-                <i class="fas fa-trash-alt mr-3"></i>Excluir
+        {% if show_request_edit_diary %}
+        <div class="diary-detail-toolbar__correction">
+            <button type="button"
+                    id="diary-request-edit-toggle"
+                    class="diary-detail-action-btn diary-request-correction-submit px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2"
+                    aria-expanded="false"
+                    aria-controls="diary-request-edit-panel"
+                    title="Relatório já aprovado: peça liberação da equipe para editar após envio ao cliente">
+                <i class="fas fa-unlock-alt" aria-hidden="true"></i>
+                <span>Solicitar correção</span>
             </button>
-        </form>
+            <div id="diary-request-edit-panel" class="diary-request-edit-panel" hidden>
+                <form method="post" action="{% url 'diary-request-edit' diary.id %}" class="diary-request-edit-form mt-3">
+                    {% csrf_token %}
+                    <label for="edit-request-note" class="diary-request-edit-label">Justificativa <span class="text-slate-400 font-normal">(opcional)</span></label>
+                    <textarea name="note" id="edit-request-note" maxlength="2000" class="diary-request-edit-textarea" rows="3" placeholder="Ex.: corrigir quantidade no PDF"></textarea>
+                    <div class="diary-request-edit-actions">
+                        <button type="submit" class="diary-detail-action-btn diary-request-correction-submit px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                            Enviar pedido
+                        </button>
+                        <button type="button" id="diary-request-edit-cancel" class="diary-request-edit-cancel-btn">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
         {% endif %}
     </div>
 </div>
 
 {% if diary_provisional_edit_unlocked %}
-<div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-950 text-sm">
+<div class="mb-4 p-4 diary-detail-banner diary-detail-banner--warn text-sm">
     <i class="fas fa-unlock-alt mr-2" aria-hidden="true"></i>
     <strong>Edição liberada:</strong> pode alterar o relatório e guardar. Depois de guardar com sucesso, este modo fecha automaticamente.
 </div>
 {% endif %}
 {% if diary_edit_request_pending %}
-<div class="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm">
+<div class="mb-4 p-4 diary-detail-banner diary-detail-banner--pending text-sm">
     <i class="fas fa-hourglass-half mr-2 text-slate-500" aria-hidden="true"></i>
     Pedido de correção enviado. Aguarde um administrador liberar a edição no painel do sistema.
 </div>
 {% endif %}
-{% if show_request_edit_diary %}
-<div class="mb-4 diary-request-correction-inline">
-    <p class="text-sm text-slate-600 mb-2 leading-snug max-w-2xl">
-        Relatório aprovado. Para corrigir dados após envio ao cliente, peça a liberação de edição.
-    </p>
-    <button type="button"
-            id="diary-request-edit-toggle"
-            class="diary-detail-action-btn diary-request-correction-submit px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2"
-            aria-expanded="false"
-            aria-controls="diary-request-edit-panel">
-        <i class="fas fa-unlock-alt" aria-hidden="true"></i>
-        <span>Solicitar correção</span>
-    </button>
-    <div id="diary-request-edit-panel" class="diary-request-edit-panel" hidden>
-        <form method="post" action="{% url 'diary-request-edit' diary.id %}" class="diary-request-edit-form mt-3">
-            {% csrf_token %}
-            <label for="edit-request-note" class="diary-request-edit-label">Justificativa <span class="text-slate-400 font-normal">(opcional)</span></label>
-            <textarea name="note" id="edit-request-note" maxlength="2000" class="diary-request-edit-textarea" rows="3" placeholder="Ex.: corrigir quantidade no PDF"></textarea>
-            <div class="diary-request-edit-actions">
-                <button type="submit" class="diary-detail-action-btn diary-request-correction-submit px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
-                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                    Enviar pedido
-                </button>
-                <button type="button" id="diary-request-edit-cancel" class="diary-request-edit-cancel-btn">
-                    Cancelar
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-{% endif %}
-
 {% if diary.status == 'AG' %}
-<div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-sm">
+<div class="mb-4 p-4 diary-detail-banner text-sm">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <p class="font-semibold"><i class="fas fa-user-clock mr-2" aria-hidden="true"></i>RDO aguardando aprovação de gestor</p>
-            <p class="mt-1 text-blue-800">O envio ao cliente só ocorre após a aprovação de um gestor autorizado para esta obra.</p>
+            <p class="mt-1 text-slate-600">O envio ao cliente só ocorre após a aprovação de um gestor autorizado para esta obra.</p>
             {% if rdo_approvers %}
-            <p class="mt-2 text-xs text-blue-700">
+            <p class="mt-2 text-xs text-slate-500">
                 Aprovadores ativos:
                 {% for approver in rdo_approvers %}
                     {{ approver.user.get_full_name|default:approver.user.username }}{% if not forloop.last %}, {% endif %}
@@ -154,220 +177,209 @@
 {% endif %}
 
 <!-- Card Principal -->
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <!-- Logo e Título -->
-    <div class="text-center mb-6 pb-6 border-b border-slate-200">
-        <div class="flex items-center justify-center mb-5 mt-3 gap-3">
-            <div class="logo-white-box w-10 h-10 md:w-14 md:h-14 bg-white rounded-lg flex items-center justify-center p-1.5 flex-shrink-0">
-                <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" loading="lazy">
-            </div>
-            <div class="text-left">
-                <h1 class="text-xl md:text-2xl font-bold text-blue-900 mb-1">LPLAN</h1>
-                <p class="text-sm text-gray-600">Gestão de Obras</p>
-            </div>
-        </div>
-        <h2 class="text-xl font-bold text-slate-800 mt-2">Relatório Diário de Obra (RDO)</h2>
+<div class="diary-detail-document bg-white mb-6">
+    <!-- Cabeçalho documento -->
+    <div class="diary-detail-doc-header border-b border-slate-200">
+        <h2 class="text-base sm:text-lg font-semibold text-slate-800 text-left leading-snug">Relatório diário de obra (RDO)</h2>
     </div>
 
     <!-- Status Badge -->
-    <div class="mb-6 flex items-center justify-between">
-        <span class="report-status {{ diary|report_status_css }} inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full" style="{{ diary|report_status_style }}">
+    <div class="mb-4">
+        <span class="report-status {{ diary|report_status_css }} inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md" style="{{ diary|report_status_style }}">
             <i class="fas fa-circle mr-2" style="font-size:0.4rem;vertical-align:middle"></i>{{ diary|report_status_label }}
         </span>
-        <div class="text-sm text-gray-600">
-            <i class="fas fa-eye mr-2"></i>{{ view_count }} visualizações
-        </div>
     </div>
 
     <!-- Informações do Relatório -->
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-info-circle text-blue-600 mr-3"></i>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-info-circle mr-2 text-sm" aria-hidden="true"></i>
             Informações do Relatório
         </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Relatório n°</p>
-                <p class="text-lg font-bold text-slate-800">{{ diary.report_number|default:"-" }}</p>
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Campo</th>
+                            <th scope="col">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td class="diary-detail-data-table__label">Relatório n°</td>
+                        <td class="diary-detail-data-table__value diary-detail-data-table__value--primary">{{ diary.report_number|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="diary-detail-data-table__label">Data</td>
+                        <td class="diary-detail-data-table__value diary-detail-data-table__value--primary">{{ diary.date|date:"d/m/Y" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="diary-detail-data-table__label">Dia da semana</td>
+                        <td class="diary-detail-data-table__value">{{ weekday_name }}</td>
+                    </tr>
+                    {% if diary.project.contract_number %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">N° do contrato</td>
+                        <td class="diary-detail-data-table__value">{{ diary.project.contract_number }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if project_days_total > 0 %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Prazo contratual</td>
+                        <td class="diary-detail-data-table__value">{{ project_days_total }} dias</td>
+                    </tr>
+                    {% endif %}
+                    {% if project_days_elapsed >= 0 %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Prazo decorrido</td>
+                        <td class="diary-detail-data-table__value">{{ project_days_elapsed }} dias</td>
+                    </tr>
+                    {% endif %}
+                    {% if project_days_remaining >= 0 %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Prazo a vencer</td>
+                        <td class="diary-detail-data-table__value">{{ project_days_remaining }} dias</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.work_hours %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Horas de trabalho</td>
+                        <td class="diary-detail-data-table__value">{{ diary.work_hours }}h</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.pluviometric_index %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Índice pluviométrico</td>
+                        <td class="diary-detail-data-table__value">{{ diary.pluviometric_index }}mm</td>
+                    </tr>
+                    {% endif %}
+                    </tbody>
+                </table>
             </div>
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Data</p>
-                <p class="text-lg font-bold text-slate-800">{{ diary.date|date:"d/m/Y" }}</p>
-            </div>
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Dia da semana</p>
-                <p class="text-lg font-bold text-slate-800">{{ weekday_name }}</p>
-            </div>
-            {% if diary.project.contract_number %}
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">N° do contrato</p>
-                <p class="text-lg font-bold text-slate-800">{{ diary.project.contract_number }}</p>
-            </div>
-            {% endif %}
-            {% if project_days_total > 0 %}
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Prazo contratual</p>
-                <p class="text-lg font-bold text-slate-800">{{ project_days_total }} dias</p>
-            </div>
-            {% endif %}
-            {% if project_days_elapsed >= 0 %}
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Prazo decorrido</p>
-                <p class="text-lg font-bold text-slate-800">{{ project_days_elapsed }} dias</p>
-            </div>
-            {% endif %}
-            {% if project_days_remaining >= 0 %}
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Prazo a vencer</p>
-                <p class="text-lg font-bold text-slate-800">{{ project_days_remaining }} dias</p>
-            </div>
-            {% endif %}
-            {% if diary.work_hours %}
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Horas de trabalho</p>
-                <p class="text-lg font-bold text-slate-800">{{ diary.work_hours }}h</p>
-            </div>
-            {% endif %}
-            {% if diary.pluviometric_index %}
-            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Índice pluviométrico</p>
-                <p class="text-lg font-bold text-slate-800">{{ diary.pluviometric_index }}mm</p>
-            </div>
-            {% endif %}
         </div>
     </div>
     
     <!-- Detalhes da Obra -->
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-building text-blue-600 mr-3"></i>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-building mr-2 text-sm" aria-hidden="true"></i>
             Informações da Obra
         </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Obra</p>
-                <p class="text-base font-semibold text-slate-800">{{ diary.project.name }}</p>
-                {% if diary.project.code %}
-                <p class="text-sm text-gray-600 mt-1">{{ diary.project.code }}</p>
-                {% endif %}
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Campo</th>
+                            <th scope="col">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td class="diary-detail-data-table__label">Obra</td>
+                        <td class="diary-detail-data-table__value diary-detail-data-table__value--primary">
+                            {{ diary.project.name }}
+                            {% if diary.project.code %}<span class="block text-slate-600 font-normal text-sm mt-0.5">{{ diary.project.code }}</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% if diary.project.address %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Endereço</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.project.address }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.project.client_name %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Contratante</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.project.client_name }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.project.responsible %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Responsável</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.project.responsible }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.inspection_responsible %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Responsável pela Inspeção</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.inspection_responsible }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.production_responsible %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Responsável pela Produção</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.production_responsible }}</td>
+                    </tr>
+                    {% endif %}
+                    </tbody>
+                </table>
             </div>
-            {% if diary.project.address %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Endereço</p>
-                <p class="text-base font-semibold text-slate-800">{{ diary.project.address }}</p>
-            </div>
-            {% endif %}
-            {% if diary.project.client_name %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Contratante</p>
-                <p class="text-base font-semibold text-slate-800">{{ diary.project.client_name }}</p>
-            </div>
-            {% endif %}
-            {% if diary.project.responsible %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Responsável</p>
-                <p class="text-base font-semibold text-slate-800">{{ diary.project.responsible }}</p>
-            </div>
-            {% endif %}
-            {% if diary.inspection_responsible %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Responsável pela Inspeção</p>
-                <p class="text-base font-semibold text-slate-800">{{ diary.inspection_responsible }}</p>
-            </div>
-            {% endif %}
-            {% if diary.production_responsible %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Responsável pela Produção</p>
-                <p class="text-base font-semibold text-slate-800">{{ diary.production_responsible }}</p>
-            </div>
-            {% endif %}
         </div>
     </div>
     
     <!-- Clima -->
     {% if weather_morning or weather_afternoon or weather_night or diary.weather_conditions or diary.pluviometric_index or diary.rain_occurrence %}
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-cloud-sun text-blue-600 mr-3"></i>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-cloud-sun mr-2 text-sm" aria-hidden="true"></i>
             Condições Climáticas
         </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% if weather_morning %}
-            <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
-                <p class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                    <i class="fas fa-sun text-yellow-500 mr-3"></i>Manhã
-                </p>
-                <div class="flex items-center">
-                    {% with weather_morning.color as wc %}
-                    <i class="fas fa-{{ weather_morning.icon }} text-3xl mr-5 weather-icon-color--{{ wc|default:'gray' }}"></i>
-                    {% endwith %}
-                    <div>
-                        <p class="text-base font-semibold text-gray-900">{{ weather_morning.label }}</p>
-                        <p class="text-sm text-gray-600">{{ weather_morning.condition }}</p>
-                    </div>
-                </div>
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Campo</th>
+                            <th scope="col">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% if weather_morning %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Manhã</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ weather_morning.label }} — {{ weather_morning.condition }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if weather_afternoon %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Tarde</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ weather_afternoon.label }} — {{ weather_afternoon.condition }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if weather_night %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Noite</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ weather_night.label }} — {{ weather_night.condition }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.pluviometric_index %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Índice pluviométrico</td>
+                        <td class="diary-detail-data-table__value">{{ diary.pluviometric_index }}mm</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.rain_occurrence %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Ocorrência de chuva</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.get_rain_occurrence_display }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if diary.rain_observations %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Obs. chuva</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.rain_observations }}</td>
+                    </tr>
+                    {% endif %}
+                    </tbody>
+                </table>
             </div>
-            {% endif %}
-            {% if weather_afternoon %}
-            <div class="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                    <i class="fas fa-sun text-orange-500 mr-3"></i>Tarde
-                </p>
-                <div class="flex items-center">
-                    {% with weather_afternoon.color as wc %}
-                    <i class="fas fa-{{ weather_afternoon.icon }} text-3xl mr-5 weather-icon-color--{{ wc|default:'gray' }}"></i>
-                    {% endwith %}
-                    <div>
-                        <p class="text-base font-semibold text-gray-900">{{ weather_afternoon.label }}</p>
-                        <p class="text-sm text-gray-600">{{ weather_afternoon.condition }}</p>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            {% if weather_night %}
-            <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-200">
-                <p class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                    <i class="fas fa-moon text-indigo-500 mr-3"></i>Noite
-                </p>
-                <div class="flex items-center">
-                    {% with weather_night.color as wc %}
-                    <i class="fas fa-{{ weather_night.icon }} text-3xl mr-5 weather-icon-color--{{ wc|default:'gray' }}"></i>
-                    {% endwith %}
-                    <div>
-                        <p class="text-base font-semibold text-gray-900">{{ weather_night.label }}</p>
-                        <p class="text-sm text-gray-600">{{ weather_night.condition }}</p>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
         </div>
-        
-        <!-- Informações adicionais de clima -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            {% if diary.pluviometric_index %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Índice Pluviométrico</p>
-                <p class="text-lg font-bold text-blue-700">{{ diary.pluviometric_index }}mm</p>
-            </div>
-            {% endif %}
-            {% if diary.rain_occurrence %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Ocorrência de Chuva</p>
-                <p class="text-sm font-semibold text-blue-700">{{ diary.get_rain_occurrence_display }}</p>
-            </div>
-            {% endif %}
-            {% if diary.rain_observations %}
-            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Observações sobre Chuva</p>
-                <p class="text-sm text-gray-700">{{ diary.rain_observations }}</p>
-            </div>
-            {% endif %}
-        </div>
-        
         {% if diary.weather_conditions and not weather_morning and not weather_afternoon and not weather_night %}
-        <div class="mt-4 bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <p class="text-sm font-medium text-gray-700 mb-2">Descrição Geral</p>
-            <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.weather_conditions }}</p>
+        <div class="mt-3 pt-3 border-t border-slate-200">
+            <p class="diary-detail-stack__title">Descrição geral</p>
+            <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.weather_conditions }}</p>
         </div>
         {% endif %}
     </div>
@@ -375,52 +387,76 @@
 
     <!-- Mão de Obra -->
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-users text-blue-600 mr-3"></i>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-users text-slate-500 mr-2 text-sm"></i>
             Mão de Obra
         </h3>
         {% if labor_entries_by_category %}
-        <div class="bg-white rounded-lg p-4 border border-slate-200">
+        <div class="diary-detail-compact-block">
             {% if labor_entries_by_category.indireta %}
-            <div class="mb-4">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Indireta</h4>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Indireta</h4>
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Função</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     {% for item in labor_entries_by_category.indireta %}
-                    <div class="bg-blue-50 rounded-lg p-3 border border-blue-200 text-center">
-                        <p class="text-xs font-medium text-gray-600 mb-1">{{ item.cargo_name }}</p>
-                        <p class="text-lg font-bold text-blue-700">{{ item.quantity }}</p>
-                    </div>
+                    <tr>
+                        <td class="text-slate-800">{{ item.cargo_name }}</td>
+                        <td class="diary-detail-data-table__num">{{ item.quantity }}</td>
+                    </tr>
                     {% endfor %}
-                </div>
+                    </tbody>
+                </table>
             </div>
             {% endif %}
             {% if labor_entries_by_category.direta %}
-            <div class="mb-4 {% if labor_entries_by_category.indireta %}pt-4 border-t border-slate-200{% endif %}">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Direta</h4>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Direta</h4>
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Função</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     {% for item in labor_entries_by_category.direta %}
-                    <div class="bg-green-50 rounded-lg p-3 border border-green-200 text-center">
-                        <p class="text-xs font-medium text-gray-600 mb-1">{{ item.cargo_name }}</p>
-                        <p class="text-lg font-bold text-green-700">{{ item.quantity }}</p>
-                    </div>
+                    <tr>
+                        <td class="text-slate-800">{{ item.cargo_name }}</td>
+                        <td class="diary-detail-data-table__num">{{ item.quantity }}</td>
+                    </tr>
                     {% endfor %}
-                </div>
+                    </tbody>
+                </table>
             </div>
             {% endif %}
             {% if labor_entries_by_category.terceirizada %}
-            <div class="pt-4 border-t border-slate-200">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Terceirizada</h4>
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Terceirizada</h4>
                 {% for block in labor_entries_by_category.terceirizada %}
-                <div class="mb-3">
-                    <p class="text-xs font-semibold text-slate-600 mb-2">{{ block.company }}</p>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div class="{% if not forloop.first %}mt-3 pt-3 border-t border-slate-100{% endif %}">
+                    <p class="text-xs font-medium text-slate-700 mb-1.5">{{ block.company }}</p>
+                    <table class="diary-detail-data-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Função</th>
+                                <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                         {% for item in block.items %}
-                        <div class="bg-purple-50 rounded-lg p-3 border border-purple-200 text-center">
-                            <p class="text-xs font-medium text-gray-600 mb-1">{{ item.cargo_name }}</p>
-                            <p class="text-lg font-bold text-purple-700">{{ item.quantity }}</p>
-                        </div>
+                        <tr>
+                            <td class="text-slate-800">{{ item.cargo_name }}</td>
+                            <td class="diary-detail-data-table__num">{{ item.quantity }}</td>
+                        </tr>
                         {% endfor %}
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
                 {% endfor %}
             </div>
@@ -428,231 +464,247 @@
         </div>
         {% else %}
         {% if total_direct_labor > 0 or total_indirect_labor > 0 or total_third_party_labor > 0 %}
-        <div class="bg-white rounded-lg p-4 border border-slate-200">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 pb-4 border-b border-slate-200">
-                {% if total_direct_labor > 0 %}
-                <div class="text-center bg-green-50 rounded-lg p-3 border border-green-200">
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Direto</p>
-                    <p class="text-2xl font-bold text-green-700">{{ total_direct_labor }}</p>
-                </div>
-                {% endif %}
-                {% if total_indirect_labor > 0 %}
-                <div class="text-center bg-blue-50 rounded-lg p-3 border border-blue-200">
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Indireto (LPLAN)</p>
-                    <p class="text-2xl font-bold text-blue-700">{{ total_indirect_labor }}</p>
-                </div>
-                {% endif %}
-                {% if total_third_party_labor > 0 %}
-                <div class="text-center bg-purple-50 rounded-lg p-3 border border-purple-200">
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Terceiros</p>
-                    <p class="text-2xl font-bold text-purple-700">{{ total_third_party_labor }}</p>
-                </div>
-                {% endif %}
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Resumo do dia</h4>
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Categoria</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% if total_direct_labor > 0 %}
+                    <tr>
+                        <td class="text-slate-700">Direto</td>
+                        <td class="diary-detail-data-table__num">{{ total_direct_labor }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if total_indirect_labor > 0 %}
+                    <tr>
+                        <td class="text-slate-700">Indireto (LPLAN)</td>
+                        <td class="diary-detail-data-table__num">{{ total_indirect_labor }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if total_third_party_labor > 0 %}
+                    <tr>
+                        <td class="text-slate-700">Terceiros</td>
+                        <td class="diary-detail-data-table__num">{{ total_third_party_labor }}</td>
+                    </tr>
+                    {% endif %}
+                    </tbody>
+                </table>
             </div>
             {% if labor_by_type.Direto %}
-            <div class="mb-4">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Direta</h4>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Direta</h4>
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Função</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     {% for labor_name, count in labor_by_type.Direto.items %}
-                    <div class="bg-green-50 rounded-lg p-3 border border-green-200 text-center">
-                        <p class="text-xs font-medium text-gray-600 mb-1">{{ labor_name }}</p>
-                        <p class="text-lg font-bold text-green-700">{{ count }}</p>
-                    </div>
+                    <tr>
+                        <td class="text-slate-800">{{ labor_name }}</td>
+                        <td class="diary-detail-data-table__num">{{ count }}</td>
+                    </tr>
                     {% endfor %}
-                </div>
+                    </tbody>
+                </table>
             </div>
             {% endif %}
             {% if labor_by_type.Indireto %}
-            <div class="mb-4 pt-4 border-t border-slate-200">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Indireta (LPLAN)</h4>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Indireta (LPLAN)</h4>
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Função</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     {% for labor_name, count in labor_by_type.Indireto.items %}
-                    <div class="bg-blue-50 rounded-lg p-3 border border-blue-200 text-center">
-                        <p class="text-xs font-medium text-gray-600 mb-1">{{ labor_name }}</p>
-                        <p class="text-lg font-bold text-blue-700">{{ count }}</p>
-                    </div>
+                    <tr>
+                        <td class="text-slate-800">{{ labor_name }}</td>
+                        <td class="diary-detail-data-table__num">{{ count }}</td>
+                    </tr>
                     {% endfor %}
-                </div>
+                    </tbody>
+                </table>
             </div>
             {% endif %}
             {% if labor_by_type.Terceiros %}
-            <div class="pt-4 border-t border-slate-200">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Mão de Obra Terceiros</h4>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div class="diary-detail-compact-section">
+                <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Terceiros</h4>
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Função</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     {% for labor_name, count in labor_by_type.Terceiros.items %}
-                    <div class="bg-purple-50 rounded-lg p-3 border border-purple-200 text-center">
-                        <p class="text-xs font-medium text-gray-600 mb-1">{{ labor_name }}</p>
-                        <p class="text-lg font-bold text-purple-700">{{ count }}</p>
-                    </div>
+                    <tr>
+                        <td class="text-slate-800">{{ labor_name }}</td>
+                        <td class="diary-detail-data-table__num">{{ count }}</td>
+                    </tr>
                     {% endfor %}
-                </div>
+                    </tbody>
+                </table>
             </div>
             {% endif %}
         </div>
         {% else %}
-        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-            <p class="text-sm text-gray-500">
-                <i class="fas fa-info-circle mr-3"></i>Nenhuma mão de obra registrada para este dia
-            </p>
-        </div>
+        <p class="diary-detail-empty">Nenhuma mão de obra registrada para este dia.</p>
         {% endif %}
         {% endif %}
     </div>
 
     <!-- Equipamentos -->
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-tools text-blue-600 mr-3"></i>
-            Equipamentos Utilizados
-            {% if equipment_list %}<span class="ml-2 text-sm font-normal text-gray-500">({{ equipment_list|length }})</span>{% endif %}
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-tools text-slate-500 mr-2 text-sm"></i>
+            Equipamentos utilizados
+            {% if equipment_list %}<span class="ml-2 text-xs font-normal text-gray-500">({{ equipment_list|length }})</span>{% endif %}
         </h3>
         {% if equipment_list %}
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {% for equipment in equipment_list %}
-            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200 hover:shadow-md transition-shadow">
-                <p class="text-sm font-semibold text-slate-800">{{ equipment.name }}{% if equipment.quantity and equipment.quantity > 1 %} <span class="text-slate-500 font-normal">× {{ equipment.quantity }}</span>{% endif %}</p>
-                {% if equipment.code %}
-                <p class="text-xs text-gray-600 mt-1">
-                    <i class="fas fa-hashtag mr-2"></i>{{ equipment.code }}
-                </p>
-                {% endif %}
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <table class="diary-detail-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Equipamento</th>
+                            <th scope="col" class="diary-detail-data-table__num">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for equipment in equipment_list %}
+                    <tr>
+                        <td class="text-slate-800">{{ equipment.name }}</td>
+                        <td class="diary-detail-data-table__num">{{ equipment.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            {% endfor %}
         </div>
         {% else %}
-        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-            <p class="text-sm text-gray-500">
-                <i class="fas fa-info-circle mr-2"></i>Nenhum equipamento registrado para este dia
-            </p>
-        </div>
+        <p class="diary-detail-empty">Nenhum equipamento registrado para este dia.</p>
         {% endif %}
     </div>
 
     <!-- Ocorrências (modelo DiaryOccurrence + campos legados) -->
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-exclamation-triangle text-red-600 mr-3"></i>
-            Interrupções e Ocorrências
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center diary-detail-heading-risk">
+            <i class="fas fa-exclamation-triangle mr-2 text-sm" aria-hidden="true"></i>
+            Interrupções e ocorrências
         </h3>
         {% if diary.occurrences.all or diary.accidents or diary.stoppages or diary.imminent_risks or diary.incidents %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="diary-detail-stack">
             {% for occ in diary.occurrences.all %}
-            <div class="bg-slate-50 rounded-lg p-4 border-l-4 border-red-500">
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ occ.description|linebreaks }}</p>
+            <div class="diary-detail-stack__item diary-detail-occurrence">
+                <div class="diary-detail-occurrence__text">{{ occ.description|linebreaks }}</div>
                 {% if occ.tags.exists %}
-                <div class="mt-2 flex flex-wrap gap-1">
+                <div class="diary-detail-occurrence__tags">
                     {% for tag in occ.tags.all %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"># {{ tag.name }}</span>
+                    <span class="diary-detail-occurrence-tag"># {{ tag.name }}</span>
                     {% endfor %}
                 </div>
                 {% endif %}
             </div>
             {% endfor %}
             {% if diary.accidents %}
-            <div class="bg-red-50 rounded-lg p-4 border-l-4 border-red-500">
-                <h4 class="text-md font-semibold text-red-800 mb-2 flex items-center">
-                    <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
-                    Acidentes
-                </h4>
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.accidents|linebreaks }}</p>
+            <div class="diary-detail-stack__item">
+                <p class="diary-detail-stack__title">Acidentes</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.accidents|linebreaks }}</p>
             </div>
             {% endif %}
             {% if diary.stoppages %}
-            <div class="bg-orange-50 rounded-lg p-4 border-l-4 border-orange-500">
-                <h4 class="text-md font-semibold text-orange-800 mb-2 flex items-center">
-                    <i class="fas fa-pause-circle text-orange-500 mr-3"></i>
-                    Paralisações
-                </h4>
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.stoppages|linebreaks }}</p>
+            <div class="diary-detail-stack__item">
+                <p class="diary-detail-stack__title">Paralisações</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.stoppages|linebreaks }}</p>
             </div>
             {% endif %}
             {% if diary.imminent_risks %}
-            <div class="bg-yellow-50 rounded-lg p-4 border-l-4 border-yellow-500">
-                <h4 class="text-md font-semibold text-yellow-800 mb-2 flex items-center">
-                    <i class="fas fa-exclamation-circle text-yellow-500 mr-3"></i>
-                    Riscos Eminentes
-                </h4>
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.imminent_risks|linebreaks }}</p>
+            <div class="diary-detail-stack__item">
+                <p class="diary-detail-stack__title">Riscos eminentes</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.imminent_risks|linebreaks }}</p>
             </div>
             {% endif %}
             {% if diary.incidents %}
-            <div class="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
-                <h4 class="text-md font-semibold text-blue-800 mb-2 flex items-center">
-                    <i class="fas fa-info-circle text-blue-500 mr-3"></i>
-                    Outros Incidentes
-                </h4>
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.incidents|linebreaks }}</p>
+            <div class="diary-detail-stack__item">
+                <p class="diary-detail-stack__title">Outros incidentes</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.incidents|linebreaks }}</p>
             </div>
             {% endif %}
         </div>
         {% else %}
-        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-            <p class="text-sm text-gray-500">
-                <i class="fas fa-check-circle mr-3 text-green-500"></i>Nenhuma ocorrência registrada para este dia
-            </p>
-        </div>
+        <p class="diary-detail-empty">Nenhuma ocorrência registrada para este dia.</p>
         {% endif %}
     </div>
 
     <!-- Atividades executadas (work_logs do diário + Fiscalizações, DDS) -->
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-            <i class="fas fa-calendar-check text-blue-600 mr-3"></i>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-calendar-check mr-2 text-sm" aria-hidden="true"></i>
             Atividades executadas
         </h3>
         {% if diary.work_logs.all or diary.inspections or diary.dds %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="diary-detail-stack">
             {% for wl in diary.work_logs.all %}
-            <div class="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
-                <h4 class="text-md font-semibold text-blue-800 mb-2 flex items-center">
-                    <i class="fas fa-tasks text-blue-500 mr-3"></i>
-                    {{ wl.activity.display_name }}
-                </h4>
+            <div class="diary-detail-stack__item">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <p class="text-sm font-semibold text-slate-800">{{ wl.activity.display_name }}</p>
+                    <span class="inline-flex shrink-0 items-center rounded px-2 py-0.5 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-200">
+                        {{ wl.get_work_stage_display }}
+                    </span>
+                </div>
+                {% if wl.location %}
+                <p class="text-sm text-slate-600 mt-1"><span class="text-slate-500">Local:</span> {{ wl.location }}</p>
+                {% endif %}
                 {% if wl.notes %}
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ wl.notes|linebreaks }}</p>
+                <p class="text-sm text-slate-700 mt-2 leading-snug whitespace-pre-wrap">{{ wl.notes }}</p>
                 {% endif %}
                 {% if wl.percentage_executed_today and wl.percentage_executed_today != 0 %}
-                <p class="text-xs text-gray-600 mt-2">Executado no dia: {{ wl.percentage_executed_today }}%</p>
+                <p class="text-xs text-slate-600 mt-1.5">Executado no dia: {{ wl.percentage_executed_today }}%</p>
                 {% endif %}
             </div>
             {% endfor %}
             {% if diary.inspections %}
-            <div class="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
-                <h4 class="text-md font-semibold text-blue-800 mb-2 flex items-center">
-                    <i class="fas fa-clipboard-check text-blue-500 mr-3"></i>
-                    Fiscalizações
-                </h4>
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.inspections|linebreaks }}</p>
+            <div class="diary-detail-stack__item">
+                <p class="diary-detail-stack__title">Fiscalizações</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.inspections|linebreaks }}</p>
             </div>
             {% endif %}
             {% if diary.dds %}
-            <div class="bg-green-50 rounded-lg p-4 border-l-4 border-green-500">
-                <h4 class="text-md font-semibold text-green-800 mb-2 flex items-center">
-                    <i class="fas fa-shield-alt text-green-500 mr-3"></i>
-                    DDS (Discurso Diário de Segurança)
-                </h4>
-                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.dds|linebreaks }}</p>
+            <div class="diary-detail-stack__item">
+                <p class="diary-detail-stack__title">DDS (discurso diário de segurança)</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.dds|linebreaks }}</p>
             </div>
             {% endif %}
         </div>
         {% else %}
-        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
-            <p class="text-sm text-gray-500">
-                <i class="fas fa-info-circle mr-3"></i>Nenhuma atividade executada registrada para este dia
-            </p>
-        </div>
+        <p class="diary-detail-empty">Nenhuma atividade executada registrada para este dia.</p>
         {% endif %}
     </div>
 
     <!-- Deliberações -->
     {% if diary.deliberations %}
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-3 flex items-center">
-            <i class="fas fa-gavel text-blue-600 mr-3"></i>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-gavel mr-2 text-sm" aria-hidden="true"></i>
             Deliberações
         </h3>
-        <div class="bg-amber-50 rounded-lg p-4 border-l-4 border-amber-500">
-            <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.deliberations|linebreaks }}</p>
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.deliberations|linebreaks }}</p>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -660,35 +712,35 @@
     <!-- Observações Gerais -->
     {% if diary.general_notes %}
     <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-3 flex items-center">
-            <i class="fas fa-sticky-note text-blue-600 mr-3"></i>
-            Observações Gerais
+        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+            <i class="fas fa-sticky-note mr-2 text-sm" aria-hidden="true"></i>
+            Observações gerais
         </h3>
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ diary.general_notes|linebreaks }}</p>
+        <div class="diary-detail-compact-block">
+            <div class="diary-detail-compact-section">
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.general_notes|linebreaks }}</p>
+            </div>
         </div>
     </div>
     {% endif %}
 </div>
 
 {% if approval_history %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-        <i class="fas fa-clipboard-check text-blue-600 mr-3"></i>
+<div class="diary-detail-section mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+        <i class="fas fa-clipboard-check mr-2 text-sm" aria-hidden="true"></i>
         Histórico de aprovação do RDO
     </h3>
-    <div class="space-y-3">
+    <div class="diary-detail-compact-block">
         {% for item in approval_history %}
-        <div class="rounded-lg border border-slate-200 p-3 {% if item.decision == 'AP' %}bg-emerald-50{% else %}bg-red-50{% endif %}">
-            <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold {% if item.decision == 'AP' %}text-emerald-800{% else %}text-red-800{% endif %}">
-                    {% if item.decision == 'AP' %}<i class="fas fa-check-circle mr-2"></i>Aprovado{% else %}<i class="fas fa-times-circle mr-2"></i>Reprovado{% endif %}
+        <div class="diary-detail-compact-section">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-800">
+                    {% if item.decision == 'AP' %}Aprovado{% else %}Reprovado{% endif %}
+                    <span class="font-normal text-slate-600"> — {{ item.decided_by.get_full_name|default:item.decided_by.username|default:"Usuário removido" }}</span>
                 </p>
-                <p class="text-xs text-slate-500">{{ item.created_at|date:"d/m/Y H:i" }}</p>
+                <p class="text-xs text-slate-500 tabular-nums">{{ item.created_at|date:"d/m/Y H:i" }}</p>
             </div>
-            <p class="text-xs text-slate-600 mt-1">
-                por {{ item.decided_by.get_full_name|default:item.decided_by.username|default:"Usuário removido" }}
-            </p>
             {% if item.comment %}
             <p class="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{{ item.comment }}</p>
             {% endif %}
@@ -700,25 +752,25 @@
 
 <!-- Imagens -->
 {% if diary.images.all %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-        <i class="fas fa-camera text-blue-600 mr-3"></i>
-        Fotos de Evidência ({{ diary.images.count }})
+<div class="diary-detail-section mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+        <i class="fas fa-camera mr-2 text-sm" aria-hidden="true"></i>
+        Fotos de evidência ({{ diary.images.count }})
     </h3>
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+    <div class="diary-detail-photo-grid">
         {% for image in diary.images.all %}
-        <div class="relative group diary-photo-thumb">
-            <img src="{{ image.image.url }}" 
-                 alt="{{ image.caption|default:'Foto' }}"
-                 loading="lazy"
-                 class="w-full h-28 sm:h-32 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-                 onclick="window.open('{{ image.image.url }}', '_blank')">
-            {% if image.caption %}
-            <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white text-xs p-2 rounded-b-lg">
-                {{ image.caption|truncatewords:8 }}
+        <figure class="diary-detail-photo-card m-0 max-w-[22rem]">
+            <div class="diary-detail-photo-frame">
+                <img src="{{ image.image.url }}" 
+                     alt="{{ image.caption|default:'Foto' }}"
+                     loading="lazy"
+                     class="diary-detail-photo-frame__img"
+                     onclick="window.open('{{ image.image.url }}', '_blank')">
             </div>
+            {% if image.caption %}
+            <figcaption class="diary-detail-photo-caption-below">{{ image.caption|truncatewords:8 }}</figcaption>
             {% endif %}
-        </div>
+        </figure>
         {% endfor %}
     </div>
 </div>
@@ -726,15 +778,15 @@
 
 <!-- Vídeos -->
 {% if diary.videos.all %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-        <i class="fas fa-video text-blue-600 mr-3"></i>
-        Vídeos de Evidência ({{ diary.videos.count }})
+<div class="diary-detail-section mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+        <i class="fas fa-video mr-2 text-sm" aria-hidden="true"></i>
+        Vídeos de evidência ({{ diary.videos.count }})
     </h3>
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+    <div class="diary-detail-video-grid">
         {% for video in diary.videos.all %}
         <div class="relative diary-video-preview">
-            <video class="w-full rounded-lg border border-gray-200 diary-video-player" 
+            <video class="w-full rounded-md border border-gray-200 diary-video-player" 
                    controls 
                    preload="metadata"
                    style="pointer-events: auto;">
@@ -750,66 +802,26 @@
 </div>
 {% endif %}
 
-<!-- Registros de Trabalho -->
-{% if diary.work_logs.all %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-        <i class="fas fa-tasks text-blue-600 mr-3"></i>
-        Registros de Trabalho ({{ diary.work_logs.count }})
-    </h3>
-    <div class="space-y-4">
-        {% for work_log in diary.work_logs.all %}
-        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h4 class="font-semibold text-slate-800">
-                    <i class="fas fa-project-diagram text-slate-500 mr-2"></i>
-                    {{ work_log.activity.display_name }}
-                </h4>
-                {# Status escolhido no diário = work_stage (não confundir com Activity.status da EAP) #}
-                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold
-                    {% if work_log.work_stage == 'TE' %}bg-emerald-100 text-emerald-800
-                    {% elif work_log.work_stage == 'IN' %}bg-sky-100 text-sky-800
-                    {% else %}bg-amber-100 text-amber-800{% endif %}">
-                    {{ work_log.get_work_stage_display }}
-                </span>
-            </div>
-            {% if work_log.location %}
-            <p class="text-sm text-gray-600 mb-2">
-                <i class="fas fa-map-marker-alt text-slate-400 mr-2"></i>
-                <strong>Local:</strong> {{ work_log.location }}
-            </p>
-            {% endif %}
-            {% if work_log.notes %}
-            <p class="text-sm text-gray-700 mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <strong>Descrição:</strong> {{ work_log.notes }}
-            </p>
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
-
 <!-- Assinatura -->
 {% if signature_inspection %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-        <i class="fas fa-signature text-blue-600 mr-3"></i>
+<div class="diary-detail-section mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+        <i class="fas fa-signature mr-2 text-sm" aria-hidden="true"></i>
         Assinaturas
     </h3>
-    <div class="max-w-md">
-        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <p class="text-sm font-semibold text-gray-700 mb-3">Responsável pelo preenchimento</p>
-            <div class="border-2 border-gray-300 rounded p-2 bg-white mb-2">
+    <div class="max-w-md diary-detail-compact-block">
+        <div class="diary-detail-compact-section">
+            <p class="diary-detail-stack__title mb-2">Responsável pelo preenchimento</p>
+            <div class="rounded border border-slate-200 bg-white p-2 mb-2">
                 <img src="{{ signature_inspection.signature_data }}" 
                      alt="Assinatura - Responsável pelo preenchimento" 
                      loading="lazy"
                      class="w-full h-24 object-contain">
             </div>
-            <p class="text-xs text-gray-600">
-                <i class="fas fa-user mr-2"></i>{{ signature_inspection.signer.get_full_name|default:signature_inspection.signer.username }}
-                <br>
-                <i class="fas fa-clock mr-2"></i>{{ signature_inspection.signed_at|date:"d/m/Y H:i" }}
+            <p class="text-xs text-slate-600">
+                {{ signature_inspection.signer.get_full_name|default:signature_inspection.signer.username }}
+                <span class="text-slate-400"> · </span>
+                {{ signature_inspection.signed_at|date:"d/m/Y H:i" }}
             </p>
         </div>
     </div>
@@ -817,49 +829,42 @@
 {% endif %}
 
 <!-- Informações de Auditoria -->
-<div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-6">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between text-sm text-gray-600 space-y-2 md:space-y-0">
-        <div>
-            <p class="mb-1">
-                <i class="fas fa-user-plus mr-2"></i>
-                <strong>Criado por:</strong> {{ diary.created_by.get_full_name|default:diary.created_by.username }} 
-                em {{ diary.created_at|date:"d/m/Y H:i" }}
-            </p>
-            {% if diary.updated_at != diary.created_at %}
-            <p class="text-xs text-gray-500">
-                <i class="fas fa-edit mr-2"></i>
-                Última modificação: {{ diary.updated_at|date:"d/m/Y H:i" }}
-            </p>
-            {% endif %}
-        </div>
-        <div class="flex space-x-4">
-            {% if edit_count > 0 %}
-            <button type="button"
-                    onclick="document.getElementById('edit-logs-modal').classList.remove('hidden')"
-                    class="text-blue-600 hover:text-blue-800 cursor-pointer transition-colors">
-                <i class="fas fa-history mr-2"></i>Log de edições ({{ edit_count }})
-            </button>
-            {% else %}
-            <span class="text-gray-500">
-                <i class="fas fa-history mr-2"></i>Log de edições (0)
-            </span>
-            {% endif %}
+<div class="diary-detail-compact-block mb-6">
+    <div class="diary-detail-compact-section">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-sm text-slate-600">
+            <div>
+                <p><span class="text-slate-500">Criado por</span> {{ diary.created_by.get_full_name|default:diary.created_by.username }} <span class="text-slate-400">·</span> {{ diary.created_at|date:"d/m/Y H:i" }}</p>
+                {% if diary.updated_at != diary.created_at %}
+                <p class="text-xs text-slate-500 mt-1">Última modificação: {{ diary.updated_at|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+            </div>
+            <div>
+                {% if edit_count > 0 %}
+                <button type="button"
+                        onclick="document.getElementById('edit-logs-modal').classList.remove('hidden')"
+                        class="text-slate-700 hover:text-slate-900 cursor-pointer text-sm underline decoration-slate-300 underline-offset-2">
+                    Log de edições ({{ edit_count }})
+                </button>
+                {% else %}
+                <span class="text-sm text-slate-500">Log de edições (0)</span>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Comentários do cliente (chat LPLAN ↔ cliente) -->
 {% if diary.is_approved %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-        <i class="fas fa-comments text-blue-600 mr-3"></i>
+<div class="diary-detail-section mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+        <i class="fas fa-comments mr-2 text-sm" aria-hidden="true"></i>
         Comentários do cliente
     </h3>
     {% if owner_comments %}
-    <ul class="space-y-4 mb-6">
+    <ul class="space-y-2 mb-4">
         {% for c in owner_comments %}
         <li class="flex {% if c.author == user %}justify-end{% else %}justify-start{% endif %}">
-            <div class="diary-comment-bubble rounded-lg px-4 py-2 {% if c.author == user %}bg-blue-100 text-blue-900{% else %}bg-slate-100 text-slate-800{% endif %}">
+            <div class="diary-comment-bubble rounded-md px-3 py-1.5 text-sm {% if c.author == user %}bg-blue-100 text-blue-900{% else %}bg-slate-100 text-slate-800{% endif %}">
                 <p class="text-sm font-medium">{{ c.author.get_full_name|default:c.author.username }}</p>
                 <p class="text-sm whitespace-pre-wrap mt-1">{{ c.text }}</p>
                 <p class="text-xs text-slate-500 mt-2">{{ c.created_at|date:"d/m/Y H:i" }}</p>
@@ -868,17 +873,20 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p class="text-sm text-slate-500 mb-6">Nenhum comentário ainda. O cliente pode comentar na página de visualização (link enviado por e-mail) dentro de 24h após o envio.</p>
+    <p class="text-sm text-slate-500 mb-3">Nenhum comentário ainda. O cliente pode comentar na página de visualização (link enviado por e-mail) dentro de 24h após o envio.</p>
     {% endif %}
     {% if can_add_owner_comment %}
-    <form action="{% url 'diary-add-owner-comment' diary.id %}" method="post" class="flex flex-col gap-3">
+    <form action="{% url 'diary-add-owner-comment' diary.id %}" method="post" class="flex flex-col gap-2 max-w-2xl">
         {% csrf_token %}
-        <textarea name="text" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Resposta ao cliente..." required></textarea>
-        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium w-fit"><i class="fas fa-paper-plane mr-2"></i>Enviar resposta</button>
+        <textarea name="text" rows="3" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-slate-400 focus:border-slate-400" placeholder="Resposta ao cliente..." required></textarea>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium w-fit"><i class="fas fa-paper-plane mr-2"></i>Enviar resposta</button>
     </form>
     {% endif %}
 </div>
 {% endif %}
+
+</div>
+{# fim .diary-detail-page #}
 
 <!-- Modal: Log de Edições -->
 <div id="edit-logs-modal" 
@@ -886,10 +894,10 @@
      onclick="if(event.target === this) this.classList.add('hidden')">
     <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full overflow-hidden" style="max-height: 80vh;" onclick="event.stopPropagation()">
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
+        <div class="diary-detail-modal-head px-6 py-4 border-b border-gray-200 bg-slate-50">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-900">
-                    <i class="fas fa-history mr-3 text-blue-600"></i>Log de Edições
+                    <i class="fas fa-history mr-3 text-slate-500" aria-hidden="true"></i>Log de Edições
                 </h3>
                 <button type="button"
                         onclick="document.getElementById('edit-logs-modal').classList.add('hidden')"
@@ -950,15 +958,14 @@
 </div>
 
 <style>
-/* Contraste garantido (Tailwind pode não incluir bg-amber em produção) */
 button.diary-request-correction-submit {
-    background-color: #2563eb !important;
+    background-color: #334155 !important;
     color: #ffffff !important;
-    border: 1px solid #1d4ed8 !important;
+    border: 1px solid #1e293b !important;
 }
 button.diary-request-correction-submit:hover {
-    background-color: #1d4ed8 !important;
-    border-color: #1e40af !important;
+    background-color: #1e293b !important;
+    border-color: #0f172a !important;
 }
 button.diary-request-correction-submit i {
     color: #ffffff !important;
@@ -1027,12 +1034,6 @@ button.diary-request-edit-cancel-btn:hover {
     max-width: 85%;
 }
 
-/* Desktop: evita fotos gigantes na visualização do diário */
-.diary-photo-thumb img {
-    height: 150px !important;
-    object-fit: cover;
-}
-
 @media (max-width: 768px) {
     .diary-detail-actions {
         width: 100%;
@@ -1062,9 +1063,6 @@ button.diary-request-edit-cancel-btn:hover {
     }
     .diary-comment-bubble {
         max-width: 92%;
-    }
-    .diary-photo-thumb img {
-        height: 115px !important;
     }
     #edit-logs-modal .bg-white.rounded-lg.shadow-2xl.max-w-2xl {
         max-height: 92vh;
@@ -1105,14 +1103,12 @@ button.diary-request-edit-cancel-btn:hover {
             if (isPrintOpen) {
                 printMenu.style.display = 'block';
                 printButton.setAttribute('aria-expanded', 'true');
-                printButton.classList.remove('bg-gray-800');
-                printButton.classList.add('bg-gray-700');
+                printButton.classList.add('diary-detail-print-is-open');
                 printChevron.style.transform = 'rotate(180deg)';
             } else {
                 printMenu.style.display = 'none';
                 printButton.setAttribute('aria-expanded', 'false');
-                printButton.classList.remove('bg-gray-700');
-                printButton.classList.add('bg-gray-800');
+                printButton.classList.remove('diary-detail-print-is-open');
                 printChevron.style.transform = 'rotate(0deg)';
             }
         }
@@ -1125,8 +1121,7 @@ button.diary-request-edit-cancel-btn:hover {
                 isPrintOpen = false;
                 printMenu.style.display = 'none';
                 printButton.setAttribute('aria-expanded', 'false');
-                printButton.classList.remove('bg-gray-700');
-                printButton.classList.add('bg-gray-800');
+                printButton.classList.remove('diary-detail-print-is-open');
                 printChevron.style.transform = 'rotate(0deg)';
             }
         });

@@ -245,6 +245,22 @@
     color: #fff !important;
 }
 
+/* Sem RDO justificado: mesmo peso visual dos outros chips (borda suave, sem anel forte) */
+.fc-event.fc-event--justificado {
+    background: #f1f5f9 !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    color: #334155 !important;
+    font-weight: 500 !important;
+}
+
+.fc-event--justificado,
+.fc-event--justificado .fc-event-content-inner,
+.fc-event--justificado .fc-event-title-text,
+.fc-event--justificado .fc-event-icon {
+    color: #334155 !important;
+}
+
 .fc-daygrid-day-number {
     font-weight: 600;
     color: #334155;
@@ -371,6 +387,13 @@
 .dashboard-legend-draft { border-color: #fde68a; background: #fefce8; }
 .dashboard-legend-pending-approval i { color: #1d4ed8; }
 .dashboard-legend-pending-approval { border-color: #bfdbfe; background: #eff6ff; }
+
+.dashboard-legend-justified i { color: #64748b; }
+.dashboard-legend-justified {
+    border-color: #e2e8f0;
+    background: #f1f5f9;
+    color: #475569;
+}
 
 .dashboard-calendar-wrapper {
     padding: 1rem 1.5rem 1.5rem;
@@ -859,6 +882,16 @@ html[data-theme="dark"] .dashboard-legend-pending-approval {
     border-color: rgba(59, 130, 246, 0.45) !important;
 }
 
+html[data-theme="dark"] .dashboard-legend-justified {
+    background: rgba(148, 163, 184, 0.14) !important;
+    border-color: rgba(148, 163, 184, 0.35) !important;
+    color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .dashboard-legend-justified i {
+    color: #94a3b8 !important;
+}
+
 html[data-theme="dark"] .fc-header-toolbar {
     background: #0f172a !important;
     border-color: #334155 !important;
@@ -966,6 +999,19 @@ html[data-theme="dark"] .fc-event--preenchido {
     border: 1px solid #22c55e !important;
 }
 
+html[data-theme="dark"] .fc-event.fc-event--justificado {
+    background: rgba(148, 163, 184, 0.22) !important;
+    border: 1px solid rgba(148, 163, 184, 0.35) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="dark"] .fc-event--justificado,
+html[data-theme="dark"] .fc-event--justificado .fc-event-content-inner,
+html[data-theme="dark"] .fc-event--justificado .fc-event-title-text,
+html[data-theme="dark"] .fc-event--justificado .fc-event-icon {
+    color: #e2e8f0 !important;
+}
+
 /* FullCalendar vars + grid shells (remove barras cinza/brancas) */
 html[data-theme="dark"] .dashboard-calendar-inner,
 html[data-theme="dark"] #calendar {
@@ -1054,3 +1100,219 @@ html[data-theme="dark"] .dashboard-project-info .text-sm {
 html[data-theme="dark"] .dashboard-project-info .font-medium {
     color: #f8fafc !important;
 }
+
+/* Modal: detalhe do dia sem RDO (justificado) — clique no calendário */
+.lplan-justified-detail-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1450;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    margin: 0;
+    box-sizing: border-box;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.lplan-justified-detail__panel {
+    width: 100%;
+    max-width: 22rem;
+    background: #fff;
+    border-radius: 0.875rem;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.2);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.lplan-justified-detail__hdr {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.125rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.lplan-justified-detail__title {
+    margin: 0 0 0.25rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.3;
+}
+
+.lplan-justified-detail__sub {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.lplan-justified-detail__close {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lplan-justified-detail__close:hover {
+    background: #fff;
+    color: #0f172a;
+}
+
+.lplan-justified-detail__body {
+    padding: 1rem 1.125rem 1.125rem;
+}
+
+.lplan-justified-detail__k {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 0.2rem;
+}
+
+.lplan-justified-detail__v {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.lplan-justified-detail__reason {
+    margin: 0 0 0.75rem 0;
+}
+
+.lplan-justified-detail__note {
+    margin: 0 0 1rem 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.lplan-justified-detail__hint {
+    margin: 0 0 1rem 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.lplan-justified-detail__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.lplan-justified-detail__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.lplan-justified-detail__btn--ghost {
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+}
+
+.lplan-justified-detail__btn--ghost:hover {
+    background: #f8fafc;
+}
+
+.lplan-justified-detail__btn--primary {
+    border: none;
+    background: #64748b;
+    color: #fff;
+}
+
+.lplan-justified-detail__btn--primary:hover {
+    filter: brightness(1.06);
+}
+
+.lplan-justified-detail__btn--cta {
+    border: none;
+    background: #2563eb;
+    color: #fff;
+}
+
+.lplan-justified-detail__btn--cta:hover {
+    filter: brightness(1.06);
+}
+
+html[data-theme="dark"] .lplan-justified-detail__panel {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__hdr {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border-bottom-color: #334155;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__title {
+    color: #f8fafc;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__sub,
+html[data-theme="dark"] .lplan-justified-detail__k {
+    color: #94a3b8;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__v {
+    color: #e2e8f0;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__note {
+    border-top-color: #334155;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__hint {
+    color: #94a3b8;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__actions {
+    border-top-color: #334155;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__close {
+    background: rgba(30, 41, 59, 0.95);
+    color: #94a3b8;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__close:hover {
+    background: #334155;
+    color: #f8fafc;
+}
+
+html[data-theme="dark"] .lplan-justified-detail__btn--ghost {
+    background: #0f172a;
+    border-color: #475569;
+    color: #cbd5e1;
+}
+

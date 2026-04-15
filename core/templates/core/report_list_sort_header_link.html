@@ -1,0 +1,20 @@
+<a href="{% url 'report-list' %}?{{ sort_q }}"
+   hx-get="{% url 'report-list' %}?{{ sort_q }}"
+   hx-target="#report-list"
+   hx-push-url="true"
+   class="report-list-table__sort-link{% if extra_class %} {{ extra_class }}{% endif %}{% if report_list_sort == sort_col %} is-active{% endif %}"
+   rel="nofollow"
+   title="{% if report_list_sort == sort_col %}{% if report_list_sort_dir == 'desc' %}Ordenação decrescente — clique para crescente{% else %}Ordenação crescente — clique para decrescente{% endif %}{% else %}Ordenar por {{ label|lower }}{% endif %}">
+    <span>{{ label }}</span>
+    {% if report_list_sort == sort_col %}
+        {% if report_list_sort_dir == 'desc' %}
+        <i class="fas fa-sort-down report-list-table__sort-icon" aria-hidden="true"></i>
+        <span class="sr-only">decrescente</span>
+        {% else %}
+        <i class="fas fa-sort-up report-list-table__sort-icon" aria-hidden="true"></i>
+        <span class="sr-only">crescente</span>
+        {% endif %}
+    {% else %}
+        <i class="fas fa-sort report-list-table__sort-icon report-list-table__sort-icon--muted" aria-hidden="true"></i>
+    {% endif %}
+</a>

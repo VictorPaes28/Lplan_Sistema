@@ -25,6 +25,7 @@ from .models import (
     SupportTicketAttachment,
     Notification,
     ConstructionDiary,
+    DiaryNoReportDay,
     DiaryCorrectionRequestLog,
     DiaryApprovalHistory,
     DiaryComment,
@@ -37,6 +38,7 @@ from .models import (
     ActivityStatus,
 )
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 import logging
 from accounts.groups import GRUPOS
 from accounts.models import UserSignupRequest
@@ -1272,6 +1274,7 @@ def dashboard_view(request):
         'total_comments_count': total_comments,
         'total_attachments_count': total_attachments,
         'DEBUG': settings.DEBUG,
+        'no_report_reasons': DiaryNoReportDay.Reason.choices,
     }
     
     return render(request, 'core/dashboard.html', context)
@@ -1358,6 +1361,7 @@ def calendar_events_view(request):
             'id': diary.id,
             'title': title,
             'start': diary.date.isoformat(),
+            'allDay': True,
             'color': color,
             'display': 'block',
             'extendedProps': {
@@ -1368,42 +1372,165 @@ def calendar_events_view(request):
             },
         })
     
-    # Adiciona eventos para dias sem relatórios (dias faltantes)
+    # Adiciona eventos para dias sem relatórios (dias faltantes) ou já justificados (sem RDO)
     # Considera todo o intervalo exibido (view_start até view_end), incluindo após o término previsto
     if view_start and view_end:
         today = timezone.now().date()
+        justified_by_date = {
+            row.date: row
+            for row in DiaryNoReportDay.objects.filter(
+                project=project,
+                date__gte=view_start,
+                date__lte=view_end,
+            ).only('date', 'reason', 'note')
+        }
         current_date = view_start
-        
+
         while current_date <= view_end:
-            # Verifica se é dia útil (segunda a sexta) - pode ser configurável depois
-            # Por enquanto, mostra todos os dias dentro do período da obra
-            is_weekday = current_date.weekday() < 5  # 0-4 = segunda a sexta
-            
             # Se não tem relatório neste dia e está dentro do período da obra
             # Só exibe evento para hoje ou dias passados (Falta/Atraso). Dias futuros ficam em branco.
             if current_date not in dates_with_diaries and current_date <= today:
-                color = '#dc2626'  # Vermelho escuro para borda
-                title_status = 'Atraso'
-                title = f"Falta relatório - {title_status}"
-                short_title = 'Falta'
-                events.append({
-                    'id': f'missing_{current_date.isoformat()}',
-                    'title': title,
-                    'start': current_date.isoformat(),
-                    'color': color,
-                    'display': 'block',
-                    'extendedProps': {
-                        'status': title_status,
-                        'diary_id': None,
-                        'has_diary': False,
-                        'missing': True,
-                        'short_title': short_title,
-                    },
-                })
-            
+                if current_date in justified_by_date:
+                    nrd = justified_by_date[current_date]
+                    reason_label = nrd.get_reason_display()
+                    note = (nrd.note or '').strip()
+                    if note:
+                        title = f'{reason_label} — {note}'
+                        # Na célula: prioriza o nome livre (ex.: feriado); senão o motivo
+                        short_raw = note
+                    else:
+                        title = reason_label
+                        short_raw = reason_label
+                    if len(short_raw) > 22:
+                        short_title = short_raw[:19] + '…'
+                    else:
+                        short_title = short_raw
+                    events.append({
+                        'id': f'justified_{current_date.isoformat()}',
+                        'title': title,
+                        'start': current_date.isoformat(),
+                        'allDay': True,
+                        'color': '#94a3b8',
+                        'display': 'block',
+                        'extendedProps': {
+                            'status': 'Justificado',
+                            'diary_id': None,
+                            'has_diary': False,
+                            'missing': False,
+                            'no_report_justified': True,
+                            'no_report_reason': reason_label,
+                            'no_report_note': note,
+                            'short_title': short_title,
+                        },
+                    })
+                else:
+                    color = '#dc2626'  # Vermelho escuro para borda
+                    title_status = 'Atraso'
+                    title = f"Falta relatório - {title_status}"
+                    short_title = 'Falta'
+                    events.append({
+                        'id': f'missing_{current_date.isoformat()}',
+                        'title': title,
+                        'start': current_date.isoformat(),
+                        'allDay': True,
+                        'color': color,
+                        'display': 'block',
+                        'extendedProps': {
+                            'status': title_status,
+                            'diary_id': None,
+                            'has_diary': False,
+                            'missing': True,
+                            'short_title': short_title,
+                        },
+                    })
+
             current_date += timedelta(days=1)
     
-    return JsonResponse(events, safe=False)
+    # Evita resposta em cache (proxy/navegador): o calendário ficava com “Falta”
+    # mesmo após justificar o dia no servidor.
+    response = JsonResponse(events, safe=False)
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    response['Vary'] = 'Cookie'
+    return response
+
+
+_REPORT_LIST_SORT_KEYS = frozenset({'date', 'report_number', 'status'})
+_REPORT_LIST_SORT_DEFAULT_DIR = {
+    'date': 'desc',
+    'report_number': 'desc',
+    'status': 'asc',
+}
+
+
+def _report_list_sort_query_string(request, column: str) -> str:
+    """Monta query string para alternar ordenação ao clicar numa coluna (preserva filtros, remove page)."""
+    if column not in _REPORT_LIST_SORT_KEYS:
+        column = 'date'
+    qd = request.GET.copy()
+    qd.pop('page', None)
+    cur_sort = qd.get('sort') or 'date'
+    if cur_sort not in _REPORT_LIST_SORT_KEYS:
+        cur_sort = 'date'
+    cur_dir = qd.get('dir')
+    if cur_dir not in ('asc', 'desc'):
+        cur_dir = _REPORT_LIST_SORT_DEFAULT_DIR[cur_sort]
+    if cur_sort == column:
+        qd['sort'] = column
+        qd['dir'] = 'asc' if cur_dir == 'desc' else 'desc'
+    else:
+        qd['sort'] = column
+        qd['dir'] = _REPORT_LIST_SORT_DEFAULT_DIR[column]
+    return qd.urlencode()
+
+
+def _report_list_parse_sort(request):
+    sort = request.GET.get('sort') or 'date'
+    if sort not in _REPORT_LIST_SORT_KEYS:
+        sort = 'date'
+    sort_dir = request.GET.get('dir')
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = _REPORT_LIST_SORT_DEFAULT_DIR[sort]
+    return sort, sort_dir
+
+
+def _report_list_merge_rows(diary_list, no_report_list, sort, sort_dir):
+    """Mistura RDOs com dias justificados (sem RDO); ordenação alinhada à coluna ativa."""
+    diary_rows = [('diary', d) for d in diary_list]
+    no_report_rows = [('no_report', j) for j in no_report_list]
+    reverse = sort_dir == 'desc'
+
+    if sort == 'date':
+        rows = diary_rows + no_report_rows
+
+        def k(item):
+            kind, o = item
+            sub_kind = 0 if kind == 'diary' else 1
+            return (o.date, sub_kind, o.created_at, o.pk)
+
+        rows.sort(key=k, reverse=reverse)
+        return rows
+
+    if sort == 'report_number':
+
+        def dk(x):
+            o = x[1]
+            n = o.report_number
+            return (1 if n is None else 0, n or 0, o.date, o.pk)
+
+        diary_rows.sort(key=dk, reverse=reverse)
+        no_report_rows.sort(key=lambda x: (x[1].date, x[1].pk), reverse=reverse)
+        return diary_rows + no_report_rows
+
+    diary_rows.sort(
+        key=lambda x: (x[1].status, x[1].date, x[1].pk),
+        reverse=reverse,
+    )
+    no_report_rows.sort(
+        key=lambda x: (x[1].reason, x[1].date, x[1].pk),
+        reverse=reverse,
+    )
+    return diary_rows + no_report_rows
 
 
 @login_required
@@ -1411,12 +1538,24 @@ def calendar_events_view(request):
 def report_list_view(request):
     """View de listagem de relatórios com filtros HTMX."""
     project = get_selected_project(request)
-    diaries = ConstructionDiary.objects.filter(project=project).select_related('project').all()
-    can_review_diaries = _is_project_rdo_approver(request.user, project) if project else False
-    pending_approval_diaries = ConstructionDiary.objects.filter(
-        project=project,
-        status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
-    ).select_related('created_by').order_by('date', 'report_number')
+    report_list_per_page = 30
+    is_htmx = bool(request.headers.get('HX-Request'))
+
+    diaries = (
+        ConstructionDiary.objects.filter(project=project)
+        .select_related('project')
+        .annotate(image_count=Count('images'))
+    )
+
+    if is_htmx:
+        can_review_diaries = False
+        pending_approval_diaries = []
+    else:
+        can_review_diaries = _is_project_rdo_approver(request.user, project) if project else False
+        pending_approval_diaries = ConstructionDiary.objects.filter(
+            project=project,
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+        ).select_related('created_by').order_by('date', 'report_number')
     
     # Filtros
     search = request.GET.get('search')
@@ -1444,26 +1583,71 @@ def report_list_view(request):
     status = request.GET.get('status')
     if status:
         diaries = diaries.filter(status=status)
-    
-    # Ordenação
-    diaries = diaries.order_by('-date', '-created_at')
+
+    sort, sort_dir = _report_list_parse_sort(request)
+
+    no_report_qs = DiaryNoReportDay.objects.filter(
+        project=project,
+        date__gte=timezone.now().date() - timedelta(days=366),
+    ).select_related('created_by')
+    if date_start:
+        try:
+            no_report_qs = no_report_qs.filter(date__gte=date_start)
+        except ValueError:
+            pass
+    if date_end:
+        try:
+            no_report_qs = no_report_qs.filter(date__lte=date_end)
+        except ValueError:
+            pass
+    if search:
+        no_report_qs = no_report_qs.filter(Q(note__icontains=search))
+    if status:
+        no_report_qs = DiaryNoReportDay.objects.none()
+
+    diary_list = list(diaries.order_by())
+    no_report_list = list(no_report_qs)
+    merged_rows = _report_list_merge_rows(diary_list, no_report_list, sort, sort_dir)
+
+    paginator = Paginator(merged_rows, report_list_per_page)
+    page_obj = paginator.get_page(request.GET.get('page') or 1)
+
+    qd = request.GET.copy()
+    qd.pop('page', None)
+    report_list_pagination_query = qd.urlencode()
     
     # Último relatório para o modal (qualquer status)
-    last_diary = ConstructionDiary.objects.filter(
-        project=project
-    ).order_by('-date', '-created_at').first()
-    
-    # Projetos que o usuário pode acessar (para o select do modal "Adicionar relatório")
-    all_projects = _get_projects_for_user(request)
-    
+    if is_htmx:
+        last_diary = None
+        all_projects = []
+        no_report_reasons = []
+    else:
+        last_diary = ConstructionDiary.objects.filter(
+            project=project
+        ).order_by('-date', '-created_at').first()
+        all_projects = _get_projects_for_user(request)
+        no_report_reasons = DiaryNoReportDay.Reason.choices
+
     context = {
-        'diaries': diaries,
+        'report_list_total': paginator.count,
+        'report_list_page_obj': page_obj,
+        'report_list_paginator': paginator,
+        'report_list_per_page': report_list_per_page,
+        'report_list_pagination_query': report_list_pagination_query,
+        'report_list_sort': sort,
+        'report_list_sort_dir': sort_dir,
+        'report_list_sort_q': {
+            'date': _report_list_sort_query_string(request, 'date'),
+            'report_number': _report_list_sort_query_string(request, 'report_number'),
+            'status': _report_list_sort_query_string(request, 'status'),
+        },
         'last_diary': last_diary,
         'user': request.user,  # Adiciona user ao contexto para can_be_edited_by
         'project': project,  # Adiciona projeto ao contexto para o modal
         'all_projects': all_projects,  # Projetos acessíveis para o select do modal
         'can_review_diaries': can_review_diaries,
         'pending_approval_diaries': pending_approval_diaries,
+        'no_report_reasons': no_report_reasons,
     }
     
     # Se for requisição HTMX, retorna apenas o conteúdo
@@ -1471,6 +1655,88 @@ def report_list_view(request):
         return render(request, 'core/report_list_partial.html', context)
     
     return render(request, 'core/report_list.html', context)
+
+
+@login_required
+@project_required
+@require_http_methods(['POST'])
+def diary_no_report_day_create_view(request):
+    """Registo rápido: dia sem RDO (feriado, fim de semana, etc.)."""
+    from datetime import datetime as dt_mod
+
+    def _redirect_after_no_report_day():
+        if request.POST.get('return_to', '').strip() == 'dashboard':
+            return redirect('dashboard')
+        return redirect('report-list')
+
+    project = get_selected_project(request)
+    if not project or not _user_can_access_project(request.user, project):
+        raise PermissionDenied()
+    date_str = request.POST.get('date', '').strip()
+    reason = request.POST.get('reason', '').strip()
+    note = (request.POST.get('note') or '').strip()[:300]
+    valid_reasons = {c.value for c in DiaryNoReportDay.Reason}
+    if reason not in valid_reasons:
+        messages.error(request, 'Selecione um motivo válido.')
+        return _redirect_after_no_report_day()
+    try:
+        day = dt_mod.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        messages.error(request, 'Data inválida.')
+        return _redirect_after_no_report_day()
+    today = timezone.now().date()
+    if day > today:
+        messages.error(request, 'Não é possível justificar datas futuras.')
+        return _redirect_after_no_report_day()
+    if ConstructionDiary.objects.filter(project=project, date=day).exists():
+        messages.error(
+            request,
+            f'Já existe relatório em {day.strftime("%d/%m/%Y")}. Abra ou edite o RDO; não é possível justificar o mesmo dia.',
+        )
+        return _redirect_after_no_report_day()
+    existing = DiaryNoReportDay.objects.filter(project=project, date=day).first()
+    if existing:
+        if not request.user.is_superuser and existing.created_by_id != request.user.id:
+            messages.error(
+                request,
+                'Só quem registou esta justificativa (ou um administrador) pode alterá-la. Peça a remoção ou a correção a essa pessoa.',
+            )
+            return _redirect_after_no_report_day()
+        existing.reason = reason
+        existing.note = note
+        existing.save(update_fields=['reason', 'note', 'updated_at'])
+        messages.success(
+            request,
+            f'Justificativa atualizada: {day.strftime("%d/%m/%Y")} — {existing.get_reason_display()}.',
+        )
+    else:
+        nrd = DiaryNoReportDay.objects.create(
+            project=project,
+            date=day,
+            reason=reason,
+            note=note,
+            created_by=request.user,
+        )
+        messages.success(
+            request,
+            f'Registado: {day.strftime("%d/%m/%Y")} — {nrd.get_reason_display()}.',
+        )
+    return _redirect_after_no_report_day()
+
+
+@login_required
+@project_required
+@require_http_methods(['POST'])
+def diary_no_report_day_delete_view(request, pk):
+    project = get_selected_project(request)
+    if not project or not _user_can_access_project(request.user, project):
+        raise PermissionDenied()
+    obj = get_object_or_404(DiaryNoReportDay, pk=pk, project=project)
+    if not request.user.is_superuser and obj.created_by_id != request.user.id:
+        raise PermissionDenied()
+    obj.delete()
+    messages.success(request, 'Justificativa removida.')
+    return redirect('report-list')
 
 
 @login_required
@@ -1688,6 +1954,8 @@ def diary_detail_view(request, pk):
         diary.project.rdo_approvers.filter(is_active=True).select_related('user').order_by('order', 'user__first_name', 'user__username')
     )
 
+    nav_prev_pk, nav_next_pk, nav_position, nav_total = _diary_adjacent_ids_for_project(project, diary.pk)
+
     context = {
         'diary': diary,
         'user': request.user,
@@ -1717,6 +1985,10 @@ def diary_detail_view(request, pk):
         'can_decide_rdo_approval': can_decide_rdo_approval,
         'approval_history': approval_history,
         'rdo_approvers': rdo_approvers,
+        'diary_nav_prev_pk': nav_prev_pk,
+        'diary_nav_next_pk': nav_next_pk,
+        'diary_nav_position': nav_position,
+        'diary_nav_total': nav_total,
     }
     
     # Força retorno HTML explícito (evita conflito com API REST)
@@ -4334,6 +4606,30 @@ def _diary_pdf_sequence_for_project(project):
     return ConstructionDiary.objects.filter(project=project).order_by(
         'date', 'created_at', 'pk',
     )
+
+
+def _diary_adjacent_ids_for_project(project, diary_pk):
+    """
+    Retorna (prev_pk, next_pk, position, total) na mesma ordem de _diary_pdf_sequence_for_project.
+    Anterior = relatório mais antigo; próximo = mais recente.
+    """
+    ids = list(_diary_pdf_sequence_for_project(project).values_list('pk', flat=True))
+    idx = None
+    try:
+        idx = ids.index(diary_pk)
+    except ValueError:
+        # Evita spans "desativados" por mismatch str/int em edge cases (URL vs ORM).
+        try:
+            idx = ids.index(int(diary_pk))
+        except (TypeError, ValueError):
+            pass
+    if idx is None:
+        return None, None, 0, len(ids)
+    total = len(ids)
+    position = idx + 1
+    prev_pk = ids[idx - 1] if idx > 0 else None
+    next_pk = ids[idx + 1] if idx < total - 1 else None
+    return prev_pk, next_pk, position, total
 
 
 def _diaries_queryset_for_report_filters(project, get_dict):

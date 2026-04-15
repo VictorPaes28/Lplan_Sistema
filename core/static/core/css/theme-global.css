@@ -175,14 +175,12 @@ html[data-theme="dark"] #mobile-sidebar-overlay {
 }
 
 /* Filtro na sidebar (base.css força cinza escuro) */
-html[data-theme="dark"] #filter-search-button:not([aria-expanded="true"]),
-html[data-theme="dark"] #print-dropdown-button:not([aria-expanded="true"]) {
+html[data-theme="dark"] #filter-search-button:not([aria-expanded="true"]) {
   background-color: #334155 !important;
   color: #e2e8f0 !important;
 }
 
-html[data-theme="dark"] #filter-search-button[aria-expanded="true"],
-html[data-theme="dark"] #print-dropdown-button[aria-expanded="true"] {
+html[data-theme="dark"] #filter-search-button[aria-expanded="true"] {
   background-color: #475569 !important;
 }
 
