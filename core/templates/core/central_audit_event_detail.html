@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Detalhe do evento de auditoria{% endblock %}
+{% block page_subtitle %}{{ event.action_code }} · {{ event.created_at|date:"d/m/Y H:i:s" }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .audit-detail-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+    .audit-detail-meta { font-size: 0.875rem; color: #64748b; margin: 0.25rem 0; }
+    .audit-detail-pre {
+        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;
+        font-size: 0.8rem; line-height: 1.45; overflow: auto; max-height: 70vh;
+        white-space: pre-wrap; word-break: break-word;
+    }
+    .audit-links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .audit-links a { font-size: 0.875rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="flex flex-wrap gap-2 mb-4">
+        <a href="{{ list_url }}" class="btn btn-secondary">Voltar à lista</a>
+        <a href="{% url 'accounts:admin_central' %}" class="btn btn-secondary">Painel</a>
+    </div>
+
+    {% if audit_scoped_mode %}
+    <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+        Está a ver apenas eventos relacionados às suas empresas (modo responsável).
+    </p>
+    {% endif %}
+
+    <div class="audit-detail-card">
+        <h2 class="text-lg font-semibold text-slate-800 m-0 mb-2">{{ event.summary }}</h2>
+        <p class="audit-detail-meta"><strong>Módulo:</strong> {{ event.module }}</p>
+        <p class="audit-detail-meta"><strong>Ação:</strong> {{ event.action_code }}</p>
+        <p class="audit-detail-meta"><strong>Quando:</strong> {{ event.created_at|date:"d/m/Y H:i:s" }}</p>
+        <p class="audit-detail-meta"><strong>Ator:</strong> {% if event.actor %}{{ event.actor.username }}{% else %}—{% endif %}</p>
+        <p class="audit-detail-meta"><strong>Alvo:</strong> {% if event.subject_user %}{{ event.subject_user.username }}{% else %}—{% endif %}</p>
+        <p class="audit-detail-meta"><strong>IP:</strong> {{ event.ip_address|default:"—" }}</p>
+        <p class="audit-detail-meta"><strong>User-Agent:</strong> {{ event.user_agent|default:"—"|truncatechars:200 }}</p>
+        {% if deep_links %}
+        <div class="audit-links">
+            {% for link in deep_links %}
+            <a href="{{ link.url }}" class="btn btn-primary-cta btn-sm">{{ link.label }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="audit-detail-card">
+        <h3 class="text-base font-semibold text-slate-700 m-0 mb-2">Payload (JSON)</h3>
+        <pre class="audit-detail-pre">{{ payload_pretty }}</pre>
+    </div>
+</div>
+{% endblock %}

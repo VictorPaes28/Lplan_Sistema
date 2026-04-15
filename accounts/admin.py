@@ -11,10 +11,10 @@ from .models import UserLoginLog, UserSignupRequest
 
 @admin.register(UserLoginLog)
 class UserLoginLogAdmin(admin.ModelAdmin):
-    list_display = ('user', 'created_at')
+    list_display = ('user', 'created_at', 'ip_address', 'user_agent')
     list_filter = ('created_at',)
-    search_fields = ('user__username',)
-    readonly_fields = ('user', 'created_at')
+    search_fields = ('user__username', 'ip_address')
+    readonly_fields = ('user', 'created_at', 'ip_address', 'user_agent')
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
 

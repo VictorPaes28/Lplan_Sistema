@@ -6,6 +6,8 @@ Registra cada login em UserLoginLog para análise de desempenho.
 from django.contrib.auth.signals import user_logged_in
 from django.dispatch import receiver
 
+from audit.recording import get_request_client_meta
+
 from .models import UserLoginLog
 
 
@@ -13,7 +15,8 @@ from .models import UserLoginLog
 def log_user_login(sender, request, user, **kwargs):
     """Cria um registro em UserLoginLog a cada login."""
     try:
-        UserLoginLog.objects.create(user=user)
+        ip, ua = get_request_client_meta(request)
+        UserLoginLog.objects.create(user=user, ip_address=ip, user_agent=ua)
     except Exception:
         pass  # Não quebrar o login em caso de falha (ex.: migração pendente)
 

@@ -10,6 +10,7 @@ urlpatterns = [
     path('usuarios/criar/', views.create_user_or_redirect_central, name='create_user'),
     path('usuarios/<int:pk>/editar/', views.edit_user_or_redirect_central, name='edit_user'),
     path('usuarios/<int:pk>/excluir/', views.delete_user_or_redirect_central, name='delete_user'),
+    path('usuarios/<int:pk>/governanca/', views.user_governance_or_redirect_central, name='user_governance'),
     
     # CRUD WorkOrder
     path('pedidos/', views.list_workorders, name='list_workorders'),

@@ -1,0 +1,324 @@
+/* Painel de governança operacional do usuário */
+
+.page-container.user-governance {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 2rem;
+}
+
+.user-governance .ug-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.user-governance .ug-title-block h1 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0 0 0.35rem 0;
+    color: var(--text-color, #1e293b);
+}
+
+.user-governance .ug-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-muted, #64748b);
+    margin: 0;
+}
+
+.user-governance .ug-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.user-governance .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: #fff;
+    color: var(--text-color, #334155);
+    cursor: pointer;
+}
+
+.user-governance .btn-primary {
+    background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+    color: #fff;
+    border-color: transparent;
+}
+
+.user-governance .btn-secondary {
+    background: #f8fafc;
+}
+
+.user-governance .ug-alerts {
+    margin-bottom: 1rem;
+}
+
+.user-governance .ug-alert {
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.user-governance .ug-alert.level-warning {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+
+.user-governance .ug-insights {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+}
+
+.user-governance .ug-insight {
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.user-governance .ug-insight.level-info {
+    border-color: #bae6fd;
+    background: #f0f9ff;
+    color: #0c4a6e;
+}
+
+.user-governance .ug-insight.level-success {
+    border-color: #86efac;
+    background: #f0fdf4;
+    color: #14532d;
+}
+
+.user-governance .ug-insight.level-warning {
+    border-color: #fcd34d;
+    background: #fffbeb;
+    color: #78350f;
+}
+
+.user-governance .ug-insight-title {
+    font-weight: 700;
+    margin: 0 0 0.35rem 0;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.9;
+}
+
+.user-governance .ug-insight p {
+    margin: 0;
+}
+
+.user-governance .ug-recency {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin: 0 0 0.75rem 0;
+    line-height: 1.5;
+}
+
+.user-governance .ug-alert.level-info {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1e3a8a;
+}
+
+.user-governance .ug-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.user-governance .ug-kpi {
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+}
+
+.user-governance .ug-kpi .label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 0.35rem;
+}
+
+.user-governance .ug-kpi .value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-color, #0f172a);
+    line-height: 1.2;
+}
+
+.user-governance .ug-kpi .hint {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-top: 0.25rem;
+}
+
+.user-governance .ug-section {
+    background: #fff;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.user-governance .ug-section h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.85rem 0;
+    color: var(--text-color, #1e293b);
+}
+
+.user-governance .ug-section-note {
+    font-size: 0.8rem;
+    color: var(--text-muted, #64748b);
+    margin: -0.5rem 0 1rem 0;
+}
+
+.user-governance .ug-table-wrap {
+    overflow-x: auto;
+}
+
+.user-governance .ug-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.user-governance .ug-table th,
+.user-governance .ug-table td {
+    text-align: left;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.user-governance .ug-table th {
+    font-weight: 600;
+    color: #64748b;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.user-governance .ug-badge {
+    display: inline-block;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.user-governance .ug-badge.mod-gestao { background: #e0e7ff; color: #3730a3; }
+.user-governance .ug-badge.mod-diario { background: #d1fae5; color: #065f46; }
+.user-governance .ug-badge.mod-contas { background: #fef3c7; color: #92400e; }
+.user-governance .ug-badge.mod-admin { background: #fce7f3; color: #9d174d; }
+
+.user-governance .ug-timeline-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem 1rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid #f1f5f9;
+    align-items: start;
+}
+
+.user-governance .ug-timeline-item:last-child {
+    border-bottom: none;
+}
+
+.user-governance .ug-timeline-item .when {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.user-governance .ug-timeline-item .body .line1 {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.875rem;
+}
+
+.user-governance .ug-timeline-item .body .line2 {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.2rem;
+    word-break: break-word;
+}
+
+.user-governance .ug-timeline-item.sev-danger .line1 { color: #b91c1c; }
+.user-governance .ug-timeline-item.sev-success .line1 { color: #047857; }
+.user-governance .ug-timeline-item.sev-warning .line1 { color: #b45309; }
+
+.user-governance .ug-filters-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+
+.user-governance .ug-filters-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.user-governance .ug-filters-form select {
+    min-width: 140px;
+    padding: 0.4rem 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 0.875rem;
+}
+
+.user-governance .ug-empty {
+    font-size: 0.875rem;
+    color: #94a3b8;
+    padding: 1rem 0;
+}
+
+.user-governance .ug-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+}
+
+.user-governance .ug-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 900px) {
+    .user-governance .ug-two-col {
+        grid-template-columns: 1fr;
+    }
+}

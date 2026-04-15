@@ -1,0 +1,513 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Governança — {{ target_user.username }}{% endblock %}
+
+{% block page_title %}Governança do usuário{% endblock %}
+{% block page_subtitle %}{% if use_central_urls %}Central{% else %}GestControll{% endif %} · visão operacional e rastreabilidade{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+<link rel="stylesheet" href="{% static 'css/user_governance.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container user-governance">
+    <div class="ug-header">
+        <div class="ug-title-block">
+            <h1>{{ target_user.get_full_name|default:target_user.username }}</h1>
+            <p class="ug-subtitle">
+                <strong>@{{ target_user.username }}</strong>
+                {% if target_user.email %}· {{ target_user.email }}{% endif %}
+                · {% if target_user.is_active %}Ativo{% else %}Inativo{% endif %}
+                {% if target_user.is_superuser %}· Superusuário{% endif %}
+                · Cadastro {{ target_user.date_joined|date:"d/m/Y H:i" }}
+                {% if target_user.last_login %} · Ultimo login (sessao Django) {{ target_user.last_login|date:"d/m/Y H:i" }}{% endif %}
+            </p>
+        </div>
+        <div class="ug-actions">
+            <a href="{{ list_users_url }}" class="btn btn-secondary">← Lista de usuários</a>
+            <a href="{% if use_central_urls %}{% url 'central_edit_user' target_user.pk %}{% else %}{% url 'gestao:edit_user' target_user.pk %}{% endif %}" class="btn btn-primary">Editar cadastro</a>
+        </div>
+    </div>
+
+    {% if alerts %}
+    <div class="ug-alerts">
+        {% for a in alerts %}
+        <div class="ug-alert level-{{ a.level }}">{{ a.text }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if strategic_insights %}
+    <div class="ug-section" style="margin-bottom:1rem;">
+        <h2 style="margin-bottom:0.5rem;">Leitura rápida</h2>
+        <p class="ug-section-note" style="margin-top:0;">Interpretação automática dos números abaixo — não substitui análise humana.</p>
+        <div class="ug-insights">
+            {% for ins in strategic_insights %}
+            <div class="ug-insight level-{{ ins.level }}">
+                <div class="ug-insight-title">{{ ins.title }}</div>
+                <p>{{ ins.text }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="ug-kpi-grid">
+        <div class="ug-kpi">
+            <div class="label">Logins ({{ kpis.window_days }} dias)</div>
+            <div class="value">{{ kpis.logins_window }}</div>
+            <div class="hint">Total registrado na base: {{ kpis.total_logins }}</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">Ações de domínio ({{ kpis.window_days }} dias)</div>
+            <div class="value">{{ kpis.actions_window }}</div>
+            <div class="hint">Pedidos, aprovações, comentários, status, anexos, diários</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">Ações (vida útil)</div>
+            <div class="value">{{ kpis.total_actions_lifetime }}</div>
+            <div class="hint">Sem contar apenas logins</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">Primeiro login (log)</div>
+            <div class="value" style="font-size:0.95rem;">{% if kpis.first_login_at %}{{ kpis.first_login_at|date:"d/m/Y" }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">Último login (log)</div>
+            <div class="value" style="font-size:0.95rem;">{% if kpis.last_login_at %}{{ kpis.last_login_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">Auditoria como alvo ({{ audit_insights.audit_window_days }} dias)</div>
+            <div class="value">{{ audit_insights.audit_as_subject_count }}</div>
+            <div class="hint">Eventos em que este usuário é o «alvo» administrativo</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">IPs distintos nos logins ({{ audit_insights.ip_window_days }} dias)</div>
+            <div class="value">{{ audit_insights.distinct_login_ips }}</div>
+            <div class="hint">{{ audit_insights.logins_in_ip_window }} login(s) · {{ audit_insights.active_ip_days }} dia(s) distinto(s) com sessão · IP quando gravado</div>
+        </div>
+        <div class="ug-kpi">
+            <div class="label">Auditoria como executor ({{ audit_insights.audit_window_days }} dias)</div>
+            <div class="value">{{ audit_insights.audit_as_actor_count }}</div>
+            <div class="hint">Ações administrativas que este utilizador executou no sistema</div>
+        </div>
+    </div>
+
+    <div class="ug-section">
+        <h2>Auditoria e acesso — detalhe</h2>
+        <p class="ug-recency">
+            {% if audit_insights.days_since_last_login_log is not None %}Último login na trilha: há {{ audit_insights.days_since_last_login_log }} dia(s).{% else %}Sem registo de login na trilha.{% endif %}
+            {% if audit_insights.days_since_last_audit_as_subject is not None %} · Última vez como <strong>alvo</strong> na auditoria: há {{ audit_insights.days_since_last_audit_as_subject }} dia(s).{% endif %}
+            {% if audit_insights.days_since_last_audit_as_actor is not None %} · Última vez como <strong>executor</strong>: há {{ audit_insights.days_since_last_audit_as_actor }} dia(s).{% endif %}
+        </p>
+
+        <h3 style="font-size:0.95rem;margin:1rem 0 0.5rem 0;">Onde este utilizador foi <strong>alvo</strong> ({{ audit_insights.audit_window_days }} dias)</h3>
+        {% if audit_insights.audit_modules_subject %}
+        <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem 0;">Por módulo de origem do evento:</p>
+        <div class="ug-table-wrap" style="margin-bottom:1rem;">
+            <table class="ug-table">
+                <thead><tr><th>Módulo</th><th>Eventos</th></tr></thead>
+                <tbody>
+                    {% for row in audit_insights.audit_modules_subject %}
+                    <tr><td>{{ row.module_label }}</td><td>{{ row.count }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="ug-two-col" style="margin-top:0.75rem;">
+            <div>
+                <h3 style="font-size:0.9rem;margin:0 0 0.5rem 0;">Tipos de evento (como alvo)</h3>
+                {% if audit_insights.audit_top_actions %}
+                <div class="ug-table-wrap">
+                    <table class="ug-table">
+                        <thead><tr><th>Ação</th><th>Qtd</th></tr></thead>
+                        <tbody>
+                            {% for row in audit_insights.audit_top_actions %}
+                            <tr>
+                                <td><span style="font-size:0.85rem;">{{ row.action_label }}</span><br><code style="font-size:0.68rem;color:#64748b;">{{ row.action_code }}</code></td>
+                                <td>{{ row.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="ug-empty">Nenhum evento como alvo neste período.</p>
+                {% endif %}
+            </div>
+            <div>
+                <h3 style="font-size:0.9rem;margin:0 0 0.5rem 0;">Tipos de evento (como executor)</h3>
+                {% if audit_insights.audit_top_actions_as_actor %}
+                <div class="ug-table-wrap">
+                    <table class="ug-table">
+                        <thead><tr><th>Ação</th><th>Qtd</th></tr></thead>
+                        <tbody>
+                            {% for row in audit_insights.audit_top_actions_as_actor %}
+                            <tr>
+                                <td><span style="font-size:0.85rem;">{{ row.action_label }}</span><br><code style="font-size:0.68rem;color:#64748b;">{{ row.action_code }}</code></td>
+                                <td>{{ row.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="ug-empty">Nenhuma ação de auditoria executada por este utilizador no período.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <h3 style="font-size:0.9rem;margin:1.25rem 0 0.5rem 0;">IPs mais usados ({{ audit_insights.ip_window_days }} dias)</h3>
+        {% if audit_insights.ip_ranking %}
+        <div class="ug-table-wrap" style="margin-bottom:1rem;">
+            <table class="ug-table">
+                <thead><tr><th>IP</th><th>Logins</th><th>Última vez</th></tr></thead>
+                <tbody>
+                    {% for row in audit_insights.ip_ranking %}
+                    <tr>
+                        <td><code style="font-size:0.8rem;">{{ row.ip }}</code></td>
+                        <td>{{ row.count }}</td>
+                        <td style="font-size:0.8rem;">{{ row.last_seen|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="ug-empty" style="margin-bottom:1rem;">Sem IPs gravados neste período.</p>
+        {% endif %}
+
+        <div class="ug-two-col" style="margin-top:0.75rem;">
+            <div>
+                <h3 style="font-size:0.9rem;margin:0 0 0.5rem 0;">Últimos eventos — alvo</h3>
+                {% if audit_insights.recent_audit_events %}
+                <div class="ug-table-wrap">
+                    <table class="ug-table">
+                        <thead><tr><th>Quando</th><th>Ação</th><th>Resumo</th><th></th></tr></thead>
+                        <tbody>
+                            {% for ev in audit_insights.recent_audit_events %}
+                            <tr>
+                                <td style="white-space:nowrap;font-size:0.8rem;">{{ ev.at|date:"d/m/Y H:i" }}</td>
+                                <td style="font-size:0.75rem;">{{ ev.action_label }}</td>
+                                <td style="font-size:0.8rem;">{{ ev.summary|truncatechars:72 }}</td>
+                                <td><a href="{{ ev.detail_url }}" class="btn btn-secondary" style="font-size:0.72rem;padding:0.2rem 0.45rem;">Ver</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="ug-empty">Ainda não há eventos com este usuário como alvo.</p>
+                {% endif %}
+            </div>
+            <div>
+                <h3 style="font-size:0.9rem;margin:0 0 0.5rem 0;">Últimos eventos — executor</h3>
+                {% if audit_insights.recent_audit_as_actor %}
+                <div class="ug-table-wrap">
+                    <table class="ug-table">
+                        <thead><tr><th>Quando</th><th>Ação</th><th>Alvo</th><th></th></tr></thead>
+                        <tbody>
+                            {% for ev in audit_insights.recent_audit_as_actor %}
+                            <tr>
+                                <td style="white-space:nowrap;font-size:0.8rem;">{{ ev.at|date:"d/m/Y H:i" }}</td>
+                                <td style="font-size:0.75rem;">{{ ev.action_label }}</td>
+                                <td style="font-size:0.8rem;">@{{ ev.subject }}</td>
+                                <td><a href="{{ ev.detail_url }}" class="btn btn-secondary" style="font-size:0.72rem;padding:0.2rem 0.45rem;">Ver</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="ug-empty">Sem eventos recentes como executor.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="ug-section">
+        <h2>Grupos e indicadores (janela {{ kpis.window_days }} dias)</h2>
+        <div class="ug-table-wrap">
+            <p style="margin:0 0 0.75rem 0;font-size:0.875rem;color:#64748b;">
+                {% for g in target_user.groups.all %}
+                <span class="ug-badge">{{ g.name }}</span>
+                {% empty %}
+                <span class="ug-badge">Sem grupos</span>
+                {% endfor %}
+            </p>
+            <table class="ug-table">
+                <thead>
+                    <tr>
+                        <th>Métrica</th>
+                        <th>Quantidade</th>
+                        <th>% da atividade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Pedidos criados</td><td>{{ kpis.breakdown_window.pedidos_criados }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.pedidos_criados }}%{% else %}—{% endif %}</td></tr>
+                    <tr><td>Decisões de aprovação / reprovação</td><td>{{ kpis.breakdown_window.aprovacoes_decisoes }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.aprovacoes_decisoes }}%{% else %}—{% endif %}</td></tr>
+                    <tr><td>Comentários em pedidos</td><td>{{ kpis.breakdown_window.comentarios }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.comentarios }}%{% else %}—{% endif %}</td></tr>
+                    <tr><td>Mudanças de status</td><td>{{ kpis.breakdown_window.mudancas_status }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.mudancas_status }}%{% else %}—{% endif %}</td></tr>
+                    <tr><td>Anexos enviados</td><td>{{ kpis.breakdown_window.anexos }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.anexos }}%{% else %}—{% endif %}</td></tr>
+                    <tr><td>Diários criados</td><td>{{ kpis.breakdown_window.diarios_criados }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.diarios_criados }}%{% else %}—{% endif %}</td></tr>
+                    <tr><td>Diários revisados/aprovados</td><td>{{ kpis.breakdown_window.diarios_revisados }}</td><td>{% if kpis.actions_window %}{{ kpis.breakdown_pct.diarios_revisados }}%{% else %}—{% endif %}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if obra_usage %}
+    <div class="ug-section">
+        <h2>Uso por obra (GestControll)</h2>
+        <p class="ug-section-note">Agregação de pedidos criados, decisões e comentários por obra.</p>
+        <div class="ug-table-wrap">
+            <table class="ug-table">
+                <thead>
+                    <tr>
+                        <th>Obra</th>
+                        <th>Pedidos</th>
+                        <th>Aprovações</th>
+                        <th>Comentários</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in obra_usage %}
+                    <tr>
+                        <td>{{ row.codigo }} — {{ row.nome }}</td>
+                        <td>{{ row.pedidos_criados }}</td>
+                        <td>{{ row.aprovacoes }}</td>
+                        <td>{{ row.comentarios }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="ug-two-col">
+        <div class="ug-section">
+            <h2>Fila como aprovador</h2>
+            <p class="ug-section-note">Pedidos pendentes ou em reaprovação nas obras em que o usuário é aprovador.</p>
+            {% if pending.fila_aprovacao %}
+            <div class="ug-table-wrap">
+                <table class="ug-table">
+                    <thead>
+                        <tr>
+                            <th>Pedido</th>
+                            <th>Obra</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for wo in pending.fila_aprovacao %}
+                        <tr>
+                            <td><a href="{% url 'gestao:detail_workorder' wo.pk %}">{{ wo.codigo }}</a></td>
+                            <td>{{ wo.obra.nome }}</td>
+                            <td>{{ wo.get_status_display }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="ug-empty">Nenhum item nesta fila no momento.</p>
+            {% endif %}
+        </div>
+        <div class="ug-section">
+            <h2>Rascunhos e reprovados (como solicitante)</h2>
+            <p class="ug-section-note">Pedidos que podem exigir ação do solicitante.</p>
+            {% if pending.rascunhos_ou_reprovados %}
+            <div class="ug-table-wrap">
+                <table class="ug-table">
+                    <thead>
+                        <tr>
+                            <th>Pedido</th>
+                            <th>Status</th>
+                            <th>Atualizado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for wo in pending.rascunhos_ou_reprovados %}
+                        <tr>
+                            <td><a href="{% url 'gestao:detail_workorder' wo.pk %}">{{ wo.codigo }}</a></td>
+                            <td>{{ wo.get_status_display }}</td>
+                            <td>{{ wo.updated_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="ug-empty">Nenhum rascunho ou reprovado pendente listado.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if pending.exclusoes_solicitadas %}
+    <div class="ug-section">
+        <h2>Exclusões solicitadas</h2>
+        <div class="ug-table-wrap">
+            <table class="ug-table">
+                <thead>
+                    <tr>
+                        <th>Pedido</th>
+                        <th>Quando</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wo in pending.exclusoes_solicitadas %}
+                    <tr>
+                        <td><a href="{% url 'gestao:detail_workorder' wo.pk %}">{{ wo.codigo }}</a></td>
+                        <td>{{ wo.solicitado_exclusao_em|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="ug-section">
+        <h2>Eventos sensíveis recentes</h2>
+        <p class="ug-section-note">Reprovações e solicitações de exclusão registradas no sistema.</p>
+        {% if critical %}
+        {% for ev in critical %}
+        <div class="ug-timeline-item sev-{{ ev.severity }}">
+            <div class="body">
+                {% if ev.href %}<a href="{{ ev.href }}" class="line1">{{ ev.label }}</a>{% else %}<span class="line1">{{ ev.label }}</span>{% endif %}
+                {% if ev.detail %}<div class="line2">{{ ev.detail }}</div>{% endif %}
+            </div>
+            <div class="when">{{ ev.at|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="ug-empty">Nenhum evento deste tipo no histórico recente analisado.</p>
+        {% endif %}
+    </div>
+
+    <div class="ug-section">
+        <h2>Escopo de acesso</h2>
+        <div class="ug-two-col">
+            <div>
+                <h3 style="font-size:0.9rem;margin:0 0 0.5rem 0;">GestControll — permissões por obra</h3>
+                {% if scope.permissoes_obra %}
+                <div class="ug-table-wrap">
+                    <table class="ug-table">
+                        <thead>
+                            <tr><th>Obra</th><th>Papel</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for p in scope.permissoes_obra %}
+                            <tr>
+                                <td>{{ p.obra.codigo }} — {{ p.obra.nome }}</td>
+                                <td>{{ p.get_tipo_permissao_display }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="ug-empty">Sem permissões de obra ativas.</p>
+                {% endif %}
+            </div>
+            <div>
+                <h3 style="font-size:0.9rem;margin:0 0 0.5rem 0;">Empresas vinculadas</h3>
+                {% if scope.empresas %}
+                <ul style="margin:0;padding-left:1.2rem;font-size:0.875rem;">
+                    {% for ue in scope.empresas %}
+                    <li>{{ ue.empresa.codigo }} — {{ ue.empresa.nome }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="ug-empty">Nenhum vínculo UserEmpresa ativo.</p>
+                {% endif %}
+                <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem 0;">Diário de obra — projetos</h3>
+                {% if scope.projetos_diario %}
+                <ul style="margin:0;padding-left:1.2rem;font-size:0.875rem;">
+                    {% for m in scope.projetos_diario %}
+                    <li>{{ m.project.code }} — {{ m.project.name }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="ug-empty">Sem vínculos em ProjectMember.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="ug-section">
+        <h2>Linha do tempo de atividade</h2>
+        <p class="ug-section-note">
+            União de eventos rastreados nos módulos (até {{ timeline_total }} eventos no período filtrado; exibição paginada).
+            Nos logins, IP e início do User-Agent são guardados no registo de login (trilho de acesso). Eventos de auditoria administrativa abrem o detalhe na Central.
+        </p>
+        <form method="get" class="ug-filters-form">
+            <label>
+                Período
+                <select name="period" onchange="this.form.submit()">
+                    <option value="30" {% if period_days == 30 %}selected{% endif %}>30 dias</option>
+                    <option value="90" {% if period_days == 90 %}selected{% endif %}>90 dias</option>
+                    <option value="365" {% if period_days == 365 %}selected{% endif %}>365 dias</option>
+                    <option value="0" {% if period_days == 0 %}selected{% endif %}>Sem limite (cap por fonte)</option>
+                </select>
+            </label>
+            <label>
+                Módulo
+                <select name="module" onchange="this.form.submit()">
+                    <option value="" {% if module_filter == "" %}selected{% endif %}>Todos</option>
+                    <option value="gestao" {% if module_filter == "gestao" %}selected{% endif %}>GestControll</option>
+                    <option value="diario" {% if module_filter == "diario" %}selected{% endif %}>Diário de obra</option>
+                    <option value="contas" {% if module_filter == "contas" %}selected{% endif %}>Logins</option>
+                    <option value="admin" {% if module_filter == "admin" %}selected{% endif %}>Auditoria admin.</option>
+                </select>
+            </label>
+            <label>
+                Obra (Gestão / Diário via projeto vinculado)
+                <select name="obra" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for o in obras_filtro %}
+                    <option value="{{ o.pk }}" {% if obra_filter == o.pk|stringformat:"s" %}selected{% endif %}>{{ o.codigo }} — {{ o.nome }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </form>
+
+        {% for ev in timeline_page %}
+        <div class="ug-timeline-item sev-{{ ev.severity }}">
+            <div class="body">
+                <div>
+                    <span class="ug-badge mod-{{ ev.module }}">{{ ev.module }}</span>
+                    <span class="ug-badge">{{ ev.kind }}</span>
+                </div>
+                {% if ev.href %}
+                <a href="{{ ev.href }}" class="line1">{{ ev.label }}</a>
+                {% else %}
+                <span class="line1">{{ ev.label }}</span>
+                {% endif %}
+                {% if ev.detail %}<div class="line2">{{ ev.detail }}</div>{% endif %}
+            </div>
+            <div class="when">{{ ev.at|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% empty %}
+        <p class="ug-empty">Nenhum evento no período e filtros selecionados.</p>
+        {% endfor %}
+
+        {% if timeline_page.has_other_pages %}
+        <div class="ug-pagination">
+            {% if timeline_page.has_previous %}
+            <a class="btn btn-secondary" href="?period={{ period_days }}&module={{ module_filter }}&obra={{ obra_filter }}&page={{ timeline_page.previous_page_number }}">Anterior</a>
+            {% endif %}
+            <span>Página {{ timeline_page.number }} de {{ timeline_page.paginator.num_pages }}</span>
+            {% if timeline_page.has_next %}
+            <a class="btn btn-secondary" href="?period={{ period_days }}&module={{ module_filter }}&obra={{ obra_filter }}&page={{ timeline_page.next_page_number }}">Próxima</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

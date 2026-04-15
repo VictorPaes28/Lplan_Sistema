@@ -125,6 +125,9 @@ def signup_request_view(request):
             signup_req = UserSignupRequest.objects.filter(email=email).order_by('-created_at').first()
             if signup_req:
                 notify_signup_request_created(signup_req)
+                from accounts.audit_signup import record_signup_request_public
+
+                record_signup_request_public(request, signup_req)
             messages.success(request, 'Solicitação enviada com sucesso! Assim que aprovada, você receberá os dados de acesso por e-mail.')
             return redirect('signup-request')
 

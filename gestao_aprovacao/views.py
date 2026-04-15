@@ -44,8 +44,22 @@ from .utils import (
     usuario_pode_marcar_pedido_analisado,
 )
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
+from .services.user_governance import (
+    TimelineOptions,
+    build_audit_insights,
+    build_critical_highlights,
+    build_kpis,
+    build_pending_queues,
+    build_scope,
+    build_strategic_insights,
+    build_timeline_events,
+    operational_alerts,
+    usage_by_obra_gestao,
+    viewer_can_see_target_user,
+)
 from accounts.groups import GRUPOS
 from accounts.models import UserSignupRequest
+from accounts.painel_sistema_access import user_can_view_audit_events
 from accounts.signup_services import (
     create_signup_request,
     is_allowed_signup_email,
@@ -250,6 +264,7 @@ def home(request):
         'is_admin': is_admin(request.user) if request.user.is_authenticated else False,
         'is_responsavel_empresa': is_responsavel_empresa(request.user) if request.user.is_authenticated else False,
         'pode_ver_desempenho': (is_admin(request.user) or is_responsavel_empresa(request.user)) if request.user.is_authenticated else False,
+        'pode_ver_auditoria': user_can_view_audit_events(request.user) if request.user.is_authenticated else False,
     }
     return render(request, 'obras/home.html', context)
 
@@ -2281,6 +2296,9 @@ def create_obra(request):
         form = ObraForm(request.POST, user=request.user)
         if form.is_valid():
             obra = form.save()
+            from gestao_aprovacao.services.entity_audit import record_obra_created
+
+            record_obra_created(request, request.user, obra)
             messages.success(request, f'Obra "{obra.codigo}" criada com sucesso!')
             _mark_post_success_redirect(request, '_prevent_back_create_obra')
             return redirect('gestao:detail_obra', pk=obra.pk)
@@ -2343,12 +2361,16 @@ def edit_obra(request, pk):
             return redirect('gestao:detail_obra', pk=obra.pk)
     
     if request.method == 'POST':
+        from gestao_aprovacao.services.entity_audit import record_obra_updated, snapshot_obra
+
+        before = snapshot_obra(Obra.objects.get(pk=obra.pk))
         form = ObraForm(request.POST, instance=obra, user=request.user)
         if form.is_valid():
-            form.save()
-            messages.success(request, f'Obra "{obra.codigo}" atualizada com sucesso!')
-            request.session['_prevent_back_edit_obra_pk'] = str(obra.pk)
-            return redirect('gestao:detail_obra', pk=obra.pk)
+            saved = form.save()
+            record_obra_updated(request, request.user, before, snapshot_obra(saved))
+            messages.success(request, f'Obra "{saved.codigo}" atualizada com sucesso!')
+            request.session['_prevent_back_edit_obra_pk'] = str(saved.pk)
+            return redirect('gestao:detail_obra', pk=saved.pk)
     else:
         form = ObraForm(instance=obra, user=request.user)
         # Garantir que empresa seja obrigatória mesmo na edição
@@ -2392,6 +2414,124 @@ def delete_user_or_redirect_central(request, pk):
     if request.user.is_staff or request.user.is_superuser:
         return redirect('central_delete_user', pk=pk)
     return delete_user(request, pk=pk)
+
+
+def _user_governance_resolve_href(ev):
+    r = ev.get('reverse')
+    if not r:
+        return None
+    name, kw = r
+    try:
+        return reverse(name, kwargs=kw)
+    except Exception:
+        return None
+
+
+@login_required
+def user_governance_or_redirect_central(request, pk):
+    if request.user.is_staff or request.user.is_superuser:
+        return redirect('central_user_governance', pk=pk)
+    return user_governance_panel(request, pk=pk)
+
+
+@login_required
+def user_governance_panel(request, pk):
+    """
+    Painel de governança operacional do usuário (administração).
+    Leitura de dados já persistidos; filtros por período, módulo e obra.
+    """
+    if not (is_admin(request.user) or is_responsavel_empresa(request.user)):
+        messages.error(request, 'Você não tem permissão para acessar esta página.')
+        return redirect('gestao:home')
+
+    target = get_object_or_404(
+        User.objects.prefetch_related('groups', 'perfil'),
+        pk=pk,
+    )
+    if not viewer_can_see_target_user(request.user, target):
+        messages.error(request, 'Você não tem permissão para visualizar este usuário.')
+        return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+
+    period_raw = (request.GET.get('period') or '90').strip()
+    try:
+        period_days = int(period_raw)
+    except ValueError:
+        period_days = 90
+    if period_days not in (0, 30, 90, 365):
+        period_days = 90
+
+    module = (request.GET.get('module') or '').strip()
+    if module not in ('', 'gestao', 'diario', 'contas', 'admin'):
+        module = ''
+
+    obra_filter = (request.GET.get('obra') or '').strip()
+    obra_filter_id = None
+    if obra_filter.isdigit():
+        oid = int(obra_filter)
+        if is_responsavel_empresa(request.user) and not is_admin(request.user):
+            _emp_filt = Empresa.objects.filter(responsavel=request.user, ativo=True)
+            obras_qs = Obra.objects.filter(empresa__in=_emp_filt, ativo=True)
+        else:
+            obras_qs = Obra.objects.filter(ativo=True)
+        if obras_qs.filter(pk=oid).exists():
+            obra_filter_id = oid
+
+    kpi_window = 30
+    kpis = build_kpis(target, days_window=kpi_window)
+    scope = build_scope(target)
+    pending = build_pending_queues(target)
+    critical = build_critical_highlights(target, limit=20)
+    for ev in critical:
+        ev['href'] = _user_governance_resolve_href(ev)
+
+    timeline_opts = TimelineOptions(
+        period_days=period_days,
+        module=module,
+        obra_id=obra_filter_id,
+    )
+    timeline_events = build_timeline_events(target, timeline_opts)
+    for ev in timeline_events:
+        ev['href'] = _user_governance_resolve_href(ev)
+
+    paginator = Paginator(timeline_events, 25)
+    page_number = request.GET.get('page')
+    timeline_page = paginator.get_page(page_number)
+
+    if is_responsavel_empresa(request.user) and not is_admin(request.user):
+        _emp_filt = Empresa.objects.filter(responsavel=request.user, ativo=True)
+        obras_filtro = Obra.objects.filter(empresa__in=_emp_filt, ativo=True).order_by('nome', 'codigo')
+    else:
+        obras_filtro = Obra.objects.filter(ativo=True).order_by('nome', 'codigo')
+
+    alerts = operational_alerts(target, kpis)
+    obra_usage = usage_by_obra_gestao(target, limit=10)
+    audit_insights = build_audit_insights(target)
+    strategic_insights = build_strategic_insights(target, kpis, audit_insights)
+
+    _central = getattr(request, '_central_redirect', False)
+    list_url = reverse('central_list_users' if _central else 'gestao:list_users')
+
+    context = {
+        'target_user': target,
+        'user_profile': get_user_profile(request.user),
+        'kpis': kpis,
+        'audit_insights': audit_insights,
+        'strategic_insights': strategic_insights,
+        'scope': scope,
+        'pending': pending,
+        'critical': critical,
+        'timeline_page': timeline_page,
+        'timeline_total': paginator.count,
+        'period_days': period_days,
+        'module_filter': module,
+        'obra_filter': str(obra_filter_id) if obra_filter_id else '',
+        'obras_filtro': obras_filtro,
+        'alerts': alerts,
+        'obra_usage': obra_usage,
+        'use_central_urls': _central,
+        'list_users_url': list_url,
+    }
+    return render(request, 'obras/user_governance.html', context)
 
 
 @login_required
@@ -2573,6 +2713,9 @@ def create_user(request):
                 )
                 notify_signup_request_created(signup_req)
                 messages.success(request, 'Solicitação criada como pendente. O aprovador foi alertado no sistema.')
+                from accounts.audit_signup import record_signup_request_internal
+
+                record_signup_request_internal(request, request.user, signup_req)
                 _mark_post_success_redirect(
                     request, '_prevent_back_create_user',
                     'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
@@ -2651,7 +2794,22 @@ def create_user(request):
                     )
             else:
                 messages.warning(request, 'E-mail não informado: o usuário não receberá as credenciais por e-mail.')
-            
+
+            from gestao_aprovacao.services.user_admin_audit import record_user_created
+
+            _pids = []
+            for _pid in project_ids:
+                try:
+                    _pids.append(int(_pid))
+                except (TypeError, ValueError):
+                    pass
+            record_user_created(
+                request,
+                request.user,
+                user,
+                sorted(grupos_selecionados),
+                sorted(_pids),
+            )
             messages.success(request, f'Usuário "{username}" criado com sucesso!')
             _mark_post_success_redirect(
                 request, '_prevent_back_create_user',
@@ -2720,12 +2878,20 @@ def edit_user(request, pk):
         return redirect('gestao:list_users')
     
     if request.method == 'POST':
+        from gestao_aprovacao.services.user_admin_audit import (
+            record_user_updated,
+            snapshot_user_admin_state,
+        )
+
+        before = snapshot_user_admin_state(user)
+        new_password = request.POST.get('password')
+        password_changed = bool(new_password)
+
         user.email = request.POST.get('email', user.email)
         user.first_name = request.POST.get('first_name', user.first_name)
         user.last_name = request.POST.get('last_name', user.last_name)
         
         # Atualizar senha se fornecida
-        new_password = request.POST.get('password')
         if new_password:
             user.set_password(new_password)
         
@@ -2790,6 +2956,15 @@ def edit_user(request, pk):
             perfil.save()
         
         messages.success(request, f'Usuário "{user.username}" atualizado com sucesso!')
+        user.refresh_from_db()
+        record_user_updated(
+            request,
+            request.user,
+            user,
+            before,
+            snapshot_user_admin_state(user),
+            password_changed,
+        )
         request.session['_prevent_back_edit_user_pk'] = str(user.pk)
         return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
     
@@ -2905,7 +3080,24 @@ def delete_user(request, pk):
             return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
         
         username = user.username
-        
+        from gestao_aprovacao.services.user_admin_audit import record_user_deleted
+
+        record_user_deleted(
+            request,
+            request.user,
+            {
+                'user_id': user.pk,
+                'username': user.username,
+                'email': user.email or '',
+                'group_names': list(user.groups.values_list('name', flat=True)),
+                'empresa_ids_vinculadas': list(
+                    UserEmpresa.objects.filter(usuario=user, ativo=True).values_list(
+                        'empresa_id', flat=True
+                    )
+                ),
+            },
+        )
+
         # Excluir dados relacionados (CASCADE será feito automaticamente, mas vamos garantir)
         # Notificações
         Notificacao.objects.filter(usuario=user).delete()
@@ -3140,6 +3332,9 @@ def create_empresa(request):
         form = EmpresaForm(request.POST, user=request.user)
         if form.is_valid():
             empresa = form.save()
+            from gestao_aprovacao.services.entity_audit import record_empresa_created
+
+            record_empresa_created(request, request.user, empresa)
             messages.success(request, f'Empresa "{empresa.codigo}" criada com sucesso!')
             _mark_post_success_redirect(request, '_prevent_back_create_empresa')
             return redirect('gestao:detail_empresa', pk=empresa.pk)
@@ -3202,12 +3397,16 @@ def edit_empresa(request, pk):
             return redirect('gestao:detail_empresa', pk=empresa.pk)
     
     if request.method == 'POST':
+        from gestao_aprovacao.services.entity_audit import record_empresa_updated, snapshot_empresa
+
+        before = snapshot_empresa(Empresa.objects.get(pk=empresa.pk))
         form = EmpresaForm(request.POST, instance=empresa, user=request.user)
         if form.is_valid():
-            empresa = form.save()
-            messages.success(request, f'Empresa "{empresa.codigo}" atualizada com sucesso!')
-            request.session['_prevent_back_edit_empresa_pk'] = str(empresa.pk)
-            return redirect('gestao:detail_empresa', pk=empresa.pk)
+            saved = form.save()
+            record_empresa_updated(request, request.user, before, snapshot_empresa(saved))
+            messages.success(request, f'Empresa "{saved.codigo}" atualizada com sucesso!')
+            request.session['_prevent_back_edit_empresa_pk'] = str(saved.pk)
+            return redirect('gestao:detail_empresa', pk=saved.pk)
     else:
         form = EmpresaForm(instance=empresa, user=request.user)
     
@@ -3238,6 +3437,9 @@ def manage_obra_permissions(request, pk):
         return redirect('gestao:list_obras')
     
     if request.method == 'POST':
+        from audit.action_codes import AuditAction
+        from audit.recording import record_audit_event
+
         action = request.POST.get('action')
         
         if action == 'add':
@@ -3257,27 +3459,71 @@ def manage_obra_permissions(request, pk):
                     if not created:
                         perm.ativo = True
                         perm.save()
+                    record_audit_event(
+                        actor=request.user,
+                        subject_user=usuario,
+                        action_code=AuditAction.OBRA_WORKORDER_PERM_ADD,
+                        summary=f'Permissão {perm.get_tipo_permissao_display()} na obra {obra.codigo} — {usuario.username}',
+                        payload={
+                            'obra_id': obra.pk,
+                            'obra_codigo': obra.codigo,
+                            'tipo_permissao': perm.tipo_permissao,
+                            'permission_id': perm.pk,
+                        },
+                        module='gestao',
+                        request=request,
+                    )
                     messages.success(request, f'Permissão adicionada para {usuario.username}.')
                 except User.DoesNotExist:
                     messages.error(request, 'Usuário não encontrado.')
-        
+
         elif action == 'remove':
             perm_id = request.POST.get('permission_id')
             if perm_id:
                 try:
-                    perm = WorkOrderPermission.objects.get(pk=perm_id, obra=obra)
+                    perm = WorkOrderPermission.objects.select_related('usuario').get(pk=perm_id, obra=obra)
+                    target_u = perm.usuario
+                    tipo_ant = perm.tipo_permissao
                     perm.delete()
+                    record_audit_event(
+                        actor=request.user,
+                        subject_user=target_u,
+                        action_code=AuditAction.OBRA_WORKORDER_PERM_REMOVE,
+                        summary=f'Permissão removida ({tipo_ant}) na obra {obra.codigo} — {target_u.username}',
+                        payload={
+                            'obra_id': obra.pk,
+                            'obra_codigo': obra.codigo,
+                            'tipo_permissao': tipo_ant,
+                        },
+                        module='gestao',
+                        request=request,
+                    )
                     messages.success(request, 'Permissão removida com sucesso.')
                 except WorkOrderPermission.DoesNotExist:
                     messages.error(request, 'Permissão não encontrada.')
-        
+
         elif action == 'toggle':
             perm_id = request.POST.get('permission_id')
             if perm_id:
                 try:
-                    perm = WorkOrderPermission.objects.get(pk=perm_id, obra=obra)
+                    perm = WorkOrderPermission.objects.select_related('usuario').get(pk=perm_id, obra=obra)
                     perm.ativo = not perm.ativo
                     perm.save()
+                    record_audit_event(
+                        actor=request.user,
+                        subject_user=perm.usuario,
+                        action_code=AuditAction.OBRA_WORKORDER_PERM_TOGGLE,
+                        summary=f'Permissão {"ativada" if perm.ativo else "desativada"} ({perm.tipo_permissao}) — {obra.codigo} / {perm.usuario.username}',
+                        payload={
+                            'obra_id': obra.pk,
+                            'obra_codigo': obra.codigo,
+                            'tipo_permissao': perm.tipo_permissao,
+                            'ativo': perm.ativo,
+                            'permission_id': perm.pk,
+                        },
+                        module='gestao',
+                        request=request,
+                    )
                     messages.success(request, f'Permissão {"ativada" if perm.ativo else "desativada"}.')
                 except WorkOrderPermission.DoesNotExist:
                     messages.error(request, 'Permissão não encontrada.')
