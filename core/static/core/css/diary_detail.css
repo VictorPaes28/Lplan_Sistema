@@ -130,34 +130,88 @@
     border-top: 1px solid #e2e8f0;
 }
 
-/* Mão de obra: Direta | Indireta | Terceirizada lado a lado (terceirizada = várias empresas na mesma coluna) */
+/* Mão de obra: Direta | Indireta | Terceirizada lado a lado (gaps compactos; terceirizada com subfluxo) */
 .diary-detail-labor-columns {
     display: grid;
-    gap: 0.75rem;
-    align-items: start;
+    column-gap: 0.45rem;
+    row-gap: 0.5rem;
+    /* stretch: mesma altura na linha; borda completa em todos os cartões */
+    align-items: stretch;
     grid-template-columns: 1fr;
 }
 
 @media (min-width: 768px) {
     .diary-detail-labor-columns {
-        /* 2–3 colunas conforme espaço; 1 categoria ocupa a célula sem “vazios” forçados */
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        /* Colunas um pouco mais estreitas = caixas visualmente mais próximas */
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+}
+
+/* Corpo rolável: preenche a altura do cartão na grelha (listas curtas alinham; longas respeitam o teto) */
+.diary-detail-labor-col-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: min(72vh, 44rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    padding-right: 0.15rem;
+}
+
+/* Equipamentos: uma tabela; altura = conteúdo até ao teto — sem flex-grow; barra só quando passa de max-height */
+.diary-detail-equipment-columns > .diary-detail-labor-col .diary-detail-labor-col-scroll {
+    flex: 0 1 auto;
+}
+
+@media (min-width: 900px) {
+    .diary-detail-terceirizada-columns {
+        column-count: 2;
+        column-gap: 0.85rem;
+        column-fill: balance;
+    }
+
+    .diary-detail-terceirizada-company {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        margin-bottom: 0.65rem;
+    }
+
+    .diary-detail-terceirizada-company:last-child {
+        margin-bottom: 0;
+    }
+}
+
+@media print {
+    .diary-detail-labor-col-scroll {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .diary-detail-terceirizada-columns {
+        column-count: 2;
+        column-gap: 1rem;
     }
 }
 
 .diary-detail-labor-columns > .diary-detail-labor-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
     border: 1px solid #e2e8f0;
     border-radius: 0.375rem;
     background: #fff;
-    min-width: 0;
+    overflow: hidden;
 }
 
-/* Dentro da grelha, não usar o separador horizontal entre secções empilhadas */
-.diary-detail-labor-columns > .diary-detail-compact-section + .diary-detail-compact-section {
-    border-top: none;
+/* Cada coluna da grelha é um .compact-section: não remover border-top (regra global + ... anulava o topo dos 2.º/3.º cartões) */
+
+.diary-detail-labor-columns > .diary-detail-labor-col > h4 {
+    flex-shrink: 0;
 }
 
-/* Tabelas nos cartões em grelha (MO em colunas + equipamentos fatiados): mesmo acabamento que .diary-detail-compact-block */
+/* Tabelas nos cartões em grelha (MO em colunas + equipamentos num único cartão): mesmo acabamento que .diary-detail-compact-block */
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody td {
     padding: 0.5rem 0.55rem;
     border-bottom: 1px solid #e8edf3;
@@ -185,9 +239,9 @@
     border-bottom-color: #e2e8f0;
 }
 
+/* Largura total do cartão: a coluna da grelha é larga (1fr); max-content deixava vazio à direita */
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) {
-    width: max-content;
-    max-width: 100%;
+    width: 100%;
 }
 
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table:has(.diary-detail-data-table__num):not(:has(.diary-detail-data-table__label)) .diary-detail-data-table__num {

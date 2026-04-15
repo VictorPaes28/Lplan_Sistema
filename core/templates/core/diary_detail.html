@@ -2,7 +2,7 @@
 {% load static %}
 {% load core_tags %}
 
-{% block top_bar_back %}{% endblock %}
+{% block back_url %}{% url 'report-list' %}{% endblock %}
 {% block page_title %}Diário de Obras — Detalhes do Relatório{% endblock %}
 {% block page_subtitle %}Relatório Diário de Obra{% endblock %}
 
@@ -396,6 +396,7 @@
             {% if labor_entries_by_category.direta %}
             <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
                 <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Direta</h4>
+                <div class="diary-detail-labor-col-scroll">
                 <table class="diary-detail-data-table">
                     <thead>
                         <tr>
@@ -412,11 +413,13 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
             {% endif %}
             {% if labor_entries_by_category.indireta %}
             <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
                 <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Indireta</h4>
+                <div class="diary-detail-labor-col-scroll">
                 <table class="diary-detail-data-table">
                     <thead>
                         <tr>
@@ -433,14 +436,17 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
             {% endif %}
             {% if labor_entries_by_category.terceirizada %}
             <div class="diary-detail-compact-section diary-detail-labor-col diary-detail-labor-col--terceirizada min-w-0">
                 <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Terceirizada</h4>
-                <div class="diary-detail-terceirizada-stack">
+                {# Scroll no exterior; column-count só no interior — evita cortar empresas no Chrome/Edge #}
+                <div class="diary-detail-labor-col-scroll">
+                <div class="diary-detail-terceirizada-columns">
                 {% for block in labor_entries_by_category.terceirizada %}
-                <div class="{% if not forloop.first %}mt-3 pt-3 border-t border-slate-100{% endif %}">
+                <div class="diary-detail-terceirizada-company{% if not forloop.first %} mt-3 pt-3 border-t border-slate-100{% endif %}">
                     <p class="text-xs font-medium text-slate-700 mb-1.5">{{ block.company }}</p>
                     <table class="diary-detail-data-table">
                         <thead>
@@ -460,6 +466,7 @@
                     </table>
                 </div>
                 {% endfor %}
+                </div>
                 </div>
             </div>
             {% endif %}
@@ -504,6 +511,7 @@
             {% if labor_by_type.Direto %}
             <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
                 <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Direta</h4>
+                <div class="diary-detail-labor-col-scroll">
                 <table class="diary-detail-data-table">
                     <thead>
                         <tr>
@@ -520,11 +528,13 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
             {% endif %}
             {% if labor_by_type.Indireto %}
             <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
                 <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mão de Obra Indireta (LPLAN)</h4>
+                <div class="diary-detail-labor-col-scroll">
                 <table class="diary-detail-data-table">
                     <thead>
                         <tr>
@@ -541,6 +551,7 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
             {% endif %}
             {% if labor_by_type.Terceiros %}
@@ -584,10 +595,11 @@
             {% endif %}
         </h3>
         {% if equipment_list %}
-        {# Até 6 linhas por caixa; várias caixas em grelha (igual à mão de obra); empilha em ecrã estreito #}
+        {# Até ~14 linhas: uma tabela; acima: reparte em mais colunas (máx. 5) para não ficar scroll demasiado denso #}
         <div class="diary-detail-labor-columns diary-detail-equipment-columns">
-            {% for chunk in equipment_list|chunk_list:6 %}
+            {% for chunk in equipment_list|equipment_display_chunks:14 %}
             <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
+                <div class="diary-detail-labor-col-scroll">
                 <table class="diary-detail-data-table">
                     <thead>
                         <tr>
@@ -604,6 +616,7 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
             {% endfor %}
         </div>

@@ -3,11 +3,18 @@ Mão de obra no diário (DiaryLaborEntry) — mesma estrutura para tela HTML e P
 
 Várias linhas no banco para o mesmo cargo (ex.: salvamentos antigos ou duplicidade)
 são consolidadas em uma linha por cargo com quantidade somada.
+
+Quantidades são sempre ``int`` somados a partir de ``DiaryLaborEntry.quantity``;
+não há arredondamento nem valores inventados. Categorias com slug fora de
+``direta`` / ``indireta`` / ``terceirizada`` são ignoradas e registadas em log.
 """
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from core.models import ConstructionDiary
@@ -56,6 +63,13 @@ def build_labor_entries_by_category(diary: 'ConstructionDiary') -> Optional[Dict
                 if cid not in direta:
                     direta[cid] = {'cargo_name': e.cargo.name, 'quantity': 0}
                 direta[cid]['quantity'] += qty
+            else:
+                logger.warning(
+                    'build_labor_entries_by_category: DiaryLaborEntry pk=%s ignorada; '
+                    'slug de categoria desconhecido %r (esperado direta, indireta ou terceirizada).',
+                    e.pk,
+                    slug,
+                )
 
         out_terceirizada: List[Dict[str, Any]] = []
         for company, by_cargo in terceirizada.items():

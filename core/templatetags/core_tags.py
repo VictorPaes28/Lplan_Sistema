@@ -1,10 +1,30 @@
 """
 Template tags customizados para o app core.
 """
-from django import template
+import math
 from datetime import datetime
 
+from django import template
+
 register = template.Library()
+
+
+def _balanced_partition(seq: list, k: int) -> list:
+    """Divide ``seq`` em ``k`` sublistas com tamanhos o mais uniformes possível (k entre 1 e len(seq))."""
+    n = len(seq)
+    if n == 0:
+        return []
+    if k < 1:
+        k = 1
+    k = min(k, n)
+    base, rem = divmod(n, k)
+    chunks = []
+    idx = 0
+    for i in range(k):
+        size = base + (1 if i < rem else 0)
+        chunks.append(seq[idx : idx + size])
+        idx += size
+    return chunks
 
 
 @register.filter
@@ -99,6 +119,55 @@ def chunk_list(value, chunk_size):
         return []
     seq = list(value)
     return [seq[i : i + n] for i in range(0, len(seq), n)]
+
+
+@register.filter
+def partition_list(value, num_parts):
+    """
+    Divide a sequência em até ``num_parts`` partes equilibradas (ex.: 5 colunas de equipamentos).
+
+    Reordena apenas o agrupamento: cada elemento aparece exatamente uma vez, sem alterar
+    dicionários/objetos (as quantidades exibidas são as mesmas da lista de entrada).
+    """
+    try:
+        k = int(num_parts)
+    except (TypeError, ValueError):
+        k = 5
+    if k < 1:
+        k = 1
+    if value is None:
+        return []
+    seq = list(value)
+    if not seq:
+        return []
+    return _balanced_partition(seq, k)
+
+
+@register.filter
+def equipment_display_chunks(value, rows_per_table=14):
+    """
+    Equipamentos no detalhe do RDO: uma tabela enquanto ``len <= rows_per_table``;
+    acima disso, reparte em várias tabelas (até 5 colunas) para não concentrar scroll.
+
+    Uso: {% for chunk in equipment_list|equipment_display_chunks:14 %}
+    """
+    try:
+        t = int(rows_per_table)
+    except (TypeError, ValueError):
+        t = 14
+    if t < 1:
+        t = 14
+    if value is None:
+        return []
+    seq = list(value)
+    n = len(seq)
+    if n == 0:
+        return []
+    if n <= t:
+        return [seq]
+    k = min(5, math.ceil(n / t))
+    k = max(k, 2)
+    return _balanced_partition(seq, k)
 
 
 @register.filter

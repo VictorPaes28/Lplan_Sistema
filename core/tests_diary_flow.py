@@ -1261,3 +1261,74 @@ class DiaryLaborMergeByCargoTestCase(TestCase):
         self.assertIsNotNone(out)
         self.assertEqual(len(out['indireta']), 1)
         self.assertEqual(out['indireta'][0]['quantity'], 3)
+
+
+class PartitionListFilterTestCase(TestCase):
+    """partition_list só reparte a lista; não duplica itens nem altera quantidades."""
+
+    def test_partition_list_preserves_length_and_order_flattened(self):
+        from core.templatetags.core_tags import partition_list
+
+        seq = list(range(23))
+        parts = partition_list(seq, 5)
+        flat = [x for chunk in parts for x in chunk]
+        self.assertEqual(len(flat), 23)
+        self.assertEqual(flat, seq)
+        self.assertEqual(len(parts), 5)
+        sizes = [len(c) for c in parts]
+        self.assertEqual(sum(sizes), 23)
+        self.assertLessEqual(max(sizes) - min(sizes), 1)
+
+    def test_partition_list_uses_at_most_n_columns_when_fewer_items_than_k(self):
+        from core.templatetags.core_tags import partition_list
+
+        seq = ['a', 'b']
+        parts = partition_list(seq, 5)
+        # k = min(5, n) → 2 colunas com um item cada (não inventa colunas vazias)
+        self.assertEqual(parts, [['a'], ['b']])
+        self.assertEqual([x for c in parts for x in c], seq)
+
+    def test_partition_list_equipment_dicts_sum_quantity_unchanged(self):
+        from core.templatetags.core_tags import partition_list
+
+        rows = [
+            {'name': 'E1', 'quantity': 3},
+            {'name': 'E2', 'quantity': 7},
+            {'name': 'E3', 'quantity': 2},
+        ]
+        parts = partition_list(rows, 5)
+        total_in = sum(r['quantity'] for r in rows)
+        total_out = sum(r['quantity'] for chunk in parts for r in chunk)
+        self.assertEqual(total_in, total_out)
+        self.assertEqual(len([r for chunk in parts for r in chunk]), 3)
+
+
+class EquipmentDisplayChunksFilterTestCase(TestCase):
+    """Uma tabela até ao limite; acima reparte sem perder itens."""
+
+    def test_single_chunk_when_below_threshold(self):
+        from core.templatetags.core_tags import equipment_display_chunks
+
+        seq = list(range(14))
+        parts = equipment_display_chunks(seq, 14)
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(parts[0], seq)
+
+    def test_splits_when_above_threshold(self):
+        from core.templatetags.core_tags import equipment_display_chunks
+
+        seq = list(range(15))
+        parts = equipment_display_chunks(seq, 14)
+        self.assertEqual(len(parts), 2)
+        flat = [x for c in parts for x in c]
+        self.assertEqual(flat, seq)
+        self.assertLessEqual(max(len(c) for c in parts) - min(len(c) for c in parts), 1)
+
+    def test_sum_quantities_preserved(self):
+        from core.templatetags.core_tags import equipment_display_chunks
+
+        rows = [{'q': i, 'quantity': i} for i in range(1, 20)]
+        parts = equipment_display_chunks(rows, 14)
+        t_in = sum(r['quantity'] for r in rows)
+        t_out = sum(r['quantity'] for c in parts for r in c)
+        self.assertEqual(t_in, t_out)
