@@ -1,0 +1,134 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:dashboard' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <header class="wf-toolbar">
+        <div class="wf-toolbar__stat">
+            <span class="wf-toolbar__num">{{ pending_count }}</span>
+            <span class="wf-toolbar__label">{% if pending_count == 1 %}pendente{% else %}pendentes{% endif %}</span>
+        </div>
+        <div class="wf-toolbar__hint">
+            Itens que exigem a sua decisão na alçada atual. Use <strong>Abrir</strong> para ver o histórico completo e decidir.
+        </div>
+    </header>
+
+    <div class="wf-fila-layout">
+        <div class="wf-fila-main">
+            <section class="wf-panel" aria-labelledby="wf-pending-heading">
+                <div class="wf-panel__head">
+                    <h2 id="wf-pending-heading" class="wf-panel__title">Aguardando ação</h2>
+                </div>
+                <div class="wf-panel__body wf-panel__body--flush">
+
+                    {% if pending %}
+                    {# Mobile: cards #}
+                    <div class="wf-queue wf-mobile-only">
+                        {% for p in pending %}
+                        <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}" class="wf-card">
+                            <div class="wf-card__top">
+                                <div>
+                                    <span class="wf-badge wf-badge--cat">{{ p.category.name }}</span>
+                                    {% if p.title %}
+                                    <p class="wf-card__title">{{ p.title|truncatechars:72 }}</p>
+                                    {% else %}
+                                    <p class="wf-card__title">Processo #{{ p.pk }}</p>
+                                    {% endif %}
+                                    <p class="wf-card__meta">
+                                        <span class="wf-mono">{{ p.project.code }}</span>
+                                        — {{ p.project.name|truncatechars:48 }}
+                                    </p>
+                                </div>
+                                <span class="wf-badge wf-badge--await">{{ p.get_status_display }}</span>
+                            </div>
+                            <div class="wf-card__row">
+                                <span class="wf-badge wf-badge--step">Etapa {{ p.current_step.sequence }} · {{ p.current_step.name }}</span>
+                                <span class="wf-card__cta">Abrir <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+
+                    {# Desktop: tabela #}
+                    <div class="wf-table-scroll wf-desktop-only">
+                        <table class="wf-data-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="wf-col-id">ID</th>
+                                    <th scope="col">Obra</th>
+                                    <th scope="col">Categoria</th>
+                                    <th scope="col">Alçada</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col" class="wf-col-action"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in pending %}
+                                <tr class="wf-data-table__row">
+                                    <td class="wf-mono wf-col-id">#{{ p.pk }}</td>
+                                    <td>
+                                        <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}" class="wf-row-hit">{{ p.project.code }}</a>
+                                        <span class="wf-cell-sub">{{ p.project.name|truncatechars:42 }}</span>
+                                    </td>
+                                    <td>{{ p.category.name }}</td>
+                                    <td><span class="wf-text-muted">{{ p.current_step.sequence }}.</span> {{ p.current_step.name }}</td>
+                                    <td><span class="wf-pill wf-pill--warn">{{ p.get_status_display }}</span></td>
+                                    <td class="wf-col-action">
+                                        <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}" class="wf-btn-table">Abrir</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="wf-empty wf-empty--inline">
+                        <p class="wf-empty__title">Nenhum item pendente</p>
+                        <p class="wf-empty__text">Quando um processo precisar da sua aprovação, ele aparecerá nesta lista.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <aside class="wf-fila-aside">
+            <section class="wf-panel wf-panel--aside">
+                <div class="wf-panel__head">
+                    <h2 class="wf-panel__title">Atividade recente</h2>
+                    <p class="wf-panel__meta">Processos em que você já atuou</p>
+                </div>
+                <div class="wf-panel__body">
+                    {% if recent %}
+                    <ul class="wf-aside-list">
+                        {% for r in recent %}
+                        <li>
+                            <a href="{% url 'workflow_aprovacao:process_detail' r.pk %}" class="wf-aside-list__link">
+                                <span class="wf-aside-list__id">#{{ r.pk }}</span>
+                                <span class="wf-aside-list__line">{{ r.project.code }} · {{ r.category.name }}</span>
+                                {% if r.status == 'approved' %}
+                                <span class="wf-pill wf-pill--ok">{{ r.get_status_display }}</span>
+                                {% elif r.status == 'rejected' %}
+                                <span class="wf-pill wf-pill--no">{{ r.get_status_display }}</span>
+                                {% else %}
+                                <span class="wf-pill wf-pill--muted">{{ r.get_status_display }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="wf-aside-empty">Sem registros recentes.</p>
+                    {% endif %}
+                </div>
+            </section>
+        </aside>
+    </div>
+</div>
+{% endblock %}

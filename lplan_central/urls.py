@@ -6,6 +6,7 @@ Estrutura de URLs:
   /gestao/        -> Gestão de Aprovação (namespace: gestao)
   /mapa/          -> Mapa de Suprimentos (namespace: mapa_obras)
   /accounts/      -> Autenticação e Admin Central (namespace: accounts)
+  /aprovacoes/    -> Central de Aprovações (workflow genérico)
   /engenharia/    -> Suprimentos/Engenharia (namespace: engenharia)
   /api/           -> APIs internas
   /admin/         -> Django Admin
@@ -34,6 +35,9 @@ urlpatterns = [
 
     # === Autenticação e Admin Central ===
     path('accounts/', include('accounts.urls')),
+
+    # === Central de Aprovações (workflow genérico) ===
+    path('aprovacoes/', include('workflow_aprovacao.urls')),
 
     # === Suprimentos / Engenharia ===
     path('engenharia/', include('suprimentos.urls_engenharia')),

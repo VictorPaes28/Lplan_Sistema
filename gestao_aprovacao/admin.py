@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
-from .models import Empresa, Obra, WorkOrder, Approval, Attachment, StatusHistory, WorkOrderPermission, UserEmpresa, UserProfile, Notificacao, Comment, Lembrete, TagErro, EmailLog
+from .models import (
+    Empresa, Obra, WorkOrder, Approval, Attachment, StatusHistory, WorkOrderPermission,
+    UserEmpresa, UserProfile, Notificacao, Comment, Lembrete, TagErro, EmailLog,
+    AprovacaoEmailDestinatario,
+)
 
 
 @admin.register(Obra)
@@ -892,4 +896,12 @@ class EmailLogAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Logs de email só devem ser criados via sistema, não pelo admin."""
         return False
+
+
+@admin.register(AprovacaoEmailDestinatario)
+class AprovacaoEmailDestinatarioAdmin(admin.ModelAdmin):
+    list_display = ['email', 'nome', 'ativo', 'ordem', 'created_at']
+    list_filter = ['ativo']
+    search_fields = ['email', 'nome']
+    ordering = ['ordem', 'email']
 

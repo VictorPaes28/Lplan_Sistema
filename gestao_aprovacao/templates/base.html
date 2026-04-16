@@ -45,6 +45,13 @@
             border-left: 4px solid #3b82f6;
             font-weight: 600;
         }
+        /* Destaque: cadastro de destinatários de PDF (GestControll) — não confundir com logs */
+        .mobile-menu-item-gc-dest {
+            background: rgba(245, 158, 11, 0.14) !important;
+            border-left: 4px solid #f59e0b;
+            font-weight: 600;
+        }
+        .mobile-menu-item-gc-dest span { color: #92400e; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -193,6 +200,15 @@
                             <circle cx="9" cy="7" r="4"></circle>
                         </svg>
                         <span>Gerenciar Usuários</span>
+                    </a>
+                    <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="mobile-menu-item mobile-menu-item-gc-dest">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        <span>PDF ao aprovar — quem recebe</span>
                     </a>
                     {% endif %}
                     <div class="mobile-menu-divider"></div>

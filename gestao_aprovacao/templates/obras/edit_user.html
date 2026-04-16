@@ -67,14 +67,23 @@
             </div>
             
             <div class="form-group">
-                <label class="form-label">Grupos</label>
-                <div class="form-help mb-2">Um ou mais grupos conforme os sistemas que o usuário acessa (Gestão, Diário, Mapa).</div>
-                {% for grupo in grupos %}
+                <label class="form-label">Grupos e módulos</label>
+                <div class="form-help mb-2">Perfis por módulo. Grupos legados não listados permanecem no usuário ao salvar.</div>
+                {% for modulo in grupos_modulos %}
+                <div class="mb-3" style="border: 1px solid #e9ecef; border-radius: 8px; padding: 0.75rem 1rem; background: #fafbfc;">
+                    <div class="fw-semibold" style="margin-bottom: 0.25rem;">{{ modulo.title }}</div>
+                    {% if modulo.subtitle %}<div class="text-muted small mb-2">{{ modulo.subtitle }}</div>{% endif %}
+                    {% for grupo in modulo.groups %}
                     <div class="form-check">
                         <input type="checkbox" id="grupo_{{ grupo.id }}" name="grupos" value="{{ grupo.name }}" class="form-check-input" {% if grupo in user_grupos %}checked{% endif %}>
                         <label for="grupo_{{ grupo.id }}" class="form-check-label">{{ grupo.name }}</label>
                     </div>
+                    {% empty %}
+                    <p class="text-muted small mb-0">Nenhum grupo configurado neste módulo.</p>
+                    {% endfor %}
+                </div>
                 {% endfor %}
+                <small class="form-text text-muted"><strong>Central de Aprovações:</strong> <em>Externo</em> para terceirizados; <em>Aprovador</em> para a fila; <em>Admin</em> para configurar fluxos.</small>
             </div>
             
             <div class="form-group">

@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Destinatários de pedidos aprovados - GestControll{% endblock %}
+
+{% block page_title %}Destinatários de e-mail (pedido aprovado){% endblock %}
+{% block page_subtitle %}Quem recebe cópia do e-mail com PDF quando um pedido é aprovado{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/aprovacao_destinatarios.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 gc-dest-page">
+    <nav class="gc-dest-nav" aria-label="Navegação">
+        <a href="{% url 'gestao:home' %}">← Home GestControll</a>
+        {% if user.is_staff or user.is_superuser %}
+        <span class="gc-dest-nav-sep" aria-hidden="true">·</span>
+        <a href="{% url 'accounts:admin_central' %}">Painel Central</a>
+        {% endif %}
+    </nav>
+
+    <header class="gc-dest-hero">
+        <div class="gc-dest-hero-inner">
+            <h1 class="gc-dest-hero-title">
+                Quem recebe o PDF ao aprovar
+                <span class="gc-dest-badge">GestControll</span>
+            </h1>
+            <p class="gc-dest-hero-desc">
+                Estes e-mails entram em toda notificação de <strong>pedido aprovado</strong> (junto ao solicitante e aos departamentos do ambiente).
+                Quem estiver aqui com o <strong>mesmo e-mail da conta</strong> também pode usar a coluna <strong>Analisado</strong> na lista de pedidos.
+            </p>
+        </div>
+    </header>
+
+    <section class="gc-dest-card" aria-labelledby="gc-add-title">
+        <div class="gc-dest-card-head">
+            <h2 id="gc-add-title" class="gc-dest-card-title">Adicionar destinatário</h2>
+        </div>
+        <div class="gc-dest-card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add">
+                <div class="gc-dest-form-grid">
+                    <div class="gc-dest-field-wrap gc-dest-field-wrap--wide">
+                        <label for="id_email" class="gc-dest-label">E-mail</label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                        <div class="gc-dest-field-error">{{ form.email.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_nome" class="gc-dest-label">Nome (opcional)</label>
+                        {{ form.nome }}
+                    </div>
+                    <div>
+                        <label for="id_ordem" class="gc-dest-label">Ordem</label>
+                        {{ form.ordem }}
+                    </div>
+                    <div class="gc-dest-check-row">
+                        {{ form.ativo }}
+                        <label for="id_ativo" class="gc-dest-check-label">Ativo</label>
+                    </div>
+                    <div>
+                        <button type="submit" class="gc-dest-submit">Salvar</button>
+                    </div>
+                </div>
+                {% if form.non_field_errors %}
+                <div class="gc-dest-nonfield-err">{{ form.non_field_errors }}</div>
+                {% endif %}
+            </form>
+        </div>
+    </section>
+
+    <section class="gc-dest-card" aria-labelledby="gc-list-title">
+        <div class="gc-dest-card-head">
+            <h2 id="gc-list-title" class="gc-dest-card-title">Cadastrados</h2>
+        </div>
+        <div class="gc-dest-card-body" style="padding-top: 0;">
+            {% if destinatarios %}
+            <div class="gc-dest-table-wrap">
+                <table class="gc-dest-table">
+                    <thead>
+                        <tr>
+                            <th>E-mail</th>
+                            <th>Nome</th>
+                            <th>Ordem</th>
+                            <th>Ativo</th>
+                            <th style="width: 1%; text-align: right;">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in destinatarios %}
+                        <tr>
+                            <td class="gc-dest-email">{{ d.email }}</td>
+                            <td>{{ d.nome|default:"—" }}</td>
+                            <td>{{ d.ordem }}</td>
+                            <td>
+                                {% if d.ativo %}
+                                <span class="gc-dest-pill gc-dest-pill--on">Sim</span>
+                                {% else %}
+                                <span class="gc-dest-pill gc-dest-pill--off">Não</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                <form method="post" class="gc-dest-inline-form" onsubmit="return confirm('Remover este destinatário?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="pk" value="{{ d.pk }}">
+                                    <button type="submit" class="gc-dest-btn-del">Excluir</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="gc-dest-empty">
+                Nenhum destinatário cadastrado. O sistema usará o fallback do ambiente (.env) ou a lista mínima interna até você incluir alguém aqui.
+            </p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

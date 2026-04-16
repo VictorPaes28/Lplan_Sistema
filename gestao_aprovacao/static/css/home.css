@@ -263,6 +263,35 @@
     box-shadow: 0 4px 12px rgba(255, 102, 0, 0.25), 0 0 0 3px rgba(255, 102, 0, 0.1);
 }
 
+/* Configuração visível: destinatários do PDF quando pedido é aprovado (GestControll) */
+.action-btn-gc-config {
+    border: 2px solid #f59e0b;
+    background: linear-gradient(145deg, #fffbeb 0%, #ffffff 55%);
+    box-shadow: 0 2px 12px rgba(245, 158, 11, 0.18);
+}
+.action-btn-gc-config .action-text {
+    font-weight: 700;
+    color: #92400e;
+    text-align: center;
+    line-height: 1.25;
+}
+.action-btn-gc-config .action-icon {
+    background: rgba(245, 158, 11, 0.15);
+}
+.action-btn-gc-config .action-icon svg {
+    stroke: #d97706;
+}
+.action-btn-gc-config:hover {
+    border-color: #d97706;
+    background: linear-gradient(145deg, #fef3c7 0%, #ffffff 60%);
+    box-shadow: 0 8px 24px rgba(217, 119, 6, 0.2);
+    color: #78350f;
+    transform: translateY(-6px);
+}
+.action-btn-gc-config:hover .action-icon {
+    background: rgba(245, 158, 11, 0.28);
+}
+
 .action-icon {
     width: 56px;
     height: 56px;

@@ -408,13 +408,24 @@ def select_system_view(request):
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    has_workflow = user.is_superuser or user.is_staff or bool(
+        user_groups
+        & {
+            GRUPOS.CENTRAL_APROVACOES_ADMIN,
+            GRUPOS.CENTRAL_APROVACOES_APROVADOR,
+            GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+        }
+    )
     # BI da Obra: mesma base de obras (projeto vinculado); visível para quem usa Diário ou Mapa
     has_bi_obra = user.is_superuser or user.is_staff or has_diario or has_mapa
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
     has_central = user_is_painel_sistema_admin(user)
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
-    if not (has_diario or has_gestao or has_mapa or has_central) and _is_work_owner(user):
+    if (
+        not (has_diario or has_gestao or has_mapa or has_central or has_workflow)
+        and _is_work_owner(user)
+    ):
         return redirect('client-diary-list')
     support_projects = list(_get_support_projects_for_user(user))
     context = {
@@ -424,6 +435,7 @@ def select_system_view(request):
         'has_bi_obra': has_bi_obra,
         'has_admin': user.is_superuser or user.is_staff,
         'has_central': has_central,
+        'has_workflow': has_workflow,
         'can_manage_support_tickets': user.is_superuser or user.is_staff,
         'support_projects': support_projects,
         'support_auto_project': support_projects[0] if len(support_projects) == 1 else None,

@@ -1022,6 +1022,21 @@
                     </div>
                     {% endfor %}
                 </div>
+                <!-- Central de Aprovações -->
+                <div>
+                    <div class="group-system-label" style="color: #a16207;">
+                        <i class="fas fa-check-double"></i> Central de Aprovações
+                    </div>
+                    {% for grupo in grupos_central %}
+                    <div class="group-row">
+                        <div>
+                            <span class="group-name">{{ grupo.name }}</span>
+                            <span class="group-desc">{{ grupo.desc }}</span>
+                        </div>
+                        <span class="group-count" style="background: #fef9c3; color: #a16207;">{{ grupo.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
         
@@ -1121,6 +1136,18 @@
             </div>
         </section>
         {% endif %}
+
+        <section class="email-logs-panel anim-1" style="border: 2px solid #fcd34d; background: linear-gradient(180deg, #fffbeb 0%, #ffffff 55%);" aria-labelledby="gc-pdf-dest-title">
+            <div class="email-logs-panel-inner">
+                <header class="email-logs-panel-header">
+                    <div>
+                        <p id="gc-pdf-dest-title" class="email-logs-panel-label" style="font-size:1.05rem;">GestControll — quem recebe o PDF ao aprovar pedido</p>
+                        <p class="email-logs-panel-desc">Cadastre os e-mails que sempre recebem a notificação (e anexos) quando um pedido é aprovado. Não confundir com histórico de envio de e-mails.</p>
+                    </div>
+                    <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="email-logs-panel-link" style="font-weight:700; white-space:nowrap;">Abrir cadastro <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+                </header>
+            </div>
+        </section>
 
         <section class="email-logs-panel anim-1" aria-labelledby="email-logs-title">
             <div class="email-logs-panel-inner">

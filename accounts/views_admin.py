@@ -52,11 +52,13 @@ def admin_central(request):
     # Grupos organizados por sistema com descricoes
     _grupo_descs = {
         GRUPOS.ADMINISTRADOR: 'Acesso total',
-        GRUPOS.RESPONSAVEL_EMPRESA: 'Gerencia empresa',
         GRUPOS.APROVADOR: 'Aprova pedidos',
         GRUPOS.SOLICITANTE: 'Cria pedidos',
         GRUPOS.GERENTES: 'Aprova diarios',
         GRUPOS.ENGENHARIA: 'Edita planejamento',
+        GRUPOS.CENTRAL_APROVACOES_ADMIN: 'Configura fluxos',
+        GRUPOS.CENTRAL_APROVACOES_APROVADOR: 'Fila de aprovacoes',
+        GRUPOS.CENTRAL_APROVACOES_EXTERNO: 'Acesso externo',
     }
     _grupos_raw = Group.objects.annotate(count=Count('user')).values('name', 'count').order_by('name')
     _grupos_dict = {g['name']: g['count'] for g in _grupos_raw}
@@ -64,9 +66,14 @@ def admin_central(request):
     def _make_grupo_list(nomes):
         return [{'name': n, 'count': _grupos_dict.get(n, 0), 'desc': _grupo_descs.get(n, '')} for n in nomes]
     
-    grupos_gestao = _make_grupo_list([GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE])
+    grupos_gestao = _make_grupo_list([GRUPOS.ADMINISTRADOR, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE])
     grupos_diario = _make_grupo_list([GRUPOS.GERENTES])
     grupos_mapa = _make_grupo_list([GRUPOS.ENGENHARIA])
+    grupos_central = _make_grupo_list([
+        GRUPOS.CENTRAL_APROVACOES_ADMIN,
+        GRUPOS.CENTRAL_APROVACOES_APROVADOR,
+        GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+    ])
     
     # Últimos usuários
     ultimos_usuarios = User.objects.select_related().prefetch_related('groups').order_by('-date_joined')[:8]
@@ -121,6 +128,7 @@ def admin_central(request):
         'grupos_gestao': grupos_gestao,
         'grupos_diario': grupos_diario,
         'grupos_mapa': grupos_mapa,
+        'grupos_central': grupos_central,
         'ultimos_usuarios': ultimos_usuarios,
         'obras_ativas': obras_ativas,
         'stats_email_logs': stats_email_logs,

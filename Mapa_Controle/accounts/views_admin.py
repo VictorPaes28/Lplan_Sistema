@@ -3,6 +3,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.db.models import Count
+from accounts.groups import (
+    GRUPOS_OCULTOS_ATRIBUICAO_UI,
+    grupos_ordenados_atribuivel,
+    merge_grupos_legados_ocultos_por_pk,
+    normalize_group_pks_post_atribuivel,
+)
 from obras.models import Obra, LocalObra
 from suprimentos.models import ItemMapa, Insumo
 
@@ -44,7 +50,7 @@ def admin_central(request):
 @user_passes_test(is_staff_or_superuser)
 def criar_usuario(request):
     """Cria um novo usuário e atribui grupo."""
-    grupos = Group.objects.all().order_by('name')
+    grupos = grupos_ordenados_atribuivel()
     
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -76,6 +82,9 @@ def criar_usuario(request):
         # Atribuir grupo
         if grupo_id:
             grupo = get_object_or_404(Group, id=grupo_id)
+            if grupo.name in GRUPOS_OCULTOS_ATRIBUICAO_UI:
+                messages.error(request, 'Este perfil não está disponível para nova atribuição.')
+                return render(request, 'accounts/criar_usuario.html', {'grupos': grupos})
             user.groups.add(grupo)
             messages.success(request, f'Usuário "{username}" criado e adicionado ao grupo "{grupo.name}"!')
         else:
@@ -91,7 +100,7 @@ def criar_usuario(request):
 def gerenciar_usuarios(request):
     """Lista e gerencia usuários."""
     usuarios = User.objects.all().order_by('-date_joined')
-    grupos = Group.objects.all().order_by('name')
+    grupos = grupos_ordenados_atribuivel()
     
     # Filtro por grupo
     grupo_filtro = request.GET.get('grupo')
@@ -126,7 +135,7 @@ def gerenciar_usuarios(request):
 def editar_usuario(request, user_id):
     """Edita usuário e grupos."""
     user = get_object_or_404(User, id=user_id)
-    grupos = Group.objects.all().order_by('name')
+    grupos = grupos_ordenados_atribuivel()
     
     if request.method == 'POST':
         user.first_name = request.POST.get('first_name', '')
@@ -142,12 +151,12 @@ def editar_usuario(request, user_id):
         
         user.save()
         
-        # Atualizar grupos
-        grupos_selecionados = request.POST.getlist('grupos')
+        # Atualizar grupos (mantém grupos ocultos legados)
+        norm = normalize_group_pks_post_atribuivel(request.POST.getlist('grupos'))
+        final_ids = merge_grupos_legados_ocultos_por_pk(user, norm)
         user.groups.clear()
-        for grupo_id in grupos_selecionados:
-            grupo = get_object_or_404(Group, id=grupo_id)
-            user.groups.add(grupo)
+        for gid in final_ids:
+            user.groups.add(Group.objects.get(pk=gid))
         
         messages.success(request, f'Usuário "{user.username}" atualizado!')
         return redirect('gerenciar_usuarios')

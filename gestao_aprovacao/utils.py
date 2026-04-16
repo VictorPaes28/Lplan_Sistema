@@ -6,9 +6,9 @@ from django.conf import settings
 from django.shortcuts import redirect
 from django.contrib import messages
 from accounts.groups import GRUPOS
-from .models import Notificacao
+from .models import Notificacao, AprovacaoEmailDestinatario
 
-# Coluna "Analisado" (lista de pedidos): e-mails fixos + EMAIL_DEPARTAMENTOS_APROVACAO + superuser.
+# Coluna "Analisado" (lista de pedidos): fallback quando o banco não está acessível; senão AprovacaoEmailDestinatario + superuser.
 _EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT = frozenset({
     "luiz.henrique@lplan.com.br",
     "luizdomingos@lplan.com.br",
@@ -30,11 +30,19 @@ _EMAILS_MARCAR_PEDIDO_ANALISADO = _frozenset_emails_marcar_pedido_analisado()
 def usuario_pode_marcar_pedido_analisado(user):
     """
     Quem pode usar o checkbox "Analisado" na lista de pedidos (GestControll).
+    Alinhado aos e-mails cadastrados como destinatários de pedido aprovado (tela de destinatários).
     """
     if getattr(user, "is_superuser", False):
         return True
     email = (getattr(user, "email", None) or "").strip().lower()
-    return bool(email and email in _EMAILS_MARCAR_PEDIDO_ANALISADO)
+    if not email:
+        return False
+    try:
+        if AprovacaoEmailDestinatario.objects.filter(ativo=True, email__iexact=email).exists():
+            return True
+    except Exception:
+        pass
+    return email in _EMAILS_MARCAR_PEDIDO_ANALISADO
 
 
 def get_user_profile(user):

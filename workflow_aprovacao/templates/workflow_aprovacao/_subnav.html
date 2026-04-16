@@ -1,0 +1,16 @@
+<nav class="wf-nav" aria-label="Central de Aprovações">
+    <a href="{% url 'workflow_aprovacao:pending' %}"
+       class="{% if request.resolver_match.url_name == 'pending' or request.resolver_match.url_name == 'home' %}wf-nav--active{% endif %}">
+        <i class="fas fa-inbox" aria-hidden="true"></i> Fila
+    </a>
+    <a href="{% url 'workflow_aprovacao:dashboard' %}"
+       class="{% if request.resolver_match.url_name == 'dashboard' %}wf-nav--active{% endif %}">
+        <i class="fas fa-chart-pie" aria-hidden="true"></i> Resumo
+    </a>
+    {% if workflow_show_config_nav %}
+    <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
+       class="{% if request.resolver_match.url_name == 'config_flow_list' %}wf-nav--active{% endif %}">
+        <i class="fas fa-sitemap" aria-hidden="true"></i> Fluxos
+    </a>
+    {% endif %}
+</nav>

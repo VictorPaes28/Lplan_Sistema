@@ -8,7 +8,7 @@ from django.db import transaction
 from django.core.mail import EmailMessage
 from django.utils import timezone
 
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, GRUPOS_OCULTOS_ATRIBUICAO_UI
 from accounts.models import UserSignupRequest
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def get_signup_approver_users():
 
 
 def _normalize_groups(group_names):
-    allowed = set(GRUPOS.TODOS)
+    allowed = set(GRUPOS.TODOS) - GRUPOS_OCULTOS_ATRIBUICAO_UI
     clean = []
     for name in group_names or []:
         value = (name or '').strip()

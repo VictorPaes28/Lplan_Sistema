@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
 from accounts.groups import GRUPOS
-from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission
+from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission, AprovacaoEmailDestinatario
 
 
 class EmpresaForm(forms.ModelForm):
@@ -333,3 +333,27 @@ class AttachmentForm(forms.ModelForm):
                 )
         
         return arquivo
+
+
+class AprovacaoEmailDestinatarioForm(forms.ModelForm):
+    """Cadastro rápido de e-mail que recebe notificações de pedido aprovado (GestControll)."""
+
+    class Meta:
+        model = AprovacaoEmailDestinatario
+        fields = ['email', 'nome', 'ativo', 'ordem']
+        widgets = {
+            'email': forms.EmailInput(attrs={
+                'class': 'gc-dest-field',
+                'placeholder': 'nome@empresa.com.br',
+                'autocomplete': 'email',
+            }),
+            'nome': forms.TextInput(attrs={'class': 'gc-dest-field', 'placeholder': 'Identificação opcional'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'gc-dest-check'}),
+            'ordem': forms.NumberInput(attrs={'class': 'gc-dest-field gc-dest-field--narrow', 'min': 0}),
+        }
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email:
+            raise forms.ValidationError('Informe um e-mail válido.')
+        return email

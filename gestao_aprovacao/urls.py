@@ -73,6 +73,7 @@ urlpatterns = [
     path('media/<path:path>', views.serve_media_file, name='serve_media_file'),
     
     # Logs de Email (apenas admin)
+    path('emails/destinatarios-aprovacao/', views.manage_aprovacao_destinatarios, name='manage_aprovacao_destinatarios'),
     path('emails/logs/', views.list_email_logs, name='list_email_logs'),
     path('emails/logs/<int:log_id>/reenviar/', views.reenviar_email, name='reenviar_email'),
     

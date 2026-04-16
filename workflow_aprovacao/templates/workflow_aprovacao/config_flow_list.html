@@ -1,0 +1,91 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:pending' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}Obra + categoria · alçadas no Admin{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <section class="wf-panel" style="margin-bottom:1.75rem;">
+        <div class="wf-panel__head">
+            <h2 class="wf-panel__title">Novo fluxo</h2>
+            <p class="wf-panel__meta">Cria a combinação obra + categoria. Em seguida cadastre alçadas e participantes no Admin.</p>
+        </div>
+        <div class="wf-panel__body">
+            <form method="post" class="wf-form-grid">
+                {% csrf_token %}
+                <div class="wf-field">
+                    {{ new_flow_form.project.label_tag }}
+                    {{ new_flow_form.project }}
+                    {% if new_flow_form.project.errors %}<p class="wf-help" style="color:#b91c1c;">{{ new_flow_form.project.errors }}</p>{% endif %}
+                </div>
+                <div class="wf-field">
+                    {{ new_flow_form.category.label_tag }}
+                    {{ new_flow_form.category }}
+                    {% if new_flow_form.category.errors %}<p class="wf-help" style="color:#b91c1c;">{{ new_flow_form.category.errors }}</p>{% endif %}
+                </div>
+                <div style="grid-column:1/-1;">
+                    {% if new_flow_form.non_field_errors %}
+                    <div class="wf-alert wf-alert--error" style="margin-bottom:0.75rem;">{{ new_flow_form.non_field_errors }}</div>
+                    {% endif %}
+                    <button type="submit" class="wf-btn-primary">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i> Criar e abrir no Admin
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="wf-panel">
+        <div class="wf-panel__head">
+            <h2 class="wf-panel__title">Fluxos cadastrados</h2>
+        </div>
+        <div class="wf-panel__body wf-panel__body--flush">
+            {% if flows %}
+            <div class="wf-table-scroll">
+                <table class="wf-data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Obra</th>
+                            <th scope="col">Categoria</th>
+                            <th scope="col">Situação</th>
+                            <th scope="col" class="wf-col-action">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in flows %}
+                        <tr class="wf-data-table__row">
+                            <td>
+                                <span class="wf-cell-strong">{{ f.project.code }}</span>
+                                <span class="wf-cell-sub">{{ f.project.name|truncatechars:44 }}</span>
+                            </td>
+                            <td>{{ f.category.name }}</td>
+                            <td>
+                                {% if f.is_active %}
+                                <span class="wf-pill wf-pill--ok">Ativo</span>
+                                {% else %}
+                                <span class="wf-pill wf-pill--no">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td class="wf-col-action">
+                                <a href="{% url 'admin:workflow_aprovacao_approvalflowdefinition_change' f.pk %}" class="wf-btn-table">Editar</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="wf-empty wf-empty--inline">
+                <p class="wf-empty__title">Nenhum fluxo</p>
+                <p class="wf-empty__text">Use o formulário acima para criar a primeira combinação obra + categoria.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}
