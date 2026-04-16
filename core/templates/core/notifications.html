@@ -6,13 +6,85 @@
 {% block page_subtitle %}Acompanhe alertas e atualizações do sistema{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
 <style>
 .notif-wrap { width: 100%; max-width: 1100px; margin: 0 auto; }
-.notif-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.notif-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .notif-subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
-.notif-stats { display: flex; gap: 8px; flex-wrap: wrap; }
-.notif-stat { border: 1px solid #e2e8f0; background: #fff; border-radius: 999px; padding: 4px 9px; font-size: 11px; color: #334155; font-weight: 600; }
-.notif-filters { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 10px; }
+.notif-stats { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; }
+.notif-stat-chip {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 5.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.notif-stat-chip-lbl {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  line-height: 1.2;
+}
+.notif-stat-chip-num { font-size: 1rem; font-weight: 800; color: #0f172a; line-height: 1.2; }
+.notif-mark-all-form { display: inline-flex; align-items: stretch; margin: 0; }
+.notif-mark-all-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.notif-mark-all-btn:hover { background: #f8fafc; border-color: #cbd5e1; color: #334155; }
+.notif-filters-section { margin-bottom: 1rem; padding: 1rem 1.25rem; }
+.notif-filters-section .central-section-title { margin-bottom: 0.85rem; padding-bottom: 0.65rem; }
+.notif-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+.notif-filter-field {
+  flex: 1 1 10rem;
+  min-width: min(100%, 11rem);
+  max-width: 20rem;
+}
+.notif-filter-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+.notif-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+.notif-filter-actions .central-btn-primary,
+.notif-filter-actions .central-btn-secondary { white-space: nowrap; }
+@media (max-width: 640px) {
+  .notif-filter-field { max-width: none; }
+}
 .notif-list { display: grid; gap: 8px; }
 .notif-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; transition: box-shadow .15s ease, border-color .15s ease; }
 .notif-card:hover { box-shadow: 0 4px 14px rgba(15,23,42,.08); border-color: #cbd5e1; }
@@ -42,24 +114,31 @@
             </p>
         </div>
         <div class="notif-stats">
-            <span class="notif-stat">Total: {{ notifications.paginator.count|default:notifications|length }}</span>
-            <span class="notif-stat">Não lidas: {{ unread_count }}</span>
+            <div class="notif-stat-chip" role="status">
+                <span class="notif-stat-chip-lbl">Total</span>
+                <span class="notif-stat-chip-num">{{ notifications.paginator.count|default:notifications|length }}</span>
+            </div>
+            <div class="notif-stat-chip" role="status">
+                <span class="notif-stat-chip-lbl">Não lidas</span>
+                <span class="notif-stat-chip-num">{{ unread_count }}</span>
+            </div>
             {% if unread_count > 0 %}
-            <form method="post" action="{% url 'notification-mark-all-read' %}" class="inline">
+            <form method="post" action="{% url 'notification-mark-all-read' %}" class="notif-mark-all-form">
                 {% csrf_token %}
-                <button type="submit" class="notif-stat" style="cursor:pointer;">
-                    <i class="fas fa-check-double mr-1"></i> Marcar todas
+                <button type="submit" class="notif-mark-all-btn">
+                    <i class="fas fa-check-double" aria-hidden="true"></i> Marcar todas
                 </button>
             </form>
             {% endif %}
         </div>
     </div>
 
-    <div class="notif-filters">
-        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select name="type" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+    <section class="central-section notif-filters-section" aria-label="Filtros de notificações">
+        <h2 class="central-section-title" style="font-size: 1rem;"><i class="fas fa-sliders-h text-slate-500" aria-hidden="true"></i> Filtros</h2>
+        <form method="get" class="notif-filters-row">
+            <div class="notif-filter-field">
+                <label class="notif-filter-label" for="notif-filter-type">Tipo</label>
+                <select name="type" id="notif-filter-type" class="central-input" style="width:100%;">
                     <option value="">Todos os tipos</option>
                     <option value="diary_pending" {% if filter_type == 'diary_pending' %}selected{% endif %}>Relatório pendente</option>
                     <option value="diary_review" {% if filter_type == 'diary_review' %}selected{% endif %}>Relatório revisão</option>
@@ -67,24 +146,22 @@
                     <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Sistema</option>
                 </select>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select name="read" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+            <div class="notif-filter-field">
+                <label class="notif-filter-label" for="notif-filter-read">Status</label>
+                <select name="read" id="notif-filter-read" class="central-input" style="width:100%;">
                     <option value="">Todas</option>
                     <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
                     <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
                 </select>
             </div>
-            <div class="md:col-span-2 flex items-end gap-2">
-                <button type="submit" class="px-3 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 text-sm font-medium">
-                    <i class="fas fa-filter mr-1"></i> Aplicar filtros
+            <div class="notif-filter-actions">
+                <button type="submit" class="central-btn-primary">
+                    <i class="fas fa-filter" aria-hidden="true"></i> Aplicar
                 </button>
-                <a href="{% url 'notifications' %}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-medium">
-                    Limpar
-                </a>
+                <a href="{% url 'notifications' %}" class="central-btn-secondary">Limpar</a>
             </div>
         </form>
-    </div>
+    </section>
 
     <div class="notif-list">
     {% for notification in notifications %}

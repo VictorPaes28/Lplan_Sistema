@@ -84,11 +84,13 @@
                 {% else %}
                 <span class="matrix-mode-pill disabled" title="Escolha um bloco nos chips abaixo">Por pavimento</span>
                 {% endif %}
+                {% if not is_area_comum %}
                 {% if selected.bloco and selected.pavimento %}
                 <a class="matrix-mode-pill {% if matrix.mode == 'apto' %}active{% endif %}"
                    href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto">Por unidade</a>
                 {% else %}
                 <span class="matrix-mode-pill disabled" title="Defina bloco e pavimento nos chips">Por unidade</span>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -152,7 +154,7 @@
                 </div>
             </div>
             {% endif %}
-            {% if selected.pavimento %}
+            {% if selected.pavimento and not is_area_comum %}
             <div class="matrix-chip-row">
                 <span class="matrix-chip-label">Unidade</span>
                 <div class="matrix-chip-scroll">
@@ -167,8 +169,10 @@
             </div>
         </nav>
 
-        {% if coluna_filtrada_aviso %}
+        {% if coluna_filtrada_aviso and not is_area_comum %}
         <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver unidades.</p>
+        {% elif coluna_filtrada_aviso and is_area_comum %}
+        <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver o detalhe dos serviços.</p>
         {% endif %}
 
         <div class="matrix-wrap">
@@ -190,9 +194,13 @@
                     <tr>
                         <td class="sticky-left row-name">
                             {% if matrix.mode == 'pavimento' %}
+                            {% if is_area_comum %}
+                            <span class="row-name-txt" title="Área comum: sem camada de unidade">{{ row.row_label }}</span>
+                            {% else %}
                             <a class="cell-link row-link"
                                title="Ver unidades (aptos) deste pavimento na matriz"
                                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
+                            {% endif %}
                             {% elif matrix.mode == 'apto' %}
                             <a class="cell-link row-link"
                                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">{{ row.row_label }}</a>
@@ -308,7 +316,7 @@
         <div class="focus-block focus-block--micro mb-2" aria-label="Detalhe por unidade">
         <div class="row g-2 mb-2">
             <div class="col-md-2"><div class="kpi-box"><small>Média da célula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
-            <div class="col-md-2"><div class="kpi-box"><small>Aptos</small><strong>{{ focus_detail.total_aptos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>{% if focus_detail.omitir_apto %}Pavimentos{% else %}Aptos{% endif %}</small><strong>{{ focus_detail.total_aptos }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Concluídos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Andamento</small><strong>{{ focus_detail.em_andamento }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Não iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
@@ -319,7 +327,9 @@
                 <thead>
                     <tr>
                         <th>Pav.</th>
+                        {% if not focus_detail.omitir_apto %}
                         <th>Apto</th>
+                        {% endif %}
                         <th>%</th>
                         <th>Status</th>
                         <th>Término</th>
@@ -330,7 +340,9 @@
                     {% for row in focus_detail.rows %}
                     <tr>
                         <td>{{ row.pavimento }}</td>
+                        {% if not focus_detail.omitir_apto %}
                         <td>{{ row.apto }}</td>
+                        {% endif %}
                         <td>{% if row.pct != None %}{{ row.pct }}%{% else %}-{% endif %}</td>
                         <td>
                             {% if row.status_bucket == 'concluido' %}<span class="focus-badge focus-badge-ok">Concl.</span>
@@ -343,7 +355,7 @@
                         <td>{{ row.observacao|default:"-" }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="text-center text-muted py-3">Sem registros para este detalhe.</td></tr>
+                    <tr><td colspan="{% if focus_detail.omitir_apto %}5{% else %}6{% endif %}" class="text-center text-muted py-3">Sem registros para este detalhe.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -365,18 +377,26 @@
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Pav. <span class="path-pill__v">{{ selected.pavimento|default:"—" }}</span>
         </a>
+        {% if not is_area_comum %}
         <a class="path-pill {% if selected.apto %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Unid. <span class="path-pill__v">{{ selected.apto|default:"—" }}</span>
         </a>
+        {% endif %}
         <a class="path-pill {% if selected.atividade %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&matrix_mode={{ matrix.mode|default:'bloco' }}">
             Coluna <span class="path-pill__v">{{ selected.atividade|default:"—" }}</span>
         </a>
     </nav>
 
+    {% if is_area_comum %}
+    {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
+    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
+    {% endif %}
+    {% else %}
     {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_apto or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
     <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, unid. {{ qualidade.sem_apto }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
+    {% endif %}
     {% endif %}
 
     <div class="layer-block mb-3 mobile-priority-layer1">
@@ -443,7 +463,7 @@
     </div>
     {% endif %}
 
-    {% if selected.pavimento %}
+    {% if selected.pavimento and not is_area_comum %}
     <div class="layer-block mb-3 mobile-priority-layer4">
         <h6>Unidades <span class="layer-block__sub">({{ selected.pavimento }})</span></h6>
         <div class="layer-grid">
@@ -465,9 +485,9 @@
     </div>
     {% endif %}
 
-    {% if selected.apto %}
+    {% if selected.apto or is_area_comum and selected.pavimento %}
     <div class="layer-block mb-3 mobile-priority-layer5">
-        <h6>Atividades <span class="layer-block__sub">({{ selected.apto }})</span></h6>
+        <h6>Atividades <span class="layer-block__sub">({% if selected.apto %}{{ selected.apto }}{% else %}{{ selected.pavimento }}{% endif %})</span></h6>
         <div class="table-responsive">
             <table class="table table-sm table-striped table-compact align-middle mb-0">
                 <thead>
