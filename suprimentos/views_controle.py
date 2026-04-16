@@ -96,6 +96,10 @@ def _build_layers_navigation(raw_qs, selected: dict) -> dict:
     layers["pavimentos"] = _layer_aggregates(qs_pav, "pavimento")
     if not (selected.get("pavimento") or "").strip():
         return layers
+    if _setor_e_area_comum((selected.get("setor") or "")):
+        # ÁREA COMUM: Bloco → Pavimento → serviços (não há camada de unidade/apto).
+        layers["aptos"] = []
+        return layers
     qs_ap = qs_pav.filter(pavimento=selected["pavimento"])
     layers["aptos"] = _layer_aggregates(qs_ap, "apto")
     return layers
@@ -162,6 +166,13 @@ def _norm_key(value: object) -> str:
     return " ".join(text.split())
 
 
+def _setor_e_area_comum(setor: str) -> bool:
+    """ÁREA COMUM: Bloco → Pavimento → serviços (sem camada de apartamento/unidade)."""
+    if not (setor or "").strip():
+        return False
+    return _norm_key(setor) == "AREA COMUM"
+
+
 def _parse_grid_pct_clicado(request) -> int | None:
     """% exibido na célula ao clicar — só para exibição no detalhe (confiança do utilizador)."""
     raw = (request.GET.get("grid_pct") or "").strip()
@@ -181,6 +192,13 @@ def _resolve_matrix_mode(requested: str, selected: dict) -> str:
     r = (requested or "").strip().lower()
     if r not in ("bloco", "pavimento", "apto"):
         r = "bloco"
+    if _setor_e_area_comum((selected.get("setor") or "")):
+        # Sem modo por unidade; pedidos de "apto" caem em pavimento.
+        if r == "apto":
+            r = "pavimento"
+        if r == "pavimento" and selected.get("bloco"):
+            return "pavimento"
+        return "bloco"
     if r == "apto" and selected.get("bloco") and selected.get("pavimento"):
         return "apto"
     if r == "pavimento" and selected.get("bloco"):
@@ -371,6 +389,7 @@ def mapa_controle(request):
         "search": (request.GET.get("search") or "").strip(),
         "quick_find": (request.GET.get("quick") or "").strip(),
     }
+    is_area_comum = False
 
     status_filter = selected["status"]
     layers = {"setores": [], "blocos": [], "pavimentos": [], "aptos": []}
@@ -437,6 +456,10 @@ def mapa_controle(request):
                     "apto": candidate.apto,
                     "atividade": candidate.atividade,
                 }
+
+        is_area_comum = _setor_e_area_comum(selected.get("setor") or "")
+        if is_area_comum:
+            selected["apto"] = ""
 
         if selected["search"]:
             s = selected["search"]
@@ -521,58 +544,111 @@ def mapa_controle(request):
                     | Q(status_texto__icontains="pend")
                 )
 
-            apto_agg: dict[tuple[str, str], dict] = {}
-            ratio_values: list[float] = []
-            for item in focus_qs.only(
-                "apto", "pavimento", "status_texto", "status_percentual", "data_termino", "observacao"
-            ):
-                ratio = _status_to_ratio(item)
-                if ratio is not None:
-                    ratio_values.append(ratio)
-                apto_key = ((item.apto or "SEM APTO").strip() or "SEM APTO", (item.pavimento or "-").strip() or "-")
-                if apto_key not in apto_agg:
-                    apto_agg[apto_key] = {
-                        "apto": apto_key[0],
-                        "pavimento": apto_key[1],
-                        "sum_ratio": 0.0,
-                        "count_ratio": 0,
-                        "status_texto": item.status_texto or "",
-                        "data_termino": item.data_termino,
-                        "observacao": (item.observacao or "")[:120],
-                    }
-                if ratio is not None:
-                    apto_agg[apto_key]["sum_ratio"] += ratio
-                    apto_agg[apto_key]["count_ratio"] += 1
+            if is_area_comum:
+                # Agrega por pavimento (apartamento não existe neste setor).
+                pav_agg: dict[str, dict] = {}
+                ratio_values: list[float] = []
+                for item in focus_qs.only(
+                    "pavimento", "status_texto", "status_percentual", "data_termino", "observacao"
+                ):
+                    ratio = _status_to_ratio(item)
+                    if ratio is not None:
+                        ratio_values.append(ratio)
+                    pk = (item.pavimento or "-").strip() or "-"
+                    if pk not in pav_agg:
+                        pav_agg[pk] = {
+                            "pavimento": pk,
+                            "sum_ratio": 0.0,
+                            "count_ratio": 0,
+                            "status_texto": item.status_texto or "",
+                            "data_termino": item.data_termino,
+                            "observacao": (item.observacao or "")[:120],
+                        }
+                    if ratio is not None:
+                        pav_agg[pk]["sum_ratio"] += ratio
+                        pav_agg[pk]["count_ratio"] += 1
 
-            apto_rows = []
-            concluidos = 0
-            em_andamento = 0
-            nao_iniciados = 0
-            for _, data in apto_agg.items():
-                avg_ratio = (
-                    data["sum_ratio"] / data["count_ratio"] if data["count_ratio"] > 0 else None
-                )
-                bucket = _status_bucket_from_ratio(avg_ratio)
-                if bucket == "concluido":
-                    concluidos += 1
-                elif bucket == "em_andamento":
-                    em_andamento += 1
-                elif bucket == "nao_iniciado":
-                    nao_iniciados += 1
-                apto_rows.append(
-                    {
-                        "apto": data["apto"],
-                        "pavimento": data["pavimento"],
-                        "pct": round((avg_ratio or 0) * 100) if avg_ratio is not None else None,
-                        "status_bucket": bucket,
-                        "status_texto": data["status_texto"] or "-",
-                        "data_termino": data["data_termino"],
-                        "observacao": data["observacao"] or "-",
-                    }
-                )
+                apto_rows = []
+                concluidos = 0
+                em_andamento = 0
+                nao_iniciados = 0
+                for _, data in pav_agg.items():
+                    avg_ratio = (
+                        data["sum_ratio"] / data["count_ratio"] if data["count_ratio"] > 0 else None
+                    )
+                    bucket = _status_bucket_from_ratio(avg_ratio)
+                    if bucket == "concluido":
+                        concluidos += 1
+                    elif bucket == "em_andamento":
+                        em_andamento += 1
+                    elif bucket == "nao_iniciado":
+                        nao_iniciados += 1
+                    apto_rows.append(
+                        {
+                            "apto": None,
+                            "pavimento": data["pavimento"],
+                            "pct": round((avg_ratio or 0) * 100) if avg_ratio is not None else None,
+                            "status_bucket": bucket,
+                            "status_texto": data["status_texto"] or "-",
+                            "data_termino": data["data_termino"],
+                            "observacao": data["observacao"] or "-",
+                        }
+                    )
+                apto_rows.sort(key=lambda r: (r["pct"] is None, r["pct"] if r["pct"] is not None else 999))
+                media_pct = round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
+            else:
+                apto_agg: dict[tuple[str, str], dict] = {}
+                ratio_values = []
+                for item in focus_qs.only(
+                    "apto", "pavimento", "status_texto", "status_percentual", "data_termino", "observacao"
+                ):
+                    ratio = _status_to_ratio(item)
+                    if ratio is not None:
+                        ratio_values.append(ratio)
+                    apto_key = ((item.apto or "SEM APTO").strip() or "SEM APTO", (item.pavimento or "-").strip() or "-")
+                    if apto_key not in apto_agg:
+                        apto_agg[apto_key] = {
+                            "apto": apto_key[0],
+                            "pavimento": apto_key[1],
+                            "sum_ratio": 0.0,
+                            "count_ratio": 0,
+                            "status_texto": item.status_texto or "",
+                            "data_termino": item.data_termino,
+                            "observacao": (item.observacao or "")[:120],
+                        }
+                    if ratio is not None:
+                        apto_agg[apto_key]["sum_ratio"] += ratio
+                        apto_agg[apto_key]["count_ratio"] += 1
 
-            apto_rows.sort(key=lambda r: (r["pct"] is None, r["pct"] if r["pct"] is not None else 999))
-            media_pct = round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
+                apto_rows = []
+                concluidos = 0
+                em_andamento = 0
+                nao_iniciados = 0
+                for _, data in apto_agg.items():
+                    avg_ratio = (
+                        data["sum_ratio"] / data["count_ratio"] if data["count_ratio"] > 0 else None
+                    )
+                    bucket = _status_bucket_from_ratio(avg_ratio)
+                    if bucket == "concluido":
+                        concluidos += 1
+                    elif bucket == "em_andamento":
+                        em_andamento += 1
+                    elif bucket == "nao_iniciado":
+                        nao_iniciados += 1
+                    apto_rows.append(
+                        {
+                            "apto": data["apto"],
+                            "pavimento": data["pavimento"],
+                            "pct": round((avg_ratio or 0) * 100) if avg_ratio is not None else None,
+                            "status_bucket": bucket,
+                            "status_texto": data["status_texto"] or "-",
+                            "data_termino": data["data_termino"],
+                            "observacao": data["observacao"] or "-",
+                        }
+                    )
+
+                apto_rows.sort(key=lambda r: (r["pct"] is None, r["pct"] if r["pct"] is not None else 999))
+                media_pct = round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
             status_ref = (
                 ItemMapaServicoStatusRef.objects.filter(
                     obra=obra,
@@ -604,6 +680,7 @@ def mapa_controle(request):
                 "situacao": status_ref.situacao if status_ref else "",
                 "prazo_execucao": status_ref.prazo_execucao if status_ref else "",
                 "responsabilidade": status_ref.responsabilidade if status_ref else "",
+                "omitir_apto": is_area_comum,
             }
 
         scoped_qs = base_qs
@@ -615,6 +692,31 @@ def mapa_controle(request):
             scoped_qs = scoped_qs.filter(pavimento=selected["pavimento"])
         if selected["apto"]:
             scoped_qs = scoped_qs.filter(apto=selected["apto"])
+            itens_atividade = list(
+                scoped_qs.values(
+                    "atividade",
+                    "grupo_servicos",
+                    "status_texto",
+                    "status_percentual",
+                    "observacao",
+                    "custo",
+                    "data_termino",
+                ).order_by("grupo_servicos", "atividade")
+            )[:500]
+            for row in itens_atividade:
+                pct = row.get("status_percentual")
+                if pct is None:
+                    row["pct_display"] = None
+                    continue
+                try:
+                    pct_value = float(pct)
+                except (TypeError, ValueError):
+                    row["pct_display"] = None
+                    continue
+                if pct_value <= 1:
+                    pct_value = pct_value * 100
+                row["pct_display"] = round(pct_value, 2)
+        elif is_area_comum and selected["pavimento"]:
             itens_atividade = list(
                 scoped_qs.values(
                     "atividade",
@@ -756,6 +858,7 @@ def mapa_controle(request):
             "coluna_filtrada_aviso": coluna_filtrada_aviso,
             "macro_pulse": macro_pulse,
             "matrix_stable_qs": matrix_stable_qs,
+            "is_area_comum": is_area_comum,
         },
     )
 

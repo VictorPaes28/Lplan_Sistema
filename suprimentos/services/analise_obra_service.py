@@ -70,6 +70,14 @@ def _quota_setor_key(row: dict[str, Any]) -> str:
     return "SEM SETOR"
 
 
+def _progressao_eixo_sort_key(row: dict[str, Any]) -> tuple[str, str, str]:
+    """Ordem alfabética estável: setor, bloco (chave norm), rótulo."""
+    s = (row.get("setor_norm") or "").casefold()
+    b = (row.get("bloco_norm") or "").casefold()
+    r = (row.get("rotulo") or "").casefold()
+    return (s, b, r)
+
+
 def _diversificar_ranking_por_setor(
     bloco_scores: list[dict[str, Any]],
     *,
@@ -606,7 +614,10 @@ class AnaliseObraService:
 
         ordenado_pior_melhor = sorted(bloco_scores, key=lambda x: x["percentual_medio"])
         _prog_max = 200
-        progressao_eixos_completo = ordenado_pior_melhor[:_prog_max]
+        progressao_eixos_completo = sorted(
+            ordenado_pior_melhor[:_prog_max],
+            key=_progressao_eixo_sort_key,
+        )
         ranking_meta = {
             "eixos_listados": len(piores),
             "eixos_com_medicao": len(bloco_scores),

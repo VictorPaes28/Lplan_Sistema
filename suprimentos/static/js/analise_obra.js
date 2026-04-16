@@ -478,7 +478,11 @@
     var rows = hasMoreData && modo === "completo" ? completo : resumo;
     var chartWrap = canvas.closest(".ao-chart-box");
     var heightOpen = !!window.__aoProgChartHeightOpen;
-    var useLimited = rows.length > 6 && !heightOpen;
+    // Em "completo", não usar a versão recolhida com scroll — o canvas ficava baixo e as barras/labels se sobrepunham.
+    var useLimited =
+      rows.length > 6 &&
+      !heightOpen &&
+      !(hasMoreData && modo === "completo");
     if (chartWrap) {
       if (useLimited) {
         chartWrap.classList.add("ao-chart-prog--limited");
@@ -973,7 +977,7 @@
 
   function progChartFullHeightPx(rowCount) {
     var n = rowCount || 1;
-    return Math.min(580, Math.max(220, 32 * n + 56));
+    return Math.min(920, Math.max(220, 32 * n + 56));
   }
 
   function initProgressaoChartExpand() {
