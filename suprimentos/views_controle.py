@@ -188,21 +188,56 @@ def _parse_grid_pct_clicado(request) -> int | None:
 
 
 def _resolve_matrix_mode(requested: str, selected: dict) -> str:
-    """Modos alternativos exigem camadas mínimas para fazer sentido na obra."""
+    """Define granularidade das linhas da matriz (bloco / pavimento / apto).
+
+    Com `matrix_mode` omitido na URL, infere pelo recorte ativo: só setor → blocos;
+    setor+bloco → pavimentos; setor+bloco+pavimento (HABITAÇÃO) → unidades.
+    Em ÁREA COMUM (sem apto), com bloco no recorte o modo é sempre pavimento.
+    Valores explícitos na query são respeitados quando compatíveis com os filtros.
+    """
     r = (requested or "").strip().lower()
     if r not in ("bloco", "pavimento", "apto"):
-        r = "bloco"
-    if _setor_e_area_comum((selected.get("setor") or "")):
-        # Sem modo por unidade; pedidos de "apto" caem em pavimento.
+        r = ""
+
+    setor = (selected.get("setor") or "").strip()
+    bloco = (selected.get("bloco") or "").strip()
+    pavimento = (selected.get("pavimento") or "").strip()
+
+    if _setor_e_area_comum(setor):
+        # Sem camada de unidade: no máximo linhas por pavimento (nunca apto).
         if r == "apto":
             r = "pavimento"
-        if r == "pavimento" and selected.get("bloco"):
+        # Recorte com bloco → sempre grade por pavimento (1…N linhas por pavimento
+        # do bloco), mesmo se matrix_mode=bloco ainda estiver na URL.
+        if bloco:
+            return "pavimento"
+        if r == "pavimento" and not bloco:
+            return "bloco"
+        if r == "pavimento":
+            return "pavimento"
+        if r == "bloco":
+            return "bloco"
+        return "bloco"
+
+    if r == "apto":
+        if bloco and pavimento:
+            return "apto"
+        if bloco:
             return "pavimento"
         return "bloco"
-    if r == "apto" and selected.get("bloco") and selected.get("pavimento"):
+    if r == "pavimento":
+        if bloco:
+            return "pavimento"
+        return "bloco"
+    if r == "bloco":
+        return "bloco"
+
+    if bloco and pavimento:
         return "apto"
-    if r == "pavimento" and selected.get("bloco"):
+    if bloco:
         return "pavimento"
+    if setor:
+        return "bloco"
     return "bloco"
 
 
@@ -828,7 +863,6 @@ def mapa_controle(request):
                 "search": selected["search"],
                 "quick": selected["quick_find"],
                 "atividade": selected["atividade"],
-                "matrix_mode": matrix.get("mode") or "bloco",
             }
         )
 
