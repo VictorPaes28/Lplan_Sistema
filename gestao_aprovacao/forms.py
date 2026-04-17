@@ -181,6 +181,7 @@ class WorkOrderForm(forms.ModelForm):
             'codigo',
             'nome_credor',
             'tipo_solicitacao',
+            'valor_medicao',
             'observacoes',
             'status',
             'valor_estimado',
@@ -192,6 +193,15 @@ class WorkOrderForm(forms.ModelForm):
             'codigo': forms.TextInput(attrs={'class': 'form-control'}),
             'nome_credor': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_solicitacao': forms.Select(attrs={'class': 'form-control'}),
+            'valor_medicao': forms.NumberInput(
+                attrs={
+                    'class': 'form-control',
+                    'step': '0.01',
+                    'min': '0',
+                    'placeholder': '0,00',
+                    'inputmode': 'decimal',
+                }
+            ),
             'observacoes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'valor_estimado': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
@@ -293,6 +303,13 @@ class WorkOrderForm(forms.ModelForm):
         if not tipo_solicitacao:
             raise forms.ValidationError('O tipo de solicitação é obrigatório.')
         return tipo_solicitacao
+
+    def clean(self):
+        cleaned_data = super().clean()
+        tipo = cleaned_data.get('tipo_solicitacao')
+        if tipo != 'medicao':
+            cleaned_data['valor_medicao'] = None
+        return cleaned_data
 
 
 class AttachmentForm(forms.ModelForm):

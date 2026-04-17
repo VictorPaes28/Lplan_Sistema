@@ -213,6 +213,15 @@ class WorkOrder(models.Model):
         verbose_name='Tipo de Solicitação',
         help_text='Tipo de solicitação: Contrato ou Medição'
     )
+
+    valor_medicao = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='Valor de medição (R$)',
+        help_text='Valor da medição informado pelo solicitante (controle fora do Sienge). Usar quando o tipo for Medição.',
+    )
     
     observacoes = models.TextField(
         blank=True,

@@ -457,24 +457,33 @@
     color: #64748b;
 }
 
-.filter-advanced-footer .btn-export-pdf {
+/* Mesmo estilo do detalhe do pedido (.btn-export-pdf em detail_workorder): navy + ícone + cantos em pílula */
+.filter-advanced-footer .btn-export-pdf,
+.filter-advanced-footer .btn-export-excel {
     flex-shrink: 0;
     min-width: 10.5rem;
-    padding: 0.65rem 1.25rem;
-    border-radius: 10px;
+    padding: 0.65rem 1.35rem;
+    border-radius: 9999px;
     font-weight: 600;
+    background: #1a3a5c;
+    color: #fff;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
 }
 
-.btn-export-pdf {
-    background: #fff;
-    color: #334155;
-    border: 1px solid #94a3b8;
-}
-
-.btn-export-pdf:hover {
-    background: #f8fafc;
+.filter-advanced-footer .btn-export-pdf:hover,
+.filter-advanced-footer .btn-export-excel:hover {
+    background: #13314f;
+    color: #fff;
     filter: none;
-    border-color: #64748b;
+}
+
+.filter-advanced-footer .btn-export-pdf .btn-export-pdf__icon,
+.filter-advanced-footer .btn-export-excel .btn-export-excel__icon {
+    flex-shrink: 0;
 }
 
 /* Labels dentro do painel avançado: mais leves que ALL CAPS */
@@ -1177,7 +1186,8 @@
         align-items: stretch;
     }
 
-    .filter-advanced-footer .btn-export-pdf {
+    .filter-advanced-footer .btn-export-pdf,
+    .filter-advanced-footer .btn-export-excel {
         align-self: stretch;
         min-width: 0;
         width: 100%;

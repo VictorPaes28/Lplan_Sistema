@@ -105,7 +105,8 @@ class WorkOrderAdmin(admin.ModelAdmin):
             'fields': ('obra', 'codigo', 'status', 'tipo_solicitacao')
         }),
         ('Credor e Solicitação', {
-            'fields': ('nome_credor', 'observacoes')
+            'fields': ('nome_credor', 'valor_medicao', 'observacoes'),
+            'description': 'Valor de medição: use quando o tipo for Medição (controle fora do Sienge).',
         }),
         ('Campos Opcionais', {
             'fields': ('valor_estimado', 'prazo_estimado', 'local'),

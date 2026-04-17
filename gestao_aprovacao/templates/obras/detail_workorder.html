@@ -122,6 +122,22 @@
                 <div class="detail-field-label">Tipo de Solicitação:</div>
                 <p class="detail-field-value">{{ workorder.get_tipo_solicitacao_display }}</p>
             </div>
+
+            {% if workorder.tipo_solicitacao == 'medicao' %}
+            <div>
+                <div class="detail-field-label">Valor de medição (R$):</div>
+                <p class="detail-field-value detail-field-value-large">
+                    {% if workorder.valor_medicao is not None %}
+                        R$ {{ workorder.valor_medicao|floatformat:2 }}
+                    {% else %}
+                        <span class="detail-field-value" style="font-weight:400;color:#64748b;">Não informado</span>
+                    {% endif %}
+                </p>
+                <p class="detail-field-label" style="margin-top:0.35rem;font-size:0.7rem;font-weight:400;color:#64748b;">
+                    Controle do valor fora do Sienge (passivo).
+                </p>
+            </div>
+            {% endif %}
             
             {% if workorder.valor_estimado %}
             <div>

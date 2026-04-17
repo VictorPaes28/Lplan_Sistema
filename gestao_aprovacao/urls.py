@@ -15,6 +15,7 @@ urlpatterns = [
     # CRUD WorkOrder
     path('pedidos/', views.list_workorders, name='list_workorders'),
     path('pedidos/exportar-lista-pdf/', views.export_list_workorders_pdf, name='export_list_workorders_pdf'),
+    path('pedidos/exportar-lista-excel/', views.export_list_workorders_excel, name='export_list_workorders_excel'),
     path('pedidos/leitura-lista-pdf/', views.leitura_lista_pedidos_pdf, name='leitura_lista_pedidos_pdf'),
     path('pedidos/criar/', views.create_workorder, name='create_workorder'),
     path('pedidos/<int:pk>/', views.detail_workorder, name='detail_workorder'),
