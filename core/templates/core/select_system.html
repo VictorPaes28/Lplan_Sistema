@@ -539,7 +539,7 @@
         </div>
     </div>
 
-    {% if not has_diario and not has_gestao and not has_mapa and not has_central %}
+    {% if not has_diario and not has_gestao and not has_mapa and not has_central and not has_workflow %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
         <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum sistema.</p>
         <p class="text-amber-700 text-sm mt-1">Contate o administrador para que seus acessos sejam configurados (grupos e obras).</p>
@@ -567,6 +567,28 @@
                 </div>
                 <div class="mt-4 text-right">
                     <span class="card-arrow" style="color: #475569;">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+        {% endif %}
+        {% if has_workflow %}
+        <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card" style="order: 1;" aria-label="Central de Aprovações">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);"><i class="fas fa-check-double"></i></div>
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Central de Aprovações</h3>
+                <p class="text-sm text-slate-500 mb-4">Fluxos por obra e categoria — fila de aprovação</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-teal-500"></i>Alçadas configuráveis</li>
+                        <li><i class="fas fa-check-circle text-teal-500"></i>Histórico e auditoria</li>
+                        <li><i class="fas fa-check-circle text-teal-500"></i>Integração Sienge (em evolução)</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow" style="color: #0f766e;">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>

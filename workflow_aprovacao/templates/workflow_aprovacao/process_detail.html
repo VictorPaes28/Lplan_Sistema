@@ -1,0 +1,124 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:pending' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <div class="wf-detail-grid">
+        <aside class="wf-detail-aside">
+            <div class="wf-detail-panel">
+                <div class="wf-detail-head">
+                    <div>
+                        {% if process.title %}
+                        <h1 class="wf-detail-head__title">{{ process.title }}</h1>
+                        {% else %}
+                        <h1 class="wf-detail-head__title">Processo #{{ process.pk }}</h1>
+                        {% endif %}
+                        <p class="wf-detail-head__sub">{{ process.project.code }} · {{ process.project.name }}</p>
+                    </div>
+                    <div class="wf-detail-badges">
+                        <span class="wf-badge wf-badge--cat">{{ process.category.name }}</span>
+                        {% if process.status == 'awaiting_step' %}
+                        <span class="wf-badge wf-badge--await">{{ process.get_status_display }}</span>
+                        {% elif process.status == 'approved' %}
+                        <span class="wf-badge wf-badge--ok">{{ process.get_status_display }}</span>
+                        {% elif process.status == 'rejected' %}
+                        <span class="wf-badge wf-badge--no">{{ process.get_status_display }}</span>
+                        {% else %}
+                        <span class="wf-badge wf-badge--await">{{ process.get_status_display }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <dl class="wf-dl">
+                    <div>
+                        <dt>Obra</dt>
+                        <dd>{{ process.project.name }}</dd>
+                    </div>
+                    <div>
+                        <dt>Categoria</dt>
+                        <dd>{{ process.category.name }}</dd>
+                    </div>
+                    {% if process.current_step %}
+                    <div>
+                        <dt>Alçada atual</dt>
+                        <dd>{{ process.current_step.sequence }}. {{ process.current_step.name }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if process.initiated_by %}
+                    <div>
+                        <dt>Iniciado por</dt>
+                        <dd>{{ process.initiated_by.get_full_name|default:process.initiated_by.username }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if process.summary and not workflow_minimal_shell %}
+                    <div style="grid-column:1/-1;">
+                        <dt>Resumo</dt>
+                        <dd style="font-weight:400;white-space:pre-wrap;">{{ process.summary }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+        </aside>
+
+        <div class="wf-detail-main">
+            <section class="wf-panel" style="margin-bottom:1.25rem;">
+                <div class="wf-panel__head">
+                    <h2 class="wf-panel__title">Linha do tempo</h2>
+                </div>
+                <div class="wf-panel__body">
+                    {% if history %}
+                    <div class="wf-timeline">
+                        {% for h in history %}
+                        <div class="wf-timeline-item">
+                            <time datetime="{{ h.created_at|date:'c' }}">{{ h.created_at|date:"d/m/Y H:i" }}</time>
+                            <p class="wf-timeline-action"><strong>{{ h.get_action_display }}</strong>
+                                {% if h.actor %} — {{ h.actor.get_full_name|default:h.actor.username }}{% endif %}
+                                {% if h.step_sequence_snapshot %} · etapa {{ h.step_sequence_snapshot }}{% endif %}
+                            </p>
+                            {% if h.comment %}
+                            <p class="wf-timeline-comment">{{ h.comment }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="wf-help">Nenhum evento registrado ainda.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% if can_act and workflow_can_act %}
+            <form method="post" class="wf-decision">
+                {% csrf_token %}
+                <h3>Decisão</h3>
+                {% if form.non_field_errors %}
+                <div class="wf-alert wf-alert--error" style="margin-bottom:1rem;">{{ form.non_field_errors }}</div>
+                {% endif %}
+                <label class="wf-label" for="id_comment">{{ form.comment.label }}</label>
+                {{ form.comment }}
+                {% if form.comment.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.comment.errors }}</p>{% endif %}
+                <div class="wf-actions">
+                    <button type="submit" name="action" value="approve" class="wf-btn wf-btn--approve">
+                        <i class="fas fa-check" aria-hidden="true"></i> Aprovar e avançar
+                    </button>
+                    <button type="submit" name="action" value="reject" class="wf-btn wf-btn--reject">
+                        <i class="fas fa-times" aria-hidden="true"></i> Reprovar
+                    </button>
+                </div>
+                <p class="wf-help" style="margin-top:0.75rem;margin-bottom:0;">Aprovar envia à próxima etapa ou conclui o fluxo. Reprovar encerra o processo.</p>
+            </form>
+            {% elif process.status == 'awaiting_step' %}
+            <div class="wf-notice" role="status">
+                <strong>Sem permissão nesta etapa.</strong> Você não está designado como aprovador nesta alçada.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

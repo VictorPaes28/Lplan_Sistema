@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Destinatários — e-mail de aprovação{% endblock %}
+
+{% block page_title %}Destinatários de aprovação{% endblock %}
+{% block page_subtitle %}GestControll — cópias em pedidos aprovados{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 720px;">
+    <p class="mb-3">
+        <a href="{% url 'accounts:admin_central' %}">← Voltar ao Painel</a>
+        ·
+        <a href="{% url 'gestao:list_email_logs' %}">Logs de e-mail</a>
+    </p>
+
+    <h1 class="h4 mb-2">E-mails fixos (pedido aprovado)</h1>
+    <p class="text-muted small mb-4">Estes endereços podem ser usados pelo envio de PDF/notificação quando o fluxo estiver configurado para incluir destinatários cadastrados.</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} mb-3">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h6 mb-3">Adicionar</h2>
+            <form method="post" action="">
+                {% csrf_token %}
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label small" for="id_email">E-mail</label>
+                        {{ form.email }}
+                        {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small" for="id_ordem">Ordem</label>
+                        {{ form.ordem }}
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check mt-4">
+                            {{ form.ativo }}
+                            <label class="form-check-label small" for="id_ativo">Ativo</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+                    </div>
+                </div>
+                {% if form.non_field_errors %}
+                    <div class="text-danger small mt-2">{{ form.non_field_errors }}</div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <h2 class="h6 mb-2">Cadastrados</h2>
+    {% if destinatarios %}
+    <ul class="list-group">
+        {% for d in destinatarios %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>
+                <strong>{{ d.email }}</strong>
+                <span class="text-muted small">— ordem {{ d.ordem }}{% if not d.ativo %} (inativo){% endif %}</span>
+            </span>
+            <form method="post" class="m-0" onsubmit="return confirm('Remover este e-mail?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="pk" value="{{ d.pk }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Remover</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted">Nenhum destinatário cadastrado.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -142,13 +142,7 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
         <label for="data_fim">Até</label>
         <input type="date" name="data_fim" id="data_fim" value="{{ filtros_get.data_fim }}" autocomplete="off">
       </div>
-      <div>
-        <label for="visao">Zoom</label>
-        <select name="visao" id="visao" class="form-select form-select-sm" title="Geral: visão ampla · Detalhe: mais zoom">
-          <option value="geral" {% if filtros_get.visao == 'geral' %}selected{% endif %}>Geral</option>
-          <option value="detalhe" {% if filtros_get.visao == 'detalhe' %}selected{% endif %}>Detalhe</option>
-        </select>
-      </div>
+      <input type="hidden" name="visao" value="{{ filtros_get.visao|default:'geral' }}">
       <div>
         <label class="d-none d-sm-block">&nbsp;</label>
         <button type="submit" class="btn btn-primary w-100">Aplicar</button>
@@ -296,15 +290,7 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
       </p>
     </div>
     <div class="ao-grid">
-      <div class="ao-card span-3">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Ocorrências registradas</h3>
-          <span class="ao-badge-origem diario">Campo</span>
-        </div>
-        <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_no_periodo|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s) no período</p>
-      </div>
-      <div class="ao-card span-3">
+      <div class="ao-card span-4">
         <div class="ao-card-head">
           <h3 class="ao-card-title">Ocorrências críticas</h3>
           <span class="ao-badge-origem diario">Risco</span>
@@ -312,7 +298,7 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_criticas_no_periodo|default:"0" }}</p>
         <p class="ao-card-caption mb-0">Urgente</p>
       </div>
-      <div class="ao-card span-3">
+      <div class="ao-card span-4">
         <div class="ao-card-head">
           <h3 class="ao-card-title">Dias com ocorrência</h3>
           <span class="ao-badge-origem diario">Campo</span>
@@ -320,7 +306,7 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
         <p class="ao-metric-big">{{ analise_payload.diario.kpis.dias_com_ocorrencia|default:"0" }}</p>
         <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
       </div>
-      <div class="ao-card span-3">
+      <div class="ao-card span-4">
         <div class="ao-card-head">
           <h3 class="ao-card-title">Fila de prioridade</h3>
           <span class="ao-badge-origem cruzamento">Ação</span>
@@ -440,102 +426,106 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
   <section class="ao-section" aria-labelledby="sec-a">
     <div class="ao-section-head">
       <h2 class="ao-section-title" id="sec-a">1 · Obra</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Mapa de serviço — o que já foi feito <span class="ao-badge-origem controle">obra</span></p>
+      <p class="ao-section-desc d-none d-md-block mb-0">Mapa de serviço — leitura principal: matriz abaixo; gráfico por eixo é detalhe <span class="ao-badge-origem controle">obra</span></p>
     </div>
     <div class="ao-grid">
-      <div class="ao-card span-4">
+      <div class="ao-card span-12 ao-obra-status-card">
         <div class="ao-card-head">
-          <h3 class="ao-card-title">Concluído</h3>
+          <h3 class="ao-card-title">Andamento físico (mapa de serviço)</h3>
           <span class="ao-badge-origem controle">Obra</span>
         </div>
-        <p class="ao-metric-big">{{ analise_payload.controle.kpis.concluidos }}</p>
+        <div class="ao-obra-status-strip">
+          <div class="ao-obra-status-item">
+            <span class="ao-obra-status-label">Concluído</span>
+            <strong class="ao-obra-status-value">{{ analise_payload.controle.kpis.concluidos }}</strong>
+          </div>
+          <div class="ao-obra-status-item">
+            <span class="ao-obra-status-label">Em andamento</span>
+            <strong class="ao-obra-status-value">{{ analise_payload.controle.kpis.em_andamento }}</strong>
+          </div>
+          <div class="ao-obra-status-item">
+            <span class="ao-obra-status-label">Não iniciado</span>
+            <strong class="ao-obra-status-value">{{ analise_payload.controle.kpis.nao_iniciados }}</strong>
+          </div>
+        </div>
+        <p class="ao-obra-status-base mb-0">Linhas no recorte do mapa: <strong>{{ analise_payload.controle.kpis.total_itens }}</strong></p>
       </div>
-      <div class="ao-card span-4">
+      <div class="ao-card span-12" id="section-heatmap">
         <div class="ao-card-head">
-          <h3 class="ao-card-title">Andando / parado</h3>
+          <h3 class="ao-card-title" id="sec-h">Mapa · bloco e piso</h3>
           <span class="ao-badge-origem controle">Obra</span>
         </div>
-        <p class="ao-metric-big">{{ analise_payload.controle.kpis.em_andamento }} / {{ analise_payload.controle.kpis.nao_iniciados }}</p>
-      </div>
-      <div class="ao-card span-4">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Linhas</h3>
-          <span class="ao-badge-origem controle">Obra</span>
+        <p class="ao-card-caption mb-1">Toque na linha para o detalhe. Quanto menor o % médio, pior a situação (&lt;30 · 30–55 · 55–75 · ≥75).</p>
+        <p class="small text-secondary mb-2 d-md-none">Toque na linha para detalhar</p>
+        <div class="ao-table-wrap">
+          <table class="ao-table ao-table-heatmap">
+            <thead>
+              <tr>
+                <th>Bloco</th>
+                <th>Piso</th>
+                <th>% médio</th>
+                <th>Amostras</th>
+                <th>Criticidade</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in analise_payload.heatmap.celulas %}
+              <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-setor="{{ c.setor|default:'' }}" data-pavimento="{{ c.pavimento }}">
+                <td>{{ c.rotulo|default:c.bloco }}</td>
+                <td>{{ c.pavimento }}</td>
+                <td>{{ c.percentual_medio }}%</td>
+                <td>{{ c.amostras }}</td>
+                <td><span class="ao-crit-badge">{{ c.criticidade }}</span></td>
+                <td><button type="button" class="btn btn-sm ao-heat-open-btn ao-drill-btn">Abrir</button></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="ao-empty">Nada neste filtro. Ajuste os filtros ou o mapa.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <p class="ao-metric-big">{{ analise_payload.controle.kpis.total_itens }}</p>
-      </div>
-      <div class="ao-card span-12">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Progressão dos blocos</h3>
-          <span class="ao-badge-origem controle">Obra</span>
-        </div>
-        <p class="ao-card-caption mb-0">Média do mapa por eixo: barra menor, menos avanço. Toque na barra para o controle.</p>
-        {% if analise_payload.controle.agrupamento_eixo == "setor_bloco" %}
-        <p class="ao-card-caption mb-1 small text-secondary">Cada eixo é setor e bloco juntos. No gráfico: até 16 eixos, no máximo 3 por setor.</p>
-        {% endif %}
-        {% if analise_payload.controle.ranking_progressao_meta %}
-        {% with m=analise_payload.controle.ranking_progressao_meta %}
-        {% if m.eixos_com_medicao > m.eixos_listados %}
-        <p class="ao-card-caption mb-1 small text-secondary">{{ m.eixos_com_medicao }} eixos com medição; o gráfico começa com {{ m.eixos_listados }}. «Ver todos os eixos» mostra todos.</p>
-        {% endif %}
-        {% endwith %}
-        {% endif %}
-        <div class="ao-chart-box{% if analise_payload.controle.blocos_mais_atrasados|length > 6 %} ao-chart-prog--limited{% endif %}" id="aoProgChartBox">
-          <canvas id="chart-blocos-controle" aria-label="Progressão por eixo no mapa"></canvas>
-        </div>
-        {% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length or analise_payload.controle.blocos_mais_atrasados|length > 6 %}
+        {% if analise_payload.heatmap.celulas|length > 4 %}
         <div class="text-end mt-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoProgChartExpand" aria-expanded="false" aria-controls="aoProgChartBox">{% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length %}Ver todos os eixos ({{ analise_payload.controle.progressao_eixos_completo|length }}){% else %}Expandir gráfico{% endif %}</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoHeatmapShowMore" aria-expanded="false">
+            Ver mais ({{ analise_payload.heatmap.celulas|length|add:"-4" }})
+          </button>
         </div>
         {% endif %}
       </div>
+      <div class="ao-card span-12 ao-prog-chart-card">
+        <button type="button" class="btn btn-outline-secondary btn-sm ao-prog-chart-toggle" data-bs-toggle="collapse" data-bs-target="#aoProgChartCollapse" aria-expanded="false" aria-controls="aoProgChartCollapse">
+          Mostrar gráfico por eixo (detalhe)
+        </button>
+        <div class="collapse" id="aoProgChartCollapse">
+          <div class="pt-3 mt-2 border-top border-secondary border-opacity-25">
+            <div class="ao-card-head px-0 pt-0">
+              <h3 class="h6 mb-0">Progressão dos eixos</h3>
+              <span class="ao-badge-origem controle">Obra</span>
+            </div>
+            <p class="ao-card-caption mb-0 small">Média do mapa por eixo: barra menor, menos avanço. Toque na barra para o controle.</p>
+            {% if analise_payload.controle.agrupamento_eixo == "setor_bloco" %}
+            <p class="ao-card-caption mb-1 small text-secondary">Cada eixo é setor e bloco juntos. No gráfico: até 16 eixos, no máximo 3 por setor.</p>
+            {% endif %}
+            {% if analise_payload.controle.ranking_progressao_meta %}
+            {% with m=analise_payload.controle.ranking_progressao_meta %}
+            {% if m.eixos_com_medicao > m.eixos_listados %}
+            <p class="ao-card-caption mb-1 small text-secondary">{{ m.eixos_com_medicao }} eixos com medição; o gráfico começa com {{ m.eixos_listados }}. «Ver todos os eixos» mostra todos.</p>
+            {% endif %}
+            {% endwith %}
+            {% endif %}
+            <div class="ao-chart-box{% if analise_payload.controle.blocos_mais_atrasados|length > 6 %} ao-chart-prog--limited{% endif %}" id="aoProgChartBox">
+              <canvas id="chart-blocos-controle" aria-label="Progressão por eixo no mapa"></canvas>
+            </div>
+            {% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length or analise_payload.controle.blocos_mais_atrasados|length > 6 %}
+            <div class="text-end mt-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="aoProgChartExpand" aria-expanded="false" aria-controls="aoProgChartBox">{% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length %}Ver todos os eixos ({{ analise_payload.controle.progressao_eixos_completo|length }}){% else %}Expandir gráfico{% endif %}</button>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
-  </section>
-
-  <section class="ao-section" id="section-heatmap" aria-labelledby="sec-h">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-h">Mapa · bloco e piso</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Toque na linha para ver o detalhe <span class="ao-badge-origem controle">obra</span></p>
-    </div>
-    <p class="small text-secondary mb-2 d-md-none">Toque na linha para detalhar</p>
-    <p class="ao-footnote small d-none d-md-block mb-2">
-      Quanto menor o % médio, pior a situação (&lt;30 · 30–55 · 55–75 · ≥75).
-    </p>
-    <div class="ao-table-wrap">
-      <table class="ao-table ao-table-heatmap">
-        <thead>
-          <tr>
-            <th>Bloco</th>
-            <th>Piso</th>
-            <th>% médio</th>
-            <th>Amostras</th>
-            <th>Criticidade</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for c in analise_payload.heatmap.celulas %}
-          <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-setor="{{ c.setor|default:'' }}" data-pavimento="{{ c.pavimento }}">
-            <td>{{ c.rotulo|default:c.bloco }}</td>
-            <td>{{ c.pavimento }}</td>
-            <td>{{ c.percentual_medio }}%</td>
-            <td>{{ c.amostras }}</td>
-            <td><span class="ao-crit-badge">{{ c.criticidade }}</span></td>
-            <td><button type="button" class="btn btn-sm ao-heat-open-btn ao-drill-btn">Abrir</button></td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="6" class="ao-empty">Nada neste filtro. Ajuste os filtros ou o mapa.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if analise_payload.heatmap.celulas|length > 4 %}
-    <div class="text-end mt-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" id="aoHeatmapShowMore" aria-expanded="false">
-        Ver mais ({{ analise_payload.heatmap.celulas|length|add:"-4" }})
-      </button>
-    </div>
-    {% endif %}
   </section>
 
   <section class="ao-section" aria-labelledby="sec-b">
@@ -622,41 +612,10 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
 
   <section class="ao-section" aria-labelledby="sec-c">
     <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-c">3 · Material</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Resumo de SC e PC — detalhes no dashboard de suprimentos <span class="ao-badge-origem suprimentos">material</span></p>
+      <h2 class="ao-section-title" id="sec-c">3 · Locais com risco de atraso</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">Leitura principal de prioridade por local: físico e suprimento juntos <span class="ao-badge-origem cruzamento">cruzamento</span></p>
     </div>
-    <div class="ao-grid">
-      <div class="ao-card span-4">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Fila</h3>
-          <span class="ao-badge-origem suprimentos">Material</span>
-        </div>
-        <ul class="list-unstyled small mb-0" style="line-height:1.8;">
-          <li>Sem pedido (SC): <strong>{{ analise_payload.suprimentos.kpis.sem_sc }}</strong></li>
-          <li>SC sem compra (PC): <strong>{{ analise_payload.suprimentos.kpis.sem_pc }}</strong></li>
-          <li>PC sem entrega: <strong>{{ analise_payload.suprimentos.kpis.sem_entrega }}</strong></li>
-          <li>Entregue sem alocar: <strong>{{ analise_payload.suprimentos.kpis.sem_alocacao }}</strong></li>
-        </ul>
-      </div>
-      <div class="ao-card span-8">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Onde mais pesa</h3>
-          <span class="ao-badge-origem suprimentos">Material</span>
-        </div>
-        <p class="ao-card-caption mb-0">Toque na barra para o dashboard daquele local.</p>
-        <div class="ao-chart-box">
-          <canvas id="chart-suprimentos-locais" aria-label="Pendências por local"></canvas>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="ao-section" aria-labelledby="sec-d">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-d">4 · Locais com risco de atraso</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Pouco avanço na obra e material pendente no mesmo lugar <span class="ao-badge-origem cruzamento">cruzamento</span></p>
-    </div>
-    <p class="small text-secondary d-md-none mb-2">Obra lenta e material atrasado juntos</p>
+    <p class="small text-secondary d-md-none mb-2">Obra lenta e material pendente no mesmo lugar</p>
     <div class="ao-table-wrap">
       <table class="ao-table">
         <thead>
@@ -694,6 +653,37 @@ window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
           {% endfor %}
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section class="ao-section" aria-labelledby="sec-d">
+    <div class="ao-section-head">
+      <h2 class="ao-section-title" id="sec-d">4 · Material</h2>
+      <p class="ao-section-desc d-none d-md-block mb-0">Fila SC/PC e pressão por local (somente suprimentos) — detalhes no dashboard <span class="ao-badge-origem suprimentos">material</span></p>
+    </div>
+    <div class="ao-grid">
+      <div class="ao-card span-4">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Fila</h3>
+          <span class="ao-badge-origem suprimentos">Material</span>
+        </div>
+        <ul class="list-unstyled small mb-0" style="line-height:1.8;">
+          <li>Sem pedido (SC): <strong>{{ analise_payload.suprimentos.kpis.sem_sc }}</strong></li>
+          <li>SC sem compra (PC): <strong>{{ analise_payload.suprimentos.kpis.sem_pc }}</strong></li>
+          <li>PC sem entrega: <strong>{{ analise_payload.suprimentos.kpis.sem_entrega }}</strong></li>
+          <li>Entregue sem alocar: <strong>{{ analise_payload.suprimentos.kpis.sem_alocacao }}</strong></li>
+        </ul>
+      </div>
+      <div class="ao-card span-8">
+        <div class="ao-card-head">
+          <h3 class="ao-card-title">Onde mais pesa</h3>
+          <span class="ao-badge-origem suprimentos">Material</span>
+        </div>
+        <p class="ao-card-caption mb-0">Pendências por local (itens ainda não entregues). Toque na barra para o dashboard daquele local.</p>
+        <div class="ao-chart-box">
+          <canvas id="chart-suprimentos-locais" aria-label="Pendências por local"></canvas>
+        </div>
+      </div>
     </div>
   </section>
 

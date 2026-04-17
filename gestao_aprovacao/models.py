@@ -1160,6 +1160,37 @@ class TagErro(models.Model):
         return f"{self.get_tipo_solicitacao_display()} - {self.nome}"
 
 
+class AprovacaoEmailDestinatario(models.Model):
+    """
+    E-mails que sempre recebem cópia do PDF / notificação de pedido aprovado (GestControll).
+    Configurável por administradores; substitui lista fixa no código quando usado pelo envio.
+    """
+
+    email = models.EmailField(
+        unique=True,
+        verbose_name='E-mail',
+        help_text='Endereço que recebe notificação em pedidos aprovados (cópia).',
+    )
+    ordem = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Ordem',
+        help_text='Ordem de exibição e prioridade (menor primeiro).',
+    )
+    ativo = models.BooleanField(
+        default=True,
+        verbose_name='Ativo',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
+
+    class Meta:
+        verbose_name = 'Destinatário (e-mail aprovação)'
+        verbose_name_plural = 'Destinatários (e-mail aprovação)'
+        ordering = ['ordem', 'email']
+
+    def __str__(self):
+        return self.email
+
+
 class EmailLog(models.Model):
     """
     Model para registrar todos os envios de email do sistema.

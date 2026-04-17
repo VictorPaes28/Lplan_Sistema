@@ -12,9 +12,9 @@ from .models import (
 
 
 def _get_system_access(user):
-    """Retorna has_diario, has_gestao, has_mapa, has_central para o usuário."""
+    """Retorna has_diario, has_gestao, has_mapa, has_central, has_workflow para o usuário."""
     if not user or not user.is_authenticated:
-        return False, False, False, False
+        return False, False, False, False, False
     from accounts.groups import GRUPOS
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
@@ -25,7 +25,15 @@ def _get_system_access(user):
     )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
     has_central = user_is_painel_sistema_admin(user)
-    return has_diario, has_gestao, has_mapa, has_central
+    has_workflow = user.is_superuser or user.is_staff or bool(
+        user_groups
+        & {
+            GRUPOS.CENTRAL_APROVACOES_ADMIN,
+            GRUPOS.CENTRAL_APROVACOES_APROVADOR,
+            GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+        }
+    )
+    return has_diario, has_gestao, has_mapa, has_central, has_workflow
 
 
 def sidebar_systems(request):
@@ -39,9 +47,10 @@ def sidebar_systems(request):
             'has_gestao': False,
             'has_mapa': False,
             'has_central': False,
+            'has_workflow': False,
             'can_manage_central_projects': False,
         }
-    has_diario, has_gestao, has_mapa, has_central = _get_system_access(request.user)
+    has_diario, has_gestao, has_mapa, has_central, has_workflow_cp = _get_system_access(request.user)
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
 
     return {
@@ -49,6 +58,7 @@ def sidebar_systems(request):
         'has_gestao': has_gestao,
         'has_mapa': has_mapa,
         'has_central': has_central,
+        'has_workflow': has_workflow_cp,
         'can_manage_central_projects': user_can_central_obras_diario_e_mapa(request.user),
     }
 

@@ -733,10 +733,19 @@
     });
   }
 
+  /** Gráfico por eixo fica em collapse: só renderiza com painel visível (evita canvas com largura 0). */
+  function isProgChartCollapseHidden() {
+    var panel = document.getElementById("aoProgChartCollapse");
+    if (!panel) return false;
+    return !panel.classList.contains("show");
+  }
+
   function renderAllCharts(payload) {
     if (!payload) return;
     renderOcorrenciasPorDia(payload);
-    renderBlocosCriticos(payload);
+    if (!isProgChartCollapseHidden()) {
+      renderBlocosCriticos(payload);
+    }
     renderSuprimentosLocais(payload);
     renderTags(payload);
   }
@@ -976,6 +985,32 @@
     return Math.min(580, Math.max(220, 32 * n + 56));
   }
 
+  function initProgressaoChartCollapse() {
+    var panel = document.getElementById("aoProgChartCollapse");
+    if (!panel) return;
+    var toggles = document.querySelectorAll('[data-bs-target="#aoProgChartCollapse"]');
+    panel.addEventListener("shown.bs.collapse", function () {
+      var payload = readPayload();
+      if (payload) {
+        renderBlocosCriticos(payload);
+      }
+      toggles.forEach(function (btn) {
+        btn.setAttribute("aria-expanded", "true");
+        if (btn.classList.contains("ao-prog-chart-toggle")) {
+          btn.textContent = "Ocultar gráfico por eixo (detalhe)";
+        }
+      });
+    });
+    panel.addEventListener("hidden.bs.collapse", function () {
+      toggles.forEach(function (btn) {
+        btn.setAttribute("aria-expanded", "false");
+        if (btn.classList.contains("ao-prog-chart-toggle")) {
+          btn.textContent = "Mostrar gráfico por eixo (detalhe)";
+        }
+      });
+    });
+  }
+
   function initProgressaoChartExpand() {
     var btn = document.getElementById("aoProgChartExpand");
     if (!btn) return;
@@ -1050,6 +1085,7 @@
     initOccurrenceShowMore();
     initHeatmapShowMore();
     initActionShowMore();
+    initProgressaoChartCollapse();
     initProgressaoChartExpand();
     initProgressaoTabelaExpand();
     initOccurrenceCollapseButton();

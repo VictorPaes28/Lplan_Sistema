@@ -411,6 +411,60 @@ body.bi-page-dark .main-content-wrapper {
   background: var(--ao-sit-risco-bg);
 }
 
+/* Seção Obra — faixa única de status + gráfico recolhido */
+.ao-obra-status-card .ao-card-head {
+  margin-bottom: 0.75rem;
+}
+
+.ao-obra-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.75rem 1rem;
+  align-items: end;
+}
+
+.ao-obra-status-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ao-muted);
+  margin-bottom: 0.2rem;
+}
+
+.ao-obra-status-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ao-text);
+  line-height: 1.15;
+}
+
+.ao-obra-status-base {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ao-border);
+  font-size: 0.8125rem;
+  color: var(--ao-muted);
+}
+
+.ao-prog-chart-card {
+  padding-top: 0.75rem;
+}
+
+.ao-prog-chart-toggle {
+  width: 100%;
+  text-align: center;
+}
+
+@media (min-width: 576px) {
+  .ao-prog-chart-toggle {
+    width: auto;
+    text-align: left;
+  }
+}
+
 .ao-hero-kpis {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

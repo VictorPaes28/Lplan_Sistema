@@ -28,9 +28,10 @@ from xml.sax.saxutils import escape as xml_escape
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from .models import (
     Empresa, Obra, WorkOrder, Approval, Attachment, StatusHistory,
-    WorkOrderPermission, UserEmpresa, UserProfile, Notificacao, Comment, Lembrete, TagErro, EmailLog
+    WorkOrderPermission, UserEmpresa, UserProfile, Notificacao, Comment, Lembrete, TagErro, EmailLog,
+    AprovacaoEmailDestinatario,
 )
-from .forms import EmpresaForm, ObraForm, WorkOrderForm, AttachmentForm
+from .forms import EmpresaForm, ObraForm, WorkOrderForm, AttachmentForm, AprovacaoEmailDestinatarioForm
 from .utils import (
     get_user_profile,
     is_engenheiro,
@@ -57,7 +58,13 @@ from .services.user_governance import (
     usage_by_obra_gestao,
     viewer_can_see_target_user,
 )
-from accounts.groups import GRUPOS
+from accounts.groups import (
+    GRUPOS,
+    filtrar_grupos_post_atribuivel,
+    grupos_modulos_para_atribuicao,
+    grupos_ordenados_atribuivel,
+    merge_grupos_legados_ocultos,
+)
 from accounts.models import UserSignupRequest
 from accounts.painel_sistema_access import user_can_view_audit_events
 from accounts.signup_services import (
@@ -126,14 +133,6 @@ def _no_cache_form_response(response):
 from core.models import Project, ProjectMember
 
 logger = logging.getLogger(__name__)
-
-def _grupos_ordenados_por_sistema():
-    """Retorna os grupos na ordem: Gestão (Admin, Responsável, Aprovador, Solicitante), Diário de Obra, Mapa de Suprimentos."""
-    qs = Group.objects.filter(name__in=GRUPOS.TODOS)
-    lista = list(qs)
-    lista.sort(key=lambda g: GRUPOS.TODOS.index(g.name))
-    return lista
-
 
 # --- Regras de acesso GestControll (simplificado) ---
 # - Acesso é por OBRA: WorkOrderPermission (solicitante/aprovador) por obra.
@@ -2642,8 +2641,8 @@ def list_users(request):
     elif is_admin(request.user):
         empresas_disponiveis = Empresa.objects.filter(ativo=True)
     
-    # Grupos oficiais para o filtro (ordem: Gestão → Diário → Mapa)
-    grupos_filtro = _grupos_ordenados_por_sistema()
+    # Grupos oficiais para o filtro (ordem por módulo; sem perfis ocultos na UI)
+    grupos_filtro = grupos_ordenados_atribuivel()
     _central = getattr(request, '_central_redirect', False)
     context = {
         'page_obj': page_obj,
@@ -2681,7 +2680,7 @@ def create_user(request):
         last_name = request.POST.get('last_name', '')
         grupo = request.POST.get('grupo')
         create_as_pending = request.POST.get('create_as_pending') == 'on'
-        grupos_selecionados = request.POST.getlist('grupos')
+        grupos_selecionados = filtrar_grupos_post_atribuivel(request.POST.getlist('grupos'))
         project_ids = request.POST.getlist('projects')
         
         if create_as_pending and not email:
@@ -2829,17 +2828,12 @@ def create_user(request):
     else:
         empresas_disponiveis = Empresa.objects.filter(ativo=True).order_by('codigo')
     
-    # Apenas grupos oficiais em uso (ordem: Gestão → Diário → Mapa)
-    grupos = _grupos_ordenados_por_sistema()
-    if not grupos:
-        for nome_grupo in GRUPOS.TODOS:
-            Group.objects.get_or_create(name=nome_grupo)
-        grupos = _grupos_ordenados_por_sistema()
+    grupos_modulos = grupos_modulos_para_atribuicao()
     
     # Lista única de obras do sistema = core.Project (mesma lista do Diário de Obra)
     projects = Project.objects.filter(is_active=True).order_by('name')
     context = {
-        'grupos': grupos,
+        'grupos_modulos': grupos_modulos,
         'empresas': empresas_disponiveis,
         'projects': projects,
         'user_profile': get_user_profile(request.user),
@@ -2897,8 +2891,9 @@ def edit_user(request, pk):
         
         user.save()
         
-        # Atualizar grupos (usuário pode ter vários conforme os sistemas que acessa)
-        grupos_selecionados = request.POST.getlist('grupos')
+        # Atualizar grupos (mantém grupos ocultos legados que não vêm no POST)
+        post_grupos = filtrar_grupos_post_atribuivel(request.POST.getlist('grupos'))
+        grupos_selecionados = merge_grupos_legados_ocultos(user, post_grupos)
         user.groups.clear()
         for grupo_name in grupos_selecionados:
             if grupo_name not in GRUPOS.TODOS:
@@ -2910,7 +2905,6 @@ def edit_user(request, pk):
                 pass
         
         # Lista única de obras = core.Project. Definir Diário (ProjectMember) = exatamente os projetos selecionados.
-        grupos_selecionados = request.POST.getlist('grupos')
         project_ids = request.POST.getlist('projects')
         ProjectMember.objects.filter(user=user).delete()
         for pid in project_ids:
@@ -2989,11 +2983,7 @@ def edit_user(request, pk):
     except UserProfile.DoesNotExist:
         user_perfil = None
     
-    grupos = _grupos_ordenados_por_sistema()
-    if not grupos:
-        for nome_grupo in GRUPOS.TODOS:
-            Group.objects.get_or_create(name=nome_grupo)
-        grupos = _grupos_ordenados_por_sistema()
+    grupos_modulos = grupos_modulos_para_atribuicao()
     
     projects = Project.objects.filter(is_active=True).order_by('name')
     user_project_ids = list(ProjectMember.objects.filter(user=user).values_list('project_id', flat=True))
@@ -3013,7 +3003,7 @@ def edit_user(request, pk):
     context = {
         'user_obj': user,
         'user_perfil': user_perfil,
-        'grupos': grupos,
+        'grupos_modulos': grupos_modulos,
         'user_grupos': user.groups.all(),
         'empresas': empresas_disponiveis,
         'user_empresas': user_empresas,
@@ -5212,6 +5202,44 @@ def serve_media_file(request, path):
     response = cache_control(private=True, max_age=3600)(lambda r: response)(request)
     
     return response
+
+
+@admin_required
+def manage_aprovacao_destinatarios(request):
+    """
+    E-mails que sempre recebem o PDF/notificação de pedido aprovado (GestControll).
+    Substitui a lista fixa no código; apenas administradores.
+    """
+    if request.method == 'POST':
+        if request.POST.get('action') == 'delete':
+            pk = request.POST.get('pk')
+            try:
+                row = AprovacaoEmailDestinatario.objects.get(pk=pk)
+                em = row.email
+                row.delete()
+                messages.success(request, f'Destinatário removido: {em}.')
+            except AprovacaoEmailDestinatario.DoesNotExist:
+                messages.error(request, 'Registro não encontrado.')
+            except Exception as e:
+                logger.exception('Erro ao excluir destinatário de aprovação')
+                messages.error(request, f'Não foi possível excluir: {e}')
+            return redirect('gestao:manage_aprovacao_destinatarios')
+
+        form = AprovacaoEmailDestinatarioForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Destinatário adicionado com sucesso.')
+            return redirect('gestao:manage_aprovacao_destinatarios')
+        messages.error(request, 'Corrija os erros abaixo.')
+    else:
+        form = AprovacaoEmailDestinatarioForm()
+
+    destinatarios = AprovacaoEmailDestinatario.objects.order_by('ordem', 'email')
+    return render(
+        request,
+        'obras/aprovacao_destinatarios.html',
+        {'form': form, 'destinatarios': destinatarios},
+    )
 
 
 @admin_required

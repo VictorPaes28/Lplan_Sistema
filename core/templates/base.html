@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
     <!-- CSS variables do GestControll / Central / Painel (quando renderiza dentro deste layout) -->
-    {% if '/gestao/' in request.path or '/central/' in request.path or '/accounts/admin-central' in request.path %}
+    {% if '/gestao/' in request.path or '/central/' in request.path or '/accounts/admin-central' in request.path or '/aprovacoes/' in request.path %}
     <style>
     :root {
         --primary-color: #3498db;
@@ -313,7 +313,7 @@
 
             <div class="my-3 border-t border-slate-600"></div>
             <!-- Sistemas (troca de app) - embaixo do menu do app -->
-            {% if has_diario or has_gestao or has_mapa or has_central %}
+            {% if has_diario or has_gestao or has_mapa or has_central or has_workflow %}
             <div class="mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
             </div>
@@ -339,6 +339,12 @@
             <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Painel do sistema</span>
+            </a>
+            {% endif %}
+            {% if has_workflow and '/aprovacoes/' not in request.path %}
+            <a href="{% url 'workflow_aprovacao:pending' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/aprovacoes/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-check-double w-5 mr-3"></i>
+                <span class="font-medium">Central de Aprovações</span>
             </a>
             {% endif %}
             {% endif %}

@@ -2,7 +2,14 @@ from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
 from accounts.groups import GRUPOS
-from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission
+from .models import (
+    Empresa,
+    Obra,
+    WorkOrder,
+    Attachment,
+    WorkOrderPermission,
+    AprovacaoEmailDestinatario,
+)
 
 
 class EmpresaForm(forms.ModelForm):
@@ -333,3 +340,16 @@ class AttachmentForm(forms.ModelForm):
                 )
         
         return arquivo
+
+
+class AprovacaoEmailDestinatarioForm(forms.ModelForm):
+    """Cadastro de destinatários fixos de e-mail em pedidos aprovados."""
+
+    class Meta:
+        model = AprovacaoEmailDestinatario
+        fields = ['email', 'ordem', 'ativo']
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'ordem': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }

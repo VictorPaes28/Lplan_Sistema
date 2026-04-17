@@ -6,7 +6,6 @@ para que os redirects apontem para /central/usuarios/.
 """
 from django.shortcuts import redirect, render, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.core.validators import validate_email
@@ -30,7 +29,7 @@ from django.urls import reverse
 from django.contrib.auth.models import User
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, filtrar_grupos_post_atribuivel, grupos_modulos_para_atribuicao
 from accounts.painel_sistema_access import user_can_view_audit_events, user_is_painel_sistema_admin
 from audit.action_codes import AuditAction
 from audit.models import AuditEvent
@@ -778,9 +777,7 @@ def central_diary_approvers_view(request, project_id):
 @_signup_approver_required
 def central_signup_requests_list(request):
     from core.models import Project
-    groups = list(
-        Group.objects.filter(name__in=GRUPOS.TODOS).order_by('name')
-    )
+    grupos_modulos = grupos_modulos_para_atribuicao()
     projects = list(Project.objects.filter(is_active=True).order_by('name'))
     status_filter = (request.GET.get('status') or '').strip()
     requests_qs = UserSignupRequest.objects.select_related('approved_by', 'approved_user', 'requested_by')
@@ -797,7 +794,7 @@ def central_signup_requests_list(request):
         {
             'requests_qs': requests_qs,
             'status_filter': status_filter,
-            'groups': groups,
+            'grupos_modulos': grupos_modulos,
             'projects': projects,
         },
     )
@@ -810,7 +807,7 @@ def central_signup_request_approve(request, pk):
     if request.method != 'POST':
         return redirect('central_signup_requests')
     signup_request = get_object_or_404(UserSignupRequest, pk=pk)
-    selected_groups = request.POST.getlist('approved_groups')
+    selected_groups = filtrar_grupos_post_atribuivel(request.POST.getlist('approved_groups'))
     selected_projects = request.POST.getlist('approved_projects')
     if not selected_groups:
         flash_message(request, "error", "central.signup.approve.groups_required")

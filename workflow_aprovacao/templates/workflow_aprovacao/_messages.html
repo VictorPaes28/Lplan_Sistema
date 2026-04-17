@@ -1,0 +1,13 @@
+{% if messages %}
+<div class="wf-alerts" role="status">
+    {% for message in messages %}
+    <div class="wf-alert {% if message.tags == 'success' %}wf-alert--success{% elif message.tags == 'error' %}wf-alert--error{% elif message.tags == 'warning' %}wf-alert--warning{% else %}wf-alert--info{% endif %}">
+        {% if message.tags == 'success' %}<i class="fas fa-check-circle" aria-hidden="true"></i>
+        {% elif message.tags == 'error' %}<i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        {% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        {% else %}<i class="fas fa-info-circle" aria-hidden="true"></i>{% endif %}
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

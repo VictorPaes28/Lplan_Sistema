@@ -75,6 +75,7 @@ urlpatterns = [
     # Logs de Email (apenas admin)
     path('emails/logs/', views.list_email_logs, name='list_email_logs'),
     path('emails/logs/<int:log_id>/reenviar/', views.reenviar_email, name='reenviar_email'),
+    path('emails/destinatarios-aprovacao/', views.manage_aprovacao_destinatarios, name='manage_aprovacao_destinatarios'),
     
     # Marcar pedido como analisado (apenas para os Luizes)
     path('pedidos/<int:pk>/marcar-analisado/', views.marcar_pedido_analisado, name='marcar_pedido_analisado'),

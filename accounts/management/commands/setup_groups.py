@@ -95,6 +95,45 @@ GRUPOS_CONFIG = {
         'descricao': 'Acesso completo: mapa de suprimentos, dashboard, importacao Sienge.',
         'permissions': {}
     },
+
+    # =====================================================
+    # CENTRAL DE APROVACOES (workflow_aprovacao)
+    # =====================================================
+    'Central Aprovacoes Admin': {
+        'sistema': 'Central de Aprovacoes',
+        'descricao': 'Configura fluxos, alcas e participantes; ve processos e historico.',
+        'permissions': {
+            'workflow_aprovacao': {
+                'processcategory': ['add', 'change', 'delete', 'view'],
+                'approvalflowdefinition': ['add', 'change', 'delete', 'view'],
+                'approvalstep': ['add', 'change', 'delete', 'view'],
+                'approvalstepparticipant': ['add', 'change', 'delete', 'view'],
+                'approvalprocess': ['add', 'change', 'delete', 'view'],
+                'approvalhistoryentry': ['add', 'change', 'delete', 'view'],
+                'approvalintegrationoutbox': ['add', 'change', 'delete', 'view'],
+            }
+        }
+    },
+    'Central Aprovacoes Aprovador': {
+        'sistema': 'Central de Aprovacoes',
+        'descricao': 'Aprova ou reprova processos em que atua; ve historico dos processos.',
+        'permissions': {
+            'workflow_aprovacao': {
+                'approvalprocess': ['view', 'change'],
+                'approvalhistoryentry': ['view'],
+            }
+        }
+    },
+    'Central Aprovacoes Externo': {
+        'sistema': 'Central de Aprovacoes',
+        'descricao': 'Perfil restrito para terceiros: apenas fila de aprovacao (telas futuras).',
+        'permissions': {
+            'workflow_aprovacao': {
+                'approvalprocess': ['view', 'change'],
+                'approvalhistoryentry': ['view'],
+            }
+        }
+    },
 }
 
 
@@ -159,7 +198,39 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Resultado: {created_count} criados, {updated_count} ja existiam'
         ))
+        self._workflow_custom_permissions()
         self.stdout.write(self.style.SUCCESS('Setup de grupos concluido!\n'))
+
+    def _workflow_custom_permissions(self):
+        """Permissoes customizadas do app workflow_aprovacao (pos-migrate)."""
+        try:
+            from django.contrib.contenttypes.models import ContentType
+            from workflow_aprovacao.models import ApprovalProcess
+        except Exception:
+            return
+
+        ct = ContentType.objects.get_for_model(ApprovalProcess)
+        extras = {
+            'Central Aprovacoes Admin': ['configure_approval_flows'],
+            'Central Aprovacoes Aprovador': ['act_on_approval_process'],
+            'Central Aprovacoes Externo': ['act_on_approval_process'],
+        }
+        for nome_grupo, codenames in extras.items():
+            grupo = Group.objects.filter(name=nome_grupo).first()
+            if not grupo:
+                continue
+            for codename in codenames:
+                try:
+                    perm = Permission.objects.get(content_type=ct, codename=codename)
+                    grupo.permissions.add(perm)
+                    self.stdout.write(f'    + Permissao custom "{codename}" -> "{nome_grupo}"')
+                except Permission.DoesNotExist:
+                    self.stdout.write(
+                        self.style.NOTICE(
+                            f'    ? Permissao custom "{codename}" nao encontrada '
+                            '(rode migrate workflow_aprovacao antes de setup_groups).'
+                        )
+                    )
 
     def _list_groups(self):
         """Lista todos os grupos configurados."""

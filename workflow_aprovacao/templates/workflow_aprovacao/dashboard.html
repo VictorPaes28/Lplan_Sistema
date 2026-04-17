@@ -1,0 +1,43 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'select-system' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}Visão geral{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+
+    <header class="wf-toolbar" style="margin-bottom:1.5rem;">
+        <div class="wf-toolbar__stat">
+            <span class="wf-toolbar__num">{{ pending_count }}</span>
+            <span class="wf-toolbar__label">na fila</span>
+        </div>
+        <div class="wf-toolbar__hint">
+            Acesse a fila para tratar itens pendentes ou abra a configuração de fluxos se tiver permissão.
+        </div>
+    </header>
+
+    <div class="wf-tiles">
+        <a href="{% url 'workflow_aprovacao:pending' %}" class="wf-tile">
+            <div class="wf-tile__val">{{ pending_count }}</div>
+            <div class="wf-tile__label">Itens aguardando decisão</div>
+            <span class="wf-tile__hint">Abrir fila <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+        {% if workflow_show_config_nav %}
+        <a href="{% url 'workflow_aprovacao:config_flow_list' %}" class="wf-tile wf-tile--config">
+            <div class="wf-tile__val" style="font-size:1.5rem;color:#0f172a;"><i class="fas fa-sitemap" aria-hidden="true"></i></div>
+            <div class="wf-tile__label">Fluxos por obra e categoria</div>
+            <span class="wf-tile__hint">Configurar <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+        {% endif %}
+    </div>
+
+    {% if workflow_minimal_shell %}
+    <div class="wf-restrict" role="note">
+        <strong>Modo restrito.</strong> Esta área destina-se apenas a aprovações. Para outros módulos, utilize o acesso que lhe foi atribuído.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
