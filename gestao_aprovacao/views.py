@@ -532,6 +532,51 @@ def _pdf_esc(text):
     return xml_escape(str(text if text is not None else ''), {'"': '&quot;', "'": '&#39;'})
 
 
+def _valor_medicao_relatorio(wo):
+    """Texto para PDF/lista; vazio quando não é medição ou sem valor."""
+    if getattr(wo, 'tipo_solicitacao', None) != 'medicao' or wo.valor_medicao is None:
+        return '—'
+    v = wo.valor_medicao
+    # Formato legível em pt-BR (milhar . decimal ,)
+    s = f'{v:.2f}'
+    if '.' in s:
+        inteiro, dec = s.split('.', 1)
+    else:
+        inteiro, dec = s, '00'
+    neg = inteiro.startswith('-')
+    if neg:
+        inteiro = inteiro[1:]
+    try:
+        n = int(inteiro)
+    except ValueError:
+        return f'R$ {v}'
+    inteiro_fmt = f'{n:,}'.replace(',', '.')
+    if neg:
+        inteiro_fmt = '-' + inteiro_fmt
+    return f'R$ {inteiro_fmt},{dec}'
+
+
+def _motivo_reprovacao_listagem(wo):
+    """
+    Texto do motivo da última reprovação (tags de erro + comentário), para PDF/Excel.
+    Só preenche quando o pedido está reprovado e há registro de Approval correspondente.
+    """
+    if getattr(wo, 'status', None) != 'reprovado':
+        return '—'
+    rel = getattr(wo, 'prefetched_reprovacoes', None) or []
+    if not rel:
+        return '—'
+    apr = rel[0]
+    parts = []
+    tags = list(apr.tags_erro.all())
+    if tags:
+        parts.append(', '.join(t.nome for t in tags))
+    c = (apr.comentario or '').strip()
+    if c:
+        parts.append(c)
+    return ' | '.join(parts) if parts else '—'
+
+
 @login_required
 def export_list_workorders_pdf(request):
     """
@@ -541,6 +586,15 @@ def export_list_workorders_pdf(request):
     user = request.user
     workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
     workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
+    workorders = workorders.select_related('obra', 'criado_por').prefetch_related(
+        Prefetch(
+            'approvals',
+            queryset=Approval.objects.filter(decisao='reprovado')
+            .prefetch_related('tags_erro')
+            .order_by('-created_at'),
+            to_attr='prefetched_reprovacoes',
+        ),
+    )
 
     MAX_ROWS = 3000
     total_count = workorders.count()
@@ -636,7 +690,9 @@ def export_list_workorders_pdf(request):
         Paragraph('Obra', th),
         Paragraph('Credor', th),
         Paragraph('Tipo', th),
+        Paragraph('Valor medição', th),
         Paragraph('Status', th),
+        Paragraph('Motivo reprovação', th),
         Paragraph('Solicitante', th),
         Paragraph('Data envio', th),
         Paragraph('Data aprovação', th),
@@ -644,18 +700,29 @@ def export_list_workorders_pdf(request):
     for wo in items:
         sol = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
         obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
+        motivo_repr = _motivo_reprovacao_listagem(wo)
+        vmed = _valor_medicao_relatorio(wo)
         data_rows.append([
             Paragraph(_pdf_esc(wo.codigo), normal),
             Paragraph(_pdf_esc(obra_txt), normal),
-            Paragraph(_pdf_esc((wo.nome_credor or '')[:42]), normal),
+            Paragraph(_pdf_esc((wo.nome_credor or '')[:32]), normal),
             Paragraph(_pdf_esc(tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')), normal),
+            Paragraph(_pdf_esc(vmed), normal),
             Paragraph(_pdf_esc(status_dict.get(wo.status, wo.status or '')), normal),
-            Paragraph(_pdf_esc(sol[:28]), normal),
+            Paragraph(_pdf_esc(motivo_repr[:500]), normal),
+            Paragraph(_pdf_esc(sol[:22]), normal),
             Paragraph(_pdf_esc(wo.data_envio.strftime('%d/%m/%Y %H:%M') if wo.data_envio else '—'), normal),
             Paragraph(_pdf_esc(wo.data_aprovacao.strftime('%d/%m/%Y %H:%M') if wo.data_aprovacao else '—'), normal),
         ])
 
-    tbl = LongTable(data_rows, colWidths=[2.0 * cm, 2.4 * cm, 2.8 * cm, 2.0 * cm, 1.85 * cm, 2.0 * cm, 1.75 * cm, 1.75 * cm], repeatRows=1)
+    tbl = LongTable(
+        data_rows,
+        colWidths=[
+            1.65 * cm, 1.85 * cm, 2.1 * cm, 1.55 * cm, 1.55 * cm,
+            1.45 * cm, 2.45 * cm, 1.65 * cm, 1.45 * cm, 1.45 * cm,
+        ],
+        repeatRows=1,
+    )
     tbl.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), color_primary),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -682,6 +749,159 @@ def export_list_workorders_pdf(request):
     fname = f"relatorio_pedidos_{timezone.now().strftime('%Y%m%d_%H%M')}.pdf"
     disp = 'inline' if request.GET.get('inline') == '1' else 'attachment'
     response['Content-Disposition'] = f'{disp}; filename="{fname}"'
+    return response
+
+
+@login_required
+def export_list_workorders_excel(request):
+    """
+    Exporta Excel (.xlsx) da listagem de pedidos com os mesmos filtros da tela (GET).
+    Limite de linhas para evitar ficheiros excessivos.
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        messages.error(
+            request,
+            'Exportação Excel não está disponível neste servidor (dependência openpyxl).',
+        )
+        return redirect('gestao:list_workorders')
+
+    user = request.user
+    workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
+    workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
+    workorders = workorders.select_related('obra', 'criado_por').prefetch_related(
+        Prefetch(
+            'approvals',
+            queryset=Approval.objects.filter(decisao='reprovado')
+            .prefetch_related('tags_erro')
+            .order_by('-created_at'),
+            to_attr='prefetched_reprovacoes',
+        ),
+    )
+
+    MAX_ROWS = 10000
+    total_count = workorders.count()
+    items = list(workorders[:MAX_ROWS])
+
+    tipo_dict = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+    status_dict = dict(WorkOrder.STATUS_CHOICES)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Pedidos'
+
+    title_font = Font(bold=True, size=14, color='1A3A5C')
+    meta_font = Font(size=9, color='1A3A5C')
+    header_fill = PatternFill(start_color='1A3A5C', end_color='1A3A5C', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF', size=10)
+    cell_align = Alignment(vertical='center', wrap_text=True)
+
+    ws['A1'] = 'RELATÓRIO DE PEDIDOS DE OBRA — GestControll'
+    ws['A1'].font = title_font
+    ws.merge_cells('A1:J1')
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+
+    filtros_bits = [
+        f"Gerado em {timezone.now().strftime('%d/%m/%Y %H:%M')}",
+        f"Registros: {total_count}" + (f" (exportando até {MAX_ROWS})" if total_count > MAX_ROWS else ''),
+    ]
+    if filter_ctx.get('search_query'):
+        filtros_bits.append(f"Busca: {filter_ctx['search_query']}")
+    if filter_ctx.get('obra_filter'):
+        filtros_bits.append(f"Obra ID: {filter_ctx['obra_filter']}")
+    if filter_ctx.get('status_filter'):
+        filtros_bits.append(f"Status: {filter_ctx['status_filter']}")
+    if filter_ctx.get('tipo_solicitacao_filter'):
+        filtros_bits.append(f"Tipo: {filter_ctx['tipo_solicitacao_filter']}")
+    if filter_ctx.get('engenheiro_filter'):
+        filtros_bits.append(f"Solicitante ID: {filter_ctx['engenheiro_filter']}")
+    if filter_ctx.get('credor_filter'):
+        filtros_bits.append(f"Credor: {filter_ctx['credor_filter']}")
+    if filter_ctx.get('data_inicio') or filter_ctx.get('data_fim'):
+        filtros_bits.append(
+            f"Período: {filter_ctx.get('data_inicio') or '—'} a "
+            f"{filter_ctx.get('data_fim') or timezone.localdate().strftime('%Y-%m-%d')}"
+        )
+
+    ws['A2'] = ' · '.join(filtros_bits)
+    ws['A2'].font = meta_font
+    ws.merge_cells('A2:J2')
+    ws['A2'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    headers = [
+        'Código',
+        'Obra',
+        'Credor',
+        'Tipo',
+        'Valor medição (R$)',
+        'Status',
+        'Motivo reprovação',
+        'Solicitante',
+        'Data envio',
+        'Data aprovação',
+    ]
+    start_row = 4
+    for col, title in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col, value=title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    def _fmt_dt(dt):
+        if not dt:
+            return '—'
+        return dt.strftime('%d/%m/%Y %H:%M')
+
+    row = start_row + 1
+    for wo in items:
+        sol = (
+            (wo.criado_por.get_full_name() or wo.criado_por.username)
+            if wo.criado_por
+            else '—'
+        )
+        obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
+        motivo_repr = _motivo_reprovacao_listagem(wo)
+        ws.cell(row=row, column=1, value=wo.codigo or '').alignment = cell_align
+        ws.cell(row=row, column=2, value=obra_txt).alignment = cell_align
+        ws.cell(row=row, column=3, value=(wo.nome_credor or '')[:200]).alignment = cell_align
+        ws.cell(row=row, column=4, value=tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')).alignment = cell_align
+        if wo.tipo_solicitacao == 'medicao' and wo.valor_medicao is not None:
+            ws.cell(row=row, column=5, value=float(wo.valor_medicao)).alignment = cell_align
+        else:
+            ws.cell(row=row, column=5, value='').alignment = cell_align
+        ws.cell(row=row, column=6, value=status_dict.get(wo.status, wo.status or '')).alignment = cell_align
+        ws.cell(row=row, column=7, value=motivo_repr if motivo_repr != '—' else '').alignment = cell_align
+        ws.cell(row=row, column=8, value=str(sol)[:120]).alignment = cell_align
+        ws.cell(row=row, column=9, value=_fmt_dt(wo.data_envio)).alignment = cell_align
+        ws.cell(row=row, column=10, value=_fmt_dt(wo.data_aprovacao)).alignment = cell_align
+        row += 1
+
+    if total_count > MAX_ROWS:
+        note_row = row + 1
+        ws.cell(
+            row=note_row,
+            column=1,
+            value=f'Lista truncada: {total_count} pedidos no filtro; exportados os primeiros {MAX_ROWS}.',
+        )
+        ws.merge_cells(f'A{note_row}:J{note_row}')
+        ws.cell(row=note_row, column=1).font = Font(italic=True, size=9)
+
+    widths = [14, 12, 22, 18, 14, 14, 36, 20, 16, 16]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"relatorio_pedidos_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response = HttpResponse(
+        buf.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
     return response
 
 
@@ -1296,6 +1516,7 @@ def exportar_snapshot_workorder_pdf(request, pk):
         [Paragraph('<b>Obra</b>', label), Paragraph(f"{_safe(getattr(workorder.obra, 'codigo', '-'))} - {_safe(getattr(workorder.obra, 'nome', '-'))}", normal)],
         [Paragraph('<b>Credor</b>', label), Paragraph(_safe(workorder.nome_credor), normal)],
         [Paragraph('<b>Tipo de Solicitação</b>', label), Paragraph(_safe(tipo_labels.get(workorder.tipo_solicitacao, workorder.tipo_solicitacao)), normal)],
+        [Paragraph('<b>Valor de medição (R$)</b>', label), Paragraph(_safe(_valor_medicao_relatorio(workorder)), normal)],
         [Paragraph('<b>Status Atual</b>', label), _build_status_badge(status_labels.get(workorder.status, workorder.status), status_badge_key, align='LEFT', with_bullet=True, width_cm=11.25)],
         [Paragraph('<b>Valor Estimado</b>', label), Paragraph(_money(workorder.valor_estimado), normal)],
         [Paragraph('<b>Prazo Estimado</b>', label), Paragraph(f"{workorder.prazo_estimado} dia(s)" if workorder.prazo_estimado else '-', normal)],
@@ -5363,10 +5584,9 @@ def reenviar_email(request, log_id):
             # Reenviar email de reprovação
             from .email_utils import enviar_email_reprovacao
             if email_log.work_order:
-                # Buscar último aprovador que reprovou
                 approval = Approval.objects.filter(
                     work_order=email_log.work_order,
-                    aprovado=False
+                    decisao='reprovado',
                 ).order_by('-created_at').first()
                 if approval and approval.aprovado_por:
                     comentario = approval.comentario or 'Sem comentário'

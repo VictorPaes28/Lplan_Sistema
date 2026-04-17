@@ -2,14 +2,7 @@ from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
 from accounts.groups import GRUPOS
-from .models import (
-    Empresa,
-    Obra,
-    WorkOrder,
-    Attachment,
-    WorkOrderPermission,
-    AprovacaoEmailDestinatario,
-)
+from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission, AprovacaoEmailDestinatario
 
 
 class EmpresaForm(forms.ModelForm):
@@ -188,6 +181,7 @@ class WorkOrderForm(forms.ModelForm):
             'codigo',
             'nome_credor',
             'tipo_solicitacao',
+            'valor_medicao',
             'observacoes',
             'status',
             'valor_estimado',
@@ -199,6 +193,15 @@ class WorkOrderForm(forms.ModelForm):
             'codigo': forms.TextInput(attrs={'class': 'form-control'}),
             'nome_credor': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_solicitacao': forms.Select(attrs={'class': 'form-control'}),
+            'valor_medicao': forms.NumberInput(
+                attrs={
+                    'class': 'form-control',
+                    'step': '0.01',
+                    'min': '0',
+                    'placeholder': '0,00',
+                    'inputmode': 'decimal',
+                }
+            ),
             'observacoes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'valor_estimado': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
@@ -301,6 +304,13 @@ class WorkOrderForm(forms.ModelForm):
             raise forms.ValidationError('O tipo de solicitação é obrigatório.')
         return tipo_solicitacao
 
+    def clean(self):
+        cleaned_data = super().clean()
+        tipo = cleaned_data.get('tipo_solicitacao')
+        if tipo != 'medicao':
+            cleaned_data['valor_medicao'] = None
+        return cleaned_data
+
 
 class AttachmentForm(forms.ModelForm):
     """
@@ -343,13 +353,24 @@ class AttachmentForm(forms.ModelForm):
 
 
 class AprovacaoEmailDestinatarioForm(forms.ModelForm):
-    """Cadastro de destinatários fixos de e-mail em pedidos aprovados."""
+    """Cadastro rápido de e-mail que recebe notificações de pedido aprovado (GestControll)."""
 
     class Meta:
         model = AprovacaoEmailDestinatario
-        fields = ['email', 'ordem', 'ativo']
+        fields = ['email', 'nome', 'ativo', 'ordem']
         widgets = {
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'ordem': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
-            'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'email': forms.EmailInput(attrs={
+                'class': 'gc-dest-field',
+                'placeholder': 'nome@empresa.com.br',
+                'autocomplete': 'email',
+            }),
+            'nome': forms.TextInput(attrs={'class': 'gc-dest-field', 'placeholder': 'Identificação opcional'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'gc-dest-check'}),
+            'ordem': forms.NumberInput(attrs={'class': 'gc-dest-field gc-dest-field--narrow', 'min': 0}),
         }
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email:
+            raise forms.ValidationError('Informe um e-mail válido.')
+        return email

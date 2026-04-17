@@ -1,10 +1,12 @@
 # ========== Segredos e ambiente ==========
+/settings.py
 .env
 .env.local
 .env.*.local
 venv/
 .venv/
 env/
+/env
 
 # ========== Banco e arquivos gerados ==========
 *.sqlite3

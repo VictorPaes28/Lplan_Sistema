@@ -213,6 +213,15 @@ class WorkOrder(models.Model):
         verbose_name='Tipo de Solicitação',
         help_text='Tipo de solicitação: Contrato ou Medição'
     )
+
+    valor_medicao = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='Valor de medição (R$)',
+        help_text='Valor da medição informado pelo solicitante (controle fora do Sienge). Usar quando o tipo for Medição.',
+    )
     
     observacoes = models.TextField(
         blank=True,
@@ -1160,37 +1169,6 @@ class TagErro(models.Model):
         return f"{self.get_tipo_solicitacao_display()} - {self.nome}"
 
 
-class AprovacaoEmailDestinatario(models.Model):
-    """
-    E-mails que sempre recebem cópia do PDF / notificação de pedido aprovado (GestControll).
-    Configurável por administradores; substitui lista fixa no código quando usado pelo envio.
-    """
-
-    email = models.EmailField(
-        unique=True,
-        verbose_name='E-mail',
-        help_text='Endereço que recebe notificação em pedidos aprovados (cópia).',
-    )
-    ordem = models.PositiveSmallIntegerField(
-        default=0,
-        verbose_name='Ordem',
-        help_text='Ordem de exibição e prioridade (menor primeiro).',
-    )
-    ativo = models.BooleanField(
-        default=True,
-        verbose_name='Ativo',
-    )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
-
-    class Meta:
-        verbose_name = 'Destinatário (e-mail aprovação)'
-        verbose_name_plural = 'Destinatários (e-mail aprovação)'
-        ordering = ['ordem', 'email']
-
-    def __str__(self):
-        return self.email
-
-
 class EmailLog(models.Model):
     """
     Model para registrar todos os envios de email do sistema.
@@ -1304,4 +1282,47 @@ class EmailLog(models.Model):
         self.mensagem_erro = str(erro)[:1000]  # Limita tamanho
         self.tentativas += 1
         self.save(update_fields=['status', 'mensagem_erro', 'tentativas', 'atualizado_em'])
+
+
+class AprovacaoEmailDestinatario(models.Model):
+    """
+    E-mails que sempre recebem o PDF/notificação quando um pedido é aprovado no GestControll.
+    Antes fixos no código; passíveis de gestão pela tela administrativa.
+    """
+
+    email = models.EmailField(
+        unique=True,
+        verbose_name='E-mail',
+        help_text='Recebe cópia do e-mail de pedido aprovado (com anexos PDF quando houver).',
+    )
+    nome = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name='Nome (opcional)',
+        help_text='Ex.: identificação interna do destinatário.',
+    )
+    ativo = models.BooleanField(
+        default=True,
+        verbose_name='Ativo',
+        help_text='Se desmarcado, não entra nos envios.',
+    )
+    ordem = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Ordem',
+        help_text='Menor valor aparece primeiro na lista.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cadastrado em')
+
+    class Meta:
+        verbose_name = 'Destinatário de e-mail de pedido aprovado'
+        verbose_name_plural = 'Destinatários de e-mail de pedidos aprovados'
+        ordering = ['ordem', 'email']
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        if self.email:
+            self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
 

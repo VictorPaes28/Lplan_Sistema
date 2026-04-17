@@ -12,8 +12,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-# Destinatários fixos para aprovações do GestControll.
-# Mantido em código para garantir recebimento mesmo se o .env estiver incompleto.
+# Fallback quando o banco ainda não tem registros (ex.: antes da migração) ou tabela vazia.
 _APROVACAO_DESTINATARIOS_PADRAO = (
     "luiz.henrique@lplan.com.br",
     "luizdomingos@lplan.com.br",
@@ -37,13 +36,27 @@ def _normalizar_destinatarios(destinatarios):
 
 def _get_destinatarios_fixos_aprovacao():
     """
-    Retorna destinatários obrigatórios para e-mails de aprovação.
-    Pode ser sobrescrito por EMAIL_APROVACAO_DESTINATARIOS_FIXOS no ambiente.
+    Destinatários obrigatórios para e-mails de pedido aprovado (PDF/anexos).
+    Prioridade: cadastro em AprovacaoEmailDestinatario (tela admin); senão .env/settings; senão lista mínima em código.
     """
+    try:
+        from .models import AprovacaoEmailDestinatario
+
+        db_emails = list(
+            AprovacaoEmailDestinatario.objects.filter(ativo=True)
+            .order_by('ordem', 'email')
+            .values_list('email', flat=True)
+        )
+        db_emails = _normalizar_destinatarios(db_emails)
+        if db_emails:
+            return db_emails
+    except Exception as e:
+        logger.warning("Destinatários de aprovação no banco indisponíveis: %s", e)
+
     configured = getattr(settings, "EMAIL_APROVACAO_DESTINATARIOS_FIXOS", None)
-    if configured is None:
-        configured = list(_APROVACAO_DESTINATARIOS_PADRAO)
-    return _normalizar_destinatarios(configured)
+    if configured:
+        return _normalizar_destinatarios(configured)
+    return list(_APROVACAO_DESTINATARIOS_PADRAO)
 
 
 def _criar_log_email(tipo_email, workorder, destinatarios, assunto):
