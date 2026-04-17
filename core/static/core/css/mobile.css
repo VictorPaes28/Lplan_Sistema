@@ -449,6 +449,10 @@
         padding: 0.75rem;
         box-sizing: border-box;
     }
+    /* Campo pesquisa: manter espaço à direita para a lupa (o padding genérico !important apagava) */
+    .filter-form-card .filter-form input.report-list-search-input {
+        padding: 0.75rem 2.75rem 0.75rem 0.75rem !important;
+    }
     .filter-form-card .filter-submit-wrap,
     .filter-form-card .filter-submit {
         width: 100%;

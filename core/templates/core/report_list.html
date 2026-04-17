@@ -47,15 +47,15 @@
             <input type="hidden" name="dir" id="report-list-dir-field" value="{{ report_list_sort_dir }}">
             <div>
                 <label for="search-input">Pesquisa</label>
-                <div class="relative">
+                <div class="report-list-search-wrap">
                     <input type="text"
                            name="search"
                            id="search-input"
                            value="{{ request.GET.search }}"
                            placeholder="Projeto, notas..."
                            aria-label="Buscar relatórios"
-                           class="pl-9">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" aria-hidden="true"></i>
+                           class="report-list-search-input">
+                    <i class="fas fa-search report-list-search-icon" aria-hidden="true"></i>
                 </div>
             </div>
             <div>

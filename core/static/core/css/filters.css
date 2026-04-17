@@ -56,6 +56,32 @@
         align-items: end;
     }
 }
+
+/* Ícone da lupa à direita do campo (mesmo estilo visual dos inputs de data) */
+.report-list-search-wrap {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    z-index: 0;
+}
+.report-list-filter-form .report-list-search-input {
+    position: relative;
+    z-index: 1;
+    padding-right: 2.5rem;
+}
+.report-list-search-icon {
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    z-index: 2;
+    transform: translateY(-50%);
+    margin: 0 !important;
+    color: #64748b;
+    font-size: 0.875rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
 .report-list-filter__secondary {
     display: flex;
     flex-wrap: wrap;

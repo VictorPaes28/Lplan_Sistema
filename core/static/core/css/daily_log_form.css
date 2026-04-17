@@ -42,6 +42,17 @@
 }
 
 /* ========== Copiar dados de relatório anterior (UX melhorado) ========== */
+/* p-5 não existe no tailwind-utilities do projeto — padding explícito para não colar nas bordas */
+.copy-from-section-body {
+    box-sizing: border-box;
+    padding: 1.25rem 1.5rem 1.75rem;
+}
+@media (min-width: 640px) {
+    .copy-from-section-body {
+        padding: 1.25rem 1.75rem 1.75rem;
+    }
+}
+
 .copy-from-flow {
     display: flex;
     flex-direction: column;
@@ -175,7 +186,8 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1rem;
-    padding-top: 0.25rem;
+    padding-top: 0.5rem;
+    margin-top: 0.25rem;
 }
 .copy-from-hint {
     margin: 0;
@@ -215,6 +227,63 @@
     -webkit-text-fill-color: #fff !important;
     opacity: 0.9 !important;
     cursor: not-allowed;
+}
+
+/* Mão de obra / Equipamentos: botões + e − (base.css .flex.items-center i.fas aplicava margin-right ao ícone) */
+#diary-form .diary-labor-minus,
+#diary-form .diary-labor-plus,
+#diary-form .diary-equipment-minus,
+#diary-form .diary-equipment-plus {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+}
+#diary-form .diary-labor-minus i.fas,
+#diary-form .diary-labor-plus i.fas,
+#diary-form .diary-equipment-minus i.fas,
+#diary-form .diary-equipment-plus i.fas {
+    margin: 0 !important;
+    display: block;
+    line-height: 1;
+    width: 1em;
+    text-align: center;
+}
+
+/* Listas dinâmicas (trabalhador/equip. adicionado por "Adicionar") — mesmos botões sem classe diary-* */
+#diary-form .labor-item button.flex.items-center.justify-center.w-8.h-8,
+#diary-form .equipment-item button.flex.items-center.justify-center.w-8.h-8 {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+}
+#diary-form .labor-item button.flex.items-center.justify-center.w-8.h-8 > i.fas,
+#diary-form .equipment-item button.flex.items-center.justify-center.w-8.h-8 > i.fas {
+    margin: 0 !important;
+    display: block;
+    line-height: 1;
+    width: 1em;
+    text-align: center;
+}
+
+/* Fotos / Vídeos: dropzone, cabeçalho da secção e estado vazio — mesmo conflito com base.css .flex.items-center i.fas */
+#diary-form .diary-icon-box {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+}
+#diary-form .diary-icon-box > i.fas,
+#diary-form .diary-icon-box > i.fa {
+    margin: 0 !important;
+    display: block;
+    line-height: 1;
+    width: 1em;
+    text-align: center;
 }
 
 /* Condição Climática: dois cards (Manhã/Tarde) com borda, sombra e hierarquia clara */
@@ -724,11 +793,22 @@
     height: 2.5rem;
     border-radius: 0.75rem;
     background: #f1f5f9;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     flex-shrink: 0;
+    padding: 0 !important;
+    box-sizing: border-box;
     transition: background 0.2s ease;
+}
+/* Anular base.css .flex.items-center i.fas { margin-right } nos títulos de secção */
+#diary-form .diary-form-section-icon > i.fas,
+#diary-form .diary-form-section-icon > i.fa {
+    margin: 0 !important;
+    display: block;
+    line-height: 1;
+    width: 1em;
+    text-align: center;
 }
 
 .diary-form-section-card .section-toggle.section-expanded .diary-form-section-icon {

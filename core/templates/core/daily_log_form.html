@@ -223,7 +223,7 @@
                     </div>
                     <i class="fas fa-chevron-down text-slate-400 transition-transform section-chevron"></i>
                 </button>
-                <div id="section-copy-from-content" class="section-content p-5 border-t border-slate-200 section-collapsed">
+                <div id="section-copy-from-content" class="section-content copy-from-section-body border-t border-slate-200 section-collapsed">
                     <div class="copy-from-flow">
                         <!-- Fonte: último relatório em destaque -->
                         <div class="copy-from-source-card">
@@ -537,7 +537,7 @@
                                 aria-label="Expandir ou recolher seção Mão de obra"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-users text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-slate-900">Mão de obra</h3>
@@ -611,7 +611,7 @@
                                 aria-label="Expandir ou recolher seção Equipamentos"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-tools text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-slate-900">Equipamentos</h3>
@@ -708,7 +708,7 @@
                                     aria-expanded="false"
                                 aria-label="Expandir ou recolher seção Atividades Executadas"
                                 title="Clique para expandir ou recolher">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-tasks text-slate-600 text-sm"></i>
                             </div>
                                 <h3 class="text-base font-semibold text-slate-900">Atividades Executadas</h3>
@@ -796,7 +796,7 @@
                                     aria-expanded="false"
                                 aria-label="Expandir ou recolher seção Ocorrências"
                                 title="Clique para expandir ou recolher">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-exclamation-triangle text-slate-600 text-sm"></i>
                             </div>
                                 <h3 class="text-base font-semibold text-slate-900">Ocorrências</h3>
@@ -872,7 +872,7 @@
                                 aria-label="Expandir ou recolher seção Fotos"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-camera text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-gray-900">Fotos</h3>
@@ -897,7 +897,7 @@
                                            class="hidden"
                                            onchange="handleMultiplePhotos(this)">
                                     <div class="flex flex-col items-center">
-                                        <div class="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center mb-2">
+                                        <div class="diary-icon-box w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center mb-2">
                                             <i class="fas fa-camera text-slate-600 text-xl"></i>
                                         </div>
                                         <p class="text-sm font-medium text-slate-700">Clique ou arraste fotos aqui</p>
@@ -987,7 +987,7 @@
                             
                             <!-- Estado vazio -->
                             <div id="photos-empty-state" class="text-center py-12 {% if image_formset.forms %}hidden{% else %}block{% endif %}">
-                                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                                <div class="diary-icon-box w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
                                     <i class="fas fa-images text-slate-400 text-2xl"></i>
                                 </div>
                                 <p class="text-sm text-slate-500">Nenhuma foto adicionada ainda</p>
@@ -1025,7 +1025,7 @@
                                 aria-label="Expandir ou recolher seção Vídeos"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-video text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-slate-900">Vídeos</h3>
@@ -1053,7 +1053,7 @@
                                            onchange="handleMultipleVideos(this)">
                                     <label for="video-upload-multiple" class="cursor-pointer block">
                                         <div class="flex flex-col items-center">
-                                            <div class="w-14 h-14 rounded-lg bg-slate-200 flex items-center justify-center mb-4">
+                                            <div class="diary-icon-box w-14 h-14 rounded-lg bg-slate-200 flex items-center justify-center mb-4">
                                                 <i class="fas fa-video text-slate-600 text-2xl"></i>
                                             </div>
                                             <p class="text-sm font-semibold text-slate-700 mb-1">Clique para selecionar vídeos</p>
@@ -1079,7 +1079,7 @@
                                                             Seu navegador não suporta vídeos.
                                                         </video>
                                             {% else %}
-                                                <div class="w-full h-full flex items-center justify-center">
+                                                <div class="diary-icon-box w-full h-full flex items-center justify-center">
                                                     <i class="fas fa-video text-slate-400 text-3xl"></i>
                                                     </div>
                                                 {% endif %}
@@ -1107,7 +1107,7 @@
                             
                             <!-- Estado vazio -->
                             <div id="videos-empty-state" class="text-center py-12 {% if diary and diary.videos.exists %}hidden{% else %}block{% endif %}">
-                                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                                <div class="diary-icon-box w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
                                     <i class="fas fa-video text-slate-400 text-2xl"></i>
                                 </div>
                                 <p class="text-sm text-slate-500">Nenhum vídeo adicionado ainda</p>
@@ -1126,7 +1126,7 @@
                                 aria-label="Expandir ou recolher seção Anexos"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-paperclip text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-slate-900">Anexos</h3>
@@ -1219,7 +1219,7 @@
                                 aria-label="Expandir ou recolher seção Assinaturas"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-signature text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-slate-900">Assinaturas</h3>
@@ -1294,7 +1294,7 @@
                                 aria-label="Expandir ou recolher seção Informações Adicionais"
                                 title="Clique para expandir ou recolher">
                             <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <div class="diary-icon-box w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
                                     <i class="fas fa-info-circle text-slate-600 text-sm"></i>
                                 </div>
                                 <h3 class="text-base font-semibold text-slate-900">Informações Adicionais</h3>

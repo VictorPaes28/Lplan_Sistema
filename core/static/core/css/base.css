@@ -1025,10 +1025,34 @@ main::-webkit-scrollbar-thumb:hover {
     font-weight: 400;
 }
 .report-list-collapsible__icon-wrap {
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    border-radius: 0.5rem;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     color: #475569;
     box-shadow: none;
+    overflow: visible;
+}
+/* FA6: não usar flex no <i> — centrar com absolute no quadrado */
+.report-list-collapsible__icon-wrap > .fa,
+.report-list-collapsible__icon-wrap > .fas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0 !important; /* .flex.items-center i.fas aplica margin-right global */
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1;
+    width: 1.25em;
+    height: 1em;
+    text-align: center;
+    display: inline-block;
 }
 .report-list-collapsible__chev-wrap {
     background: #fff;
@@ -1235,16 +1259,32 @@ main::-webkit-scrollbar-thumb:hover {
     z-index: 1;
 }
 .report-list-approval__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 0.375rem;
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
     background: #f1f5f9;
     border: 1px solid #e2e8f0;
     color: #475569;
     flex-shrink: 0;
+    overflow: visible;
+}
+.report-list-approval__icon > .fa,
+.report-list-approval__icon > .fas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0 !important; /* .flex.items-center i.fas aplica margin-right global */
+    padding: 0;
+    font-size: 0.75rem;
+    line-height: 1;
+    width: 1.25em;
+    height: 1em;
+    text-align: center;
+    display: inline-block;
 }
 .report-list-approval__title {
     display: block;
@@ -1265,7 +1305,7 @@ main::-webkit-scrollbar-thumb:hover {
     border-top: 1px solid #f1f5f9;
     padding-top: 0.45rem;
     margin-top: 0.35rem;
-    margin-left: 2.25rem;
+    margin-left: 3rem;
 }
 @media (min-width: 640px) {
     .report-list-approval__actions {
