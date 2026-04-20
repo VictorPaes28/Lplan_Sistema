@@ -205,7 +205,7 @@
     <div class="report-list-modal-content bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden" onclick="event.stopPropagation()" style="max-width: 28rem;">
         <div class="px-6 py-4 border-b border-slate-200 bg-emerald-50/60 flex items-center justify-between">
             <h3 id="modal-no-report-title" class="text-lg font-semibold text-slate-900">Justificar dia sem relatório</h3>
-            <button type="button" onclick="closeNoReportModal()" class="p-2 rounded-lg text-slate-500 hover:bg-white/80 hover:text-slate-800" aria-label="Fechar">
+            <button type="button" id="modal-no-report-close-button" onclick="closeNoReportModal()" class="p-2 rounded-lg text-slate-500 hover:bg-white/80 hover:text-slate-800" aria-label="Fechar">
                 <i class="fas fa-times" aria-hidden="true"></i>
             </button>
         </div>
@@ -241,7 +241,7 @@
                     Cancelar
                 </button>
                 <button type="submit"
-                        class="px-5 py-2.5 text-sm font-medium rounded-lg bg-emerald-700 text-white hover:bg-emerald-800">
+                        class="px-5 py-2.5 text-sm font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100">
                     Confirmar
                 </button>
             </div>
@@ -300,6 +300,63 @@
 }
 
 #modal-close-button i {
+    font-size: 18px !important;
+    line-height: 1 !important;
+    display: block !important;
+    width: 18px !important;
+    height: 18px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: inherit !important;
+}
+
+/* Sobrescreve a regra global para o X do modal de justificar dia sem relatório */
+#modal-no-report-close-button,
+#modal-no-report-close-button:not([aria-expanded="true"]),
+#modal-no-report-close-button[type="button"] {
+    width: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #64748b !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s, color 0.2s !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    outline: none !important;
+    position: relative !important;
+    z-index: 10 !important;
+    box-shadow: none !important;
+}
+
+#modal-no-report-close-button:hover,
+#modal-no-report-close-button:hover:not([aria-expanded="true"]),
+#modal-no-report-close-button[type="button"]:hover {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+}
+
+#modal-no-report-close-button:focus,
+#modal-no-report-close-button:focus:not([aria-expanded="true"]),
+#modal-no-report-close-button[type="button"]:focus {
+    outline: 2px solid #60a5fa !important;
+    outline-offset: 2px !important;
+    background-color: transparent !important;
+}
+
+#modal-no-report-close-button:active,
+#modal-no-report-close-button:active:not([aria-expanded="true"]),
+#modal-no-report-close-button[type="button"]:active {
+    background-color: #e2e8f0 !important;
+    color: #334155 !important;
+}
+
+#modal-no-report-close-button i {
     font-size: 18px !important;
     line-height: 1 !important;
     display: block !important;
