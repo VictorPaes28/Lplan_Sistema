@@ -402,9 +402,16 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
     if credor_filter:
         workorders = workorders.filter(nome_credor__icontains=credor_filter)
 
-    engenheiro_filter = get_params.get('engenheiro')
-    if engenheiro_filter and (is_aprovador(user) or is_admin(user)):
-        workorders = workorders.filter(criado_por_id=engenheiro_filter)
+    engenheiro_filter_raw = (get_params.get('engenheiro') or '').strip()
+    engenheiro_filter = ''
+    if engenheiro_filter_raw:
+        try:
+            engenheiro_id = int(engenheiro_filter_raw)
+        except (TypeError, ValueError):
+            engenheiro_id = None
+        if engenheiro_id is not None:
+            workorders = workorders.filter(criado_por_id=engenheiro_id)
+            engenheiro_filter = str(engenheiro_id)
 
     data_inicio_raw = (get_params.get('data_inicio') or '').strip()
     data_fim_raw = (get_params.get('data_fim') or '').strip()
@@ -448,7 +455,7 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
         'status_filter': status_filter or '',
         'tipo_solicitacao_filter': tipo_solicitacao_filter or '',
         'credor_filter': credor_filter,
-        'engenheiro_filter': engenheiro_filter if engenheiro_filter and (is_aprovador(user) or is_admin(user)) else '',
+        'engenheiro_filter': engenheiro_filter,
         'analisado_filter': analisado_filter,
         'data_inicio': data_inicio,
         'data_fim': data_fim,
@@ -469,20 +476,21 @@ def list_workorders(request):
     user = request.user
     user_profile = get_user_profile(user)
 
-    workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
-    workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
+    base_workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
+    workorders, filter_ctx = _apply_workorder_list_filters(user, base_workorders, obras_disponiveis, request.GET)
     
     # Paginação
     paginator = Paginator(workorders, 15)  # 15 por página
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # Lista de solicitantes para filtro (apenas para gestores/admins)
-    engenheiros_list = None
-    if is_aprovador(user) or is_admin(user):
-        engenheiros_list = user.__class__.objects.filter(
-            groups__name='Solicitante'
-        ).distinct().order_by('username')
+    # Lista de solicitantes para filtro (com base nos pedidos que o usuário pode visualizar)
+    engenheiro_ids = base_workorders.exclude(
+        criado_por__isnull=True
+    ).values_list('criado_por_id', flat=True).distinct()
+    engenheiros_list = user.__class__.objects.filter(
+        id__in=engenheiro_ids
+    ).distinct().order_by('first_name', 'username')
     
     # Verificar se o usuário pode criar pedidos (apenas solicitantes)
     pode_criar_pedido = (
