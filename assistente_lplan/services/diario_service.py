@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import quote
 
 from django.core import signing
@@ -96,11 +96,15 @@ class DiarioAssistantService:
         diaries = list(qs.order_by("-report_number", "project__code")[:30])
         if not diaries:
             date_label = target_date.strftime("%d/%m/%Y")
+            ds = target_date.isoformat()
+            list_by_date = f"{reverse('report-list')}?date_start={ds}&date_end={ds}"
             msg = MessageCatalog.resolve("assistant.diario.date_empty", {"domain": "obras", "data": date_label})
             return AssistantResponse(
                 summary=msg["text"],
                 badges=["Sem dados suficientes", "RDO"],
                 alerts=[{"level": "info", "message": msg["next_steps"][0]}],
+                actions=[{"label": f"Abrir relatórios do dia {date_label}", "url": list_by_date, "style": "primary"}],
+                links=[{"label": f"Lista de relatórios ({date_label})", "url": list_by_date}],
                 raw_data={"message_code": msg["code"], "message_kind": msg["kind"], "data": target_date.isoformat()},
             )
 
@@ -119,6 +123,32 @@ class DiarioAssistantService:
 
         obra_label = project.code if project else "seu escopo"
         date_label = target_date.strftime("%d/%m/%Y")
+        ds = target_date.isoformat()
+        list_by_date = f"{reverse('report-list')}?date_start={ds}&date_end={ds}"
+        links: list[dict[str, str]] = [{"label": f"Relatórios do dia {date_label} (lista)", "url": list_by_date}]
+        actions: list[dict[str, str]] = [{"label": f"Lista filtrada em {date_label}", "url": list_by_date, "style": "secondary"}]
+        for d in diaries[:6]:
+            links.append(
+                {
+                    "label": f"Abrir RDO {d.project.code if d.project else ''} #{d.report_number or d.pk}".strip(),
+                    "url": reverse("diary-detail", args=[d.pk]),
+                }
+            )
+        if len(diaries) == 1:
+            actions.insert(
+                0,
+                {
+                    "label": f"Abrir relatório do dia {date_label}",
+                    "url": reverse("diary-detail", args=[diaries[0].pk]),
+                    "style": "primary",
+                },
+            )
+        else:
+            actions.insert(
+                0,
+                {"label": f"Ver {len(diaries)} RDO(s) nesta data", "url": list_by_date, "style": "primary"},
+            )
+
         return AssistantResponse(
             summary=f"Foram encontrados {len(rows)} RDO(s) em {date_label} para {obra_label}.",
             cards=[
@@ -131,6 +161,8 @@ class DiarioAssistantService:
                 "rows": rows,
             },
             badges=["Diario de Obras", "RDO por data"],
+            actions=actions,
+            links=links,
             raw_data={"data": target_date.isoformat(), "project_id": getattr(project, "id", None)},
         )
 
@@ -197,6 +229,18 @@ class DiarioAssistantService:
         raw_date = str((entities or {}).get("data") or "").strip()
         if not raw_date:
             return None
+
+        br = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})$", raw_date)
+        if br:
+            day, month, year = int(br.group(1)), int(br.group(2)), int(br.group(3))
+            if year < 100:
+                year += 2000
+            elif 201 <= year <= 209:
+                year = 2000 + 20 + (year % 10)
+            try:
+                return date(year, month, day)
+            except ValueError:
+                pass
 
         for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
             try:

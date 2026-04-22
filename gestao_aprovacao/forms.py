@@ -309,6 +309,20 @@ class WorkOrderForm(forms.ModelForm):
         tipo = cleaned_data.get('tipo_solicitacao')
         if tipo != 'medicao':
             cleaned_data['valor_medicao'] = None
+            return cleaned_data
+
+        valor = cleaned_data.get('valor_medicao')
+        if valor is None:
+            self.add_error(
+                'valor_medicao',
+                'O valor de medição é obrigatório quando o tipo de solicitação é Medição.',
+            )
+            return cleaned_data
+        if valor <= 0:
+            self.add_error(
+                'valor_medicao',
+                'O valor de medição deve ser maior que zero.',
+            )
         return cleaned_data
 
 

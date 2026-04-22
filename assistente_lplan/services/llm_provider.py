@@ -22,6 +22,10 @@ class LLMProvider:
             "Classifique a pergunta em UMA intencao desta lista: "
             + ", ".join(sorted(SUPPORTED_INTENTS))
             + '. Extraia entidades (obra, usuario, insumo, local, referencia_local, apartamento, bloco, pavimento, dias, data, credor). '
+            + 'Ignore pontuacao final (? ! .) para classificar. '
+            + 'listar_aprovacoes_pendentes: fila de pedidos no GestControll (aprovacoes, pedidos pendentes, gestao de compras). '
+            + 'listar_pendencias_obra: pendencias operacionais do diario de obra (RDO nao aprovado, falta de registro), NAO use para "aprovacoes". '
+            + 'gargalos_obra: gargalos, problemas, dificuldades, travamentos na obra. '
             + 'relatorio_local_mapa: pergunta sobre situacao de apartamento/unidade/bloco/pavimento/setor no mapa de controle ou suprimentos. '
             + 'relatorio_rdo_periodo: PDF ou relatorio dos ultimos N dias do RDO/diario. '
             + 'Retorne JSON puro: {"intent": "...", "entities": {...}, "confidence": 0.0-1.0}.'

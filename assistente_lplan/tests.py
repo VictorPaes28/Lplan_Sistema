@@ -49,6 +49,16 @@ class RuleBasedIntentParserTests(TestCase):
         result = RuleBasedIntentParser().parse("Quais aprovacoees pendenets?")
         self.assertEqual(result.intent, "listar_aprovacoes_pendentes")
 
+    def test_aprovacoes_com_interrogacao_e_obra_nao_cai_em_pendencias_diario(self):
+        result = RuleBasedIntentParser().parse("aprovações pendentes na obra 1 ?")
+        self.assertEqual(result.intent, "listar_aprovacoes_pendentes")
+        self.assertEqual((result.entities.get("obra") or "").strip(), "1")
+
+    def test_problemas_na_obra_interpreta_gargalos(self):
+        result = RuleBasedIntentParser().parse("quais problemas na obra 1?")
+        self.assertEqual(result.intent, "gargalos_obra")
+        self.assertEqual((result.entities.get("obra") or "").strip(), "1")
+
     def test_tolerancia_a_erro_digitacao_em_entidades_basicas(self):
         result = RuleBasedIntentParser().parse("Onde esta o simento do bloko C?")
         self.assertEqual(result.intent, "localizar_insumo")

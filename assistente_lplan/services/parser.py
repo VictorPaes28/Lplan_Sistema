@@ -22,6 +22,22 @@ from .intents import (
 from .learning import GuidedLearningService
 
 
+def normalize_intent_question(question: str) -> str:
+    """
+    Texto estável para classificação de intenção: minúsculas, sem acento,
+    remove pontuação final comum (?, !, …) que costuma confundir regex/LLM.
+    """
+    raw = (question or "").strip()
+    if not raw:
+        return ""
+    t = raw.lower()
+    t = unicodedata.normalize("NFD", t)
+    t = "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+    t = re.sub(r"[\s?.!,;…:]+$", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
 class RuleBasedIntentParser:
     """Fallback deterministico para intencao + entidades."""
 
@@ -34,7 +50,7 @@ class RuleBasedIntentParser:
         reason: str
 
     def parse(self, question: str) -> ParseResult:
-        text = (question or "").strip().lower()
+        text = normalize_intent_question(question)
         normalized_text = self._normalize(text)
         normalized_tokens = self._tokenize(normalized_text)
         entities = GuidedLearningService.apply_entity_aliases(self._extract_entities(text))
@@ -153,7 +169,21 @@ class RuleBasedIntentParser:
             ),
             (
                 INTENT_LIST_PENDING_APPROVALS,
-                ["aprova", "aprovacao", "aprovação", "pendente", "pendentes"],
+                [
+                    "aprova",
+                    "aprovacao",
+                    "aprovação",
+                    "aprovacoes",
+                    "aprovações",
+                    "gestcontroll",
+                    "gest controll",
+                    "pedido pendente",
+                    "pedidos pendentes",
+                    "fila de aprovacao",
+                    "fila de aprovação",
+                    "pendente",
+                    "pendentes",
+                ],
                 0.0,
             ),
             (
@@ -168,7 +198,22 @@ class RuleBasedIntentParser:
             ),
             (
                 INTENT_OBRA_BOTTLENECKS,
-                ["gargalo", "travando", "travado", "impedindo", "bloqueando"],
+                [
+                    "gargalo",
+                    "gargalos",
+                    "travando",
+                    "travado",
+                    "impedindo",
+                    "bloqueando",
+                    "problema",
+                    "problemas",
+                    "dificuldade",
+                    "dificuldades",
+                    "incidente",
+                    "incidentes",
+                    "lentidao",
+                    "lentidão",
+                ],
                 0.0,
             ),
             (
@@ -270,6 +315,12 @@ class RuleBasedIntentParser:
             if intent == INTENT_LOCATE_SUPPLY and ("insumo" in entities or "bloco" in entities):
                 score += 0.2
 
+            # "Aprovações pendentes na obra X" não deve cair em pendências operacionais (diário).
+            if intent == INTENT_LIST_OBRA_PENDING and "aprov" in normalized_text:
+                score *= 0.32
+            if intent == INTENT_LIST_PENDING_APPROVALS and "aprov" in normalized_text:
+                score += 0.34
+
             if score > 0:
                 scored.append((intent, min(score, 1.0)))
 
@@ -309,7 +360,7 @@ class RuleBasedIntentParser:
 
         obra_match = re.search(r"\bobra\s+([a-z0-9\-_/ ]+)", text)
         if obra_match:
-            obra_value = obra_match.group(1).strip(" .,:;")
+            obra_value = obra_match.group(1).strip(" .,:;?!)\]}\"'")
             if obra_value.startswith("atual "):
                 obra_value = obra_value[6:].strip()
             if obra_value in {"atual", "selecionada", "selecionado", "corrente"}:
@@ -319,16 +370,16 @@ class RuleBasedIntentParser:
 
         usuario_match = re.search(r"\b(?:usuario|usuário|desempenho do|status do)\s+([a-z0-9._@\- ]+)", text)
         if usuario_match:
-            entities["usuario"] = usuario_match.group(1).strip(" .,:;")
+            entities["usuario"] = usuario_match.group(1).strip(" .,:;?!)\]}\"'")
         else:
             # Captura consultas do tipo "como joao esta nos ultimos 30 dias"
             como_match = re.search(r"\bcomo\s+([a-z0-9._@\-]+)\s+est", text)
             if como_match:
-                entities["usuario"] = como_match.group(1).strip(" .,:;")
+                entities["usuario"] = como_match.group(1).strip(" .,:;?!)\]}\"'")
 
         bloco_match = re.search(r"\b(?:bloco|bloko)\s+([a-z0-9\-_/]+)", normalized_text)
         if bloco_match:
-            entities["bloco"] = bloco_match.group(1).strip(" .,:;")
+            entities["bloco"] = bloco_match.group(1).strip(" .,:;?!)\]}\"'")
 
         apt_match = re.search(
             r"\b(?:apartamento|apto\.?|apt\.?)\s+([a-z0-9\-_/]+)",
@@ -405,6 +456,9 @@ class RuleBasedIntentParser:
             year = int(slash_match.group(3))
             if year < 100:
                 year += 2000
+            elif 201 <= year <= 209:
+                # Ex.: 22/04/206 costuma ser 22/04/2026 (falta o "2" do século).
+                year = 2000 + 20 + (year % 10)
             try:
                 return date(year, month, day).isoformat()
             except ValueError:

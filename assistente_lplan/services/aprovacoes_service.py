@@ -1,4 +1,5 @@
 from assistente_lplan.schemas import AssistantResponse
+from core.models import Project
 from gestao_aprovacao.models import Approval, WorkOrder
 from .messages import MessageCatalog
 
@@ -8,6 +9,30 @@ class AprovacoesAssistantService:
         self.user = user
         self.scope = scope
 
+    def _resolve_project(self, entities: dict):
+        """Alinha ao Diario/Mapa: codigo ou id de projeto no texto ou em project_id."""
+        project_id = entities.get("project_id")
+        if project_id:
+            try:
+                pid = int(project_id)
+            except (TypeError, ValueError):
+                pid = None
+            if pid:
+                qs_by_id = Project.objects.filter(is_active=True, id=pid)
+                if self.scope.role != "admin":
+                    qs_by_id = qs_by_id.filter(id__in=self.scope.project_ids)
+                p = qs_by_id.first()
+                if p:
+                    return p
+
+        term = (entities.get("obra") or "").strip()
+        qs = Project.objects.filter(is_active=True)
+        if self.scope.role != "admin":
+            qs = qs.filter(id__in=self.scope.project_ids)
+        if term:
+            return qs.filter(name__icontains=term).first() or qs.filter(code__icontains=term).first()
+        return None
+
     def listar_aprovacoes_pendentes(self, entities: dict) -> AssistantResponse:
         qs = (
             self._work_orders_scope()
@@ -15,6 +40,10 @@ class AprovacoesAssistantService:
             .select_related("obra", "criado_por")
             .order_by("-created_at")
         )
+
+        project = self._resolve_project(entities)
+        if project:
+            qs = qs.filter(obra__project_id=project.id)
 
         pending_count = qs.count()
         rows = []
@@ -38,8 +67,9 @@ class AprovacoesAssistantService:
                 raw_data={"message_code": msg["code"], "message_kind": msg["kind"]},
             )
 
+        scope_note = f" na obra {project.code}" if project else " no seu escopo"
         return AssistantResponse(
-            summary=f"Existem {pending_count} aprovacoes pendentes no seu escopo.",
+            summary=f"Existem {pending_count} aprovacoes pendentes{scope_note}.",
             cards=[{"title": "Pendentes", "value": str(pending_count), "tone": "warning"}],
             table={
                 "caption": "Pedidos aguardando aprovacao",

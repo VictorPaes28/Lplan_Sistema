@@ -98,10 +98,11 @@
             <div class="form-group" id="valor-medicao-group" style="display:none;">
                 <label for="{{ form.valor_medicao.id_for_label }}" class="form-label">
                     {{ form.valor_medicao.label }}
+                    <span id="valor-medicao-required-mark" class="form-required" style="display:none;" aria-hidden="true">*</span>
                 </label>
                 {{ form.valor_medicao }}
                 <div class="form-help">
-                    Preencha quando o tipo for <strong>Medição</strong>: valor para controle do que está fora do Sienge (passivo).
+                    Obrigatório quando o tipo for <strong>Medição</strong>: informe o valor (maior que zero) para controle do que está fora do Sienge (passivo).
                 </div>
                 {% if form.valor_medicao.errors %}
                     <div class="form-error">{{ form.valor_medicao.errors }}</div>
@@ -277,13 +278,50 @@
 (function () {
     var tipo = document.getElementById('id_tipo_solicitacao');
     var box = document.getElementById('valor-medicao-group');
+    function fieldValorMedicao() {
+        return document.getElementById('{{ form.valor_medicao.id_for_label }}');
+    }
     function syncValorMedicao() {
         if (!tipo || !box) return;
-        box.style.display = tipo.value === 'medicao' ? 'block' : 'none';
+        var isMed = tipo.value === 'medicao';
+        box.style.display = isMed ? 'block' : 'none';
+        var el = fieldValorMedicao();
+        if (el) {
+            el.required = isMed;
+            el.setAttribute('aria-required', isMed ? 'true' : 'false');
+            if (!isMed) {
+                el.setCustomValidity('');
+            }
+        }
+        var mark = document.getElementById('valor-medicao-required-mark');
+        if (mark) mark.style.display = isMed ? 'inline' : 'none';
     }
     if (tipo) {
         tipo.addEventListener('change', syncValorMedicao);
         syncValorMedicao();
+    }
+    var woForm = document.getElementById('workorder-create-form');
+    if (woForm && tipo) {
+        woForm.addEventListener('submit', function (ev) {
+            if (tipo.value !== 'medicao') return;
+            var el = fieldValorMedicao();
+            if (!el) return;
+            var raw = (el.value || '').trim().replace(',', '.');
+            var n = parseFloat(raw);
+            if (!raw || isNaN(n) || n <= 0) {
+                el.setCustomValidity('Informe o valor de medição (maior que zero).');
+                ev.preventDefault();
+                el.reportValidity();
+            } else {
+                el.setCustomValidity('');
+            }
+        });
+    }
+    var elVm = fieldValorMedicao();
+    if (elVm) {
+        elVm.addEventListener('input', function () {
+            elVm.setCustomValidity('');
+        });
     }
 })();
 </script>

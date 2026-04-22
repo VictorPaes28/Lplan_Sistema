@@ -41,15 +41,18 @@ def build_assistant_home_context(request) -> dict:
     persist_session_project = False
     available_projects: list[dict] = []
 
+    accessible = accessible_projects_for_scope(scope, limit=80)
+
     # Sem sessão válida: uma obra no escopo → usamos como padrão (evita “nenhuma obra” sem necessidade)
     if project is None:
-        accessible = accessible_projects_for_scope(scope, limit=80)
         if len(accessible) == 1:
             project = Project.objects.filter(is_active=True, id=accessible[0]["id"]).first()
             if project:
                 persist_session_project = True
-        elif len(accessible) > 1:
-            available_projects = accessible[:50]
+
+    # Mais de uma obra: manter lista no contexto mesmo com sessão já definida, para o painel permitir trocar.
+    if len(accessible) > 1:
+        available_projects = accessible[:50]
 
     user = request.user
     hoje = timezone.localdate().strftime("%d/%m/%Y")

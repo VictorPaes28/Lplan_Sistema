@@ -35,7 +35,7 @@ from .intents import (
 )
 from .llm_provider import LLMProvider
 from .obras_service import ObrasAssistantService
-from .parser import RuleBasedIntentParser
+from .parser import RuleBasedIntentParser, normalize_intent_question
 from .permissions import AssistantPermissionService
 from .suprimentos_service import SuprimentosAssistantService
 from .usuarios_service import UsuariosAssistantService
@@ -233,12 +233,13 @@ class AssistantOrchestrator:
         return response, meta
 
     def _detect_intent(self, question: str) -> tuple[str, dict, bool, float, list, str]:
-        llm_result = self.llm_provider.detect_intent(question)
+        qn = normalize_intent_question(question)
+        llm_result = self.llm_provider.detect_intent(qn or question)
         if llm_result:
             intent, entities, confidence = llm_result
             if confidence >= 0.6:
                 return intent, entities, True, confidence, [(intent, confidence)], "llm_match"
-            parse = self.fallback_parser.parse(question)
+            parse = self.fallback_parser.parse(qn or question)
             return (
                 parse.intent,
                 parse.entities,
@@ -247,7 +248,7 @@ class AssistantOrchestrator:
                 parse.candidates,
                 "llm_baixa_confianca_fallback_regra",
             )
-        parse = self.fallback_parser.parse(question)
+        parse = self.fallback_parser.parse(qn or question)
         return parse.intent, parse.entities, False, parse.confidence, parse.candidates, parse.reason
 
     def _dispatch(self, intent: str, entities: dict, question: str = "") -> AssistantResponse:
