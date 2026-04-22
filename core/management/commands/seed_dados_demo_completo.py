@@ -880,7 +880,7 @@ def create_gestao_aprovacao_data(projects, user, dry_run=False):
         )
     # Pedidos em vários status (para listagem e filtros)
     credores = ["Materiais Construção Ltda", "Ferragens Norte", "Concreto ABC", "Elétrica São Paulo"]
-    tipos = ["contrato", "medicao", "ordem_servico", "mapa_cotacao"]
+    tipos = ["contrato", "validacao_contrato", "medicao", "ordem_servico", "mapa_cotacao"]
     status_list = ["rascunho", "pendente", "aprovado", "reprovado", "reaprovacao", "cancelado"]
     created = 0
     for obra in obras_gestao[:4]:  # primeiras 4 obras

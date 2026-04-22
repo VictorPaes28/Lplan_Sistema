@@ -5080,12 +5080,7 @@ def _gerar_csv_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     writer.writerow([f'E-mail: {solicitante.email or "Não informado"}'])
     writer.writerow([f'Período Analisado: Últimos {dias_periodo} dias'])
     if tipo_solicitacao:
-        tipo_labels_header = {
-            'contrato': 'Contrato',
-            'medicao': 'Medição',
-            'ordem_servico': 'Ordem de Serviço (OS)',
-            'mapa_cotacao': 'Mapa de Cotação',
-        }
+        tipo_labels_header = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
         writer.writerow([f'Filtro de Tipo: {tipo_labels_header.get(tipo_solicitacao, tipo_solicitacao)}'])
     else:
         writer.writerow(['Filtro de Tipo: Todos os tipos'])
@@ -5118,13 +5113,8 @@ def _gerar_csv_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     ])
     
     # Dados formatados
-    tipo_labels = {
-        'contrato': 'Contrato',
-        'medicao': 'Medição',
-        'ordem_servico': 'Ordem de Serviço (OS)',
-        'mapa_cotacao': 'Mapa de Cotação',
-    }
-    
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+
     for reprovacao in reprovacoes:
         tags_nomes = ', '.join([tag.nome for tag in reprovacao.tags_erro.all()])
         if not tags_nomes:
@@ -5270,12 +5260,7 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     line_soft = 0.35
     line_inner = 0.2
 
-    tipo_labels = {
-        'contrato': 'Contrato',
-        'medicao': 'Medição',
-        'ordem_servico': 'Ordem de Serviço (OS)',
-        'mapa_cotacao': 'Mapa de Cotação',
-    }
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
     recommendation_keywords = [
         (('document', 'anexo', 'arquivo', 'comprovante'), 'Reforçar checklist de anexos obrigatórios antes do envio.'),
         (('valor', 'preço', 'orc', 'cotacao', 'cotação'), 'Padronizar revisão de valores e cotações com dupla conferência.'),
