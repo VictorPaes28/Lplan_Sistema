@@ -185,6 +185,40 @@
         `;
     }
 
+    function renderActions(actions) {
+        if (!Array.isArray(actions) || !actions.length) return "";
+        return `
+            <div class="assistant-section-title">Ações</div>
+            <div class="assistant-actions">
+                ${actions
+                    .map((a) => {
+                        const href = escapeHtml(a.url || "#");
+                        const cls = a.style === "primary" ? "assistant-btn primary" : "assistant-btn";
+                        return `<a href="${href}" class="${cls}" rel="noopener noreferrer">${escapeHtml(a.label || "Abrir")}</a>`;
+                    })
+                    .join("")}
+            </div>
+        `;
+    }
+
+    function renderLinks(links) {
+        if (!Array.isArray(links) || !links.length) return "";
+        return `
+            <div class="assistant-section-title">Links</div>
+            <div class="assistant-links">
+                ${links
+                    .map(
+                        (lnk) => `
+                    <a href="${escapeHtml(lnk.url || "#")}" class="assistant-link" rel="noopener noreferrer">${escapeHtml(
+                            lnk.label || lnk.url || ""
+                        )}</a>
+                `
+                    )
+                    .join("")}
+            </div>
+        `;
+    }
+
     function renderFeedback(payload) {
         const qid = payload.question_log_id || (payload.raw_data && payload.raw_data.question_log_id) || "";
         if (!qid) return "";
@@ -219,6 +253,8 @@
             ${renderTable(payload.table)}
             ${renderTimeline(payload.timeline)}
             ${renderAlerts(payload.alerts)}
+            ${renderActions(payload.actions)}
+            ${renderLinks(payload.links)}
             ${renderSuggestedReplies(payload.suggested_replies)}
             ${renderFeedback(payload)}
         `;
@@ -253,9 +289,9 @@
         loading && loading.classList.add("show");
 
         try {
-            const payload = { pergunta: question };
+            const requestBody = { pergunta: question };
             if (selectedProjectId != null && !Number.isNaN(selectedProjectId)) {
-                payload.contexto = { selected_project_id: selectedProjectId };
+                requestBody.contexto = { selected_project_id: selectedProjectId };
             }
             const response = await fetch("/assistente/perguntar/", {
                 method: "POST",
@@ -263,11 +299,17 @@
                     "Content-Type": "application/json",
                     "X-CSRFToken": getCsrfToken(),
                 },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(requestBody),
             });
-            const payload = await response.json();
-            appendMessage("assistant", renderResponse(payload));
-            appendToHistory(question, payload.summary || "");
+            const data = await response.json();
+            if (!response.ok) {
+                const err = escapeHtml(data.error || data.detail || `Erro ${response.status}`);
+                appendMessage("assistant", `<div class="font-semibold mb-1">Assistente LPLAN</div><div>${err}</div>`);
+                appendToHistory(question, data.error || "");
+                return;
+            }
+            appendMessage("assistant", renderResponse(data));
+            appendToHistory(question, data.summary || "");
         } catch (error) {
             appendMessage("assistant", `<div>Falha de rede ao consultar o assistente.</div>`);
         } finally {

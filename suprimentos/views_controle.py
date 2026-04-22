@@ -81,18 +81,29 @@ def _layer_aggregates(queryset, group_field: str):
 def _build_layers_navigation(raw_qs, selected: dict) -> dict:
     """
     Opções dos chips de camada: lista completa de irmãos no recorte geográfico.
-    Não aplica filtro de coluna (atividade), busca nem status — assim ao escolher
-    um bloco não somem os outros (A/B/C) nem os setores irmãos.
+    Não aplica busca nem status — assim ao escolher um bloco não somem os outros (A/B/C)
+    nem os setores irmãos.
+
+    Quando há coluna (``atividade``) no recorte, blocos/pavimentos usam só essa atividade
+    e o progresso por bloco segue a mesma regra da matriz (média por pavimento).
     """
     layers: dict[str, list] = {"setores": [], "blocos": [], "pavimentos": [], "aptos": []}
     layers["setores"] = _layer_aggregates(raw_qs, "setor")
     if not (selected.get("setor") or "").strip():
         return layers
     qs_bl = raw_qs.filter(setor=selected["setor"])
-    layers["blocos"] = _layer_aggregates(qs_bl, "bloco")
+    ativ_nav = (selected.get("atividade") or "").strip()
+    if ativ_nav:
+        layers["blocos"] = _layer_blocos_nav_hier_por_pavimento(
+            qs_bl.filter(atividade__iexact=ativ_nav)
+        )
+    else:
+        layers["blocos"] = _layer_aggregates(qs_bl, "bloco")
     if not (selected.get("bloco") or "").strip():
         return layers
     qs_pav = qs_bl.filter(bloco=selected["bloco"])
+    if ativ_nav:
+        qs_pav = qs_pav.filter(atividade__iexact=ativ_nav)
     layers["pavimentos"] = _layer_aggregates(qs_pav, "pavimento")
     if not (selected.get("pavimento") or "").strip():
         return layers
@@ -253,15 +264,109 @@ def _default_label_for_row_field(row_field: str) -> str:
     }.get(row_field, "SEM REGISTRO")
 
 
+def _mean_ratio_equal_weight_groups(
+    items: list,
+    group_key_fn,
+) -> float | None:
+    """Média da média por grupo (cada grupo pesa igual), ignorando itens sem ratio."""
+    by_g: dict[str, list[float]] = {}
+    for item in items:
+        ratio = _status_to_ratio(item)
+        if ratio is None:
+            continue
+        g = group_key_fn(item)
+        by_g.setdefault(g, []).append(ratio)
+    inner = [sum(vals) / len(vals) for vals in by_g.values() if vals]
+    if not inner:
+        return None
+    return sum(inner) / len(inner)
+
+
+def _mean_ratio_equal_weight_blocos_then_pavimento(items: list) -> float | None:
+    """Média por bloco (cada bloco pesa igual); dentro de cada bloco, média por pavimento."""
+    by_bloco: dict[str, list] = {}
+    for it in items:
+        b = (str(getattr(it, "bloco", None) or "").strip() or "SEM BLOCO")
+        by_bloco.setdefault(b, []).append(it)
+    bloco_means: list[float] = []
+    for bloc_items in by_bloco.values():
+        m = _mean_ratio_equal_weight_groups(
+            bloc_items,
+            lambda it: (str(getattr(it, "pavimento", None) or "").strip() or "SEM PAVIMENTO"),
+        )
+        if m is not None:
+            bloco_means.append(m)
+    if not bloco_means:
+        return None
+    return sum(bloco_means) / len(bloco_means)
+
+
+def _layer_blocos_nav_hier_por_pavimento(qs) -> list[dict]:
+    """
+    Mesmo contrato que ``_layer_aggregates(..., 'bloco')``, com ``progresso`` em 0–1
+    alinhado à célula da matriz (média por pavimento dentro do bloco).
+    """
+    items = list(
+        qs.only("bloco", "pavimento", "status_percentual", "status_texto").order_by("bloco")
+    )
+    by_bloco: dict[str, list] = {}
+    for it in items:
+        b = (str(it.bloco or "").strip() or "SEM BLOCO")
+        by_bloco.setdefault(b, []).append(it)
+    rows: list[dict] = []
+    for b in sorted(by_bloco.keys()):
+        bloc_items = by_bloco[b]
+        hier = _mean_ratio_equal_weight_groups(
+            bloc_items,
+            lambda it: (str(getattr(it, "pavimento", None) or "").strip() or "SEM PAVIMENTO"),
+        )
+        total = len(bloc_items)
+        concluidos = em_andamento = nao_iniciados = 0
+        for item in bloc_items:
+            ratio = _status_to_ratio(item)
+            status_txt = (item.status_texto or "").lower()
+            if ratio is not None:
+                if ratio >= 1.0:
+                    concluidos += 1
+                elif ratio <= 0.0:
+                    nao_iniciados += 1
+                else:
+                    em_andamento += 1
+            elif "conclu" in status_txt:
+                concluidos += 1
+            elif "exec" in status_txt or "parcial" in status_txt:
+                em_andamento += 1
+            else:
+                nao_iniciados += 1
+        rows.append(
+            {
+                "bloco": b if b != "SEM BLOCO" else None,
+                "total": total,
+                "progresso": hier,
+                "custo_total": None,
+                "concluidos": concluidos,
+                "em_andamento": em_andamento,
+                "nao_iniciados": nao_iniciados,
+            }
+        )
+    return rows
+
+
 def _build_matrix_grid(
     matrix_scope_qs,
     row_field: str,
     atividades_max: int = 36,
     rows_max: int = 60,
 ) -> dict:
-    """Agrega percentuais em uma grade (linha x atividade), ex.: bloco×atividade ou pavimento×atividade."""
+    """Agrega percentuais em uma grade (linha x atividade), ex.: bloco×atividade ou pavimento×atividade.
+
+    Em linhas por **bloco**, cada célula usa média por **pavimento** e depois média entre pavimentos
+    (cada pavimento pesa igual), alinhado à linha Total da grade por pavimento e ao detalhe da célula.
+    """
     default_row = _default_label_for_row_field(row_field)
     only_fields = [row_field, "atividade", "status_percentual", "status_texto"]
+    if row_field == "bloco":
+        only_fields.append("pavimento")
     matrix_items = list(matrix_scope_qs.only(*only_fields).order_by(row_field, "atividade"))
     agg: dict[tuple[str, str], dict] = {}
     rows_set: set[str] = set()
@@ -278,10 +383,32 @@ def _build_matrix_grid(
         if ratio is None:
             continue
         key = (row_val, atividade)
-        if key not in agg:
-            agg[key] = {"sum": 0.0, "count": 0}
-        agg[key]["sum"] += ratio
-        agg[key]["count"] += 1
+        if row_field == "bloco":
+            pav_val = (str(getattr(item, "pavimento", None) or "").strip() or "SEM PAVIMENTO")
+            if key not in agg:
+                agg[key] = {"by_pav": {}}
+            bp = agg[key]["by_pav"]
+            if pav_val not in bp:
+                bp[pav_val] = {"sum": 0.0, "count": 0}
+            bp[pav_val]["sum"] += ratio
+            bp[pav_val]["count"] += 1
+        else:
+            if key not in agg:
+                agg[key] = {"sum": 0.0, "count": 0}
+            agg[key]["sum"] += ratio
+            agg[key]["count"] += 1
+
+    if row_field == "bloco":
+        flat: dict[tuple[str, str], dict] = {}
+        for key, data in agg.items():
+            by_pav = data.get("by_pav") or {}
+            inner_means = [
+                b["sum"] / b["count"] for b in by_pav.values() if b.get("count", 0) > 0
+            ]
+            if inner_means:
+                m = sum(inner_means) / len(inner_means)
+                flat[key] = {"sum": m, "count": 1}
+        agg = flat
 
     atividades = sorted(atividades_set)[:atividades_max]
     rows_sorted = sorted(rows_set)[:rows_max]
@@ -630,16 +757,33 @@ def mapa_controle(request):
                         }
                     )
                 apto_rows.sort(key=lambda r: (r["pct"] is None, r["pct"] if r["pct"] is not None else 999))
-                media_pct = round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
+                if (selected.get("pavimento") or "").strip():
+                    media_pct = (
+                        round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
+                    )
+                else:
+                    inner_means_ac = [
+                        data["sum_ratio"] / data["count_ratio"]
+                        for data in pav_agg.values()
+                        if data["count_ratio"] > 0
+                    ]
+                    media_pct = (
+                        round(sum(inner_means_ac) / len(inner_means_ac) * 100)
+                        if inner_means_ac
+                        else None
+                    )
             else:
                 apto_agg: dict[tuple[str, str], dict] = {}
                 ratio_values = []
+                by_pav_for_media: dict[str, list[float]] = {}
                 for item in focus_qs.only(
                     "apto", "pavimento", "status_texto", "status_percentual", "data_termino", "observacao"
                 ):
                     ratio = _status_to_ratio(item)
                     if ratio is not None:
                         ratio_values.append(ratio)
+                        pk = (str(item.pavimento or "").strip() or "-") or "-"
+                        by_pav_for_media.setdefault(pk, []).append(ratio)
                     apto_key = ((item.apto or "SEM APTO").strip() or "SEM APTO", (item.pavimento or "-").strip() or "-")
                     if apto_key not in apto_agg:
                         apto_agg[apto_key] = {
@@ -683,7 +827,19 @@ def mapa_controle(request):
                     )
 
                 apto_rows.sort(key=lambda r: (r["pct"] is None, r["pct"] if r["pct"] is not None else 999))
-                media_pct = round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
+                if (selected.get("pavimento") or "").strip():
+                    media_pct = (
+                        round((sum(ratio_values) / len(ratio_values)) * 100) if ratio_values else None
+                    )
+                else:
+                    inner_means_hab = [
+                        sum(vals) / len(vals) for vals in by_pav_for_media.values() if vals
+                    ]
+                    media_pct = (
+                        round(sum(inner_means_hab) / len(inner_means_hab) * 100)
+                        if inner_means_hab
+                        else None
+                    )
             status_ref = (
                 ItemMapaServicoStatusRef.objects.filter(
                     obra=obra,
@@ -810,6 +966,28 @@ def mapa_controle(request):
             "em_andamento": em_andamento,
             "nao_iniciados": nao_iniciados,
         }
+        # Com coluna (atividade) e pavimento/unidade «Todos»: média alinhada à matriz —
+        # por bloco: média por pavimento dentro do bloco; vários blocos: cada bloco pesa igual.
+        if (
+            (selected.get("atividade") or "").strip()
+            and not (selected.get("pavimento") or "").strip()
+            and not (selected.get("apto") or "").strip()
+        ):
+            if (selected.get("bloco") or "").strip():
+                hier_med = _mean_ratio_equal_weight_groups(
+                    list(active_scope_qs.only("pavimento", "status_percentual", "status_texto")),
+                    lambda it: (str(getattr(it, "pavimento", None) or "").strip() or "SEM PAVIMENTO"),
+                )
+            else:
+                hier_med = _mean_ratio_equal_weight_blocos_then_pavimento(
+                    list(
+                        active_scope_qs.only(
+                            "bloco", "pavimento", "status_percentual", "status_texto"
+                        )
+                    )
+                )
+            if hier_med is not None:
+                kpis["percentual_medio"] = round(hier_med * 100, 2)
         qualidade = {
             "sem_bloco": active_scope_qs.filter(Q(bloco__isnull=True) | Q(bloco__exact="")).count(),
             "sem_pavimento": active_scope_qs.filter(Q(pavimento__isnull=True) | Q(pavimento__exact="")).count(),

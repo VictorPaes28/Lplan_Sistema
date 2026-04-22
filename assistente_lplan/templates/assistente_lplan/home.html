@@ -256,11 +256,31 @@
     data-selected-project-id="{{ selected_project_id|default_if_none:'' }}"
 >
     <aside class="assistant-panel">
-        {% if active_project %}
+        {% if active_project and available_projects %}
+        <div class="assistant-context-card text-sm text-slate-800">
+            <div class="font-semibold text-slate-900 tracking-tight">Obra priorizada</div>
+            <div class="mt-1"><span class="font-mono text-slate-800 bg-slate-100/80 px-1.5 py-0.5 rounded">{{ active_project.code }}</span> <span class="text-slate-600">—</span> {{ active_project.name|truncatechars:42 }}</div>
+            <p class="mt-2 text-xs text-slate-600 leading-relaxed">Para trocar de obra, escolha outra na lista e confirme. Você também pode <strong>citar o código na pergunta</strong> ou usar <em>Selecionar obra</em> no sistema.</p>
+            <form method="post" action="{% url 'assistente_lplan:set_session_project' %}" class="mt-2 space-y-2">
+                {% csrf_token %}
+                <label class="sr-only" for="assistant-pick-project">Obra</label>
+                <select name="project_id" id="assistant-pick-project" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                    {% for p in available_projects %}
+                    <option value="{{ p.id }}"{% if p.id == active_project.id %} selected{% endif %}>{{ p.code }} — {{ p.name|truncatechars:40 }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="assistant-btn primary w-full text-center text-sm font-semibold">Usar esta obra</button>
+            </form>
+            <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+                <a href="{% url 'select-project' %}" class="text-blue-700 underline font-medium">Abrir seleção completa</a>
+                <a href="{% url 'report-list' %}" class="text-blue-700 underline">Relatórios do diário</a>
+            </div>
+        </div>
+        {% elif active_project %}
         <div class="assistant-context-card text-sm text-slate-700">
             <div class="font-semibold text-slate-900 tracking-tight">Obra priorizada</div>
             <div class="mt-1"><span class="font-mono text-slate-800 bg-slate-100/80 px-1.5 py-0.5 rounded">{{ active_project.code }}</span> <span class="text-slate-600">—</span> {{ active_project.name|truncatechars:42 }}</div>
-            <div class="mt-2 text-xs text-slate-500 leading-relaxed">Contexto das sugestões e das respostas. Troque no seletor abaixo ou em <em>Selecionar obra</em>.</div>
+            <div class="mt-2 text-xs text-slate-500 leading-relaxed">Contexto das sugestões e das respostas. Só há uma obra no seu acesso; para outro projeto peça vínculo ao gestor ou use <a href="{% url 'select-project' %}" class="text-blue-700 underline font-medium">Selecionar obra</a>.</div>
         </div>
         {% elif available_projects %}
         <div class="assistant-context-card assistant-context-card--pick text-sm text-slate-800">
