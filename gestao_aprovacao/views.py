@@ -1038,10 +1038,10 @@ def export_list_workorders_excel(request):
 def create_workorder(request):
     """
     Cria um novo pedido de obra.
-    Apenas solicitantes podem criar pedidos.
-    Aprovadores e admins não criam pedidos, apenas aprovam.
+    Quem pode criar: solicitante (grupo ou permissão na obra) ou administrador.
+    Na criação, código e envio para aprovação são tratados na view (admin não escolhe status/código no form).
     """
-    # Apenas solicitantes podem criar pedidos
+    # Quem pode criar pedidos
     # Verificar se é solicitante através do grupo OU WorkOrderPermission
     
     # Verificar se o usuário está no grupo "Solicitante" OU tem permissão de solicitante
@@ -1064,7 +1064,9 @@ def create_workorder(request):
     
     # is_solicitante_only: é solicitante (grupo ou permissão) mas NÃO é admin ou aprovador
     is_solicitante_only = (is_solicitante_group or tem_permissao_solicitante) and not (is_aprovador(request.user) or is_admin(request.user))
-    
+    # Admin criando pedido: não exibir código/status (gerados na view como para o solicitante).
+    admin_hide_system_fields = is_admin(request.user) and not is_solicitante_only
+
     if request.method == 'POST':
         posted_token = request.POST.get('_form_token', '')
         if not _consume_form_token(request, 'create_workorder', posted_token):
@@ -1074,7 +1076,12 @@ def create_workorder(request):
             )
             return redirect('gestao:list_workorders')
 
-        form = WorkOrderForm(request.POST, user=request.user, is_creating=True)
+        form = WorkOrderForm(
+            request.POST,
+            user=request.user,
+            is_creating=True,
+            admin_hide_system_fields=admin_hide_system_fields,
+        )
         
         # Validar anexos obrigatórios para solicitantes
         anexos_obrigatorios = False
@@ -1167,13 +1174,11 @@ def create_workorder(request):
                 
                 workorder.codigo = novo_codigo
             
-            # Para solicitantes, o pedido deve ir direto para "pendente" para aprovação
-            # Aprovadores não criam pedidos, apenas aprovam
-            if is_solicitante_only:
+            # Solicitante ou admin (formulário sem status): enviar direto para aprovação.
+            if is_solicitante_only or admin_hide_system_fields:
                 workorder.status = 'pendente'
                 workorder.data_envio = timezone.now()
             elif not workorder.status:
-                # Se for admin criando, pode escolher o status
                 workorder.status = 'pendente'
             
             # Se status for "pendente", preencher data_envio
@@ -1245,7 +1250,11 @@ def create_workorder(request):
         r = _redirect_if_back_after_post(request, '_prevent_back_create_workorder', 'gestao:list_workorders')
         if r:
             return r
-        form = WorkOrderForm(user=request.user, is_creating=True)
+        form = WorkOrderForm(
+            user=request.user,
+            is_creating=True,
+            admin_hide_system_fields=admin_hide_system_fields,
+        )
     
     context = {
         'form': form,
