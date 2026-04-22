@@ -20,6 +20,28 @@
         </div>
     </header>
 
+    {% if pending_count == 0 %}
+    <div class="wf-fila-hint" role="note">
+        <p class="wf-fila-hint__title">Por que pode não aparecer nada na fila</p>
+        <ul class="wf-fila-hint__list">
+            <li>Esta página lista só processos em que <strong>você</strong> é aprovador na <strong>alçada atual</strong> (utilizador direto ou grupo da alçada). Não é a lista geral de contratos do Sienge.</li>
+            <li>Contratos e medições do Sienge só viram processo aqui depois do comando de sincronização, com <strong>fluxo ativo</strong> na obra para as categorias <strong>contrato</strong> e <strong>medicao</strong>, e o <strong>contractNumber</strong> do Sienge alinhado ao projeto/obra no Lplan.</li>
+        </ul>
+        {% if workflow_fila_empty_stats %}
+        <p class="wf-fila-hint__stats">
+            Indicadores no sistema neste momento:
+            <strong>{{ workflow_fila_empty_stats.awaiting_total }}</strong> processo(s) aguardando alguma alçada (qualquer aprovador);
+            <strong>{{ workflow_fila_empty_stats.sienge_inbound_total }}</strong> criado(s) a partir do Sienge (contrato ou medição de contrato).
+        </p>
+        {% if workflow_show_config_nav and workflow_fila_empty_stats.awaiting_total %}
+        <p class="wf-fila-hint__foot">Há processos em espera, mas nenhum na <em>sua</em> fila: verifique participantes nas alçadas em <a href="{% url 'workflow_aprovacao:config_flow_list' %}">Fluxos</a>.</p>
+        {% elif workflow_show_config_nav and workflow_fila_empty_stats.sienge_inbound_total == 0 %}
+        <p class="wf-fila-hint__foot">Se esperava dados do Sienge, confira o sync (<code>manage.py sync_sienge_central_measurements</code>), o cruzamento de obras e se existem pendências no Sienge para os números de contrato das suas obras.</p>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="wf-fila-layout">
         <div class="wf-fila-main">
             <section class="wf-panel" aria-labelledby="wf-pending-heading">

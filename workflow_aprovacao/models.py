@@ -3,6 +3,8 @@ Modelos da Central de Aprovações.
 
 Obra canónica: core.Project (alinhado a core.sync_obras).
 """
+import json
+
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -194,6 +196,102 @@ class SyncStatus(models.TextChoices):
     IN_PROGRESS = 'in_progress', 'Sincronização em andamento'
     SYNCED = 'synced', 'Sincronizado com Sienge'
     FAILED = 'failed', 'Falha na sincronização'
+
+
+class ApprovalConfigBacklogStatus(models.TextChoices):
+    """Estado na fila administrativa de configuração de fluxo."""
+
+    PENDING = 'pending', 'Aguardando definição de fluxo/alçadas'
+    DISMISSED = 'dismissed', 'Dispensado (não criar por agora)'
+    RESOLVED = 'resolved', 'Resolvido — processo criado ou reprocessado'
+
+
+class ApprovalConfigBlockReason(models.TextChoices):
+    """Por que o motor não iniciou o processo."""
+
+    NO_FLOW = 'no_flow', 'Sem fluxo ativo ou sem alçada inicial'
+    UNSUPPORTED_POLICY = 'unsupported_policy', 'Política de alçada não suportada'
+
+
+class ApprovalConfigBacklog(models.Model):
+    """
+    Fila para administradores: chegou integração (ex.: Sienge) com obra+categoria
+    identificadas, mas não existia fluxo ativo para iniciar o processo.
+    """
+
+    status = models.CharField(
+        max_length=20,
+        choices=ApprovalConfigBacklogStatus.choices,
+        default=ApprovalConfigBacklogStatus.PENDING,
+        db_index=True,
+    )
+    block_reason = models.CharField(
+        max_length=40,
+        choices=ApprovalConfigBlockReason.choices,
+        default=ApprovalConfigBlockReason.NO_FLOW,
+    )
+
+    project = models.ForeignKey(
+        'core.Project',
+        on_delete=models.CASCADE,
+        related_name='approval_config_backlog',
+    )
+    category = models.ForeignKey(
+        ProcessCategory,
+        on_delete=models.PROTECT,
+        related_name='approval_config_backlog',
+    )
+    external_system = models.CharField(max_length=32, default='sienge', db_index=True)
+    external_id = models.CharField(max_length=120, db_index=True)
+    external_entity_type = models.CharField(max_length=80, blank=True)
+    title = models.CharField(max_length=300, blank=True)
+    summary = models.TextField(blank=True)
+    source_payload = models.JSONField(default=dict, blank=True)
+    last_error_message = models.TextField(blank=True)
+
+    hit_count = models.PositiveIntegerField(default=1)
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='resolved_approval_backlog',
+    )
+    linked_process = models.ForeignKey(
+        'ApprovalProcess',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='origin_backlog_entry',
+    )
+    dismiss_note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = 'Pendência de configuração de fluxo'
+        verbose_name_plural = 'Pendências de configuração de fluxo'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['external_system', 'external_id'],
+                name='workflow_unique_backlog_external',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.project.code} · {self.category.code} · {self.external_id}'
+
+    def formatted_source_payload(self, max_len: int = 12000) -> str:
+        try:
+            s = json.dumps(self.source_payload or {}, indent=2, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return ''
+        if len(s) > max_len:
+            return s[: max_len - 20] + '\n… (truncado)'
+        return s
 
 
 class ApprovalProcess(models.Model):

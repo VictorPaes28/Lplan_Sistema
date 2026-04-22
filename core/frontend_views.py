@@ -5768,17 +5768,26 @@ def project_delete_view(request, pk):
 
     # Remove a obra correspondente no GestControll para sumir da listagem de lá também
     from gestao_aprovacao.models import Obra as ObraGestao
+    from django.db import transaction
     from django.db.models import ProtectedError
 
-    obras_gestao = ObraGestao.objects.filter(project=project)
-    try:
-        obras_gestao.delete()
-        removido_gestao = True
-    except ProtectedError:
-        # Há pedidos vinculados; não é possível excluir a obra no GestControll
-        removido_gestao = False
+    with transaction.atomic():
+        # Central de Aprovações (workflow): ApprovalProcess referencia ApprovalFlowDefinition com PROTECT —
+        # é preciso apagar processos antes dos fluxos; antes de apagar o Project.
+        from workflow_aprovacao.models import ApprovalFlowDefinition, ApprovalProcess
 
-    project.delete()
+        ApprovalProcess.objects.filter(project=project).delete()
+        ApprovalFlowDefinition.objects.filter(project=project).delete()
+
+        obras_gestao = ObraGestao.objects.filter(project=project)
+        try:
+            obras_gestao.delete()
+            removido_gestao = True
+        except ProtectedError:
+            # Há pedidos vinculados; não é possível excluir a obra no GestControll
+            removido_gestao = False
+
+        project.delete()
 
     # Se a obra excluída era a selecionada na sessão, limpa para evitar referência inválida
     if request.session.get('selected_project_id') == pk:

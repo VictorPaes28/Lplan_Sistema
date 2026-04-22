@@ -1,0 +1,124 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:config_flow_list' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <p class="wf-text-muted" style="margin:0 0 1rem 0; font-size:0.875rem; max-width:52rem;">
+        Quando o Sienge (ou outra origem) envia um item com obra e categoria identificadas, mas <strong>não existe fluxo ativo</strong>
+        para esse par, o registo entra aqui. Configure o fluxo em <a href="{% url 'workflow_aprovacao:config_flow_list' %}">Fluxos</a> e use
+        <strong>Tentar criar processo</strong> para disparar o processo sem esperar o próximo sync.
+    </p>
+
+    <form method="get" class="wf-backlog-toolbar" action="">
+        <label>
+            Estado
+            <select name="status" onchange="this.form.submit()">
+                <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Aguardando ação</option>
+                <option value="dismissed" {% if filter_status == 'dismissed' %}selected{% endif %}>Dispensados</option>
+                <option value="resolved" {% if filter_status == 'resolved' %}selected{% endif %}>Resolvidos</option>
+                <option value="all" {% if filter_status == 'all' %}selected{% endif %}>Todos</option>
+            </select>
+        </label>
+        <label>
+            Obra
+            <select name="project">
+                <option value="">—</option>
+                {% for p in projects_for_filter %}
+                <option value="{{ p.pk }}" {% if filter_project_id == p.pk %}selected{% endif %}>{{ p.code }} — {{ p.name|truncatechars:40 }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Categoria
+            <select name="category">
+                <option value="">—</option>
+                {% for c in categories_for_filter %}
+                <option value="{{ c.pk }}" {% if filter_category_id == c.pk %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Busca
+            <input type="text" name="q" value="{{ filter_q|default:'' }}" placeholder="título, ID externo, código…" maxlength="200">
+        </label>
+        <button type="submit">Filtrar</button>
+    </form>
+
+    {% if not backlog_items %}
+    <div class="wf-empty wf-empty--inline">
+        <p class="wf-empty__title">Nenhum registo neste filtro</p>
+        <p class="wf-empty__text">Quando o sync encontrar pendência no Sienge e a obra estiver mapeada sem fluxo, aparecerá aqui.</p>
+    </div>
+    {% endif %}
+
+    {% for item in backlog_items %}
+    <article class="wf-backlog-card">
+        <div class="wf-backlog-card__head">
+            <h2 class="wf-backlog-card__title">{{ item.title|default:"(sem título)" }}</h2>
+            <span class="wf-pill {% if item.status == 'pending' %}wf-pill--warn{% elif item.status == 'resolved' %}wf-pill--ok{% else %}wf-pill--muted{% endif %}">{{ item.get_status_display }}</span>
+        </div>
+        <p class="wf-backlog-meta">
+            <span class="wf-mono">{{ item.project.code }}</span> — {{ item.project.name|truncatechars:56 }}
+            · <strong>{{ item.category.name }}</strong> ({{ item.category.code }})
+            · externo: <span class="wf-mono">{{ item.external_system }}:{{ item.external_id }}</span>
+            {% if item.external_entity_type %}· tipo <span class="wf-mono">{{ item.external_entity_type }}</span>{% endif %}
+            · visto <strong>{{ item.hit_count }}</strong> vez(es)
+            · atualizado {{ item.updated_at|date:"d/m/Y H:i" }}
+        </p>
+        {% if item.last_error_message %}
+        <p class="wf-alert wf-alert--error" style="margin:0 0 0.5rem 0; font-size:0.8125rem;">{{ item.last_error_message }}</p>
+        {% endif %}
+        {% if item.summary %}
+        <div style="font-size:0.875rem; color:#334155; white-space:pre-wrap;">{{ item.summary }}</div>
+        {% endif %}
+        {% if item.source_payload %}
+        <details style="margin-top:0.5rem;">
+            <summary style="cursor:pointer; font-size:0.8125rem; font-weight:600; color:var(--wf-accent);">Payload recebido (Sienge)</summary>
+            <pre class="wf-pre-json">{{ item.formatted_source_payload }}</pre>
+        </details>
+        {% endif %}
+
+        <div class="wf-backlog-actions">
+            {% if item.flow_edit_pk %}
+            <a href="{% url 'workflow_aprovacao:flow_edit' item.flow_edit_pk %}" class="wf-btn-table" style="display:inline-flex; align-items:center;">Abrir fluxo desta obra/categoria</a>
+            {% else %}
+            <a href="{% url 'workflow_aprovacao:config_flow_list' %}" class="wf-btn-table" style="display:inline-flex; align-items:center;">Criar fluxo (obra + categoria)</a>
+            {% endif %}
+
+            {% if item.status == 'pending' %}
+            <form method="post" action="{% url 'workflow_aprovacao:config_backlog_retry' item.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="wf-btn--primary">Tentar criar processo</button>
+            </form>
+            <form method="post" action="{% url 'workflow_aprovacao:config_backlog_dismiss' item.pk %}">
+                {% csrf_token %}
+                <input type="text" name="note" placeholder="Motivo (opcional)" maxlength="500" style="min-width:12rem; padding:0.35rem 0.5rem; border:1px solid #e2e8f0; border-radius:6px; font-size:0.8125rem;">
+                <button type="submit" class="wf-btn--danger">Dispensar</button>
+            </form>
+            {% endif %}
+
+            {% if item.status == 'dismissed' %}
+            <form method="post" action="{% url 'workflow_aprovacao:config_backlog_reopen' item.pk %}">
+                {% csrf_token %}
+                <button type="submit">Reabrir</button>
+            </form>
+            {% endif %}
+
+            {% if item.linked_process_id %}
+            <a href="{% url 'workflow_aprovacao:process_detail' item.linked_process_id %}" class="wf-btn-table">Ver processo #{{ item.linked_process_id }}</a>
+            {% endif %}
+        </div>
+        {% if item.status == 'dismissed' and item.dismiss_note %}
+        <p class="wf-text-muted" style="margin:0.5rem 0 0 0; font-size:0.8125rem;"><strong>Nota:</strong> {{ item.dismiss_note }}</p>
+        {% endif %}
+    </article>
+    {% endfor %}
+</div>
+{% endblock %}
