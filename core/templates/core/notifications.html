@@ -1,131 +1,32 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block back_url %}{% url 'dashboard' %}{% endblock %}
 {% block page_title %}Notificações{% endblock %}
-{% block page_subtitle %}Acompanhe alertas e atualizações do sistema{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
-<style>
-.notif-wrap { width: 100%; max-width: 1100px; margin: 0 auto; }
-.notif-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.notif-subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
-.notif-stats { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; }
-.notif-stat-chip {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.1rem;
-  min-width: 5.5rem;
-  padding: 0.5rem 0.75rem;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-.notif-stat-chip-lbl {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #64748b;
-  line-height: 1.2;
-}
-.notif-stat-chip-num { font-size: 1rem; font-weight: 800; color: #0f172a; line-height: 1.2; }
-.notif-mark-all-form { display: inline-flex; align-items: stretch; margin: 0; }
-.notif-mark-all-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #475569;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.notif-mark-all-btn:hover { background: #f8fafc; border-color: #cbd5e1; color: #334155; }
-.notif-filters-section { margin-bottom: 1rem; padding: 1rem 1.25rem; }
-.notif-filters-section .central-section-title { margin-bottom: 0.85rem; padding-bottom: 0.65rem; }
-.notif-filters-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem 1rem;
-}
-.notif-filter-field {
-  flex: 1 1 10rem;
-  min-width: min(100%, 11rem);
-  max-width: 20rem;
-}
-.notif-filter-label {
-  display: block;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #64748b;
-  margin-bottom: 0.35rem;
-}
-.notif-filter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 0 0 auto;
-}
-.notif-filter-actions .central-btn-primary,
-.notif-filter-actions .central-btn-secondary { white-space: nowrap; }
-@media (max-width: 640px) {
-  .notif-filter-field { max-width: none; }
-}
-.notif-list { display: grid; gap: 8px; }
-.notif-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; transition: box-shadow .15s ease, border-color .15s ease; }
-.notif-card:hover { box-shadow: 0 4px 14px rgba(15,23,42,.08); border-color: #cbd5e1; }
-.notif-card.unread { border-left: 4px solid #2563eb; }
-.notif-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
-.notif-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.notif-icon { width: 22px; height: 22px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
-.notif-title { font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.notif-badge { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 3px 7px; border: 1px solid; }
-.notif-message { font-size: 13px; color: #334155; line-height: 1.45; margin-bottom: 8px; white-space: pre-line; overflow-wrap: anywhere; }
-.notif-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 11px; color: #64748b; }
-.notif-actions { margin-left: auto; display: flex; gap: 8px; }
-.notif-btn { border-radius: 9px; border: 1px solid #cbd5e1; background: #fff; color: #334155; padding: 5px 9px; font-size: 11px; font-weight: 600; text-decoration: none; }
-.notif-btn:hover { background: #f8fafc; }
-.notif-btn.primary { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
-.notif-btn.primary:hover { background: #dbeafe; }
-</style>
-{% endblock %}
+{% block page_subtitle %}Alertas e atualizações do sistema{% endblock %}
 
 {% block content %}
-<div class="notif-wrap">
-    <div class="notif-header">
-        <div>
-            <h2 class="text-xl font-bold text-slate-800">Notificações</h2>
-            <p class="notif-subtitle">
-                {% if unread_count > 0 %}Você tem {{ unread_count }} não lida{{ unread_count|pluralize }}{% else %}Todas as notificações foram lidas{% endif %}
-            </p>
-        </div>
-        <div class="notif-stats">
-            <div class="notif-stat-chip" role="status">
-                <span class="notif-stat-chip-lbl">Total</span>
-                <span class="notif-stat-chip-num">{{ notifications.paginator.count|default:notifications|length }}</span>
+<div class="lplan-notif-page">
+    <div class="lplan-notif-toolbar">
+        <p class="lplan-notif-lead">
+            {% if unread_count > 0 %}
+            {{ unread_count }} não lida{{ unread_count|pluralize }} no total.
+            {% else %}
+            Nenhuma pendência de leitura.
+            {% endif %}
+        </p>
+        <div class="lplan-notif-metrics">
+            <div class="lplan-notif-metric" role="status">
+                <span class="lplan-notif-metric-lbl">Nesta lista</span>
+                <span class="lplan-notif-metric-val">{{ notifications.paginator.count|default:notifications|length }}</span>
             </div>
-            <div class="notif-stat-chip" role="status">
-                <span class="notif-stat-chip-lbl">Não lidas</span>
-                <span class="notif-stat-chip-num">{{ unread_count }}</span>
+            <div class="lplan-notif-metric" role="status">
+                <span class="lplan-notif-metric-lbl">Não lidas</span>
+                <span class="lplan-notif-metric-val">{{ unread_count }}</span>
             </div>
             {% if unread_count > 0 %}
-            <form method="post" action="{% url 'notification-mark-all-read' %}" class="notif-mark-all-form">
+            <form method="post" action="{% url 'notification-mark-all-read' %}" class="lplan-notif-markall-form" style="margin:0;display:inline;">
                 {% csrf_token %}
-                <button type="submit" class="notif-mark-all-btn">
+                <button type="submit" class="lplan-notif-markall">
                     <i class="fas fa-check-double" aria-hidden="true"></i> Marcar todas
                 </button>
             </form>
@@ -133,80 +34,83 @@
         </div>
     </div>
 
-    <section class="central-section notif-filters-section" aria-label="Filtros de notificações">
-        <h2 class="central-section-title" style="font-size: 1rem;"><i class="fas fa-sliders-h text-slate-500" aria-hidden="true"></i> Filtros</h2>
-        <form method="get" class="notif-filters-row">
-            <div class="notif-filter-field">
-                <label class="notif-filter-label" for="notif-filter-type">Tipo</label>
-                <select name="type" id="notif-filter-type" class="central-input" style="width:100%;">
-                    <option value="">Todos os tipos</option>
-                    <option value="diary_pending" {% if filter_type == 'diary_pending' %}selected{% endif %}>Relatório pendente</option>
-                    <option value="diary_review" {% if filter_type == 'diary_review' %}selected{% endif %}>Relatório revisão</option>
-                    <option value="activity_delayed" {% if filter_type == 'activity_delayed' %}selected{% endif %}>Atividade atrasada</option>
-                    <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Sistema</option>
-                </select>
-            </div>
-            <div class="notif-filter-field">
-                <label class="notif-filter-label" for="notif-filter-read">Status</label>
-                <select name="read" id="notif-filter-read" class="central-input" style="width:100%;">
-                    <option value="">Todas</option>
-                    <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
-                    <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
-                </select>
-            </div>
-            <div class="notif-filter-actions">
-                <button type="submit" class="central-btn-primary">
-                    <i class="fas fa-filter" aria-hidden="true"></i> Aplicar
-                </button>
-                <a href="{% url 'notifications' %}" class="central-btn-secondary">Limpar</a>
-            </div>
-        </form>
-    </section>
+    <details class="lplan-notif-filters-details" id="lplan-notif-filters-details">
+        <summary class="lplan-notif-filters-summary">
+            <span class="lplan-notif-filters-summary-main">
+                <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                Filtros
+            </span>
+            <span class="lplan-notif-filters-summary-meta" aria-hidden="true">tipo · leitura</span>
+            <i class="fas fa-chevron-down lplan-notif-filters-chevron" aria-hidden="true"></i>
+        </summary>
+        <div class="lplan-notif-filters-panel">
+            <form method="get" class="lplan-notif-filters-row" aria-label="Filtros de notificações">
+                <div class="lplan-notif-field">
+                    <label class="lplan-notif-label" for="notif-filter-type">Tipo</label>
+                    <select name="type" id="notif-filter-type" class="lplan-notif-select">
+                        <option value="">Todos</option>
+                        <option value="diary_pending" {% if filter_type == 'diary_pending' %}selected{% endif %}>Relatório pendente</option>
+                        <option value="diary_review" {% if filter_type == 'diary_review' %}selected{% endif %}>Revisão de relatório</option>
+                        <option value="activity_delayed" {% if filter_type == 'activity_delayed' %}selected{% endif %}>Atividade atrasada</option>
+                        <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Sistema</option>
+                    </select>
+                </div>
+                <div class="lplan-notif-field">
+                    <label class="lplan-notif-label" for="notif-filter-read">Leitura</label>
+                    <select name="read" id="notif-filter-read" class="lplan-notif-select">
+                        <option value="">Todas</option>
+                        <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
+                        <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
+                    </select>
+                </div>
+                <div class="lplan-notif-filters-actions">
+                    <button type="submit" class="lplan-notif-btn lplan-notif-btn-primary">
+                        <i class="fas fa-filter" aria-hidden="true"></i> Aplicar
+                    </button>
+                    <a href="{% url 'notifications' %}" class="lplan-notif-btn lplan-notif-btn-ghost">Limpar</a>
+                </div>
+            </form>
+        </div>
+    </details>
 
-    <div class="notif-list">
+    <div class="lplan-notif-list">
     {% for notification in notifications %}
-    <article class="notif-card {% if not notification.is_read %}unread{% endif %}">
-        <div class="notif-card-top">
-            <div class="notif-title-row">
-                <span class="notif-icon
-                    {% if notification.notification_type == 'diary_pending' %}bg-yellow-100 text-yellow-700
-                    {% elif notification.notification_type == 'diary_review' %}bg-orange-100 text-orange-700
-                    {% elif notification.notification_type == 'activity_delayed' %}bg-red-100 text-red-700
+    <article class="lplan-notif-item {% if not notification.is_read %}lplan-notif-item--unread{% endif %}">
+        <div class="lplan-notif-item-head">
+            <div class="lplan-notif-item-title-row">
+                <span class="lplan-notif-item-ico
+                    {% if notification.notification_type == 'diary_pending' %}bg-amber-100 text-amber-800
+                    {% elif notification.notification_type == 'diary_review' %}bg-orange-100 text-orange-800
+                    {% elif notification.notification_type == 'activity_delayed' %}bg-red-100 text-red-800
                     {% else %}bg-slate-100 text-slate-700{% endif %}">
-                    <i class="fas fa-bell"></i>
+                    <i class="fas fa-bell" aria-hidden="true"></i>
                 </span>
-                <h3 class="notif-title">{{ notification.title }}</h3>
-                <span class="notif-badge
-                    {% if notification.notification_type == 'diary_pending' %}bg-yellow-50 text-yellow-700 border-yellow-200
-                    {% elif notification.notification_type == 'diary_review' %}bg-orange-50 text-orange-700 border-orange-200
-                    {% elif notification.notification_type == 'activity_delayed' %}bg-red-50 text-red-700 border-red-200
-                    {% else %}bg-slate-50 text-slate-700 border-slate-200{% endif %}">
-                    {{ notification.get_notification_type_display }}
-                </span>
+                <h3 class="lplan-notif-item-title">{{ notification.title }}</h3>
+                <span class="lplan-notif-tag">{{ notification.get_notification_type_display }}</span>
             </div>
-            <span class="text-xs text-slate-400">{{ notification.created_at|date:"d/m/Y H:i" }}</span>
+            <span class="lplan-notif-time">{{ notification.created_at|date:"d/m/Y H:i" }}</span>
         </div>
 
-        <p class="notif-message">{{ notification.message }}</p>
+        <p class="lplan-notif-msg">{{ notification.message }}</p>
 
-        <div class="notif-meta">
+        <div class="lplan-notif-foot">
             {% if not notification.is_read %}
-            <span class="text-blue-700 font-semibold">Não lida</span>
+            <span class="lplan-notif-status lplan-notif-status--unread">Não lida</span>
             {% else %}
-            <span class="text-slate-500">Lida</span>
+            <span class="lplan-notif-status lplan-notif-status--read">Lida</span>
             {% endif %}
             {% if notification.related_diary %}
-            <span>•</span>
-            <a href="{% url 'diary-detail' notification.related_diary.id %}" class="notif-btn primary">
-                <i class="fas fa-external-link-alt mr-1"></i> Ver relatório
+            <span class="lplan-notif-status lplan-notif-status--read" aria-hidden="true">·</span>
+            <a href="{% url 'diary-detail' notification.related_diary.id %}" class="lplan-notif-item-btn lplan-notif-item-btn--accent">
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i> Relatório
             </a>
             {% endif %}
-            <div class="notif-actions">
+            <div class="lplan-notif-foot-actions">
                 {% if not notification.is_read %}
-                <form method="post" action="{% url 'notification-mark-read' notification.id %}">
+                <form method="post" action="{% url 'notification-mark-read' notification.id %}" style="margin:0;display:inline;">
                     {% csrf_token %}
-                    <button type="submit" class="notif-btn">
-                        <i class="fas fa-check mr-1"></i> Marcar como lida
+                    <button type="submit" class="lplan-notif-item-btn">
+                        <i class="fas fa-check" aria-hidden="true"></i> Marcar lida
                     </button>
                 </form>
                 {% endif %}
@@ -214,37 +118,48 @@
         </div>
     </article>
     {% empty %}
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-        <i class="fas fa-bell-slash text-gray-300 text-6xl mb-4"></i>
-        <p class="text-gray-600 text-lg">Nenhuma notificação encontrada</p>
-        <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de busca</p>
+    <div class="lplan-notif-empty">
+        <i class="fas fa-bell-slash" aria-hidden="true"></i>
+        <p style="margin:0;font-size:0.9375rem;font-weight:600;color:#475569;">Nenhuma notificação nesta vista</p>
+        <p style="margin:0.35rem 0 0;font-size:0.8125rem;">Ajuste os filtros ou volte mais tarde.</p>
     </div>
     {% endfor %}
     </div>
 
     {% if notifications.has_other_pages %}
-    <div class="flex justify-center items-center flex-wrap gap-2 mt-6">
+    <nav class="lplan-notif-pager" aria-label="Paginação">
         {% if notifications.has_previous %}
         <a href="?page={{ notifications.previous_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}"
-           class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center"
-           style="min-width: 44px; min-height: 44px;">
-            <i class="fas fa-chevron-left"></i>
+           aria-label="Página anterior">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
         </a>
         {% endif %}
 
-        <span class="px-4 py-2.5 bg-slate-900 text-white rounded-lg text-sm">
-            Página {{ notifications.number }} de {{ notifications.paginator.num_pages }}
+        <span class="lplan-notif-pager-current" aria-current="page">
+            {{ notifications.number }} / {{ notifications.paginator.num_pages }}
         </span>
 
         {% if notifications.has_next %}
         <a href="?page={{ notifications.next_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}"
-           class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center"
-           style="min-width: 44px; min-height: 44px;">
-            <i class="fas fa-chevron-right"></i>
+           aria-label="Próxima página">
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
         </a>
         {% endif %}
-    </div>
+    </nav>
     {% endif %}
 </div>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+  var el = document.getElementById('lplan-notif-filters-details');
+  if (!el || !window.matchMedia) return;
+  function sync() {
+    el.open = window.matchMedia('(min-width: 768px)').matches;
+  }
+  sync();
+  window.matchMedia('(min-width: 768px)').addEventListener('change', sync);
+})();
+</script>
+{% endblock %}

@@ -3499,6 +3499,25 @@ def edit_my_profile(request):
             perfil.foto_perfil = request.FILES['foto_perfil']
             perfil.save()
         
+        try:
+            from audit.action_codes import AuditAction
+            from audit.recording import record_audit_event
+
+            record_audit_event(
+                actor=user,
+                subject_user=user,
+                action_code=AuditAction.USER_SELF_PROFILE_UPDATED,
+                summary='Perfil próprio atualizado (nome, e-mail, foto e/ou senha)',
+                payload={
+                    'password_changed': bool(new_password),
+                    'photo_changed': 'foto_perfil' in request.FILES,
+                },
+                module='accounts',
+                request=request,
+            )
+        except Exception:
+            pass
+
         messages.success(request, 'Seu perfil foi atualizado com sucesso!')
         return redirect('gestao:edit_my_profile')
     
