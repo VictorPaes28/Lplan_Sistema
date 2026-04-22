@@ -58,3 +58,11 @@ class WorkflowViewsSmokeTests(TestCase):
         self.client.login(username='wfview', password='secret')
         r = self.client.get(reverse('workflow_aprovacao:config_flow_list'))
         self.assertEqual(r.status_code, 403)
+
+    def test_flow_edit_200_for_admin(self):
+        admin_user = User.objects.create_user(username='wfadmin', password='secret')
+        g, _ = Group.objects.get_or_create(name=GRUPOS.CENTRAL_APROVACOES_ADMIN)
+        admin_user.groups.add(g)
+        self.client.login(username='wfadmin', password='secret')
+        r = self.client.get(reverse('workflow_aprovacao:flow_edit', args=[self.flow.pk]))
+        self.assertEqual(r.status_code, 200)

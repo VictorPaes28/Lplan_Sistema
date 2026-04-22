@@ -1,5 +1,9 @@
+import json
+
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import Group
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -20,6 +24,24 @@ from workflow_aprovacao.forms import CommentForm, NewFlowForm
 from workflow_aprovacao.models import ApprovalFlowDefinition, ApprovalProcess
 from workflow_aprovacao.querysets import processes_inbox_snapshot, processes_pending_for_user
 from workflow_aprovacao.services.engine import ApprovalEngine
+from workflow_aprovacao.services.flow_config import (
+    FlowConfigError,
+    apply_flow_configuration,
+    flow_structure_locked,
+    serialize_flow_for_editor,
+)
+
+User = get_user_model()
+
+
+def _workflow_select_options():
+    users_qs = User.objects.filter(is_active=True).order_by('first_name', 'last_name', 'username')
+    users_list = []
+    for u in users_qs:
+        label = (u.get_full_name() or '').strip() or u.username
+        users_list.append({'id': u.pk, 'label': f'{label} ({u.username})'})
+    groups_list = [{'id': g.pk, 'label': g.name} for g in Group.objects.order_by('name')]
+    return users_list, groups_list
 
 
 def _workflow_context(request, extra=None):
@@ -126,13 +148,8 @@ def config_flow_list(request):
             category=form.cleaned_data['category'],
             is_active=True,
         )
-        messages.success(
-            request,
-            'Fluxo criado. Adicione alçadas e participantes no painel administrativo.',
-        )
-        return redirect(
-            reverse('admin:workflow_aprovacao_approvalflowdefinition_change', args=[flow.pk])
-        )
+        messages.success(request, 'Fluxo criado. Configure as alçadas e participantes abaixo.')
+        return redirect(reverse('workflow_aprovacao:flow_edit', args=[flow.pk]))
 
     return render(
         request,
@@ -143,7 +160,50 @@ def config_flow_list(request):
                 'flows': flows,
                 'new_flow_form': form,
                 'page_title': 'Configuração de fluxos',
-                'page_subtitle': 'Obra + categoria — alçadas e participantes no Admin Django',
+                'page_subtitle': 'Obra, categoria, alçadas e aprovadores',
+            },
+        ),
+    )
+
+
+@require_workflow_configure
+def flow_edit(request, pk):
+    flow = get_object_or_404(
+        ApprovalFlowDefinition.objects.select_related('project', 'category'),
+        pk=pk,
+    )
+    locked = flow_structure_locked(flow)
+    users_list, groups_list = _workflow_select_options()
+
+    if request.method == 'POST':
+        raw = (request.POST.get('config_payload') or '').strip()
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            messages.error(request, 'Formato inválido. Recarregue a página e tente novamente.')
+        else:
+            try:
+                apply_flow_configuration(flow, payload, structure_locked=locked)
+            except FlowConfigError as e:
+                messages.error(request, str(e))
+            else:
+                messages.success(request, 'Configuração gravada com sucesso.')
+                return redirect('workflow_aprovacao:flow_edit', pk=flow.pk)
+
+    initial = serialize_flow_for_editor(flow)
+    return render(
+        request,
+        'workflow_aprovacao/flow_edit.html',
+        _workflow_context(
+            request,
+            {
+                'flow': flow,
+                'structure_locked': locked,
+                'initial_config': initial,
+                'users_for_select': users_list,
+                'groups_for_select': groups_list,
+                'page_title': f'Fluxo · {flow.project.code}',
+                'page_subtitle': f'{flow.category.name} · {flow.project.name}',
             },
         ),
     )

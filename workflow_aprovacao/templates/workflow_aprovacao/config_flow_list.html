@@ -3,7 +3,7 @@
 {% block back_url %}{% url 'workflow_aprovacao:pending' %}{% endblock %}
 
 {% block page_title %}{{ page_title }}{% endblock %}
-{% block page_subtitle %}Obra + categoria · alçadas no Admin{% endblock %}
+{% block page_subtitle %}Obra, categoria e aprovadores por alçada{% endblock %}
 
 {% block content %}
 <div class="wf-root">
@@ -13,7 +13,7 @@
     <section class="wf-panel" style="margin-bottom:1.75rem;">
         <div class="wf-panel__head">
             <h2 class="wf-panel__title">Novo fluxo</h2>
-            <p class="wf-panel__meta">Cria a combinação obra + categoria. Em seguida cadastre alçadas e participantes no Admin.</p>
+            <p class="wf-panel__meta">Escolha obra e categoria e clique em «Criar e configurar». Na página seguinte você define <strong>quantas alçadas</strong> existem e <strong>quem aprova</strong> em cada uma.</p>
         </div>
         <div class="wf-panel__body">
             <form method="post" class="wf-form-grid">
@@ -33,7 +33,7 @@
                     <div class="wf-alert wf-alert--error" style="margin-bottom:0.75rem;">{{ new_flow_form.non_field_errors }}</div>
                     {% endif %}
                     <button type="submit" class="wf-btn-primary">
-                        <i class="fas fa-external-link-alt" aria-hidden="true"></i> Criar e abrir no Admin
+                        <i class="fas fa-sliders-h" aria-hidden="true"></i> Criar e configurar
                     </button>
                 </div>
             </form>
@@ -72,7 +72,7 @@
                                 {% endif %}
                             </td>
                             <td class="wf-col-action">
-                                <a href="{% url 'admin:workflow_aprovacao_approvalflowdefinition_change' f.pk %}" class="wf-btn-table">Editar</a>
+                                <a href="{% url 'workflow_aprovacao:flow_edit' f.pk %}" class="wf-btn-table">Configurar</a>
                             </td>
                         </tr>
                         {% endfor %}

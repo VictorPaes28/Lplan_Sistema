@@ -9,7 +9,7 @@
     </a>
     {% if workflow_show_config_nav %}
     <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
-       class="{% if request.resolver_match.url_name == 'config_flow_list' %}wf-nav--active{% endif %}">
+       class="{% if request.resolver_match.url_name == 'config_flow_list' or request.resolver_match.url_name == 'flow_edit' %}wf-nav--active{% endif %}">
         <i class="fas fa-sitemap" aria-hidden="true"></i> Fluxos
     </a>
     {% endif %}

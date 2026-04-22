@@ -628,12 +628,14 @@ def export_list_workorders_pdf(request):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=1.7 * cm,
-        leftMargin=1.7 * cm,
-        topMargin=1.2 * cm,
-        bottomMargin=1.2 * cm,
+        rightMargin=2.0 * cm,
+        leftMargin=2.0 * cm,
+        topMargin=1.4 * cm,
+        bottomMargin=1.4 * cm,
     )
     styles = getSampleStyleSheet()
+    content_width = doc.width
+    report_width = max(content_width - (0.3 * cm), 12 * cm)
     normal = ParagraphStyle('ListPdfNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, textColor=color_text, leading=9)
     th = ParagraphStyle('ListPdfTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=7.5, textColor=colors.white, alignment=TA_CENTER)
     title_style = ParagraphStyle('ListPdfTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=13, textColor=color_primary, alignment=TA_CENTER)
@@ -669,15 +671,17 @@ def export_list_workorders_pdf(request):
     lp = _logo_path()
     if lp:
         from reportlab.platypus import Image as RLImage
-        logo = RLImage(lp, width=4.8 * cm, height=1.15 * cm)
-        text_block = Table([[title_main], [title_sub]], colWidths=[11.2 * cm])
+        logo_col_w = min(4.8 * cm, report_width * 0.30)
+        text_col_w = max(report_width - logo_col_w, 8 * cm)
+        logo = RLImage(lp, width=4.4 * cm, height=1.05 * cm)
+        text_block = Table([[title_main], [title_sub]], colWidths=[text_col_w])
         text_block.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
-        hdr = Table([[logo, text_block]], colWidths=[4.8 * cm, 11.2 * cm])
+        hdr = Table([[logo, text_block]], colWidths=[logo_col_w, text_col_w], hAlign='CENTER')
     else:
-        hdr = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+        hdr = Table([[title_main], [title_sub]], colWidths=[report_width], hAlign='CENTER')
     hdr.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.white),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
@@ -685,51 +689,167 @@ def export_list_workorders_pdf(request):
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LINEBELOW', (0, -1), (-1, -1), 1.0, color_primary),
+        ('LINEBELOW', (0, -1), (-1, -1), 0.7, color_primary),
     ]))
     story.append(hdr)
     story.append(Spacer(1, 0.35 * cm))
 
     tipo_dict = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
     status_dict = dict(WorkOrder.STATUS_CHOICES)
+    section_title = ParagraphStyle(
+        'ListPdfSection',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9.3,
+        textColor=color_primary,
+        spaceBefore=2,
+        spaceAfter=4,
+    )
+    kpi_text = ParagraphStyle(
+        'ListPdfKPI',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.2,
+        textColor=color_text,
+        leading=10.5,
+    )
 
+    def _clip(v, n=90):
+        txt = str(v or '').strip()
+        if len(txt) <= n:
+            return txt or '—'
+        return txt[: max(0, n - 3)] + '...'
+
+    def _fmt_dt(dt):
+        return dt.strftime('%d/%m/%Y %H:%M') if dt else '—'
+
+    detail_rows = []
+    status_counts = {}
+    tipo_reprov_counts = {}
+    total_reprov_events = 0
+    pedidos_com_reprovacao = 0
+    pendentes_envelhecidos = []
+
+    for wo in items:
+        status_label = status_dict.get(wo.status, wo.status or '')
+        tipo_label = tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')
+        solicitante = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
+        obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
+        reprovacoes = getattr(wo, 'prefetched_reprovacoes', None) or []
+        qtd_reprov = len(reprovacoes)
+        ultimo_motivo = _motivo_reprovacao_listagem(wo)
+        if ultimo_motivo == '—' and qtd_reprov > 0:
+            # Pedido pode não estar mais "reprovado", mas ainda ter histórico relevante.
+            apr = reprovacoes[0]
+            tags_txt = ', '.join(t.nome for t in apr.tags_erro.all()) if apr.tags_erro.all() else ''
+            com_txt = (apr.comentario or '').strip()
+            ultimo_motivo = ' | '.join([x for x in [tags_txt, com_txt] if x]) or '—'
+
+        ultima_decisao = wo.data_aprovacao
+        if not ultima_decisao and qtd_reprov > 0:
+            ultima_decisao = reprovacoes[0].created_at
+
+        if wo.status in ['pendente', 'reaprovacao'] and wo.data_envio:
+            try:
+                idade = (timezone.now() - wo.data_envio).days
+                pendentes_envelhecidos.append((idade, wo.codigo))
+            except Exception:
+                pass
+
+        status_counts[status_label] = status_counts.get(status_label, 0) + 1
+        if qtd_reprov > 0:
+            pedidos_com_reprovacao += 1
+            total_reprov_events += qtd_reprov
+            tipo_reprov_counts[tipo_label] = tipo_reprov_counts.get(tipo_label, 0) + qtd_reprov
+
+        detail_rows.append([
+            Paragraph(_pdf_esc(wo.codigo), normal),
+            Paragraph(_pdf_esc(obra_txt), normal),
+            Paragraph(_pdf_esc(_clip(tipo_label, 24)), normal),
+            Paragraph(_pdf_esc(_clip(status_label, 18)), normal),
+            Paragraph(str(qtd_reprov), normal),
+            Paragraph(_pdf_esc(_clip(ultimo_motivo, 120)), normal),
+            Paragraph(_pdf_esc(_clip(solicitante, 24)), normal),
+            Paragraph(_pdf_esc(_fmt_dt(wo.data_envio)), normal),
+            Paragraph(_pdf_esc(_fmt_dt(ultima_decisao)), normal),
+        ])
+
+    total_exportado = len(items)
+    aprovados = status_counts.get(status_dict.get('aprovado', 'Aprovado'), 0)
+    reprovados_status = status_counts.get(status_dict.get('reprovado', 'Reprovado'), 0)
+    pendentes = status_counts.get(status_dict.get('pendente', 'Pendente Aprovação'), 0) + status_counts.get(status_dict.get('reaprovacao', 'Reaprovação'), 0)
+    taxa_pedidos_com_reprov = round((pedidos_com_reprovacao / total_exportado * 100), 1) if total_exportado else 0
+    media_reprov_por_pedido = round((total_reprov_events / pedidos_com_reprovacao), 2) if pedidos_com_reprovacao else 0
+
+    top_tipo = sorted(tipo_reprov_counts.items(), key=lambda x: x[1], reverse=True)
+    top_tipo_txt = f"{top_tipo[0][0]} ({top_tipo[0][1]})" if top_tipo else 'Sem reprovações'
+    pendentes_envelhecidos.sort(reverse=True, key=lambda x: x[0])
+    top_pendente_txt = (
+        f"{pendentes_envelhecidos[0][1]} ({pendentes_envelhecidos[0][0]} dias)"
+        if pendentes_envelhecidos else 'Sem pendências antigas'
+    )
+
+    story.append(Paragraph('VISÃO EXECUTIVA', section_title))
+    kpi_col_w = report_width / 4.0
+    kpi_tbl = Table([[
+        Paragraph(f"<b>Total de pedidos</b><br/><font size='11'><b>{total_exportado}</b></font>", kpi_text),
+        Paragraph(f"<b>Aprovados</b><br/><font size='11'><b>{aprovados}</b></font>", kpi_text),
+        Paragraph(f"<b>Pendentes/Reaprovação</b><br/><font size='11'><b>{pendentes}</b></font>", kpi_text),
+        Paragraph(f"<b>Pedidos com reprovação</b><br/><font size='11'><b>{taxa_pedidos_com_reprov}%</b></font>", kpi_text),
+    ]], colWidths=[kpi_col_w, kpi_col_w, kpi_col_w, kpi_col_w], hAlign='CENTER')
+    kpi_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('BOX', (0, 0), (-1, -1), 0.4, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(kpi_tbl)
+    story.append(Spacer(1, 0.18 * cm))
+
+    story.append(Paragraph('DIAGNÓSTICO RÁPIDO', section_title))
+    diag_tbl = Table([
+        [Paragraph('Tipo com maior volume de reprovação', th), Paragraph('Média de reprovações por pedido reprovado', th), Paragraph('Pendente mais antigo', th)],
+        [Paragraph(_pdf_esc(top_tipo_txt), normal), Paragraph(_pdf_esc(str(media_reprov_por_pedido)), normal), Paragraph(_pdf_esc(top_pendente_txt), normal)],
+    ], colWidths=[report_width / 3.0, report_width / 3.0, report_width / 3.0], hAlign='CENTER')
+    diag_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), color_primary),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BOX', (0, 0), (-1, -1), 0.35, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+    ]))
+    story.append(diag_tbl)
+    story.append(Spacer(1, 0.22 * cm))
+
+    story.append(Paragraph('DETALHAMENTO DOS PEDIDOS', section_title))
     data_rows = [[
         Paragraph('Código', th),
         Paragraph('Obra', th),
-        Paragraph('Credor', th),
         Paragraph('Tipo', th),
-        Paragraph('Valor medição', th),
         Paragraph('Status', th),
-        Paragraph('Motivo reprovação', th),
+        Paragraph('Reprovações', th),
+        Paragraph('Último motivo', th),
         Paragraph('Solicitante', th),
         Paragraph('Data envio', th),
-        Paragraph('Data aprovação', th),
-    ]]
-    for wo in items:
-        sol = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
-        obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
-        motivo_repr = _motivo_reprovacao_listagem(wo)
-        vmed = _valor_medicao_relatorio(wo)
-        data_rows.append([
-            Paragraph(_pdf_esc(wo.codigo), normal),
-            Paragraph(_pdf_esc(obra_txt), normal),
-            Paragraph(_pdf_esc((wo.nome_credor or '')[:32]), normal),
-            Paragraph(_pdf_esc(tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')), normal),
-            Paragraph(_pdf_esc(vmed), normal),
-            Paragraph(_pdf_esc(status_dict.get(wo.status, wo.status or '')), normal),
-            Paragraph(_pdf_esc(motivo_repr[:500]), normal),
-            Paragraph(_pdf_esc(sol[:22]), normal),
-            Paragraph(_pdf_esc(wo.data_envio.strftime('%d/%m/%Y %H:%M') if wo.data_envio else '—'), normal),
-            Paragraph(_pdf_esc(wo.data_aprovacao.strftime('%d/%m/%Y %H:%M') if wo.data_aprovacao else '—'), normal),
-        ])
+        Paragraph('Última decisão', th),
+    ]] + detail_rows
 
+    detail_fracs = [0.12, 0.08, 0.11, 0.10, 0.08, 0.23, 0.11, 0.09, 0.08]
+    detail_col_widths = [report_width * f for f in detail_fracs]
     tbl = LongTable(
         data_rows,
-        colWidths=[
-            1.65 * cm, 1.85 * cm, 2.1 * cm, 1.55 * cm, 1.55 * cm,
-            1.45 * cm, 2.45 * cm, 1.65 * cm, 1.45 * cm, 1.45 * cm,
-        ],
+        colWidths=detail_col_widths,
         repeatRows=1,
+        hAlign='CENTER',
     )
     tbl.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), color_primary),
@@ -742,6 +862,7 @@ def export_list_workorders_pdf(request):
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+        ('ALIGN', (4, 1), (4, -1), 'CENTER'),
     ]))
     story.append(tbl)
     if total_count > MAX_ROWS:
@@ -5028,10 +5149,28 @@ def _gerar_csv_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
 
 def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitacao, total_reprovacoes, tags_count):
     """Gera PDF corporativo de histórico de reprovações (padrão visual LPLAN)."""
+    import functools
+    from reportlab.lib.utils import ImageReader
     from reportlab.platypus import Image as RLImage
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
 
     def _safe(v, default='-'):
         return v if v not in (None, '') else default
+
+    def _safe_pdf_text(v, default='-'):
+        value = _safe(v, default=default)
+        text = str(value).strip()
+        if not text:
+            text = default
+        return xml_escape(text, {"'": "&#39;", '"': "&quot;"})
+
+    def _safe_pdf_multiline(v, default='-'):
+        text = str(_safe(v, default=default)).strip()
+        if not text:
+            text = default
+        escaped = xml_escape(text, {"'": "&#39;", '"': "&quot;"})
+        return escaped.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br/>')
 
     def _money(v):
         if not v:
@@ -5044,21 +5183,73 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
         return v.strftime('%d/%m/%Y %H:%M')
 
     def _get_logo_path():
-        base = settings.BASE_DIR
-        logo_dir = os.path.join(base, 'core', 'static', 'core', 'images')
-        for name in ('lplan-logo2.png', 'lplan_logo.png', 'lplan_logo.jpg', 'lplan_logo.jpeg'):
-            p = os.path.join(logo_dir, name)
-            if os.path.exists(p):
-                return p
-        return None
+        """
+        Usa a mesma resolução de logo do PDF do Diário de Obra,
+        garantindo padronização visual entre relatórios.
+        """
+        explicit_logo = os.path.join(
+            settings.BASE_DIR,
+            'core',
+            'static',
+            'core',
+            'images',
+            'lpla-logo-pdf-transparent.png',
+        )
+        if os.path.exists(explicit_logo):
+            return explicit_logo
 
+        try:
+            from core.utils.pdf_generator import _get_logo_absolute_path
+            return _get_logo_absolute_path()
+        except Exception:
+            base = settings.BASE_DIR
+            logo_dir = os.path.join(base, 'core', 'static', 'core', 'images')
+            for name in (
+                'lpla-logo-pdf-transparent.png',
+                'lpla-logo-pdf.png',
+                'lplan-logo2.png',
+                'lplan_logo.png',
+                'lplan_logo.jpg',
+                'lplan_logo.jpeg',
+            ):
+                p = os.path.join(logo_dir, name)
+                if os.path.exists(p):
+                    return p
+            return None
+
+    class _HistoricoCanvas(canvas.Canvas):
+        """Canvas com rodapé institucional e numeração de página."""
+        def __init__(self, *args, generated_at='', content_frame=None, **kwargs):
+            self._generated_at = generated_at
+            self._content_frame = content_frame
+            super().__init__(*args, **kwargs)
+
+        def showPage(self):
+            self.saveState()
+            try:
+                width, _height = self._pagesize
+                self.setStrokeColor(color_border)
+                self.setFillColor(color_sub)
+                self.setFont('Helvetica', 7.5)
+                self.line(16 * mm, 12 * mm, width - 16 * mm, 12 * mm)
+                footer = "LPlan - Gestão de Obras  |  Histórico de Reprovações  |  Gerado em %s  |  Página %s" % (
+                    self._generated_at,
+                    self.getPageNumber(),
+                )
+                self.drawCentredString(width / 2, 8.2 * mm, footer)
+            finally:
+                self.restoreState()
+                super().showPage()
+
+    # Paleta-base do RDO (evita aparência divergente)
     color_primary = colors.HexColor('#1A3A5C')
-    color_accent = colors.HexColor('#E8F0F8')
     color_border = colors.HexColor('#D0D9E3')
     color_text = colors.HexColor('#1C1C1C')
     color_sub = colors.HexColor('#5A5A5A')
-    color_warn_bg = colors.HexColor('#FFF3E0')
-    color_info_bg = colors.HexColor('#F4F8FC')
+    color_surface = colors.white
+    color_table_stripe = colors.HexColor('#F7F9FC')
+    line_soft = 0.35
+    line_inner = 0.2
 
     tipo_labels = {
         'contrato': 'Contrato',
@@ -5107,63 +5298,105 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=1.7 * cm,
-        leftMargin=1.7 * cm,
-        topMargin=1.7 * cm,
-        bottomMargin=1.5 * cm,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.3 * cm,
+        bottomMargin=1.8 * cm,
     )
     styles = getSampleStyleSheet()
     elements = []
+    content_width = doc.width
 
-    normal = ParagraphStyle('HistNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leading=12)
-    label = ParagraphStyle('HistLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=color_sub)
-    h2 = ParagraphStyle('HistH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=color_primary, spaceAfter=6)
-    bullet = ParagraphStyle('HistBullet', parent=styles['Normal'], fontName='Helvetica', fontSize=9.2, textColor=color_text, leftIndent=10, bulletIndent=0, leading=12)
-    table_head = ParagraphStyle('HistTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, textColor=colors.white, alignment=TA_CENTER)
-
-    # Header com logo + identificação
-    title_main = Paragraph("RELATÓRIO DE HISTÓRICO DE REPROVAÇÕES", ParagraphStyle('HistTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=13, textColor=colors.white, alignment=TA_LEFT))
-    title_sub = Paragraph(
-        f"<font color='white' size='9'>GesttControll · Solicitante: {_safe(solicitante.get_full_name() or solicitante.username)} · Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
-        ParagraphStyle('HistSub', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.white),
+    normal = ParagraphStyle('HistNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=8.8, textColor=color_text, leading=11.4)
+    label = ParagraphStyle('HistLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.8, textColor=color_sub)
+    h2 = ParagraphStyle('HistH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=10, textColor=color_primary, spaceAfter=3, spaceBefore=6, leading=12)
+    bullet = ParagraphStyle('HistBullet', parent=styles['Normal'], fontName='Helvetica', fontSize=8.8, textColor=color_text, leftIndent=9, bulletIndent=0, leading=11.2)
+    table_head = ParagraphStyle('HistTH', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.2, textColor=colors.white, alignment=TA_CENTER)
+    # Header no mesmo padrão visual do RDO (fundo claro e texto azul)
+    generated_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    header_title = Paragraph(
+        "<font color='#1A3A5C' size='14'><b>RELATÓRIO DE HISTÓRICO DE REPROVAÇÕES</b></font>",
+        ParagraphStyle(
+            name='HistHeaderTitle',
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            leading=16,
+            alignment=TA_CENTER,
+            textColor=color_primary,
+        ),
+    )
+    header_sub = Paragraph(
+        "<font color='#1A3A5C' size='9'>GesttControll · Solicitante: %s · Gerado em %s</font>" % (
+            _safe_pdf_text(solicitante.get_full_name() or solicitante.username),
+            generated_at,
+        ),
+        ParagraphStyle(
+            name='HistHeaderSub',
+            fontName='Helvetica',
+            fontSize=9,
+            leading=11,
+            alignment=TA_CENTER,
+            textColor=color_primary,
+        ),
     )
 
     logo_path = _get_logo_path()
+    logo_col_w = 5.2 * cm
+    text_col_w = max(content_width - (2 * logo_col_w), 1.0 * cm)
     if logo_path:
-        logo = RLImage(logo_path, width=2.2 * cm, height=1.0 * cm)
-        text_block = Table([[title_main], [title_sub]], colWidths=[13.4 * cm])
+        max_logo_w = 4.8 * cm
+        max_logo_h = 1.15 * cm
+        logo_w = max_logo_w
+        logo_h = max_logo_h
+        try:
+            src_w, src_h = ImageReader(logo_path).getSize()
+            if src_w and src_h:
+                scale = min(max_logo_w / float(src_w), max_logo_h / float(src_h))
+                logo_w = max(1.0 * cm, float(src_w) * scale)
+                logo_h = max(0.4 * cm, float(src_h) * scale)
+        except Exception:
+            pass
+        logo = RLImage(logo_path, width=logo_w, height=logo_h)
+        right_spacer = Paragraph(" ", ParagraphStyle(name='HistHeaderSpacer', fontSize=1))
+        text_block = Table([[header_title], [Spacer(1, 1.5)], [header_sub]], colWidths=[text_col_w], hAlign='CENTER')
         text_block.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('LEFTPADDING', (0, 0), (-1, -1), 0),
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
         ]))
-        header = Table([[logo, text_block]], colWidths=[2.6 * cm, 13.4 * cm])
+        header = Table([[logo, text_block, right_spacer]], colWidths=[logo_col_w, text_col_w, logo_col_w], hAlign='CENTER')
     else:
-        header = Table([[title_main], [title_sub]], colWidths=[16 * cm])
+        header = Table([[header_title], [header_sub]], colWidths=[content_width], hAlign='CENTER')
     header.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), color_primary),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EAF2FB')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
         ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, 0), (-1, -1), line_soft, color_border),
     ]))
     elements.append(header)
-    elements.append(Spacer(1, 0.28 * cm))
+    elements.append(Spacer(1, 0.18 * cm))
+
+    def _add_section_title(text):
+        elements.append(Paragraph(text, h2))
 
     tipo_desc = tipo_labels.get(tipo_solicitacao, tipo_solicitacao) if tipo_solicitacao else 'Todos os tipos'
     info_rows = [
-        [Paragraph('<b>Solicitante</b>', label), Paragraph(_safe(solicitante.get_full_name() or solicitante.username), normal)],
-        [Paragraph('<b>E-mail</b>', label), Paragraph(_safe(solicitante.email, 'Não informado'), normal)],
+        [Paragraph('<b>Solicitante</b>', label), Paragraph(_safe_pdf_text(solicitante.get_full_name() or solicitante.username), normal)],
+        [Paragraph('<b>E-mail</b>', label), Paragraph(_safe_pdf_text(solicitante.email, 'Não informado'), normal)],
         [Paragraph('<b>Período analisado</b>', label), Paragraph(f'Últimos {dias_periodo} dias', normal)],
-        [Paragraph('<b>Filtro de tipo</b>', label), Paragraph(tipo_desc, normal)],
+        [Paragraph('<b>Filtro de tipo</b>', label), Paragraph(_safe_pdf_text(tipo_desc), normal)],
     ]
-    info_tbl = Table(info_rows, colWidths=[4.2 * cm, 11.8 * cm])
+    info_tbl = Table(info_rows, colWidths=[4.0 * cm, max(content_width - 4.0 * cm, 8 * cm)])
     info_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), color_accent),
-        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
-        ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
+        ('BACKGROUND', (0, 0), (-1, -1), color_surface),
+        ('BOX', (0, 0), (-1, -1), line_soft, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), line_inner, color_border),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 7),
         ('RIGHTPADDING', (0, 0), (-1, -1), 7),
@@ -5171,21 +5404,22 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
     elements.append(info_tbl)
-    elements.append(Spacer(1, 0.28 * cm))
+    elements.append(Spacer(1, 0.2 * cm))
 
-    elements.append(Paragraph('RESUMO EXECUTIVO', h2))
+    _add_section_title('RESUMO EXECUTIVO')
+    resumo_col_w = content_width / 4.0
     resumo_tbl = Table([
         [
             Paragraph('<b>Total de reprovações</b><br/><font size="11"><b>%s</b></font>' % total_reprovacoes, normal),
-            Paragraph('<b>Tag mais frequente</b><br/>%s' % _safe(tag_frequente), normal),
+            Paragraph('<b>Tag mais frequente</b><br/>%s' % _safe_pdf_text(tag_frequente), normal),
             Paragraph('<b>Média diária</b><br/><font size="11"><b>%s</b></font> reprovações/dia' % media_diaria, normal),
             Paragraph('<b>Com comentário</b><br/><font size="11"><b>%s%%</b></font>' % str(taxa_comentarios).replace('.', ','), normal),
         ]
-    ], colWidths=[4 * cm, 4 * cm, 4 * cm, 4 * cm])
+    ], colWidths=[resumo_col_w, resumo_col_w, resumo_col_w, resumo_col_w])
     resumo_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), color_warn_bg),
-        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
-        ('INNERGRID', (0, 0), (-1, -1), 0.4, color_border),
+        ('BACKGROUND', (0, 0), (-1, -1), color_surface),
+        ('BOX', (0, 0), (-1, -1), line_soft, color_border),
+        ('INNERGRID', (0, 0), (-1, -1), line_inner, color_border),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('LEFTPADDING', (0, 0), (-1, -1), 7),
@@ -5194,21 +5428,22 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
     ]))
     elements.append(resumo_tbl)
-    elements.append(Spacer(1, 0.28 * cm))
+    elements.append(Spacer(1, 0.2 * cm))
 
-    elements.append(Paragraph('TOP TAGS DE REPROVAÇÃO', h2))
     if top_tags:
-        tags_data = [[Paragraph('Tag', table_head), Paragraph('Ocorrências', table_head)]]
+        qty_col_w = 3.4 * cm
+        tag_col_w = max(content_width - qty_col_w, 8 * cm)
+        tags_data = [[Paragraph('TOP TAGS DE REPROVAÇÃO', table_head), Paragraph('Ocorrências', table_head)]]
         for tag_name, qtd in top_tags:
-            tags_data.append([Paragraph(_safe(tag_name), normal), Paragraph(str(qtd), normal)])
-        tags_tbl = Table(tags_data, colWidths=[12.2 * cm, 3.8 * cm], repeatRows=1)
+            tags_data.append([Paragraph(_safe_pdf_text(tag_name), normal), Paragraph(str(qtd), normal)])
+        tags_tbl = Table(tags_data, colWidths=[tag_col_w, qty_col_w], repeatRows=1)
         tags_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), color_primary),
             ('ALIGN', (1, 1), (1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
-            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+            ('BOX', (0, 0), (-1, -1), line_soft, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), line_inner, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_table_stripe]),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 5),
@@ -5217,21 +5452,22 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
         elements.append(tags_tbl)
     else:
         elements.append(Paragraph('Sem tags registradas no período selecionado.', normal))
-    elements.append(Spacer(1, 0.28 * cm))
+    elements.append(Spacer(1, 0.2 * cm))
 
-    elements.append(Paragraph('REPROVAÇÕES POR TIPO DE SOLICITAÇÃO', h2))
     if tipos_count:
-        tipos_data = [[Paragraph('Tipo', table_head), Paragraph('Quantidade', table_head)]]
+        qty_col_w = 3.4 * cm
+        tipo_col_w = max(content_width - qty_col_w, 8 * cm)
+        tipos_data = [[Paragraph('REPROVAÇÕES POR TIPO DE SOLICITAÇÃO', table_head), Paragraph('Quantidade', table_head)]]
         for tipo_nome, quantidade in sorted(tipos_count.items(), key=lambda x: x[1], reverse=True):
-            tipos_data.append([Paragraph(_safe(tipo_nome), normal), Paragraph(str(quantidade), normal)])
-        tipos_tbl = Table(tipos_data, colWidths=[12.2 * cm, 3.8 * cm], repeatRows=1)
+            tipos_data.append([Paragraph(_safe_pdf_text(tipo_nome), normal), Paragraph(str(quantidade), normal)])
+        tipos_tbl = Table(tipos_data, colWidths=[tipo_col_w, qty_col_w], repeatRows=1)
         tipos_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), color_primary),
             ('ALIGN', (1, 1), (1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
-            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+            ('BOX', (0, 0), (-1, -1), line_soft, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), line_inner, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_table_stripe]),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 5),
@@ -5240,28 +5476,27 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
         elements.append(tipos_tbl)
     else:
         elements.append(Paragraph('Sem dados por tipo para o período selecionado.', normal))
-    elements.append(Spacer(1, 0.28 * cm))
+    elements.append(Spacer(1, 0.2 * cm))
 
-    elements.append(Paragraph('AÇÕES RECOMENDADAS', h2))
-    acoes_data = [[Paragraph('Plano de melhoria sugerido', table_head)]]
+    acoes_data = [[Paragraph('AÇÕES RECOMENDADAS', table_head)]]
     for acao in recomendacoes[:5]:
         acoes_data.append([Paragraph(acao, bullet, bulletText='•')])
-    acoes_tbl = Table(acoes_data, colWidths=[16 * cm], repeatRows=1)
+    acoes_tbl = Table(acoes_data, colWidths=[content_width], repeatRows=1)
     acoes_tbl.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, 0), color_primary),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BOX', (0, 0), (-1, -1), 0.6, color_border),
-        ('INNERGRID', (0, 1), (-1, -1), 0.25, color_border),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_info_bg]),
+        ('BOX', (0, 0), (-1, -1), line_soft, color_border),
+        ('INNERGRID', (0, 1), (-1, -1), line_inner, color_border),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_table_stripe]),
         ('LEFTPADDING', (0, 0), (-1, -1), 7),
         ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     elements.append(acoes_tbl)
-    elements.append(Spacer(1, 0.32 * cm))
+    elements.append(Spacer(1, 0.22 * cm))
 
-    elements.append(Paragraph('DETALHAMENTO DAS REPROVAÇÕES', h2))
+    _add_section_title('DETALHAMENTO DAS REPROVAÇÕES')
     if total_reprovacoes <= 0:
         elements.append(Paragraph('Nenhuma reprovação encontrada no período selecionado.', normal))
     else:
@@ -5279,27 +5514,57 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
             comentario = r.comentario or 'Sem comentário'
 
             col_a = Paragraph(_dt(r.created_at), normal)
-            col_b = Paragraph(f"<b>{_safe(wo.codigo)}</b><br/>{tipo_labels.get(wo.tipo_solicitacao, wo.tipo_solicitacao)}<br/>Aprovador: {_safe(aprovador)}", normal)
-            col_c = Paragraph(f"{_safe(obra)}<br/>Credor: {_safe(wo.nome_credor)}<br/>Valor: {_money(wo.valor_estimado)} | Prazo: {_safe(wo.prazo_estimado)} dia(s)", normal)
-            col_d = Paragraph(f"<b>Tags:</b> {tags}<br/><b>Comentário:</b> {comentario}", normal)
+            col_b = Paragraph(
+                "<b>%s</b><br/>%s<br/>Aprovador: %s" % (
+                    _safe_pdf_text(wo.codigo),
+                    _safe_pdf_text(tipo_labels.get(wo.tipo_solicitacao, wo.tipo_solicitacao)),
+                    _safe_pdf_text(aprovador),
+                ),
+                normal,
+            )
+            col_c = Paragraph(
+                "%s<br/>Credor: %s<br/>Valor: %s | Prazo: %s dia(s)" % (
+                    _safe_pdf_text(obra),
+                    _safe_pdf_text(wo.nome_credor),
+                    _safe_pdf_text(_money(wo.valor_estimado)),
+                    _safe_pdf_text(wo.prazo_estimado),
+                ),
+                normal,
+            )
+            col_d = Paragraph(
+                "<b>Tags:</b> %s<br/><b>Comentário:</b> %s" % (
+                    _safe_pdf_multiline(tags, default='Sem tags'),
+                    _safe_pdf_multiline(comentario, default='Sem comentário'),
+                ),
+                normal,
+            )
             table_data.append([col_a, col_b, col_c, col_d])
 
-        detail_tbl = Table(table_data, colWidths=[2.2 * cm, 4.1 * cm, 4.5 * cm, 5.2 * cm], repeatRows=1)
+        c1 = 2.2 * cm
+        c2 = 4.0 * cm
+        c3 = 4.4 * cm
+        c4 = max(content_width - (c1 + c2 + c3), 4.4 * cm)
+        detail_tbl = LongTable(table_data, colWidths=[c1, c2, c3, c4], repeatRows=1)
         detail_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), color_primary),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOX', (0, 0), (-1, -1), 0.6, color_border),
-            ('INNERGRID', (0, 0), (-1, -1), 0.25, color_border),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_accent]),
+            ('BOX', (0, 0), (-1, -1), line_soft, color_border),
+            ('INNERGRID', (0, 0), (-1, -1), line_inner, color_border),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, color_table_stripe]),
             ('LEFTPADDING', (0, 0), (-1, -1), 5),
             ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ]))
         elements.append(detail_tbl)
 
-    doc.build(elements)
+    canvas_class = functools.partial(
+        _HistoricoCanvas,
+        generated_at=generated_at,
+        content_frame=(doc.leftMargin, doc.rightMargin, doc.topMargin, doc.bottomMargin),
+    )
+    doc.build(elements, canvasmaker=canvas_class)
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     nome_arquivo = f'historico_{solicitante.username}_{dias_periodo}dias_{datetime.now().strftime("%Y%m%d")}.pdf'

@@ -716,6 +716,22 @@
             </a>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <a href="/accounts/admin-central/painel-usuario/" class="central-action-card" style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #bfdbfe;">
+                <div class="central-action-icon" style="background:#dbeafe;color:#1d4ed8;">
+                    <i class="fas fa-id-card" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Painel do usuário</h2>
+                <p class="central-action-desc">Área focada em usuários, solicitações de cadastro e clientes (dono da obra).</p>
+                <span class="central-action-link">Abrir painel <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+            <a href="/central/painel-logs/" class="central-action-card" style="background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); border: 1px solid #cbd5e1;">
+                <div class="central-action-icon" style="background:#e2e8f0;color:#334155;">
+                    <i class="fas fa-file-waveform" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">Painel de logs</h2>
+                <p class="central-action-desc">Área focada em auditoria, logs do sistema e logs de e-mail.</p>
+                <span class="central-action-link">Abrir painel <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
             <a href="{% url 'central_diary_edit_requests' %}" class="central-action-card" style="{% if pending_diary_edit_requests_count > 0 %}box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45);{% endif %}">
                 <div class="central-action-icon" style="background:#fff7ed;color:#c2410c;">
                     <i class="fas fa-file-signature" aria-hidden="true"></i>
@@ -737,22 +753,6 @@
                 <p class="central-action-desc">Criar e editar obras. Aparecem no Diário, Pedidos e Mapa.</p>
                 <span class="central-action-link">Ver obras <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
             </a>
-            <a href="{% url 'central_project_list' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#e0e7ff;color:#4338ca;">
-                    <i class="fas fa-user-check" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Aprovadores de RDO</h2>
-                <p class="central-action-desc">Definir por obra quem aprova o RDO antes do envio ao cliente.</p>
-                <span class="central-action-link">Configurar por obra <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_list_users' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#f0fdf4;color:#059669;">
-                    <i class="fas fa-users" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Usuários</h2>
-                <p class="central-action-desc">Criar usuários e vincular às obras.</p>
-                <span class="central-action-link">Ver usuários <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
             <a href="{% url 'central_manutencao' %}" class="central-action-card">
                 <div class="central-action-icon" style="background:#fef3c7;color:#d97706;">
                     <i class="fas fa-sync-alt" aria-hidden="true"></i>
@@ -760,38 +760,6 @@
                 <h2 class="central-action-title">Atualizar listas</h2>
                 <p class="central-action-desc">Fazer obras aparecerem no Pedidos e no Mapa.</p>
                 <span class="central-action-link">Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_signup_requests' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#fef3c7;color:#b45309;">
-                    <i class="fas fa-user-check" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Solicitações de cadastro</h2>
-                <p class="central-action-desc">Aprovar ou rejeitar novos cadastros.</p>
-                <span class="central-action-link">Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_clients' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#ede9fe;color:#7c3aed;">
-                    <i class="fas fa-user-tie" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Clientes (Donos da Obra)</h2>
-                <p class="central-action-desc">Cadastrar e gerenciar clientes que comentam no diário.</p>
-                <span class="central-action-link">Gerenciar <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_audit_events' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#f1f5f9;color:#334155;">
-                    <i class="fas fa-clipboard-list" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Auditoria</h2>
-                <p class="central-action-desc">Eventos de governança (usuários, cadastros, permissões) com filtros e CSV.</p>
-                <span class="central-action-link">Abrir auditoria <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_system_logs' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#fee2e2;color:#dc2626;">
-                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Logs do sistema</h2>
-                <p class="central-action-desc">Acompanhar erros e avisos com filtros e exportação CSV.</p>
-                <span class="central-action-link">Abrir logs <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
             </a>
             {% if painel_comunicados %}
             <a href="{% url 'comunicados_painel_lista' %}" class="central-action-card">
@@ -967,253 +935,6 @@
                 </div>
             </div>
         </div>
-    </div>
-    
-    <!-- ═══ Grupos + Últimos Usuários ═══ -->
-    <div class="bottom-grid anim-6">
-        <!-- Grupos e Permissões -->
-        <div class="admin-section">
-            <div class="admin-section-header">
-                <h3><i class="fas fa-layer-group" style="color: #6366f1;"></i> Grupos</h3>
-            </div>
-            <div style="padding: 0.85rem 1.15rem;">
-                <!-- Gestão de Aprovação -->
-                <div style="margin-bottom: 0.85rem;">
-                    <div class="group-system-label" style="color: #a855f7;">
-                        <i class="fas fa-clipboard-check"></i> Gestão de Aprovação
-                    </div>
-                    {% for grupo in grupos_gestao %}
-                    <div class="group-row">
-                        <div>
-                            <span class="group-name">{{ grupo.name }}</span>
-                            <span class="group-desc">{{ grupo.desc }}</span>
-                        </div>
-                        <span class="group-count" style="background: #fae8ff; color: #7e22ce;">{{ grupo.count }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                <!-- Diário de Obra -->
-                <div style="margin-bottom: 0.85rem;">
-                    <div class="group-system-label" style="color: #3b82f6;">
-                        <i class="fas fa-book"></i> Diário de Obra
-                    </div>
-                    {% for grupo in grupos_diario %}
-                    <div class="group-row">
-                        <div>
-                            <span class="group-name">{{ grupo.name }}</span>
-                            <span class="group-desc">{{ grupo.desc }}</span>
-                        </div>
-                        <span class="group-count" style="background: #dbeafe; color: #1d4ed8;">{{ grupo.count }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                <!-- Mapa de Suprimentos -->
-                <div>
-                    <div class="group-system-label" style="color: #22c55e;">
-                        <i class="fas fa-map"></i> Mapa de Suprimentos
-                    </div>
-                    {% for grupo in grupos_mapa %}
-                    <div class="group-row">
-                        <div>
-                            <span class="group-name">{{ grupo.name }}</span>
-                            <span class="group-desc">{{ grupo.desc }}</span>
-                        </div>
-                        <span class="group-count" style="background: #dcfce7; color: #16a34a;">{{ grupo.count }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                <!-- Central de Aprovações -->
-                <div>
-                    <div class="group-system-label" style="color: #a16207;">
-                        <i class="fas fa-check-double"></i> Central de Aprovações
-                    </div>
-                    {% for grupo in grupos_central %}
-                    <div class="group-row">
-                        <div>
-                            <span class="group-name">{{ grupo.name }}</span>
-                            <span class="group-desc">{{ grupo.desc }}</span>
-                        </div>
-                        <span class="group-count" style="background: #fef9c3; color: #a16207;">{{ grupo.count }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        
-        <!-- Últimos Usuários -->
-        <div class="admin-section">
-            <div class="admin-section-header">
-                <h3><i class="fas fa-clock" style="color: #f59e0b;"></i> Últimos Usuários</h3>
-                <a href="{% url 'central_list_users' %}" class="admin-section-link">
-                    Ver todos <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                </a>
-            </div>
-            <div style="overflow-x: auto;">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Usuário</th>
-                            <th>Nome</th>
-                            <th>Grupos</th>
-                            <th>Cadastro</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for usuario in ultimos_usuarios %}
-                        <tr>
-                            <td>
-                                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                    <div class="user-avatar-sm" style="background: linear-gradient(135deg, #3b82f6, #6366f1);">
-                                        {{ usuario.username|first|upper }}
-                                    </div>
-                                    <span style="font-weight: 600; color: #1e293b;">{{ usuario.username }}</span>
-                                </div>
-                            </td>
-                            <td style="color: #64748b;">{{ usuario.get_full_name|default:"-" }}</td>
-                            <td>
-                                {% for grupo in usuario.groups.all %}
-                                <span class="group-badge {% if grupo.name == 'Mapa de Suprimentos' %}group-badge-engenharia{% elif grupo.name == 'Administrador' %}group-badge-administrador{% elif grupo.name == 'Aprovador' %}group-badge-aprovador{% elif grupo.name == 'Solicitante' %}group-badge-solicitante{% elif grupo.name == 'Responsavel Empresa' %}group-badge-responsavel{% elif grupo.name == 'Diário de Obra' %}group-badge-gerentes{% else %}group-badge-default{% endif %}">
-                                    {{ grupo.name }}
-                                </span>
-                                {% empty %}
-                                <span style="color: #cbd5e1; font-size: 0.78rem;">Sem grupo</span>
-                                {% endfor %}
-                            </td>
-                            <td style="color: #94a3b8; font-size: 0.78rem;">{{ usuario.date_joined|date:"d/m/Y" }}</td>
-                            <td>
-                                <a href="{% url 'central_edit_user' usuario.pk %}" style="color: #3b82f6; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem; padding: 4px 8px; border-radius: 6px; transition: background 0.2s;"
-                                   onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='transparent'">
-                                    <i class="fas fa-pen" style="font-size: 0.7rem;"></i> Editar
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" style="text-align: center; color: #94a3b8; padding: 2rem;">
-                                <i class="fas fa-users" style="font-size: 1.5rem; color: #e2e8f0; display: block; margin-bottom: 0.5rem;"></i>
-                                Nenhum usuário cadastrado.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    
-    <!-- ═══ Obras Ativas (Mapa) ═══ -->
-    {% if obras_ativas %}
-    <div class="admin-section anim-6" style="margin-bottom: 1.5rem;">
-        <div class="admin-section-header">
-            <h3><i class="fas fa-building" style="color: #22c55e;"></i> Obras ativas (Mapa de Suprimentos)</h3>
-            <a href="{% url 'central_project_list' %}" class="admin-section-link">
-                Abrir obras <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-            </a>
-        </div>
-        <div class="obras-grid">
-            {% for obra in obras_ativas %}
-            <div class="obra-mini-card">
-                <div class="obra-nome">{{ obra.nome }}</div>
-                <div class="obra-codigo">{{ obra.codigo_sienge }}</div>
-                <div class="obra-status"><span class="dot"></span> Ativa</div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- ═══ Diagnóstico: erros técnicos, logs de e-mail e logs do sistema (uso principalmente técnico) ═══ -->
-    <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
-        {% if stats_system_logs and stats_system_logs.has_alert %}
-        <section class="anim-1" style="margin-bottom: 1rem;">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:0.85rem; padding:0.85rem 1rem;">
-                <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.9rem; font-weight:600;">
-                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-                    Há {{ stats_system_logs.recent_errors }} erro(s) técnico(s) nas últimas {{ stats_system_logs.window_hours }}h.
-                </div>
-                <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link" style="font-size:0.82rem; white-space:nowrap;">Analisar agora <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-            </div>
-        </section>
-        {% endif %}
-
-        <section class="email-logs-panel anim-1" style="border: 2px solid #fcd34d; background: linear-gradient(180deg, #fffbeb 0%, #ffffff 55%);" aria-labelledby="gc-pdf-dest-title">
-            <div class="email-logs-panel-inner">
-                <header class="email-logs-panel-header">
-                    <div>
-                        <p id="gc-pdf-dest-title" class="email-logs-panel-label" style="font-size:1.05rem;">GestControll — quem recebe o PDF ao aprovar pedido</p>
-                        <p class="email-logs-panel-desc">Cadastre os e-mails que sempre recebem a notificação (e anexos) quando um pedido é aprovado. Não confundir com histórico de envio de e-mails.</p>
-                    </div>
-                    <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="email-logs-panel-link" style="font-weight:700; white-space:nowrap;">Abrir cadastro <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-                </header>
-            </div>
-        </section>
-
-        <section class="email-logs-panel anim-1" aria-labelledby="email-logs-title">
-            <div class="email-logs-panel-inner">
-                <header class="email-logs-panel-header">
-                    <div>
-                        <p id="email-logs-title" class="email-logs-panel-label">Logs de E-mail</p>
-                        <p class="email-logs-panel-desc">Histórico de envios do GestControll (pedidos e aprovações). Ver detalhes e reenviar falhas.</p>
-                    </div>
-                    <a href="{% url 'gestao:list_email_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-                </header>
-                {% if stats_email_logs %}
-                <div class="email-logs-panel-stats">
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value">{{ stats_email_logs.total }}</span>
-                        <span class="email-logs-stat-label">Total</span>
-                    </div>
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value">{{ stats_email_logs.enviados }}</span>
-                        <span class="email-logs-stat-label">Enviados</span>
-                    </div>
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value {% if stats_email_logs.falhados > 0 %}email-logs-stat-fail{% endif %}">{{ stats_email_logs.falhados }}</span>
-                        <span class="email-logs-stat-label">Falhados</span>
-                    </div>
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value">{{ stats_email_logs.taxa_sucesso }}%</span>
-                        <span class="email-logs-stat-label">Taxa de sucesso</span>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </section>
-
-        <section class="email-logs-panel anim-1" aria-labelledby="system-logs-title">
-            <div class="email-logs-panel-inner">
-                <header class="email-logs-panel-header">
-                    <div>
-                        <p id="system-logs-title" class="email-logs-panel-label">Logs do Sistema</p>
-                        <p class="email-logs-panel-desc">Eventos técnicos do Diário, Central e integrações. Filtre por nível, módulo, data e exporte CSV.</p>
-                    </div>
-                    <a href="{% url 'central_system_logs' %}" class="email-logs-panel-link">Ver logs <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-                </header>
-                {% if stats_system_logs %}
-                <div class="email-logs-panel-stats">
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value {% if stats_system_logs.recent_errors > 0 %}email-logs-stat-fail{% endif %}">{{ stats_system_logs.recent_errors }}</span>
-                        <span class="email-logs-stat-label">Erros (24h)</span>
-                    </div>
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value">{{ stats_system_logs.recent_warnings }}</span>
-                        <span class="email-logs-stat-label">Avisos (24h)</span>
-                    </div>
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value">
-                            {% if stats_system_logs.last_error_at %}{{ stats_system_logs.last_error_at|date:"d/m H:i" }}{% else %}--{% endif %}
-                        </span>
-                        <span class="email-logs-stat-label">Último erro</span>
-                    </div>
-                    <div class="email-logs-stat">
-                        <span class="email-logs-stat-value">{{ stats_system_logs.window_hours }}h</span>
-                        <span class="email-logs-stat-label">Janela</span>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </section>
     </div>
     
 </div>

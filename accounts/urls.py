@@ -12,6 +12,8 @@ urlpatterns = [
     
     # Admin Central (dashboard + gestão de obras do Mapa de Suprimentos)
     path('admin-central/', views_admin.admin_central, name='admin_central'),
+    path('admin-central/painel-usuario/', views_admin.user_panel, name='user_panel'),
+    path('admin-central/painel-logs/', views_admin.logs_panel, name='logs_panel'),
     path('admin-central/analise-usuarios/', views_admin.analise_usuarios, name='admin_analise_usuarios'),
     path('admin-central/analise-usuarios/exportar-csv/', views_admin.analise_usuarios_export_csv, name='admin_analise_usuarios_export_csv'),
     path('admin-central/criar-obra/', views_admin.criar_obra, name='criar_obra'),

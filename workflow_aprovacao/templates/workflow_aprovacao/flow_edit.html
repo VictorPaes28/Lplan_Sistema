@@ -1,0 +1,88 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+{% load static %}
+
+{% block back_url %}{% url 'workflow_aprovacao:config_flow_list' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <div class="wf-toolbar wf-toolbar--flow-meta">
+        <div class="wf-toolbar__stat">
+            <span class="wf-toolbar__label">Obra</span>
+            <span class="wf-cell-strong">{{ flow.project.code }}</span>
+            <span class="wf-cell-sub">{{ flow.project.name }}</span>
+        </div>
+        <div class="wf-toolbar__stat">
+            <span class="wf-toolbar__label">Categoria</span>
+            <span class="wf-cell-strong">{{ flow.category.name }}</span>
+        </div>
+        <div class="wf-toolbar__hint wf-toolbar__hint--wrap">
+            Cada alçada usa a política <span class="wf-mono">um aprovador basta</span> (qualquer participante pode decidir).
+            {% if structure_locked %}
+            <span class="wf-pill wf-pill--warn" style="margin-left:0.35rem;">Estrutura fixa</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <section class="wf-panel wf-flow-intro" aria-labelledby="wf-flow-intro-title">
+        <div class="wf-panel__head">
+            <h2 id="wf-flow-intro-title" class="wf-panel__title">O que configurar aqui</h2>
+            <p class="wf-panel__meta">Use os cartões abaixo para montar o fluxo de aprovação desta obra e categoria.</p>
+        </div>
+        <div class="wf-panel__body wf-flow-intro__body">
+            <ol class="wf-flow-intro__steps">
+                <li><strong>Quantas alçadas</strong> — cada cartão é uma etapa em sequência (1 → 2 → 3…).</li>
+                <li><strong>Quem aprova</strong> — em cada alçada, escolha utilizadores ou um grupo Django; pode haver vários aprovadores (basta um decidir).</li>
+                <li><strong>Gravar</strong> — confirme com «Gravar configuração» no fim da página.</li>
+            </ol>
+        </div>
+    </section>
+
+    <form id="wf-flow-form" method="post" class="wf-flow-form">
+        {% csrf_token %}
+        <textarea name="config_payload" id="wf-config-payload" hidden aria-hidden="true"></textarea>
+
+        <div id="wf-flow-editor-err"
+             class="wf-alert wf-alert--error wf-flow-editor-err"
+             role="alert"
+             hidden></div>
+
+        <div id="wf-flow-editor-root"
+             class="wf-flow-editor-mount"
+             data-locked="{% if structure_locked %}true{% else %}false{% endif %}"
+             role="region"
+             aria-label="Editor de alçadas e participantes">
+            <p class="wf-flow-editor-placeholder">
+                <i class="fas fa-spinner fa-pulse" aria-hidden="true"></i>
+                A carregar o editor de alçadas… Se esta mensagem não desaparecer, atualize a página ou verifique se o ficheiro estático
+                <code class="wf-mono">core/js/workflow-flow-edit.js</code> está acessível.
+            </p>
+        </div>
+
+        <div class="wf-flow-actions">
+            <a href="{% url 'workflow_aprovacao:config_flow_list' %}" class="wf-btn-table wf-btn-table--ghost">Voltar à lista</a>
+            {% if user.is_staff %}
+            <a href="{% url 'admin:workflow_aprovacao_approvalflowdefinition_change' flow.pk %}"
+               class="wf-btn-table wf-btn-table--ghost wf-flow-actions__admin"
+               target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-cog" aria-hidden="true"></i> Admin Django
+            </a>
+            {% endif %}
+            <button type="submit" class="wf-btn-primary wf-flow-actions__save">
+                <i class="fas fa-save" aria-hidden="true"></i> Gravar configuração
+            </button>
+        </div>
+    </form>
+
+    {{ initial_config|json_script:"wf-flow-initial" }}
+    {{ users_for_select|json_script:"wf-flow-users" }}
+    {{ groups_for_select|json_script:"wf-flow-groups" }}
+
+    <script src="{% static 'core/js/workflow-flow-edit.js' %}{% if debug %}?cb={% now "U" %}{% endif %}"></script>
+</div>
+{% endblock %}

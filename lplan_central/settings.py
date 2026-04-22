@@ -356,6 +356,14 @@ EMAIL_APROVACAO_DESTINATARIOS_FIXOS = [e.strip() for e in _email_aprovacao_fixos
 SIENGE_API_BASE_URL = os.environ.get('SIENGE_API_BASE_URL', 'https://api.sienge.com.br')
 SIENGE_API_CLIENT_ID = os.environ.get('SIENGE_API_CLIENT_ID', '')
 SIENGE_API_CLIENT_SECRET = os.environ.get('SIENGE_API_CLIENT_SECRET', '')
+SIENGE_API_USERNAME = os.environ.get('SIENGE_API_USERNAME', '')
+SIENGE_API_PASSWORD = os.environ.get('SIENGE_API_PASSWORD', '')
+SIENGE_API_AUTH_MODE = os.environ.get('SIENGE_API_AUTH_MODE', 'auto').strip().lower()
+SIENGE_API_TOKEN_URL = os.environ.get('SIENGE_API_TOKEN_URL', '').strip()
+SIENGE_API_MAPA_ENDPOINT_TEMPLATE = os.environ.get(
+    'SIENGE_API_MAPA_ENDPOINT_TEMPLATE',
+    '',
+).strip()
 SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
 
 # CSRF: em produção (HTTPS) defina no .env:

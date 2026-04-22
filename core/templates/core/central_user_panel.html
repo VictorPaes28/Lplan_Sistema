@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+{% endblock %}
+
+{% block page_title %}Painel do usuário{% endblock %}
+{% block page_subtitle %}Gestão focada em pessoas e acesso{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">
+        Acesse os recursos de gestão de usuários, solicitações de cadastro e clientes (donos da obra).
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <a href="{% url 'central_list_users' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#f0fdf4;color:#059669;">
+                <i class="fas fa-users" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Usuários</h2>
+            <p class="central-action-desc">Criar, editar e organizar os usuários vinculados às obras.</p>
+            <span class="central-action-link">Abrir usuários <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+
+        <a href="{% url 'central_signup_requests' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#fef3c7;color:#b45309;">
+                <i class="fas fa-user-check" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Solicitações de cadastro</h2>
+            <p class="central-action-desc">Aprovar ou rejeitar novos pedidos de acesso ao sistema.</p>
+            <span class="central-action-link">Abrir solicitações <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+
+        <a href="{% url 'central_clients' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#ede9fe;color:#7c3aed;">
+                <i class="fas fa-user-tie" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Cliente (dono da obra)</h2>
+            <p class="central-action-desc">Gerenciar clientes que acompanham o diário e interagem por obra.</p>
+            <span class="central-action-link">Gerenciar clientes <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+
+        <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#fff7ed;color:#c2410c;">
+                <i class="fas fa-file-pdf" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">GestControll — quem recebe o PDF ao aprovar pedido</h2>
+            <p class="central-action-desc">Cadastre os e-mails que sempre recebem a notificação e os anexos ao aprovar pedido.</p>
+            <span class="central-action-link">Abrir cadastro <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+
+        <a href="{% url 'central_diary_approvers_entry' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#e0e7ff;color:#4338ca;">
+                <i class="fas fa-user-check" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Aprovadores de RDO</h2>
+            <p class="central-action-desc">Abre direto a configuração de aprovadores da obra selecionada.</p>
+            <span class="central-action-link">Configurar aprovadores <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+    </div>
+
+    <div class="mt-8 pt-6 border-t border-slate-100">
+        <a href="{% url 'accounts:admin_central' %}" class="central-nav-link"><i class="fas fa-arrow-left"></i> Voltar ao Painel do sistema</a>
+    </div>
+</div>
+{% endblock %}

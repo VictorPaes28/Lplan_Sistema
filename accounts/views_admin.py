@@ -140,6 +140,20 @@ def admin_central(request):
     return render(request, 'accounts/admin_central.html', context)
 
 
+@login_required
+@user_passes_test(user_is_painel_sistema_admin)
+def user_panel(request):
+    """Painel do usuário: área nichada para gestão de usuários e acessos."""
+    return render(request, 'core/central_user_panel.html')
+
+
+@login_required
+@user_passes_test(user_is_painel_sistema_admin)
+def logs_panel(request):
+    """Painel de logs: auditoria, logs técnicos e logs de e-mail."""
+    return render(request, 'core/central_logs_panel.html')
+
+
 def _row_analise_usuario(u, prod_por_usuario):
     """Monta um dicionário de análise por usuário (produtividade, obras, última atividade, desempenho)."""
     p = prod_por_usuario.get(u.id, {})

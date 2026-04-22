@@ -3,6 +3,43 @@
 from django.db import migrations
 
 
+def _ensure_indexes(apps, schema_editor):
+    # Alguns bancos SQLite legados foram provisionados sem os nomes antigos
+    # esperados pelo RenameIndex. Em vez de renomear, garantimos que os
+    # índices finais existem, tornando a migração idempotente.
+    statements = [
+        (
+            'assistente__user_id_5db944_idx',
+            'assistente_lplan_assistantquestionlog',
+            '"user_id", "created_at" DESC',
+        ),
+        (
+            'assistente__domain_c9e578_idx',
+            'assistente_lplan_assistantquestionlog',
+            '"domain", "created_at" DESC',
+        ),
+        (
+            'assistente__intent_4a6693_idx',
+            'assistente_lplan_assistantquestionlog',
+            '"intent", "created_at" DESC',
+        ),
+        (
+            'assistente__created_647639_idx',
+            'assistente_lplan_assistantresponselog',
+            '"created_at" DESC',
+        ),
+    ]
+    for index_name, table_name, columns_sql in statements:
+        schema_editor.execute(
+            f'CREATE INDEX IF NOT EXISTS "{index_name}" ON "{table_name}" ({columns_sql});'
+        )
+
+
+def _noop_reverse(apps, schema_editor):
+    # Reverse intencionalmente vazio para não apagar índices em rollback.
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,24 +47,31 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='assistantquestionlog',
-            new_name='assistente__user_id_5db944_idx',
-            old_name='assistente_l_user_id_42f3a8_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='assistantquestionlog',
-            new_name='assistente__domain_c9e578_idx',
-            old_name='assistente_l_domain_aa2f69_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='assistantquestionlog',
-            new_name='assistente__intent_4a6693_idx',
-            old_name='assistente_l_intent_9a2966_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='assistantresponselog',
-            new_name='assistente__created_647639_idx',
-            old_name='assistente_l_created_e52318_idx',
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(_ensure_indexes, _noop_reverse),
+            ],
+            state_operations=[
+                migrations.RenameIndex(
+                    model_name='assistantquestionlog',
+                    new_name='assistente__user_id_5db944_idx',
+                    old_name='assistente_l_user_id_42f3a8_idx',
+                ),
+                migrations.RenameIndex(
+                    model_name='assistantquestionlog',
+                    new_name='assistente__domain_c9e578_idx',
+                    old_name='assistente_l_domain_aa2f69_idx',
+                ),
+                migrations.RenameIndex(
+                    model_name='assistantquestionlog',
+                    new_name='assistente__intent_4a6693_idx',
+                    old_name='assistente_l_intent_9a2966_idx',
+                ),
+                migrations.RenameIndex(
+                    model_name='assistantresponselog',
+                    new_name='assistente__created_647639_idx',
+                    old_name='assistente_l_created_e52318_idx',
+                ),
+            ],
         ),
     ]

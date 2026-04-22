@@ -149,6 +149,51 @@ def central_user_governance(request, pk):
 
 @login_required
 @_staff_required
+def central_user_panel_view(request):
+    """
+    Hub enxuto para gestão de usuários: usuários, cadastros e clientes (dono da obra).
+    """
+    return render(request, 'core/central_user_panel.html')
+
+
+@login_required
+@_staff_required
+def central_logs_panel_view(request):
+    """
+    Hub enxuto de monitoramento: auditoria, logs do sistema e logs de e-mail.
+    """
+    return render(request, 'core/central_logs_panel.html')
+
+
+@login_required
+@_staff_required
+def central_diary_approvers_entry_view(request):
+    """
+    Abre direto a tela de aprovadores de RDO para uma obra.
+    Prioridade: ?project_id, obra selecionada na sessão, primeira obra ativa.
+    """
+    project_id_raw = (request.GET.get('project_id') or '').strip()
+    if project_id_raw.isdigit():
+        project = Project.objects.filter(pk=int(project_id_raw), is_active=True).first()
+        if project:
+            return redirect('central_diary_approvers', project_id=project.id)
+
+    selected_project_id = request.session.get('selected_project_id')
+    if selected_project_id:
+        project = Project.objects.filter(pk=selected_project_id, is_active=True).first()
+        if project:
+            return redirect('central_diary_approvers', project_id=project.id)
+
+    project = Project.objects.filter(is_active=True).order_by('name', 'id').first()
+    if project:
+        return redirect('central_diary_approvers', project_id=project.id)
+
+    messages.info(request, 'Nenhuma obra ativa encontrada para configurar aprovadores de RDO.')
+    return redirect('central_project_list')
+
+
+@login_required
+@_staff_required
 def central_manutencao_view(request):
     """
     Tela de manutenção/diagnóstico do Central (staff): status da sincronia de obras,
