@@ -2,25 +2,25 @@
 /**
  * Service Worker dedicado ao formulário RDO: cache de estáticos e da última página do formulário.
  * Escopo ampliado via header Service-Worker-Allowed na view Django.
+ * URLs de estáticos (com hash em produção) vêm da página via postMessage CACHE_URLS.
  */
-var CACHE_NAME = 'lplan-rdo-offline-v1';
-var STATIC_URLS = [
-  '/static/core/css/daily_log_form.css',
-  '/static/core/css/base.css',
-  '/static/core/css/tailwind-utilities.css',
-  '/static/core/css/mobile.css',
-  '/static/core/js/theme-global.js'
-];
+var CACHE_NAME = 'lplan-rdo-offline-v2';
+var STATIC_URLS = []; // preenchido via postMessage
 
-self.addEventListener('install', function (event) {
-  event.waitUntil(
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.type === 'CACHE_URLS') {
+    STATIC_URLS = event.data.urls || [];
     caches.open(CACHE_NAME).then(function (cache) {
+      if (!STATIC_URLS.length) return Promise.resolve();
       return cache.addAll(STATIC_URLS).catch(function () {
         return Promise.resolve();
       });
-    })
-  );
-  self.skipWaiting();
+    });
+  }
+});
+
+self.addEventListener('install', function (event) {
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', function (event) {

@@ -14,7 +14,8 @@
 <div class="min-h-screen diary-form-page py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <form method="post" enctype="multipart/form-data" id="diary-form" class="diary-form-inner space-y-6"
-              data-rdo-sw-url="{% url 'rdo-offline-service-worker' %}">
+              data-rdo-sw-url="{% url 'rdo-offline-service-worker' %}"
+              data-sw-cache-urls="[&quot;{% static 'core/css/daily_log_form.css' %}&quot;,&quot;{% static 'core/css/base.css' %}&quot;,&quot;{% static 'core/css/tailwind-utilities.css' %}&quot;,&quot;{% static 'core/css/mobile.css' %}&quot;,&quot;{% static 'core/js/theme-global.js' %}&quot;]">
             {% csrf_token %}
             <input type="hidden" name="partial_save" id="partial_save_flag" value="">
             <input type="hidden" name="work_logs_json" id="work_logs_json_input" value="">

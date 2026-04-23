@@ -25,6 +25,9 @@ jobs:
       - name: Django system check
         run: python manage.py check
 
+      - name: Validate collectstatic
+        run: python manage.py collectstatic --noinput --dry-run
+
       - name: Tests (apps ativos)
         run: >
           python manage.py test

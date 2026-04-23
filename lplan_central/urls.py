@@ -51,18 +51,14 @@ urlpatterns = [
     path('diario/', RedirectView.as_view(url='/', permanent=True)),
 ]
 
-# Em DEBUG: servir /static/ e /media/ ANTES do path('', include('core.urls'))
-# senão o core engole /static/... e devolve 404 (CSS e imagens não carregam)
-# Em produção: também servir /static/ a partir de STATIC_ROOT para o Mapa (supplymap.js etc.)
-# rodar: python manage.py collectstatic --noinput
+# /static/ → WhiteNoise (middleware). /media/ aqui porque o WhiteNoise não serve uploads.
+# Em DEBUG: /media/ antes do path('', include('core.urls')) para o core não devolver 404 em ficheiros media.
 if settings.DEBUG:
     urlpatterns = static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + urlpatterns
-    urlpatterns = static(settings.STATIC_URL, document_root=settings.STATIC_ROOT) + urlpatterns
 else:
-    # Produção: servir estáticos e mídia (imagens/vídeos do diário) para evitar 404
     from django.views.static import serve
+
     urlpatterns = [
-        path(settings.STATIC_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
         path(settings.MEDIA_URL.strip('/') + '/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
     ] + urlpatterns
 
