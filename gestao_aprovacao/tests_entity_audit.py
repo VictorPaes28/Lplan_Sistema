@@ -69,7 +69,8 @@ class CreateObraAuditIntegrationTests(TestCase):
         self.empresa = Empresa.objects.create(codigo="E-AUD", nome="Empresa Audit")
 
     def test_post_create_obra_writes_audit_event(self):
-        before = AuditEvent.objects.count()
+        # Contar só OBRA_CREATED: outros AuditEvent no mesmo pedido/sessão não fazem parte deste contrato.
+        before = AuditEvent.objects.filter(action_code=AuditAction.OBRA_CREATED).count()
         self.client.force_login(self.admin)
         url = reverse("gestao:create_obra")
         response = self.client.post(
@@ -84,8 +85,15 @@ class CreateObraAuditIntegrationTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(AuditEvent.objects.count(), before + 1)
-        ev = AuditEvent.objects.order_by("-pk").first()
+        self.assertEqual(
+            AuditEvent.objects.filter(action_code=AuditAction.OBRA_CREATED).count(),
+            before + 1,
+        )
+        ev = (
+            AuditEvent.objects.filter(action_code=AuditAction.OBRA_CREATED)
+            .order_by("-pk")
+            .first()
+        )
         self.assertEqual(ev.action_code, AuditAction.OBRA_CREATED)
         self.assertEqual(ev.actor_id, self.admin.pk)
         obra = Obra.objects.get(codigo="OBRA-AUD-01")
