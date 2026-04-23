@@ -1277,10 +1277,11 @@
 .performance-card {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
-    padding: 2rem;
+    padding: 1.15rem 1.25rem;
     box-shadow: var(--shadow-md);
     border: 1px solid var(--border-color);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: auto;
 }
 
 .performance-card:hover {
@@ -1289,16 +1290,26 @@
 }
 
 .performance-content {
-    margin-top: 1.5rem;
+    margin-top: 0.55rem;
     text-align: center;
-    padding: 2rem;
+    padding: 0.35rem 0 0.1rem;
 }
 
 .performance-desc {
     color: var(--text-muted);
-    margin-bottom: 1.5rem;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    margin: 0 auto 0.9rem;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    max-width: 760px;
+}
+
+.performance-card .card-header {
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.7rem;
+}
+
+.performance-card .card-title {
+    font-size: 1.08rem;
 }
 
 .performance-summary {
@@ -1344,6 +1355,24 @@
 
 /* Responsive para Painel de Desempenho */
 @media (max-width: 768px) {
+    .performance-card {
+        padding: 1rem;
+    }
+
+    .performance-card .card-title {
+        font-size: 0.98rem;
+    }
+
+    .performance-content {
+        margin-top: 0.4rem;
+        padding-top: 0.2rem;
+    }
+
+    .performance-desc {
+        font-size: 0.84rem;
+        margin-bottom: 0.7rem;
+    }
+
     .performance-summary {
         flex-direction: column;
         gap: 1rem;

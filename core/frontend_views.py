@@ -428,7 +428,16 @@ def select_system_view(request):
     ):
         return redirect('client-diary-list')
     support_projects = list(_get_support_projects_for_user(user))
+    local_now = timezone.localtime()
+    hour = local_now.hour
+    if hour < 12:
+        time_greeting = 'Bom dia'
+    elif hour < 18:
+        time_greeting = 'Boa tarde'
+    else:
+        time_greeting = 'Boa noite'
     context = {
+        'time_greeting': time_greeting,
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_mapa': has_mapa,

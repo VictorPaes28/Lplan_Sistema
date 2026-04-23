@@ -21,7 +21,11 @@ def _get_obras_for_user(request):
     from core.frontend_views import _get_projects_for_user
     projects = _get_projects_for_user(request)
     codigos = list(projects.values_list('code', flat=True))
-    return Obra.objects.filter(ativa=True, codigo_sienge__in=codigos).order_by('nome')
+    return (
+        Obra.objects.filter(ativa=True, codigo_sienge__in=codigos)
+        .prefetch_related('locais')
+        .order_by('nome')
+    )
 
 
 def _user_can_access_obra(request, obra):

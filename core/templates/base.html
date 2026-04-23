@@ -142,11 +142,13 @@
         
         <!-- Navegação: Home + Trocar Obra + menu do app + Sistemas embaixo -->
         <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
+            {% if not '/gestao/' in request.path or request.resolver_match.url_name != 'home' %}
             <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Home</span>
             </a>
-            {% if request.session.selected_project_id and '/gestao/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
+            {% endif %}
+            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
@@ -173,11 +175,13 @@
 
             {% elif '/gestao/' in request.path %}
             <!-- ═══════ MENU: GestControll ═══════ -->
+            {% if request.resolver_match.url_name != 'home' %}
             <a href="{% url 'gestao:home' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Visão Geral</span>
             </a>
+            {% endif %}
             <a href="{% url 'gestao:list_workorders' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'detail_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-clipboard-list w-5 mr-3"></i>
@@ -230,15 +234,6 @@
 
             {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
             <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
-            {% if obra_atual %}
-            <div class="mb-2 px-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obra atual</p>
-            </div>
-            <div class="px-4 py-2 mx-1 bg-emerald-900 bg-opacity-50 rounded-lg border border-emerald-700 mb-3">
-                <p class="text-sm font-medium text-emerald-300">{{ obra_atual.nome }}</p>
-                <p class="text-xs text-gray-400">Cod: {{ obra_atual.codigo_sienge }}</p>
-            </div>
-            {% endif %}
             <a href="{% url 'engenharia:dashboard_2' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
@@ -249,30 +244,6 @@
                 <i class="fas fa-gauge-high w-5 mr-3"></i>
                 <span class="font-medium">Mapa de Controle</span>
             </a>
-            <a href="{% url 'engenharia:mapa_servico' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa_servico' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-diagram-project w-5 mr-3"></i>
-                <span class="font-medium">Mapa de Serviço</span>
-            </a>
-            <a href="{% url 'engenharia:mapa' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-table w-5 mr-3"></i>
-                <span class="font-medium">Mapa</span>
-            </a>
-            {% if request.resolver_match.url_name == 'mapa' or request.resolver_match.url_name == 'importar_sienge' %}
-            <a href="{% url 'engenharia:importar_sienge' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_sienge_upload' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-upload w-5 mr-3"></i>
-                <span class="font-medium">Importar Suprimentos</span>
-            </a>
-            {% else %}
-            <a href="{% url 'engenharia:importar_mapa_controle' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-upload w-5 mr-3"></i>
-                <span class="font-medium">Importar Controle</span>
-            </a>
-            {% endif %}
-
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
             <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
 
@@ -366,11 +337,13 @@
                     <i class="fas fa-question-circle w-5 mr-3"></i>
                     <span class="font-medium">Ajuda</span>
                 </a>
+                {% if not has_central or '/accounts/admin-central' in request.path %}
                 <a href="{% url 'accounts:admin_central' %}" 
                    class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                     <i class="fas fa-cog w-5 mr-3"></i>
                     <span class="font-medium">Painel do sistema</span>
                 </a>
+                {% endif %}
                 {% endif %}
             </div>
             {% endif %}
@@ -404,17 +377,19 @@
         <main class="main-content{% block main_extra_class %}{% endblock %}">
             <!-- Top Bar - Primeiro elemento, no topo -->
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
-                <div class="flex flex-col gap-1">
+                <div class="top-bar-heading-group">
                     {% block top_bar_back %}
-                    <a href="{% block back_url %}#{% endblock %}" id="top-bar-back-link"
-                       class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 -ml-1 transition-all duration-200"
+                    <a href="{% block back_url %}{% if '/gestao/' in request.path %}{% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'leitura_lista_pedidos_pdf' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'detail_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'leitura_pedido_pdf' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'edit_workorder' or request.resolver_match.url_name == 'approve_workorder' or request.resolver_match.url_name == 'reject_workorder' or request.resolver_match.url_name == 'solicitar_exclusao' or request.resolver_match.url_name == 'aprovar_exclusao' or request.resolver_match.url_name == 'rejeitar_exclusao' or request.resolver_match.url_name == 'upload_attachment' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_empresas' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_empresa' or request.resolver_match.url_name == 'detail_empresa' %}{% url 'gestao:list_empresas' %}{% elif request.resolver_match.url_name == 'edit_empresa' %}{% url 'gestao:detail_empresa' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_obras' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_obra' or request.resolver_match.url_name == 'detail_obra' %}{% url 'gestao:list_obras' %}{% elif request.resolver_match.url_name == 'edit_obra' or request.resolver_match.url_name == 'manage_obra_permissions' %}{% url 'gestao:detail_obra' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_users' or request.resolver_match.url_name == 'edit_my_profile' or request.resolver_match.url_name == 'list_notificacoes' or request.resolver_match.url_name == 'desempenho_equipe' or request.resolver_match.url_name == 'manage_aprovacao_destinatarios' or request.resolver_match.url_name == 'list_email_logs' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_user' %}{% url 'gestao:list_users' %}{% elif request.resolver_match.url_name == 'edit_user' or request.resolver_match.url_name == 'delete_user' or request.resolver_match.url_name == 'user_governance' %}{% url 'gestao:list_users' %}{% else %}{% url 'gestao:home' %}{% endif %}{% else %}#{% endif %}{% endblock %}" id="top-bar-back-link"
+                       class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 transition-all duration-200"
                        aria-label="Voltar">
                         <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
                         <span>Voltar</span>
                     </a>
                     {% endblock %}
-                    <h2 class="top-bar-title">{% block page_title %}Dashboard{% endblock %}</h2>
-                    <p class="top-bar-subtitle">{% block page_subtitle %}Visão geral do sistema{% endblock %}</p>
+                    <div class="top-bar-heading-text">
+                        <h2 class="top-bar-title">{% block page_title %}Dashboard{% endblock %}</h2>
+                        <p class="top-bar-subtitle">{% block page_subtitle %}Visão geral do sistema{% endblock %}</p>
+                    </div>
                 </div>
                 
                 <!-- Notificações e User Menu -->
@@ -640,7 +615,6 @@
                 if (event) event.preventDefault();
                 var ref = typeof document.referrer === 'string' ? document.referrer : '';
                 var path = typeof location.pathname === 'string' ? location.pathname : '';
-                var currentPathWithQuery = (location.pathname || '') + (location.search || '');
                 var origin = typeof location.origin === 'string' ? location.origin : (location.protocol + '//' + location.host);
                 
                 function isFormReferrer() {
@@ -669,29 +643,25 @@
                     return null;
                 }
                 
+                if (isFormReferrer()) {
+                    var safe = getSafeBackUrl();
+                    if (safe) { location.href = safe; return false; }
+                }
+                // Regra principal: usar o histórico real do navegador.
+                // Evita loop entre páginas quando se usa location.href com referrer.
+                if (window.history.length > 1) {
+                    window.history.back();
+                    return false;
+                }
+                // Fallback sem histórico útil: usar referrer same-origin sem criar nova entrada.
                 if (ref) {
                     try {
                         var refUrl2 = new URL(ref);
                         if (refUrl2.origin === location.origin) {
-                            var refPathWithQuery = (refUrl2.pathname || '') + (refUrl2.search || '');
-                            // Se veio exatamente da mesma URL (comum após POST/redirect ou múltiplos estados da mesma tela),
-                            // evita "voltar dentro do formulário" e já sai para uma rota segura.
-                            if (refPathWithQuery === currentPathWithQuery) {
-                                var safeSame = getSafeBackUrl();
-                                if (safeSame) { location.href = safeSame; return false; }
-                            } else {
-                                // Quando o referrer é uma tela anterior válida, volta direto para ela
-                                // sem depender de múltiplos passos no history.
-                                location.href = refUrl2.href;
-                                return false;
-                            }
+                            location.replace(refUrl2.href);
+                            return false;
                         }
                     } catch (e) {}
-                }
-
-                if (isFormReferrer()) {
-                    var safe = getSafeBackUrl();
-                    if (safe) { location.href = safe; return false; }
                 }
                 var safeFallback = getSafeBackUrl();
                 if (safeFallback) { location.href = safeFallback; return false; }

@@ -415,6 +415,20 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
 
     data_inicio_raw = (get_params.get('data_inicio') or '').strip()
     data_fim_raw = (get_params.get('data_fim') or '').strip()
+    periodo_rapido = (get_params.get('periodo_rapido') or '').strip()
+    if periodo_rapido not in {'', '30', '60', '90', 'todos'}:
+        periodo_rapido = ''
+
+    usa_periodo_rapido = (not data_inicio_raw and not data_fim_raw and periodo_rapido in {'30', '60', '90'})
+    if usa_periodo_rapido:
+        dias = int(periodo_rapido)
+        end_date = timezone.localdate()
+        start_date = end_date - timedelta(days=max(dias - 1, 0))
+        data_inicio_raw = start_date.strftime('%Y-%m-%d')
+        data_fim_raw = end_date.strftime('%Y-%m-%d')
+    elif periodo_rapido == 'todos':
+        data_inicio_raw = ''
+        data_fim_raw = ''
 
     start_date = _parse_workorder_list_date(data_inicio_raw) if data_inicio_raw else None
     end_date = _parse_workorder_list_date(data_fim_raw) if data_fim_raw else None
@@ -459,6 +473,7 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
         'analisado_filter': analisado_filter,
         'data_inicio': data_inicio,
         'data_fim': data_fim,
+        'periodo_rapido': periodo_rapido,
         'search_query': search_query,
         'order_by': order_by,
     }
@@ -1434,6 +1449,15 @@ def detail_workorder(request, pk):
     
     # Verificar se pode comentar (solicitante, aprovador ou admin que tem acesso ao pedido)
     can_comment = tem_permissao
+    can_create_workorder = (
+        is_engenheiro(user)
+        or WorkOrderPermission.objects.filter(
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True,
+        ).exists()
+        or is_admin(user)
+    )
     
     context = {
         'workorder': workorder,
@@ -1453,6 +1477,7 @@ def detail_workorder(request, pk):
         'anexos_por_versao': anexos_por_versao,
         'anexos_por_versao_ordenado': anexos_por_versao_ordenado,
         'comments': comments,
+        'can_create_workorder': can_create_workorder,
     }
     return render(request, 'obras/detail_workorder.html', context)
 
