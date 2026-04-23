@@ -173,9 +173,28 @@
   }
 
   function registerServiceWorker(swUrl) {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+    return navigator.serviceWorker.register(swUrl, { scope: '/' }).catch(function () {
+      return null;
+    });
+  }
+
+  function sendSwCacheUrls(form) {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker
-      .register(swUrl, { scope: '/' })
+    var raw = form.getAttribute('data-sw-cache-urls');
+    if (!raw || !String(raw).trim()) return;
+    var urls;
+    try {
+      urls = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (!Array.isArray(urls) || !urls.length) return;
+    navigator.serviceWorker.ready
+      .then(function (reg) {
+        if (!reg.active) return;
+        reg.active.postMessage({ type: 'CACHE_URLS', urls: urls });
+      })
       .catch(function () {});
   }
 
@@ -184,7 +203,11 @@
     if (!form) return;
 
     var swUrl = form.getAttribute('data-rdo-sw-url');
-    if (swUrl) registerServiceWorker(swUrl);
+    if (swUrl) {
+      registerServiceWorker(swUrl).then(function (reg) {
+        if (reg) sendSwCacheUrls(form);
+      });
+    }
 
     var banner = buildBanner();
     var restoreBtn = document.getElementById('rdo-offline-restore-btn');
