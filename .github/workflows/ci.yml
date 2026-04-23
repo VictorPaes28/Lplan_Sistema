@@ -26,7 +26,9 @@ jobs:
         run: python manage.py check
 
       - name: Validate collectstatic
-        run: python manage.py collectstatic --noinput --dry-run
+        run: |
+          mkdir -p staticfiles
+          python manage.py collectstatic --noinput
 
       - name: Tests (apps ativos)
         run: >
