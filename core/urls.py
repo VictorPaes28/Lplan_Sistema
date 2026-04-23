@@ -42,6 +42,7 @@ from .frontend_views import (
     equipment_list_view,
     equipment_form_view,
     notifications_view,
+    notifications_poll_view,
     notification_mark_read_view,
     notification_mark_all_read_view,
     profile_view,
@@ -210,6 +211,7 @@ urlpatterns = [
     
     # Notificações
     path('notifications/', notifications_view, name='notifications'),
+    path('notifications/poll/', notifications_poll_view, name='notifications-poll'),
     path('notifications/<int:pk>/read/', notification_mark_read_view, name='notification-mark-read'),
     path('notifications/mark-all-read/', notification_mark_all_read_view, name='notification-mark-all-read'),
 ]

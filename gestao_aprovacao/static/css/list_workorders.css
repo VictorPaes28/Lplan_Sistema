@@ -52,6 +52,10 @@
     flex-wrap: wrap;
 }
 
+.list-header--actions-only {
+    justify-content: flex-end;
+}
+
 .list-title {
     color: var(--text-color);
     font-size: 2rem;
@@ -90,7 +94,9 @@
 
 .table-container {
     padding: 0;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
     margin-bottom: 0;
 }
 
@@ -130,6 +136,7 @@
     gap: 0.75rem;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .quick-filter-btn {
@@ -204,6 +211,31 @@
     border-color: #d1fae5;
 }
 
+.quick-filter-new-order {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 1.05rem;
+    border-radius: 9999px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #1d4ed8;
+    text-decoration: none;
+    font-size: 0.84rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.quick-filter-new-order:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1e40af;
+    box-shadow: 0 2px 10px rgba(29, 78, 216, 0.12);
+    transform: translateY(-1px);
+}
+
 /* Header dos Filtros */
 .filters-header {
     display: flex;
@@ -221,6 +253,19 @@
     color: #0f172a;
     margin: 0;
     letter-spacing: -0.02em;
+}
+
+.filters-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+
+.filters-title-sub {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #64748b;
+    font-weight: 500;
 }
 
 /* Abre painel de filtros + exportação PDF (CTA principal) */
@@ -290,6 +335,10 @@
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 0.875rem 1rem;
+    padding: 0.8rem 0.85rem;
+    border: 1px solid #e5eaf0;
+    border-radius: 10px;
+    background: #fbfdff;
 }
 
 .filter-group--search {
@@ -303,6 +352,14 @@
     gap: 0.5rem;
     align-items: center;
     flex-shrink: 0;
+}
+
+.filters-card.is-advanced-open .filter-actions-main {
+    display: none;
+}
+
+.filters-card.is-advanced-open .filter-group--search {
+    flex: 1 1 100%;
 }
 
 .filter-btn--apply {
@@ -362,16 +419,16 @@
 }
 
 .filter-section {
-    background: transparent;
-    border: 1px solid #edf1f5;
+    background: #ffffff;
+    border: 1px solid #e7edf4;
     border-radius: 10px;
-    padding: 0.85rem 0.95rem 0.95rem;
+    padding: 0.9rem 0.95rem 1rem;
 }
 
 .filter-section-heading {
-    margin: 0 0 0.35rem 0;
+    margin: 0 0 0.4rem 0;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0;
     text-transform: none;
     color: #475569;
@@ -386,6 +443,11 @@
 
 .filter-section--grid .filter-section-heading {
     margin-bottom: 0.75rem;
+}
+
+.filter-section--period {
+    background: #f8fbff;
+    border-color: #dbe7f6;
 }
 
 .filter-fields-grid {
@@ -415,6 +477,15 @@
     max-width: 22rem;
 }
 
+.filter-period-row.filter-period-row--with-quick {
+    grid-template-columns: 1fr 1fr minmax(7.5rem, 9rem);
+    max-width: 34rem;
+}
+
+.filter-field--periodo-rapido {
+    grid-column: auto;
+}
+
 .filters-hint {
     margin: 0.6rem 0 0 0;
     font-size: 0.73rem;
@@ -430,19 +501,31 @@
     justify-content: space-between;
     gap: 1rem;
     margin-top: 0.15rem;
-    padding: 0.75rem 0;
-    background: transparent;
-    border: 0;
-    border-top: 1px solid #edf1f5;
-    border-radius: 0;
+    padding: 0.75rem 0.85rem;
+    background: #f8fbff;
+    border: 1px solid #dbe7f6;
+    border-radius: 10px;
     box-shadow: none;
 }
 
-.filter-advanced-footer-text {
+.filter-advanced-footer-left {
     display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
+    align-items: center;
+    gap: 0.7rem;
     min-width: 0;
+}
+
+.filter-advanced-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.filter-advanced-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .filter-advanced-footer-title {
@@ -472,6 +555,14 @@
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
+}
+
+.filter-advanced-footer .filter-btn--apply {
+    min-width: 9.5rem;
+}
+
+.filter-advanced-footer .filter-btn--ghost {
+    min-width: 7rem;
 }
 
 .filter-advanced-footer .btn-export-pdf:hover,
@@ -627,6 +718,74 @@
     width: 100%;
     border-collapse: collapse;
     border-spacing: 0;
+}
+
+/* Listagem de pedidos (desktop): modo compacto para evitar corte lateral */
+.workorders-table--pedidos {
+    table-layout: fixed;
+}
+
+.workorders-table--pedidos th,
+.workorders-table--pedidos td {
+    padding: 0.7rem 0.55rem;
+}
+
+.workorders-table--pedidos th {
+    font-size: 0.68rem;
+    letter-spacing: 0.4px;
+}
+
+.workorders-table--pedidos .th-content {
+    gap: 0.35rem;
+}
+
+/* Ícones da grade ocupavam largura sem trazer ganho real de leitura */
+.workorders-table--pedidos .th-content svg,
+.workorders-table--pedidos .cell-with-icon svg,
+.workorders-table--pedidos .code-link svg {
+    display: none;
+}
+
+.workorders-table--pedidos .cell-with-icon {
+    min-width: 0;
+}
+
+.workorders-table--pedidos .cell-with-icon span {
+    min-width: 0;
+}
+
+.workorders-table--pedidos .status-col {
+    width: 10.5rem;
+}
+
+.workorders-table--pedidos .solicitante-col {
+    width: 7.8rem;
+}
+
+.workorders-table--pedidos td.status-col {
+    overflow: hidden;
+}
+
+.workorders-table--pedidos td[data-label="Credor"] .cell-with-icon span,
+.workorders-table--pedidos td[data-label="Solicitante"] .cell-with-icon span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workorders-table--pedidos .tipo-badge,
+.workorders-table--pedidos .status-badge {
+    padding: 0.34rem 0.62rem;
+    font-size: 0.68rem;
+}
+
+.workorders-table--pedidos .status-col .status-badge {
+    white-space: normal;
+    line-height: 1.15;
+    max-width: 100%;
+    word-break: break-word;
+    text-align: center;
 }
 
 .workorders-table thead tr,
@@ -1139,6 +1298,15 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+    .workorders-table--pedidos {
+        table-layout: auto;
+    }
+
+    .workorders-table--pedidos .status-col,
+    .workorders-table--pedidos .solicitante-col {
+        width: auto;
+    }
+
     .page-container {
         padding: 0;
     }
@@ -1165,6 +1333,12 @@
         min-height: 40px;
     }
 
+    .quick-filter-new-order {
+        margin-left: 0;
+        width: 100%;
+        min-height: 40px;
+    }
+
     .filters-header {
         flex-direction: column;
         align-items: flex-start;
@@ -1186,6 +1360,12 @@
         align-items: stretch;
     }
 
+    .filter-advanced-footer-left,
+    .filter-advanced-footer-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
     .filter-advanced-footer .btn-export-pdf,
     .filter-advanced-footer .btn-export-excel {
         align-self: stretch;
@@ -1201,6 +1381,12 @@
         grid-template-columns: 1fr;
         max-width: none;
     }
+
+    .filter-period-row.filter-period-row--with-quick {
+        grid-template-columns: 1fr;
+        max-width: none;
+    }
+
 
     .filter-fields-grid {
         grid-template-columns: 1fr;

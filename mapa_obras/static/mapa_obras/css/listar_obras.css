@@ -1,0 +1,41 @@
+/* Mapa de Suprimentos - usa base visual do select_project */
+
+.mapa-select-page .select-project-card-btn {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+.mapa-select-page .select-project-card-btn:hover {
+    color: inherit;
+}
+
+.mapa-locais-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.85rem;
+}
+
+.mapa-local-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    border: 1px solid #dbe6f3;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.22rem 0.52rem;
+    max-width: 100%;
+}
+
+.mapa-local-chip i {
+    font-size: 0.58rem;
+}
+
+.mapa-local-chip--more {
+    background: #f1f5f9;
+    color: #64748b;
+}

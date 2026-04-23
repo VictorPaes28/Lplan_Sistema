@@ -188,6 +188,25 @@ class APISiengeProvider(BaseSiengeProvider):
         import requests
         self.requests = requests
 
+    def _join_sienge_url(self, path: str) -> str:
+        """
+        Junta base_url (ex.: .../tenant/public/api) com path relativo.
+
+        Evita duplicar /public/api quando o .env já traz SIENGE_API_BASE_URL completo
+        e os fallbacks começam com /public/api/... ou /api/v1/... (vira /v1/...).
+        """
+        base = self.base_url.rstrip('/')
+        if not path.startswith('/'):
+            path = '/' + path
+        if base.endswith('/public/api') and path.startswith('/public/api'):
+            path = path[len('/public/api') :] or '/'
+            if not path.startswith('/'):
+                path = '/' + path
+        # Documentação Sienge costuma usar .../public/api/v1/... (não .../public/api/api/v1/...)
+        if base.endswith('/public/api') and path.startswith('/api/v1'):
+            path = '/v1' + path[len('/api/v1') :]
+        return base + path
+
     def _candidate_basic_user(self):
         return (self.username or self.client_id or '').strip()
 
@@ -335,6 +354,7 @@ class APISiengeProvider(BaseSiengeProvider):
             endpoint_templates.append(self.mapa_endpoint_template)
         endpoint_templates.extend(
             [
+                "/v1/obras/{obra_codigo}/mapa-controle",
                 "/api/v1/obras/{obra_codigo}/mapa-controle",
                 "/public/api/v1/obras/{obra_codigo}/mapa-controle",
             ]
@@ -355,7 +375,7 @@ class APISiengeProvider(BaseSiengeProvider):
                 else endpoint_tpl
             )
             if endpoint.startswith("/"):
-                endpoint = f"{self.base_url}{endpoint}"
+                endpoint = self._join_sienge_url(endpoint)
 
             page = 1
             items = []

@@ -1,21 +1,102 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Selecionar app{% endblock %}
-{% block page_subtitle %}Escolha o app que deseja acessar{% endblock %}
+{% block main_extra_class %}select-system-main{% endblock %}
+
+{% block page_title %}<span class="sr-only">Selecionar app</span>{% endblock %}
+{% block page_subtitle %}<span class="select-system-brand-line">Sistema Lplan</span>{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400&display=swap">
 <style>
     /* Tela inicial: não exibir botão de voltar */
     #top-bar-back-link {
         display: none !important;
     }
 
+    /* Fundo da área principal (texto do herói “no papel”, cards brancos em cima) */
+    .main-content.select-system-main {
+        background: #f5f7f9;
+    }
+    /* Top bar: sem “Selecionar app” visível; só marca (título real fica em .sr-only no h2) */
+    .main-content.select-system-main .top-bar-title {
+        margin: 0;
+        padding: 0;
+    }
+    .main-content.select-system-main .top-bar-subtitle {
+        display: block !important;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+    .main-content.select-system-main .select-system-brand-line {
+        font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-weight: 300;
+        font-size: 0.9375rem;
+        letter-spacing: 0.04em;
+        color: #64748b;
+        line-height: 1.35;
+    }
+    @media (min-width: 768px) {
+        .main-content.select-system-main .select-system-brand-line {
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+        }
+    }
+
+    /* Ligeiramente mais largo que antes (~1248px) para aproveitar melhor o main */
+    .main-content.select-system-main > *:not(.top-bar-container) {
+        padding-left: 0.875rem;
+        padding-right: 0.875rem;
+    }
+    @media (min-width: 768px) {
+        .main-content.select-system-main > *:not(.top-bar-container) {
+            padding-left: 1.125rem;
+            padding-right: 1.125rem;
+        }
+    }
+
+    .select-system-root {
+        max-width: 78rem;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+        /* Respiro abaixo da top bar (o main não aplica padding-top aos filhos) */
+        padding-top: 2rem;
+    }
+    @media (min-width: 768px) {
+        .select-system-root {
+            padding-top: 2.75rem;
+        }
+    }
+
+    /* Grid: mesma altura por linha; rodapé “Acessar” alinhado ao fundo do card */
+    .select-system-cards-grid {
+        display: grid;
+        gap: 1.75rem;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+    @media (min-width: 640px) {
+        .select-system-cards-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.75rem;
+        }
+    }
+    @media (min-width: 1080px) {
+        .select-system-cards-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 2rem;
+        }
+    }
+
     /* System Cards */
     .system-card {
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         text-decoration: none;
-        display: block;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
         height: 100%;
     }
     .system-card:hover:not(.disabled) {
@@ -48,9 +129,15 @@
         position: relative;
         overflow: hidden;
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
         display: flex;
         flex-direction: column;
+    }
+    /* Empurra seta/link para a base quando a linha da grelha é mais alta que o conteúdo */
+    .main-content.select-system-main .system-card .card-inner > div:last-child {
+        margin-top: auto;
+        padding-top: 1rem;
     }
     .system-card:hover:not(.disabled) .card-inner {
         box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.12);
@@ -168,22 +255,43 @@
     }
     .system-card:focus-visible { border-radius: 16px; }
 
-    /* Welcome Banner */
-    .welcome-banner {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border-radius: 16px;
-        padding: 1.25rem 2rem;
-        margin-bottom: 1.25rem;
-        border: 1px solid #e2e8f0;
+    /* Título da página: direto no fundo (sem caixa branca), como o mockup */
+    .select-system-hero-panel {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 0.75rem 0 1.5rem;
+        margin-bottom: 2rem;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    .select-system-hero-panel .select-system-hero-eyebrow {
+        margin: 0 0 0.55rem 0;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #868e96;
+    }
+    .select-system-hero-panel .select-system-hero-title {
+        margin: 0 0 0.5rem 0;
+        font-size: clamp(1.4rem, 2.4vw, 1.75rem);
+        font-weight: 700;
+        line-height: 1.2;
+        color: #1a1a1b;
+        letter-spacing: -0.02em;
+    }
+    .select-system-hero-panel .select-system-hero-lead {
+        margin: 0;
+        font-size: 0.9375rem;
+        line-height: 1.45;
+        color: #6c757d;
+        font-weight: 400;
+        max-width: 40rem;
     }
 
     /* Desktop: ligeiramente maior para melhorar leitura */
     @media (min-width: 1024px) {
-        .select-system-root {
-            max-width: 1180px;
-            margin-left: auto;
-            margin-right: auto;
-        }
         .system-card .card-inner {
             padding: 1.35rem;
         }
@@ -281,7 +389,10 @@
     }
 
     @media (max-width: 768px) {
-        .welcome-banner { padding: 1rem 1.25rem; }
+        .select-system-hero-panel {
+            padding-bottom: 1.35rem;
+            margin-bottom: 2rem;
+        }
     }
 
     /* Card de Suporte */
@@ -526,18 +637,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto fade-in select-system-root">
-    <!-- Welcome Banner -->
-    <div class="welcome-banner">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-                <h2 class="text-2xl font-bold text-slate-900 mb-1">
-                    Olá, {{ user.get_full_name|default:user.username|title }}
-                </h2>
-                <p class="text-slate-500 text-sm">Selecione o app que deseja acessar.</p>
-            </div>
-        </div>
-    </div>
+<div class="fade-in select-system-root px-1 sm:px-0">
+    <header class="select-system-hero-panel" aria-labelledby="select-system-hero-heading">
+        <p class="select-system-hero-eyebrow">Selecionar app</p>
+        <h2 id="select-system-hero-heading" class="select-system-hero-title">
+            {{ time_greeting }}, {{ user.get_full_name|default:user.username }}.
+        </h2>
+        <p class="select-system-hero-lead">Escolha um dos aplicativos do ecossistema LPLAN para continuar.</p>
+    </header>
 
     {% if not has_diario and not has_gestao and not has_mapa and not has_central and not has_workflow %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
@@ -546,7 +653,7 @@
     </div>
     {% endif %}
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="select-system-cards-grid">
         {% if has_central %}
         <!-- Painel do sistema: hub único para admin (obras, usuários, manutenção, ajuda, dashboard) -->
         <a href="{% url 'accounts:admin_central' %}" class="system-card central {% if not has_central %}disabled{% endif %}" aria-label="Painel do sistema" style="order: 0;">

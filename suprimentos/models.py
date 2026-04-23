@@ -503,7 +503,11 @@ class ItemMapa(models.Model):
         chave_insumo = _normalizar_codigo_insumo_model(self.insumo.codigo_sienge if self.insumo else '')
         if not chave_sc:
             return None
-        candidatos = list(RecebimentoObra.objects.filter(obra=self.obra).select_related('insumo'))
+        # Cache por requisição (preenchido em views que listam muitos itens — evita N queries carregando todos os recebimentos da obra por item)
+        if hasattr(self, '_recebimentos_obra_cache'):
+            candidatos = self._recebimentos_obra_cache
+        else:
+            candidatos = list(RecebimentoObra.objects.filter(obra=self.obra).select_related('insumo'))
         # Priorizar consolidado (item_sc vazio), matching por SC e código insumo normalizados
         for rec in candidatos:
             if (rec.insumo and _normalizar_codigo_insumo_model(rec.insumo.codigo_sienge) == chave_insumo

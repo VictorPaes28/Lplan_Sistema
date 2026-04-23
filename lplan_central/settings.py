@@ -377,6 +377,13 @@ SIENGE_API_MAPA_ENDPOINT_TEMPLATE = os.environ.get(
 ).strip()
 SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
 
+# Central de Aprovações (workflow): ingestão a partir de medições Sienge (contrato/BM/medição)
+SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE = os.environ.get(
+    'SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE', 'medicao'
+).strip().lower()
+# Quantas linhas máx. pedir por fonte (contratos / medições) por execução do comando de sync
+SIENGE_CENTRAL_SYNC_MAX_ROWS = int(os.environ.get('SIENGE_CENTRAL_SYNC_MAX_ROWS', '2000') or '2000')
+
 # CSRF: em produção (HTTPS) defina no .env:
 #   CSRF_TRUSTED_ORIGINS=https://sistema.lplan.com.br
 # Se acessar por HTTP (ex.: sem SSL no cPanel), inclua também as origens http:

@@ -212,6 +212,7 @@ class WorkOrderForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         is_creating = kwargs.pop('is_creating', False)
+        admin_hide_system_fields = kwargs.pop('admin_hide_system_fields', False)
         super().__init__(*args, **kwargs)
         
         # Filtrar obras baseado no usuário e permissões
@@ -255,9 +256,8 @@ class WorkOrderForm(forms.ModelForm):
                 # Aprovadores e admins veem todas as obras ativas
                 self.fields['obra'].queryset = Obra.objects.filter(ativo=True).order_by('empresa', 'codigo')
             
-            # Para solicitantes: SEMPRE esconder status, código e prazo (criação e edição)
+            # Solicitantes: esconder status, código, prazo, valor estimado e local (preenchidos na view ou N/A).
             if is_solicitante_only:
-                # Remover campos que solicitantes não devem ver
                 if 'status' in self.fields:
                     del self.fields['status']
                 if 'codigo' in self.fields:
@@ -268,6 +268,12 @@ class WorkOrderForm(forms.ModelForm):
                     del self.fields['valor_estimado']
                 if 'local' in self.fields:
                     del self.fields['local']
+            # Admin na criação: código e status são automáticos (mesma regra que o solicitante na prática).
+            elif is_creating and admin_hide_system_fields:
+                if 'status' in self.fields:
+                    del self.fields['status']
+                if 'codigo' in self.fields:
+                    del self.fields['codigo']
         else:
             self.fields['obra'].queryset = Obra.objects.filter(ativo=True).order_by('codigo')
         

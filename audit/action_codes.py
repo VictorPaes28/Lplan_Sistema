@@ -7,6 +7,8 @@ class AuditAction:
     USER_CREATED = 'user_created'
     USER_UPDATED = 'user_updated'
     USER_DELETED = 'user_deleted'
+    USER_LOGIN = 'user_login'
+    USER_SELF_PROFILE_UPDATED = 'user_self_profile_updated'
     USER_SIGNUP_REQUEST_INTERNAL = 'user_signup_request_internal'
     USER_SIGNUP_REQUEST_PUBLIC = 'user_signup_request_public'
     USER_SIGNUP_APPROVED = 'user_signup_approved'

@@ -20,6 +20,7 @@ from suprimentos.services.analise_obra_service import (
     AnaliseObraFilters,
     AnaliseObraPeriodo,
     AnaliseObraService,
+    _classify_occurrence_severity,
 )
 
 
@@ -256,4 +257,56 @@ class TestAnaliseObraApi(TestCase):
         r = self.client.get(url)
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.json().get("success"))
+
+
+class TestOccurrenceSeverityHeuristic(TestCase):
+    """Heurística de gravidade das ocorrências do diário (Análise da Obra)."""
+
+    def test_evitar_acidentes_nao_e_critico(self):
+        txt = (
+            "CHUVAS: terraplanagem paralisada; movimentação interrompida para evitar acidentes."
+        )
+        self.assertEqual(_classify_occurrence_severity(txt, []), "alta")
+
+    def test_acidente_com_vitima_e_critico(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Queda de andaime; houve vítima encaminhada ao hospital.", []),
+            "critica",
+        )
+
+    def test_queda_de_energia_nao_e_critico_geometrico(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Queda de energia no canteiro; equipamentos parados.", []),
+            "alta",
+        )
+
+    def test_prevenacao_remove_e_cai_para_alta_com_parada(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Obra parada. Prevenção de acidentes reforçada.", []),
+            "alta",
+        )
+
+    def test_pendencia_e_media(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Pendência de alinhamento com projeto arquitetônico.", []),
+            "media",
+        )
+
+    def test_atraso_leve_e_media_nao_alta(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Atraso leve na liberação do concreto.", []),
+            "media",
+        )
+
+    def test_somente_chuva_sem_paralisacao_e_baixa(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Periodo com chuva e umidade alta.", []),
+            "baixa",
+        )
+
+    def test_chuva_com_paralisacao_e_alta(self):
+        self.assertEqual(
+            _classify_occurrence_severity("Chuva intensa; terraplanagem paralisada.", []),
+            "alta",
+        )
 

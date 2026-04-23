@@ -157,6 +157,6 @@ class UserGovernanceServiceTests(TestCase):
         ins = build_audit_insights(target)
         self.assertEqual(ins["audit_as_subject_count"], 1)
         self.assertEqual(ins["audit_top_actions"][0]["action_code"], "user_updated")
-        self.assertEqual(ins["distinct_login_ips"], 2)
+        self.assertNotIn("ip_ranking", ins)
         self.assertEqual(len(ins["recent_audit_events"]), 1)
         self.assertIn("central/auditoria/", ins["recent_audit_events"][0]["detail_url"])

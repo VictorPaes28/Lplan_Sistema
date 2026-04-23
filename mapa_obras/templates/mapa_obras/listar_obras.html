@@ -5,253 +5,141 @@
 {% block page_subtitle %}Selecione a obra para acessar o mapa{% endblock %}
 
 {% block extra_css %}
-<style>
-    /* Cartões em linha, centralizados como no Diário de Obras */
-    .obras-grid {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 1.25rem;
-        align-items: stretch;
-        justify-content: center;
-    }
-
-    .obra-card {
-        flex: 1 1 280px;
-        min-width: 260px;
-        max-width: 380px;
-        background: #fff;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-        overflow: hidden;
-        transition: all 0.2s ease;
-        position: relative;
-        text-decoration: none;
-        display: flex;
-        flex-direction: row;
-        align-items: stretch;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-    .obra-card:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 8px 20px -6px rgba(59, 130, 246, 0.18);
-    }
-
-    .obra-card::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 4px;
-        background: linear-gradient(180deg, #3b82f6, #2563eb);
-        opacity: 0;
-        transition: opacity 0.25s ease;
-    }
-    .obra-card:hover::before {
-        opacity: 1;
-    }
-
-    .obra-card-body {
-        padding: 1rem 1.25rem;
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
-    .obra-icon-wrap {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #eff6ff, #dbeafe);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #2563eb;
-        font-size: 1.1rem;
-        flex-shrink: 0;
-        transition: all 0.25s ease;
-    }
-    .obra-card:hover .obra-icon-wrap {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        color: #fff;
-    }
-
-    .obra-name {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin: 0 0 0.25rem 0;
-        line-height: 1.3;
-    }
-
-    .obra-code {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #64748b;
-        font-family: ui-monospace, monospace;
-        background: #f1f5f9;
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-block;
-        width: fit-content;
-    }
-
-    .obra-locais-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 8px;
-        border-radius: 9999px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        background: #eff6ff;
-        color: #2563eb;
-        margin-top: 0.5rem;
-    }
-
-    .obra-action-wrap {
-        display: flex;
-        align-items: stretch;
-        border-left: 1px solid #e2e8f0;
-    }
-    .obra-action {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0 1rem;
-        min-width: 120px;
-        background: #f8fafc;
-        font-weight: 600;
-        font-size: 0.8rem;
-        color: #475569;
-        transition: all 0.2s ease;
-    }
-    .obra-card:hover .obra-action {
-        background: #3b82f6;
-        color: #fff;
-    }
-    .obra-action i {
-        transition: transform 0.2s ease;
-    }
-    .obra-card:hover .obra-action i {
-        transform: translateX(3px);
-    }
-
-    .obra-card:nth-child(1) { animation: cardIn 0.35s 0.05s both; }
-    .obra-card:nth-child(2) { animation: cardIn 0.35s 0.1s both; }
-    .obra-card:nth-child(3) { animation: cardIn 0.35s 0.15s both; }
-    .obra-card:nth-child(4) { animation: cardIn 0.35s 0.2s both; }
-    @keyframes cardIn {
-        from { opacity: 0; transform: translateY(12px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .empty-obras {
-        text-align: center;
-        padding: 3rem 2rem;
-        background: #fff;
-        border-radius: 12px;
-        border: 2px dashed #e2e8f0;
-    }
-    .empty-obras-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 50%;
-        background: #f1f5f9;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 1rem;
-        font-size: 1.5rem;
-        color: #94a3b8;
-    }
-
-    .obras-page-intro {
-        font-size: 0.9rem;
-        color: #64748b;
-        margin-bottom: 1.25rem;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .obra-card, .obra-card .obra-icon-wrap, .obra-card .obra-action, .obra-card .obra-action i {
-            transition: none;
-            animation: none;
-        }
-        .obra-card:hover { transform: none; }
-        .obra-card:hover .obra-action i { transform: none; }
-    }
-
-    @media (max-width: 768px) {
-        .obras-grid {
-            flex-direction: column;
-        }
-        .obra-card {
-            max-width: none;
-            flex-direction: column;
-        }
-        .obra-action-wrap {
-            border-left: none;
-            border-top: 1px solid #e2e8f0;
-        }
-        .obra-action {
-            min-width: 100%;
-            padding: 0.75rem 1rem;
-        }
-    }
-</style>
+<link rel="stylesheet" href="{% static 'core/css/select_project.css' %}">
+<link rel="stylesheet" href="{% static 'mapa_obras/css/listar_obras.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto w-full fade-in">
-    <p class="obras-page-intro">Clique na obra que deseja acessar no Mapa de Suprimentos.</p>
+<div class="mapa-select-page select-project-page max-w-6xl mx-auto w-full fade-in">
+    <div class="select-project-hero">
+        <div class="select-project-hero-header">
+            <div>
+                <h2 class="select-project-title">Selecione uma Obra</h2>
+                <p class="select-project-subtitle">Escolha a obra que deseja acessar no Mapa de Suprimentos.</p>
+            </div>
+        </div>
+    </div>
 
     {% if obras %}
-    <div class="obras-grid">
+    <div class="project-search-block">
+        <div class="project-search">
+            <div class="search-input-wrapper">
+                <i class="fas fa-search search-icon" aria-hidden="true"></i>
+            <input
+                type="text"
+                id="obraSearch"
+                class="search-input"
+                placeholder="Buscar obra por nome ou código..."
+                autocomplete="off"
+            >
+            </div>
+        </div>
+        <p class="project-results-count"><span id="obraVisibleCount">{{ obras|length }}</span> obras encontradas</p>
+    </div>
+
+    <div class="no-results hidden" id="noObraResults">
+        <i class="fas fa-search"></i>
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">Nenhuma obra encontrada</h3>
+        <p class="text-sm">Tente buscar com outros termos.</p>
+    </div>
+
+    <div class="select-project-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="obrasGrid">
         {% for obra in obras %}
-        <a href="{% url 'mapa_obras:selecionar' obra.id %}" class="obra-card">
-            <div class="obra-card-body">
-                <div class="flex items-start gap-3">
-                    <div class="obra-icon-wrap">
-                        <i class="fas fa-hard-hat"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h3 class="obra-name">{{ obra.nome }}</h3>
-                        <span class="obra-code">{{ obra.codigo_sienge }}</span>
-                        {% if obra.locais.count > 0 %}
-                        <div class="flex flex-wrap gap-1 mt-2">
-                            {% for local in obra.locais.all|slice:":3" %}
-                            <span class="obra-locais-badge">
-                                <i class="fas fa-map-pin" style="font-size: 0.55rem;"></i>
-                                {{ local.nome }}
-                            </span>
-                            {% endfor %}
-                            {% if obra.locais.count > 3 %}
-                            <span class="obra-locais-badge" style="background: #f1f5f9; color: #64748b;">+{{ obra.locais.count|add:"-3" }}</span>
-                            {% endif %}
+        <a href="{% url 'mapa_obras:selecionar' obra.id %}" class="project-card select-project-card select-project-card-btn {% if obra_atual and obra_atual.id == obra.id %}is-selected{% endif %}" data-project-name="{{ obra.nome|lower }}" data-project-code="{{ obra.codigo_sienge|lower }}" {% if obra_atual and obra_atual.id == obra.id %}data-selected="true"{% endif %}>
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center mb-1">
+                        <div class="select-project-card-icon-wrap" aria-hidden="true">
+                            <i class="fa-solid fa-helmet-safety select-project-card-icon"></i>
                         </div>
-                        {% endif %}
+                        <div class="min-w-0">
+                            <h3 class="select-project-card-title truncate" title="{{ obra.nome }}">{{ obra.nome|title }}</h3>
+                            <p class="select-project-card-code">Código {{ obra.codigo_sienge }}</p>
+                        </div>
                     </div>
                 </div>
+                <i class="fas fa-chevron-right select-project-card-arrow flex-shrink-0 ml-2" aria-hidden="true"></i>
             </div>
-            <div class="obra-action-wrap">
-                <span class="obra-action">Acessar obra <i class="fas fa-arrow-right"></i></span>
+
+            {% if obra.locais.count > 0 %}
+            <div class="mapa-locais-preview">
+                {% for local in obra.locais.all|slice:":2" %}
+                <span class="mapa-local-chip">
+                    <i class="fas fa-map-pin"></i>
+                    {{ local.nome }}
+                </span>
+                {% endfor %}
+                {% if obra.locais.count > 2 %}
+                <span class="mapa-local-chip mapa-local-chip--more">+{{ obra.locais.count|add:"-2" }} locais</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-slate-100">
+                <div class="flex items-center">
+                    <i class="fas fa-layer-group mr-1"></i>
+                    <span>{{ obra.locais.count }} locais</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-xs">
+                        <i class="fas fa-circle mr-1"></i>Ativa
+                    </span>
+                </div>
             </div>
         </a>
         {% endfor %}
     </div>
     {% else %}
-    <div class="empty-obras">
-        <div class="empty-obras-icon">
+    <div class="empty-state">
+        <div class="empty-state-icon">
             <i class="fas fa-building"></i>
         </div>
-        <h3 style="font-size: 1.2rem; font-weight: 700; color: #1e293b; margin-bottom: 0.5rem;">Nenhuma obra encontrada</h3>
-        <p style="font-size: 0.9rem; color: #64748b;">Não há obras ativas cadastradas no Mapa de Suprimentos.</p>
-        <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.5rem;">Entre em contato com o administrador para cadastrar obras.</p>
+        <h3 class="text-xl font-semibold text-slate-900 mb-2">Nenhuma obra encontrada</h3>
+        <p class="text-gray-600">Não há obras ativas cadastradas no Mapa de Suprimentos.</p>
+        <p class="text-sm text-gray-500 mt-2">Entre em contato com o administrador para cadastrar obras.</p>
     </div>
     {% endif %}
 </div>
+
+<script>
+(function() {
+    const searchInput = document.getElementById('obraSearch');
+    const obrasGrid = document.getElementById('obrasGrid');
+    const noObraResults = document.getElementById('noObraResults');
+    const obraVisibleCount = document.getElementById('obraVisibleCount');
+
+    if (!searchInput || !obrasGrid) return;
+
+    searchInput.addEventListener('input', function(e) {
+        const term = (e.target.value || '').toLowerCase().trim();
+        const cards = obrasGrid.querySelectorAll('.project-card');
+        let visibleCount = 0;
+
+        cards.forEach(function(card) {
+            const obraName = card.getAttribute('data-project-name') || '';
+            const obraCode = card.getAttribute('data-project-code') || '';
+            const isVisible = term === '' || obraName.includes(term) || obraCode.includes(term);
+
+            card.classList.toggle('hidden', !isVisible);
+            if (isVisible) {
+                visibleCount += 1;
+            }
+        });
+
+        if (noObraResults) {
+            if (visibleCount === 0 && term !== '') {
+                noObraResults.classList.remove('hidden');
+                obrasGrid.classList.add('hidden');
+            } else {
+                noObraResults.classList.add('hidden');
+                obrasGrid.classList.remove('hidden');
+            }
+        }
+
+        if (obraVisibleCount) {
+            obraVisibleCount.textContent = visibleCount;
+        }
+    });
+})();
+</script>
 {% endblock %}

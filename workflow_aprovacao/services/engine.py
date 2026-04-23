@@ -149,6 +149,10 @@ class ApprovalEngine:
             new_status=process.status,
             payload={},
         )
+        if (external_id or '').strip():
+            from workflow_aprovacao.services.backlog import mark_backlog_resolved_for_process
+
+            mark_backlog_resolved_for_process(process)
         return process
 
     @classmethod

@@ -178,6 +178,7 @@ class WorkOrder(models.Model):
     # Tipo de solicitação
     TIPO_SOLICITACAO_CHOICES = [
         ('contrato', 'Contrato'),
+        ('validacao_contrato', 'Validação de Contrato'),
         ('medicao', 'Medição'),
         ('ordem_servico', 'Ordem de Serviço (OS)'),
         ('mapa_cotacao', 'Mapa de Cotação'),
@@ -211,7 +212,7 @@ class WorkOrder(models.Model):
         max_length=20,
         choices=TIPO_SOLICITACAO_CHOICES,
         verbose_name='Tipo de Solicitação',
-        help_text='Tipo de solicitação: Contrato ou Medição'
+        help_text='Tipo de solicitação (contrato, validação de contrato, medição, OS, mapa de cotação).'
     )
 
     valor_medicao = models.DecimalField(
@@ -1112,6 +1113,7 @@ class TagErro(models.Model):
     # Tipos de solicitação (mesmos do WorkOrder)
     TIPO_SOLICITACAO_CHOICES = [
         ('contrato', 'Contrato'),
+        ('validacao_contrato', 'Validação de Contrato'),
         ('medicao', 'Medição'),
         ('ordem_servico', 'Ordem de Serviço (OS)'),
         ('mapa_cotacao', 'Mapa de Cotação'),

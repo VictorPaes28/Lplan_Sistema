@@ -200,7 +200,7 @@ div[x-show="open"]:not([style*="display: block"]) {
 }
 
 .top-bar-title {
-    font-size: 1rem;
+    font-size: 1.12rem;
     font-weight: 700;
     color: #0f172a;
     margin: 0 0 0.25rem 0;
@@ -211,7 +211,7 @@ div[x-show="open"]:not([style*="display: block"]) {
 }
 
 .top-bar-subtitle {
-    font-size: 0.75rem;
+    font-size: 0.82rem;
     color: #6b7280;
     margin: 0;
     line-height: 1.4;
@@ -223,31 +223,60 @@ div[x-show="open"]:not([style*="display: block"]) {
     border-bottom-style: none !important;
 }
 
+.top-bar-heading-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+}
+
+.top-bar-heading-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
 /* Seta/camada "Voltar" na top bar */
 .back-link-layer {
     text-decoration: none !important;
     border-bottom: none !important;
-    color: #475569;
-    background-color: #f1f5f9;
-    margin-bottom: 0.5rem;
+    color: #334155;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    margin-bottom: 0;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 .back-link-layer:hover {
     text-decoration: none !important;
     border-bottom: none !important;
-    background-color: #e2e8f0;
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
     color: #1e293b;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
 }
 .back-link-layer:focus-visible {
     outline: 2px solid #3b82f6;
     outline-offset: 2px;
 }
 .back-link-layer .back-link-layer-icon {
-    color: #64748b;
+    color: #475569;
     transition: transform 0.2s ease;
 }
 .back-link-layer:hover .back-link-layer-icon {
-    color: #3b82f6;
+    color: #334155;
     transform: translateX(-2px);
+}
+
+@media (max-width: 768px) {
+    .top-bar-heading-group {
+        width: 100%;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
 }
 
 /* ============================================
@@ -542,11 +571,11 @@ button[data-sidebar-close] {
     }
     
     .top-bar-title {
-        font-size: 1.2rem;
+        font-size: 1.3rem;
     }
     
     .top-bar-subtitle {
-        font-size: 0.875rem;
+        font-size: 0.95rem;
     }
     
     .main-content > *:not(.top-bar-container) {
@@ -861,7 +890,7 @@ main::-webkit-scrollbar-thumb:hover {
    ======================================== */
 @media (max-width: 640px) {
     .top-bar-title {
-        font-size: 1rem !important;
+        font-size: 1.08rem !important;
     }
     .top-bar-subtitle {
         display: none;
@@ -962,7 +991,7 @@ main::-webkit-scrollbar-thumb:hover {
     }
     
     .top-bar-title {
-        font-size: 1.125rem !important;
+        font-size: 1.2rem !important;
     }
 }
 

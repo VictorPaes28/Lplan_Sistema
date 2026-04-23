@@ -189,20 +189,209 @@ def _criticidade_from_pct(pct: float | None) -> str:
     return "baixa"
 
 
+# Frases que não devem disparar nível máximo (prevenção / ausência de evento).
+_PREVENCAO_ACIDENTE_RE = re.compile(
+    "|".join(
+        [
+            r"\bevitar\s+acidentes?\b",
+            r"\bpara\s+evitar\s+acidentes?\b",
+            r"\bpreven[çc][aã]o\s+(?:de\s+)?acidentes?\b",
+            r"\breduz(?:ir|indo)?\s+(?:o\s+)?risco\s+(?:de\s+)?acidentes?\b",
+            r"\bsem\s+acidentes?\b",
+            r"\bn[aã]o\s+houve\s+acidentes?\b",
+            r"\bn[aã]o\s+ocorreram?\s+acidentes?\b",
+            r"\bnenhum\s+acidente\b",
+            r"\bzero\s+acidentes?\b",
+        ]
+    ),
+    re.IGNORECASE,
+)
+
+# Quedas operacionais frequentes — não são “evento físico crítico” para este painel.
+_QUEDA_OPERACIONAL_RE = re.compile(
+    r"queda\s+de\s+(?:energia|tens[aã]o|press[aã]o|fornecimento|internet|sinal)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_occurrence_text(description: str, tag_names: list[str]) -> str:
+    raw = " ".join([description or ""] + list(tag_names or []))
+    return raw.casefold()
+
+
+def _strip_prevention_phrases(text_cf: str) -> str:
+    """Remove trechos de prevenção para classificar impacto sem falso ‘urgente’."""
+    t = _PREVENCAO_ACIDENTE_RE.sub(" ", text_cf)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def _classify_occurrence_severity(description: str, tag_names: list[str]) -> str:
     """
-    Classifica severidade de ocorrência com heurística simples para leitura executiva.
+    Classifica severidade para leitura executiva.
+
+    Usa texto normalizado + remoção de frases típicas de prevenção (ex.: «evitar acidentes»),
+    depois palavras-chave por nível. Não substitui julgamento humano no canteiro.
     """
-    tokens = " ".join([description or ""] + list(tag_names or [])).lower()
-    if any(k in tokens for k in ("acidente", "embargo", "interdicao", "interdição", "colapso", "queda", "grave")):
+    raw_cf = _normalize_occurrence_text(description, tag_names)
+    t = _strip_prevention_phrases(raw_cf)
+
+    # --- Crítica: evento grave, interdição, incidente real (após remover prevenção pura).
+    _crit_geo = (
+        "embargo",
+        "interdicao",
+        "interdição",
+        "colapso",
+        "desabamento",
+        "deslizamento",
+        "incêndio",
+        "incendio",
+        "explosão",
+        "explosao",
+    )
+    if any(k in t for k in _crit_geo):
         return "critica"
+
+    if re.search(r"\b(houve|ocorreu|registrado|vitima|vítima|vitimas|vítimas|obito|óbito|fatalidades?)\b", t):
+        return "critica"
+    if "fatal" in t and "nao fatal" not in t and "não fatal" not in t:
+        return "critica"
+    if "morte" in t or "óbito" in t or "obito" in t:
+        return "critica"
+
+    if re.search(r"\bacidentes?\b", t):
+        return "critica"
+
+    if "queda" in t:
+        if _QUEDA_OPERACIONAL_RE.search(t):
+            return "alta"
+        return "critica"
+
+    if "grave" in t:
+        if not any(x in t for x in ("nao grave", "não grave", "sem gravidade", "baixa gravidade", "gravidade leve")):
+            return "critica"
+
+    # --- Atraso leve / pontual → média (antes de “atraso” genérico → alta).
+    if re.search(
+        r"(?:leve|ligeiro|pequeno|pontual|moderado)\s+atraso|atraso\s+(?:leve|ligeiro|pequeno|pontual|moderado)",
+        t,
+    ):
+        return "media"
+
+    # --- Alta: bloqueio, parada explícita, falha, risco (não catastrófico).
+    if re.search(r"\batraso\b", t) or re.search(r"\bparada\b", t) or "paralisa" in t or "paralisado" in t:
+        return "alta"
+    if any(k in t for k in ("enchente", "alagamento", "enxurrada")):
+        return "alta"
     if any(
-        k in tokens
-        for k in ("atraso", "parada", "bloqueio", "bloqueada", "falha", "erro", "seguranca", "segurança", "risco")
+        k in t
+        for k in (
+            "bloqueio",
+            "bloqueada",
+            "interromp",
+            "falha",
+            "indisponivel",
+            "indisponível",
+            "risco",
+        )
     ):
         return "alta"
-    if any(k in tokens for k in ("pendencia", "pendência", "retrabalho", "ajuste", "nao conforme", "não conforme")):
+    if any(k in t for k in ("seguranca", "segurança")):
+        return "alta"
+    # "erro" só com contexto mais forte — evita ruído de “erro de digitação”.
+    if re.search(r"\berro\s+(?:de|na|no|em)\b", t) or "erro operacional" in t:
+        return "alta"
+
+    # --- Média: impacto moderado, planejamento, documentação.
+    _media_kw = (
+        "pendencia",
+        "pendência",
+        "retrabalho",
+        "retrabalhar",
+        "ajuste",
+        "ajustar",
+        "nao conforme",
+        "não conforme",
+        "desvio",
+        "inspecao",
+        "inspeção",
+        "vistoria",
+        "nao conformidade",
+        "não conformidade",
+        "correcao pontual",
+        "correção pontual",
+        "laudo pendente",
+        "documentacao pendente",
+        "documentação pendente",
+        "replanejamento",
+        "replanejar",
+        "revisao de cronograma",
+        "revisão de cronograma",
+        "cronograma impactado",
+        "impacto moderado",
+        "equipe reduzida",
+        "falta de mao de obra",
+        "falta de mão de obra",
+        "mao de obra reduzida",
+        "mão de obra reduzida",
+        "aguardando material",
+        "material em transito",
+        "material em trânsito",
+        "treinamento",
+        "orientacao de seguranca",
+        "orientação de segurança",
+        "dds",
+    )
+    if any(k in t for k in _media_kw):
         return "media"
+    if re.search(r"\bpendente\s+(?:de\s+)?(?:documento|liberacao|liberação|assinatura)\b", t):
+        return "media"
+
+    # --- Baixa: rotina explícita / evolução normal / só clima sem paralisação grave.
+    _baixa_kw = (
+        "sem intercorrencia",
+        "sem intercorrência",
+        "sem ocorrencia relevante",
+        "sem ocorrência relevante",
+        "sem incidentes",
+        "dia normal",
+        "rotina",
+        "conforme planejado",
+        "conforme o planejado",
+        "dentro do cronograma",
+        "dentro do prazo",
+        "evolucao positiva",
+        "evolução positiva",
+        "andamento normal",
+        "tempo bom",
+        "tempo firme",
+        "clima favoravel",
+        "clima favorável",
+        "condicoes normais",
+        "condições normais",
+        "servicos normais",
+        "serviços normais",
+        "atividades normais",
+    )
+    if any(k in t for k in _baixa_kw):
+        return "baixa"
+    # Meteorologia registrada sem bloqueio / paralisação / enchente (já tratados acima).
+    if re.search(r"\b(chuva|chuvas|garoa|garoando|umidade|vento)\b", t):
+        if not any(
+            x in t
+            for x in (
+                "paralis",
+                "interromp",
+                "bloqueio",
+                "impossibilit",
+                "inviavel",
+                "inviável",
+                "enchente",
+                "alagamento",
+                "deslizamento",
+            )
+        ):
+            return "baixa"
+
     return "baixa"
 
 

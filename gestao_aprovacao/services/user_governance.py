@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from django.db.models import Count, Max
+from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
@@ -32,6 +32,8 @@ AUDIT_ACTION_LABELS_PT: dict[str, str] = {
     'user_created': 'Utilizador criado',
     'user_updated': 'Cadastro alterado',
     'user_deleted': 'Utilizador excluído',
+    'user_login': 'Sessão iniciada (login)',
+    'user_self_profile_updated': 'Perfil próprio atualizado',
     'user_signup_request_internal': 'Pedido de cadastro (interno)',
     'user_signup_request_public': 'Pedido de cadastro (público)',
     'user_signup_approved': 'Cadastro aprovado',
@@ -223,18 +225,16 @@ def build_audit_insights(
     target_user,
     *,
     audit_window_days: int = 90,
-    ip_window_days: int = 30,
     recent_audit_limit: int = 5,
     top_actions_limit: int = 5,
 ) -> dict[str, Any]:
     """
-    Resumo para o painel: alvo vs ator na auditoria, módulos, recência, IPs com contexto.
+    Resumo para o painel: alvo vs ator na auditoria, módulos e recência (sem dados de IP).
     """
     from audit.models import AuditEvent
 
     now = timezone.now()
     audit_since = now - timedelta(days=max(audit_window_days, 1))
-    ip_since = now - timedelta(days=max(ip_window_days, 1))
 
     as_subject = AuditEvent.objects.filter(subject_user=target_user, created_at__gte=audit_since)
     n_audit_subject = as_subject.count()
@@ -271,24 +271,6 @@ def build_audit_insights(
         AuditEvent.objects.filter(subject_user=target_user).order_by('-created_at').first()
     )
     last_audit_actor = AuditEvent.objects.filter(actor=target_user).order_by('-created_at').first()
-
-    ip_base = UserLoginLog.objects.filter(user=target_user, created_at__gte=ip_since)
-    n_logins_ip_window = ip_base.count()
-    distinct_ips = ip_base.exclude(ip_address__isnull=True).values_list('ip_address', flat=True).distinct().count()
-    logins_missing_ip = ip_base.filter(ip_address__isnull=True).count()
-
-    ip_ranking = list(
-        ip_base.exclude(ip_address__isnull=True)
-        .values('ip_address')
-        .annotate(n=Count('id'), last_seen=Max('created_at'))
-        .order_by('-n', '-last_seen')[:8]
-    )
-
-    active_ip_days = (
-        ip_base.annotate(d=TruncDate('created_at')).values('d').distinct().count()
-        if ip_base.exists()
-        else 0
-    )
 
     recent_qs = (
         AuditEvent.objects.filter(subject_user=target_user)
@@ -355,19 +337,6 @@ def build_audit_insights(
         'audit_top_actions': top_actions_subject_fmt,
         'audit_top_actions_as_actor': top_actions_actor_fmt,
         'audit_modules_subject': modules_subject_fmt,
-        'ip_window_days': ip_window_days,
-        'distinct_login_ips': distinct_ips,
-        'logins_in_ip_window': n_logins_ip_window,
-        'logins_missing_ip': logins_missing_ip,
-        'active_ip_days': active_ip_days,
-        'ip_ranking': [
-            {
-                'ip': row['ip_address'],
-                'count': row['n'],
-                'last_seen': row['last_seen'],
-            }
-            for row in ip_ranking
-        ],
         'recent_audit_events': recent_audit_events,
         'recent_audit_as_actor': recent_audit_as_actor,
         'days_since_last_login_log': _whole_days_since(last_log.created_at) if last_log else None,
@@ -497,19 +466,13 @@ def build_timeline_events(target_user, opts: TimelineOptions) -> list[dict[str, 
             qs = qs.filter(created_at__gte=date_from)
         qs = qs.order_by('-created_at')[: opts.per_source_cap]
         for row in qs:
-            bits = []
-            if getattr(row, 'ip_address', None):
-                bits.append(f'IP {row.ip_address}')
-            ua = (getattr(row, 'user_agent', None) or '').strip()
-            if ua:
-                bits.append(ua[:120] + ('…' if len(ua) > 120 else ''))
             _append(
                 {
                     'at': row.created_at,
                     'module': 'contas',
                     'kind': 'login',
-                    'label': 'Login no sistema',
-                    'detail': ' · '.join(bits),
+                    'label': 'Sessão iniciada',
+                    'detail': '',
                     'severity': 'info',
                     'success': True,
                     'reverse': None,
@@ -543,7 +506,7 @@ def build_timeline_events(target_user, opts: TimelineOptions) -> list[dict[str, 
                     'module': 'admin',
                     'kind': row.action_code,
                     'label': row.summary,
-                    'detail': f'Registrado por {actor_l} · módulo {row.module}',
+                    'detail': f'Executor: {actor_l}',
                     'severity': sev,
                     'success': True,
                     'reverse': ('central_audit_event_detail', {'pk': row.pk}),
@@ -714,7 +677,16 @@ def build_timeline_events(target_user, opts: TimelineOptions) -> list[dict[str, 
                 )
 
     events.sort(key=lambda x: x['at'], reverse=True)
-    return events[: opts.max_merged]
+    events = events[: opts.max_merged]
+    _module_pt = {
+        'gestao': 'GestControll',
+        'diario': 'Diário de obra',
+        'contas': 'Sessões',
+        'admin': 'Auditoria',
+    }
+    for ev in events:
+        ev['module_label'] = _module_pt.get(ev.get('module'), ev.get('module') or '—')
+    return events
 
 
 def operational_alerts(target_user, kpis: dict) -> list[dict[str, str]]:
@@ -788,30 +760,6 @@ def build_strategic_insights(target_user, kpis: dict, audit: dict) -> list[dict[
                     'text': 'Há registo de login na trilha nos últimos dias.',
                 }
             )
-
-    if audit.get('distinct_login_ips', 0) >= 6:
-        out.append(
-            {
-                'level': 'info',
-                'title': 'Endereços IP',
-                'text': (
-                    'Vários IPs distintos no período: comum com teletrabalho, VPN ou mudança de rede. '
-                    'Se não for esperado, pode ser sinal de partilha de credenciais.'
-                ),
-            }
-        )
-
-    if audit.get('logins_missing_ip', 0) and audit.get('logins_in_ip_window', 0):
-        out.append(
-            {
-                'level': 'info',
-                'title': 'Logins sem IP',
-                'text': (
-                    f"{audit['logins_missing_ip']} login(s) no período sem IP gravado (registos antigos ou exceção na recolha). "
-                    'Os totais de IP só refletem entradas completas.'
-                ),
-            }
-        )
 
     na = audit.get('audit_as_actor_count', 0)
     ns = audit.get('audit_as_subject_count', 0)

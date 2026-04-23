@@ -328,7 +328,7 @@ def create_work_orders(obras_gestao, users_dict):
     carlos = users_dict.get('carlos.silva')
     if not ana or not carlos:
         return 0
-    tipos = ['contrato', 'medicao', 'ordem_servico', 'mapa_cotacao']
+    tipos = ['contrato', 'validacao_contrato', 'medicao', 'ordem_servico', 'mapa_cotacao']
     credores = ['Materiais Construção Ltda', 'Ferragens Norte', 'Concreto ABC', 'Elétrica São Paulo', 'Hidráulica Centro']
     created = 0
     for obra in obras_gestao:

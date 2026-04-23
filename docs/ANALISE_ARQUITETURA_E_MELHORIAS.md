@@ -11,14 +11,12 @@
 
 ### 1.1 Pastas duplicadas / legado
 
-Existem cópias paralelas de código sob **`Mapa_Controle/`**, **`Gestao_aprovacao_legacy/`** e o código “ativo” em **`suprimentos/`**, **`gestao_aprovacao/`**, **`mapa_obras/`**, **`accounts/`**.
+**Atualização (2026-04-23):** Removidos do repositório **`Mapa_Controle/`** e **`Gestao_aprovacao_legacy/`** (projetos Django antigos paralelos, fora de `INSTALLED_APPS` / `lplan_central.urls`). O código canónico é só **`suprimentos/`**, **`gestao_aprovacao/`**, **`mapa_obras/`**, **`accounts/`**.
 
 | Risco | Impacto |
 |-------|---------|
-| Duas árvores de `suprimentos` (ex.: `Mapa_Controle/suprimentos/` vs `suprimentos/`) | Correções e testes podem aplicar-se ao ramo errado; divergência silenciosa. |
-| `requirements.txt` em pastas legado | Confusão sobre qual dependência é canónica. |
-
-**Recomendação:** Tratar legado como **arquivo morto** (mover para `archive/` com README “não usar”) ou eliminar após confirmar que nada importa esses caminhos. Um único “source of truth” por app reduz custo de manutenção a médio prazo.
+| Duas árvores de `suprimentos` (removido em 2026-04-23) | Era correção no ramo errado; risco eliminado com o arquivo do legado. |
+| Novas cópias paralelas no futuro | Reintroduz o mesmo risco; manter um único ramo por app. |
 
 ### 1.2 Testes e descoberta
 
@@ -109,7 +107,7 @@ Fronteiras estão **razoavelmente claras por URL**; o acoplamento aparece mais e
 | Prioridade | Item | Benefício |
 |------------|------|-----------|
 | P0 | Eliminar ambiguidade de testes (`comunicados/tests.py` vs `tests/`) + CI mínimo | Menos regressões, deploy confiável |
-| P0 | Política sobre pastas legado (`Mapa_Controle`, `Gestao_aprovacao_legacy`) | Menos bugs por edição no sítio errado |
+| P0 | Pastas legado — **feito (2026-04-23):** removidas `Mapa_Controle/`, `Gestao_aprovacao_legacy/` | Um único sítio para editar código |
 | P1 | Settings de marca (`SITE_NAME`, logos) + retirar LPLAN hardcoded dos templates críticos | White-label / instância dedicada |
 | P1 | Flags de módulo + sidebar condicional | Pacotes comerciais reais no código |
 | P2 | OpenAPI + limites DRF em APIs públicas/internas | Integrações e segurança |

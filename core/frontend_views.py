@@ -428,7 +428,16 @@ def select_system_view(request):
     ):
         return redirect('client-diary-list')
     support_projects = list(_get_support_projects_for_user(user))
+    local_now = timezone.localtime()
+    hour = local_now.hour
+    if hour < 12:
+        time_greeting = 'Bom dia'
+    elif hour < 18:
+        time_greeting = 'Boa tarde'
+    else:
+        time_greeting = 'Boa noite'
     context = {
+        'time_greeting': time_greeting,
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_mapa': has_mapa,
@@ -5482,23 +5491,75 @@ def notifications_view(request):
 @login_required
 def notification_mark_read_view(request, pk):
     """View para marcar notificação como lida."""
-    from django.http import JsonResponse
+    from django.contrib import messages
+    from django.shortcuts import redirect
     from .models import Notification
-    
+
     notification = get_object_or_404(Notification, pk=pk, user=request.user)
     notification.is_read = True
     notification.save()
-    
+
     if request.headers.get('HX-Request'):
         return render(request, 'core/partials/notification_item.html', {'notification': notification})
-    
-    return JsonResponse({'status': 'success'})
+
+    messages.success(request, 'Notificação marcada como lida.')
+    return redirect('notifications')
+
+
+@login_required
+def notifications_poll_view(request):
+    """
+    JSON para atualizar contador e toasts de novas notificações (polling leve).
+    GET ?bootstrap=1 — só max_id e unread_count (sem itens, para não disparar toast ao abrir o site).
+    GET ?since_id=N — notificações com pk > N (ordem crescente de id).
+    """
+    from django.db.models import Max
+    from django.http import JsonResponse
+    from django.urls import reverse
+
+    from .models import Notification
+
+    max_id = Notification.objects.filter(user=request.user).aggregate(m=Max('pk'))['m'] or 0
+    unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
+
+    if (request.GET.get('bootstrap') or '').strip() == '1':
+        return JsonResponse({'unread_count': unread_count, 'max_id': max_id, 'items': []})
+
+    try:
+        since_id = int(request.GET.get('since_id', 0) or 0)
+    except (TypeError, ValueError):
+        since_id = 0
+
+    new_qs = (
+        Notification.objects.filter(user=request.user, pk__gt=since_id)
+        .select_related('related_diary')
+        .order_by('pk')[:10]
+    )
+
+    def _row(n: Notification) -> dict:
+        row: dict = {
+            'id': n.pk,
+            'title': n.title,
+            'message': (n.message or '')[:300],
+            'type': n.notification_type,
+            'is_read': n.is_read,
+            'created_at': n.created_at.isoformat(),
+        }
+        if n.related_diary_id:
+            row['diary_url'] = reverse('diary-detail', kwargs={'pk': n.related_diary_id})
+        else:
+            row['diary_url'] = None
+        row['list_url'] = reverse('notifications')
+        return row
+
+    items = [_row(n) for n in new_qs]
+
+    return JsonResponse({'unread_count': unread_count, 'max_id': max_id, 'items': items})
 
 
 @login_required
 def notification_mark_all_read_view(request):
     """View para marcar todas as notificações como lidas."""
-    from django.http import JsonResponse
     from django.contrib import messages
     from django.shortcuts import redirect
     from .models import Notification
@@ -5716,17 +5777,26 @@ def project_delete_view(request, pk):
 
     # Remove a obra correspondente no GestControll para sumir da listagem de lá também
     from gestao_aprovacao.models import Obra as ObraGestao
+    from django.db import transaction
     from django.db.models import ProtectedError
 
-    obras_gestao = ObraGestao.objects.filter(project=project)
-    try:
-        obras_gestao.delete()
-        removido_gestao = True
-    except ProtectedError:
-        # Há pedidos vinculados; não é possível excluir a obra no GestControll
-        removido_gestao = False
+    with transaction.atomic():
+        # Central de Aprovações (workflow): ApprovalProcess referencia ApprovalFlowDefinition com PROTECT —
+        # é preciso apagar processos antes dos fluxos; antes de apagar o Project.
+        from workflow_aprovacao.models import ApprovalFlowDefinition, ApprovalProcess
 
-    project.delete()
+        ApprovalProcess.objects.filter(project=project).delete()
+        ApprovalFlowDefinition.objects.filter(project=project).delete()
+
+        obras_gestao = ObraGestao.objects.filter(project=project)
+        try:
+            obras_gestao.delete()
+            removido_gestao = True
+        except ProtectedError:
+            # Há pedidos vinculados; não é possível excluir a obra no GestControll
+            removido_gestao = False
+
+        project.delete()
 
     # Se a obra excluída era a selecionada na sessão, limpa para evitar referência inválida
     if request.session.get('selected_project_id') == pk:

@@ -415,6 +415,20 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
 
     data_inicio_raw = (get_params.get('data_inicio') or '').strip()
     data_fim_raw = (get_params.get('data_fim') or '').strip()
+    periodo_rapido = (get_params.get('periodo_rapido') or '').strip()
+    if periodo_rapido not in {'', '30', '60', '90', 'todos'}:
+        periodo_rapido = ''
+
+    usa_periodo_rapido = (not data_inicio_raw and not data_fim_raw and periodo_rapido in {'30', '60', '90'})
+    if usa_periodo_rapido:
+        dias = int(periodo_rapido)
+        end_date = timezone.localdate()
+        start_date = end_date - timedelta(days=max(dias - 1, 0))
+        data_inicio_raw = start_date.strftime('%Y-%m-%d')
+        data_fim_raw = end_date.strftime('%Y-%m-%d')
+    elif periodo_rapido == 'todos':
+        data_inicio_raw = ''
+        data_fim_raw = ''
 
     start_date = _parse_workorder_list_date(data_inicio_raw) if data_inicio_raw else None
     end_date = _parse_workorder_list_date(data_fim_raw) if data_fim_raw else None
@@ -459,6 +473,7 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
         'analisado_filter': analisado_filter,
         'data_inicio': data_inicio,
         'data_fim': data_fim,
+        'periodo_rapido': periodo_rapido,
         'search_query': search_query,
         'order_by': order_by,
     }
@@ -1038,10 +1053,10 @@ def export_list_workorders_excel(request):
 def create_workorder(request):
     """
     Cria um novo pedido de obra.
-    Apenas solicitantes podem criar pedidos.
-    Aprovadores e admins não criam pedidos, apenas aprovam.
+    Quem pode criar: solicitante (grupo ou permissão na obra) ou administrador.
+    Na criação, código e envio para aprovação são tratados na view (admin não escolhe status/código no form).
     """
-    # Apenas solicitantes podem criar pedidos
+    # Quem pode criar pedidos
     # Verificar se é solicitante através do grupo OU WorkOrderPermission
     
     # Verificar se o usuário está no grupo "Solicitante" OU tem permissão de solicitante
@@ -1064,7 +1079,9 @@ def create_workorder(request):
     
     # is_solicitante_only: é solicitante (grupo ou permissão) mas NÃO é admin ou aprovador
     is_solicitante_only = (is_solicitante_group or tem_permissao_solicitante) and not (is_aprovador(request.user) or is_admin(request.user))
-    
+    # Admin criando pedido: não exibir código/status (gerados na view como para o solicitante).
+    admin_hide_system_fields = is_admin(request.user) and not is_solicitante_only
+
     if request.method == 'POST':
         posted_token = request.POST.get('_form_token', '')
         if not _consume_form_token(request, 'create_workorder', posted_token):
@@ -1074,7 +1091,12 @@ def create_workorder(request):
             )
             return redirect('gestao:list_workorders')
 
-        form = WorkOrderForm(request.POST, user=request.user, is_creating=True)
+        form = WorkOrderForm(
+            request.POST,
+            user=request.user,
+            is_creating=True,
+            admin_hide_system_fields=admin_hide_system_fields,
+        )
         
         # Validar anexos obrigatórios para solicitantes
         anexos_obrigatorios = False
@@ -1167,13 +1189,11 @@ def create_workorder(request):
                 
                 workorder.codigo = novo_codigo
             
-            # Para solicitantes, o pedido deve ir direto para "pendente" para aprovação
-            # Aprovadores não criam pedidos, apenas aprovam
-            if is_solicitante_only:
+            # Solicitante ou admin (formulário sem status): enviar direto para aprovação.
+            if is_solicitante_only or admin_hide_system_fields:
                 workorder.status = 'pendente'
                 workorder.data_envio = timezone.now()
             elif not workorder.status:
-                # Se for admin criando, pode escolher o status
                 workorder.status = 'pendente'
             
             # Se status for "pendente", preencher data_envio
@@ -1245,7 +1265,11 @@ def create_workorder(request):
         r = _redirect_if_back_after_post(request, '_prevent_back_create_workorder', 'gestao:list_workorders')
         if r:
             return r
-        form = WorkOrderForm(user=request.user, is_creating=True)
+        form = WorkOrderForm(
+            user=request.user,
+            is_creating=True,
+            admin_hide_system_fields=admin_hide_system_fields,
+        )
     
     context = {
         'form': form,
@@ -1425,6 +1449,15 @@ def detail_workorder(request, pk):
     
     # Verificar se pode comentar (solicitante, aprovador ou admin que tem acesso ao pedido)
     can_comment = tem_permissao
+    can_create_workorder = (
+        is_engenheiro(user)
+        or WorkOrderPermission.objects.filter(
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True,
+        ).exists()
+        or is_admin(user)
+    )
     
     context = {
         'workorder': workorder,
@@ -1444,6 +1477,7 @@ def detail_workorder(request, pk):
         'anexos_por_versao': anexos_por_versao,
         'anexos_por_versao_ordenado': anexos_por_versao_ordenado,
         'comments': comments,
+        'can_create_workorder': can_create_workorder,
     }
     return render(request, 'obras/detail_workorder.html', context)
 
@@ -3499,6 +3533,25 @@ def edit_my_profile(request):
             perfil.foto_perfil = request.FILES['foto_perfil']
             perfil.save()
         
+        try:
+            from audit.action_codes import AuditAction
+            from audit.recording import record_audit_event
+
+            record_audit_event(
+                actor=user,
+                subject_user=user,
+                action_code=AuditAction.USER_SELF_PROFILE_UPDATED,
+                summary='Perfil próprio atualizado (nome, e-mail, foto e/ou senha)',
+                payload={
+                    'password_changed': bool(new_password),
+                    'photo_changed': 'foto_perfil' in request.FILES,
+                },
+                module='accounts',
+                request=request,
+            )
+        except Exception:
+            pass
+
         messages.success(request, 'Seu perfil foi atualizado com sucesso!')
         return redirect('gestao:edit_my_profile')
     
@@ -5061,12 +5114,7 @@ def _gerar_csv_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     writer.writerow([f'E-mail: {solicitante.email or "Não informado"}'])
     writer.writerow([f'Período Analisado: Últimos {dias_periodo} dias'])
     if tipo_solicitacao:
-        tipo_labels_header = {
-            'contrato': 'Contrato',
-            'medicao': 'Medição',
-            'ordem_servico': 'Ordem de Serviço (OS)',
-            'mapa_cotacao': 'Mapa de Cotação',
-        }
+        tipo_labels_header = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
         writer.writerow([f'Filtro de Tipo: {tipo_labels_header.get(tipo_solicitacao, tipo_solicitacao)}'])
     else:
         writer.writerow(['Filtro de Tipo: Todos os tipos'])
@@ -5099,13 +5147,8 @@ def _gerar_csv_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     ])
     
     # Dados formatados
-    tipo_labels = {
-        'contrato': 'Contrato',
-        'medicao': 'Medição',
-        'ordem_servico': 'Ordem de Serviço (OS)',
-        'mapa_cotacao': 'Mapa de Cotação',
-    }
-    
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+
     for reprovacao in reprovacoes:
         tags_nomes = ', '.join([tag.nome for tag in reprovacao.tags_erro.all()])
         if not tags_nomes:
@@ -5251,12 +5294,7 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
     line_soft = 0.35
     line_inner = 0.2
 
-    tipo_labels = {
-        'contrato': 'Contrato',
-        'medicao': 'Medição',
-        'ordem_servico': 'Ordem de Serviço (OS)',
-        'mapa_cotacao': 'Mapa de Cotação',
-    }
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
     recommendation_keywords = [
         (('document', 'anexo', 'arquivo', 'comprovante'), 'Reforçar checklist de anexos obrigatórios antes do envio.'),
         (('valor', 'preço', 'orc', 'cotacao', 'cotação'), 'Padronizar revisão de valores e cotações com dupla conferência.'),
