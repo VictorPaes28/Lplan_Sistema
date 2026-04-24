@@ -377,7 +377,7 @@ class AprovacaoEmailDestinatarioForm(forms.ModelForm):
 
     class Meta:
         model = AprovacaoEmailDestinatario
-        fields = ['email', 'nome', 'ativo', 'ordem']
+        fields = ['email', 'nome', 'ativo', 'ordem', 'obras']
         widgets = {
             'email': forms.EmailInput(attrs={
                 'class': 'gc-dest-field',
@@ -387,7 +387,20 @@ class AprovacaoEmailDestinatarioForm(forms.ModelForm):
             'nome': forms.TextInput(attrs={'class': 'gc-dest-field', 'placeholder': 'Identificação opcional'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'gc-dest-check'}),
             'ordem': forms.NumberInput(attrs={'class': 'gc-dest-field gc-dest-field--narrow', 'min': 0}),
+            'obras': forms.SelectMultiple(attrs={
+                'class': 'gc-dest-field gc-dest-field--obras',
+                'size': '8',
+            }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['obras'].required = False
+        self.fields['obras'].queryset = Obra.objects.filter(ativo=True).order_by('codigo', 'nome')
+        self.fields['obras'].help_text = (
+            'Em branco: todas as obras. Se marcar uma ou mais, o e-mail só recebe cópias '
+            'quando o pedido aprovado for dessas obras.'
+        )
 
     def clean_email(self):
         email = (self.cleaned_data.get('email') or '').strip().lower()

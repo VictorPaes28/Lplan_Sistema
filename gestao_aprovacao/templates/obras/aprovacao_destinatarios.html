@@ -25,7 +25,8 @@
                 <span class="gc-dest-badge">GestControll</span>
             </h1>
             <p class="gc-dest-hero-desc">
-                Estes e-mails entram em toda notificação de <strong>pedido aprovado</strong> (junto ao solicitante e aos departamentos do ambiente).
+                Estes e-mails entram na notificação de <strong>pedido aprovado</strong> (junto ao solicitante e aos departamentos do ambiente).
+                Você pode restringir por <strong>obra</strong>: deixe a lista de obras em branco para receber de todas, ou selecione só as obras necessárias (ex.: um destinatário só acompanha uma obra).
                 Quem estiver aqui com o <strong>mesmo e-mail da conta</strong> também pode usar a coluna <strong>Analisado</strong> na lista de pedidos.
             </p>
         </div>
@@ -33,12 +34,22 @@
 
     <section class="gc-dest-card" aria-labelledby="gc-add-title">
         <div class="gc-dest-card-head">
-            <h2 id="gc-add-title" class="gc-dest-card-title">Adicionar destinatário</h2>
+            <h2 id="gc-add-title" class="gc-dest-card-title">
+                {% if edit_instance %}Editar destinatário{% else %}Adicionar destinatário{% endif %}
+            </h2>
+            {% if edit_instance %}
+            <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="gc-dest-link-cancel">Cancelar edição</a>
+            {% endif %}
         </div>
         <div class="gc-dest-card-body">
             <form method="post" novalidate>
                 {% csrf_token %}
+                {% if edit_instance %}
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="pk" value="{{ edit_instance.pk }}">
+                {% else %}
                 <input type="hidden" name="action" value="add">
+                {% endif %}
                 <div class="gc-dest-form-grid">
                     <div class="gc-dest-field-wrap gc-dest-field-wrap--wide">
                         <label for="id_email" class="gc-dest-label">E-mail</label>
@@ -59,8 +70,16 @@
                         {{ form.ativo }}
                         <label for="id_ativo" class="gc-dest-check-label">Ativo</label>
                     </div>
+                    <div class="gc-dest-field-wrap gc-dest-field-wrap--full">
+                        <label for="id_obras" class="gc-dest-label">Obras (opcional — filtro)</label>
+                        <p class="gc-dest-hint">Segure Ctrl (Windows) ou ⌘ (Mac) para marcar várias. Em branco = todas as obras.</p>
+                        {{ form.obras }}
+                        {% if form.obras.errors %}
+                        <div class="gc-dest-field-error">{{ form.obras.errors.0 }}</div>
+                        {% endif %}
+                    </div>
                     <div>
-                        <button type="submit" class="gc-dest-submit">Salvar</button>
+                        <button type="submit" class="gc-dest-submit">{% if edit_instance %}Atualizar{% else %}Salvar{% endif %}</button>
                     </div>
                 </div>
                 {% if form.non_field_errors %}
@@ -82,6 +101,7 @@
                         <tr>
                             <th>E-mail</th>
                             <th>Nome</th>
+                            <th>Obras</th>
                             <th>Ordem</th>
                             <th>Ativo</th>
                             <th style="width: 1%; text-align: right;">Ação</th>
@@ -92,6 +112,15 @@
                         <tr>
                             <td class="gc-dest-email">{{ d.email }}</td>
                             <td>{{ d.nome|default:"—" }}</td>
+                            <td class="gc-dest-obras-cell">
+                                {% if d.obras.all %}
+                                    {% for o in d.obras.all %}
+                                        <span class="gc-dest-pill gc-dest-pill--obra">{{ o.codigo }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="gc-dest-pill gc-dest-pill--all">Todas</span>
+                                {% endif %}
+                            </td>
                             <td>{{ d.ordem }}</td>
                             <td>
                                 {% if d.ativo %}
@@ -101,6 +130,7 @@
                                 {% endif %}
                             </td>
                             <td style="text-align: right;">
+                                <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}?edit={{ d.pk }}" class="gc-dest-btn-edit">Editar</a>
                                 <form method="post" class="gc-dest-inline-form" onsubmit="return confirm('Remover este destinatário?');">
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="delete">

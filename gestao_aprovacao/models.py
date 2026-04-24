@@ -1313,6 +1313,14 @@ class AprovacaoEmailDestinatario(models.Model):
         verbose_name='Ordem',
         help_text='Menor valor aparece primeiro na lista.',
     )
+    obras = models.ManyToManyField(
+        'Obra',
+        blank=True,
+        related_name='aprovacao_email_destinatarios',
+        verbose_name='Obras (filtro)',
+        help_text='Em branco: recebe cópia de pedidos aprovados de todas as obras. '
+                  'Se marcar obras, só recebe quando o pedido for de uma delas.',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cadastrado em')
 
     class Meta:

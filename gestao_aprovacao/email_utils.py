@@ -34,22 +34,33 @@ def _normalizar_destinatarios(destinatarios):
     return normalizados
 
 
-def _get_destinatarios_fixos_aprovacao():
+def _get_destinatarios_fixos_aprovacao_para_obra(obra):
     """
-    Destinatários obrigatórios para e-mails de pedido aprovado (PDF/anexos).
-    Prioridade: cadastro em AprovacaoEmailDestinatario (tela admin); senão .env/settings; senão lista mínima em código.
+    Destinatários cadastrados que devem receber cópia do e-mail de pedido aprovado
+    para a obra indicada.
+
+    Regra: se o cadastro não tiver obras selecionadas, vale para todas; se tiver,
+    só entra quando ``obra`` está na lista.
+
+    Se não houver nenhum registro ativo no banco, mantém o fallback (.env / lista mínima).
     """
     try:
+        from django.db.models import Count, Q
         from .models import AprovacaoEmailDestinatario
 
-        db_emails = list(
-            AprovacaoEmailDestinatario.objects.filter(ativo=True)
+        base = AprovacaoEmailDestinatario.objects.filter(ativo=True)
+        if not base.exists():
+            configured = getattr(settings, "EMAIL_APROVACAO_DESTINATARIOS_FIXOS", None)
+            if configured:
+                return _normalizar_destinatarios(configured)
+            return list(_APROVACAO_DESTINATARIOS_PADRAO)
+
+        qs = (
+            base.annotate(_nobras=Count('obras', distinct=True))
+            .filter(Q(_nobras=0) | Q(obras=obra))
             .order_by('ordem', 'email')
-            .values_list('email', flat=True)
         )
-        db_emails = _normalizar_destinatarios(db_emails)
-        if db_emails:
-            return db_emails
+        return _normalizar_destinatarios(list(qs.values_list('email', flat=True)))
     except Exception as e:
         logger.warning("Destinatários de aprovação no banco indisponíveis: %s", e)
 
@@ -510,7 +521,7 @@ def _enviar_email_aprovacao_thread(workorder_id, aprovado_por_id, comentario):
             destinatarios.extend(settings.EMAIL_DEPARTAMENTOS_APROVACAO)
 
         # Garantir destinatários fixos de aprovação (independente do .env)
-        destinatarios.extend(_get_destinatarios_fixos_aprovacao())
+        destinatarios.extend(_get_destinatarios_fixos_aprovacao_para_obra(workorder.obra))
 
         # Remover duplicatas mantendo ordem
         destinatarios = _normalizar_destinatarios(destinatarios)

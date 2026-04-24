@@ -110,6 +110,11 @@
     padding: 1rem 1.35rem;
     border-bottom: 1px solid #f3f4f6;
     background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
 }
 
 .gc-dest-card-title {
@@ -135,6 +140,71 @@
 
 .gc-dest-field-wrap--wide {
     min-width: 0;
+}
+
+.gc-dest-field-wrap--full {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+.gc-dest-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin: 0 0 0.35rem 0;
+    line-height: 1.4;
+}
+
+.gc-dest-field--obras {
+    min-height: 10rem;
+    max-width: 100%;
+}
+
+.gc-dest-link-cancel {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #475569;
+    text-decoration: none;
+}
+
+.gc-dest-link-cancel:hover {
+    color: #0f172a;
+    text-decoration: underline;
+}
+
+.gc-dest-btn-edit {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-sm, 6px);
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+    margin-right: 0.35rem;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.gc-dest-btn-edit:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.gc-dest-pill--all {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.gc-dest-pill--obra {
+    background: #f1f5f9;
+    color: #475569;
+    margin-right: 0.25rem;
+    margin-bottom: 0.15rem;
+}
+
+.gc-dest-obras-cell {
+    max-width: 14rem;
 }
 
 @media (max-width: 900px) {
@@ -345,4 +415,9 @@
 .gc-dest-inline-form {
     display: inline;
     margin: 0;
+}
+
+.gc-dest-inline-form,
+.gc-dest-btn-edit {
+    vertical-align: middle;
 }
