@@ -5741,7 +5741,17 @@ def manage_aprovacao_destinatarios(request):
     """
     E-mails que sempre recebem o PDF/notificação de pedido aprovado (GestControll).
     Substitui a lista fixa no código; apenas administradores.
+    Opcionalmente filtrado por obra (M2M vazio = todas as obras).
     """
+    edit_instance = None
+    if request.method == 'GET':
+        edit_pk = request.GET.get('edit')
+        if edit_pk:
+            edit_instance = get_object_or_404(
+                AprovacaoEmailDestinatario.objects.prefetch_related('obras'),
+                pk=edit_pk,
+            )
+
     if request.method == 'POST':
         if request.POST.get('action') == 'delete':
             pk = request.POST.get('pk')
@@ -5757,6 +5767,29 @@ def manage_aprovacao_destinatarios(request):
                 messages.error(request, f'Não foi possível excluir: {e}')
             return redirect('gestao:manage_aprovacao_destinatarios')
 
+        if request.POST.get('action') == 'update':
+            pk = request.POST.get('pk')
+            row = get_object_or_404(AprovacaoEmailDestinatario, pk=pk)
+            form = AprovacaoEmailDestinatarioForm(request.POST, instance=row)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'Destinatário atualizado: {row.email}.')
+                return redirect('gestao:manage_aprovacao_destinatarios')
+            messages.error(request, 'Corrija os erros abaixo.')
+            destinatarios = (
+                AprovacaoEmailDestinatario.objects.prefetch_related('obras')
+                .order_by('ordem', 'email')
+            )
+            return render(
+                request,
+                'obras/aprovacao_destinatarios.html',
+                {
+                    'form': form,
+                    'destinatarios': destinatarios,
+                    'edit_instance': row,
+                },
+            )
+
         form = AprovacaoEmailDestinatarioForm(request.POST)
         if form.is_valid():
             form.save()
@@ -5764,13 +5797,20 @@ def manage_aprovacao_destinatarios(request):
             return redirect('gestao:manage_aprovacao_destinatarios')
         messages.error(request, 'Corrija os erros abaixo.')
     else:
-        form = AprovacaoEmailDestinatarioForm()
+        form = AprovacaoEmailDestinatarioForm(instance=edit_instance)
 
-    destinatarios = AprovacaoEmailDestinatario.objects.order_by('ordem', 'email')
+    destinatarios = (
+        AprovacaoEmailDestinatario.objects.prefetch_related('obras')
+        .order_by('ordem', 'email')
+    )
     return render(
         request,
         'obras/aprovacao_destinatarios.html',
-        {'form': form, 'destinatarios': destinatarios},
+        {
+            'form': form,
+            'destinatarios': destinatarios,
+            'edit_instance': edit_instance,
+        },
     )
 
 

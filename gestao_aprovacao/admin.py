@@ -904,5 +904,6 @@ class AprovacaoEmailDestinatarioAdmin(admin.ModelAdmin):
     list_display = ['email', 'nome', 'ativo', 'ordem', 'created_at']
     list_filter = ['ativo']
     search_fields = ['email', 'nome']
+    filter_horizontal = ['obras']
     ordering = ['ordem', 'email']
 
