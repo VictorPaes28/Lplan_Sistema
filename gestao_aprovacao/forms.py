@@ -387,9 +387,8 @@ class AprovacaoEmailDestinatarioForm(forms.ModelForm):
             'nome': forms.TextInput(attrs={'class': 'gc-dest-field', 'placeholder': 'Identificação opcional'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'gc-dest-check'}),
             'ordem': forms.NumberInput(attrs={'class': 'gc-dest-field gc-dest-field--narrow', 'min': 0}),
-            'obras': forms.SelectMultiple(attrs={
-                'class': 'gc-dest-field gc-dest-field--obras',
-                'size': '8',
+            'obras': forms.CheckboxSelectMultiple(attrs={
+                'class': 'gc-dest-obra-cb',
             }),
         }
 

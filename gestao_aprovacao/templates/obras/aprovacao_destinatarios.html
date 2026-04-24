@@ -71,9 +71,11 @@
                         <label for="id_ativo" class="gc-dest-check-label">Ativo</label>
                     </div>
                     <div class="gc-dest-field-wrap gc-dest-field-wrap--full">
-                        <label for="id_obras" class="gc-dest-label">Obras (opcional — filtro)</label>
-                        <p class="gc-dest-hint">Segure Ctrl (Windows) ou ⌘ (Mac) para marcar várias. Em branco = todas as obras.</p>
-                        {{ form.obras }}
+                        <span class="gc-dest-label" id="gc-obras-label">Obras (filtro — opcional)</span>
+                        <p class="gc-dest-hint">Marque as obras que este e-mail deve acompanhar. <strong>Nenhuma marcada</strong> = recebe cópias de <strong>todas</strong> as obras.</p>
+                        <div class="gc-dest-obras-box" role="group" aria-labelledby="gc-obras-label">
+                            {{ form.obras }}
+                        </div>
                         {% if form.obras.errors %}
                         <div class="gc-dest-field-error">{{ form.obras.errors.0 }}</div>
                         {% endif %}
