@@ -14,13 +14,16 @@ from django.utils import timezone
 from core.models import Project, ProjectMember
 from gestao_aprovacao.models import Obra
 
-from comunicados.forms import ComunicadoForm
 from comunicados.metrics import get_eligible_user_ids
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+from comunicados.forms import ComunicadoForm
 from comunicados.models import (
     Comunicado,
+    ComunicadoImagem,
     ComunicadoVisualizacao,
+    DestaqueVisual,
     PublicoEscopoCriterios,
-    PublicoRestricaoPerfil,
     StatusFinalVisualizacao,
     TipoConteudo,
     TipoExibicao,
@@ -33,10 +36,6 @@ class ComunicadosPendentesFixtures(TestCase):
     def setUpTestData(cls):
         cls.creator = User.objects.create_user(username='criador_com', password='x', is_staff=True)
         cls.u_plain = User.objects.create_user(username='user_plain', password='x')
-        cls.u_staff = User.objects.create_user(username='user_staff', password='x', is_staff=True)
-        cls.u_super = User.objects.create_user(
-            username='user_super', password='x', is_staff=True, is_superuser=True
-        )
 
         cls.g_eng, _ = Group.objects.get_or_create(name='EngTestCom')
         cls.u_plain.groups.add(cls.g_eng)
@@ -66,7 +65,6 @@ class ComunicadosPendentesFixtures(TestCase):
             tipo_exibicao=TipoExibicao.SEMPRE,
             publico_todos=True,
             publico_escopo_criterios=PublicoEscopoCriterios.QUALQUER,
-            publico_restrito_perfil=PublicoRestricaoPerfil.NENHUMA,
         )
         defaults.update(kwargs)
         c = Comunicado(**defaults)
@@ -127,16 +125,6 @@ class ComunicadosPendentesFixtures(TestCase):
         ids = [x.pk for x in listar_comunicados_pendentes(self.u_plain)]
         self.assertNotIn(c.pk, ids)
 
-    def test_apenas_staff_exclui_nao_staff(self):
-        c = self._novo_com(publico_restrito_perfil=PublicoRestricaoPerfil.APENAS_STAFF)
-        self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
-        self.assertIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_staff)])
-
-    def test_apenas_superuser(self):
-        c = self._novo_com(publico_restrito_perfil=PublicoRestricaoPerfil.APENAS_SUPERUSER)
-        self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_staff)])
-        self.assertIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_super)])
-
     def test_obra_excluida_remove_membro_projeto(self):
         c = self._novo_com()
         c.obras_excluidas.add(self.obra)
@@ -172,6 +160,21 @@ class ComunicadosPendentesFixtures(TestCase):
 
         c.mostrar_apos_fechar = True
         c.save()
+        # SEMPRE: mesmo com "mostrar após fechar", não reabre na mesma sessão — só após novo login.
+        self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
+
+    def test_mostrar_apos_fechar_reabre_outros_tipos_na_mesma_sessao(self):
+        c = self._novo_com(
+            tipo_exibicao=TipoExibicao.X_VEZES,
+            max_exibicoes_por_usuario=5,
+            mostrar_apos_fechar=True,
+        )
+        ComunicadoVisualizacao.objects.create(
+            comunicado=c,
+            usuario=self.u_plain,
+            fechou=True,
+            total_visualizacoes=1,
+        )
         self.assertIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
 
     def test_ignorado_nunca_pendente(self):
@@ -207,10 +210,26 @@ class ComunicadosPendentesFixtures(TestCase):
         )
         self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
 
-    def test_confirmacao_confirmada_nao_pendente(self):
+    def test_imagem_exige_confirmacao_confirmado_nao_pendente(self):
         c = self._novo_com(
-            tipo_conteudo=TipoConteudo.CONFIRMACAO,
+            tipo_conteudo=TipoConteudo.IMAGEM,
             tipo_exibicao=TipoExibicao.SEMPRE,
+            exige_confirmacao=True,
+        )
+        ComunicadoVisualizacao.objects.create(
+            comunicado=c,
+            usuario=self.u_plain,
+            confirmou_leitura=True,
+            total_visualizacoes=1,
+        )
+        self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
+
+    def test_texto_exige_confirmacao_confirmado_nao_pendente(self):
+        """Após 'Sim, já li' (API confirmou), não voltar a listar com exibição SEMPRE (evita loop no modal)."""
+        c = self._novo_com(
+            tipo_conteudo=TipoConteudo.TEXTO,
+            tipo_exibicao=TipoExibicao.SEMPRE,
+            exige_confirmacao=True,
         )
         ComunicadoVisualizacao.objects.create(
             comunicado=c,
@@ -256,28 +275,77 @@ class ComunicadosPendentesFixtures(TestCase):
         el = get_eligible_user_ids(c)
         self.assertIn(self.u_plain.pk, el)
 
-    def test_form_imagem_sem_ficheiro_erro(self):
-        data = {
-            'titulo': 'x',
-            'ativo': True,
-            'tipo_conteudo': TipoConteudo.IMAGEM,
-            'tipo_exibicao': TipoExibicao.SEMPRE,
-            'destaque_visual': 'PADRAO',
-            'prioridade': 'NORMAL',
-            'publico_todos': True,
-            'publico_escopo_criterios': PublicoEscopoCriterios.QUALQUER,
-            'publico_restrito_perfil': PublicoRestricaoPerfil.NENHUMA,
-            'pode_fechar': True,
-            'exige_confirmacao': False,
-            'exige_resposta': False,
-            'bloquear_ate_acao': False,
-            'abrir_automaticamente': True,
-            'mostrar_apos_fechar': False,
-            'permitir_nao_mostrar_novamente': False,
+    def test_comunicado_imagem_relacao(self):
+        c = self._novo_com(tipo_conteudo=TipoConteudo.IMAGEM)
+        png = SimpleUploadedFile('t.png', b'\x89PNG\r\n\x1a\n', content_type='image/png')
+        ComunicadoImagem.objects.create(comunicado=c, arquivo=png, ordem=0)
+        self.assertEqual(c.imagens.count(), 1)
+
+    def _post_comunicado_form(self, c: Comunicado, extra: dict) -> ComunicadoForm:
+        d = {
+            'titulo': c.titulo,
+            'descricao_interna': c.descricao_interna or '',
+            'ativo': 'on',
+            'tipo_conteudo': c.tipo_conteudo,
+            'titulo_visivel': c.titulo_visivel or 'Vis',
+            'subtitulo': c.subtitulo or '',
+            'texto_principal': c.texto_principal or 'T',
+            'link_destino': c.link_destino or '',
+            'texto_botao': c.texto_botao or '',
+            'destaque_visual': c.destaque_visual,
+            'tipo_exibicao': c.tipo_exibicao,
+            'max_exibicoes_por_usuario': '',
+            'data_inicio': '',
+            'data_fim': '',
+            'dias_ativo': '',
+            'prioridade': c.prioridade,
+            'publico_todos': 'on',
+            'publico_escopo_criterios': c.publico_escopo_criterios,
+            'pode_fechar': '',
+            'exige_confirmacao': '',
+            'exige_resposta': '',
+            'abrir_automaticamente': 'on' if c.abrir_automaticamente else '',
+            'mostrar_apos_fechar': '',
+            'permitir_nao_mostrar_novamente': '',
         }
-        f = ComunicadoForm(data=data)
+        d.update(extra)
+        return ComunicadoForm(d, instance=c)
+
+    def test_form_resposta_obrigatoria_nao_cola_com_pode_fechar(self):
+        c = self._novo_com(tipo_conteudo=TipoConteudo.FORMULARIO)
+        f = self._post_comunicado_form(
+            c,
+            {
+                'pode_fechar': 'on',
+                'exige_resposta': 'on',
+            },
+        )
         self.assertFalse(f.is_valid())
-        self.assertIn('imagem', f.errors)
+        self.assertIn('exige_resposta', f.errors)
+
+    def test_form_resposta_obrigatoria_nao_cola_com_nao_mostrar_novamente(self):
+        c = self._novo_com(tipo_conteudo=TipoConteudo.FORMULARIO, destaque_visual=DestaqueVisual.PADRAO)
+        f = self._post_comunicado_form(
+            c,
+            {
+                'permitir_nao_mostrar_novamente': 'on',
+                'exige_resposta': 'on',
+                'pode_fechar': '',
+            },
+        )
+        self.assertFalse(f.is_valid())
+        self.assertIn('exige_resposta', f.errors)
+
+    def test_form_resposta_obrigatoria_ok_se_sem_conflito(self):
+        c = self._novo_com(tipo_conteudo=TipoConteudo.FORMULARIO)
+        f = self._post_comunicado_form(
+            c,
+            {
+                'pode_fechar': '',
+                'exige_resposta': 'on',
+            },
+        )
+        self.assertTrue(f.is_valid(), f.errors)
 
 
 class ComunicadosEncerrarViewTests(TestCase):

@@ -53,28 +53,101 @@
   var elNuncaWrap = document.getElementById('comunicados-nunca-wrap');
   var elNunca = document.getElementById('comunicados-nunca');
 
-  var currentComunicado = null;
+  var elIntercept = document.getElementById('comunicados-intercept');
+  var elInterceptMsg = document.getElementById('comunicados-intercept-msg');
+  var elInterceptPrimary = document.getElementById('comunicados-intercept-primary');
+  var elInterceptSecondary = document.getElementById('comunicados-intercept-secondary');
+  var elInterceptBackdrop = document.getElementById('comunicados-intercept-backdrop');
 
-  /**
-   * Fechar (X, overlay, ESC, Fechar) só é bloqueado por "Bloquear até ação" em tipos que têm ação explícita.
-   * Em TEXTO/IMAGEM/IMAGEM_LINK com bloquear_ate_acao, não há checkbox/resposta — o utilizador ficava preso.
-   */
-  function bloqueiaFecharAteAcao(c) {
-    if (!c || !c.bloquear_ate_acao) {
+  var currentComunicado = null;
+  var interceptOpen = false;
+  var interceptPrimaryHandler = null;
+
+  /** TEXTO / IMAGEM / IMAGEM_LINK: pede confirmação de leitura ao fechar (diálogo). */
+  function interceptLeituraTiposSimples(c) {
+    if (!c || !c.exige_confirmacao) {
       return false;
     }
     var t = c.tipo_conteudo || 'TEXTO';
-    return t === 'CONFIRMACAO' || t === 'FORMULARIO';
+    return t === 'TEXTO' || t === 'IMAGEM' || t === 'IMAGEM_LINK';
+  }
+
+  /** FORMULÁRIO com resposta obrigatória: não fechar até enviar. */
+  function bloqueiaFecharAteResposta(c) {
+    if (!c || !c.exige_resposta) {
+      return false;
+    }
+    var t = c.tipo_conteudo || 'TEXTO';
+    return t === 'FORMULARIO';
+  }
+
+  function closeInterceptUi() {
+    interceptOpen = false;
+    interceptPrimaryHandler = null;
+    root.classList.remove('comunicados-root--intercept');
+    if (elIntercept) {
+      elIntercept.setAttribute('hidden', '');
+      elIntercept.classList.remove('comunicados-intercept--open');
+      elIntercept.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function openIntercept(message, primaryLabel, onPrimary) {
+    if (!elIntercept || !elInterceptMsg || !elInterceptPrimary) {
+      if (onPrimary) {
+        onPrimary();
+      }
+      return;
+    }
+    interceptOpen = true;
+    interceptPrimaryHandler = onPrimary;
+    elInterceptMsg.textContent = message;
+    elInterceptPrimary.textContent = primaryLabel;
+    elIntercept.removeAttribute('hidden');
+    elIntercept.classList.add('comunicados-intercept--open');
+    elIntercept.setAttribute('aria-hidden', 'false');
+    root.classList.add('comunicados-root--intercept');
+    try {
+      elInterceptPrimary.focus();
+    } catch (e0) {}
+  }
+
+  function tentarFecharComOpcaoLeitura(acao, resposta) {
+    var c = currentComunicado;
+    if (!c) {
+      return;
+    }
+    if (interceptLeituraTiposSimples(c)) {
+      var acaoLeitura = acao;
+      var respostaLeitura = resposta;
+      openIntercept('Tem certeza que já leu?', 'Sim, já li', function () {
+        if (!currentComunicado) {
+          return;
+        }
+        if (acaoLeitura === 'fechou') {
+          fecharModalERegistrar('confirmou', respostaLeitura);
+        } else {
+          fecharModalERegistrar(acaoLeitura, respostaLeitura);
+        }
+      });
+      return;
+    }
+    fecharModalERegistrar(acao, resposta);
+  }
+
+  function tipoConteudoSemEnvio(t) {
+    return t === 'TEXTO' || t === 'IMAGEM' || t === 'IMAGEM_LINK';
   }
 
   function canDismissOverlay(c) {
     if (!c) {
       return false;
     }
-    if (!c.pode_fechar) {
+    var t = c.tipo_conteudo || 'TEXTO';
+    if (!tipoConteudoSemEnvio(t) && !c.pode_fechar) {
       return false;
     }
-    if (bloqueiaFecharAteAcao(c)) {
+    if (bloqueiaFecharAteResposta(c)) {
       return false;
     }
     return true;
@@ -132,7 +205,15 @@
       if (c.texto_principal) {
         appendTextBlock(elBody, c.texto_principal);
       }
-      if (c.imagem_url) {
+      var urlsImg = Array.isArray(c.imagens_urls) && c.imagens_urls.length
+        ? c.imagens_urls
+        : c.imagem_url
+          ? [c.imagem_url]
+          : [];
+      urlsImg.forEach(function (src) {
+        if (!src) {
+          return;
+        }
         var wrap = document.createElement('div');
         wrap.className = 'comunicados-img-wrap';
         if (tipo === 'IMAGEM_LINK' && c.link_destino) {
@@ -142,18 +223,18 @@
           a.rel = 'noopener noreferrer';
           a.className = 'comunicados-img-link';
           var img = document.createElement('img');
-          img.src = c.imagem_url;
+          img.src = src;
           img.alt = c.titulo_visivel || 'Imagem do comunicado';
           a.appendChild(img);
           wrap.appendChild(a);
         } else {
           var img2 = document.createElement('img');
-          img2.src = c.imagem_url;
+          img2.src = src;
           img2.alt = c.titulo_visivel || 'Imagem do comunicado';
           wrap.appendChild(img2);
         }
         elBody.appendChild(wrap);
-      }
+      });
       return;
     }
 
@@ -176,22 +257,6 @@
       return;
     }
 
-    if (tipo === 'CONFIRMACAO') {
-      appendTextBlock(elBody, c.texto_principal || '');
-      var row = document.createElement('div');
-      row.className = 'comunicados-check-row';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.id = 'comunicados-checkbox-ciencia';
-      var lb = document.createElement('label');
-      lb.setAttribute('for', 'comunicados-checkbox-ciencia');
-      lb.style.cursor = 'pointer';
-      lb.style.fontSize = '0.875rem';
-      lb.textContent = 'Li e estou ciente';
-      row.appendChild(cb);
-      row.appendChild(lb);
-      elBody.appendChild(row);
-    }
   }
 
   function buildFooterActions(c) {
@@ -205,7 +270,7 @@
       btnEnviar.className = 'comunicados-btn comunicados-btn--primary';
       btnEnviar.id = 'comunicados-btn-enviar';
       btnEnviar.textContent = 'Enviar';
-      btnEnviar.disabled = c.bloquear_ate_acao === true;
+      btnEnviar.disabled = c.exige_resposta === true;
       elActions.appendChild(btnEnviar);
       if (dismiss) {
         var btnF = document.createElement('button');
@@ -214,25 +279,6 @@
         btnF.id = 'comunicados-btn-fechar-form';
         btnF.textContent = 'Fechar';
         elActions.appendChild(btnF);
-      }
-      return;
-    }
-
-    if (tipo === 'CONFIRMACAO') {
-      var btnConf = document.createElement('button');
-      btnConf.type = 'button';
-      btnConf.className = 'comunicados-btn comunicados-btn--primary';
-      btnConf.id = 'comunicados-btn-confirmar';
-      btnConf.textContent = 'Confirmar';
-      btnConf.disabled = c.bloquear_ate_acao === true;
-      elActions.appendChild(btnConf);
-      if (dismiss) {
-        var btnF2 = document.createElement('button');
-        btnF2.type = 'button';
-        btnF2.className = 'comunicados-btn comunicados-btn--secondary';
-        btnF2.id = 'comunicados-btn-fechar-conf';
-        btnF2.textContent = 'Fechar';
-        elActions.appendChild(btnF2);
       }
       return;
     }
@@ -267,32 +313,16 @@
     }
     var ta = document.getElementById('comunicados-resposta-field');
     var btnEnviar = document.getElementById('comunicados-btn-enviar');
-    if (!btnEnviar || !c.bloquear_ate_acao) {
+    if (!btnEnviar || !c.exige_resposta) {
       return;
     }
     var ok = ta && ta.value.trim().length > 0;
     btnEnviar.disabled = !ok;
   }
 
-  function syncConfirmacaoControles() {
-    var c = currentComunicado;
-    if (!c || c.tipo_conteudo !== 'CONFIRMACAO') {
-      return;
-    }
-    var cb = document.getElementById('comunicados-checkbox-ciencia');
-    var btnConf = document.getElementById('comunicados-btn-confirmar');
-    if (!btnConf || !c.bloquear_ate_acao) {
-      return;
-    }
-    btnConf.disabled = !(cb && cb.checked);
-  }
-
   function afterExibirControles(c) {
-    if (c.tipo_conteudo === 'FORMULARIO' && c.bloquear_ate_acao) {
+    if (c.tipo_conteudo === 'FORMULARIO' && c.exige_resposta) {
       syncFormularioControles();
-    }
-    if (c.tipo_conteudo === 'CONFIRMACAO' && c.bloquear_ate_acao) {
-      syncConfirmacaoControles();
     }
   }
 
@@ -307,6 +337,7 @@
   }
 
   function hideModal() {
+    closeInterceptUi();
     currentComunicado = null;
     setModalOpen(false);
     clearNode(elBody);
@@ -315,7 +346,7 @@
 
   function onOverlayOrEscapeClose() {
     if (currentComunicado && canDismissOverlay(currentComunicado)) {
-      fecharModalERegistrar('fechou');
+      tentarFecharComOpcaoLeitura('fechou');
     }
   }
 
@@ -509,7 +540,7 @@
     if (t.closest && t.closest('#comunicados-close')) {
       if (currentComunicado && canDismissOverlay(currentComunicado)) {
         e.preventDefault();
-        fecharModalERegistrar('fechou');
+        tentarFecharComOpcaoLeitura('fechou');
       }
       return;
     }
@@ -521,16 +552,16 @@
 
     if (t.closest && t.closest('#comunicados-nunca')) {
       e.preventDefault();
-      fecharModalERegistrar('nao_mostrar_novamente');
+      tentarFecharComOpcaoLeitura('nao_mostrar_novamente');
       return;
     }
 
     var btn = t.closest ? t.closest('button') : null;
     if (btn && elActions && elActions.contains(btn)) {
       var bid = btn.id;
-      if (bid === 'comunicados-btn-fechar-simples' || bid === 'comunicados-btn-fechar-form' || bid === 'comunicados-btn-fechar-conf') {
+      if (bid === 'comunicados-btn-fechar-simples' || bid === 'comunicados-btn-fechar-form') {
         e.preventDefault();
-        fecharModalERegistrar('fechou');
+        tentarFecharComOpcaoLeitura('fechou');
         return;
       }
       if (bid === 'comunicados-btn-enviar') {
@@ -543,16 +574,6 @@
         fecharModalERegistrar('respondeu', txt);
         return;
       }
-      if (bid === 'comunicados-btn-confirmar') {
-        e.preventDefault();
-        var c = currentComunicado;
-        var cb = document.getElementById('comunicados-checkbox-ciencia');
-        if (c && c.bloquear_ate_acao && cb && !cb.checked) {
-          return;
-        }
-        fecharModalERegistrar('confirmou');
-        return;
-      }
     }
   });
 
@@ -562,23 +583,53 @@
     }
   });
 
-  elBody.addEventListener('change', function (e) {
-    if (e.target && e.target.id === 'comunicados-checkbox-ciencia') {
-      syncConfirmacaoControles();
-    }
-  });
-
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape' || !root.classList.contains('comunicados--open')) {
+    if (e.key !== 'Escape') {
+      return;
+    }
+    if (interceptOpen) {
+      e.preventDefault();
+      closeInterceptUi();
+      return;
+    }
+    if (!root.classList.contains('comunicados--open')) {
       return;
     }
     if (currentComunicado && canDismissOverlay(currentComunicado)) {
       e.preventDefault();
-      fecharModalERegistrar('fechou');
+      tentarFecharComOpcaoLeitura('fechou');
     } else {
       e.preventDefault();
     }
   });
+
+  if (elInterceptPrimary) {
+    elInterceptPrimary.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!interceptOpen) {
+        return;
+      }
+      var fn = interceptPrimaryHandler;
+      closeInterceptUi();
+      if (fn) {
+        fn();
+      }
+    });
+  }
+  function interceptVoltar(ev) {
+    if (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    closeInterceptUi();
+  }
+  if (elInterceptSecondary) {
+    elInterceptSecondary.addEventListener('click', interceptVoltar);
+  }
+  if (elInterceptBackdrop) {
+    elInterceptBackdrop.addEventListener('click', interceptVoltar);
+  }
 
   function boot() {
     if (document.readyState === 'loading') {
@@ -588,4 +639,12 @@
     }
   }
   boot();
+
+  /** Sincroniza com o servidor quando o navegador restaura a página a partir da cache (botão Voltar). */
+  window.addEventListener('pageshow', function (ev) {
+    if (!ev.persisted) {
+      return;
+    }
+    fetchPendentesEProximo();
+  });
 })();

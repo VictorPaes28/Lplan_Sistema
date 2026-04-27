@@ -1,7 +1,16 @@
 from django.contrib import admin
+from django.contrib.auth.models import Group
 from django.db.models import Sum
 
-from .models import Comunicado, ComunicadoResposta, ComunicadoVisualizacao
+from accounts.groups import GRUPOS
+
+from .models import Comunicado, ComunicadoImagem, ComunicadoResposta, ComunicadoVisualizacao
+
+
+class ComunicadoImagemInline(admin.TabularInline):
+    model = ComunicadoImagem
+    extra = 0
+    max_num = 5
 
 
 class ComunicadoVisualizacaoInline(admin.TabularInline):
@@ -39,7 +48,7 @@ class ComunicadoAdmin(admin.ModelAdmin):
     search_fields = ('titulo', 'slug', 'titulo_visivel', 'descricao_interna')
     readonly_fields = ('criado_em', 'atualizado_em')
     filter_horizontal = ()
-    inlines = (ComunicadoVisualizacaoInline,)
+    inlines = (ComunicadoImagemInline, ComunicadoVisualizacaoInline)
 
     fieldsets = (
         (
@@ -64,7 +73,6 @@ class ComunicadoAdmin(admin.ModelAdmin):
                     'titulo_visivel',
                     'subtitulo',
                     'texto_principal',
-                    'imagem',
                     'link_destino',
                     'texto_botao',
                     'destaque_visual',
@@ -90,7 +98,6 @@ class ComunicadoAdmin(admin.ModelAdmin):
                 'fields': (
                     'publico_todos',
                     'publico_escopo_criterios',
-                    'publico_restrito_perfil',
                     'grupos_permitidos',
                     'usuarios_permitidos',
                     'obras_permitidas',
@@ -107,7 +114,6 @@ class ComunicadoAdmin(admin.ModelAdmin):
                     'pode_fechar',
                     'exige_confirmacao',
                     'exige_resposta',
-                    'bloquear_ate_acao',
                     'abrir_automaticamente',
                     'mostrar_apos_fechar',
                     'permitir_nao_mostrar_novamente',
@@ -135,6 +141,19 @@ class ComunicadoAdmin(admin.ModelAdmin):
         if not change:
             obj.criado_por = request.user
         super().save_model(request, obj, form, change)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name in ('grupos_permitidos', 'grupos_excluidos'):
+            kwargs['queryset'] = Group.objects.filter(
+                name__in=[
+                    GRUPOS.ADMINISTRADOR,
+                    GRUPOS.APROVADOR,
+                    GRUPOS.SOLICITANTE,
+                    GRUPOS.GERENTES,
+                    GRUPOS.ENGENHARIA,
+                ]
+            ).order_by('name')
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
 @admin.register(ComunicadoVisualizacao)

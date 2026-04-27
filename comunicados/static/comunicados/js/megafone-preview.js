@@ -18,18 +18,18 @@
   var elActions = document.getElementById('megafone-prev-actions');
   var btnClose = document.getElementById('megafone-prev-close');
   var btnOpen = document.getElementById('btn-megafone-prev');
-  /** URL blob da imagem escolhida no file input — libertar ao fechar para não vazar memória. */
-  var lastBlobPreviewUrl = null;
+  /** URLs blob dos ficheiros escolhidos — libertar ao fechar. */
+  var lastBlobPreviewUrls = [];
 
-  function revokeBlobPreviewUrl() {
-    if (lastBlobPreviewUrl) {
+  function revokeBlobPreviewUrls() {
+    lastBlobPreviewUrls.forEach(function (u) {
       try {
-        URL.revokeObjectURL(lastBlobPreviewUrl);
+        URL.revokeObjectURL(u);
       } catch (e) {
         /* noop */
       }
-      lastBlobPreviewUrl = null;
-    }
+    });
+    lastBlobPreviewUrls = [];
   }
 
   function val(id) {
@@ -42,21 +42,65 @@
     return !!(e && e.checked);
   }
 
+  function totalImagensForms(formRoot) {
+    var tf = formRoot.querySelector('input[name="imagens-TOTAL_FORMS"]');
+    return tf ? parseInt(tf.value, 10) || 0 : 0;
+  }
+
   function collectPayload() {
     var tipo = val('id_tipo_conteudo') || 'TEXTO';
-    var imgInput = document.getElementById('id_imagem');
-    var imagemUrl = '';
-    if (imgInput && imgInput.files && imgInput.files[0]) {
-      try {
-        revokeBlobPreviewUrl();
-        imagemUrl = URL.createObjectURL(imgInput.files[0]);
-        lastBlobPreviewUrl = imagemUrl;
-      } catch (e) {
-        imagemUrl = '';
+    var formRoot = document.getElementById('form-comunicado');
+    var imagensUrls = [];
+    revokeBlobPreviewUrls();
+    if (formRoot) {
+      var useSlots = !!document.getElementById('comunicado-imagem-slot-0');
+      if (useSlots) {
+        var total = totalImagensForms(formRoot);
+        for (var i = 0; i < total; i++) {
+          var del = formRoot.querySelector('#id_imagens-' + i + '-DELETE');
+          if (del && del.checked) {
+            continue;
+          }
+          var finp = formRoot.querySelector('#id_imagens-' + i + '-arquivo');
+          if (finp && finp.files && finp.files[0]) {
+            try {
+              var u = URL.createObjectURL(finp.files[0]);
+              lastBlobPreviewUrls.push(u);
+              imagensUrls.push(u);
+            } catch (e) {
+              /* noop */
+            }
+          } else {
+            var slot = document.getElementById('comunicado-imagem-slot-' + i);
+            var du = slot && slot.getAttribute('data-preview-url');
+            if (du) {
+              imagensUrls.push(du);
+            }
+          }
+        }
+      } else {
+        formRoot.querySelectorAll('input[type="file"][name^="imagens-"][name$="-arquivo"]').forEach(function (inp) {
+          if (inp.files && inp.files[0]) {
+            try {
+              var u2 = URL.createObjectURL(inp.files[0]);
+              lastBlobPreviewUrls.push(u2);
+              imagensUrls.push(u2);
+            } catch (e) {
+              /* noop */
+            }
+          }
+        });
       }
+    }
+    var imagemUrl = '';
+    if (imagensUrls.length) {
+      imagemUrl = imagensUrls[0];
+    } else if (Array.isArray(window.__MEGAFONE_PREVIEW_IMG_URLS__) && window.__MEGAFONE_PREVIEW_IMG_URLS__.length) {
+      imagensUrls = window.__MEGAFONE_PREVIEW_IMG_URLS__.slice();
+      imagemUrl = imagensUrls[0];
     } else if (typeof window.__MEGAFONE_PREVIEW_IMG_URL__ === 'string' && window.__MEGAFONE_PREVIEW_IMG_URL__) {
-      revokeBlobPreviewUrl();
       imagemUrl = window.__MEGAFONE_PREVIEW_IMG_URL__;
+      imagensUrls = [imagemUrl];
     }
     return {
       tipo_conteudo: tipo,
@@ -66,30 +110,35 @@
         ? document.getElementById('id_texto_principal').value
         : '',
       imagem_url: imagemUrl,
+      imagens_urls: imagensUrls,
       link_destino: val('id_link_destino'),
       texto_botao: val('id_texto_botao'),
       destaque_visual: val('id_destaque_visual') || 'PADRAO',
       pode_fechar: chk('id_pode_fechar'),
       exige_confirmacao: chk('id_exige_confirmacao'),
       exige_resposta: chk('id_exige_resposta'),
-      bloquear_ate_acao: chk('id_bloquear_ate_acao'),
       permitir_nao_mostrar_novamente: chk('id_permitir_nao_mostrar_novamente'),
     };
   }
 
-  function bloqueiaFecharAteAcao(c) {
-    if (!c.bloquear_ate_acao) {
+  function bloqueiaFecharAteResposta(c) {
+    if (!c.exige_resposta) {
       return false;
     }
     var t = c.tipo_conteudo || 'TEXTO';
-    return t === 'CONFIRMACAO' || t === 'FORMULARIO';
+    return t === 'FORMULARIO';
+  }
+
+  function tipoConteudoSemEnvio(t) {
+    return t === 'TEXTO' || t === 'IMAGEM' || t === 'IMAGEM_LINK';
   }
 
   function canDismissOverlay(c) {
-    if (!c.pode_fechar) {
+    var t = c.tipo_conteudo || 'TEXTO';
+    if (!tipoConteudoSemEnvio(t) && !c.pode_fechar) {
       return false;
     }
-    if (bloqueiaFecharAteAcao(c)) {
+    if (bloqueiaFecharAteResposta(c)) {
       return false;
     }
     return true;
@@ -146,28 +195,38 @@
       if (c.texto_principal) {
         appendTextBlock(elBody, c.texto_principal);
       }
-      if (c.imagem_url) {
-        var wrap = document.createElement('div');
-        wrap.className = 'comunicados-img-wrap';
-        if (tipo === 'IMAGEM_LINK' && c.link_destino) {
-          var a = document.createElement('a');
-          a.href = c.link_destino;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          a.className = 'comunicados-img-link';
-          var img = document.createElement('img');
-          img.src = c.imagem_url;
-          img.alt = c.titulo_visivel || 'Imagem do comunicado';
-          a.appendChild(img);
-          wrap.appendChild(a);
-        } else {
-          var img2 = document.createElement('img');
-          img2.src = c.imagem_url;
-          img2.alt = c.titulo_visivel || 'Imagem do comunicado';
-          wrap.appendChild(img2);
-        }
-        elBody.appendChild(wrap);
-      } else if (tipo === 'IMAGEM' || tipo === 'IMAGEM_LINK') {
+      var urlsImg = Array.isArray(c.imagens_urls) && c.imagens_urls.length
+        ? c.imagens_urls
+        : c.imagem_url
+          ? [c.imagem_url]
+          : [];
+      if (urlsImg.length) {
+        urlsImg.forEach(function (src) {
+          if (!src) {
+            return;
+          }
+          var wrap = document.createElement('div');
+          wrap.className = 'comunicados-img-wrap';
+          if (tipo === 'IMAGEM_LINK' && c.link_destino) {
+            var a = document.createElement('a');
+            a.href = c.link_destino;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'comunicados-img-link';
+            var img = document.createElement('img');
+            img.src = src;
+            img.alt = c.titulo_visivel || 'Imagem do comunicado';
+            a.appendChild(img);
+            wrap.appendChild(a);
+          } else {
+            var img2 = document.createElement('img');
+            img2.src = src;
+            img2.alt = c.titulo_visivel || 'Imagem do comunicado';
+            wrap.appendChild(img2);
+          }
+          elBody.appendChild(wrap);
+        });
+      } else {
         var av = document.createElement('p');
         av.style.color = '#94a3b8';
         av.style.fontSize = '0.875rem';
@@ -197,23 +256,6 @@
       return;
     }
 
-    if (tipo === 'CONFIRMACAO') {
-      appendTextBlock(elBody, c.texto_principal || '');
-      var row = document.createElement('div');
-      row.className = 'comunicados-check-row';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.id = 'megafone-prev-checkbox-ciencia';
-      cb.disabled = true;
-      var lb = document.createElement('label');
-      lb.setAttribute('for', 'megafone-prev-checkbox-ciencia');
-      lb.style.cursor = 'default';
-      lb.style.fontSize = '0.875rem';
-      lb.textContent = 'Li e estou ciente';
-      row.appendChild(cb);
-      row.appendChild(lb);
-      elBody.appendChild(row);
-    }
   }
 
   function buildFooterActions(c) {
@@ -226,7 +268,7 @@
       btnEnviar.type = 'button';
       btnEnviar.className = 'comunicados-btn comunicados-btn--primary';
       btnEnviar.textContent = 'Enviar';
-      btnEnviar.disabled = true;
+      btnEnviar.disabled = c.exige_resposta === true;
       elActions.appendChild(btnEnviar);
       if (dismiss) {
         var btnF = document.createElement('button');
@@ -234,23 +276,6 @@
         btnF.className = 'comunicados-btn comunicados-btn--secondary';
         btnF.textContent = 'Fechar';
         elActions.appendChild(btnF);
-      }
-      return;
-    }
-
-    if (tipo === 'CONFIRMACAO') {
-      var btnConf = document.createElement('button');
-      btnConf.type = 'button';
-      btnConf.className = 'comunicados-btn comunicados-btn--primary';
-      btnConf.textContent = 'Confirmar';
-      btnConf.disabled = true;
-      elActions.appendChild(btnConf);
-      if (dismiss) {
-        var btnF2 = document.createElement('button');
-        btnF2.type = 'button';
-        btnF2.className = 'comunicados-btn comunicados-btn--secondary';
-        btnF2.textContent = 'Fechar';
-        elActions.appendChild(btnF2);
       }
       return;
     }
@@ -318,7 +343,7 @@
     root.classList.remove('megafone-prev--open');
     root.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
-    revokeBlobPreviewUrl();
+    revokeBlobPreviewUrls();
   }
 
   if (btnOpen) {

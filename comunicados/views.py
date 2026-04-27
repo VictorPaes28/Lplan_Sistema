@@ -20,9 +20,11 @@ from .services import contar_pendentes, primeiro_pendente_e_total
 
 
 def _comunicado_publico_json(comunicado: Comunicado, request) -> dict:
-    imagem_url = ''
-    if comunicado.imagem:
-        imagem_url = request.build_absolute_uri(comunicado.imagem.url)
+    imagens_urls = [
+        request.build_absolute_uri(im.arquivo.url)
+        for im in comunicado.imagens.all().order_by('ordem', 'pk')
+    ]
+    imagem_url = imagens_urls[0] if imagens_urls else ''
     link = comunicado.link_destino or ''
     return {
         'id': comunicado.pk,
@@ -31,13 +33,13 @@ def _comunicado_publico_json(comunicado: Comunicado, request) -> dict:
         'subtitulo': comunicado.subtitulo or '',
         'texto_principal': comunicado.texto_principal or '',
         'imagem_url': imagem_url,
+        'imagens_urls': imagens_urls,
         'link_destino': link,
         'texto_botao': comunicado.texto_botao or '',
         'destaque_visual': comunicado.destaque_visual,
         'pode_fechar': comunicado.pode_fechar,
         'exige_confirmacao': comunicado.exige_confirmacao,
         'exige_resposta': comunicado.exige_resposta,
-        'bloquear_ate_acao': comunicado.bloquear_ate_acao,
         'permitir_nao_mostrar_novamente': comunicado.permitir_nao_mostrar_novamente,
         'prioridade': comunicado.prioridade,
     }

@@ -18,7 +18,6 @@ from .models import (
     ComunicadoVisualizacao,
     Prioridade,
     PublicoEscopoCriterios,
-    PublicoRestricaoPerfil,
     StatusFinalVisualizacao,
     TipoConteudo,
     TipoExibicao,
@@ -125,17 +124,6 @@ def _usuario_excluido(user, c: Comunicado, user_group_ids: set[int], user_projec
     return False
 
 
-def _passa_restricao_perfil(user, c: Comunicado) -> bool:
-    perfil = c.publico_restrito_perfil
-    if perfil == PublicoRestricaoPerfil.NENHUMA:
-        return True
-    if perfil == PublicoRestricaoPerfil.APENAS_STAFF:
-        return bool(getattr(user, 'is_staff', False))
-    if perfil == PublicoRestricaoPerfil.APENAS_SUPERUSER:
-        return bool(getattr(user, 'is_superuser', False))
-    return True
-
-
 def _passa_regra_exibicao(c: Comunicado, vis: ComunicadoVisualizacao | None, now, hoje) -> bool:
     if vis and vis.status_final == StatusFinalVisualizacao.IGNORADO:
         return False
@@ -143,7 +131,13 @@ def _passa_regra_exibicao(c: Comunicado, vis: ComunicadoVisualizacao | None, now
     # Com tipo "Sempre", os ramos abaixo devolviam True sem olhar para a ação já feita — gerava loop no modal.
     if c.tipo_conteudo == TipoConteudo.FORMULARIO and vis and vis.respondeu:
         return False
-    if c.tipo_conteudo == TipoConteudo.CONFIRMACAO and vis and vis.confirmou_leitura:
+    if (
+        c.tipo_conteudo
+        in (TipoConteudo.TEXTO, TipoConteudo.IMAGEM, TipoConteudo.IMAGEM_LINK)
+        and c.exige_confirmacao
+        and vis
+        and vis.confirmou_leitura
+    ):
         return False
 
     tipo = c.tipo_exibicao
@@ -215,6 +209,7 @@ def listar_comunicados_pendentes(user) -> list[Comunicado]:
     candidatos = (
         Comunicado.objects.filter(pk__in=base_ids)
         .prefetch_related(
+            'imagens',
             'grupos_permitidos',
             'usuarios_permitidos',
             'obras_permitidas',
@@ -238,13 +233,13 @@ def listar_comunicados_pendentes(user) -> list[Comunicado]:
             continue
         if not _usuario_em_publico_alvo(user, c, user_group_ids, user_project_ids):
             continue
-        if not _passa_restricao_perfil(user, c):
-            continue
         vis = vis_map.get(c.pk)
         # Fechou=True evita reabrir na mesma sessão (e impede loop quando a API volta a devolver o mesmo pendente).
-        # Para "Sempre" voltar após novo login, ver `reset_comunicados_sempre_fechou` em accounts.signals.
-        if vis and vis.fechou and not c.mostrar_apos_fechar:
-            continue
+        # "Mostrar após fechar" reabre nessa sessão para outros tipos de exibição — exceto SEMPRE, que só volta
+        # após novo login (`reset_comunicados_sempre_fechou` em accounts.signals).
+        if vis and vis.fechou:
+            if c.tipo_exibicao == TipoExibicao.SEMPRE or not c.mostrar_apos_fechar:
+                continue
         if not _passa_regra_exibicao(c, vis, now, hoje):
             continue
         pendentes.append(c)

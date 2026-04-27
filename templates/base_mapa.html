@@ -246,9 +246,9 @@
     <script src="{% static 'js/supplymap.js' %}?v=8"></script>
     
     {% if user.is_authenticated %}
-    <link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}">
+    <link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}?v=5">
     {% include 'comunicados/modal.html' %}
-    <script src="{% static 'comunicados/js/comunicados.js' %}" defer></script>
+    <script src="{% static 'comunicados/js/comunicados.js' %}?v=8" defer></script>
     {% endif %}
 
     {% block extra_js %}{% endblock %}
