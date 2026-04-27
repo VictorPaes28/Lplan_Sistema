@@ -662,7 +662,7 @@
                         Duração: {{ item.video.duration }}s
                         {% endif %}
                         {% if item.video.uploaded_at %}
-                        | Data: {{ item.video.uploaded_at|date:"d/m/Y H:i" }}
+                        | Data: {{ item.video.uploaded_at|localtime|date:"d/m/Y H:i" }}
                         {% endif %}
                     </div>
                     {% if item.video.video %}

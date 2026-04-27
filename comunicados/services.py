@@ -11,7 +11,7 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
-from core.models import ProjectMember
+from core.models import ProjectMember, ProjectOwner
 
 from .models import (
     Comunicado,
@@ -201,6 +201,10 @@ def listar_comunicados_pendentes(user) -> list[Comunicado]:
     user_project_ids = set(
         ProjectMember.objects.filter(user=user).values_list('project_id', flat=True)
     )
+
+    # Clientes donos de obra nunca recebem comunicados
+    if ProjectOwner.objects.filter(user=user).exists():
+        return []
 
     base_ids = list(_candidatos_base_queryset().values_list('pk', flat=True))
     if not base_ids:

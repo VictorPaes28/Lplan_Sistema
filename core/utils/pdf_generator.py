@@ -27,6 +27,7 @@ from io import BytesIO
 from xml.sax.saxutils import escape as xml_escape
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.utils import timezone
 import logging
 
 try:
@@ -942,7 +943,7 @@ class PDFGenerator:
                 eq = item['equipment']
                 code = _safe_pdf_text(_decode_js_escaped_text(getattr(eq, 'code', '') or ''), default='')
                 name = _safe_pdf_text(_decode_js_escaped_text(getattr(eq, 'name', '') or ''), default='Sem nome')
-                label = f"{code} – {name}" if code else name
+                label = name
                 data.append([
                     Paragraph(label, normal_style),
                     Paragraph(str(item['quantity']), normal_style),
@@ -1179,7 +1180,8 @@ class PDFGenerator:
                         uploaded_at = item.get('image') and getattr(item['image'], 'uploaded_at', None)
                         if uploaded_at:
                             try:
-                                dt_str = uploaded_at.strftime('%d/%m/%Y %H:%M')
+                                uploaded_at_local = timezone.localtime(uploaded_at)
+                                dt_str = uploaded_at_local.strftime('%d/%m/%Y %H:%M')
                                 cap = "%s – %s" % (dt_str, (cap or 'Foto')[:35])
                             except Exception:
                                 cap = str(cap)[:50]
