@@ -79,6 +79,7 @@ class CreateObraAuditIntegrationTests(TestCase):
                 "empresa": str(self.empresa.pk),
                 "codigo": "OBRA-AUD-01",
                 "nome": "Obra auditoria",
+                "sigla": "TST",
                 "descricao": "",
                 "email_obra": "",
                 "ativo": "on",
