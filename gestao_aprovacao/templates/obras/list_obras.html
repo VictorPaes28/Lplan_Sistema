@@ -61,7 +61,7 @@
             <thead>
                 <tr>
                     <th>Empresa</th>
-                    <th>Código</th>
+                    <th>Sigla</th>
                     <th>Nome</th>
                     <th class="text-center">Status</th>
                     <th>Pedidos</th>
@@ -79,8 +79,8 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        <td data-label="Código">
-                            <strong class="code-link">{{ obra.codigo }}</strong>
+                        <td data-label="Sigla">
+                            <strong class="code-link">{{ obra.sigla|default:"—" }}</strong>
                         </td>
                         <td data-label="Nome">{{ obra.nome }}</td>
                         <td class="text-center" data-label="Status">
