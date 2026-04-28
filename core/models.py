@@ -61,6 +61,14 @@ class Project(models.Model):
         verbose_name='Código do Projeto',
         help_text='Código único identificador do projeto (ex: PROJ-2024-001)'
     )
+    sigla = models.CharField(
+        max_length=3,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name='Sigla',
+        help_text='3 letras maiúsculas que identificam a obra (ex: SRS)',
+    )
     description = models.TextField(
         blank=True,
         verbose_name='Descrição',

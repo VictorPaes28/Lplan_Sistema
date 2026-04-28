@@ -749,7 +749,7 @@ def export_list_workorders_pdf(request):
         status_label = status_dict.get(wo.status, wo.status or '')
         tipo_label = tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')
         solicitante = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
-        obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
+        obra_txt = f"{wo.obra.sigla}" if wo.obra else '—'
         reprovacoes = getattr(wo, 'prefetched_reprovacoes', None) or []
         qtd_reprov = len(reprovacoes)
         ultimo_motivo = _motivo_reprovacao_listagem(wo)
@@ -1006,7 +1006,7 @@ def export_list_workorders_excel(request):
             if wo.criado_por
             else '—'
         )
-        obra_txt = f"{wo.obra.codigo}" if wo.obra else '—'
+        obra_txt = f"{wo.obra.sigla}" if wo.obra else '—'
         motivo_repr = _motivo_reprovacao_listagem(wo)
         ws.cell(row=row, column=1, value=wo.codigo or '').alignment = cell_align
         ws.cell(row=row, column=2, value=obra_txt).alignment = cell_align
@@ -5546,7 +5546,7 @@ def _gerar_pdf_historico(solicitante, reprovacoes, dias_periodo, tipo_solicitaca
         ]]
         for r in reprovacoes_list:
             wo = r.work_order
-            obra = f"{wo.obra.codigo} - {wo.obra.nome}" if wo.obra else '-'
+            obra = f"{wo.obra.sigla} - {wo.obra.nome}" if wo.obra else '-'
             aprovador = r.aprovado_por.get_full_name() or r.aprovado_por.username if r.aprovado_por else '-'
             tags = ', '.join([t.nome for t in r.tags_erro.all()]) or 'Sem tags'
             comentario = r.comentario or 'Sem comentário'

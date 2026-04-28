@@ -99,6 +99,7 @@ class ObraForm(forms.ModelForm):
             'empresa',
             'codigo',
             'nome',
+            'sigla',
             'descricao',
             'email_obra',
             'ativo',
@@ -107,6 +108,14 @@ class ObraForm(forms.ModelForm):
             'empresa': forms.Select(attrs={'class': 'form-control'}),
             'codigo': forms.TextInput(attrs={'class': 'form-control'}),
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
+            'sigla': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 3,
+                'minlength': 3,
+                'placeholder': 'SRS',
+                'style': 'text-transform: uppercase;',
+                'autocomplete': 'off',
+            }),
             'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'email_obra': forms.EmailInput(attrs={'class': 'form-control'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -167,6 +176,23 @@ class ObraForm(forms.ModelForm):
         if codigo:
             codigo = codigo.strip().upper()
         return codigo
+
+    def clean_sigla(self):
+        sigla = (self.cleaned_data.get('sigla') or '').strip().upper()
+
+        if len(sigla) != 3:
+            raise forms.ValidationError('A sigla deve ter exatamente 3 letras.')
+
+        if not sigla.isalpha():
+            raise forms.ValidationError('A sigla deve conter apenas letras (sem números ou caracteres especiais).')
+
+        obra_existente = Obra.objects.filter(sigla=sigla)
+        if self.instance.pk:
+            obra_existente = obra_existente.exclude(pk=self.instance.pk)
+        if obra_existente.exists():
+            raise forms.ValidationError('Já existe uma obra com esta sigla.')
+
+        return sigla
 
 
 class WorkOrderForm(forms.ModelForm):

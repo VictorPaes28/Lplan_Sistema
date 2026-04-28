@@ -116,6 +116,15 @@ class Obra(models.Model):
         help_text='Nome ou identificador da obra'
     )
     
+    sigla = models.CharField(
+        max_length=3,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name='Sigla',
+        help_text='3 letras maiúsculas que identificam a obra (ex: SRS)',
+    )
+    
     descricao = models.TextField(
         blank=True,
         null=True,

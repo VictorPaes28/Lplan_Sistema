@@ -45,6 +45,7 @@ def sync_project_to_gestao_and_mapa(project, return_result=False):
             defaults={
                 'codigo': project.code,
                 'nome': project.name,
+                'sigla': (project.sigla or '').strip().upper() if project.sigla else None,
                 'ativo': project.is_active,
                 'empresa': None,
             },

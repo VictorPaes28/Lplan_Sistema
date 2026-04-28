@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Obra: {{ obra.codigo }}{% endblock %}
+{% block title %}Obra: {{ obra.sigla|default:obra.codigo }}{% endblock %}
 
 {% block page_title %}Detalhes da Obra{% endblock %}
 {% block page_subtitle %}GestControll{% endblock %}
@@ -22,9 +22,9 @@
     <div class="detail-header">
         <div>
             <h1 class="detail-title">
-                {{ obra.codigo }}
+                {{ obra.sigla|default:obra.codigo }}
             </h1>
-            <p class="detail-subtitle">{{ obra.nome }}</p>
+            <p class="detail-subtitle">{{ obra.sigla|default:obra.codigo }} - {{ obra.nome }}</p>
         </div>
         <div class="detail-status-container">
             <span class="status-badge-large {% if obra.ativo %}aprovado{% else %}cancelado{% endif %}">
@@ -60,8 +60,8 @@
             </div>
             
             <div>
-                <div class="detail-field-label">Código:</div>
-                <p class="detail-field-value">{{ obra.codigo }}</p>
+                <div class="detail-field-label">Sigla:</div>
+                <p class="detail-field-value">{{ obra.sigla|default:"—" }}</p>
             </div>
             
             <div>
