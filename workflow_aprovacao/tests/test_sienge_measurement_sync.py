@@ -18,8 +18,10 @@ from workflow_aprovacao.models import (
     SubjectKind,
 )
 from workflow_aprovacao.services.sienge_measurement_sync import (
+    build_sienge_project_lookup,
     contract_external_id,
     measurement_external_id,
+    resolve_project_for_sienge_row,
     sync_sienge_central_inbound,
     sync_sienge_contracts_to_central,
     sync_sienge_measurements_to_central,
@@ -38,6 +40,32 @@ class _FakeSiengeClient:
     def iter_supply_contracts_all(self, *, page_size=25, max_rows=100):
         for row in self._contracts[:max_rows]:
             yield row
+
+    def fetch_supply_contract_buildings(self, *, document_id, contract_number):
+        return []
+
+
+class SiengeResolveProjectBuildingsTests(TestCase):
+    """contractNumber do contrato ≠ código da obra: fallback GET …/buildings."""
+
+    def test_resolve_contract_row_via_buildings_code(self):
+        p = Project.objects.create(
+            name='Pousada',
+            code='224',
+            start_date=date(2025, 1, 1),
+            end_date=date(2026, 12, 31),
+        )
+
+        class FakeClient:
+            def fetch_supply_contract_buildings(self, *, document_id, contract_number):
+                if document_id == 'CT' and contract_number == '219':
+                    return [{'buildingId': 501, 'code': '224'}]
+                return []
+
+        lookup = build_sienge_project_lookup()
+        row = {'documentId': 'CT', 'contractNumber': '219', 'isAuthorized': False}
+        resolved = resolve_project_for_sienge_row(row, lookup, client=FakeClient())
+        self.assertEqual(resolved.pk, p.pk)
 
 
 class SiengeMeasurementSyncTests(TestCase):
@@ -229,6 +257,26 @@ class SiengeContractSyncTests(TestCase):
         ext = contract_external_id(row)
         proc = ApprovalProcess.objects.get(external_id=ext, external_system='sienge')
         self.assertEqual(proc.category_id, self.cat.id)
+
+    def test_contract_summary_has_no_raw_api_keys(self):
+        self.project.contract_number = '91'
+        self.project.save(update_fields=['contract_number'])
+        row = {
+            'documentId': 'CT',
+            'contractNumber': '91',
+            'isAuthorized': False,
+            'status': 'PENDING',
+            'statusApproval': 'DISAPPROVED',
+            'companyName': 'Hotel',
+            'supplierName': 'João',
+        }
+        client = _FakeSiengeClient(contracts=[row])
+        sync_sienge_contracts_to_central(client=client, max_rows=10)
+        proc = ApprovalProcess.objects.get(external_system='sienge', external_id=contract_external_id(row))
+        self.assertNotIn('statusApproval:', proc.summary)
+        self.assertNotIn('isAuthorized:', proc.summary)
+        self.assertIn('Não aprovado', proc.summary)
+        self.assertIn('Pendente', proc.summary)
 
     def test_inbound_runs_both_sources(self):
         cat_contrato = ProcessCategory.objects.get(code='contrato')

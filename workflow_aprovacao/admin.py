@@ -8,6 +8,7 @@ from workflow_aprovacao.models import (
     ApprovalStep,
     ApprovalStepParticipant,
     ProcessCategory,
+    SiengeCentralSyncState,
 )
 
 
@@ -45,7 +46,7 @@ class ApprovalProcessAdmin(admin.ModelAdmin):
     list_display = ('id', 'project', 'category', 'status', 'current_step', 'created_at')
     list_filter = ('status', 'category', 'sync_status')
     search_fields = ('title', 'project__code', 'external_id')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'external_payload')
     raw_id_fields = ('project', 'category', 'flow_definition', 'current_step', 'initiated_by')
 
 
@@ -62,3 +63,15 @@ class ApprovalIntegrationOutboxAdmin(admin.ModelAdmin):
     list_display = ('id', 'process', 'event_type', 'status', 'attempts', 'created_at', 'sent_at')
     list_filter = ('status', 'event_type')
     readonly_fields = ('created_at',)
+
+
+@admin.register(SiengeCentralSyncState)
+class SiengeCentralSyncStateAdmin(admin.ModelAdmin):
+    list_display = ('id', 'last_run_at', 'last_ok')
+    readonly_fields = ('id', 'last_run_at', 'last_ok', 'last_stats', 'last_error')
+
+    def has_add_permission(self, request):
+        return not SiengeCentralSyncState.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

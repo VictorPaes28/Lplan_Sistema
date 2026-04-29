@@ -56,7 +56,7 @@
                         <dd>{{ process.initiated_by.get_full_name|default:process.initiated_by.username }}</dd>
                     </div>
                     {% endif %}
-                    {% if process.summary and not workflow_minimal_shell %}
+                    {% if process.summary and not sienge_is_inbound %}
                     <div style="grid-column:1/-1;">
                         <dt>Resumo</dt>
                         <dd style="font-weight:400;white-space:pre-wrap;">{{ process.summary }}</dd>
@@ -67,6 +67,78 @@
         </aside>
 
         <div class="wf-detail-main">
+            {% if sienge_is_inbound %}
+            <section class="wf-panel wf-sienge-review" aria-labelledby="wf-sienge-review-heading">
+                <div class="wf-panel__head wf-sienge-review__head">
+                    <div>
+                        <h2 id="wf-sienge-review-heading" class="wf-panel__title wf-sienge-review__title">O que está a ser aprovado</h2>
+                        <p class="wf-sienge-review__lede">Dados de referência do Sienge. Confirme fornecedor, valores e documentos antes de aprovar nesta Central.</p>
+                    </div>
+                    <span class="wf-badge wf-badge--cat">Sienge</span>
+                </div>
+                <div class="wf-panel__body wf-sienge-review__body">
+                    {% if sienge_resumo_exibicao %}
+                    <div class="wf-sienge-summary-block">
+                        <h3 class="wf-sienge-subhead">Resumo</h3>
+                        <p class="wf-sienge-summary-text">{{ sienge_resumo_exibicao }}</p>
+                    </div>
+                    {% endif %}
+                    {% if sienge_display_rows %}
+                    <h3 class="wf-sienge-subhead">Detalhe do registo</h3>
+                    <div class="wf-sienge-dl-wrap">
+                        <dl class="wf-sienge-dl">
+                            {% for row in sienge_display_rows %}
+                            <div class="wf-sienge-dl__row">
+                                <dt>{{ row.label }}</dt>
+                                <dd>{{ row.value }}</dd>
+                            </div>
+                            {% endfor %}
+                        </dl>
+                    </div>
+                    {% elif process.external_payload %}
+                    <p class="wf-help">Há dados brutos no sistema, mas não foi possível formatar para leitura. Contacte o suporte se precisar de mais campos.</p>
+                    {% else %}
+                    <p class="wf-help">Sem ficha técnica automática guardada neste processo (geralmente criado antes da atualização). Use o <strong>resumo</strong> acima e os <strong>anexos</strong>; em caso de dúvida confirme no Sienge.</p>
+                    {% endif %}
+                    {% if sienge_attachments %}
+                    <div class="wf-sienge-attachments">
+                        <h3 class="wf-sienge-subhead">Documentos para consulta / download</h3>
+                        <p class="wf-help wf-sienge-attachments__hint">Os ficheiros são obtidos do Sienge no momento do pedido; só utilizadores com acesso a este processo na Central podem descarregar.</p>
+                        <ul class="wf-attach-cards">
+                            {% for att in sienge_attachments %}
+                            <li class="wf-attach-card">
+                                {% if att.attachment_id %}
+                                <a href="{% url 'workflow_aprovacao:sienge_process_attachment' process.pk %}?attachment_id={{ att.attachment_id }}" class="wf-attach-card__link">
+                                    <span class="wf-attach-card__icon" aria-hidden="true"><i class="fas fa-file-download"></i></span>
+                                    <span class="wf-attach-card__text">
+                                        <span class="wf-attach-card__name">{{ att.file_name }}</span>
+                                        <span class="wf-attach-card__meta">Anexo #{{ att.attachment_id }} · PDF ou documento anexado no contrato</span>
+                                    </span>
+                                </a>
+                                {% else %}
+                                <div class="wf-attach-card wf-attach-card--disabled">
+                                    <span class="wf-attach-card__icon" aria-hidden="true"><i class="fas fa-file"></i></span>
+                                    <span class="wf-attach-card__text">
+                                        <span class="wf-attach-card__name">{{ att.file_name }}</span>
+                                        <span class="wf-attach-card__meta">Sem ID reconhecido na API — não é possível descarregar por aqui.</span>
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        <p class="wf-sienge-zip-note"><a href="{% url 'workflow_aprovacao:sienge_process_attachment' process.pk %}" class="wf-link-dl">Descarregar o primeiro anexo listado</a> (atalho)</p>
+                    </div>
+                    {% else %}
+                    <div class="wf-sienge-attachments wf-sienge-attachments--empty">
+                        <h3 class="wf-sienge-subhead">Documentos</h3>
+                        <p class="wf-help">Nenhum anexo listado no Sienge para este contrato, ou a API não devolveu metadados neste momento.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+
             <section class="wf-panel" style="margin-bottom:1.25rem;">
                 <div class="wf-panel__head">
                     <h2 class="wf-panel__title">Linha do tempo</h2>
@@ -94,24 +166,29 @@
             </section>
 
             {% if can_act and workflow_can_act %}
-            <form method="post" class="wf-decision">
+            <form method="post" class="wf-decision wf-signing-card" aria-labelledby="wf-decision-heading">
                 {% csrf_token %}
-                <h3>Decisão</h3>
+                <h3 id="wf-decision-heading">A sua decisão</h3>
+                {% if sienge_is_inbound %}
+                <div class="wf-signing-card__notice" role="note">
+                    <p><strong>Leu o resumo e, se aplicável, abriu o PDF do contrato ou da medição?</strong> A aprovação aqui registada faz parte do fluxo interno; o efeito no Sienge depende da integração configurada.</p>
+                </div>
+                {% endif %}
                 {% if form.non_field_errors %}
                 <div class="wf-alert wf-alert--error" style="margin-bottom:1rem;">{{ form.non_field_errors }}</div>
                 {% endif %}
                 <label class="wf-label" for="id_comment">{{ form.comment.label }}</label>
                 {{ form.comment }}
                 {% if form.comment.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.comment.errors }}</p>{% endif %}
-                <div class="wf-actions">
-                    <button type="submit" name="action" value="approve" class="wf-btn wf-btn--approve">
+                <div class="wf-actions wf-signing-card__actions">
+                    <button type="submit" name="action" value="approve" class="wf-btn wf-btn--approve wf-btn--sign">
                         <i class="fas fa-check" aria-hidden="true"></i> Aprovar e avançar
                     </button>
                     <button type="submit" name="action" value="reject" class="wf-btn wf-btn--reject">
                         <i class="fas fa-times" aria-hidden="true"></i> Reprovar
                     </button>
                 </div>
-                <p class="wf-help" style="margin-top:0.75rem;margin-bottom:0;">Aprovar envia à próxima etapa ou conclui o fluxo. Reprovar encerra o processo.</p>
+                <p class="wf-help wf-signing-card__foot">Aprovar envia à próxima etapa ou conclui o fluxo. Reprovar encerra o processo.</p>
             </form>
             {% elif process.status == 'awaiting_step' %}
             <div class="wf-notice" role="status">

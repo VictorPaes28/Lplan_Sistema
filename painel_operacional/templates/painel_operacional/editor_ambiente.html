@@ -1,0 +1,236 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Editor de Ambiente - LPLAN{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'painel_operacional/css/editor_ambiente.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 po-editor">
+    {% if erro_acesso %}
+    <div class="alert alert-danger">{{ erro_acesso }}</div>
+    {% else %}
+    <div class="po-editor-header po-surface">
+        <div>
+            <h2 class="mb-1 po-title-main">{{ ambiente.nome }}</h2>
+            <p class="text-muted mb-1">{{ ambiente.get_tipo_display }} • Obra: {{ obra_selecionada.nome }}</p>
+            <div class="po-header-tags">
+                <span class="badge text-bg-light"><i class="bi bi-grid-1x2"></i> Ambiente</span>
+                <span class="badge text-bg-light"><i class="bi bi-bounding-box"></i> Prancheta</span>
+                <span class="badge text-bg-light"><i class="bi bi-diagram-3"></i> Camadas opcionais</span>
+            </div>
+        </div>
+        <a href="{% url 'engenharia:ferramenta_shell' %}?obra={{ obra_selecionada.id }}" class="btn btn-outline-secondary po-btn-back">
+            <i class="bi bi-arrow-left"></i> Voltar para ferramenta
+        </a>
+    </div>
+
+    {% if is_mapa_controle and not usar_beta %}
+    <div class="card shadow-sm mb-3 po-compat-card">
+        <div class="card-body">
+            <h4 class="mb-2">Modo Compatível Ativo</h4>
+            <p class="text-muted mb-3">
+                Este ambiente abre no fluxo oficial do Mapa de Controle atual para garantir paridade funcional.
+                A versão dinâmica fica disponível como beta opcional.
+            </p>
+            <div class="d-flex gap-2 flex-wrap">
+                <a class="btn btn-primary" href="{{ mapa_atual_url }}">
+                    <i class="bi bi-clipboard2-data"></i> Abrir Mapa de Controle
+                </a>
+                <a class="btn btn-outline-secondary" href="{{ importar_mapa_url }}">
+                    <i class="bi bi-upload"></i> Importar planilha do controle
+                </a>
+                <a class="btn btn-outline-dark" href="{{ beta_editor_url }}">
+                    <i class="bi bi-flask"></i> Abrir editor dinâmico (beta)
+                </a>
+            </div>
+            <hr>
+            <ul class="mb-0 po-compat-list">
+                <li>Objetivo desta rota: manter a operação aderente ao mapa atual.</li>
+                <li>Paridade primeiro, customização dinâmica depois.</li>
+                <li>Sem risco de quebrar o fluxo que o time já usa em obra.</li>
+            </ul>
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm mb-3 po-config-card">
+        <div class="card-body">
+            <div class="po-section-header">
+                <h6 class="mb-1">Modo rápido: montar mapa de controle</h6>
+                <p class="text-muted mb-0">Comece por aqui. Os ajustes avançados ficam abaixo.</p>
+            </div>
+            <div class="po-quick-actions mt-2">
+                <button id="btnQuickTable" type="button" class="btn btn-primary"><i class="bi bi-table"></i> Nova Tabela</button>
+                <button id="btnQuickBlock" type="button" class="btn btn-outline-primary"><i class="bi bi-square"></i> Novo Bloco</button>
+                <button id="btnQuickKpi" type="button" class="btn btn-outline-primary"><i class="bi bi-speedometer2"></i> Faixa KPI</button>
+                <button id="btnQuickDetail" type="button" class="btn btn-outline-primary"><i class="bi bi-list-ul"></i> Detalhamento</button>
+            </div>
+            <details class="mt-3">
+                <summary class="po-adv-summary">Opções avançadas de criação</summary>
+                <div class="row g-2 align-items-end mt-1">
+                    <div class="col-md-4">
+                        <label for="secTitle" class="form-label">Título da seção</label>
+                        <input id="secTitle" type="text" class="form-control" placeholder="Ex.: Matriz principal">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="secKind" class="form-label">Tipo</label>
+                        <select id="secKind" class="form-select">
+                            <option value="kpi_strip">Faixa KPI</option>
+                            <option value="matrix_table">Tabela Matriz</option>
+                            <option value="detail_panel">Painel de Detalhe</option>
+                            <option value="list_table">Tabela de Lista</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="secSemantica" class="form-label">Semântica (opcional)</label>
+                        <select id="secSemantica" class="form-select"></select>
+                    </div>
+                    <div class="col-md-2">
+                        <button id="btnAddSection" type="button" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-lg"></i> Adicionar
+                        </button>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <div id="editorAlert" class="alert d-none" role="alert"></div>
+
+    <div class="card shadow-sm h-100">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Prancheta visual</h5>
+                <div class="d-flex gap-2">
+                    <button id="btnFitView" type="button" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrows-fullscreen"></i> Ajustar visão
+                    </button>
+                    <button id="btnToggleEdit" type="button" class="btn btn-outline-dark btn-sm">
+                        <i class="bi bi-pencil-square"></i> Modo edição: ON
+                    </button>
+                    <button id="btnSaveDraft" type="button" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-save"></i> Salvar rascunho
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#poEditorPanel" aria-controls="poEditorPanel">
+                        <i class="bi bi-sliders"></i> Painel de edição
+                    </button>
+                </div>
+            </div>
+            <div class="po-top-meta mb-2">
+                <span id="saveStatusBadge" class="badge text-bg-light">Sem alterações</span>
+                <span class="po-shortcuts-hint">Atalhos: Ctrl+S salvar • Ctrl+D duplicar • Del remover</span>
+            </div>
+            <p class="po-help-text">
+                Pan com botão do meio/direito. Use Ctrl + scroll para zoom. Clique em um bloco para editar no painel lateral.
+            </p>
+            <div id="canvasViewport" class="po-canvas-viewport" aria-label="Prancheta do ambiente">
+                <div id="canvasBoard" class="po-canvas-board"></div>
+                <div id="canvasQuickActions" class="po-quick-fab d-none">
+                    <button id="btnQuickDuplicateSelected" type="button" class="btn btn-sm btn-light">Duplicar</button>
+                    <button id="btnQuickDeleteSelected" type="button" class="btn btn-sm btn-light">Excluir</button>
+                </div>
+                <div id="miniMap" class="po-minimap"></div>
+            </div>
+        </div>
+    </div>
+
+    <div
+        class="offcanvas offcanvas-end po-offcanvas"
+        tabindex="-1"
+        id="poEditorPanel"
+        aria-labelledby="poEditorPanelLabel"
+        data-bs-backdrop="false"
+        data-bs-scroll="true"
+    >
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="poEditorPanelLabel">Painel de edição</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+        </div>
+        <div class="offcanvas-body po-side-panel">
+            <div class="d-grid gap-2">
+                <button id="btnReloadDraft" type="button" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-clockwise"></i> Recarregar dados
+                </button>
+                <button id="btnPublish" type="button" class="btn btn-success">
+                    <i class="bi bi-cloud-upload"></i> Publicar versão
+                </button>
+            </div>
+            <hr>
+            <details open>
+                <summary class="po-adv-summary">Editor avançado da seção selecionada</summary>
+                <div class="mt-2">
+                    <div id="inspectorEmpty" class="text-muted small mb-2">Selecione um bloco na prancheta.</div>
+                    <div id="inspectorForm" class="d-none">
+                        <div class="mb-2">
+                            <label for="insTitle" class="form-label">Título</label>
+                            <input id="insTitle" type="text" class="form-control form-control-sm">
+                        </div>
+                        <div class="mb-2">
+                            <label for="insSemantica" class="form-label">Semântica</label>
+                            <input id="insSemantica" type="text" class="form-control form-control-sm" placeholder="percentual_concluido...">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Camadas (opcional)</label>
+                            <div class="row g-1">
+                                <div class="col-6"><input id="insSetor" class="form-control form-control-sm" placeholder="Setor"></div>
+                                <div class="col-6"><input id="insBloco" class="form-control form-control-sm" placeholder="Bloco"></div>
+                                <div class="col-6"><input id="insPavimento" class="form-control form-control-sm" placeholder="Pavimento"></div>
+                                <div class="col-6"><input id="insUnidade" class="form-control form-control-sm" placeholder="Unidade"></div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mb-2">
+                            <button id="btnApplyInspector" type="button" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-check2"></i> Aplicar
+                            </button>
+                            <button id="btnDuplicateSection" type="button" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-copy"></i> Duplicar
+                            </button>
+                            <button id="btnRemoveSection" type="button" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash3"></i> Remover
+                            </button>
+                        </div>
+                        <div id="matrixTools" class="d-none">
+                            <div class="d-flex gap-2">
+                                <button id="btnAddRow" type="button" class="btn btn-outline-secondary btn-sm">+ Linha</button>
+                                <button id="btnAddCol" type="button" class="btn btn-outline-secondary btn-sm">+ Coluna</button>
+                            </div>
+                            <div id="matrixGridEditor" class="po-matrix-editor mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+            <hr>
+            <details>
+                <summary class="po-json-summary">JSON técnico do rascunho</summary>
+                <pre id="draftPreview" class="po-preview"></pre>
+            </details>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+{% if not erro_acesso and render_beta_editor %}
+{{ draft_json|json_script:"poDraftData" }}
+{{ published_json|json_script:"poPublishedData" }}
+{{ semanticas_json|json_script:"poSemanticasData" }}
+<script>
+window.PO_EDITOR_CONTEXT = {
+  ambienteId: {{ ambiente.id }},
+  endpoints: {
+    detail: "{% url 'suprimentos:po_api_detalhe_ambiente' ambiente.id %}",
+    syncElements: "{% url 'suprimentos:po_api_sync_elementos' ambiente.id %}",
+    addSection: "{% url 'suprimentos:po_api_adicionar_secao' ambiente.id %}",
+    saveDraft: "{% url 'suprimentos:po_api_salvar_rascunho' ambiente.id %}",
+    publish: "{% url 'suprimentos:po_api_publicar_ambiente' ambiente.id %}",
+  },
+  csrfToken: "{{ csrf_token }}",
+};
+</script>
+<script src="https://unpkg.com/konva@9/konva.min.js"></script>
+<script src="{% static 'painel_operacional/js/editor_ambiente.js' %}"></script>
+{% endif %}
+{% endblock %}
+

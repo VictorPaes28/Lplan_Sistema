@@ -15,12 +15,12 @@ from django.db.models import Q
 
 
 class ProcessCategory(models.Model):
-    """Categoria de processo (contrato, BM, medição, …). Extensível por cadastro."""
+    """Categoria de processo (contrato, medição, …). Extensível por cadastro."""
 
     code = models.SlugField(
         max_length=64,
         unique=True,
-        help_text='Identificador estável (ex.: contrato, bm, medicao).',
+        help_text='Identificador estável (ex.: contrato, medicao).',
     )
     name = models.CharField(max_length=120)
     is_active = models.BooleanField(default=True)
@@ -356,6 +356,11 @@ class ApprovalProcess(models.Model):
     )
     external_entity_type = models.CharField(max_length=80, blank=True)
     external_id = models.CharField(max_length=120, blank=True, db_index=True)
+    external_payload = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Snapshot não sensível do registo externo (ex.: Sienge) para exibição e auditoria.',
+    )
     sync_status = models.CharField(
         max_length=24,
         choices=SyncStatus.choices,
@@ -433,6 +438,33 @@ class OutboxStatus(models.TextChoices):
     PENDING = 'pending', 'Pendente'
     SENT = 'sent', 'Enviado'
     FAILED = 'failed', 'Falhou'
+
+
+class SiengeCentralSyncState(models.Model):
+    """
+    Registo único (pk=1) com o resultado da última ingestão Sienge agendada (Celery).
+
+    Alimenta a Central de Aprovações (contratos/medições); processos aprovados aqui
+    podem integrar-se depois com fluxos de assinatura (ex.: ClickSign), quando existirem.
+    """
+
+    id = models.IntegerField(primary_key=True, default=1, editable=False)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    last_ok = models.BooleanField(default=False)
+    last_stats = models.JSONField(default=dict, blank=True)
+    last_error = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = 'Sync Sienge → Central (estado)'
+        verbose_name_plural = 'Sync Sienge → Central (estado)'
+
+    def __str__(self):
+        return f'Sienge sync @ {self.last_run_at} ok={self.last_ok}'
+
+    @classmethod
+    def get_singleton(cls) -> 'SiengeCentralSyncState':
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class ApprovalIntegrationOutbox(models.Model):

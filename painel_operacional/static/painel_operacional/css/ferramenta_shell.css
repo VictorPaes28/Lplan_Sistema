@@ -1,0 +1,44 @@
+.po-shell {
+  max-width: 1400px;
+}
+
+.po-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.po-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.po-subtitle {
+  margin: 6px 0 0;
+  color: #4b5563;
+}
+
+.po-obra-switch {
+  min-width: 300px;
+}
+
+.po-table td,
+.po-table th {
+  vertical-align: middle;
+}
+
+.po-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .po-obra-switch {
+    width: 100%;
+    min-width: 0;
+  }
+}
+

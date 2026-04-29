@@ -3,6 +3,7 @@ Django settings for Sistema LPLAN Central - Unificado.
 """
 from pathlib import Path
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -53,6 +54,7 @@ INSTALLED_APPS = [
     'comunicados',
     'audit',
     'workflow_aprovacao',
+    'painel_operacional',
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 
@@ -383,6 +385,26 @@ SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE = os.environ.get(
 ).strip().lower()
 # Quantas linhas máx. pedir por fonte (contratos / medições) por execução do comando de sync
 SIENGE_CENTRAL_SYNC_MAX_ROWS = int(os.environ.get('SIENGE_CENTRAL_SYNC_MAX_ROWS', '2000') or '2000')
+# Ingestão agendada (Celery Beat): limite por fonte por execução (contratos + medições)
+SIENGE_CENTRAL_PERIODIC_SYNC_MAX_ROWS = int(
+    os.environ.get('SIENGE_CENTRAL_PERIODIC_SYNC_MAX_ROWS', '20000') or '20000'
+)
+# Ligar agendamento Celery Beat a cada 4 h (requer worker + beat com Redis)
+SIENGE_CENTRAL_BEAT_ENABLED = os.environ.get('SIENGE_CENTRAL_BEAT_ENABLED', 'False').lower() in (
+    'true',
+    '1',
+    'yes',
+)
+
+if SIENGE_CENTRAL_BEAT_ENABLED:
+    CELERY_BEAT_SCHEDULE = {
+        'workflow-sienge-central-sync-4h': {
+            'task': 'workflow_aprovacao.tasks.sync_sienge_central_periodic',
+            'schedule': timedelta(hours=4),
+        },
+    }
+else:
+    CELERY_BEAT_SCHEDULE = {}
 
 # CSRF: em produção (HTTPS) defina no .env:
 #   CSRF_TRUSTED_ORIGINS=https://sistema.lplan.com.br

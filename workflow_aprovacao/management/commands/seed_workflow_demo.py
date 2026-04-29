@@ -1,7 +1,7 @@
 """
 Dados genéricos para testar a Central de Aprovações (workflow_aprovacao) sem Sienge.
 
-Cria um projeto core.Project, fluxos por categoria (contrato, BM, medição) e processos
+Cria um projeto core.Project, fluxos por categoria (contrato, medição) e processos
 via ApprovalEngine.start com sync_status sem integração externa.
 
 Uso:
@@ -128,7 +128,6 @@ class Command(BaseCommand):
 
         specs = [
             ('contrato', 'Contrato — suprimentos estrutura (demo)', True),
-            ('bm', 'BM — adequação hidráulica bloco A (demo)', False),
             ('medicao', 'Medição — competência ref. 03/2026 (demo)', False),
         ]
 

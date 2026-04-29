@@ -1,0 +1,98 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Ferramenta de Ambientes - LPLAN{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'painel_operacional/css/ferramenta_shell.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 po-shell">
+    <section class="po-header">
+        <div>
+            <h2 class="po-title">Ferramenta de Ambientes</h2>
+            <p class="po-subtitle">
+                Núcleo operacional da LPLAN com ambientes predefinidos. O legado do Mapa de Controle segue intacto.
+            </p>
+        </div>
+        <form method="get" class="po-obra-switch">
+            <label for="poObra" class="form-label mb-1">Obra</label>
+            <select id="poObra" name="obra" class="form-select" onchange="this.form.submit()">
+                {% for o in obras %}
+                <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>
+                    {% if o.codigo_sienge %}{{ o.codigo_sienge }} — {% endif %}{{ o.nome }}
+                </option>
+                {% empty %}
+                <option value="">Nenhuma obra disponível</option>
+                {% endfor %}
+            </select>
+        </form>
+    </section>
+
+    <section class="po-create-card card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="poNome">Nome do ambiente</label>
+                    <input id="poNome" type="text" class="form-control" placeholder="Ex.: Mapa de Controle Torre A">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="poTipo">Preset</label>
+                    <select id="poTipo" class="form-select">
+                        {% for value, label in tipos_ambiente %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button id="poCriar" class="btn btn-primary w-100" type="button">Criar ambiente</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Ambientes da obra</h5>
+                <button id="poRecarregar" type="button" class="btn btn-outline-secondary btn-sm">Atualizar</button>
+            </div>
+            <div id="poAlert" class="alert d-none" role="alert"></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle po-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Versão publicada</th>
+                            <th>Rascunho</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="poTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ ambientes_json|json_script:"poInitialAmbientes" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.PO_CONTEXT = {
+  obraId: {{ obra_selecionada.id|default:"null" }},
+  endpoints: {
+    list: "{% url 'suprimentos:po_api_listar_ambientes' %}",
+    create: "{% url 'suprimentos:po_api_criar_ambiente' %}",
+    saveBase: "{% url 'suprimentos:po_api_salvar_rascunho' 0 %}",
+    publishBase: "{% url 'suprimentos:po_api_publicar_ambiente' 0 %}",
+  },
+  csrfToken: "{{ csrf_token }}",
+};
+</script>
+<script src="{% static 'painel_operacional/js/ferramenta_shell.js' %}"></script>
+{% endblock %}
+

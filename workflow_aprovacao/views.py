@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import io
 import json
 
 from typing import Optional
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group
-from django.http import HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -34,6 +36,7 @@ from workflow_aprovacao.models import (
     ApprovalProcess,
     ProcessCategory,
     ProcessStatus,
+    SiengeCentralSyncState,
 )
 from workflow_aprovacao.querysets import processes_inbox_snapshot, processes_pending_for_user
 from workflow_aprovacao.services.backlog import dismiss_backlog, reopen_backlog, try_start_from_backlog
@@ -44,8 +47,20 @@ from workflow_aprovacao.services.flow_config import (
     flow_structure_locked,
     serialize_flow_for_editor,
 )
+from workflow_aprovacao.services.sienge_display import beautify_stored_summary_for_display, sienge_payload_display_rows
 
 User = get_user_model()
+
+
+def _sienge_document_number_from_process(process: ApprovalProcess) -> tuple[str, str]:
+    """Extrai documentId e contractNumber do ``external_id`` (prefixo ``c|`` ou ``m|``)."""
+    ext = (process.external_id or '').strip()
+    parts = ext.split('|')
+    if ext.startswith('c|') and len(parts) >= 3:
+        return parts[1].strip(), parts[2].strip()
+    if ext.startswith('m|') and len(parts) >= 3:
+        return parts[1].strip(), parts[2].strip()
+    return '', ''
 
 
 def _workflow_select_options():
@@ -146,6 +161,34 @@ def process_detail(request, pk):
     else:
         form = CommentForm()
 
+    sienge_attachments: list[dict] = []
+    sienge_display_rows: list[dict] = []
+    sienge_is_inbound = process.external_entity_type in (
+        'sienge_supply_contract',
+        'sienge_supply_contract_measurement',
+    )
+    if sienge_is_inbound:
+        sienge_display_rows = sienge_payload_display_rows(
+            process.external_payload or {},
+            external_entity_type=process.external_entity_type or '',
+        )
+        doc_id, ctr_num = _sienge_document_number_from_process(process)
+        if doc_id and ctr_num:
+            try:
+                from workflow_aprovacao.services.sienge_api import SiengeCentralApiClient
+
+                api = SiengeCentralApiClient()
+                sienge_attachments = api.fetch_supply_contract_attachments_index(
+                    document_id=doc_id, contract_number=ctr_num
+                )[:25]
+            except Exception:
+                sienge_attachments = []
+
+    if sienge_is_inbound and (process.summary or '').strip():
+        sienge_resumo_exibicao = beautify_stored_summary_for_display(str(process.summary))
+    else:
+        sienge_resumo_exibicao = process.summary or ''
+
     return render(
         request,
         'workflow_aprovacao/process_detail.html',
@@ -158,9 +201,73 @@ def process_detail(request, pk):
                 'can_act': can_act,
                 'page_title': process.title or f'Processo #{process.pk}',
                 'page_subtitle': f'{process.project.code} · {process.category.name}',
+                'sienge_attachments': sienge_attachments,
+                'sienge_display_rows': sienge_display_rows,
+                'sienge_is_inbound': sienge_is_inbound,
+                'sienge_resumo_exibicao': sienge_resumo_exibicao,
             },
         ),
     )
+
+
+@require_workflow_module_access
+def sienge_process_attachment_download(request, pk):
+    """
+    Descarrega anexo do contrato no Sienge (mesmo acesso ao módulo que ver o processo).
+
+    Query: ``attachment_id`` (inteiro Sienge). Se omitido, tenta o primeiro anexo listado.
+    """
+    process = get_object_or_404(ApprovalProcess.objects.select_related('project'), pk=pk)
+    if process.external_entity_type not in (
+        'sienge_supply_contract',
+        'sienge_supply_contract_measurement',
+    ):
+        raise Http404()
+    doc_id, ctr_num = _sienge_document_number_from_process(process)
+    if not doc_id or not ctr_num:
+        raise Http404()
+
+    from workflow_aprovacao.services.sienge_api import (
+        SiengeCentralApiClient,
+        attachment_id_from_normalized_row,
+    )
+
+    client = SiengeCentralApiClient()
+    meta = client.fetch_supply_contract_attachments_index(
+        document_id=doc_id, contract_number=ctr_num
+    )
+    raw_aid = (request.GET.get('attachment_id') or '').strip()
+    chosen_id: int | None = None
+    if raw_aid.isdigit():
+        want = int(raw_aid)
+        for row in meta:
+            got = attachment_id_from_normalized_row(row)
+            if got is not None and got == want:
+                chosen_id = got
+                break
+        if chosen_id is None:
+            raise Http404('Anexo não encontrado para este contrato.')
+    else:
+        for row in meta:
+            got = attachment_id_from_normalized_row(row)
+            if got is not None:
+                chosen_id = got
+                break
+        if chosen_id is None:
+            raise Http404('Nenhum anexo listado no Sienge para este contrato.')
+
+    try:
+        content, ctype, fname = client.download_supply_contract_attachment(
+            document_id=doc_id,
+            contract_number=ctr_num,
+            attachment_id=chosen_id,
+        )
+    except Exception:
+        raise Http404('Não foi possível obter o ficheiro no Sienge.')
+
+    resp = FileResponse(io.BytesIO(content), content_type=ctype, as_attachment=True, filename=fname)
+    resp['Cache-Control'] = 'private, no-store'
+    return resp
 
 
 @require_workflow_configure
@@ -241,6 +348,7 @@ def flow_edit(request, pk):
 def dashboard(request):
     """Resumo: contagem de pendentes e atalhos."""
     pending_qs = processes_pending_for_user(request.user)
+    sync_state = SiengeCentralSyncState.objects.filter(pk=1).first()
     return render(
         request,
         'workflow_aprovacao/dashboard.html',
@@ -250,6 +358,8 @@ def dashboard(request):
                 'pending_count': pending_qs.count(),
                 'page_title': 'Central de Aprovações',
                 'page_subtitle': 'Resumo',
+                'sienge_beat_enabled': getattr(settings, 'SIENGE_CENTRAL_BEAT_ENABLED', False),
+                'sienge_sync_state': sync_state,
             },
         ),
     )
