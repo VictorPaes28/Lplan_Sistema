@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 
 from core.models import ProjectMember
 
-from .models import PublicoEscopoCriterios, PublicoRestricaoPerfil
+from .models import PublicoEscopoCriterios
 
 User = get_user_model()
 
@@ -17,7 +17,7 @@ User = get_user_model()
 def get_eligible_user_ids(comunicado) -> set[int]:
     """
     Usuários ativos que, pela regra atual de público, deveriam poder ver o comunicado.
-    Espelha a mesma lógica que `listar_comunicados_pendentes` (audiência + exclusões + perfil).
+    Espelha a mesma lógica que `listar_comunicados_pendentes` (audiência + exclusões).
     """
     excl_u = set(comunicado.usuarios_excluidos.values_list('pk', flat=True))
     excl_g = set(comunicado.grupos_excluidos.values_list('pk', flat=True))
@@ -68,12 +68,6 @@ def get_eligible_user_ids(comunicado) -> set[int]:
                 pass_pub = any(x is True for x in (ok_g, ok_u, ok_p))
 
         if not pass_pub:
-            continue
-
-        rp = comunicado.publico_restrito_perfil
-        if rp == PublicoRestricaoPerfil.APENAS_STAFF and not u.is_staff:
-            continue
-        if rp == PublicoRestricaoPerfil.APENAS_SUPERUSER and not u.is_superuser:
             continue
 
         eligible.add(u.pk)

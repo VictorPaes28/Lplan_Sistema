@@ -969,6 +969,7 @@ class ProjectForm(forms.ModelForm):
         model = Project
         fields = [
             'name',
+            'sigla',
             'code',
             'sienge_codigos_alternativos',
             'description',
@@ -981,6 +982,14 @@ class ProjectForm(forms.ModelForm):
             'name': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
                 'placeholder': 'Ex.: Shopping Santa Luzia'
+            }),
+            'sigla': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
+                'maxlength': 3,
+                'minlength': 3,
+                'placeholder': 'SRS',
+                'style': 'text-transform: uppercase;',
+                'autocomplete': 'off',
             }),
             'code': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
@@ -1041,6 +1050,23 @@ class ProjectForm(forms.ModelForm):
             if existing.exists():
                 raise ValidationError('Já existe um projeto com este código.')
         return code
+
+    def clean_sigla(self):
+        sigla = (self.cleaned_data.get('sigla') or '').strip().upper()
+
+        if len(sigla) != 3:
+            raise ValidationError('A sigla deve ter exatamente 3 letras.')
+
+        if not sigla.isalpha():
+            raise ValidationError('A sigla deve conter apenas letras (sem números ou caracteres especiais).')
+
+        existing = Project.objects.filter(sigla=sigla)
+        if self.instance.pk:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise ValidationError('Já existe um projeto com esta sigla.')
+
+        return sigla
     
     def clean(self):
         cleaned_data = super().clean()

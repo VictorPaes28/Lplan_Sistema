@@ -11,6 +11,9 @@
      ============================================ -->
     <div class="d-flex justify-content-between align-items-center mb-2">
         <h2 class="mb-0">Mapa de Suprimentos - Engenharia</h2>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btnGerenciarLocais">
+            <i class="bi bi-geo-alt"></i> Gerenciar Locais
+        </button>
     </div>
 
 <!-- KPIs - Barra compacta melhorada -->
@@ -281,7 +284,7 @@
         <thead>
             <!-- Linha 1: Agrupadores (igual planilha do chefe) -->
             <tr class="thead-agrupadores">
-                <th colspan="8" class="text-center">REQUISIÇÃO DE PRODUTO/SERVIÇO</th>
+                <th colspan="9" class="text-center">REQUISIÇÃO DE PRODUTO/SERVIÇO</th>
                 <th colspan="3" class="text-center">SOLICITAÇÃO DE COMPRA</th>
                 <th colspan="3" class="text-center">ENTREGA DE PRODUTO/SERVIÇO</th>
                 <th colspan="4" class="text-center"></th>
@@ -294,17 +297,18 @@
                 <th>4. LOCAL</th>
                 <th>5. RESPONSÁVEL</th>
                 <th>6. PRAZO</th>
-                <th>7. QUANTITATIVO</th>
-                <th>8. UND</th>
-                <th>9. Nº SOLICITAÇÃO</th>
-                <th>10. Nº PEDIDO DE COMPRA</th>
-                <th>11. EMPRESA RESPONSÁVEL</th>
-                <th>12. PRAZO RECEBIMENTO</th>
-                <th>13. QUANTIDADE RECEBIDA</th>
-                <th>14. SALDO A SER ENTREGUE</th>
-                <th class="col-sticky-right">15. STATUS</th>
-                <th>16. PRIORIDADE</th>
-                <th>17. OBSERVAÇÃO</th>
+                <th>7. QUANTITATIVO (SC)</th>
+                <th>8. QUANTIDADE PLANEJADA</th>
+                <th>9. UND</th>
+                <th>10. Nº SOLICITAÇÃO</th>
+                <th>11. Nº PEDIDO DE COMPRA</th>
+                <th>12. EMPRESA RESPONSÁVEL</th>
+                <th>13. PRAZO RECEBIMENTO</th>
+                <th>14. QUANTIDADE RECEBIDA</th>
+                <th>15. SALDO A SER ENTREGUE</th>
+                <th class="col-sticky-right">16. STATUS</th>
+                <th>17. PRIORIDADE</th>
+                <th>18. OBSERVAÇÃO</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -313,7 +317,7 @@
             {% regroup itens by categoria as itens_por_categoria %}
             {% for categoria_group in itens_por_categoria %}
                 <tr class="categoria-header" data-categoria="{{ categoria_group.grouper }}">
-                    <td colspan="18">
+                    <td colspan="19">
                         <span class="toggle-categoria" data-categoria="{{ categoria_group.grouper }}">
                             <i class="bi bi-chevron-down"></i>
                         </span>
@@ -419,7 +423,19 @@
                         <span class="text-muted">-</span>
                     {% endif %}
                 </td>
-                <!-- 8. UND - Editável (Select) -->
+                <!-- 8. QUANTIDADE PLANEJADA (editável e separada do quantitativo SC) -->
+                <td>
+                    <input type="number"
+                           class="input-inline form-control form-control-sm text-end"
+                           value="{{ item.quantidade_planejada|floatformat:2 }}"
+                           data-item-id="{{ item.id }}"
+                           data-field="quantidade_planejada"
+                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                           step="0.01"
+                           min="0.01"
+                           title="Quantidade planejada para este item">
+                </td>
+                <!-- 9. UND - Editável (Select) -->
                 <td class="text-center">
                     <select class="input-inline form-select form-select-sm text-center" 
                             data-item-id="{{ item.id }}"
@@ -440,7 +456,7 @@
                         <option value="MES" {% if item.insumo.unidade == 'MES' %}selected{% endif %}>MES</option>
                     </select>
                 </td>
-                <!-- 9. Nº SOLICITAÇÃO (SC) -->
+                <!-- 10. Nº SOLICITAÇÃO (SC) -->
                 <!-- Novo fluxo: pode ser cadastrado manualmente após criar no Sienge, para vincular importação -->
                 <td class="campo-sienge" style="padding: 4px 6px;"
                     data-bs-toggle="tooltip"
@@ -457,7 +473,7 @@
                            list="sc-datalist-{{ item.id }}">
                     <datalist id="sc-datalist-{{ item.id }}"></datalist>
                 </td>
-                <!-- 10. Nº PEDIDO (Readonly - Sienge - Automático) -->
+                <!-- 11. Nº PEDIDO (Readonly - Sienge - Automático) -->
                 <td class="input-readonly campo-sienge text-center" 
                     data-bs-toggle="tooltip" 
                     title="Nº Pedido de Compra (preenchido automaticamente pelo Sienge)"
@@ -468,7 +484,7 @@
                         <span class="text-muted small">-</span>
                     {% endif %}
                 </td>
-                <!-- 11. EMPRESA RESPONSÁVEL (Editável) -->
+                <!-- 12. EMPRESA RESPONSÁVEL (Editável) -->
                 <td style="padding: 4px 6px;">
                     <input type="text" 
                            class="input-inline form-control form-control-sm" 
@@ -480,7 +496,7 @@
                            maxlength="200"
                            style="font-size: 0.85em; padding: 2px 6px;">
                 </td>
-                <!-- 12. PRAZO RECEBIMENTO (Readonly - Sienge - Automático) -->
+                <!-- 13. PRAZO RECEBIMENTO (Readonly - Sienge - Automático) -->
                 <td class="input-readonly campo-sienge text-center" 
                     data-bs-toggle="tooltip" 
                     title="Prazo de recebimento (preenchido automaticamente pelo Sienge)"
@@ -491,7 +507,7 @@
                         <span class="text-muted small">-</span>
                     {% endif %}
                 </td>
-                <!-- 13. QUANTIDADE RECEBIDA (Barra de progresso no fundo) -->
+                <!-- 14. QUANTIDADE RECEBIDA (Barra de progresso no fundo) -->
                 <!-- IMPORTANTE: Esta coluna mostra ALOCADO/SOLICITADO (alocação manual), não recebido do Sienge -->
                 <td class="celula-progresso" 
                     data-bs-toggle="tooltip" 
@@ -534,7 +550,7 @@
                         {% endif %}
                     </span>
                 </td>
-                <!-- 14. SALDO (Readonly - Sienge se tiver SC, senão Local) -->
+                <!-- 15. SALDO (Readonly - Sienge se tiver SC, senão Local) -->
                 <td class="input-readonly campo-sienge" 
                     data-bs-toggle="tooltip" 
                     title="{% if item.numero_sc %}Saldo do Sienge: Solicitado - Recebido{% else %}Saldo do LOCAL: Planejado - Alocado{% endif %}">
@@ -555,7 +571,7 @@
                         {% endif %}
                     {% endif %}
                 </td>
-                <!-- 15. STATUS (Cor de Fundo Automática - Sticky Right) -->
+                <!-- 16. STATUS (Cor de Fundo Automática - Sticky Right) -->
                 <td class="col-sticky-right status-cell {{ item.status_css }}">
                     <div class="status-content">
                         <span class="badge-status 
@@ -588,7 +604,7 @@
                         {% endif %}
                     </div>
                 </td>
-                <!-- 16. PRIORIDADE (cores AZUL/ROXO - diferente do STATUS) -->
+                <!-- 17. PRIORIDADE (cores AZUL/ROXO - diferente do STATUS) -->
                 <td class="td-prioridade">
                     <select class="input-inline form-select form-select-sm select-prioridade prioridade-{{ item.prioridade|lower }}" 
                             data-item-id="{{ item.id }}" 
@@ -600,7 +616,7 @@
                         <option value="BAIXA" {% if item.prioridade == "BAIXA" %}selected{% endif %}>Baixa</option>
                     </select>
                 </td>
-                <!-- 17. OBSERVAÇÃO -->
+                <!-- 18. OBSERVAÇÃO -->
                 <td>
                     <input type="text" class="input-inline form-control form-control-sm" 
                            value="{{ item.observacao_eng|default:'' }}"
@@ -631,7 +647,7 @@
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="18" class="text-center">Nenhum item encontrado.</td>
+                <td colspan="19" class="text-center">Nenhum item encontrado.</td>
             </tr>
             {% endif %}
         </tbody>
@@ -642,6 +658,51 @@
 </div><!-- Fim container-fluid -->
 
 {# Categorias agora são uma lista fechada (select). Datalist removido. #}
+
+<div class="modal fade" id="modalGerenciarLocais" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-geo-alt"></i> Gerenciar Locais da Obra
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info py-2">
+                    Atualize os locais diretamente no mapa. Sem necessidade de pedir ajuste ao admin.
+                </div>
+                <form id="formNovoLocal" class="row g-2 mb-3">
+                    <div class="col-md-10">
+                        <label class="form-label">Nome do local</label>
+                        <input type="text" class="form-control" id="novoLocalNome" placeholder="Ex: Bloco C - Térreo" required>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-circle"></i> Adicionar
+                        </button>
+                    </div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th style="width: 120px;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="locaisGerenciamentoBody">
+                            <tr><td colspan="2" class="text-muted text-center">Carregando locais...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Modal Criar Item -->
 <div class="modal fade" id="modalCriarItem" tabindex="-1">
@@ -1549,6 +1610,107 @@
             });
         });
     });
+
+    // Gerenciamento de locais (overlay no mapa)
+    (function initGerenciamentoLocais() {
+        const btn = document.getElementById('btnGerenciarLocais');
+        const modalEl = document.getElementById('modalGerenciarLocais');
+        const obraId = '{{ filtros.obra_id|default:"" }}';
+        if (!btn || !modalEl) return;
+
+        const modal = new bootstrap.Modal(modalEl);
+        const tbody = document.getElementById('locaisGerenciamentoBody');
+        const form = document.getElementById('formNovoLocal');
+        const nomeInput = document.getElementById('novoLocalNome');
+
+        function getToken() {
+            if (typeof getCookie === 'function') return getCookie('csrftoken');
+            return '';
+        }
+
+        function renderLocais(locais) {
+            if (!locais || !locais.length) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-muted text-center">Nenhum local cadastrado.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = locais.map(local => `
+                <tr>
+                    <td>${local.nome}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" data-delete-local-id="${local.id}">
+                            <i class="bi bi-trash"></i> Excluir
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarLocais() {
+            if (!obraId) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-warning text-center">Selecione uma obra para gerenciar locais.</td></tr>';
+                return;
+            }
+            const resp = await fetch(`{% url 'suprimentos:listar_locais' %}?obra=${encodeURIComponent(obraId)}`);
+            const data = await resp.json();
+            renderLocais(data.locais || []);
+        }
+
+        btn.addEventListener('click', async () => {
+            modal.show();
+            await carregarLocais();
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!obraId) {
+                alert('Selecione uma obra antes de adicionar locais.');
+                return;
+            }
+            const nome = (nomeInput.value || '').trim();
+            if (!nome) return;
+
+            const resp = await fetch(`{% url 'suprimentos:criar_local_obra' %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getToken()
+                },
+                body: JSON.stringify({
+                    obra_id: obraId,
+                    nome: nome
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                alert(data.error || 'Não foi possível criar o local.');
+                return;
+            }
+            nomeInput.value = '';
+            await carregarLocais();
+            window.location.reload();
+        });
+
+        tbody.addEventListener('click', async (e) => {
+            const btnDelete = e.target.closest('[data-delete-local-id]');
+            if (!btnDelete) return;
+            const localId = btnDelete.getAttribute('data-delete-local-id');
+            if (!confirm('Excluir este local? Itens vinculados ficarão sem local.')) return;
+
+            const resp = await fetch(`{% url 'suprimentos:excluir_local_obra' 0 %}`.replace('/0/', `/${localId}/`), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getToken()
+                }
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                alert(data.error || 'Não foi possível excluir o local.');
+                return;
+            }
+            await carregarLocais();
+            window.location.reload();
+        });
+    })();
 </script>
 {% endblock %}
 

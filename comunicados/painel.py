@@ -22,9 +22,13 @@ from django.core.files.base import ContentFile
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 
-from .forms import ComunicadoForm
+from .forms import (
+    ComunicadoForm,
+    comunicado_imagem_formset_factory,
+    reordenar_imagens_comunicado,
+)
 from .metrics import get_eligible_user_ids
-from .models import Comunicado, ComunicadoResposta, ComunicadoVisualizacao, TipoConteudo
+from .models import Comunicado, ComunicadoImagem, ComunicadoResposta, ComunicadoVisualizacao, TipoConteudo
 
 User = get_user_model()
 
@@ -137,43 +141,122 @@ def lista(request):
 
 @require_group(GRUPOS.ADMINISTRADOR)
 def criar(request):
+    FS = comunicado_imagem_formset_factory()
     if request.method == 'POST':
         form = ComunicadoForm(request.POST, request.FILES)
-        if form.is_valid():
+        if not form.is_valid():
+            return render(
+                request,
+                'comunicados/form.html',
+                {
+                    'form': form,
+                    'imagem_formset': FS(),
+                    'titulo_pagina': 'Novo comunicado',
+                    'modo': 'criar',
+                },
+            )
+        saved_ok = False
+        fs_invalid = None
+        with transaction.atomic():
             obj = form.save(commit=False)
             obj.criado_por = request.user
             obj.save()
             form.save_m2m()
+            fs = FS(request.POST, request.FILES, instance=obj)
+            if fs.is_valid():
+                fs.save()
+                reordenar_imagens_comunicado(obj)
+                saved_ok = True
+            else:
+                fs_invalid = fs
+                transaction.set_rollback(True)
+        if saved_ok:
             _limpar_exclusoes_comunicado(obj)
             messages.success(request, 'Comunicado criado com sucesso.')
             if 'salvar_visualizar' in request.POST:
                 return redirect('comunicados_painel_desempenho', pk=obj.pk)
-            return redirect('comunicados_painel_editar', pk=obj.pk)
-    else:
-        form = ComunicadoForm()
-    return render(request, 'comunicados/form.html', {'form': form, 'titulo_pagina': 'Novo comunicado', 'modo': 'criar'})
-
-
-@require_group(GRUPOS.ADMINISTRADOR)
-def editar(request, pk):
-    comunicado = get_object_or_404(Comunicado, pk=pk)
-    if request.method == 'POST':
-        form = ComunicadoForm(request.POST, request.FILES, instance=comunicado)
-        if form.is_valid():
-            form.save()
-            form.save_m2m()
-            _limpar_exclusoes_comunicado(comunicado)
-            messages.success(request, 'Alterações salvas.')
-            if 'salvar_visualizar' in request.POST:
-                return redirect('comunicados_painel_desempenho', pk=comunicado.pk)
-            return redirect('comunicados_painel_editar', pk=comunicado.pk)
-    else:
-        form = ComunicadoForm(instance=comunicado)
+            return redirect('comunicados_painel_criar')
+        return render(
+            request,
+            'comunicados/form.html',
+            {
+                'form': ComunicadoForm(request.POST, request.FILES),
+                'imagem_formset': fs_invalid,
+                'titulo_pagina': 'Novo comunicado',
+                'modo': 'criar',
+            },
+        )
+    form = ComunicadoForm()
+    imagem_formset = FS()
     return render(
         request,
         'comunicados/form.html',
         {
             'form': form,
+            'imagem_formset': imagem_formset,
+            'titulo_pagina': 'Novo comunicado',
+            'modo': 'criar',
+        },
+    )
+
+
+@require_group(GRUPOS.ADMINISTRADOR)
+def editar(request, pk):
+    comunicado = get_object_or_404(Comunicado, pk=pk)
+    FS = comunicado_imagem_formset_factory()
+    if request.method == 'POST':
+        form = ComunicadoForm(request.POST, request.FILES, instance=comunicado)
+        if not form.is_valid():
+            return render(
+                request,
+                'comunicados/form.html',
+                {
+                    'form': form,
+                    'imagem_formset': FS(request.POST, request.FILES, instance=comunicado),
+                    'comunicado': comunicado,
+                    'titulo_pagina': f'Editar: {comunicado.titulo}',
+                    'modo': 'editar',
+                },
+            )
+        saved_ok = False
+        fs_invalid = None
+        with transaction.atomic():
+            form.save()
+            form.save_m2m()
+            fs = FS(request.POST, request.FILES, instance=comunicado)
+            if fs.is_valid():
+                fs.save()
+                reordenar_imagens_comunicado(comunicado)
+                saved_ok = True
+            else:
+                fs_invalid = fs
+                transaction.set_rollback(True)
+        if saved_ok:
+            _limpar_exclusoes_comunicado(comunicado)
+            messages.success(request, 'Alterações salvas.')
+            if 'salvar_visualizar' in request.POST:
+                return redirect('comunicados_painel_desempenho', pk=comunicado.pk)
+            return redirect('comunicados_painel_editar', pk=comunicado.pk)
+        comunicado.refresh_from_db()
+        return render(
+            request,
+            'comunicados/form.html',
+            {
+                'form': ComunicadoForm(request.POST, request.FILES, instance=comunicado),
+                'imagem_formset': fs_invalid,
+                'comunicado': comunicado,
+                'titulo_pagina': f'Editar: {comunicado.titulo}',
+                'modo': 'editar',
+            },
+        )
+    form = ComunicadoForm(instance=comunicado)
+    imagem_formset = FS(instance=comunicado)
+    return render(
+        request,
+        'comunicados/form.html',
+        {
+            'form': form,
+            'imagem_formset': imagem_formset,
             'comunicado': comunicado,
             'titulo_pagina': f'Editar: {comunicado.titulo}',
             'modo': 'editar',
@@ -206,21 +289,22 @@ def duplicar(request, pk):
             prioridade=orig.prioridade,
             publico_todos=orig.publico_todos,
             publico_escopo_criterios=orig.publico_escopo_criterios,
-            publico_restrito_perfil=orig.publico_restrito_perfil,
             pode_fechar=orig.pode_fechar,
             exige_confirmacao=orig.exige_confirmacao,
             exige_resposta=orig.exige_resposta,
-            bloquear_ate_acao=orig.bloquear_ate_acao,
             abrir_automaticamente=orig.abrir_automaticamente,
             mostrar_apos_fechar=orig.mostrar_apos_fechar,
             permitir_nao_mostrar_novamente=orig.permitir_nao_mostrar_novamente,
             criado_por=request.user,
         )
         novo.save()
-        if orig.imagem:
-            orig.imagem.open('rb')
-            novo.imagem.save(orig.imagem.name, ContentFile(orig.imagem.read()), save=True)
-            orig.imagem.close()
+        for im in orig.imagens.all().order_by('ordem', 'pk'):
+            nova = ComunicadoImagem(comunicado=novo, ordem=im.ordem)
+            im.arquivo.open('rb')
+            nome = im.arquivo.name.split('/')[-1]
+            nova.arquivo.save(nome, ContentFile(im.arquivo.read()), save=False)
+            nova.save()
+            im.arquivo.close()
         novo.grupos_permitidos.set(orig.grupos_permitidos.all())
         novo.usuarios_permitidos.set(orig.usuarios_permitidos.all())
         novo.obras_permitidas.set(orig.obras_permitidas.all())

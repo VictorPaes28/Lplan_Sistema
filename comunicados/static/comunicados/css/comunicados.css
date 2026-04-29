@@ -159,6 +159,11 @@
   outline-offset: 2px;
 }
 
+/* IMAGEM_LINK: com o intercept de leitura aberto, o <a> da imagem não deve roubar cliques ao ecrã acima. */
+#comunicados-root.comunicados-root--intercept #comunicados-body a.comunicados-img-link {
+  pointer-events: none;
+}
+
 #comunicados-body .comunicados-field {
   margin-top: 1rem;
 }
@@ -276,6 +281,54 @@
 
 #comunicados-nunca:hover {
   color: #64748b;
+}
+
+/* Confirmação extra (leitura / declaração) sobre o modal */
+#comunicados-intercept {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+#comunicados-intercept.comunicados-intercept--open {
+  display: flex;
+}
+
+.comunicados-intercept-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.comunicados-intercept-dialog {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem 1.25rem 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  border: 1px solid #e2e8f0;
+}
+
+.comunicados-intercept-msg {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #0f172a;
+}
+
+.comunicados-intercept-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 /* ─── Pré-visualização (painel criar/editar) — mesmo aspeto, z-index acima do resto ─── */

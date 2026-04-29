@@ -8,7 +8,6 @@ class TipoConteudo(models.TextChoices):
     IMAGEM = 'IMAGEM', 'Imagem'
     IMAGEM_LINK = 'IMAGEM_LINK', 'Imagem com link'
     FORMULARIO = 'FORMULARIO', 'Formulário'
-    CONFIRMACAO = 'CONFIRMACAO', 'Confirmação'
 
 
 class DestaqueVisual(models.TextChoices):
@@ -20,7 +19,7 @@ class DestaqueVisual(models.TextChoices):
 
 
 class TipoExibicao(models.TextChoices):
-    SEMPRE = 'SEMPRE', 'Sempre (toda vez que abrir)'
+    SEMPRE = 'SEMPRE', 'Sempre (a cada novo login)'
     UMA_VEZ = 'UMA_VEZ', 'Uma vez por usuário'
     UMA_VEZ_POR_DIA = 'UMA_VEZ_POR_DIA', 'Uma vez por dia'
     ATE_CONFIRMAR = 'ATE_CONFIRMAR', 'Até confirmar leitura'
@@ -51,16 +50,18 @@ class PublicoEscopoCriterios(models.TextChoices):
     TODOS = 'TODOS', 'Todos os critérios (E)'
 
 
-class PublicoRestricaoPerfil(models.TextChoices):
-    """Filtro adicional por perfil Django, aplicado depois das regras de público e exclusões."""
-
-    NENHUMA = 'NENHUMA', 'Sem restrição de perfil'
-    APENAS_STAFF = 'APENAS_STAFF', 'Apenas staff'
-    APENAS_SUPERUSER = 'APENAS_SUPERUSER', 'Apenas superusuários'
+# Limites de comprimento (formulário, validação e base de dados)
+LIM_TITULO = 255
+LIM_TITULO_VISIVEL = 100
+LIM_SUBTITULO = 150
+LIM_DESC_INTERNA = 1000
+LIM_TEXTO_PRINCIPAL = 2000
+LIM_LINK = 500
+LIM_TEXTO_BOTAO = 60
 
 
 class Comunicado(models.Model):
-    titulo = models.CharField(max_length=255, verbose_name='Título (interno)')
+    titulo = models.CharField(max_length=LIM_TITULO, verbose_name='Título (interno)')
     slug = models.SlugField(
         max_length=255,
         unique=True,
@@ -71,10 +72,11 @@ class Comunicado(models.Model):
         help_text='Deixe em branco para gerar automaticamente a partir do título.',
     )
     descricao_interna = models.TextField(
+        max_length=LIM_DESC_INTERNA,
         blank=True,
         null=True,
         verbose_name='Descrição interna',
-        help_text='Visível apenas no admin.',
+        help_text='Visível apenas no admin. Máximo de 1000 caracteres.',
     )
     ativo = models.BooleanField(default=True, verbose_name='Ativo')
     criado_por = models.ForeignKey(
@@ -94,35 +96,31 @@ class Comunicado(models.Model):
     )
 
     titulo_visivel = models.CharField(
-        max_length=255,
+        max_length=LIM_TITULO_VISIVEL,
         blank=True,
         default='',
         verbose_name='Título visível',
     )
     subtitulo = models.CharField(
-        max_length=255,
+        max_length=LIM_SUBTITULO,
         blank=True,
         default='',
         verbose_name='Subtítulo',
     )
     texto_principal = models.TextField(
+        max_length=LIM_TEXTO_PRINCIPAL,
         blank=True,
         default='',
         verbose_name='Texto principal',
     )
-    imagem = models.ImageField(
-        upload_to='comunicados/',
-        blank=True,
-        null=True,
-        verbose_name='Imagem',
-    )
     link_destino = models.URLField(
+        max_length=LIM_LINK,
         blank=True,
         null=True,
         verbose_name='Link de destino',
     )
     texto_botao = models.CharField(
-        max_length=120,
+        max_length=LIM_TEXTO_BOTAO,
         blank=True,
         default='',
         verbose_name='Texto do botão',
@@ -172,13 +170,6 @@ class Comunicado(models.Model):
             'E = tem de cumprir todos os tipos que estiverem preenchidos (ex.: grupo e obra).'
         ),
     )
-    publico_restrito_perfil = models.CharField(
-        max_length=20,
-        choices=PublicoRestricaoPerfil.choices,
-        default=PublicoRestricaoPerfil.NENHUMA,
-        verbose_name='Restrição de perfil',
-        help_text='Aplicado depois do público e das exclusões; útil para avisos só à equipa interna.',
-    )
     grupos_permitidos = models.ManyToManyField(
         'auth.Group',
         blank=True,
@@ -222,13 +213,12 @@ class Comunicado(models.Model):
 
     pode_fechar = models.BooleanField(default=True, verbose_name='Pode fechar')
     exige_confirmacao = models.BooleanField(default=False, verbose_name='Exige confirmação de leitura')
-    exige_resposta = models.BooleanField(default=False, verbose_name='Exige resposta')
-    bloquear_ate_acao = models.BooleanField(
+    exige_resposta = models.BooleanField(
         default=False,
-        verbose_name='Bloquear até ação',
+        verbose_name='Resposta obrigatória',
         help_text=(
-            'Só aplica a conteúdos “Confirmação” ou “Formulário”: impede fechar até confirmar ou enviar resposta. '
-            'Em texto/imagem puro não há ação obrigatória; use “Pode fechar” para bloquear o fecho de vez.'
+            'Em Formulário: exige preencher/enviar a resposta antes de confirmar. '
+            'Não combina com “Pode fechar” nem com “Permitir não mostrar novamente”.'
         ),
     )
     abrir_automaticamente = models.BooleanField(default=True, verbose_name='Abrir automaticamente')
@@ -248,15 +238,36 @@ class Comunicado(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug and self.titulo:
-            base = slugify(self.titulo)[:200] or 'comunicado'
+            base = slugify(self.titulo)[:LIM_TITULO] or 'comunicado'
             slug_candidate = base
             n = 2
             while Comunicado.objects.filter(slug=slug_candidate).exclude(pk=self.pk).exists():
                 suffix = f'-{n}'
-                slug_candidate = f'{base[: 200 - len(suffix)]}{suffix}'
+                slug_candidate = f'{base[: LIM_TITULO - len(suffix)]}{suffix}'
                 n += 1
             self.slug = slug_candidate
         super().save(*args, **kwargs)
+
+
+class ComunicadoImagem(models.Model):
+    """Até 5 imagens por comunicado (tipos IMAGEM / IMAGEM_LINK)."""
+
+    comunicado = models.ForeignKey(
+        Comunicado,
+        on_delete=models.CASCADE,
+        related_name='imagens',
+        verbose_name='Comunicado',
+    )
+    arquivo = models.ImageField(upload_to='comunicados/', verbose_name='Ficheiro')
+    ordem = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem')
+
+    class Meta:
+        verbose_name = 'Imagem do comunicado'
+        verbose_name_plural = 'Imagens do comunicado'
+        ordering = ['ordem', 'pk']
+
+    def __str__(self):
+        return f'Imagem #{self.pk} — {self.comunicado_id}'
 
 
 class ComunicadoVisualizacao(models.Model):

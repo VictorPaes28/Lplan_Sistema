@@ -13,8 +13,8 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
-<link rel="stylesheet" href="{% static 'comunicados/css/painel.css' %}">
-<link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}">
+<link rel="stylesheet" href="{% static 'comunicados/css/painel.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}?v=5">
 {% endblock %}
 
 {% block content %}
@@ -50,7 +50,7 @@
         <div class="central-help-title">Antes de publicar</div>
         <p class="central-help-desc">
             Escolha o <strong>tipo de conteúdo</strong> primeiro: os campos mudam automaticamente.
-            Para imagem, envie o ficheiro antes de gravar. Use <strong>prioridade</strong> e <strong>bloquear até ação</strong> só quando o aviso for realmente obrigatório.
+            Para imagem, envie o ficheiro antes de gravar. Use <strong>prioridade</strong> e <strong>resposta obrigatória</strong> (em formulário) só quando o aviso for realmente obrigatório.
         </p>
     </div>
     {% endif %}
@@ -70,11 +70,12 @@
                         <label for="id_titulo">Título (interno) *</label>
                         {{ form.titulo }}
                         {% if form.titulo.errors %}<div class="field-error">{{ form.titulo.errors }}</div>{% endif %}
+                        {% if form.titulo.help_text %}<p class="field-hint">{{ form.titulo.help_text }}</p>{% endif %}
                     </div>
                     <div class="field-row">
                         <label for="id_descricao_interna">Descrição interna</label>
                         {{ form.descricao_interna }}
-                        <p class="field-hint">Opcional. Não aparece para os usuários finais.</p>
+                        <p class="field-hint">Opcional. Não aparece para os utilizadores finais. Máximo de 1000 caracteres.</p>
                     </div>
                     <div class="field-row comunicado-toggle-row">
                         {{ form.ativo }}
@@ -91,28 +92,79 @@
                     <h3 id="sec-conteudo" class="central-section-title"><i class="fas fa-align-left" aria-hidden="true"></i> Conteúdo visível</h3>
                     <p class="comunicado-section-desc">Texto, imagem e estilo do modal que o usuário vê ao usar o sistema.</p>
 
-                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
-                        <div class="field-row"><label for="id_titulo_visivel">Título visível</label>{{ form.titulo_visivel }}</div>
+                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO">
+                        <div class="field-row">
+                            <label for="id_titulo_visivel">Título visível</label>
+                            {{ form.titulo_visivel }}
+                            {% if form.titulo_visivel.errors %}<div class="field-error">{{ form.titulo_visivel.errors }}</div>{% endif %}
+                            {% if form.titulo_visivel.help_text %}<p class="field-hint">{{ form.titulo_visivel.help_text }}</p>{% endif %}
+                        </div>
                     </div>
                     <div class="tipo-fld" data-tipos="TEXTO,FORMULARIO">
-                        <div class="field-row"><label for="id_subtitulo">Subtítulo</label>{{ form.subtitulo }}</div>
+                        <div class="field-row">
+                            <label for="id_subtitulo">Subtítulo</label>
+                            {{ form.subtitulo }}
+                            {% if form.subtitulo.errors %}<div class="field-error">{{ form.subtitulo.errors }}</div>{% endif %}
+                            {% if form.subtitulo.help_text %}<p class="field-hint">{{ form.subtitulo.help_text }}</p>{% endif %}
+                        </div>
                     </div>
-                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
-                        <div class="field-row"><label for="id_texto_principal">Texto principal</label>{{ form.texto_principal }}</div>
+                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO">
+                        <div class="field-row">
+                            <label for="id_texto_principal">Texto principal</label>
+                            {{ form.texto_principal }}
+                            {% if form.texto_principal.errors %}<div class="field-error">{{ form.texto_principal.errors }}</div>{% endif %}
+                            {% if form.texto_principal.help_text %}<p class="field-hint">{{ form.texto_principal.help_text }}</p>{% endif %}
+                        </div>
                     </div>
                     <div class="tipo-fld" data-tipos="IMAGEM,IMAGEM_LINK">
-                        <div class="field-row">
-                            <label for="id_imagem">Imagem *</label>
-                            {{ form.imagem }}
-                            <p class="field-hint">Obrigatório para tipos baseados em imagem. Formatos comuns: PNG, JPG, WebP.</p>
-                            {% if form.imagem.errors %}<div class="field-error">{{ form.imagem.errors }}</div>{% endif %}
+                        <div class="field-row comunicado-imagens-field">
+                            <span class="comunicado-imagens-label">Imagens * (até 5)</span>
+                            {{ imagem_formset.management_form }}
+                            {% if imagem_formset.non_form_errors %}
+                            <div class="field-error">{{ imagem_formset.non_form_errors }}</div>
+                            {% endif %}
+                            <div class="comunicado-imagens-ui" id="comunicado-imagens-ui" aria-live="polite">
+                                <label class="comunicado-imagens-multi-wrap" for="comunicado-imagens-multi">
+                                    <span class="central-btn-secondary comunicado-imagens-multi-btn">Escolher ficheiros</span>
+                                </label>
+                                <input type="file" id="comunicado-imagens-multi" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" multiple class="comunicado-imagens-multi-native" />
+                                <div id="comunicado-imagens-msg" class="field-error comunicado-imagens-msg" hidden role="alert"></div>
+                                <div id="comunicado-imagens-preview" class="comunicado-imagens-preview"></div>
+                            </div>
+                            {% for f in imagem_formset.forms %}
+                                {% if f.arquivo.errors %}
+                                <div class="field-error">{{ f.arquivo.errors }}</div>
+                                {% endif %}
+                            {% endfor %}
+                            <div class="comunicado-imagens-formset comunicado-imagens-formset--native-only" aria-hidden="true">
+                                {% for f in imagem_formset.forms %}
+                                <div class="comunicado-imagem-linha" id="comunicado-imagem-slot-{{ forloop.counter0 }}"{% if f.instance.pk %} data-preview-url="{{ request.scheme }}://{{ request.get_host }}{{ f.instance.arquivo.url }}"{% endif %}>
+                                    {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                    {% if f.DELETE %}
+                                    <div class="comunicado-imagem-delete-row comunicado-imagem-delete-row--native">{{ f.DELETE }}</div>
+                                    {% endif %}
+                                    <div class="comunicado-imagem-arquivo">{{ f.arquivo }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <p class="field-hint">Até 5 imagens (PNG, JPG, WebP). Escolha um ou mais ficheiros de cada vez; use × para remover antes de acrescentar outras.</p>
                         </div>
                     </div>
                     <div class="tipo-fld" data-tipos="IMAGEM_LINK">
-                        <div class="field-row"><label for="id_link_destino">Link de destino</label>{{ form.link_destino }}</div>
-                        <div class="field-row"><label for="id_texto_botao">Texto do botão</label>{{ form.texto_botao }}</div>
+                        <div class="field-row">
+                            <label for="id_link_destino">Link de destino</label>
+                            {{ form.link_destino }}
+                            {% if form.link_destino.errors %}<div class="field-error">{{ form.link_destino.errors }}</div>{% endif %}
+                            {% if form.link_destino.help_text %}<p class="field-hint">{{ form.link_destino.help_text }}</p>{% endif %}
+                        </div>
+                        <div class="field-row">
+                            <label for="id_texto_botao">Texto do botão</label>
+                            {{ form.texto_botao }}
+                            {% if form.texto_botao.errors %}<div class="field-error">{{ form.texto_botao.errors }}</div>{% endif %}
+                            {% if form.texto_botao.help_text %}<p class="field-hint">{{ form.texto_botao.help_text }}</p>{% endif %}
+                        </div>
                     </div>
-                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO,CONFIRMACAO">
+                    <div class="tipo-fld" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO">
                         <div class="field-row"><label for="id_destaque_visual">Destaque visual</label>{{ form.destaque_visual }}</div>
                     </div>
                 </section>
@@ -155,16 +207,10 @@
             <div class="comunicado-form-aside">
                 <section class="central-section" aria-labelledby="sec-publico">
                     <h3 id="sec-publico" class="central-section-title"><i class="fas fa-users" aria-hidden="true"></i> Público</h3>
-                    <p class="comunicado-section-desc">Escolha <strong>quem vê</strong>: todos os logados ou grupos, usuários e obras abaixo (combinação <strong>OU</strong> ou <strong>E</strong>). Opcionalmente limite a staff/superusuários. <span class="field-hint" style="display:inline;margin:0;">Ao salvar neste painel, listas de exclusão são esvaziadas (inclusão só por aqui).</span></p>
+                    <p class="comunicado-section-desc">Escolha <strong>quem vê</strong>: todos os logados ou grupos, usuários e obras abaixo (combinação <strong>OU</strong> ou <strong>E</strong>). <span class="field-hint" style="display:inline;margin:0;">Ao salvar neste painel, listas de exclusão são esvaziadas (inclusão só por aqui).</span></p>
                     <div class="field-row comunicado-toggle-row">
                         {{ form.publico_todos }}
                         <label for="id_publico_todos">Todos os usuários autenticados</label>
-                    </div>
-                    <div class="field-row">
-                        <label for="id_publico_restrito_perfil">Restrição de perfil</label>
-                        {{ form.publico_restrito_perfil }}
-                        <p class="field-hint">Filtra por staff ou superusuário em cima do público acima (útil para avisos internos).</p>
-                        {% if form.publico_restrito_perfil.errors %}<div class="field-error">{{ form.publico_restrito_perfil.errors }}</div>{% endif %}
                     </div>
                     <div id="publico-restrito">
                         <h4 class="comunicado-subsection-title comunicado-subsection-title--inline">Quem vê (escolha os destinatários)</h4>
@@ -193,16 +239,33 @@
 
                 <section class="central-section" aria-labelledby="sec-comportamento">
                     <h3 id="sec-comportamento" class="central-section-title"><i class="fas fa-sliders-h" aria-hidden="true"></i> Comportamento do modal</h3>
-                    <p class="comunicado-section-desc">Como o usuário interage e o que é obrigatório antes de continuar a trabalhar.</p>
+                    <p class="comunicado-section-desc">Como o usuário interage e o que é obrigatório antes de continuar a trabalhar. As opções abaixo ajustam-se ao <strong>tipo de conteúdo</strong>; ao mudar o tipo, os valores visíveis voltam aos sugeridos para esse tipo.</p>
                     <div class="comportamento-grid">
-                        <div class="comportamento-item">{{ form.pode_fechar }}<label for="{{ form.pode_fechar.id_for_label }}">Pode fechar</label></div>
-                        <div class="comportamento-item">{{ form.exige_confirmacao }}<label for="{{ form.exige_confirmacao.id_for_label }}">Exige confirmação de leitura</label></div>
-                        <div class="comportamento-item">{{ form.exige_resposta }}<label for="{{ form.exige_resposta.id_for_label }}">Exige resposta</label></div>
-                        <div class="comportamento-item">{{ form.bloquear_ate_acao }}<label for="{{ form.bloquear_ate_acao.id_for_label }}">Bloquear até ação</label></div>
-                        <div class="comportamento-item">{{ form.abrir_automaticamente }}<label for="{{ form.abrir_automaticamente.id_for_label }}">Abrir automaticamente</label></div>
-                        <div class="comportamento-item">{{ form.mostrar_apos_fechar }}<label for="{{ form.mostrar_apos_fechar.id_for_label }}">Mostrar após fechar</label></div>
-                        <div class="comportamento-item comportamento-item--full">{{ form.permitir_nao_mostrar_novamente }}<label for="{{ form.permitir_nao_mostrar_novamente.id_for_label }}">Permitir “não mostrar novamente”</label></div>
+                        <div class="comportamento-item tipo-fld" data-tipos="FORMULARIO">
+                            {{ form.pode_fechar }}
+                            <label for="{{ form.pode_fechar.id_for_label }}">Pode fechar</label>
+                        </div>
+                        <div class="comportamento-item tipo-fld tipo-comportamento" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK">
+                            {{ form.exige_confirmacao }}
+                            <label for="{{ form.exige_confirmacao.id_for_label }}">Exige confirmação de leitura</label>
+                        </div>
+                        <div class="comportamento-item tipo-fld tipo-comportamento" data-tipos="FORMULARIO">
+                            {{ form.exige_resposta }}
+                            <label for="{{ form.exige_resposta.id_for_label }}">Resposta obrigatória</label>
+                        </div>
+                        <div class="comportamento-item tipo-fld tipo-comportamento" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO">
+                            {{ form.abrir_automaticamente }}
+                            <label for="{{ form.abrir_automaticamente.id_for_label }}">Abrir automaticamente</label>
+                        </div>
+                        <div class="comportamento-item tipo-fld tipo-comportamento" data-tipos="TEXTO,IMAGEM,IMAGEM_LINK,FORMULARIO">
+                            {{ form.permitir_nao_mostrar_novamente }}
+                            <label for="{{ form.permitir_nao_mostrar_novamente.id_for_label }}">Permitir "não mostrar novamente"</label>
+                        </div>
                     </div>
+                    <p id="comportamento-exige-aviso" class="comportamento-exige-aviso" style="display:none" role="alert" aria-live="polite"></p>
+                    {% if form.exige_resposta.errors %}
+                    <div class="field-error">{{ form.exige_resposta.errors }}</div>
+                    {% endif %}
                 </section>
             </div>
         </div>
@@ -235,12 +298,17 @@
     </div>
 </div>
 
-{% if comunicado and comunicado.imagem %}
+{% if comunicado and comunicado.imagens.exists %}
 <script>
-window.__MEGAFONE_PREVIEW_IMG_URL__ = "{{ request.scheme }}://{{ request.get_host }}{{ comunicado.imagem.url }}";
+window.__MEGAFONE_PREVIEW_IMG_URLS__ = [
+{% for im in comunicado.imagens.all %}
+  "{{ request.scheme }}://{{ request.get_host }}{{ im.arquivo.url }}"{% if not forloop.last %},{% endif %}
+{% endfor %}
+];
 </script>
 {% endif %}
-<script src="{% static 'comunicados/js/megafone-preview.js' %}"></script>
+<script src="{% static 'comunicados/js/form-imagens-ui.js' %}?v=1"></script>
+<script src="{% static 'comunicados/js/megafone-preview.js' %}?v=6"></script>
 <script>
 (function() {
   var tipoSel = document.getElementById('id_tipo_conteudo');
@@ -250,6 +318,13 @@ window.__MEGAFONE_PREVIEW_IMG_URL__ = "{{ request.scheme }}://{{ request.get_hos
   var wrapDias = document.getElementById('wrap-dias');
   var restrito = document.getElementById('publico-restrito');
 
+  var COMPORTAMENTO_DEFAULTS = {
+    TEXTO: { pode_fechar: true, exige_confirmacao: false, exige_resposta: false, abrir_automaticamente: true, permitir_nao_mostrar_novamente: false },
+    IMAGEM: { pode_fechar: true, exige_confirmacao: false, exige_resposta: false, abrir_automaticamente: true, permitir_nao_mostrar_novamente: false },
+    IMAGEM_LINK: { pode_fechar: true, exige_confirmacao: false, exige_resposta: false, abrir_automaticamente: true, permitir_nao_mostrar_novamente: false },
+    FORMULARIO: { pode_fechar: false, exige_confirmacao: false, exige_resposta: true, abrir_automaticamente: true, permitir_nao_mostrar_novamente: false },
+  };
+
   function setTipoFlds() {
     var t = tipoSel ? tipoSel.value : 'TEXTO';
     document.querySelectorAll('.tipo-fld').forEach(function(el) {
@@ -257,6 +332,53 @@ window.__MEGAFONE_PREVIEW_IMG_URL__ = "{{ request.scheme }}://{{ request.get_hos
       el.classList.toggle('is-on', tipos.indexOf(t) !== -1);
     });
   }
+
+  function aplicaComportamentoExige() {
+    var exige = document.getElementById('id_exige_resposta');
+    var podeF = document.getElementById('id_pode_fechar');
+    var nunca = document.getElementById('id_permitir_nao_mostrar_novamente');
+    var avisoEx = document.getElementById('comportamento-exige-aviso');
+    if (!exige || !podeF || !nunca || !avisoEx) {
+      return;
+    }
+    var t0 = tipoSel ? tipoSel.value : '';
+    if (t0 !== 'FORMULARIO') {
+      avisoEx.style.display = 'none';
+      avisoEx.textContent = '';
+      return;
+    }
+    if (exige.checked && (podeF.checked || nunca.checked)) {
+      avisoEx.textContent =
+        'Não é possível combinar “Resposta obrigatória” com “Pode fechar” ou “Permitir não mostrar novamente”. Desmarque a resposta obrigatória ou essas opções.';
+      avisoEx.style.display = 'block';
+    } else {
+      avisoEx.style.display = 'none';
+      avisoEx.textContent = '';
+    }
+  }
+
+  function setComportamento() {
+    var t = tipoSel ? tipoSel.value : 'TEXTO';
+    var defaults = COMPORTAMENTO_DEFAULTS[t] || {};
+
+    setTipoFlds();
+
+    document.querySelectorAll('.tipo-comportamento').forEach(function (el) {
+      if (!el.classList.contains('is-on')) {
+        var inp = el.querySelector('input[type="checkbox"]');
+        if (inp) inp.checked = false;
+      }
+    });
+
+    if (setComportamento._trocou) {
+      Object.keys(defaults).forEach(function (campo) {
+        var inp = document.getElementById('id_' + campo);
+        if (inp) inp.checked = defaults[campo];
+      });
+    }
+    aplicaComportamentoExige();
+  }
+  setComportamento._trocou = false;
 
   function setExibicao() {
     var v = exSel ? exSel.value : '';
@@ -284,13 +406,47 @@ window.__MEGAFONE_PREVIEW_IMG_URL__ = "{{ request.scheme }}://{{ request.get_hos
     }
   }
 
-  if (tipoSel) tipoSel.addEventListener('change', setTipoFlds);
+  if (tipoSel) {
+    tipoSel.addEventListener('change', function () {
+      setComportamento._trocou = true;
+      setComportamento();
+    });
+  }
   if (exSel) exSel.addEventListener('change', setExibicao);
   if (pub) pub.addEventListener('change', setPublico);
 
-  setTipoFlds();
+  setComportamento();
   setExibicao();
   setPublico();
+
+  (function () {
+    var f = document.getElementById('form-comunicado');
+    var exige = document.getElementById('id_exige_resposta');
+    var podeF = document.getElementById('id_pode_fechar');
+    var nunca = document.getElementById('id_permitir_nao_mostrar_novamente');
+    if (f) {
+      f.addEventListener('submit', function (ev) {
+        var t = tipoSel ? tipoSel.value : '';
+        if (
+          t === 'FORMULARIO' &&
+          exige && exige.checked &&
+          podeF && nunca && (podeF.checked || nunca.checked)
+        ) {
+          ev.preventDefault();
+          aplicaComportamentoExige();
+          var w = document.getElementById('comportamento-exige-aviso');
+          if (w && w.scrollIntoView) {
+            w.scrollIntoView({ block: 'nearest' });
+          }
+        }
+      });
+    }
+    [exige, podeF, nunca].forEach(function (el) {
+      if (el) {
+        el.addEventListener('change', aplicaComportamentoExige);
+      }
+    });
+  })();
 
   document.querySelectorAll('select.select-m2m-click-toggle[multiple]').forEach(function (sel) {
     sel.addEventListener('mousedown', function (e) {

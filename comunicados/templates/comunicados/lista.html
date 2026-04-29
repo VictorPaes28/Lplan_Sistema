@@ -104,11 +104,6 @@
                                 <span class="pub-badge-meta"> ({{ c.grupos_permitidos.count }} grp. / {{ c.obras_permitidas.count }} obras)</span>
                             {% endif %}
                         {% endif %}
-                        {% if c.publico_restrito_perfil == 'APENAS_STAFF' %}
-                            <span class="pub-mini pub-mini--staff">Staff</span>
-                        {% elif c.publico_restrito_perfil == 'APENAS_SUPERUSER' %}
-                            <span class="pub-mini pub-mini--su">Super</span>
-                        {% endif %}
                     </td>
                     <td>{{ row.vis_total }}</td>
                     <td>{{ row.n_conf }}</td>
