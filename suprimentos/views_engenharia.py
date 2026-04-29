@@ -982,7 +982,12 @@ def criar_levantamento_rapido(request):
     try:
         qtd = Decimal(str(quantidade_planejada).replace(',', '.'))
     except Exception:
-        qtd = Decimal('0.00')
+        messages.error(request, 'Informe uma quantidade planejada válida.')
+        return redirect(reverse('engenharia:mapa') + f'?obra={obra_id}')
+
+    if qtd <= 0:
+        messages.error(request, 'A quantidade planejada deve ser maior que zero.')
+        return redirect(reverse('engenharia:mapa') + f'?obra={obra_id}')
 
     item = ItemMapa(
         obra_id=obra_id,

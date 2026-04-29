@@ -3,6 +3,7 @@ from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.core.exceptions import ValidationError
 from accounts.decorators import require_group, login_required
@@ -1357,20 +1358,103 @@ def listar_locais(request):
         return JsonResponse({'locais': []})
     
     try:
+        from mapa_obras.views import _user_can_access_obra
+
         obra = get_object_or_404(Obra, id=obra_id)
+        if not _user_can_access_obra(request, obra):
+            return JsonResponse({'locais': []}, status=403)
+
         locais = LocalObra.objects.filter(obra=obra).order_by('tipo', 'nome')
         return JsonResponse({
             'locais': [
                 {
                     'id': local.id,
                     'nome': local.nome,
-                    'tipo': local.get_tipo_display()
+                    'tipo': local.get_tipo_display(),
+                    'tipo_valor': local.tipo,
                 }
                 for local in locais
             ]
         })
     except Exception:
         return JsonResponse({'locais': []})
+
+
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
+@require_http_methods(["POST"])
+def criar_local_obra(request):
+    """Cria um novo local para a obra selecionada no mapa de suprimentos."""
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        payload = request.POST
+
+    obra_id = payload.get('obra_id') or request.POST.get('obra_id')
+    nome = (payload.get('nome') or request.POST.get('nome') or '').strip()
+    tipo = (payload.get('tipo') or request.POST.get('tipo') or 'OUTRO').strip().upper()
+
+    if not obra_id:
+        return JsonResponse({'success': False, 'error': 'Obra não informada.'}, status=400)
+    if not nome:
+        return JsonResponse({'success': False, 'error': 'Nome do local é obrigatório.'}, status=400)
+
+    tipos_validos = {v for v, _ in LocalObra.TIPO_CHOICES}
+    if tipo not in tipos_validos:
+        return JsonResponse({'success': False, 'error': 'Tipo de local inválido.'}, status=400)
+
+    obra = get_object_or_404(Obra, id=obra_id)
+    from mapa_obras.views import _user_can_access_obra
+
+    if not _user_can_access_obra(request, obra):
+        return JsonResponse({'success': False, 'error': 'Sem permissão para esta obra.'}, status=403)
+
+    if LocalObra.objects.filter(obra=obra, nome__iexact=nome, parent__isnull=True).exists():
+        return JsonResponse({'success': False, 'error': 'Já existe um local com esse nome nesta obra.'}, status=409)
+
+    local = LocalObra.objects.create(
+        obra=obra,
+        nome=nome,
+        tipo=tipo,
+    )
+    return JsonResponse({
+        'success': True,
+        'local': {
+            'id': local.id,
+            'nome': local.nome,
+            'tipo': local.get_tipo_display(),
+            'tipo_valor': local.tipo,
+        }
+    })
+
+
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
+@require_http_methods(["POST"])
+def excluir_local_obra(request, local_id):
+    """Exclui local da obra (itens vinculados ficam sem local por SET_NULL)."""
+    local = get_object_or_404(LocalObra, id=local_id)
+    from mapa_obras.views import _user_can_access_obra
+
+    if not _user_can_access_obra(request, local.obra):
+        return JsonResponse({'success': False, 'error': 'Sem permissão para esta obra.'}, status=403)
+
+    nome = local.nome
+    try:
+        local.delete()
+    except ProtectedError:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': (
+                    'Este local possui alocações de recebimento vinculadas e não pode ser excluído. '
+                    'Remova/realoque as alocações primeiro.'
+                ),
+            },
+            status=409,
+        )
+
+    return JsonResponse({'success': True, 'message': f'Local "{nome}" removido com sucesso.'})
 
 
 @login_required
