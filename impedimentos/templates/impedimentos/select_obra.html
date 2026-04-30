@@ -2,11 +2,12 @@
 {% load static %}
 
 {% block back_url %}{% url 'select-system' %}{% endblock %}
-{% block page_title %}Diário de Obras{% endblock %}
-{% block page_subtitle %}Selecionar obra para gerenciar{% endblock %}
+{% block page_title %}Restrições{% endblock %}
+{% block page_subtitle %}Selecionar obra{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/select_project.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -25,26 +26,19 @@
         <div class="select-project-hero-header">
             <div>
                 <h2 class="select-project-title">Selecione uma Obra</h2>
-                <p class="select-project-subtitle">Escolha a obra que deseja visualizar e gerenciar no sistema.</p>
+                <p class="select-project-subtitle">Escolha a obra para visualizar as restrições e pendências.</p>
             </div>
-            {% if user.is_staff or user.is_superuser %}
-            <a href="{% url 'project-new' %}" class="select-project-create-btn">
-                <i class="fas fa-plus mr-2" aria-hidden="true"></i>
-                Criar Obra
-            </a>
-            {% endif %}
         </div>
     </div>
 
     {% if projects %}
     <div class="project-search-block">
-        <!-- Search Input -->
         <div class="project-search">
             <div class="search-input-wrapper">
                 <i class="fas fa-search search-icon"></i>
-                <input type="text" 
-                       id="projectSearch" 
-                       class="search-input" 
+                <input type="text"
+                       id="projectSearch"
+                       class="search-input"
                        placeholder="Buscar obra por nome ou código..."
                        autocomplete="off">
             </div>
@@ -52,15 +46,15 @@
         <p class="project-results-count"><span id="projectVisibleCount">{{ projects|length }}</span> obras encontradas</p>
     </div>
 
-    <!-- No results message (hidden by default) -->
     <div class="no-results hidden" id="noResults">
         <i class="fas fa-search"></i>
         <h3 class="text-lg font-semibold text-slate-700 mb-1">Nenhuma obra encontrada</h3>
         <p class="text-sm">Tente buscar com outros termos.</p>
     </div>
+
     <div class="select-project-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="projectsGrid">
         {% for project in projects %}
-        <form method="post" action="{% url 'select-project' %}" class="project-card select-project-card" data-project-name="{{ project.name|lower }}" data-project-code="{{ project.code|lower }}">
+        <form method="post" action="{% url 'impedimentos:select_obra' %}" class="project-card select-project-card" data-project-name="{{ project.name|lower }}" data-project-code="{{ project.code|lower }}">
             {% csrf_token %}
             <input type="hidden" name="project_id" value="{{ project.id }}">
             <button type="submit" class="select-project-card-btn {% if selected_project_id == project.id %}is-selected{% endif %}" {% if selected_project_id == project.id %}data-selected="true"{% endif %}>
@@ -80,34 +74,6 @@
                     </div>
                     <i class="fas fa-chevron-right select-project-card-arrow flex-shrink-0 ml-2"></i>
                 </div>
-                
-                {% if project.address %}
-                <p class="text-sm text-gray-600 mb-3 line-clamp-1 flex items-center" title="{{ project.address }}">
-                    <i class="fas fa-map-marker-alt text-gray-400 mr-1.5 flex-shrink-0 text-xs"></i>
-                    <span class="truncate">{{ project.address }}</span>
-                </p>
-                {% elif project.responsible %}
-                <p class="text-sm text-gray-600 mb-3 flex items-center">
-                    <i class="fas fa-user-hard-hat text-gray-400 mr-1.5 flex-shrink-0 text-xs"></i>
-                    <span>Responsável: {{ project.responsible }}</span>
-                </p>
-                {% elif project.description and project.description != project.name %}
-                <p class="text-sm text-gray-600 mb-3 line-clamp-2">{{ project.description }}</p>
-                {% endif %}
-                
-                <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-slate-100">
-                    <div class="flex items-center">
-                        <i class="fas fa-calendar mr-1"></i>
-                        <span>{{ project.start_date|date:"d/m/Y" }} - {{ project.end_date|date:"d/m/Y" }}</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        {% if project.is_active %}
-                        <span class="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-xs">
-                            <i class="fas fa-circle mr-1"></i>Ativa
-                        </span>
-                        {% endif %}
-                    </div>
-                </div>
             </button>
         </form>
         {% endfor %}
@@ -118,50 +84,38 @@
             <i class="fas fa-building"></i>
         </div>
         <h3 class="text-xl font-semibold text-slate-900 mb-2">Nenhuma obra disponível</h3>
-        {% if user.is_staff or user.is_superuser %}
-        <p class="text-gray-600 mb-6">Não há obras ativas cadastradas no sistema.</p>
-        <a href="{% url 'project-new' %}" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
-            <i class="fas fa-plus mr-2"></i>
-            Criar Nova Obra
-        </a>
-        {% else %}
-        <p class="text-gray-600 mb-6">Você não está vinculado a nenhuma obra. Acesso ao Diário de Obra é por vínculo: só aparecem as obras às quais você foi vinculado. Entre em contato com o administrador para ser vinculado a uma ou mais obras.</p>
+        <p class="text-gray-600 mb-6">Você não está vinculado a nenhuma obra para Restrições.</p>
         <p class="text-sm text-gray-500">Volte à <a href="{% url 'select-system' %}" class="text-blue-600 hover:underline">seleção de app</a> para acessar outros módulos.</p>
-        {% endif %}
     </div>
     {% endif %}
 </div>
 
 <script>
-// Project search functionality
 (function() {
     const searchInput = document.getElementById('projectSearch');
     const projectsGrid = document.getElementById('projectsGrid');
     const noResults = document.getElementById('noResults');
     const projectVisibleCount = document.getElementById('projectVisibleCount');
-    
+
     if (!searchInput || !projectsGrid) return;
-    
+
     searchInput.addEventListener('input', function(e) {
         const searchTerm = e.target.value.toLowerCase().trim();
         const projectCards = projectsGrid.querySelectorAll('.project-card');
         let visibleCount = 0;
-        
+
         projectCards.forEach(function(card) {
             const projectName = card.getAttribute('data-project-name') || '';
             const projectCode = card.getAttribute('data-project-code') || '';
-            
-            if (searchTerm === '' || 
-                projectName.includes(searchTerm) || 
-                projectCode.includes(searchTerm)) {
+
+            if (searchTerm === '' || projectName.includes(searchTerm) || projectCode.includes(searchTerm)) {
                 card.classList.remove('hidden');
                 visibleCount++;
             } else {
                 card.classList.add('hidden');
             }
         });
-        
-        // Show/hide no results message
+
         if (visibleCount === 0 && searchTerm !== '') {
             noResults.classList.remove('hidden');
             projectsGrid.classList.add('hidden');
@@ -177,4 +131,3 @@
 })();
 </script>
 {% endblock %}
-

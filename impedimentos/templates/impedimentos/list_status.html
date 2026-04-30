@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Status das restrições{% endblock %}
+{% block page_title %}Restrições{% endblock %}
+{% block page_subtitle %}{{ obra.nome }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=4">
+{% endblock %}
+
+{% block content %}
+<div class="imp-page fade-in imp-status-config-page">
+    <header class="imp-header">
+        <div>
+            <h2 class="imp-title">{{ obra.sigla|default:project.code }} — Status</h2>
+            <p class="imp-subtitle">Configure nome, cor e ordem dos status desta obra.</p>
+        </div>
+        <div class="imp-header-actions">
+            <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}" class="imp-btn imp-btn-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar às restrições
+            </a>
+            <a href="{% url 'impedimentos:select_obra' %}" class="imp-btn imp-btn-secondary">
+                <i class="fas fa-exchange-alt"></i> Trocar obra
+            </a>
+        </div>
+    </header>
+
+    <section class="imp-toolbar imp-status-config-toolbar">
+        <button type="button" class="imp-btn imp-btn-primary" data-status-modal-open data-mode="create">
+            <i class="fas fa-plus"></i> Novo status
+        </button>
+    </section>
+
+    {% if messages %}
+    <ul class="imp-status-messages">
+        {% for message in messages %}
+        <li class="imp-status-message imp-status-message--{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <section class="imp-table-shell imp-status-config-table-wrap">
+        <div class="imp-table-wrap">
+            <table class="imp-table imp-status-config-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Ordem</th>
+                        <th>Padrão</th>
+                        <th>Mover</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for st in status_list %}
+                    <tr>
+                        <td>
+                            <div class="imp-status-config-namecell">
+                                <span class="imp-status-swatch" style="background-color: {{ st.cor }};" title="{{ st.cor }}" aria-hidden="true"></span>
+                                <span class="imp-status-config-nome">{{ st.nome }}</span>
+                            </div>
+                        </td>
+                        <td class="tabular-nums">{{ st.ordem }}</td>
+                        <td>
+                            {% if st.is_default %}
+                            <span class="imp-status-default-badge">Padrão</span>
+                            {% else %}
+                            <span class="imp-empty-text">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="imp-status-reorder">
+                                <form method="post" class="imp-inline-form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="reorder">
+                                    <input type="hidden" name="status_id" value="{{ st.id }}">
+                                    <input type="hidden" name="direction" value="up">
+                                    <button type="submit" class="imp-btn imp-btn-secondary imp-btn-xs" {% if forloop.first %}disabled title="Já é o primeiro"{% endif %} aria-label="Subir">
+                                        <i class="fas fa-arrow-up"></i>
+                                    </button>
+                                </form>
+                                <form method="post" class="imp-inline-form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="reorder">
+                                    <input type="hidden" name="status_id" value="{{ st.id }}">
+                                    <input type="hidden" name="direction" value="down">
+                                    <button type="submit" class="imp-btn imp-btn-secondary imp-btn-xs" {% if forloop.last %}disabled title="Já é o último"{% endif %} aria-label="Descer">
+                                        <i class="fas fa-arrow-down"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="imp-table-actions">
+                                <button
+                                    type="button"
+                                    class="imp-btn imp-btn-secondary imp-btn-xs"
+                                    data-status-modal-open
+                                    data-mode="edit"
+                                    data-status-id="{{ st.id }}"
+                                    data-nome="{{ st.nome|escapejs }}"
+                                    data-cor="{{ st.cor|escapejs }}"
+                                    data-ordem="{{ st.ordem }}"
+                                    data-is-default="{% if st.is_default %}1{% else %}0{% endif %}"
+                                >
+                                    Editar
+                                </button>
+                                <form method="post" class="imp-inline-form" onsubmit="return confirm('Excluir este status? Esta ação não pode ser desfeita.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="status_id" value="{{ st.id }}">
+                                    <button type="submit" class="imp-btn imp-btn-danger imp-btn-xs">Excluir</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="imp-table-empty">Nenhum status cadastrado. Crie o primeiro com o botão acima.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="imp-modal-overlay {% if show_modal %}is-open{% endif %}" id="status-modal" aria-hidden="{% if show_modal %}false{% else %}true{% endif %}">
+    <div class="imp-modal" role="dialog" aria-modal="true" aria-labelledby="status-modal-title">
+        <div class="imp-modal-header">
+            <h3 id="status-modal-title">Novo status</h3>
+            <button type="button" class="imp-modal-close" data-status-modal-close aria-label="Fechar">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="post" class="app-form imp-form" id="status-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" id="status-form-action" value="{% if form.instance.pk %}update{% else %}create{% endif %}">
+            <input type="hidden" name="status_id" id="status-form-status-id" value="{% if form.instance.pk %}{{ form.instance.pk }}{% endif %}">
+            {% if form.non_field_errors %}
+            <div class="imp-form-errors">
+                {% for err in form.non_field_errors %}<p class="error-text">{{ err }}</p>{% endfor %}
+            </div>
+            {% endif %}
+            <div class="imp-form-grid">
+                <div class="form-group imp-col-2">
+                    <label for="{{ form.nome.id_for_label }}">Nome *</label>
+                    {{ form.nome }}
+                    {% for error in form.nome.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.cor.id_for_label }}">Cor *</label>
+                    <div class="imp-status-cor-row">
+                        {{ form.cor }}
+                        <span class="imp-status-cor-preview" id="status-cor-preview" aria-hidden="true"></span>
+                    </div>
+                    {% for error in form.cor.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.ordem.id_for_label }}">Ordem *</label>
+                    {{ form.ordem }}
+                    {% for error in form.ordem.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="form-group imp-col-2">
+                    <label class="imp-checkbox-label">
+                        {{ form.is_default }}
+                        {{ form.is_default.label }}
+                    </label>
+                    {% for error in form.is_default.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+            </div>
+            <div class="imp-modal-actions">
+                <button type="button" class="imp-btn imp-btn-secondary" data-status-modal-close>Cancelar</button>
+                <button type="submit" class="imp-btn imp-btn-primary">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    const overlay = document.getElementById('status-modal');
+    const form = document.getElementById('status-form');
+    const actionInput = document.getElementById('status-form-action');
+    const statusIdInput = document.getElementById('status-form-status-id');
+    const titleEl = document.getElementById('status-modal-title');
+    const nomeInput = document.getElementById('{{ form.nome.id_for_label }}');
+    const corInput = document.getElementById('{{ form.cor.id_for_label }}');
+    const ordemInput = document.getElementById('{{ form.ordem.id_for_label }}');
+    const defaultInput = document.getElementById('{{ form.is_default.id_for_label }}');
+    const preview = document.getElementById('status-cor-preview');
+    const nextOrdem = {{ next_ordem|default:1 }};
+    function syncPreview() {
+        if (!corInput || !preview) return;
+        var v = (corInput.value || '#3B82F6').trim();
+        preview.style.backgroundColor = v;
+    }
+
+    function openModal() {
+        if (!overlay) return;
+        overlay.classList.add('is-open');
+        overlay.setAttribute('aria-hidden', 'false');
+        syncPreview();
+        if (nomeInput) nomeInput.focus();
+    }
+
+    function closeModal() {
+        if (!overlay) return;
+        overlay.classList.remove('is-open');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function resetCreate() {
+        if (form) form.reset();
+        if (actionInput) actionInput.value = 'create';
+        if (statusIdInput) statusIdInput.value = '';
+        if (titleEl) titleEl.textContent = 'Novo status';
+        if (ordemInput) ordemInput.value = String(nextOrdem);
+        if (defaultInput) defaultInput.checked = false;
+        if (corInput && !corInput.value) corInput.value = '#3B82F6';
+        syncPreview();
+    }
+
+    document.querySelectorAll('[data-status-modal-open]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var mode = btn.getAttribute('data-mode') || 'create';
+            if (mode === 'create') {
+                resetCreate();
+                openModal();
+                return;
+            }
+            if (actionInput) actionInput.value = 'update';
+            if (statusIdInput) statusIdInput.value = btn.getAttribute('data-status-id') || '';
+            if (titleEl) titleEl.textContent = 'Editar status';
+            if (nomeInput) nomeInput.value = btn.getAttribute('data-nome') || '';
+            if (corInput) corInput.value = btn.getAttribute('data-cor') || '#3B82F6';
+            if (ordemInput) ordemInput.value = btn.getAttribute('data-ordem') || '1';
+            if (defaultInput) defaultInput.checked = btn.getAttribute('data-is-default') === '1';
+            syncPreview();
+            openModal();
+        });
+    });
+
+    document.querySelectorAll('[data-status-modal-close]').forEach(function(btn) {
+        btn.addEventListener('click', closeModal);
+    });
+
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closeModal();
+        });
+    }
+
+    if (corInput) {
+        corInput.addEventListener('input', syncPreview);
+        corInput.addEventListener('change', syncPreview);
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && overlay && overlay.classList.contains('is-open')) {
+            closeModal();
+        }
+    });
+
+    {% if show_modal %}
+    openModal();
+    if (titleEl) titleEl.textContent = {% if form.instance.pk %}'Editar status'{% else %}'Novo status'{% endif %};
+    syncPreview();
+    {% endif %}
+})();
+</script>
+{% endblock %}

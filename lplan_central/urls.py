@@ -29,6 +29,7 @@ urlpatterns = [
 
     # === Gestão de Aprovação ===
     path('gestao/', include('gestao_aprovacao.urls')),
+    path('impedimentos/', include('impedimentos.urls')),
 
     # === Mapa de Suprimentos ===
     path('mapa/', include('mapa_obras.urls')),

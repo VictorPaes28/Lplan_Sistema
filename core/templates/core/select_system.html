@@ -169,6 +169,8 @@
     .system-card.biobra .card-inner::before { background: #0ea5e9; }
     .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
     .system-card.central .card-inner::before { background: #475569; }
+    .system-card.impedimentos:hover:not(.disabled) .card-inner { border-color: #d24e1b; }
+    .system-card.impedimentos .card-inner::before { background: #d24e1b; }
 
     /* System Icon */
     .system-icon {
@@ -190,6 +192,12 @@
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
     .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
     .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
+    .system-card.impedimentos .system-icon { background: #d24e1b; }
+    .system-card.impedimentos .system-icon svg {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+    }
 
     /* Badges */
     .access-badge {
@@ -246,6 +254,7 @@
     .system-card.biobra .card-arrow { color: #0ea5e9; }
     .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
+    .system-card.impedimentos .card-arrow { color: #d24e1b; }
 
     /* Acessibilidade: foco visível no teclado */
     .system-card:focus-visible,
@@ -300,6 +309,10 @@
             height: 50px;
             border-radius: 12px;
             font-size: 21px;
+        }
+        .system-card.impedimentos .system-icon svg {
+            width: 21px;
+            height: 21px;
         }
         .feature-list li {
             font-size: 0.78rem;
@@ -646,7 +659,7 @@
         <p class="select-system-hero-lead">Escolha um dos aplicativos do ecossistema LPLAN para continuar.</p>
     </header>
 
-    {% if not has_diario and not has_gestao and not has_mapa and not has_central and not has_workflow %}
+    {% if not has_diario and not has_gestao and not has_impedimentos and not has_mapa and not has_central and not has_workflow %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
         <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum sistema.</p>
         <p class="text-amber-700 text-sm mt-1">Contate o administrador para que seus acessos sejam configurados (grupos e obras).</p>
@@ -677,6 +690,7 @@
                 </div>
             </div>
         </a>
+
         {% endif %}
         {% if has_workflow %}
         <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card" style="order: 1;" aria-label="Central de Aprovações">
@@ -826,6 +840,39 @@
                         <li><i class="fas fa-check-circle text-orange-500"></i>Top riscos por local/categoria</li>
                         <li><i class="fas fa-check-circle text-orange-500"></i>Quem cobrar em cada etapa</li>
                         <li><i class="fas fa-check-circle text-orange-500"></i>Tabela detalhada semelhante ao mapa</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+        <a href="{% url 'impedimentos:select_obra' %}" 
+           class="system-card impedimentos {% if not has_impedimentos %}disabled{% endif %}" 
+           aria-label="Acessar Restrições" 
+           {% if not has_impedimentos %}data-tooltip="Sem acesso"{% endif %}>
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+                            <polyline points="12 8 10 13 13 13 11 17"/>
+                        </svg>
+                    </div>
+                    {% if has_impedimentos %}
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Restrições</h3>
+                <p class="text-sm text-slate-500 mb-4">Restrições, pendências e tarefas por obra</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-blue-500"></i>Lista, quadro e calendário</li>
+                        <li><i class="fas fa-check-circle text-blue-500"></i>Filtros por obra e status</li>
+                        <li><i class="fas fa-check-circle text-blue-500"></i>Múltiplos responsáveis</li>
+                        <li><i class="fas fa-check-circle text-blue-500"></i>Exportação PDF</li>
                     </ul>
                 </div>
                 <div class="mt-4 text-right">

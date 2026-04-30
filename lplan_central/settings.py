@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     # LPLAN Apps
     'core',
     'gestao_aprovacao',  # Gestao_aprovacao (renomeado de obras)
+    'impedimentos',
     'mapa_obras',  # Mapa_Controle/obras (renomeado)
     'accounts',  # Mapa_Controle/accounts
     'suprimentos',  # Mapa_Controle/suprimentos
@@ -71,6 +72,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.middleware.ClearLegacyMessagesCookieMiddleware',  # Limpa cookie "messages" legado para evitar header/cookie grande
+    'core.middleware.AuthenticatedHtmlNoCacheMiddleware',  # HTML autenticado: no-store (evita cache de markup desatualizado)
     # 'core.middleware.SecurityHeadersMiddleware',  # Desativado
 ]
 

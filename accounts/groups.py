@@ -38,6 +38,8 @@ class _Grupos:
     RESPONSAVEL_EMPRESA = 'Responsavel Empresa'
     APROVADOR = 'Aprovador'
     SOLICITANTE = 'Solicitante'
+    # Nome do grupo em auth.Group (UI exibe "Restrições" em GROUP_UI_MODULES).
+    GESTAO_IMPEDIMENTOS = 'Gestão de Impeditivos'
 
     # ──────────────────────────────────────────────
     # Diário de Obra (Core)
@@ -70,6 +72,7 @@ class _Grupos:
         return [
             self.ADMINISTRADOR, self.RESPONSAVEL_EMPRESA,
             self.APROVADOR, self.SOLICITANTE,
+            self.GESTAO_IMPEDIMENTOS,
             self.GERENTES, self.ENGENHARIA,
             self.CENTRAL_APROVACOES_ADMIN,
             self.CENTRAL_APROVACOES_APROVADOR,
@@ -110,6 +113,12 @@ GROUP_UI_MODULES = [
             GRUPOS.APROVADOR,
             GRUPOS.SOLICITANTE,
         ],
+    },
+    {
+        'id': 'impeditivos',
+        'title': 'Restrições',
+        'subtitle': 'Restrições, pendências e tarefas por obra',
+        'names': [GRUPOS.GESTAO_IMPEDIMENTOS],
     },
     {
         'id': 'diario',

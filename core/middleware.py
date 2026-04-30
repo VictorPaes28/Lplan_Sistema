@@ -37,6 +37,26 @@ class ClearLegacyMessagesCookieMiddleware(MiddlewareMixin):
         return response
 
 
+class AuthenticatedHtmlNoCacheMiddleware(MiddlewareMixin):
+    """
+    Evita cache de documentos HTML para utilizadores autenticados (navegador/proxy),
+    reduzindo HTML desatualizado sem <link> a CSS novos. Não altera /static/ nem /media/.
+    """
+
+    def process_response(self, request, response):
+        if request.path.startswith(("/static/", "/media/")):
+            return response
+        content_type = response.get("Content-Type", "")
+        if not content_type.startswith("text/html"):
+            return response
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return response
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response["Pragma"] = "no-cache"
+        return response
+
+
 class SecurityHeadersMiddleware(MiddlewareMixin):
     """
     Middleware to add security headers and cache control.

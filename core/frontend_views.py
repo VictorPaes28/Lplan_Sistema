@@ -407,6 +407,9 @@ def select_system_view(request):
     has_gestao = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
+    has_impedimentos = user.is_superuser or user.is_staff or bool(
+        user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
+    )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
     has_workflow = user.is_superuser or user.is_staff or bool(
         user_groups
@@ -423,7 +426,7 @@ def select_system_view(request):
     has_central = user_is_painel_sistema_admin(user)
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
     if (
-        not (has_diario or has_gestao or has_mapa or has_central or has_workflow)
+        not (has_diario or has_gestao or has_impedimentos or has_mapa or has_central or has_workflow)
         and _is_work_owner(user)
     ):
         return redirect('client-diary-list')
@@ -440,6 +443,7 @@ def select_system_view(request):
         'time_greeting': time_greeting,
         'has_diario': has_diario,
         'has_gestao': has_gestao,
+        'has_impedimentos': has_impedimentos,
         'has_mapa': has_mapa,
         'has_bi_obra': has_bi_obra,
         'has_admin': user.is_superuser or user.is_staff,
@@ -1114,6 +1118,12 @@ def _is_project_rdo_approver(user, project):
     ).exists()
 
 
+def _with_no_cache_html(response):
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response["Pragma"] = "no-cache"
+    return response
+
+
 @login_required
 def select_project_view(request):
     """View para seleção de obra após login. Só aparecem obras às quais o usuário está vinculado (staff vê todas)."""
@@ -1126,26 +1136,29 @@ def select_project_view(request):
                 project = Project.objects.get(pk=project_id, is_active=True)
                 if not _user_can_access_project(request.user, project):
                     messages.error(request, 'Você não está vinculado a esta obra.')
-                    return render(request, 'core/select_project.html', {
+                    response = render(request, 'core/select_project.html', {
                         'projects': projects,
                         'selected_project_id': request.session.get('selected_project_id'),
                     })
+                    return _with_no_cache_html(response)
                 request.session['selected_project_id'] = project.id
                 request.session['selected_project_name'] = project.name
                 request.session['selected_project_code'] = project.code
                 return redirect('dashboard')
             except (Project.DoesNotExist, ValueError, TypeError):
-                return render(request, 'core/select_project.html', {
+                response = render(request, 'core/select_project.html', {
                     'error': 'Obra não encontrada ou inativa.',
                     'projects': projects,
                     'selected_project_id': request.session.get('selected_project_id'),
                 })
+                return _with_no_cache_html(response)
 
     selected_project_id = request.session.get('selected_project_id')
-    return render(request, 'core/select_project.html', {
+    response = render(request, 'core/select_project.html', {
         'projects': projects,
         'selected_project_id': selected_project_id,
     })
+    return _with_no_cache_html(response)
 
 
 def get_selected_project(request):
@@ -1728,9 +1741,11 @@ def report_list_view(request):
     
     # Se for requisição HTMX, retorna apenas o conteúdo
     if request.headers.get('HX-Request'):
-        return render(request, 'core/report_list_partial.html', context)
-    
-    return render(request, 'core/report_list.html', context)
+        response = render(request, 'core/report_list_partial.html', context)
+        return _with_no_cache_html(response)
+
+    response = render(request, 'core/report_list.html', context)
+    return _with_no_cache_html(response)
 
 
 @login_required
