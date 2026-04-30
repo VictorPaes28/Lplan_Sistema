@@ -82,10 +82,10 @@
                     <div class="mb-2 pb-2 border-b border-slate-200 last:border-0">
                         <div class="text-xs font-semibold text-slate-600 mb-1">{{ modulo.title }}</div>
                         {% if modulo.subtitle %}<div class="text-xs text-slate-500 mb-1">{{ modulo.subtitle }}</div>{% endif %}
-                        {% for g in modulo.groups %}
+                        {% for item in modulo.groups %}
                         <label class="flex items-center gap-2 text-sm mb-1">
-                            <input type="checkbox" name="approved_groups" value="{{ g.name }}" {% if g.name in req.requested_groups %}checked{% endif %}>
-                            <span>{{ g.name }}</span>
+                            <input type="checkbox" name="approved_groups" value="{{ item.group.name }}" {% if item.group.name in req.requested_groups %}checked{% endif %}>
+                            <span>{{ item.label }}</span>
                         </label>
                         {% endfor %}
                     </div>

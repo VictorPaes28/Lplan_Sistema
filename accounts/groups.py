@@ -91,6 +91,16 @@ GRUPOS = _Grupos()
 
 GRUPOS_OCULTOS_ATRIBUICAO_UI = frozenset({GRUPOS.RESPONSAVEL_EMPRESA})
 
+# Nome técnico do grupo em auth.Group (POST / permissões) → texto na UI de atribuição.
+GRUPO_LABEL_ATRIBUICAO_UI = {
+    GRUPOS.GESTAO_IMPEDIMENTOS: 'Gestão de Restrições',
+}
+
+
+def grupo_label_atribuicao(nome_oficial: str) -> str:
+    """Rótulo para checkboxes de grupos; padrão é o próprio nome do grupo."""
+    return GRUPO_LABEL_ATRIBUICAO_UI.get(nome_oficial, nome_oficial)
+
 # Layout das telas de grupos (cadastro/edição de usuário, aprovação de signup).
 #
 # Como incluir um módulo novo no futuro:
@@ -98,8 +108,8 @@ GRUPOS_OCULTOS_ATRIBUICAO_UI = frozenset({GRUPOS.RESPONSAVEL_EMPRESA})
 #      do registro em auth (ex.: setup_groups, bootstrap ou migração), como já é feito hoje.
 #   2. Acrescente um dict abaixo com: id (slug estável), title, subtitle (opcional), names
 #      (lista de constantes GRUPOS.* que pertencem a esse módulo na UI).
-#   3. Não é preciso alterar templates: grupos_modulos_para_atribuicao() monta as seções
-#      a partir desta lista. A ordem na lista é a ordem de exibição.
+#   3. Templates usam grupos_modulos_para_atribuicao(): cada entrada em modulo.groups
+#      é um dict {'group': Group, 'label': str} (label pode diferir do group.name).
 #   4. Para ocultar um grupo só da seleção (legado), use GRUPOS_OCULTOS_ATRIBUICAO_UI — não
 #      remova o nome de GRUPOS.TODOS nem das regras de permissão.
 #
@@ -173,7 +183,11 @@ def grupos_ordenados_atribuivel():
 
 def grupos_modulos_para_atribuicao():
     """
-    Lista de seções para templates: cada item tem id, title, subtitle, groups (lista de Group).
+    Lista de seções para templates: cada item tem id, title, subtitle, groups.
+
+    Cada elemento de groups é ``{'group': Group, 'label': str}``; ``label`` segue
+    GRUPO_LABEL_ATRIBUICAO_UI quando houver, mantendo ``group.name``
+    para value do checkbox e permissões.
     """
     from django.contrib.auth.models import Group
 
@@ -188,7 +202,9 @@ def grupos_modulos_para_atribuicao():
                 continue
             g = by_name.get(name)
             if g is not None:
-                row['groups'].append(g)
+                row['groups'].append(
+                    {'group': g, 'label': grupo_label_atribuicao(name)}
+                )
         out.append(row)
     return out
 

@@ -73,10 +73,10 @@
                 <div class="mb-3" style="border: 1px solid #e9ecef; border-radius: 8px; padding: 0.75rem 1rem; background: #fafbfc;">
                     <div class="fw-semibold" style="margin-bottom: 0.25rem;">{{ modulo.title }}</div>
                     {% if modulo.subtitle %}<div class="text-muted small mb-2">{{ modulo.subtitle }}</div>{% endif %}
-                    {% for grupo in modulo.groups %}
+                    {% for item in modulo.groups %}
                     <div class="form-check">
-                        <input type="checkbox" id="grupo_{{ grupo.id }}" name="grupos" value="{{ grupo.name }}" class="form-check-input" {% if grupo in user_grupos %}checked{% endif %}>
-                        <label for="grupo_{{ grupo.id }}" class="form-check-label">{{ grupo.name }}</label>
+                        <input type="checkbox" id="grupo_{{ item.group.id }}" name="grupos" value="{{ item.group.name }}" class="form-check-input" {% if item.group in user_grupos %}checked{% endif %}>
+                        <label for="grupo_{{ item.group.id }}" class="form-check-label">{{ item.label }}</label>
                     </div>
                     {% empty %}
                     <p class="text-muted small mb-0">Nenhum grupo configurado neste módulo.</p>
