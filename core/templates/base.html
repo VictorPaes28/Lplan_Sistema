@@ -640,6 +640,15 @@
                     if (path.indexOf('/gestao/') !== -1) return origin + '/gestao/';
                     if (path.indexOf('/central/usuarios') !== -1) return origin + '/central/usuarios/';
                     if (path.indexOf('admin-central') !== -1) return origin + '/accounts/admin-central/';
+                    // Restrições (impedimentos): hierarquia fixa, não histórico do navegador
+                    if (path.indexOf('/impedimentos/') !== -1) {
+                        var mStatus = path.match(/\/impedimentos\/(\d+)\/status\/?/);
+                        if (mStatus) return origin + '/impedimentos/' + mStatus[1] + '/';
+                        if (path.indexOf('/impedimentos/selecionar-obra') !== -1) return origin + '/select-system/';
+                        if (path.indexOf('/impedimentos/itens') !== -1) return origin + '/impedimentos/selecionar-obra/';
+                        if (path.match(/\/impedimentos\/\d+\/?/)) return origin + '/impedimentos/selecionar-obra/';
+                        return origin + '/impedimentos/selecionar-obra/';
+                    }
                     return null;
                 }
                 

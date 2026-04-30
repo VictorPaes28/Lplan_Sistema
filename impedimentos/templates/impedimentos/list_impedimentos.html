@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block back_url %}{% url 'impedimentos:select_obra' %}{% endblock %}
 {% block title %}Restrições{% endblock %}
 {% block page_title %}Restrições{% endblock %}
 {% block page_subtitle %}{{ obra.nome }}{% endblock %}

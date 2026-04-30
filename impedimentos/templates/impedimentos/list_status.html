@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block back_url %}{% url 'impedimentos:list_impedimentos' obra_id=project.id %}{% endblock %}
 {% block title %}Status das restrições{% endblock %}
 {% block page_title %}Restrições{% endblock %}
 {% block page_subtitle %}{{ obra.nome }}{% endblock %}
