@@ -66,41 +66,59 @@ def _parse_json_body(request):
         return {}
 
 
+def _mapa_controle_rows(colunas: int = 20, linhas: int = 20):
+    colunas = max(5, int(colunas))
+    linhas = max(1, int(linhas))
+    dominios = [
+        "Hidráulica",
+        "Elétrica",
+        "Arquitetônico",
+        "Estrutural",
+        "Incêndio",
+        "Acabamento",
+        "Climatização",
+        "Automação",
+        "Gás",
+        "Drenagem",
+    ]
+    topo = [""]
+    subtopo = ["Bloco / local"]
+    for i in range(colunas):
+        topo.append(dominios[i % len(dominios)])
+        subtopo.append(f"Atividade {i + 1}")
+    topo.append("Total")
+    subtopo.append("")
+    rows = [topo, subtopo]
+    for r in range(linhas):
+        eixo = f"Bloco {chr(65 + r)}" if r < 2 else f"Eixo {r - 1}"
+        row = [eixo] + [""] * colunas + [""]
+        rows.append(row)
+    return rows
+
+
 def _preset_layout(tipo: str):
     if tipo == AmbienteTipo.MAPA_CONTROLE:
+        # Um único bloco matriz; o utilizador adiciona KPI / detalhe pela barra se precisar.
         return {
             "title": "Mapa de Controle",
             "sections": [
                 {
-                    "id": "resumo",
-                    "kind": "kpi_strip",
-                    "title": "Resumo",
-                    "x": 80,
-                    "y": 80,
-                    "width": 340,
-                    "height": 180,
-                    "layer": {},
-                },
-                {
                     "id": "matriz",
                     "kind": "matrix_table",
                     "title": "Matriz de Controle",
-                    "x": 460,
-                    "y": 80,
-                    "width": 560,
-                    "height": 320,
-                    "layer": {},
-                    "data": {"rows": [["Atividade", "Bloco A", "Bloco B"], ["Fundação", "", ""], ["Estrutura", "", ""]]},
-                },
-                {
-                    "id": "detalhe",
-                    "kind": "detail_panel",
-                    "title": "Detalhamento",
                     "x": 80,
-                    "y": 300,
-                    "width": 340,
-                    "height": 200,
+                    "y": 80,
+                    "width": 680,
+                    "height": 400,
                     "layer": {},
+                    "data": {
+                        "headerBandCount": 2,
+                        "heatmap": True,
+                        "totalsColumnAuto": True,
+                        "totalsRowAuto": True,
+                        "verticalHeaders": True,
+                        "rows": _mapa_controle_rows(20, 20),
+                    },
                 },
             ],
         }
@@ -152,6 +170,31 @@ def _validar_layout_publicacao(layout: dict):
         if not kind:
             return f"Seção {idx} sem tipo."
     return None
+
+
+PO_MAX_MATRIX_CELLS_SYNC = 50_000
+
+
+def _count_matrix_cells_in_sync_payload(raw_items):
+    total = 0
+    if not isinstance(raw_items, list):
+        return 0
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or item.get("tipo") or "").strip()
+        if kind not in ("matrix_table", "table"):
+            continue
+        data = item.get("data")
+        if not isinstance(data, dict):
+            continue
+        rows = data.get("rows")
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if isinstance(row, list):
+                total += len(row)
+    return total
 
 
 def _serializar_semanticas():
@@ -216,10 +259,12 @@ def _sync_layout_to_elementos(ambiente: AmbienteOperacional, versao: AmbienteVer
         if not isinstance(camada, dict):
             camada = {}
         elemento.camada = camada
-        elemento.dados = {
-            "kind": section.get("kind"),
-            "semantica": section.get("semantica"),
-        }
+        # Preservar payload completo da matriz (rows, heatmap, cabeçalhos, etc.). Sobrescrever só com
+        # kind/semantica do section estraga o JSON em disco e, no próximo GET, o editor repõe o modelo vazio.
+        matrix_payload = dict(section.get("data")) if isinstance(section.get("data"), dict) else {}
+        matrix_payload["kind"] = section.get("kind")
+        matrix_payload["semantica"] = (section.get("semantica") or matrix_payload.get("semantica") or "").strip()
+        elemento.dados = matrix_payload
         elemento.ativo = True
         elemento.origem_layout = True
         elemento.save()
@@ -288,7 +333,6 @@ def editor_ambiente(request, ambiente_id: int):
 
     draft = ambiente.versoes.filter(estado=VersaoEstado.DRAFT).order_by("-numero").first()
     published = ambiente.versoes.filter(estado=VersaoEstado.PUBLISHED).order_by("-numero").first()
-    usar_beta = request.GET.get("beta") == "1"
     is_mapa_controle = ambiente.tipo == AmbienteTipo.MAPA_CONTROLE
     obra_id = obra.id
     mapa_url = f"{reverse('engenharia:mapa_controle')}?obra={obra_id}"
@@ -304,11 +348,8 @@ def editor_ambiente(request, ambiente_id: int):
             "published_json": json.dumps(_serializar_versao(published) or {}),
             "semanticas_json": json.dumps(_serializar_semanticas()),
             "is_mapa_controle": is_mapa_controle,
-            "usar_beta": usar_beta,
-            "render_beta_editor": (not is_mapa_controle) or usar_beta,
             "mapa_atual_url": mapa_url,
             "importar_mapa_url": importar_url,
-            "beta_editor_url": f"{reverse('engenharia:ferramenta_editor_ambiente', kwargs={'ambiente_id': ambiente.id})}?beta=1",
         },
     )
 
@@ -415,6 +456,23 @@ def api_criar_ambiente(request):
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
 @require_http_methods(["POST"])
+def api_excluir_ambiente(request, ambiente_id: int):
+    _, obra = _resolver_obra(request)
+    if not obra:
+        return JsonResponse({"success": False, "error": "Selecione uma obra válida."}, status=400)
+    ambiente = get_object_or_404(AmbienteOperacional, id=ambiente_id)
+    if ambiente.obra_id != obra.id:
+        return JsonResponse({"success": False, "error": "Ambiente não pertence à obra ativa."}, status=403)
+    if not ambiente.ativo:
+        return JsonResponse({"success": True, "message": "Ambiente já estava removido."})
+    ambiente.ativo = False
+    ambiente.save(update_fields=["ativo", "updated_at"])
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
+@require_http_methods(["POST"])
 def api_adicionar_secao(request, ambiente_id: int):
     payload = _parse_json_body(request)
     _, obra = _resolver_obra(request)
@@ -456,7 +514,24 @@ def api_adicionar_secao(request, ambiente_id: int):
         if semantica:
             section["semantica"] = semantica
         if tipo == "matrix_table":
-            section["data"] = {"rows": [["Coluna 1", "Coluna 2"], ["", ""], ["", ""]]}
+            rows_base = (
+                _mapa_controle_rows(20, 20)
+                if ambiente.tipo == AmbienteTipo.MAPA_CONTROLE
+                else [
+                    ["", "Grupo A", "Grupo A", "Grupo B", "Grupo B", "Total"],
+                    ["Eixo (linhas)", "Etapa 1", "Etapa 2", "Etapa 3", "Etapa 4", ""],
+                    ["Local 1", "", "", "", "", ""],
+                    ["Local 2", "", "", "", "", ""],
+                ]
+            )
+            section["data"] = {
+                "headerBandCount": 2,
+                "heatmap": True,
+                "totalsColumnAuto": True,
+                "totalsRowAuto": True,
+                "verticalHeaders": True,
+                "rows": rows_base,
+            }
         sections.append(section)
         layout["sections"] = sections
         draft.layout = layout
@@ -556,6 +631,15 @@ def api_sync_elementos(request, ambiente_id: int):
     raw_items = payload.get("items")
     if not isinstance(raw_items, list):
         return JsonResponse({"success": False, "error": "Payload inválido: items deve ser lista."}, status=400)
+
+    if _count_matrix_cells_in_sync_payload(raw_items) > PO_MAX_MATRIX_CELLS_SYNC:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": f"Soma de células das matrizes excede o limite ({PO_MAX_MATRIX_CELLS_SYNC}). Reduza linhas/colunas ou divida blocos.",
+            },
+            status=400,
+        )
 
     with transaction.atomic():
         draft = ambiente.versoes.filter(estado=VersaoEstado.DRAFT).order_by("-numero").first()

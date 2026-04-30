@@ -42,16 +42,6 @@
   border: 1px solid #e2e8f0;
 }
 
-.po-compat-card {
-  border: 1px solid #cbd5e1;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-}
-
-.po-compat-list {
-  color: #334155;
-  padding-left: 18px;
-}
-
 .po-section-header h6 {
   font-weight: 650;
 }
@@ -80,6 +70,7 @@
 }
 
 .po-canvas-viewport {
+  position: relative;
   height: calc(100vh - 300px);
   min-height: 560px;
   overflow: auto;
@@ -94,10 +85,98 @@
   cursor: grabbing;
 }
 
-.po-help-text {
-  color: #64748b;
+.po-zoom-range {
+  width: 120px;
+  min-width: 80px;
+}
+
+.po-matrix-editor .po-mx-highlight-row td,
+.po-matrix-editor .po-mx-highlight-row th {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: -1px;
+}
+
+.po-matrix-editor td.po-mx-highlight-col,
+.po-matrix-editor th.po-mx-highlight-col {
+  outline: 2px solid rgba(14, 165, 233, 0.55);
+  outline-offset: -1px;
+}
+
+.po-btn-loading {
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+.po-btn-loading .spinner-border-sm {
+  vertical-align: -0.15em;
+}
+
+/* Menu de contexto do card (botão direito na prancheta) */
+.po-card-context-menu {
+  position: fixed;
+  z-index: 1080;
+  min-width: 11rem;
+  padding: 4px 0;
+  margin: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+  display: none;
+  flex-direction: column;
+  gap: 0;
+}
+
+.po-card-context-menu.is-open {
+  display: flex;
+}
+
+.po-card-context-item {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.85rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: #334155;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.po-card-context-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.po-card-context-item--danger {
+  color: #b91c1c;
+}
+
+.po-card-context-item--danger:hover {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.po-card-context-hint {
+  line-height: 1.35;
+  max-width: 15rem;
+  pointer-events: none;
+}
+
+.po-matrix-inline-edit {
   font-size: 12px;
-  margin-bottom: 10px;
+  line-height: 1.25;
+  border: 2px solid #2563eb !important;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.2);
+  background: #fff !important;
+}
+
+.po-card-context-item--row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .po-top-meta {
@@ -105,11 +184,6 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.po-shortcuts-hint {
-  color: #64748b;
-  font-size: 12px;
 }
 
 .po-canvas-board {
@@ -128,38 +202,24 @@
   left: 12px;
   z-index: 10;
   display: flex;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.9);
+  gap: 4px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid #dbe3ee;
   border-radius: 10px;
-  padding: 6px;
+  padding: 4px 6px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
 }
 
-.po-minimap {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  width: 180px;
-  height: 120px;
-  z-index: 10;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
-  overflow: hidden;
+.po-quick-fab.po-quick-fab--fixed {
+  z-index: 1080;
 }
 
-.po-minimap-el {
-  position: absolute;
-  border: 1px solid rgba(37, 99, 235, 0.5);
-  background: rgba(147, 197, 253, 0.35);
-}
-
-.po-minimap-view {
-  position: absolute;
-  border: 2px solid #0f172a;
-  background: rgba(15, 23, 42, 0.08);
+.po-fab-ico {
+  min-width: 2.1rem;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  line-height: 1;
 }
 
 .po-canvas-empty {
@@ -248,6 +308,11 @@
   box-shadow: 0 12px 34px rgba(15, 23, 42, 0.18);
   background: rgba(252, 253, 255, 0.96);
   backdrop-filter: blur(4px);
+  z-index: 1090;
+}
+
+.po-offcanvas.show {
+  pointer-events: auto;
 }
 
 .po-offcanvas .offcanvas-header {
@@ -262,7 +327,7 @@
 }
 
 .po-matrix-editor {
-  max-height: 220px;
+  max-height: min(52vh, 420px);
   overflow: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -289,5 +354,213 @@
 .po-matrix-editor td {
   background: #ffffff;
   cursor: text;
+}
+
+.po-matrix-editor .po-mx-readonly td,
+.po-matrix-editor .po-mx-readonly th {
+  cursor: default;
+}
+
+.po-matrix-editor thead th {
+  background: #f1f5f9;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  max-width: 7.5rem;
+}
+
+.po-matrix-editor thead tr:nth-child(2) th {
+  background: #eef2f7;
+}
+
+.po-matrix-editor thead tr:nth-child(3) th {
+  background: #e8edf3;
+}
+
+.po-matrix-editor .po-mx-axis {
+  text-align: left;
+  font-weight: 700;
+  min-width: 6.5rem;
+  background: #f8fafc !important;
+}
+
+.po-matrix-editor tbody td:first-child {
+  font-weight: 600;
+  text-align: left;
+  background: #fafbfc;
+}
+
+.po-matrix-editor .po-mx-hcell {
+  font-size: 11px;
+}
+
+.po-matrix-editor .po-mx-heat-90,
+.po-matrix-editor .po-mx-heat-70,
+.po-matrix-editor .po-mx-heat-40,
+.po-matrix-editor .po-mx-heat-10,
+.po-matrix-editor .po-mx-heat-0 {
+  font-weight: 700;
+  text-align: center;
+}
+
+.po-matrix-editor .po-mx-heat-90 {
+  background: #0284c7 !important;
+  color: #fff;
+}
+
+.po-matrix-editor .po-mx-heat-70 {
+  background: #38bdf8 !important;
+  color: #082f49;
+}
+
+.po-matrix-editor .po-mx-heat-40 {
+  background: #bae6fd !important;
+  color: #0c4a6e;
+}
+
+.po-matrix-editor .po-mx-heat-10 {
+  background: #e0f2fe !important;
+  color: #334155;
+}
+
+.po-matrix-editor .po-mx-heat-0 {
+  background: #f8fafc !important;
+  color: #64748b;
+}
+
+.po-matrix-table-edit {
+  min-width: max(100%, 520px);
+}
+
+.po-matrix-table-edit.po-mx-vhead thead tr:last-child th:not(:first-child) {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  vertical-align: middle;
+  min-width: 1.75rem;
+  max-width: 2.25rem;
+  height: 7.5rem;
+  font-size: 0.65rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.po-matrix-table-edit thead th:first-child,
+.po-matrix-table-edit tbody td:first-child,
+.po-matrix-table-edit tfoot td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 2px 0 0 rgba(15, 23, 42, 0.06);
+}
+
+.po-matrix-table-edit td.po-mx-ro,
+.po-matrix-table-edit th.po-mx-ro {
+  background: #f1f5f9 !important;
+  color: #475569;
+  font-weight: 700;
+  cursor: default;
+  user-select: none;
+}
+
+.po-matrix-table-edit td.po-mx-total-col {
+  background: #eff6ff !important;
+  font-weight: 700;
+}
+
+.po-matrix-table-edit tfoot td {
+  background: #f1f5f9;
+  font-weight: 700;
+  border-top: 2px solid #cbd5e1;
+}
+
+.po-mx-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  color: #475569;
+}
+
+.po-mx-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.po-mx-legend__sw {
+  width: 0.85rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+/* Popover: cores e fontes (menu botão direito) */
+.po-appearance-pop {
+  position: fixed;
+  z-index: 1095;
+  width: min(22rem, calc(100vw - 24px));
+  max-height: min(78vh, 520px);
+  display: flex;
+  flex-direction: column;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.po-appearance-pop__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  cursor: default;
+}
+
+.po-appearance-pop__title {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.po-appearance-pop__scroll {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.po-ap-fieldset {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem 0.55rem;
+  margin: 0;
+}
+
+.po-ap-fieldset legend {
+  float: unset;
+  width: auto;
+  padding: 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: #475569;
+}
+
+.po-appearance-pop .form-label-sm {
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.po-appearance-pop__foot {
+  flex-shrink: 0;
 }
 
