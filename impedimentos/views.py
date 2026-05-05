@@ -279,7 +279,6 @@ def _list_redirect_url(request, path, view_mode):
 def _impedimentos_table_queryset(obra, get_params):
     q = (get_params.get("q") or "").strip()
     filter_status = (get_params.get("status") or "").strip()
-    filter_prioridade = (get_params.get("prioridade") or "").strip()
     filter_responsavel = (get_params.get("responsavel") or "").strip()
     sort_key = (get_params.get("sort") or "criado_em").strip()
     sort_dir = (get_params.get("dir") or "desc").strip().lower()
@@ -295,15 +294,43 @@ def _impedimentos_table_queryset(obra, get_params):
         table_qs = table_qs.filter(titulo__icontains=q)
     if filter_status.isdigit():
         table_qs = table_qs.filter(status_id=int(filter_status))
-    if filter_prioridade in {
+    prio_raw = (get_params.get("prioridade") or "").strip()
+    prio_norm = prio_raw.upper() if prio_raw else ""
+    prio_map = {
+        "CRITICA": Impedimento.PRIORIDADE_CRITICA,
+        "ALTA": Impedimento.PRIORIDADE_ALTA,
+        "NORMAL": Impedimento.PRIORIDADE_NORMAL,
+        "BAIXA": Impedimento.PRIORIDADE_BAIXA,
+    }
+    filter_prio_code = prio_map.get(prio_norm) or (
+        prio_raw
+        if prio_raw
+        in {
+            Impedimento.PRIORIDADE_BAIXA,
+            Impedimento.PRIORIDADE_NORMAL,
+            Impedimento.PRIORIDADE_ALTA,
+            Impedimento.PRIORIDADE_CRITICA,
+        }
+        else ""
+    )
+    if filter_prio_code in {
         Impedimento.PRIORIDADE_BAIXA,
         Impedimento.PRIORIDADE_NORMAL,
         Impedimento.PRIORIDADE_ALTA,
         Impedimento.PRIORIDADE_CRITICA,
     }:
-        table_qs = table_qs.filter(prioridade=filter_prioridade)
+        table_qs = table_qs.filter(prioridade=filter_prio_code)
     if filter_responsavel.isdigit():
         table_qs = table_qs.filter(responsaveis__id=int(filter_responsavel))
+
+    vencidas_raw = (get_params.get("vencidas") or "").strip().lower()
+    if vencidas_raw in {"1", "true", "yes"}:
+        hoje = date.today()
+        table_qs = table_qs.filter(prazo__isnull=False, prazo__lt=hoje)
+
+    sem_resp_raw = (get_params.get("sem_responsavel") or "").strip().lower()
+    if sem_resp_raw in {"1", "true", "yes"}:
+        table_qs = table_qs.annotate(_nresp=Count("responsaveis")).filter(_nresp=0)
 
     cat_ids = _parse_cat_ids(get_params, obra)
     table_qs = _filter_impedimentos_by_cat_ids(table_qs, cat_ids)

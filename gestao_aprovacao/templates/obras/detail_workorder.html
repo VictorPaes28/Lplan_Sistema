@@ -60,15 +60,19 @@
                 Solicitar Exclusão
             </a>
         {% endif %}
-        {% if workorder.solicitado_exclusao %}
-        {% if workorder.status == 'pendente' or workorder.status == 'reprovado' %}
-            <div class="alert-exclusao-solicitada">
+    </div>
+
+    {% if workorder.solicitado_exclusao %}
+    {% if workorder.status == 'pendente' or workorder.status == 'reprovado' %}
+    <div class="detail-section" style="margin-bottom: 1.5rem; background: var(--dw-warning-bg); border-color: #fde68a; border-left: 3px solid #ca8a04;">
+        <div style="display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start; justify-content: space-between;">
+            <div style="flex: 1; min-width: 220px;">
                 <div class="alert-exclusao-header">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     <strong>Exclusão Solicitada</strong>
                 </div>
                 <p class="alert-exclusao-text">
-                    Solicitado por {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }} 
+                    Solicitado por {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }}
                     em {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}. Aguardando aprovação.
                 </p>
                 {% if workorder.motivo_exclusao %}
@@ -78,23 +82,16 @@
                     </div>
                 {% endif %}
             </div>
-        {% endif %}
-        {% endif %}
-        {% if can_aprovar_exclusao %}
-        {% if workorder.status == 'pendente' or workorder.status == 'reprovado' %}
-            <div class="exclusao-actions">
-                <a href="{% url 'gestao:aprovar_exclusao' workorder.pk %}" class="btn btn-aprovar-exclusao">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:0.25rem;"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    Aprovar Exclusão
-                </a>
-                <a href="{% url 'gestao:rejeitar_exclusao' workorder.pk %}" class="btn btn-rejeitar-exclusao">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:0.25rem;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    Rejeitar Exclusão
-                </a>
+            {% if can_aprovar_exclusao %}
+            <div class="approval-actions" style="flex-shrink: 0;">
+                <a href="{% url 'gestao:aprovar_exclusao' workorder.pk %}" class="btn approval-btn-approve">Aprovar Exclusão</a>
+                <a href="{% url 'gestao:rejeitar_exclusao' workorder.pk %}" class="btn approval-btn-reject">Rejeitar Exclusão</a>
             </div>
-        {% endif %}
-        {% endif %}
+            {% endif %}
+        </div>
     </div>
+    {% endif %}
+    {% endif %}
     
     <!-- Informações Principais -->
     <div class="detail-section">

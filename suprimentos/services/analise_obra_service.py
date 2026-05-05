@@ -15,7 +15,8 @@ import re
 import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 
 from django.db.models import Count, Prefetch, Q
@@ -175,6 +176,33 @@ def _resolve_project_for_obra(obra: Obra) -> Project | None:
         if p:
             return p
     return None
+
+
+def _resolve_gestao_obra(mapa_obra: Obra):
+    """Resolve `gestao_aprovacao.Obra` a partir da obra do Mapa (project ou código)."""
+    from gestao_aprovacao.models import Obra as GestaoObra
+
+    if mapa_obra.project_id:
+        go = GestaoObra.objects.filter(project_id=mapa_obra.project_id).first()
+        if go:
+            return go
+    project = _resolve_project_for_obra(mapa_obra)
+    if project:
+        go = GestaoObra.objects.filter(project_id=project.id).first()
+        if go:
+            return go
+    codigo = (mapa_obra.codigo_sienge or "").strip()
+    if codigo:
+        return GestaoObra.objects.filter(codigo=codigo).first()
+    return None
+
+
+def _workorder_valor_para_soma(wo) -> Decimal:
+    if wo.valor_estimado is not None:
+        return wo.valor_estimado
+    if wo.valor_medicao is not None:
+        return wo.valor_medicao
+    return Decimal("0")
 
 
 def _criticidade_from_pct(pct: float | None) -> str:
@@ -479,6 +507,275 @@ class AnaliseObraService:
             qs = qs.filter(id__in=matched_ids) if matched_ids else qs.none()
         return qs
 
+    def _build_gestcontroll(self) -> dict[str, Any]:
+        """Pedidos / aprovações (GestControll) para a obra do mapa e o período do BI."""
+        from gestao_aprovacao.models import Approval, WorkOrder
+
+        empty: dict[str, Any] = {
+            "gestao_obra_id": None,
+            "kpis": {
+                "pendentes_count": 0,
+                "pendentes_valor": 0.0,
+                "reprovados_count": 0,
+                "reprovados_por_tipo": {},
+                "taxa_aprovacao": 0,
+                "taxa_reprovacao_pct": 0.0,
+                "aprovados_count": 0,
+                "alcadas_travadas": 0,
+                "alcadas_detalhes": [],
+                "tempo_medio_geral": None,
+            },
+            "pedidos_pendentes": [],
+            "aprovadores": [],
+        }
+
+        go = _resolve_gestao_obra(self.obra)
+        if not go:
+            return empty
+
+        tz = timezone.get_current_timezone()
+        start_dt = timezone.make_aware(datetime.combine(self.periodo.data_inicio, time.min), tz)
+        end_exclusive = timezone.make_aware(
+            datetime.combine(self.periodo.data_fim + timedelta(days=1), time.min),
+            tz,
+        )
+        now = timezone.now()
+        stale_cutoff = now - timedelta(days=5)
+
+        base = WorkOrder.objects.filter(obra=go)
+        pend_qs = base.filter(status__in=["pendente", "reaprovacao"]).order_by("-data_envio", "-created_at")
+
+        pendentes_count = pend_qs.count()
+        pendentes_valor_dec = Decimal("0")
+        for wo in pend_qs.only("valor_estimado", "valor_medicao"):
+            pendentes_valor_dec += _workorder_valor_para_soma(wo)
+
+        pedidos_pendentes: list[dict[str, Any]] = []
+        for wo in pend_qs[:15]:
+            ref = wo.data_envio or wo.created_at
+            dias_pendente = max(0, (now - ref).days) if ref else 0
+            pedidos_pendentes.append(
+                {
+                    "id": wo.id,
+                    "codigo": wo.codigo,
+                    "nome_credor": wo.nome_credor,
+                    "tipo_solicitacao": wo.get_tipo_solicitacao_display(),
+                    "dias_pendente": dias_pendente,
+                    "valor_estimado": wo.valor_estimado,
+                    "valor_medicao": wo.valor_medicao,
+                }
+            )
+
+        approvals_list = list(
+            Approval.objects.filter(
+                work_order__obra=go,
+                created_at__gte=start_dt,
+                created_at__lt=end_exclusive,
+            ).select_related("aprovado_por", "work_order")
+        )
+
+        aprovados_count = sum(1 for a in approvals_list if a.decisao == "aprovado")
+        reprovados_list = [a for a in approvals_list if a.decisao == "reprovado"]
+        reprovados_count = len(reprovados_list)
+
+        rep_by_tipo: Counter[str] = Counter()
+        for ap in reprovados_list:
+            rep_by_tipo[ap.work_order.get_tipo_solicitacao_display()] += 1
+        reprovados_por_tipo = dict(rep_by_tipo.most_common())
+
+        total_dec = aprovados_count + reprovados_count
+        taxa_aprovacao = round(100 * aprovados_count / total_dec) if total_dec else 0
+        taxa_reprovacao_pct = round(100 * reprovados_count / total_dec, 1) if total_dec else 0.0
+
+        stale_qs = base.filter(status__in=["pendente", "reaprovacao"]).filter(
+            Q(data_envio__isnull=False, data_envio__lt=stale_cutoff)
+            | Q(data_envio__isnull=True, created_at__lt=stale_cutoff)
+        )
+        alcadas_travadas = stale_qs.count()
+        stale_by_tipo: Counter[str] = Counter()
+        for wo in stale_qs.only("tipo_solicitacao"):
+            stale_by_tipo[wo.get_tipo_solicitacao_display()] += 1
+        alcadas_detalhes = [{"nome": k, "count": v} for k, v in stale_by_tipo.most_common()]
+
+        all_tempos: list[float] = []
+        for ap in approvals_list:
+            wo = ap.work_order
+            env = wo.data_envio or wo.created_at
+            if env and ap.created_at:
+                delta = (ap.created_at - env).total_seconds() / 86400.0
+                if delta >= 0:
+                    all_tempos.append(delta)
+        tempo_medio_geral = round(sum(all_tempos) / len(all_tempos), 1) if all_tempos else None
+
+        by_user: dict[int, dict[str, Any]] = {}
+        for ap in approvals_list:
+            u = ap.aprovado_por
+            if not u:
+                continue
+            uid = u.id
+            if uid not in by_user:
+                by_user[uid] = {
+                    "nome": (u.get_full_name() or "").strip() or u.username,
+                    "nivel": None,
+                    "aprovados": 0,
+                    "reprovados": 0,
+                    "tempos": [],
+                }
+            st = by_user[uid]
+            if ap.decisao == "aprovado":
+                st["aprovados"] += 1
+            else:
+                st["reprovados"] += 1
+            wo = ap.work_order
+            env = wo.data_envio or wo.created_at
+            if env and ap.created_at:
+                delta = (ap.created_at - env).total_seconds() / 86400.0
+                if delta >= 0:
+                    st["tempos"].append(delta)
+
+        aprovadores: list[dict[str, Any]] = []
+        for st in sorted(
+            by_user.values(),
+            key=lambda x: x["aprovados"] + x["reprovados"],
+            reverse=True,
+        ):
+            tempos = st["tempos"]
+            tm = round(sum(tempos) / len(tempos), 1) if tempos else 99.0
+            aprovadores.append(
+                {
+                    "nome": st["nome"],
+                    "nivel": st["nivel"],
+                    "aprovados": st["aprovados"],
+                    "reprovados": st["reprovados"],
+                    "tempo_medio_dias": tm,
+                }
+            )
+
+        return {
+            "gestao_obra_id": go.id,
+            "kpis": {
+                "pendentes_count": pendentes_count,
+                "pendentes_valor": float(pendentes_valor_dec.quantize(Decimal("0.01"))),
+                "reprovados_count": reprovados_count,
+                "reprovados_por_tipo": reprovados_por_tipo,
+                "taxa_aprovacao": taxa_aprovacao,
+                "taxa_reprovacao_pct": taxa_reprovacao_pct,
+                "aprovados_count": aprovados_count,
+                "alcadas_travadas": alcadas_travadas,
+                "alcadas_detalhes": alcadas_detalhes,
+                "tempo_medio_geral": tempo_medio_geral,
+            },
+            "pedidos_pendentes": pedidos_pendentes,
+            "aprovadores": aprovadores,
+        }
+
+    def _build_restricoes(self) -> dict[str, Any]:
+        """Restrições (impedimentos) da obra GestControll vinculada ao mapa."""
+        from impedimentos.models import Impedimento, StatusImpedimento
+
+        prio_template = {
+            Impedimento.PRIORIDADE_CRITICA: 0,
+            Impedimento.PRIORIDADE_ALTA: 0,
+            Impedimento.PRIORIDADE_NORMAL: 0,
+            Impedimento.PRIORIDADE_BAIXA: 0,
+        }
+        empty: dict[str, Any] = {
+            "kpis": {
+                "total_aberto": 0,
+                "por_prioridade": dict(prio_template),
+                "vencidas": 0,
+                "sem_responsavel": 0,
+                "subtarefas_bloqueando": 0,
+                "restricoes_com_subtarefa_aberta": 0,
+            },
+            "vencidas_recentes": [],
+            "por_responsavel": [],
+        }
+
+        go = _resolve_gestao_obra(self.obra)
+        if not go:
+            return empty
+
+        ultimo = StatusImpedimento.objects.filter(obra=go).order_by("-ordem").first()
+        hoje = timezone.now().date()
+
+        roots = Impedimento.objects.filter(obra=go, parent__isnull=True)
+        if ultimo:
+            base_open = roots.exclude(status_id=ultimo.id)
+        else:
+            base_open = roots
+
+        total_aberto = base_open.count()
+        por_prioridade = dict(prio_template)
+        for row in base_open.values("prioridade").annotate(c=Count("id")):
+            k = row["prioridade"]
+            if k in por_prioridade:
+                por_prioridade[k] = row["c"]
+
+        vencidas_qs = base_open.filter(prazo__isnull=False, prazo__lt=hoje)
+        vencidas = vencidas_qs.count()
+
+        def _resp_label(imp) -> str:
+            names = [
+                (u.get_full_name() or "").strip() or u.username for u in imp.responsaveis.all()
+            ]
+            return ", ".join(names) if names else ""
+
+        vencidas_recentes: list[dict[str, Any]] = []
+        ve_ord = vencidas_qs.prefetch_related("responsaveis").order_by("prazo")[:2]
+        for imp in ve_ord:
+            pr = imp.prazo
+            dias_vencido = int((hoje - pr).days) if pr else 0
+            rl = _resp_label(imp)
+            vencidas_recentes.append(
+                {
+                    "titulo": imp.titulo,
+                    "dias_vencido": dias_vencido,
+                    "prioridade": imp.get_prioridade_display(),
+                    "responsavel": rl or None,
+                }
+            )
+
+        sem_responsavel = (
+            base_open.annotate(_nresp=Count("responsaveis")).filter(_nresp=0).count()
+        )
+
+        resp_ct: Counter[str] = Counter()
+        for imp in base_open.prefetch_related("responsaveis"):
+            for u in imp.responsaveis.all():
+                nome = (u.get_full_name() or "").strip() or u.username
+                resp_ct[nome] += 1
+        por_responsavel = [{"nome": n, "total": t} for n, t in resp_ct.most_common()]
+
+        open_subs = Impedimento.objects.filter(obra=go).exclude(parent__isnull=True)
+        if ultimo:
+            open_subs = open_subs.exclude(status_id=ultimo.id)
+        subtarefas_bloqueando = open_subs.count()
+
+        open_root_ids = frozenset(base_open.values_list("pk", flat=True))
+        roots_with_open_sub: set[int] = set()
+        for imp in open_subs.select_related("parent", "parent__parent"):
+            p = imp.parent
+            if p is None:
+                continue
+            rid = p.parent_id if p.parent_id else p.id
+            if rid in open_root_ids:
+                roots_with_open_sub.add(rid)
+        restricoes_com_subtarefa_aberta = len(roots_with_open_sub)
+
+        return {
+            "kpis": {
+                "total_aberto": total_aberto,
+                "por_prioridade": por_prioridade,
+                "vencidas": vencidas,
+                "sem_responsavel": sem_responsavel,
+                "subtarefas_bloqueando": subtarefas_bloqueando,
+                "restricoes_com_subtarefa_aberta": restricoes_com_subtarefa_aberta,
+            },
+            "vencidas_recentes": vencidas_recentes,
+            "por_responsavel": por_responsavel,
+        }
+
     def build_filtros_payload(self) -> dict[str, Any]:
         """Opções de dropdown e valores aplicados (para UI e API)."""
         base = ItemMapaServico.objects.filter(obra=self.obra)
@@ -522,16 +819,22 @@ class AnaliseObraService:
         controle = self._build_controle()
         suprimentos = self._build_suprimentos()
         diario = self._build_diario(project)
+        rdos = diario.get("rdos_resumo") if isinstance(diario.get("rdos_resumo"), dict) else {}
+        rdos_pend_hero = int(rdos.get("pendentes_rdos_count") or 0)
         cruzamento = self._build_cruzamento(controle, suprimentos, diario)
         heatmap = self._build_heatmap()
         situacao = self._classify_situacao(controle, suprimentos, diario)
         filtros = self.build_filtros_payload()
+        gestcontroll = self._build_gestcontroll()
+        restricoes = self._build_restricoes()
+        gv = gestcontroll["kpis"]["pendentes_valor"]
 
         return {
             "meta": {
                 "obra_id": self.obra.id,
                 "obra_nome": self.obra.nome,
                 "obra_codigo": self.obra.codigo_sienge,
+                "projeto_diario_id": project.id if project else None,
                 "projeto_diario_codigo": project.code if project else None,
                 "projeto_diario_nome": project.name if project else None,
                 "periodo": {
@@ -541,6 +844,11 @@ class AnaliseObraService:
                 },
                 "gerado_em": timezone.now().isoformat(),
                 "situacao_executiva": situacao,
+                "kpis_hero": {
+                    "valor_em_aprovacao": gv,
+                    "restricoes_abertas": restricoes["kpis"]["total_aberto"],
+                    "rdos_pendentes": rdos_pend_hero,
+                },
                 "baseline_planejamento": {
                     "disponivel": False,
                     "mensagem": (
@@ -555,6 +863,8 @@ class AnaliseObraService:
             "diario": diario,
             "cruzamento": cruzamento,
             "heatmap": heatmap,
+            "gestcontroll": gestcontroll,
+            "restricoes": restricoes,
         }
 
     def build_section(self, secao: str) -> dict[str, Any] | None:
@@ -923,6 +1233,13 @@ class AnaliseObraService:
                 "vinculo_projeto": False,
                 "mensagem": "Não há projeto do Diário com o mesmo código Sienge desta obra; cruzamentos com o diário ficam limitados.",
                 "kpis": {},
+                "rdos_resumo": {
+                    "aprovados": 0,
+                    "pendentes": 0,
+                    "sem_rdo": 0,
+                    "pendentes_rdos_count": 0,
+                },
+                "ultimos_dias_calendario": [],
                 "ocorrencias_por_dia": [],
                 "tags_top": [],
                 "timeline": [],
@@ -938,6 +1255,83 @@ class AnaliseObraService:
             diaries_qs = diaries_qs.filter(
                 Q(inspection_responsible__icontains=rt) | Q(production_responsible__icontains=rt)
             )
+
+        rdos_aprovados_dias = rdos_pendentes_dias = rdos_sem = 0
+        cur = d1
+        while cur <= d2:
+            day_q = diaries_qs.filter(date=cur)
+            if not day_q.exists():
+                rdos_sem += 1
+            elif day_q.filter(status=DiaryStatus.APROVADO).exists():
+                rdos_aprovados_dias += 1
+            else:
+                rdos_pendentes_dias += 1
+            cur += timedelta(days=1)
+
+        pendentes_rdos_count = diaries_qs.filter(
+            status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+        ).count()
+
+        # Calendário “últimos dias”: do mais recente ao mais antigo, até hoje (local), dentro do período.
+        data_fim_real = min(d2, timezone.localdate())
+        data_inicio_real = d1
+        ultimos_dias_calendario: list[dict[str, Any]] = []
+        if data_fim_real >= data_inicio_real:
+            by_date: dict[date, list[ConstructionDiary]] = defaultdict(list)
+            for row in diaries_qs.filter(
+                date__gte=data_inicio_real,
+                date__lte=data_fim_real,
+            ).order_by("date", "-created_at"):
+                by_date[row.date].append(row)
+
+            all_diary_ids: list[int] = []
+            for lst in by_date.values():
+                all_diary_ids.extend(d.id for d in lst)
+
+            ocorrencias_por_rdo: dict[int, int] = {}
+            if all_diary_ids:
+                ocorrencias_por_rdo = dict(
+                    DiaryOccurrence.objects.filter(diary_id__in=all_diary_ids)
+                    .values("diary_id")
+                    .annotate(n=Count("id"))
+                    .values_list("diary_id", "n")
+                )
+
+            delta = (data_fim_real - data_inicio_real).days
+            for i in range(delta + 1):
+                dia = data_fim_real - timedelta(days=i)
+                day_list = by_date.get(dia, [])
+                if not day_list:
+                    ultimos_dias_calendario.append(
+                        {
+                            "data": dia,
+                            "tem_rdo": False,
+                            "report_number": None,
+                            "status": None,
+                            "ocorrencias": 0,
+                            "responsavel": None,
+                        }
+                    )
+                else:
+                    primary = next(
+                        (x for x in day_list if x.status == DiaryStatus.APROVADO),
+                        day_list[0],
+                    )
+                    occ_n = sum(ocorrencias_por_rdo.get(x.id, 0) for x in day_list)
+                    resp = (
+                        (primary.inspection_responsible or primary.production_responsible or "").strip()
+                        or None
+                    )
+                    ultimos_dias_calendario.append(
+                        {
+                            "data": dia,
+                            "tem_rdo": True,
+                            "report_number": primary.report_number,
+                            "status": primary.status,
+                            "ocorrencias": occ_n,
+                            "responsavel": resp,
+                        }
+                    )
 
         diarios_aprovados = diaries_qs.filter(status=DiaryStatus.APROVADO)
         total_diarios = diarios_aprovados.count()
@@ -982,7 +1376,8 @@ class AnaliseObraService:
             .order_by("-n", "name")[:12]
         )
         tags_top = [
-            {"id": t.id, "nome": t.name, "cor": t.color or "#64748b", "total": t.n} for t in tags_qs
+            {"id": t.id, "nome": t.name, "cor": t.color or "#64748b", "total": int(t.n or 0)}
+            for t in tags_qs
         ]
 
         priorities = {"p1_critica": 0, "p2_alta": 0, "p3_media": 0, "p4_baixa": 0}
@@ -1053,6 +1448,13 @@ class AnaliseObraService:
             "descricao_curta": "Fatos registrados no diário: ocorrências, tags e narrativa de campo.",
             "vinculo_projeto": True,
             "project_code": project.code,
+            "rdos_resumo": {
+                "aprovados": rdos_aprovados_dias,
+                "pendentes": rdos_pendentes_dias,
+                "sem_rdo": rdos_sem,
+                "pendentes_rdos_count": pendentes_rdos_count,
+            },
+            "ultimos_dias_calendario": ultimos_dias_calendario,
             "kpis": {
                 "diarios_aprovados_no_periodo": total_diarios,
                 "ocorrencias_no_periodo": total_ocorrencias,

@@ -1180,6 +1180,17 @@ def project_required(view_func):
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
+        pid_raw = (request.GET.get('project') or request.GET.get('obra') or '').strip()
+        if pid_raw.isdigit():
+            try:
+                proj = Project.objects.get(pk=int(pid_raw), is_active=True)
+            except (Project.DoesNotExist, ValueError, TypeError):
+                proj = None
+            if proj and _user_can_access_project(request.user, proj):
+                request.session['selected_project_id'] = proj.id
+                request.session['selected_project_name'] = proj.name
+                request.session['selected_project_code'] = proj.code
+                request.session.modified = True
         if 'selected_project_id' not in request.session:
             return redirect('select-project')
         project = get_selected_project(request)

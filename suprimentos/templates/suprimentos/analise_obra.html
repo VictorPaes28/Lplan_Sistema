@@ -1,739 +1,1770 @@
-{% extends 'base.html' %}
 {% load static %}
+{% load core_tags %}
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BI da Obra — LPLAN</title>
+  {% if debug %}{% now "U" as lplan_static_cb %}{% endif %}
+  <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+  <link rel="stylesheet" href="{% static 'core/css/base.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'core/css/notifications.css' %}">{% endif %}
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+:root { --transition: 0.3s cubic-bezier(.4,0,.2,1); }
 
-{% block main_extra_class %} main-content--bi-obra{% endblock %}
+[data-theme="dark"] {
+  --bg:#f1f5f9; --bg2:#ffffff; --bg3:#f7f8fc;
+  --border:rgba(0,0,0,0.07); --border2:rgba(0,0,0,0.12);
+  --text:#1a2233; --text2:#5a6478; --text3:#9ca3b0;
+  --card-bg:#ffffff;
+  --green:#16a34a; --green-bg:rgba(22,163,74,0.08);
+  --yellow:#d97706; --yellow-bg:rgba(217,119,6,0.08);
+  --red:#dc2626; --red-bg:rgba(220,38,38,0.08);
+  --blue:#2563eb; --blue-bg:rgba(37,99,235,0.08);
+  --accent:#4f46e5; --accent-bg:rgba(79,70,229,0.08);
+  --bi-bg:#0f1117; --bi-bg2:#161b26; --bi-bg3:#1e2535;
+  --bi-border:rgba(255,255,255,0.07); --bi-border2:rgba(255,255,255,0.13);
+  --bi-text:#e8eaf0; --bi-text2:#8892a4; --bi-text3:#545e72;
+  --bi-card:#161b26;
+  --bi-green:#22c55e; --bi-green-bg:rgba(34,197,94,0.12);
+  --bi-yellow:#f59e0b; --bi-yellow-bg:rgba(245,158,11,0.12);
+  --bi-red:#ef4444; --bi-red-bg:rgba(239,68,68,0.12);
+  --bi-blue:#3b82f6; --bi-blue-bg:rgba(59,130,246,0.12);
+  --bi-accent:#6366f1; --bi-accent-bg:rgba(99,102,241,0.12);
+  --header-bg: #0d1018;
+  --header-border: rgba(255,255,255,0.07);
+  --header-text: #e8eaf0;
+  --header-text2: #8892a4;
+  --header-btn-hover: rgba(255,255,255,0.06);
+  --header-user-border: rgba(255,255,255,0.10);
+  --header-user-bg: #161b26;
+}
 
-{% block title %}BI da Obra — LPlan{% endblock %}
+[data-theme="light"] {
+  --bg:#f1f5f9; --bg2:#ffffff; --bg3:#f7f8fc;
+  --border:rgba(0,0,0,0.07); --border2:rgba(0,0,0,0.12);
+  --text:#1a2233; --text2:#5a6478; --text3:#9ca3b0;
+  --card-bg:#ffffff;
+  --green:#16a34a; --green-bg:rgba(22,163,74,0.08);
+  --yellow:#d97706; --yellow-bg:rgba(217,119,6,0.08);
+  --red:#dc2626; --red-bg:rgba(220,38,38,0.08);
+  --blue:#2563eb; --blue-bg:rgba(37,99,235,0.08);
+  --accent:#4f46e5; --accent-bg:rgba(79,70,229,0.08);
+  --bi-bg:#f0f2f7; --bi-bg2:#ffffff; --bi-bg3:#f7f8fc;
+  --bi-border:rgba(0,0,0,0.07); --bi-border2:rgba(0,0,0,0.12);
+  --bi-text:#1a2233; --bi-text2:#5a6478; --bi-text3:#9ca3b0;
+  --bi-card:#ffffff;
+  --bi-green:#16a34a; --bi-green-bg:rgba(22,163,74,0.08);
+  --bi-yellow:#d97706; --bi-yellow-bg:rgba(217,119,6,0.08);
+  --bi-red:#dc2626; --bi-red-bg:rgba(220,38,38,0.08);
+  --bi-blue:#2563eb; --bi-blue-bg:rgba(37,99,235,0.08);
+  --bi-accent:#4f46e5; --bi-accent-bg:rgba(79,70,229,0.08);
+  --header-bg: #ffffff;
+  --header-border: rgba(0,0,0,0.08);
+  --header-text: #374151;
+  --header-text2: #6b7280;
+  --header-btn-hover: #f3f4f6;
+  --header-user-border: #e5e7eb;
+  --header-user-bg: #ffffff;
+}
 
-{% block back_url %}{% url 'select-system' %}{% endblock %}
-{% block page_title %}BI da Obra{% endblock %}
-{% block page_subtitle %}Obra, campo e material{% endblock %}
+/* Top bar escuro (classes reais: .top-bar-container, .back-link-layer, #user-menu-button) */
+[data-theme="dark"] .top-bar-container,
+[data-theme="dark"] .topbar,
+[data-theme="dark"] header,
+[data-theme="dark"] .header,
+[data-theme="dark"] nav.top-bar {
+  background-color: #0d1018 !important;
+  border-bottom-color: rgba(255,255,255,0.07) !important;
+  color: #e8eaf0 !important;
+}
+[data-theme="dark"] .top-bar-container *,
+[data-theme="dark"] .header *,
+[data-theme="dark"] header * {
+  color: #e8eaf0 !important;
+  border-color: rgba(255,255,255,0.10) !important;
+}
+[data-theme="dark"] .top-bar-container button,
+[data-theme="dark"] .header button,
+[data-theme="dark"] .back-btn,
+[data-theme="dark"] a.back-btn,
+[data-theme="dark"] a.back-link-layer {
+  background-color: rgba(255,255,255,0.06) !important;
+  color: #e8eaf0 !important;
+}
+[data-theme="dark"] a.back-link-layer:hover {
+  background-color: rgba(255,255,255,0.10) !important;
+  color: #f8fafc !important;
+}
+[data-theme="dark"] .top-bar-title,
+[data-theme="dark"] .page-title {
+  color: #e8eaf0 !important;
+}
+[data-theme="dark"] .top-bar-subtitle,
+[data-theme="dark"] .top-bar-subtitle span {
+  color: rgba(232,234,240,0.65) !important;
+}
+[data-theme="dark"] .back-link-layer .back-link-layer-icon {
+  color: #e8eaf0 !important;
+}
+[data-theme="dark"] .notif-bell-link {
+  color: rgba(232,234,240,0.85) !important;
+  background-color: transparent !important;
+}
+[data-theme="dark"] .notif-bell-link:hover {
+  color: #93c5fd !important;
+  background: rgba(255,255,255,0.06) !important;
+}
+[data-theme="dark"] .notif-count-badge {
+  color: #fff !important;
+}
+[data-theme="dark"] #user-menu-dropdown,
+[data-theme="dark"] #user-menu-dropdown * {
+  color: #1e293b !important;
+  border-color: #e5e7eb !important;
+}
+[data-theme="dark"] #user-menu-dropdown {
+  background-color: #fff !important;
+}
+[data-theme="dark"] #user-menu-button {
+  background-color: rgba(255,255,255,0.06) !important;
+  border: 1px solid rgba(255,255,255,0.10) !important;
+}
+[data-theme="dark"] #user-menu-button:hover {
+  background-color: rgba(255,255,255,0.10) !important;
+}
+[data-theme="dark"] #user-menu-chevron {
+  color: rgba(232,234,240,0.7) !important;
+}
 
-{% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-<link rel="stylesheet" href="{% static 'css/analise_obra.css' %}">
-{% endblock %}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--transition)}
 
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{% static 'js/analise_obra.js' %}"></script>
-{% endblock %}
+/* Garantir largura total do container do BI */
+.bi-area {
+  flex: 1;
+  background: var(--bi-bg);
+  transition: background var(--transition);
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
 
-{% block content %}
-{% if analise_payload %}
-{{ analise_payload|json_script:"analise-payload" }}
-{% endif %}
-<script>
-window.__ANALISE_API_URL__ = "{% url 'suprimentos:analise_obra_api' %}";
-window.__ANALISE_DRILL_URL__ = "{% url 'suprimentos:analise_obra_drilldown_api' %}";
-window.__AO_REPORTS_URL__ = "{% url 'report-list' %}";
-window.__AO_MAPA_CONTROLE_URL__ = "{% url 'engenharia:mapa_controle' %}";
-window.__AO_DASHBOARD_SC_URL__ = "{% url 'engenharia:dashboard_2' %}";
-{% if obra_selecionada %}window.__AO_OBRA_ID__ = "{{ obra_selecionada.id }}";{% endif %}
-</script>
+.bi-main {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 20px 24px 60px !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
 
-<div class="analise-obra-page" id="ao-page-root">
-<div class="ao-wrap">
-  <div class="ao-theme-bar d-flex justify-content-end mb-2 mb-md-3">
-    <button type="button" class="ao-theme-toggle ao-theme-toggle--prominent" id="aoThemeToggle" aria-pressed="true" title="Tema claro ou escuro">
-      <i class="bi bi-sun-fill ao-icon-light" aria-hidden="true"></i>
-      <i class="bi bi-moon-stars-fill ao-icon-dark" aria-hidden="true"></i>
-      <span class="ms-2" id="aoThemeLabel">Modo claro</span>
-    </button>
-  </div>
-  <script>
-  (function () {
-    try {
-      var t = localStorage.getItem("lplan_ao_bi_theme");
-      var dark = t !== "light";
-      var root = document.getElementById("ao-page-root");
-      if (dark) {
-        if (root) root.classList.add("analise-obra-page--dark");
-        var mainEl = document.querySelector("main.main-content--bi-obra");
-        if (mainEl) mainEl.classList.add("bi-page-dark");
-        if (document.body) document.body.classList.add("bi-page-dark");
-      } else {
-        if (root) root.classList.remove("analise-obra-page--dark");
-        var mainEl2 = document.querySelector("main.main-content--bi-obra");
-        if (mainEl2) mainEl2.classList.remove("bi-page-dark");
-        if (document.body) document.body.classList.remove("bi-page-dark");
-      }
-      var lab = document.getElementById("aoThemeLabel");
-      if (lab) lab.textContent = dark ? "Modo claro" : "Modo escuro";
-      var btn = document.getElementById("aoThemeToggle");
-      if (btn) btn.setAttribute("aria-pressed", dark ? "true" : "false");
-    } catch (e) {}
-  })();
-  </script>
-  <header class="ao-hero" role="banner">
-    <div class="ao-hero-top">
-      <div class="ao-hero-intro">
-        <h1 class="ao-hero-title">BI da Obra</h1>
-        {% if obra_selecionada %}
-        <p class="ao-hero-meta mt-1">
-          <strong>{{ obra_selecionada.nome }}</strong>
-          <span class="text-secondary"> · {{ obra_selecionada.codigo_sienge }}</span>
-          {% if analise_payload and analise_payload.meta.projeto_diario_codigo %}
-          <span class="text-secondary d-none d-sm-inline"> · Diário {{ analise_payload.meta.projeto_diario_codigo }}</span>
-          {% endif %}
-        </p>
-        {% else %}
-        <p class="ao-hero-meta">Escolha uma obra.</p>
-        {% endif %}
-      </div>
-      <div class="ao-hero-actions d-flex flex-column align-items-stretch align-items-md-end gap-1 w-100 w-md-auto">
-        {% if analise_payload %}
-        <span class="small text-secondary text-center text-md-end fw-semibold">Situação</span>
-        <span class="ao-situacao {{ analise_payload.meta.situacao_executiva.nivel }} text-center text-md-end mb-1">
-          {{ analise_payload.meta.situacao_executiva.rotulo }}
-        </span>
-        <span class="text-secondary small text-center text-md-end ao-hero-gerado">{{ analise_payload.meta.gerado_em|slice:":16"|default:"—" }}</span>
-        {% endif %}
-      </div>
-    </div>
+/* Remover qualquer max-width do page-wrapper que limite o conteúdo */
+.page-wrapper {
+  width: calc(100% - var(--sidebar-w, 162px)) !important;
+  max-width: none !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+[data-theme="dark"] .main-content-wrapper,
+[data-theme="light"] .main-content-wrapper,
+.main-content-wrapper {
+  max-width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+}
+@media (max-width: 767px) {
+  .main-content-wrapper {
+    padding-top: 4rem !important;
+  }
+}
+@media (min-width: 768px) {
+  .main-content-wrapper {
+    margin-left: 16rem !important;
+    width: calc(100% - 16rem) !important;
+    padding-bottom: 0 !important;
+  }
+}
+.main-content.main-content--bi-obra > *:not(.top-bar-container) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+}
+@media (min-width: 768px) {
+  .main-content.main-content--bi-obra > .top-bar-container:first-child {
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    margin-bottom: 0 !important;
+  }
+}
 
-    {% if analise_payload %}
-    <div class="ao-hero-kpis">
-      <div class="ao-kpi">
-        <div class="ao-kpi-label"><span class="ao-badge-origem controle">Obra</span> Avanço médio</div>
-        <div class="ao-kpi-value">{{ analise_payload.controle.kpis.percentual_medio|floatformat:1 }}%</div>
-      </div>
-      <div class="ao-kpi">
-        <div class="ao-kpi-label"><span class="ao-badge-origem suprimentos">Material</span> Atrasos</div>
-        <div class="ao-kpi-value">{{ analise_payload.suprimentos.kpis.atrasados|default:"0" }}</div>
-      </div>
-      <div class="ao-kpi">
-        <div class="ao-kpi-label"><span class="ao-badge-origem diario">Campo</span> Ocorrências</div>
-        <div class="ao-kpi-value">{{ analise_payload.diario.kpis.ocorrencias_no_periodo|default:"—" }}</div>
-      </div>
-      <div class="ao-kpi">
-        <div class="ao-kpi-label">Período</div>
-        <div class="ao-kpi-value" style="font-size:0.95rem;font-weight:600;line-height:1.2;">
-          {{ analise_payload.meta.periodo.inicio }} — {{ analise_payload.meta.periodo.fim }}
-          <div class="small text-secondary mt-1">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</div>
-        </div>
-      </div>
-    </div>
-    {% if analise_payload.meta.baseline_planejamento %}
-    <p class="small text-secondary mb-0 mt-2" title="{{ analise_payload.meta.baseline_planejamento.mensagem }}">
-      Comparar previsto e real: em breve
-    </p>
-    {% endif %}
-    {% endif %}
-  </header>
+.index-toggle-btn {
+  position: fixed; top: 68px; right: 18px; z-index: 400;
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--bi-bg2); border: 1px solid var(--bi-border2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,0.2); transition: all .2s;
+}
+.index-toggle-btn:hover { border-color: var(--bi-accent); background: var(--bi-accent-bg); }
+.index-toggle-btn svg { width: 15px; height: 15px; color: var(--bi-text2); }
 
-  <form class="ao-filters" method="get" action="" id="formAnaliseFiltros">
-    <div class="ao-filters-quick">
-      <div>
-        <label for="filtro-obra">Obra</label>
-        <select name="obra" id="filtro-obra" class="form-select form-select-sm">
-          {% for o in obras %}
-          <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label for="data_inicio">De</label>
-        <input type="date" name="data_inicio" id="data_inicio" value="{{ filtros_get.data_inicio }}" autocomplete="off">
-      </div>
-      <div>
-        <label for="data_fim">Até</label>
-        <input type="date" name="data_fim" id="data_fim" value="{{ filtros_get.data_fim }}" autocomplete="off">
-      </div>
-      <input type="hidden" name="visao" value="{{ filtros_get.visao|default:'geral' }}">
-      <div>
-        <label class="d-none d-sm-block">&nbsp;</label>
-        <button type="submit" class="btn btn-primary w-100">Aplicar</button>
-      </div>
-    </div>
-    {% if analise_payload %}
-    <button class="ao-filters-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#aoFiltrosExtras" aria-expanded="false" aria-controls="aoFiltrosExtras">
-      <i class="bi bi-sliders" aria-hidden="true"></i> Mais filtros
-    </button>
-    <div class="collapse" id="aoFiltrosExtras">
-    <div class="ao-filters-grid pt-2 mt-1 border-top border-secondary border-opacity-25">
-    <div>
-      <label for="setor">Setor</label>
-      <select name="setor" id="setor" class="form-select form-select-sm">
-        <option value="">Todos</option>
-        {% for o in analise_payload.filtros.opcoes.setores %}
-        <option value="{{ o.id }}" {% if filtros_get.setor == o.id %}selected{% endif %}>{{ o.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="bloco">Bloco</label>
-      <select name="bloco" id="bloco" class="form-select form-select-sm">
-        <option value="">Todos</option>
-        {% for o in analise_payload.filtros.opcoes.blocos %}
-        <option value="{{ o.id }}" {% if filtros_get.bloco == o.id %}selected{% endif %}>{{ o.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="pavimento">Pavimento</label>
-      <select name="pavimento" id="pavimento" class="form-select form-select-sm">
-        <option value="">Todos</option>
-        {% for o in analise_payload.filtros.opcoes.pavimentos %}
-        <option value="{{ o.id }}" {% if filtros_get.pavimento == o.id %}selected{% endif %}>{{ o.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="apto">Unidade / apto</label>
-      <select name="apto" id="apto" class="form-select form-select-sm">
-        <option value="">Todos</option>
-        {% for o in analise_payload.filtros.opcoes.aptos %}
-        <option value="{{ o.id }}" {% if filtros_get.apto == o.id %}selected{% endif %}>{{ o.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="atividade">Etapa / atividade</label>
-      <select name="atividade" id="atividade" class="form-select form-select-sm">
-        <option value="">Todas</option>
-        {% for o in analise_payload.filtros.opcoes.atividades %}
-        <option value="{{ o.id }}" {% if filtros_get.atividade == o.id %}selected{% endif %}>{{ o.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="status_servico">Status obra</label>
-      <select name="status_servico" id="status_servico" class="form-select form-select-sm">
-        {% for o in analise_payload.filtros.opcoes.status_servico %}
-        <option value="{{ o.id }}" {% if filtros_get.status_servico == o.id %}selected{% endif %}>{{ o.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="local_suprimento_id">Local material</label>
-      <select name="local_suprimento_id" id="local_suprimento_id" class="form-select form-select-sm">
-        <option value="">Todos</option>
-        {% for loc in analise_payload.filtros.opcoes.suprimentos.locais %}
-        <option value="{{ loc.id }}" {% if filtros_get.local_suprimento_id == loc.id|stringformat:"s" %}selected{% endif %}>{{ loc.nome }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="categoria_suprimento">Categoria</label>
-      <select name="categoria_suprimento" id="categoria_suprimento" class="form-select form-select-sm">
-        <option value="">Todas</option>
-        {% for c in analise_payload.filtros.opcoes.suprimentos.categorias %}
-        <option value="{{ c }}" {% if filtros_get.categoria_suprimento == c %}selected{% endif %}>{{ c }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="prioridade_suprimento">Prioridade</label>
-      <select name="prioridade_suprimento" id="prioridade_suprimento" class="form-select form-select-sm">
-        <option value="">Todas</option>
-        {% for p in analise_payload.filtros.opcoes.suprimentos.prioridades %}
-        <option value="{{ p.id }}" {% if filtros_get.prioridade_suprimento == p.id|stringformat:"s" %}selected{% endif %}>{{ p.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="status_suprimento">Status SC/PC</label>
-      <select name="status_suprimento" id="status_suprimento" class="form-select form-select-sm">
-        {% for s in analise_payload.filtros.opcoes.suprimentos.status %}
-        <option value="{{ s.id }}" {% if filtros_get.status_suprimento == s.id %}selected{% endif %}>{{ s.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="ao-filter-span-2">
-      <label for="busca_suprimento">Buscar material</label>
-      <input type="text" name="busca_suprimento" id="busca_suprimento" value="{{ filtros_get.busca_suprimento }}" placeholder="Código, SC, texto…" class="form-control form-control-sm" autocomplete="off">
-    </div>
-    <div>
-      <label for="tag_ocorrencia_id">Tag ocorrência</label>
-      <select name="tag_ocorrencia_id" id="tag_ocorrencia_id" class="form-select form-select-sm">
-        <option value="">Todas</option>
-        {% for t in analise_payload.filtros.opcoes.tags_ocorrencia %}
-        <option value="{{ t.id }}" {% if filtros_get.tag_ocorrencia_id == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="busca_diario_texto">Texto ocorrência</label>
-      <input type="text" name="busca_diario_texto" id="busca_diario_texto" value="{{ filtros_get.busca_diario_texto }}" class="form-control form-control-sm">
-    </div>
-    <div>
-      <label for="responsavel_texto">Responsável</label>
-      <input type="text" name="responsavel_texto" id="responsavel_texto" value="{{ filtros_get.responsavel_texto }}" placeholder="Nome parcial" class="form-control form-control-sm">
-    </div>
-    <div class="ao-filter-actions">
-      <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
-      {% if obra_selecionada %}
-      <a class="btn btn-outline-secondary btn-sm" href="?obra={{ obra_selecionada.id }}">Limpar</a>
-      <button type="button" class="btn btn-outline-info btn-sm" id="btnAnaliseRefreshApi" title="Atualizar dados">Atualizar</button>
-      {% endif %}
-    </div>
-    </div>
-    </div>
-    {% endif %}
-  </form>
+.bi-index {
+  position: fixed; top: 56px; right: 0; z-index: 350;
+  width: 230px; height: calc(100vh - 56px);
+  overflow-y: auto; padding: 16px 14px;
+  border-left: 1px solid var(--bi-border);
+  background: var(--bi-bg2);
+  transform: translateX(110%);
+  transition: transform .25s cubic-bezier(.4,0,.2,1), background var(--transition);
+  box-shadow: -6px 0 24px rgba(0,0,0,0.15);
+}
+.bi-index.open { transform: translateX(0); }
+.bi-index::-webkit-scrollbar { width: 3px; }
+.bi-index::-webkit-scrollbar-thumb { background: var(--bi-border2); border-radius: 99px; }
+.index-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--bi-border);
+}
+.index-title { font-size: 11px; font-weight: 700; color: var(--bi-text3); text-transform: uppercase; letter-spacing: .6px; }
+.index-close {
+  width: 22px; height: 22px; border-radius: 5px;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--bi-text3); font-size: 15px; display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.index-close:hover { color: var(--bi-text); background: var(--bi-bg3); }
+.index-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  text-decoration: none; color: var(--bi-text2);
+  font-size: 12.5px; font-weight: 500; transition: all .15s; margin-bottom: 3px;
+}
+.index-item:hover { background: var(--bi-bg3); color: var(--bi-text); }
+.index-item.active { background: var(--bi-accent-bg); color: var(--bi-accent); font-weight: 700; }
+.index-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; transition: transform .15s; }
+.index-item.active .index-dot { transform: scale(1.35); }
 
-  {% if not obra_selecionada %}
-  <p class="ao-empty">Nenhuma obra disponível para você.</p>
-  {% elif not analise_payload %}
-  <p class="ao-empty">Não foi possível carregar a análise.</p>
-  {% else %}
+.filters-bar {
+  background: var(--bi-bg2); border-bottom: 1px solid var(--bi-border);
+  padding: 10px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  transition: background var(--transition);
+}
+.filter-label { font-size: 10.5px; color: var(--bi-text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.filter-select {
+  padding: 6px 11px; border-radius: 7px;
+  border: 1px solid var(--bi-border2); background: var(--bi-bg3); color: var(--bi-text);
+  font-size: 12px; font-family: 'Sora', sans-serif; font-weight: 500; cursor: pointer;
+  transition: border-color .2s;
+}
+.filter-select:focus { outline: none; border-color: var(--bi-accent); }
+.btn-apply {
+  padding: 6px 16px; border-radius: 7px;
+  background: var(--bi-accent); color: #fff;
+  border: none; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity .2s;
+}
+.btn-apply:hover { opacity: .85; }
 
-  <section class="ao-section ao-section-evidence" aria-labelledby="sec-e0">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-e0">0 · Ocorrências</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">
-        Diário no período — prioridade e registro
-        <span class="ao-badge-origem diario">diário</span>
-      </p>
-    </div>
-    <div class="ao-grid">
-      <div class="ao-card span-4">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Ocorrências críticas</h3>
-          <span class="ao-badge-origem diario">Risco</span>
-        </div>
-        <p class="ao-metric-big">{{ analise_payload.diario.kpis.ocorrencias_criticas_no_periodo|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Urgente</p>
-      </div>
-      <div class="ao-card span-4">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Dias com ocorrência</h3>
-          <span class="ao-badge-origem diario">Campo</span>
-        </div>
-        <p class="ao-metric-big">{{ analise_payload.diario.kpis.dias_com_ocorrencia|default:"0" }}</p>
-        <p class="ao-card-caption mb-0">Em {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</p>
-      </div>
-      <div class="ao-card span-4">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Fila de prioridade</h3>
-          <span class="ao-badge-origem cruzamento">Ação</span>
-        </div>
-        <div class="ao-priority-grid">
-          <span class="ao-pri-badge p1">Urgente {{ analise_payload.diario.prioridades.p1_critica|default:"0" }}</span>
-          <span class="ao-pri-badge p2">Alta {{ analise_payload.diario.prioridades.p2_alta|default:"0" }}</span>
-          <span class="ao-pri-badge p3">Média {{ analise_payload.diario.prioridades.p3_media|default:"0" }}</span>
-          <span class="ao-pri-badge p4">Baixa {{ analise_payload.diario.prioridades.p4_baixa|default:"0" }}</span>
-        </div>
-      </div>
-      <div class="ao-card span-12">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Últimas ocorrências</h3>
-          <div class="d-flex align-items-center gap-2">
-            <span class="ao-badge-origem diario">{{ analise_payload.meta.periodo.dias|default:"—" }} dia(s)</span>
-            <button
-              class="btn btn-sm ao-occ-toggle-btn"
-              type="button"
-              data-bs-toggle="collapse"
-              data-bs-target="#aoOcorrenciasCollapse"
-              aria-expanded="true"
-              aria-controls="aoOcorrenciasCollapse">
-              Ocultar ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length }})
-            </button>
-          </div>
-        </div>
-        <div class="collapse show" id="aoOcorrenciasCollapse">
-          <div class="ao-occ-filter mb-2 d-flex flex-wrap gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm active" data-priority-filter="all">Todas</button>
-            <button type="button" class="btn btn-outline-danger btn-sm" data-priority-filter="critica">Urgente</button>
-            <button type="button" class="btn btn-outline-warning btn-sm" data-priority-filter="alta">Alta</button>
-            <button type="button" class="btn btn-outline-primary btn-sm" data-priority-filter="media">Média</button>
-            <button type="button" class="btn btn-outline-success btn-sm" data-priority-filter="baixa">Baixa</button>
-          </div>
-          <div class="ao-table-wrap">
-            <table class="ao-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Relatório</th>
-                  <th>Prioridade</th>
-                  <th>Tags</th>
-                  <th>Descrição</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for o in analise_payload.diario.ocorrencias_recentes %}
-                <tr data-priority="{{ o.gravidade }}"{% if o.relatorio_id %} class="ao-bi-click-row ao-bi-diary-row{% if forloop.counter > 5 %} ao-occ-extra d-none{% endif %}" data-diary-id="{{ o.relatorio_id }}" title="Abrir o RDO"{% elif forloop.counter > 5 %} class="ao-occ-extra d-none"{% endif %}>
-                  <td>{{ o.data }}</td>
-                  <td>#{{ o.relatorio|default:"—" }}</td>
-                  <td>
-                    {% if o.gravidade == 'critica' %}
-                    <span class="ao-sev-badge ao-sev-critica">URGENTE</span>
-                    {% elif o.gravidade == 'alta' %}
-                    <span class="ao-sev-badge ao-sev-alta">ALTA</span>
-                    {% elif o.gravidade == 'media' %}
-                    <span class="ao-sev-badge ao-sev-media">MEDIA</span>
-                    {% else %}
-                    <span class="ao-sev-badge ao-sev-baixa">BAIXA</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if o.tags %}
-                      {% for tag in o.tags %}
-                      <span class="ao-tag-inline">{{ tag }}</span>
-                      {% endfor %}
-                    {% else %}
-                      <span class="text-secondary">Sem tag</span>
-                    {% endif %}
-                  </td>
-                  <td>{{ o.descricao }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="5" class="ao-empty">Nenhuma ocorrência neste período.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% if analise_payload.diario.ocorrencias_recentes|length > 5 %}
-          <div class="text-end mt-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="aoOccShowMore" aria-expanded="false">
-              Ver mais ocorrências ({{ analise_payload.diario.ocorrencias_recentes|length|add:"-5" }})
-            </button>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      <div class="ao-card span-12">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Ações recomendadas para hoje</h3>
-          <span class="ao-badge-origem cruzamento">Prioridade</span>
-        </div>
-        <ul class="ao-action-list mb-0">
-          {% for acao in analise_payload.cruzamento.acoes_recomendadas %}
-          <li{% if forloop.counter > 2 %} class="ao-action-extra d-none"{% endif %}>
-            <span class="ao-sev-badge {% if acao.prioridade == 'URGENTE' %}ao-sev-critica{% elif acao.prioridade == 'ALTA' %}ao-sev-alta{% elif acao.prioridade == 'MEDIA' or acao.prioridade == 'MÉDIA' %}ao-sev-media{% else %}ao-sev-baixa{% endif %}">
-              {{ acao.prioridade }}
-            </span>
-            <span>{{ acao.acao }}</span>
-          </li>
-          {% empty %}
-          <li><span class="text-secondary">Nada sugerido com estes filtros.</span></li>
-          {% endfor %}
-        </ul>
-        {% if analise_payload.cruzamento.acoes_recomendadas|length > 2 %}
-        <div class="text-end mt-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoActionShowMore" aria-expanded="false">
-            Ver mais ações ({{ analise_payload.cruzamento.acoes_recomendadas|length|add:"-2" }})
-          </button>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </section>
+.hero {
+  background: var(--bi-card); border: 1px solid var(--bi-border);
+  border-radius: 14px; padding: 24px; margin-bottom: 18px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 20px; align-items: start;
+  position: relative; overflow: hidden; transition: background var(--transition);
+}
+.hero::before {
+  content: ''; position: absolute; top:0; left:0; right:0; height: 2px;
+  background: linear-gradient(90deg, var(--bi-accent), var(--bi-blue), var(--bi-green));
+}
+.hero-label { font-size: 10px; font-weight: 700; color: var(--bi-text3); letter-spacing: .7px; text-transform: uppercase; margin-bottom: 3px; }
+.hero-title { font-size: 24px; font-weight: 800; color: var(--bi-text); letter-spacing: -.5px; }
+.hero-code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--bi-text3); margin-top: 3px; }
+.hero-period { font-size: 11px; color: var(--bi-text2); margin-top: 6px; }
 
-  <section class="ao-section" aria-labelledby="sec-a">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-a">1 · Obra</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Mapa de serviço — leitura principal: matriz abaixo; gráfico por eixo é detalhe <span class="ao-badge-origem controle">obra</span></p>
-    </div>
-    <div class="ao-grid">
-      <div class="ao-card span-12 ao-obra-status-card">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Andamento físico (mapa de serviço)</h3>
-          <span class="ao-badge-origem controle">Obra</span>
-        </div>
-        <div class="ao-obra-status-strip">
-          <div class="ao-obra-status-item">
-            <span class="ao-obra-status-label">Concluído</span>
-            <strong class="ao-obra-status-value">{{ analise_payload.controle.kpis.concluidos }}</strong>
-          </div>
-          <div class="ao-obra-status-item">
-            <span class="ao-obra-status-label">Em andamento</span>
-            <strong class="ao-obra-status-value">{{ analise_payload.controle.kpis.em_andamento }}</strong>
-          </div>
-          <div class="ao-obra-status-item">
-            <span class="ao-obra-status-label">Não iniciado</span>
-            <strong class="ao-obra-status-value">{{ analise_payload.controle.kpis.nao_iniciados }}</strong>
-          </div>
-        </div>
-        <p class="ao-obra-status-base mb-0">Linhas no recorte do mapa: <strong>{{ analise_payload.controle.kpis.total_itens }}</strong></p>
-      </div>
-      <div class="ao-card span-12" id="section-heatmap">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title" id="sec-h">Mapa · bloco e piso</h3>
-          <span class="ao-badge-origem controle">Obra</span>
-        </div>
-        <p class="ao-card-caption mb-1">Toque na linha para o detalhe. Quanto menor o % médio, pior a situação (&lt;30 · 30–55 · 55–75 · ≥75).</p>
-        <p class="small text-secondary mb-2 d-md-none">Toque na linha para detalhar</p>
-        <div class="ao-table-wrap">
-          <table class="ao-table ao-table-heatmap">
-            <thead>
-              <tr>
-                <th>Bloco</th>
-                <th>Piso</th>
-                <th>% médio</th>
-                <th>Amostras</th>
-                <th>Criticidade</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for c in analise_payload.heatmap.celulas %}
-              <tr class="ao-heat-row ao-crit-{{ c.criticidade }}{% if forloop.counter > 4 %} ao-heat-extra-row d-none{% endif %}" data-bloco="{{ c.bloco }}" data-setor="{{ c.setor|default:'' }}" data-pavimento="{{ c.pavimento }}">
-                <td>{{ c.rotulo|default:c.bloco }}</td>
-                <td>{{ c.pavimento }}</td>
-                <td>{{ c.percentual_medio }}%</td>
-                <td>{{ c.amostras }}</td>
-                <td><span class="ao-crit-badge">{{ c.criticidade }}</span></td>
-                <td><button type="button" class="btn btn-sm ao-heat-open-btn ao-drill-btn">Abrir</button></td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="6" class="ao-empty">Nada neste filtro. Ajuste os filtros ou o mapa.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% if analise_payload.heatmap.celulas|length > 4 %}
-        <div class="text-end mt-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="aoHeatmapShowMore" aria-expanded="false">
-            Ver mais ({{ analise_payload.heatmap.celulas|length|add:"-4" }})
-          </button>
-        </div>
-        {% endif %}
-      </div>
-      <div class="ao-card span-12 ao-prog-chart-card">
-        <button type="button" class="btn btn-outline-secondary btn-sm ao-prog-chart-toggle" data-bs-toggle="collapse" data-bs-target="#aoProgChartCollapse" aria-expanded="false" aria-controls="aoProgChartCollapse">
-          Mostrar gráfico por eixo (detalhe)
+.sem-badge { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 9px; font-size: 12.5px; font-weight: 700; }
+.sem-badge.green  { background: var(--bi-green-bg);  color: var(--bi-green);  border: 1px solid var(--bi-green); }
+.sem-badge.yellow { background: var(--bi-yellow-bg); color: var(--bi-yellow); border: 1px solid var(--bi-yellow); }
+.sem-badge.red    { background: var(--bi-red-bg);    color: var(--bi-red);    border: 1px solid var(--bi-red); }
+.sem-dot { width: 7px; height: 7px; border-radius: 50%; }
+.sem-dot.yellow { background: var(--bi-yellow); box-shadow: 0 0 7px var(--bi-yellow); }
+.sem-dot.red    { background: var(--bi-red);    box-shadow: 0 0 7px var(--bi-red); animation: pulse 1.5s infinite; }
+.sem-dot.green  { background: var(--bi-green);  box-shadow: 0 0 7px var(--bi-green); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.hero-kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 18px; grid-column: 1/-1; }
+.hkpi { background: var(--bi-bg3); border: 1px solid var(--bi-border); border-radius: 11px; padding: 14px 16px; transition: background var(--transition); }
+.hkpi-source { font-size: 9px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--bi-text3); margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
+.hkpi-source::before { content: ''; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.hkpi-source.obra::before         { background: var(--bi-accent); }
+.hkpi-source.restricoes::before   { background: var(--bi-red); }
+.hkpi-source.gestcontroll::before { background: var(--bi-yellow); }
+.hkpi-source.diario::before       { background: var(--bi-blue); }
+.hkpi-value { font-size: 26px; font-weight: 800; color: var(--bi-text); font-family: 'JetBrains Mono', monospace; letter-spacing: -1px; line-height: 1.1; }
+.hkpi-label { font-size: 11px; color: var(--bi-text2); margin-top: 3px; font-weight: 500; }
+
+.sec-header { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; scroll-margin-top: 76px; }
+.sec-title { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 700; color: var(--bi-text); text-transform: uppercase; letter-spacing: .5px; }
+.sec-num { width: 20px; height: 20px; border-radius: 5px; background: var(--bi-accent-bg); color: var(--bi-accent); font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.sec-right { display: flex; align-items: center; gap: 8px; }
+.sec-source { font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--bi-border2); color: var(--bi-text3); }
+
+/* Forçar os grids a respeitarem o layout definido */
+.grid-2,
+.grid-3,
+.grid-4 {
+  display: grid !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.grid-2 { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
+.grid-3 { grid-template-columns: repeat(3, 1fr) !important; gap: 12px !important; }
+.grid-4 { grid-template-columns: repeat(4, 1fr) !important; gap: 12px !important; }
+
+/* Garantir que os cards não colem nas bordas */
+.card {
+  background: var(--bi-card);
+  border: 1px solid var(--bi-border);
+  border-radius: 12px;
+  padding: 18px;
+  transition: background var(--transition), border-color .2s;
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.card:hover { border-color: var(--bi-border2); }
+.card-title { font-size: 10.5px; font-weight: 700; color: var(--bi-text3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.card-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; letter-spacing: .4px; }
+.tag-obra  { background: var(--bi-accent-bg); color: var(--bi-accent); }
+.tag-gest  { background: var(--bi-blue-bg);   color: var(--bi-blue); }
+.tag-campo { background: var(--bi-green-bg);  color: var(--bi-green); }
+.tag-mat   { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
+.tag-rest  { background: var(--bi-red-bg);    color: var(--bi-red); }
+
+.big-num { font-size: 32px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--bi-text); letter-spacing: -1px; line-height: 1.1; }
+.big-num.green  { color: var(--bi-green); }
+.big-num.yellow { color: var(--bi-yellow); }
+.big-num.red    { color: var(--bi-red); }
+.big-sub { font-size: 11.5px; color: var(--bi-text2); margin-top: 3px; }
+
+.prog-wrap { margin-top: 9px; }
+.prog-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--bi-text2); margin-bottom: 4px; }
+.prog-bar { height: 5px; background: var(--bi-bg3); border-radius: 99px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 99px; transition: width .8s cubic-bezier(.4,0,.2,1); }
+.prog-fill.green  { background: var(--bi-green); }
+.prog-fill.yellow { background: var(--bi-yellow); }
+.prog-fill.red    { background: var(--bi-red); }
+.prog-fill.blue   { background: var(--bi-blue); }
+.prog-fill.accent { background: var(--bi-accent); }
+
+.stat-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--bi-border); font-size: 12.5px; }
+.stat-row:last-child { border-bottom: none; }
+.stat-row-label { color: var(--bi-text2); font-weight: 500; display: flex; align-items: center; gap: 7px; }
+.stat-row-value { font-weight: 700; color: var(--bi-text); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { padding: 3px 10px; border-radius: 99px; font-size: 10.5px; font-weight: 700; }
+.chip-red    { background: var(--bi-red-bg);    color: var(--bi-red); }
+.chip-yellow { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
+.chip-blue   { background: var(--bi-blue-bg);   color: var(--bi-blue); }
+.chip-green  { background: var(--bi-green-bg);  color: var(--bi-green); }
+.chip-gray   { background: var(--bi-bg3);       color: var(--bi-text2); }
+
+.nav-link { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: var(--bi-accent); text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--bi-accent-bg); background: var(--bi-accent-bg); transition: all .2s; margin-top: 10px; }
+.nav-link:hover { background: var(--bi-accent); color: #fff; }
+.nav-link svg { width: 11px; height: 11px; }
+
+.funnel { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.funnel-item { display: flex; align-items: center; gap: 8px; }
+.funnel-label { font-size: 11px; color: var(--bi-text2); width: 130px; flex-shrink: 0; }
+.funnel-bar-wrap { flex: 1; height: 20px; background: var(--bi-bg3); border-radius: 5px; overflow: hidden; }
+.funnel-bar { height: 100%; border-radius: 5px; display: flex; align-items: center; padding-left: 7px; transition: width .8s; min-width: 28px; }
+.funnel-num { font-size: 10.5px; font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+.funnel-bar.f1 { background: var(--bi-red);    width: 75%; }
+.funnel-bar.f2 { background: var(--bi-yellow); width: 55%; }
+.funnel-bar.f3 { background: var(--bi-blue);   width: 35%; }
+.funnel-bar.f4 { background: var(--bi-green);  width: 20%; }
+
+.tl-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bi-border); font-size: 12px; }
+.tl-item:last-child { border-bottom: none; }
+.tl-date { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--bi-text3); width: 70px; flex-shrink: 0; padding-top: 1px; }
+.tl-content { flex: 1; color: var(--bi-text); }
+.tl-meta { color: var(--bi-text3); font-size: 10.5px; margin-top: 2px; }
+
+.rdo-bar { display: flex; height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 5px; gap: 2px; }
+.rdo-seg { height: 100%; border-radius: 2px; }
+
+.pedido-row { display: flex; align-items: center; gap: 8px; padding: 9px 6px; border-bottom: 1px solid var(--bi-border); font-size: 12px; cursor: pointer; border-radius: 6px; transition: background .15s; }
+.pedido-row:last-of-type { border-bottom: none; }
+.pedido-row:hover { background: var(--bi-bg3); }
+.pedido-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--bi-text3); width: 90px; flex-shrink: 0; }
+.pedido-credor { flex: 1; color: var(--bi-text); font-weight: 500; }
+.pedido-valor { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--bi-text2); min-width: 80px; text-align: right; }
+.pedido-badge { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; }
+.pedido-badge.pend { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
+.pedido-badge.repr { background: var(--bi-red-bg);    color: var(--bi-red); }
+.pedido-arrow { color: var(--bi-accent); font-size: 14px; opacity: .4; transition: opacity .15s; }
+.pedido-row:hover .pedido-arrow { opacity: 1; }
+
+.resp-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--bi-border); }
+.resp-row:last-child { border-bottom: none; }
+.resp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bi-accent-bg); color: var(--bi-accent); font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.resp-name { font-size: 12.5px; font-weight: 600; color: var(--bi-text); }
+.resp-sub  { font-size: 10px; color: var(--bi-text3); margin-top: 1px; }
+.resp-stats { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.resp-stat { text-align: center; }
+.resp-stat-val { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--bi-text); }
+.resp-stat-val.green { color: var(--bi-green); }
+.resp-stat-val.red   { color: var(--bi-red); }
+.resp-stat-label { font-size: 8.5px; color: var(--bi-text3); text-transform: uppercase; letter-spacing: .3px; }
+.resp-divider { width: 1px; height: 28px; background: var(--bi-border); }
+.tempo-badge { display: inline-flex; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
+.tempo-badge.fast { background: var(--bi-green-bg); color: var(--bi-green); }
+.tempo-badge.mid  { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
+.tempo-badge.slow { background: var(--bi-red-bg);    color: var(--bi-red); }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+.card,.hero { animation: fadeUp .35s both; }
+.card:nth-child(2){animation-delay:.06s}
+.card:nth-child(3){animation-delay:.12s}
+.card:nth-child(4){animation-delay:.18s}
+  </style>
+</head>
+<body class="bg-slate-50">
+<div id="lplan-nav-progress" class="lplan-nav-progress" hidden aria-hidden="true"></div>
+    <!-- Mobile Topbar -->
+    <div id="mobile-app-header" class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
+        <button id="mobile-sidebar-toggle" type="button" class="mobile-menu-btn text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-800 rounded-lg transition-colors" style="position:relative;" aria-label="Abrir menu de navegação" aria-expanded="false">
+            <i class="fas fa-bars" aria-hidden="true"></i>
         </button>
-        <div class="collapse" id="aoProgChartCollapse">
-          <div class="pt-3 mt-2 border-top border-secondary border-opacity-25">
-            <div class="ao-card-head px-0 pt-0">
-              <h3 class="h6 mb-0">Progressão dos eixos</h3>
-              <span class="ao-badge-origem controle">Obra</span>
+        <div class="mobile-brand-center flex items-center space-x-3">
+            <div class="logo-white-box w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
+                <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain">
             </div>
-            <p class="ao-card-caption mb-0 small">Média do mapa por eixo: barra menor, menos avanço. Toque na barra para o controle.</p>
-            {% if analise_payload.controle.agrupamento_eixo == "setor_bloco" %}
-            <p class="ao-card-caption mb-1 small text-secondary">Cada eixo é setor e bloco juntos. No gráfico: até 16 eixos, no máximo 3 por setor.</p>
-            {% endif %}
-            {% if analise_payload.controle.ranking_progressao_meta %}
-            {% with m=analise_payload.controle.ranking_progressao_meta %}
-            {% if m.eixos_com_medicao > m.eixos_listados %}
-            <p class="ao-card-caption mb-1 small text-secondary">{{ m.eixos_com_medicao }} eixos com medição; o gráfico começa com {{ m.eixos_listados }}. «Ver todos os eixos» mostra todos.</p>
-            {% endif %}
-            {% endwith %}
-            {% endif %}
-            <div class="ao-chart-box{% if analise_payload.controle.blocos_mais_atrasados|length > 6 %} ao-chart-prog--limited{% endif %}" id="aoProgChartBox">
-              <canvas id="chart-blocos-controle" aria-label="Progressão por eixo no mapa"></canvas>
+            <span class="text-lg font-bold">LPLAN</span>
+        </div>
+        <div class="mobile-header-spacer" aria-hidden="true"></div>
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="mobile-sidebar-overlay" 
+         class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" style="display: none;"></div>
+
+    <aside id="sidebar"
+            class="fixed top-0 left-0 h-full w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out flex flex-col flex-shrink-0">
+        
+        <!-- Header com Logo e Branding -->
+        <div class="h-20 flex items-center justify-center border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 px-4 relative">
+            <div class="flex items-center justify-center w-full">
+                <div class="logo-white-box w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1 flex-shrink-0">
+                    <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" style="max-width: 90%; max-height: 90%;">
+                </div>
+                <div class="flex-1 min-w-0 ml-3 text-center">
+                    <h1 class="text-xl font-bold text-white tracking-tight mb-1">LPLAN</h1>
+                    <p class="text-xs text-gray-400 truncate">
+                        {% if '/accounts/admin-central' in request.path %}
+                            Painel do sistema
+                        {% elif '/gestao/' in request.path %}
+                            GestControll
+                        {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
+                            Mapa de Suprimentos
+                        {% elif request.session.selected_project_name %}
+                            {{ request.session.selected_project_name|truncatechars:20 }}
+                        {% else %}
+                            Gestão de Obras
+                        {% endif %}
+                    </p>
+                </div>
             </div>
-            {% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length or analise_payload.controle.blocos_mais_atrasados|length > 6 %}
-            <div class="text-end mt-2">
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="aoProgChartExpand" aria-expanded="false" aria-controls="aoProgChartBox">{% if analise_payload.controle.progressao_eixos_completo|length > analise_payload.controle.blocos_mais_atrasados|length %}Ver todos os eixos ({{ analise_payload.controle.progressao_eixos_completo|length }}){% else %}Expandir gráfico{% endif %}</button>
+        </div>
+        
+        <!-- Navegação: Home + Trocar Obra + menu do app + Sistemas embaixo -->
+        <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
+            {% if not '/gestao/' in request.path or request.resolver_match.url_name != 'home' %}
+            <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-home w-5 mr-3"></i>
+                <span class="font-medium">Home</span>
+            </a>
+            {% endif %}
+            <div style="padding:4px 8px 2px;">
+  <button type="button" onclick="toggleTheme()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);border-radius:10px;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,0.10)';this.style.borderColor='rgba(99,102,241,0.5)'" onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.borderColor='rgba(255,255,255,0.10)'">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="theme-icon-box" style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:rgba(245,158,11,0.18);transition:background .3s;flex-shrink:0;">
+        <svg id="theme-svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </div>
+      <div>
+        <div id="theme-label" style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);display:block;line-height:1.2;">Modo claro</div>
+        <div id="theme-sub" style="font-size:9px;color:rgba(255,255,255,0.35);display:block;margin-top:1px;">Tema atual: escuro</div>
+      </div>
+    </div>
+    <div id="theme-pill" style="width:30px;height:16px;border-radius:99px;background:rgba(255,255,255,0.15);position:relative;flex-shrink:0;transition:background .3s;">
+      <div id="theme-knob" style="position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.45);transition:transform .3s cubic-bezier(.4,0,.2,1),background .3s;"></div>
+    </div>
+  </button>
+</div>
+
+            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
+            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i>
+                <span class="font-medium">Trocar Obra</span>
+            </a>
+            {% endif %}
+
+            <div class="my-3 border-t border-slate-600"></div>
+
+            {% if '/accounts/admin-central' in request.path %}
+            <!-- ═══════ MENU: Painel do sistema (hub único) ═══════ -->
+            <a href="{% url 'accounts:admin_central' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'admin_central' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-cog w-5 mr-3"></i>
+                <span class="font-medium">Início</span>
+            </a>
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obras e mapa</p>
+            </div>
+            <a href="{% url 'central_project_list' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' or request.resolver_match.url_name == 'project-new' or request.resolver_match.url_name == 'project-edit' or request.resolver_match.url_name == 'project-locais-manage' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Obras e locais</span>
+            </a>
+
+            {% elif '/gestao/' in request.path %}
+            <!-- ═══════ MENU: GestControll ═══════ -->
+            {% if request.resolver_match.url_name != 'home' %}
+            <a href="{% url 'gestao:home' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-home w-5 mr-3"></i>
+                <span class="font-medium">Visão Geral</span>
+            </a>
+            {% endif %}
+            <a href="{% url 'gestao:list_workorders' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'detail_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-clipboard-list w-5 mr-3"></i>
+                <span class="font-medium">Pedidos</span>
+            </a>
+            {% if pode_criar_pedido %}
+            <a href="{% url 'gestao:create_workorder' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'create_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-plus-circle w-5 mr-3"></i>
+                <span class="font-medium">Novo Pedido</span>
+            </a>
+            {% endif %}
+            <a href="{% url 'gestao:list_notificacoes' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_notificacoes' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-bell w-5 mr-3"></i>
+                <span class="font-medium">Notificações</span>
+                {% if notificacoes_count and notificacoes_count > 0 %}
+                <span class="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{{ notificacoes_count }}</span>
+                {% endif %}
+            </a>
+            {% if is_admin or is_responsavel_empresa %}
+            <div class="mt-3 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
+            </div>
+            <a href="{% url 'gestao:list_obras' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_obras' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Obras</span>
+            </a>
+            <a href="{% url 'gestao:list_empresas' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_empresas' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-briefcase w-5 mr-3"></i>
+                <span class="font-medium">Empresas</span>
+            </a>
+            {% endif %}
+            {% if is_admin %}
+            <a href="{% if user.is_staff or user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_users' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-users-cog w-5 mr-3"></i>
+                <span class="font-medium">Usuários</span>
+            </a>
+            {% endif %}
+            {% if is_admin or is_responsavel_empresa %}
+            <a href="{% url 'gestao:desempenho_equipe' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'desempenho_equipe' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-chart-line w-5 mr-3"></i>
+                <span class="font-medium">Desempenho</span>
+            </a>
+            {% endif %}
+
+            {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
+            <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
+            <a href="{% url 'engenharia:dashboard_2' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-chart-pie w-5 mr-3"></i>
+                <span class="font-medium">Dashboard</span>
+            </a>
+            <a href="{% url 'engenharia:mapa_controle' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-gauge-high w-5 mr-3"></i>
+                <span class="font-medium">Mapa de Controle</span>
+            </a>
+            {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
+            <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
+
+            {% elif request.resolver_match.url_name == 'analise_obra' %}
+            <!-- BI da Obra: sem menu do Diário; navegação principal em Sistemas -->
+
+            {% else %}
+            <!-- ═══════ MENU: Diário de Obra ═══════ -->
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Diário de Obras</p>
+            </div>
+            <a href="{% url 'dashboard' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-home w-5 mr-3"></i>
+                <span class="font-medium">Visão geral</span>
+            </a>
+            
+            {% if request.session.selected_project_id %}
+            <a href="{% url 'report-list' %}" 
+               class="sidebar-link flex items-center justify-between px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'report-list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <div class="flex items-center">
+                    <i class="fas fa-file-alt w-5 mr-3"></i>
+                    <span class="font-medium">Relatórios</span>
+                </div>
+                {% if request.resolver_match.url_name == 'report-list' %}
+                <span class="text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full">{{ total_reports_count|default:0 }}</span>
+                {% endif %}
+            </a>
+            
+            {% endif %}
+            
+            <!-- Obras — mesmo critério que /projects/ (staff, superuser ou Administrador) -->
+            {% if can_manage_central_projects %}
+            <a href="{% url 'central_project_list' %}" 
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_project_list' or request.resolver_match.url_name == 'project-new' or request.resolver_match.url_name == 'project-edit' or request.resolver_match.url_name == 'project-locais-manage' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-building w-5 mr-3"></i>
+                <span class="font-medium">Obras</span>
+            </a>
+            {% endif %}
+            {% endif %}
+
+            <div class="my-3 border-t border-slate-600"></div>
+            <!-- Sistemas (troca de app) - embaixo do menu do app -->
+            {% if has_diario or has_gestao or has_mapa or has_central or has_workflow %}
+            <div class="mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
+            </div>
+            {% if has_diario and request.resolver_match.url_name == 'select-system' or has_diario and '/gestao/' in request.path or has_diario and '/mapa/' in request.path or has_diario and '/engenharia/' in request.path or has_diario and '/accounts/admin-central' in request.path %}
+            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-file-alt w-5 mr-3"></i>
+                <span class="font-medium">Diário de Obras</span>
+            </a>
+            {% endif %}
+            {% if has_gestao and '/gestao/' not in request.path %}
+            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-clipboard-list w-5 mr-3"></i>
+                <span class="font-medium">GestControll</span>
+            </a>
+            {% endif %}
+            {% if has_mapa and '/mapa/' not in request.path and '/engenharia/' not in request.path %}
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-map-marked-alt w-5 mr-3"></i>
+                <span class="font-medium">Mapa de Suprimentos</span>
+            </a>
+            {% endif %}
+            {% if has_mapa and '/engenharia/' in request.path %}
+            <a href="{% url 'engenharia:analise_obra' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analise_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-chart-pie w-5 mr-3"></i>
+                <span class="font-medium">BI da Obra</span>
+            </a>
+            {% endif %}
+            {% if has_central and '/accounts/admin-central' not in request.path %}
+            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-cog w-5 mr-3"></i>
+                <span class="font-medium">Painel do sistema</span>
+            </a>
+            {% endif %}
+            {% if has_workflow and '/aprovacoes/' not in request.path %}
+            <a href="{% url 'workflow_aprovacao:pending' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/aprovacoes/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-check-double w-5 mr-3"></i>
+                <span class="font-medium">Central de Aprovações</span>
+            </a>
+            {% endif %}
+            {% endif %}
+
+            <!-- Webmail (todos autenticados) + Ajuda/Painel (staff/superuser) -->
+            {% if user.is_authenticated %}
+            <div class="mt-3 pt-3 border-t border-slate-700">
+                <a href="https://lplan.com.br/webmail"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                    <i class="fas fa-envelope w-5 mr-3"></i>
+                    <span class="font-medium">Webmail LPLAN</span>
+                    <i class="fas fa-external-link-alt ml-auto text-xs opacity-75"></i>
+                </a>
+                {% if user.is_staff or user.is_superuser %}
+                <a href="{% url 'central_ajuda' %}" 
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                    <i class="fas fa-question-circle w-5 mr-3"></i>
+                    <span class="font-medium">Ajuda</span>
+                </a>
+                {% if not has_central or '/accounts/admin-central' in request.path %}
+                <a href="{% url 'accounts:admin_central' %}" 
+                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                    <i class="fas fa-cog w-5 mr-3"></i>
+                    <span class="font-medium">Painel do sistema</span>
+                </a>
+                {% endif %}
+                {% endif %}
             </div>
             {% endif %}
+        </nav>
+
+        <!-- User Section (Bottom) -->
+        {% if user.is_authenticated %}
+        <div class="p-4 border-t border-slate-700 bg-slate-800">
+            <div class="flex items-center">
+                <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mr-3 shadow-lg flex-shrink-0">
+                    <span class="text-white font-semibold text-sm">
+                        {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+                    </span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-white truncate">{{ user.get_full_name|default:user.username|title }}</p>
+                    <p class="text-xs text-gray-400 truncate">{{ user.email|truncatechars:20 }}</p>
+                </div>
+            </div>
+            <a href="{% url 'logout' %}" class="mt-3 flex items-center justify-center w-full px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors font-medium">
+                <i class="fas fa-sign-out-alt mr-3"></i>
+                <span>Sair</span>
+            </a>
+        </div>
+        {% endif %}
+    </aside>
+
+    <div class="main-content-wrapper">
+        <main class="main-content main-content--bi-obra">
+            <div class="top-bar-container fade-in">
+                <div class="top-bar-heading-group">
+                    {% block top_bar_back %}
+                    <a href="{% block back_url %}{% if '/gestao/' in request.path %}{% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'leitura_lista_pedidos_pdf' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'detail_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'leitura_pedido_pdf' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'edit_workorder' or request.resolver_match.url_name == 'approve_workorder' or request.resolver_match.url_name == 'reject_workorder' or request.resolver_match.url_name == 'solicitar_exclusao' or request.resolver_match.url_name == 'aprovar_exclusao' or request.resolver_match.url_name == 'rejeitar_exclusao' or request.resolver_match.url_name == 'upload_attachment' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_empresas' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_empresa' or request.resolver_match.url_name == 'detail_empresa' %}{% url 'gestao:list_empresas' %}{% elif request.resolver_match.url_name == 'edit_empresa' %}{% url 'gestao:detail_empresa' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_obras' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_obra' or request.resolver_match.url_name == 'detail_obra' %}{% url 'gestao:list_obras' %}{% elif request.resolver_match.url_name == 'edit_obra' or request.resolver_match.url_name == 'manage_obra_permissions' %}{% url 'gestao:detail_obra' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_users' or request.resolver_match.url_name == 'edit_my_profile' or request.resolver_match.url_name == 'list_notificacoes' or request.resolver_match.url_name == 'desempenho_equipe' or request.resolver_match.url_name == 'manage_aprovacao_destinatarios' or request.resolver_match.url_name == 'list_email_logs' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_user' %}{% url 'gestao:list_users' %}{% elif request.resolver_match.url_name == 'edit_user' or request.resolver_match.url_name == 'delete_user' or request.resolver_match.url_name == 'user_governance' %}{% url 'gestao:list_users' %}{% else %}{% url 'gestao:home' %}{% endif %}{% else %}#{% endif %}{% endblock %}" id="top-bar-back-link"
+                       class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 transition-all duration-200"
+                       aria-label="Voltar">
+                        <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
+                        <span>Voltar</span>
+                    </a>
+                    {% endblock %}
+                    <div class="top-bar-heading-text">
+                        <h2 class="top-bar-title"><span>BI da Obra</span></h2>
+                        <p class="top-bar-subtitle"><span style="font-size:11px;opacity:.6;">Obra, campo e material</span></p>
+                    </div>
+                </div>
+                
+                <!-- Notificações e User Menu -->
+                {% if user.is_authenticated %}
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <!-- Notificações -->
+                    {% get_unread_notifications_count user as unread_notifications %}
+                    <a href="{% url 'notifications' %}" 
+                       class="notif-bell-link relative p-2 text-gray-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                       aria-label="Notificações{% if unread_notifications > 0 %}. {{ unread_notifications }} não lida{{ unread_notifications|pluralize }}{% endif %}">
+                        <i class="fas fa-bell text-lg md:text-xl" aria-hidden="true"></i>
+                        {% if unread_notifications > 0 %}
+                        <span class="notif-count-badge" aria-label="{{ unread_notifications }} notificação{{ unread_notifications|pluralize }} não lida{{ unread_notifications|pluralize }}">
+                            {{ unread_notifications }}
+                        </span>
+                        {% endif %}
+                    </a>
+                    
+                    <!-- User Menu Dropdown -->
+                    <div class="relative" id="user-menu-container">
+                        <button type="button" id="user-menu-button" 
+                                class="flex items-center space-x-2 focus:outline-none bg-white hover:bg-gray-50 p-1.5 md:p-2 rounded-lg transition-all duration-200 no-underline"
+                                aria-expanded="false"
+                                aria-haspopup="true">
+                            <div class="w-9 h-9 md:w-10 md:h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-105 flex-shrink-0 overflow-hidden">
+                                <span class="text-white font-semibold text-xs md:text-sm leading-none">
+                                    {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+                                </span>
+                            </div>
+                            <i class="fas fa-chevron-down text-gray-400 text-xs hidden md:block transition-transform duration-200" id="user-menu-chevron"></i>
+                        </button>
+                        
+                        <div id="user-menu-dropdown"
+                             class="absolute right-0 mt-2 w-56 glass-effect rounded-lg shadow-xl py-1 z-50 border border-slate-100"
+                             style="display: none;">
+                            <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-lg">
+                                <p class="text-sm font-semibold text-slate-800 truncate">{{ user.get_full_name|default:user.username|title }}</p>
+                                <p class="text-xs text-gray-500 truncate mt-0.5">{{ user.email }}</p>
+                            </div>
+                            <a href="{% url 'profile' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-slate-50 transition-colors flex items-center">
+                                <i class="fas fa-user mr-3 text-gray-400 w-4"></i> Perfil
+                            </a>
+                            <a href="{% url 'logout' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-slate-50 transition-colors flex items-center">
+                                <i class="fas fa-sign-out-alt mr-3 text-gray-400 w-4"></i> Sair
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+<div class="bi-area">
+
+    <button type="button" class="index-toggle-btn" onclick="toggleIndex()" aria-label="Abrir índice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <div class="bi-index" id="bi-index">
+      <div class="index-header">
+        <div class="index-title">Índice do BI</div>
+        <button type="button" class="index-close" onclick="toggleIndex()">✕</button>
+      </div>
+      <a href="#hero"    class="index-item active" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-text3)"></div>Visão geral</a>
+      <a href="#bloco-1" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-accent)"></div>Execução física</a>
+      <a href="#bloco-2" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-blue)"></div>Pedidos & Aprovações</a>
+      <a href="#bloco-3" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-red)"></div>Restrições</a>
+      <a href="#bloco-4" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-green)"></div>Diário de obras</a>
+      <a href="#bloco-5" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-yellow)"></div>Suprimentos</a>
+    </div>
+
+    <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filters-bar">
+      <span class="filter-label">Obra</span>
+      <select name="obra" class="filter-select" id="select-obra" onchange="trocarObra(this)" aria-label="Obra">
+        {% for o in obras %}
+        <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
+        {% endfor %}
+      </select>
+      <span class="filter-label">De</span>
+      <input type="date" name="data_inicio" class="filter-select" value="{% if filtros_get.data_inicio %}{{ filtros_get.data_inicio }}{% elif analise_payload %}{{ analise_payload.meta.periodo.inicio }}{% endif %}">
+      <span class="filter-label">Até</span>
+      <input type="date" name="data_fim" class="filter-select" value="{% if filtros_get.data_fim %}{{ filtros_get.data_fim }}{% elif analise_payload %}{{ analise_payload.meta.periodo.fim }}{% endif %}">
+      <button type="submit" class="btn-apply">Aplicar</button>
+    </form>
+
+    <div class="bi-main">
+
+{% if analise_payload %}
+      <div class="hero" id="hero">
+        <div>
+          <div class="hero-label">Obra selecionada</div>
+          <div class="hero-title">{{ obra_selecionada.nome }}</div>
+          <div class="hero-code">Código Sienge: {{ analise_payload.meta.gestao_obra_id|default:analise_payload.meta.obra_codigo|default:"—" }}{% if analise_payload.meta.projeto_diario_codigo %} · Diário: {{ analise_payload.meta.projeto_diario_codigo }}{% endif %}</div>
+          <div class="hero-period">Período: {{ analise_payload.meta.periodo.inicio }} → {{ analise_payload.meta.periodo.fim }} ({{ analise_payload.meta.periodo.dias }} dias)</div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--bi-text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;text-align:right">Situação</div>
+          {% with sit=analise_payload.meta.situacao_executiva.nivel %}
+          <div class="sem-badge {% if sit == 'ok' %}green{% elif sit == 'atencao' %}yellow{% else %}red{% endif %}"><div class="sem-dot {% if sit == 'ok' %}green{% elif sit == 'atencao' %}yellow{% else %}red{% endif %}"></div>{% if sit == 'ok' %}Obra OK{% elif sit == 'atencao' %}Obra em atenção{% else %}Obra em risco{% endif %}</div>
+          {% endwith %}
+        </div>
+        <div class="hero-kpis">
+          <div class="hkpi"><div class="hkpi-source obra">Mapa de Controle</div><div class="hkpi-value">{% firstof analise_payload.meta.kpis_hero.avanco_fisico_pct analise_payload.controle.kpis.percentual_medio "—" %}{% if analise_payload.controle.kpis.percentual_medio or analise_payload.meta.kpis_hero.avanco_fisico_pct %}%{% endif %}</div><div class="hkpi-label">Avanço físico médio</div></div>
+          <div class="hkpi"><div class="hkpi-source restricoes">Restrições</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.restricoes_abertas|default_if_none:"—" }}</div><div class="hkpi-label">Restrições abertas</div></div>
+          <div class="hkpi"><div class="hkpi-source gestcontroll">GestControll</div><div class="hkpi-value">R$&nbsp;{{ analise_payload.meta.kpis_hero.valor_em_aprovacao|default_if_none:0|floatformat:2 }}</div><div class="hkpi-label">Em aprovação</div></div>
+          <div class="hkpi"><div class="hkpi-source diario">Diário de Obras</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.rdos_pendentes|default_if_none:"—" }}</div><div class="hkpi-label">RDOs pendentes</div></div>
+        </div>
+      </div>
+{% else %}
+      <div id="hero" style="text-align:center;padding:40px;color:var(--bi-text3);background:var(--bi-card);border:1px solid var(--bi-border);border-radius:14px;margin-bottom:18px">
+        Selecione uma obra para visualizar o BI
+      </div>
+{% endif %}
+
+{% if analise_payload %}
+{% if analise_payload.meta.diario_sem_vinculo or not analise_payload.diario.vinculo_projeto %}
+      <div style="background:var(--bi-yellow-bg);border:1px solid var(--bi-yellow);border-radius:10px;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;margin-bottom:18px">
+        <div style="font-size:16px">⚠️</div>
+        <div>
+          <div style="font-size:12.5px;color:var(--bi-text);font-weight:500">Diário sem vínculo de projeto</div>
+          <div style="font-size:10.5px;color:var(--bi-text2);margin-top:3px">O código Sienge desta obra não foi encontrado no Diário de Obras. <a href="/admin/" style="color:var(--bi-accent)">Configurar →</a></div>
+        </div>
+      </div>
+{% endif %}
+{% endif %}
+
+      <div class="sec-header" id="bloco-1">
+        <div class="sec-title"><div class="sec-num">1</div>Execução física</div>
+        <div class="sec-right"><div class="sec-source">Mapa de Controle</div><a href="{% url 'engenharia:mapa_controle' %}{% if obra_selecionada %}?obra={{ obra_selecionada.id }}{% endif %}" class="nav-link">Abrir Mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
+      </div>
+      <div class="grid-3">
+        {% if analise_payload %}
+        {% with pct=analise_payload.controle.kpis.percentual_medio|default:0 %}
+        <div class="card">
+          <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
+          <div class="big-num {% if pct >= 60 %}green{% elif pct >= 30 %}yellow{% else %}red{% endif %}">{{ pct|floatformat:1 }}%</div>
+          <div class="big-sub">média dos itens do mapa de serviço</div>
+          <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill {% if pct >= 60 %}green{% elif pct >= 30 %}yellow{% else %}red{% endif %}" style="width:{{ pct|floatformat:1 }}%"></div></div></div>
+          <div class="chips" style="margin-top:12px">
+            <div class="chip chip-green">✓ {{ analise_payload.controle.kpis.concluidos|default:0 }} concluídos</div>
+            <div class="chip chip-blue">↻ {{ analise_payload.controle.kpis.em_andamento|default:0 }} em andamento</div>
+            <div class="chip chip-gray">○ {{ analise_payload.controle.kpis.nao_iniciados|default:0 }} não iniciados</div>
           </div>
         </div>
+        {% endwith %}
+        <div class="card">
+          <div class="card-title">Blocos mais atrasados <span class="card-tag tag-obra">OBRA</span></div>
+          {% for bloco in analise_payload.controle.blocos_mais_atrasados %}
+          {% with p=bloco.percentual_medio|default:0 %}
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+          {% endwith %}
+          {% empty %}
+          <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
+          {% endfor %}
+          <a href="{% url 'engenharia:mapa_controle' %}{% if obra_selecionada %}?obra={{ obra_selecionada.id }}{% endif %}" class="nav-link">Ver no Mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Progresso por eixo <span class="card-tag tag-obra">OBRA</span></div>
+          {% for eixo in analise_payload.controle.progressao_eixos_completo|slice:":12" %}
+          {% with p=eixo.percentual_medio|default:0 %}
+          <div class="prog-wrap"><div class="prog-label"><span>{{ eixo.rotulo|default:"—" }}</span><span>{{ p|floatformat:1 }}%</span></div><div class="prog-bar"><div class="prog-fill {% if p >= 60 %}green{% elif p >= 30 %}yellow{% else %}red{% endif %}" style="width:{{ p|floatformat:1 }}%"></div></div></div>
+          {% endwith %}
+          {% empty %}
+          <div class="big-sub" style="color:var(--bi-text3)">Sem agrupamento</div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="card">
+          <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
+          <div class="big-num yellow">38,5%</div>
+          <div class="big-sub">média dos itens do mapa de serviço</div>
+          <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill yellow" style="width:38.5%"></div></div></div>
+          <div class="chips" style="margin-top:12px">
+            <div class="chip chip-green">✓ 142 concluídos</div>
+            <div class="chip chip-blue">↻ 89 em andamento</div>
+            <div class="chip chip-gray">○ 138 não iniciados</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Blocos mais atrasados <span class="card-tag tag-obra">OBRA</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Bloco C — P3</div><div class="stat-row-value" style="color:var(--bi-red)">12%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco A — P2</div><div class="stat-row-value" style="color:var(--bi-yellow)">28%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco B — P4</div><div class="stat-row-value" style="color:var(--bi-yellow)">31%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Bloco D — P1</div><div class="stat-row-value" style="color:var(--bi-blue)">47%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-green)"></div>Bloco A — P1</div><div class="stat-row-value" style="color:var(--bi-green)">72%</div></div>
+          <a href="{% url 'engenharia:mapa_controle' %}{% if obra_selecionada %}?obra={{ obra_selecionada.id }}{% endif %}" class="nav-link">Ver no Mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Progresso por eixo <span class="card-tag tag-obra">OBRA</span></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Estrutura</span><span>61%</span></div><div class="prog-bar"><div class="prog-fill green" style="width:61%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Alvenaria</span><span>44%</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:44%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Instalações</span><span>29%</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:29%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Revestimento</span><span>15%</span></div><div class="prog-bar"><div class="prog-fill red" style="width:15%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Acabamento</span><span>8%</span></div><div class="prog-bar"><div class="prog-fill red" style="width:8%"></div></div></div>
+        </div>
+        {% endif %}
       </div>
-    </div>
-  </section>
 
-  <section class="ao-section" aria-labelledby="sec-b">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-b">2 · Campo</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Diário no período <span class="ao-badge-origem diario">campo</span></p>
-      {% if not analise_payload.diario.vinculo_projeto %}
-      <p class="small text-warning mb-0">Diário não ligado à obra (código Sienge).</p>
-      {% endif %}
-    </div>
-    <div class="ao-grid">
-      <div class="ao-card span-6">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Ocorrências no tempo</h3>
-          <span class="ao-badge-origem diario">Campo</span>
-        </div>
-        <p class="ao-card-caption mb-0">
-          {{ analise_payload.meta.periodo.dias|default:"—" }} dia(s).
-          {% if analise_payload.diario.vinculo_projeto %}
-          <span class="d-none d-sm-inline"> </span><span class="ao-chart-click-hint">Toque no dia para o RDO.</span>
-          {% endif %}
-        </p>
-        <div class="ao-chart-box">
-          <canvas id="chart-ocorrencias-dia" aria-label="Ocorrências por dia"></canvas>
-        </div>
+      <div class="sec-header" id="bloco-2">
+        <div class="sec-title"><div class="sec-num">2</div>Pedidos & Aprovações</div>
+        <div class="sec-right"><div class="sec-source">GestControll · Central</div><a href="{% url 'gestao:list_workorders' %}" class="nav-link">Abrir GestControll <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
-      <div class="ao-card span-6">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Tipos</h3>
-          <span class="ao-badge-origem diario">Campo</span>
+      <div class="grid-4" style="margin-bottom:12px">
+        {% if analise_payload and analise_payload.gestcontroll %}
+        {% with g=analise_payload.gestcontroll %}
+        <div class="card">
+          <div class="card-title">Pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="big-num yellow">{{ g.kpis.pendentes_count|default:0 }}</div>
+          <div class="big-sub">aguardando aprovação</div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
+            <div style="font-size:10px;color:var(--bi-text3);margin-bottom:3px">Valor em análise</div>
+            <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">R$&nbsp;{{ g.kpis.pendentes_valor|default_if_none:0|floatformat:2 }}</div>
+          </div>
+          <a href="{% url 'gestao:list_workorders' %}?status=pendente{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">Ver fila <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
-        <p class="ao-card-caption mb-0">Toque na fatia para filtrar por tag.</p>
-        <div class="ao-chart-box">
-          <canvas id="chart-tags-diario" aria-label="Tags de ocorrência"></canvas>
+        <div class="card">
+          <div class="card-title">Reprovados <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="big-num red">{{ g.kpis.reprovados_count|default:0 }}</div>
+          <div class="big-sub">no período</div>
+          <div class="chips" style="margin-top:10px">
+            {% for tipo, qtd in g.kpis.reprovados_por_tipo.items %}
+            <div class="chip chip-red">{{ tipo }} · {{ qtd }}</div>
+            {% empty %}
+            <div class="chip chip-gray">Nenhum</div>
+            {% endfor %}
+          </div>
+          <a href="{% url 'gestao:list_workorders' %}?status=reprovado{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">Ver reprovados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
+        <div class="card">
+          <div class="card-title">Taxa aprovação <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          {% with tx=g.kpis.taxa_aprovacao|default:0 apr=g.kpis.aprovados_count|default:0 rep=g.kpis.reprovados_count|default:0 %}
+          <div class="big-num green">{{ tx|floatformat:0 }}%</div>
+          <div class="big-sub">no período</div>
+          <div class="prog-wrap" style="margin-top:12px">
+            <div class="prog-label"><span style="color:var(--bi-green)">✓ {{ apr }} apr.</span><span style="color:var(--bi-red)">✕ {{ rep }} repr.</span></div>
+            <div class="prog-bar" style="height:8px;display:flex">
+              <div style="height:100%;width:{{ g.kpis.taxa_aprovacao|default:0 }}%;background:var(--bi-green);border-radius:99px 0 0 99px"></div>
+              <div style="height:100%;width:{% widthratio rep apr|add:rep 100 %}%;background:var(--bi-red);border-radius:0 99px 99px 0"></div>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+        <div class="card">
+          <div class="card-title">Alçadas travadas <span class="card-tag tag-gest">CENTRAL</span></div>
+          <div class="big-num red">{{ g.kpis.alcadas_travadas|default:0 }}</div>
+          <div class="big-sub">parados há +5 dias</div>
+          <div class="chips" style="margin-top:10px">
+            {% for alcada in g.kpis.alcadas_detalhes %}
+            <div class="chip chip-{% if forloop.first %}red{% else %}yellow{% endif %}">{{ alcada.nome }} · {{ alcada.count }}</div>
+            {% empty %}
+            <div class="chip chip-gray">—</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endwith %}
+        {% else %}
+        <div class="card">
+          <div class="card-title">Pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="big-num yellow">7</div>
+          <div class="big-sub">aguardando aprovação</div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
+            <div style="font-size:10px;color:var(--bi-text3);margin-bottom:3px">Valor em análise</div>
+            <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">R$ 1.247.500</div>
+          </div>
+          <a href="{% url 'gestao:list_workorders' %}" class="nav-link">Ver fila <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Reprovados <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="big-num red">4</div>
+          <div class="big-sub">no período</div>
+          <div class="chips" style="margin-top:10px">
+            <div class="chip chip-red">Medição · 2</div>
+            <div class="chip chip-red">Serviço · 1</div>
+            <div class="chip chip-red">Material · 1</div>
+          </div>
+          <a href="{% url 'gestao:list_workorders' %}" class="nav-link">Ver reprovados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Taxa aprovação <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="big-num green">78%</div>
+          <div class="big-sub">no período</div>
+          <div class="prog-wrap" style="margin-top:12px">
+            <div class="prog-label"><span style="color:var(--bi-green)">✓ 18 apr.</span><span style="color:var(--bi-red)">✕ 4 repr.</span></div>
+            <div class="prog-bar" style="height:8px;display:flex">
+              <div style="height:100%;width:78%;background:var(--bi-green);border-radius:99px 0 0 99px"></div>
+              <div style="height:100%;width:22%;background:var(--bi-red);border-radius:0 99px 99px 0"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Alçadas travadas <span class="card-tag tag-gest">CENTRAL</span></div>
+          <div class="big-num red">3</div>
+          <div class="big-sub">parados há +5 dias</div>
+          <div class="chips" style="margin-top:10px">
+            <div class="chip chip-red">Alçada 2 · 2</div>
+            <div class="chip chip-yellow">Alçada 1 · 1</div>
+          </div>
+        </div>
+        {% endif %}
       </div>
-      <div class="ao-card span-12">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Últimos dias</h3>
-          <span class="ao-badge-origem diario">{{ analise_payload.diario.timeline|length }} dia(s)</span>
-        </div>
-        {% if analise_payload.diario.timeline %}
-        <div class="ao-timeline">
-          {% for row in analise_payload.diario.timeline %}
-          <details class="ao-tl-item ao-tl-item--expandable" {% if forloop.first %}open{% endif %}>
-            <summary class="ao-tl-summary">
-              <div class="ao-tl-date">{{ row.data }}</div>
-              <div class="ao-tl-body">
-                #{{ row.relatorio|default:"—" }} · {{ row.ocorrencias_no_dia }} ocorr.
-                {% if row.relatorio_id %}
-                <a href="{% url 'diary-detail' row.relatorio_id %}" class="ao-tl-rdo-link small fw-semibold ms-1 text-decoration-none" onclick="event.stopPropagation();">Abrir RDO →</a>
-                {% endif %}
-                {% if row.resumo_clima %}<br><span class="text-secondary small">{{ row.resumo_clima }}</span>{% endif %}
-                <br><span class="ao-tl-open-hint">Abrir o dia</span>
+      <div class="grid-2" style="margin-bottom:12px">
+        {% if analise_payload and analise_payload.gestcontroll %}
+        {% with g=analise_payload.gestcontroll %}
+        <div class="card">
+          <div class="card-title">Pedidos pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          {% for pedido in g.pedidos_pendentes %}
+          <div class="pedido-row" onclick="location.href='{% url 'gestao:detail_workorder' pedido.id %}'">
+            <div class="pedido-code">{{ pedido.codigo|default:"—" }}</div>
+            <div class="pedido-credor">
+              {{ pedido.nome_credor|default:"—" }}
+              <div style="font-size:10px;color:var(--bi-text3)">
+                {{ pedido.tipo_solicitacao|default:"—" }} · há {{ pedido.dias_pendente|default:0 }} dias
+                {% if pedido.dias_pendente|default:0 > 7 %}⚠️{% endif %}
               </div>
-            </summary>
-            <div class="ao-tl-occ-list">
-              {% if row.ocorrencias %}
-                {% for oc in row.ocorrencias %}
-                <div class="ao-tl-occ-item">
-                  <p class="mb-1">{{ oc.descricao }}</p>
-                  {% if oc.tags %}
-                    <div class="d-flex flex-wrap gap-1">
-                      {% for tg in oc.tags %}
-                      <span class="ao-tag-inline">{{ tg }}</span>
-                      {% endfor %}
-                    </div>
+            </div>
+            <div class="pedido-valor">{% if pedido.valor_estimado != None %}R$ {{ pedido.valor_estimado|floatformat:2 }}{% elif pedido.valor_medicao != None %}R$ {{ pedido.valor_medicao|floatformat:2 }}{% else %}—{% endif %}</div>
+            <div class="pedido-badge pend">Pendente</div>
+            <div class="pedido-arrow">›</div>
+          </div>
+          {% empty %}
+          <div style="font-size:12px;color:var(--bi-text3);padding:12px 0">Nenhum pedido pendente</div>
+          {% endfor %}
+          {% if g.kpis.pendentes_count > 0 %}
+          <a href="{% url 'gestao:list_workorders' %}?status=pendente{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">
+            Ver todos os {{ g.kpis.pendentes_count }} pendentes
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Aprovadores <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          {% for aprovador in g.aprovadores %}
+          <div class="resp-row">
+            <div class="resp-avatar">{{ aprovador.nome|slice:":2"|upper }}</div>
+            <div>
+              <div class="resp-name">{{ aprovador.nome }}</div>
+              <div class="resp-sub">{{ aprovador.nivel|default:"Aprovador" }}</div>
+            </div>
+            <div class="resp-stats">
+              <div class="resp-stat">
+                <div class="resp-stat-val green">{{ aprovador.aprovados|default:0 }}</div>
+                <div class="resp-stat-label">Aprov.</div>
+              </div>
+              <div class="resp-divider"></div>
+              <div class="resp-stat">
+                <div class="resp-stat-val red">{{ aprovador.reprovados|default:0 }}</div>
+                <div class="resp-stat-label">Repr.</div>
+              </div>
+              <div class="resp-divider"></div>
+              <div class="resp-stat">
+                <div class="tempo-badge {% if aprovador.tempo_medio_dias <= 2 %}fast{% elif aprovador.tempo_medio_dias <= 5 %}mid{% else %}slow{% endif %}">
+                  {{ aprovador.tempo_medio_dias|floatformat:1 }}d
+                </div>
+                <div class="resp-stat-label" style="margin-top:2px;text-align:center">Tempo</div>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div style="font-size:12px;color:var(--bi-text3);padding:12px 0">Sem dados de aprovadores</div>
+          {% endfor %}
+          <div style="margin-top:12px;padding:10px;background:var(--bi-yellow-bg);border-radius:8px">
+            <div style="font-size:10px;font-weight:700;color:var(--bi-yellow);margin-bottom:3px">⏱ Tempo médio geral</div>
+            <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">{% if g.kpis.tempo_medio_geral != None %}{{ g.kpis.tempo_medio_geral|floatformat:1 }} dias{% else %}—{% endif %}</div>
+          </div>
+        </div>
+        {% endwith %}
+        {% else %}
+        <div class="card">
+          <div class="card-title">Pedidos pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="pedido-row"><div class="pedido-code">260-2026-109</div><div class="pedido-credor">L A Distribuidora<div style="font-size:10px;color:var(--bi-text3)">Medição · há 3 dias</div></div><div class="pedido-valor">R$ 320.000</div><div class="pedido-badge pend">Pendente</div><div class="pedido-arrow">›</div></div>
+          <div class="pedido-row"><div class="pedido-code">260-2026-108</div><div class="pedido-credor">Construtora ABC<div style="font-size:10px;color:var(--bi-text3)">Serviço · há 5 dias</div></div><div class="pedido-valor">R$ 180.000</div><div class="pedido-badge pend">Pendente</div><div class="pedido-arrow">›</div></div>
+          <div class="pedido-row"><div class="pedido-code">260-2026-097</div><div class="pedido-credor">Fornecedor XYZ<div style="font-size:10px;color:var(--bi-text3)">Material · há 8 dias ⚠️</div></div><div class="pedido-valor">R$ 95.000</div><div class="pedido-badge pend">Pendente</div><div class="pedido-arrow">›</div></div>
+          <a href="{% url 'gestao:list_workorders' %}" class="nav-link">Ver todos os 7 pendentes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Aprovadores <span class="card-tag tag-gest">GESTCONTROLL</span></div>
+          <div class="resp-row">
+            <div class="resp-avatar">MS</div>
+            <div><div class="resp-name">Marcos Silva</div><div class="resp-sub">Nível 1</div></div>
+            <div class="resp-stats">
+              <div class="resp-stat"><div class="resp-stat-val green">11</div><div class="resp-stat-label">Aprov.</div></div>
+              <div class="resp-divider"></div>
+              <div class="resp-stat"><div class="resp-stat-val red">2</div><div class="resp-stat-label">Repr.</div></div>
+              <div class="resp-divider"></div>
+              <div class="resp-stat"><div class="tempo-badge fast">1,2d</div><div class="resp-stat-label" style="margin-top:2px;text-align:center">Tempo</div></div>
+            </div>
+          </div>
+          <div class="resp-row">
+            <div class="resp-avatar">AC</div>
+            <div><div class="resp-name">Ana Costa</div><div class="resp-sub">Nível 2</div></div>
+            <div class="resp-stats">
+              <div class="resp-stat"><div class="resp-stat-val green">5</div><div class="resp-stat-label">Aprov.</div></div>
+              <div class="resp-divider"></div>
+              <div class="resp-stat"><div class="resp-stat-val red">1</div><div class="resp-stat-label">Repr.</div></div>
+              <div class="resp-divider"></div>
+              <div class="resp-stat"><div class="tempo-badge slow">7,1d</div><div class="resp-stat-label" style="margin-top:2px;text-align:center">Tempo</div></div>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding:10px;background:var(--bi-yellow-bg);border-radius:8px">
+            <div style="font-size:10px;font-weight:700;color:var(--bi-yellow);margin-bottom:3px">⏱ Tempo médio geral</div>
+            <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">3,2 dias</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="sec-header" id="bloco-3">
+        <div class="sec-title"><div class="sec-num">3</div>Restrições abertas</div>
+        <div class="sec-right"><div class="sec-source">Restrições</div><a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Abrir Restrições <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
+      </div>
+      <div class="grid-4">
+        {% if analise_payload and analise_payload.restricoes %}
+        {% with r=analise_payload.restricoes %}
+        <div class="card">
+          <div class="card-title">Total aberto <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="big-num red">{{ r.kpis.total_aberto|default:0 }}</div><div class="big-sub">em aberto</div>
+          <div class="chips" style="margin-top:10px">
+            {% for prioridade, qtd in r.kpis.por_prioridade.items %}
+            {% if qtd > 0 %}
+            <div class="chip chip-{% if prioridade == 'CRITICA' %}red{% elif prioridade == 'ALTA' %}yellow{% elif prioridade == 'NORMAL' %}blue{% else %}gray{% endif %}">
+              {% if prioridade == 'CRITICA' %}🔴{% elif prioridade == 'ALTA' %}🟡{% elif prioridade == 'NORMAL' %}🔵{% else %}⚪{% endif %}
+              {{ prioridade|capfirst }} {{ qtd }}
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% if obra_selecionada.project_id %}
+          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?prioridade=critica" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% else %}
+          <a href="{% url 'impedimentos:select_obra' %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Prazo vencido <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="big-num red">{{ r.kpis.vencidas|default:0 }}</div><div class="big-sub">prazo expirado</div>
+          <div style="margin-top:10px">
+            {% for v in r.vencidas_recentes %}
+            <div class="tl-item">
+              <div class="tl-date">há {{ v.dias_vencido }} dias</div>
+              <div class="tl-content">
+                {{ v.titulo|truncatechars:40 }}
+                <div class="tl-meta">{{ v.prioridade|capfirst }} · {{ v.responsavel|default:"Sem responsável" }}</div>
+              </div>
+            </div>
+            {% empty %}
+            <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">Nenhuma vencida</div>
+            {% endfor %}
+          </div>
+          {% if obra_selecionada.project_id %}
+          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?vencidas=true" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% else %}
+          <a href="{% url 'impedimentos:select_obra' %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Por responsável <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          {% for resp in r.por_responsavel %}
+          <div class="stat-row">
+            <div class="stat-row-label">
+              <div class="stat-dot" style="background:{% if forloop.counter == 1 %}var(--bi-red){% elif forloop.counter == 2 %}var(--bi-yellow){% elif forloop.counter == 3 %}var(--bi-blue){% else %}var(--bi-text3){% endif %}"></div>
+              {{ resp.nome }}
+            </div>
+            <div class="stat-row-value">{{ resp.total }}</div>
+          </div>
+          {% endfor %}
+          {% if r.kpis.sem_responsavel > 0 %}
+          <div class="stat-row">
+            <div class="stat-row-label" style="color:var(--bi-red)">⚠ Sem responsável</div>
+            <div class="stat-row-value" style="color:var(--bi-red)">{{ r.kpis.sem_responsavel }}</div>
+          </div>
+          {% endif %}
+          {% if r.kpis.sem_responsavel > 0 and obra_selecionada.project_id %}
+          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?sem_responsavel=true" class="nav-link">
+            Atribuir responsáveis
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Subtarefas bloqueando <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="big-num yellow">{{ r.kpis.subtarefas_bloqueando|default:0 }}</div><div class="big-sub">subtarefas abertas</div>
+          {% if r.kpis.restricoes_com_subtarefa_aberta %}
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
+            <div class="chip chip-red" style="display:inline-flex">{{ r.kpis.restricoes_com_subtarefa_aberta }} restrições bloqueadas</div>
+          </div>
+          {% endif %}
+        </div>
+        {% endwith %}
+        {% else %}
+        <div class="card">
+          <div class="card-title">Total aberto <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="big-num red">12</div><div class="big-sub">em aberto</div>
+          <div class="chips" style="margin-top:10px">
+            <div class="chip chip-red">🔴 Crítica 2</div>
+            <div class="chip chip-yellow">🟡 Alta 5</div>
+            <div class="chip chip-blue">🔵 Normal 3</div>
+            <div class="chip chip-gray">⚪ Baixa 2</div>
+          </div>
+          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Prazo vencido <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="big-num red">4</div><div class="big-sub">prazo expirado</div>
+          <div style="margin-top:10px">
+            <div class="tl-item"><div class="tl-date">há 8 dias</div><div class="tl-content">Licença de demolição<div class="tl-meta">Crítica · João Silva</div></div></div>
+            <div class="tl-item"><div class="tl-date">há 3 dias</div><div class="tl-content">Aprovação CREA<div class="tl-meta">Alta · Maria Costa</div></div></div>
+          </div>
+          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Por responsável <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>João Silva</div><div class="stat-row-value">4</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Maria Costa</div><div class="stat-row-value">3</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Carlos Melo</div><div class="stat-row-value">3</div></div>
+          <div class="stat-row"><div class="stat-row-label" style="color:var(--bi-red)">⚠ Sem responsável</div><div class="stat-row-value" style="color:var(--bi-red)">2</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Subtarefas bloqueando <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
+          <div class="big-num yellow">8</div><div class="big-sub">subtarefas abertas</div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
+            <div class="chip chip-red" style="display:inline-flex">3 restrições bloqueadas</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="sec-header" id="bloco-4">
+        <div class="sec-title"><div class="sec-num">4</div>Diário de obras</div>
+        <div class="sec-right"><div class="sec-source">RDO</div><a href="{% url 'report-list' %}" class="nav-link">Abrir Diário <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
+      </div>
+      <div class="grid-3">
+        {% if analise_payload %}
+        <div class="card">
+          <div class="card-title">Status dos RDOs <span class="card-tag tag-campo">DIÁRIO</span></div>
+          {% with rs=analise_payload.diario.rdos_resumo %}
+          <div style="display:flex;gap:16px;align-items:center">
+            <div><div class="big-num green" style="font-size:28px">{{ rs.aprovados|default:0 }}</div><div class="big-sub">aprovados</div></div>
+            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
+            <div><div class="big-num yellow" style="font-size:22px">{{ rs.pendentes|default:0 }}</div><div class="big-sub">pendentes</div></div>
+            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
+            <div><div class="big-num red" style="font-size:22px">{{ rs.sem_rdo|default:0 }}</div><div class="big-sub">sem RDO</div></div>
+          </div>
+          <div class="rdo-bar">
+            <div class="rdo-seg" style="flex:{{ rs.aprovados|default:1 }};background:var(--bi-green);opacity:.8"></div>
+            {% if rs.pendentes|default:0 > 0 %}
+            <div class="rdo-seg" style="flex:{{ rs.pendentes }};background:var(--bi-yellow)"></div>
+            {% endif %}
+            {% if rs.sem_rdo|default:0 > 0 %}
+            <div class="rdo-seg" style="flex:{{ rs.sem_rdo }};background:var(--bi-border2)"></div>
+            {% endif %}
+          </div>
+          <div style="font-size:10.5px;color:var(--bi-text3)">{{ analise_payload.meta.periodo.dias }} dias · {{ rs.aprovados|default:0 }} apr · {{ rs.pendentes|default:0 }} pend. · {{ rs.sem_rdo|default:0 }} sem registro</div>
+          {% if rs.pendentes|default:0 > 0 and analise_payload.meta.projeto_diario_id %}
+          <a href="{% url 'report-list' %}?obra={{ analise_payload.meta.projeto_diario_id }}&amp;status=AG" class="nav-link">
+            Aprovar pendentes ({{ rs.pendentes }})
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+          {% endif %}
+          {% endwith %}
+        </div>
+        <div class="card">
+          <div class="card-title">Ocorrências por tag <span class="card-tag tag-campo">DIÁRIO</span></div>
+          {% if analise_payload.diario.vinculo_projeto %}
+          {% for tag in analise_payload.diario.tags_top %}
+          <div class="stat-row">
+            <div class="stat-row-label">
+              <div class="stat-dot" style="background:{{ tag.cor|default:'#6366f1' }}"></div>
+              {{ tag.nome }}
+            </div>
+            <div class="stat-row-value">{{ tag.total|default_if_none:0 }}</div>
+          </div>
+          {% empty %}
+          <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">Sem ocorrências no período</div>
+          {% endfor %}
+          {% else %}
+          <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">
+            ⚠️ Diário sem vínculo — configure o código Sienge da obra
+          </div>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Últimos dias <span class="card-tag tag-campo">DIÁRIO</span></div>
+
+          {% if analise_payload.diario.vinculo_projeto %}
+
+            <!-- Primeiros 5 dias — sempre visíveis -->
+            <div id="dias-resumo">
+              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:":5" %}
+              <div class="tl-item">
+                <div class="tl-date">{{ dia.data|date:"d/m" }}</div>
+                <div class="tl-content">
+                  {% if dia.tem_rdo %}
+                    RDO #{{ dia.report_number }} ·
+                    {% if dia.status == 'AP' %}<span style="color:var(--bi-green)">Aprovado</span>
+                    {% elif dia.status == 'AG' %}<span style="color:var(--bi-yellow)">Pendente</span>
+                    {% else %}{{ dia.status }}{% endif %}
+                    <div class="tl-meta">{{ dia.ocorrencias|default:0 }} ocorr. · {{ dia.responsavel|default:"—" }}</div>
+                  {% else %}
+                    <span style="color:var(--bi-text3);font-style:italic">Sem RDO registrado</span>
                   {% endif %}
                 </div>
-                {% endfor %}
-              {% else %}
-                <p class="ao-empty mb-0">Nada registrado neste dia.</p>
-              {% endif %}
+              </div>
+              {% endfor %}
             </div>
-          </details>
-          {% endfor %}
+
+            <!-- Dias 6 a 30 — ocultos por padrão -->
+            <div id="dias-expandido" style="display:none;overflow:hidden;transition:all .3s;">
+              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:"5:30" %}
+              <div class="tl-item">
+                <div class="tl-date">{{ dia.data|date:"d/m" }}</div>
+                <div class="tl-content">
+                  {% if dia.tem_rdo %}
+                    RDO #{{ dia.report_number }} ·
+                    {% if dia.status == 'AP' %}<span style="color:var(--bi-green)">Aprovado</span>
+                    {% elif dia.status == 'AG' %}<span style="color:var(--bi-yellow)">Pendente</span>
+                    {% else %}{{ dia.status }}{% endif %}
+                    <div class="tl-meta">{{ dia.ocorrencias|default:0 }} ocorr. · {{ dia.responsavel|default:"—" }}</div>
+                  {% else %}
+                    <span style="color:var(--bi-text3);font-style:italic">Sem RDO registrado</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <!-- Botões -->
+            {% if analise_payload.diario.ultimos_dias_calendario|length > 5 %}
+            <button type="button" id="btn-ver-mais-dias" onclick="toggleDias()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
+              Ver mais
+              <svg id="icon-ver-mais-dias" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {% endif %}
+
+            <a href="{% url 'report-list' %}?project={{ analise_payload.meta.projeto_diario_id }}" class="nav-link">
+              Ver todos os diários
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+
+          {% else %}
+            <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">
+              Diário sem vínculo com esta obra.
+              <a href="/admin/" style="color:var(--bi-accent)">Configurar →</a>
+            </div>
+          {% endif %}
         </div>
         {% else %}
-        <p class="ao-empty">Nenhum registro neste período.</p>
+        <div class="card">
+          <div class="card-title">Status dos RDOs <span class="card-tag tag-campo">DIÁRIO</span></div>
+          <div style="display:flex;gap:16px;align-items:center">
+            <div><div class="big-num green" style="font-size:28px">21</div><div class="big-sub">aprovados</div></div>
+            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
+            <div><div class="big-num yellow" style="font-size:22px">3</div><div class="big-sub">pendentes</div></div>
+            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
+            <div><div class="big-num red" style="font-size:22px">7</div><div class="big-sub">sem RDO</div></div>
+          </div>
+          <div class="rdo-bar">
+            <div class="rdo-seg" style="flex:21;background:var(--bi-green);opacity:.8"></div>
+            <div class="rdo-seg" style="flex:3;background:var(--bi-yellow)"></div>
+            <div class="rdo-seg" style="flex:7;background:var(--bi-border2)"></div>
+          </div>
+          <div style="font-size:10.5px;color:var(--bi-text3)">31 dias · 21 apr · 3 pend. · 7 sem registro</div>
+          <a href="{% url 'report-list' %}" class="nav-link">Aprovar pendentes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Ocorrências por tag <span class="card-tag tag-campo">DIÁRIO</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#ef4444"></div>Segurança</div><div class="stat-row-value">8</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#f59e0b"></div>Clima</div><div class="stat-row-value">6</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#3b82f6"></div>Equipamento</div><div class="stat-row-value">4</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#8b5cf6"></div>Mão de obra</div><div class="stat-row-value">3</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#22c55e"></div>Outros</div><div class="stat-row-value">2</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Últimos dias <span class="card-tag tag-campo">DIÁRIO</span></div>
+          <div class="tl-item"><div class="tl-date">05/05</div><div class="tl-content">RDO #31 · Aprovado<div class="tl-meta">0 ocorr. · João Silva</div></div></div>
+          <div class="tl-item"><div class="tl-date">04/05</div><div class="tl-content">RDO #30 · <span style="color:var(--bi-yellow)">Pendente</span><div class="tl-meta">2 ocorr. · Carlos Melo</div></div></div>
+          <div class="tl-item"><div class="tl-date">03/05</div><div class="tl-content" style="color:var(--bi-text3);font-style:italic">Sem RDO registrado</div></div>
+          <div class="tl-item"><div class="tl-date">02/05</div><div class="tl-content">RDO #29 · Aprovado<div class="tl-meta">1 ocorr. · João Silva</div></div></div>
+          <a href="{% url 'report-list' %}" class="nav-link">Ver todos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
         {% endif %}
       </div>
-    </div>
-  </section>
 
-  <section class="ao-section" aria-labelledby="sec-c">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-c">3 · Locais com risco de atraso</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Leitura principal de prioridade por local: físico e suprimento juntos <span class="ao-badge-origem cruzamento">cruzamento</span></p>
-    </div>
-    <p class="small text-secondary d-md-none mb-2">Obra lenta e material pendente no mesmo lugar</p>
-    <div class="ao-table-wrap">
-      <table class="ao-table">
-        <thead>
-          <tr>
-            <th>Local</th>
-            <th>% obra</th>
-            <th>Pend.</th>
-            <th>Prioridade</th>
-            <th class="d-none d-md-table-cell">Nota</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for c in analise_payload.cruzamento.candidatos_atraso_suprimento_e_execucao %}
-          <tr class="ao-bi-click-row ao-bi-bloco-row" data-bloco="{{ c.bloco_mapa }}" data-setor="{{ c.setor_mapa|default:'' }}" title="Abrir o mapa neste bloco">
-            <td>{{ c.rotulo_exibicao|default:c.local_norm }}</td>
-            <td>{{ c.controle.percentual_medio }}%</td>
-            <td>{{ c.suprimentos.pendencias_pendentes_ranking }}</td>
-            <td>
-              {% if c.prioridade == 'urgente' %}
-              <span class="ao-sev-badge ao-sev-critica">URGENTE</span>
-              {% elif c.prioridade == 'alta' %}
-              <span class="ao-sev-badge ao-sev-alta">ALTA</span>
-              {% elif c.prioridade == 'media' %}
-              <span class="ao-sev-badge ao-sev-media">MEDIA</span>
-              {% else %}
-              <span class="ao-sev-badge ao-sev-baixa">BAIXA</span>
-              {% endif %}
-            </td>
-            <td class="small d-none d-md-table-cell">{{ c.leitura|truncatechars:80 }}</td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td colspan="5" class="ao-empty">Nada com estes filtros.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="ao-section" aria-labelledby="sec-d">
-    <div class="ao-section-head">
-      <h2 class="ao-section-title" id="sec-d">4 · Material</h2>
-      <p class="ao-section-desc d-none d-md-block mb-0">Fila SC/PC e pressão por local (somente suprimentos) — detalhes no dashboard <span class="ao-badge-origem suprimentos">material</span></p>
-    </div>
-    <div class="ao-grid">
-      <div class="ao-card span-4">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Fila</h3>
-          <span class="ao-badge-origem suprimentos">Material</span>
-        </div>
-        <ul class="list-unstyled small mb-0" style="line-height:1.8;">
-          <li>Sem pedido (SC): <strong>{{ analise_payload.suprimentos.kpis.sem_sc }}</strong></li>
-          <li>SC sem compra (PC): <strong>{{ analise_payload.suprimentos.kpis.sem_pc }}</strong></li>
-          <li>PC sem entrega: <strong>{{ analise_payload.suprimentos.kpis.sem_entrega }}</strong></li>
-          <li>Entregue sem alocar: <strong>{{ analise_payload.suprimentos.kpis.sem_alocacao }}</strong></li>
-        </ul>
+      <div class="sec-header" id="bloco-5">
+        <div class="sec-title"><div class="sec-num">5</div>Suprimentos</div>
+        <div class="sec-right"><div class="sec-source">Mapa de Suprimentos</div><a href="{% url 'engenharia:mapa' %}" class="nav-link">Abrir Suprimentos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
-      <div class="ao-card span-8">
-        <div class="ao-card-head">
-          <h3 class="ao-card-title">Onde mais pesa</h3>
-          <span class="ao-badge-origem suprimentos">Material</span>
+      <div class="grid-2">
+        {% if analise_payload %}
+        {% with sk=analise_payload.suprimentos.kpis %}
+        {% with denom=sk.total_itens|default:1 %}
+        <div class="card">
+          <div class="card-title">Funil de materiais <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
+          <div class="funnel">
+            <div class="funnel-item"><div class="funnel-label">Sem pedido (SC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f1" style="width:{% widthratio sk.sem_sc|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_sc|default:0 }}</span></div></div></div>
+            <div class="funnel-item"><div class="funnel-label">SC sem compra (PC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f2" style="width:{% widthratio sk.sem_pc|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_pc|default:0 }}</span></div></div></div>
+            <div class="funnel-item"><div class="funnel-label">PC sem entrega</div><div class="funnel-bar-wrap"><div class="funnel-bar f3" style="width:{% widthratio sk.sem_entrega|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_entrega|default:0 }}</span></div></div></div>
+            <div class="funnel-item"><div class="funnel-label">Entregue s/ alocar</div><div class="funnel-bar-wrap"><div class="funnel-bar f4" style="width:{% widthratio sk.sem_alocacao|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_alocacao|default:0 }}</span></div></div></div>
+          </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:11px;color:var(--bi-text2)">Itens atrasados</div>
+            <div style="font-size:16px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-red)">{{ sk.atrasados|default:0 }}</div>
+          </div>
+          <a href="{% url 'engenharia:dashboard_2' %}" class="nav-link">Ver atrasados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
-        <p class="ao-card-caption mb-0">Pendências por local (itens ainda não entregues). Toque na barra para o dashboard daquele local.</p>
-        <div class="ao-chart-box">
-          <canvas id="chart-suprimentos-locais" aria-label="Pendências por local"></canvas>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="ao-section" aria-labelledby="sec-t">
-    <h2 class="ao-section-title" id="sec-t">Progressão por eixo — tabela</h2>
-    <div class="ao-table-wrap">
-      <table class="ao-table">
-        <thead>
-          <tr>
-            <th>Eixo</th>
-            <th>% médio</th>
-            <th>Itens no mapa</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in analise_payload.controle.progressao_eixos_completo %}
-          <tr class="ao-bi-click-row ao-bi-bloco-row{% if forloop.counter > 6 %} ao-prog-tabela-extra d-none{% endif %}" data-bloco="{{ b.bloco }}" data-setor="{{ b.setor|default:'' }}" title="Abrir o mapa neste eixo">
-            <td>{{ b.rotulo|default:b.bloco }}</td>
-            <td>{{ b.percentual_medio }}</td>
-            <td>{{ b.amostras }}</td>
-          </tr>
+        {% endwith %}
+        {% endwith %}
+        <div class="card">
+          <div class="card-title">Locais com mais pressão <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
+          {% with locais=analise_payload.suprimentos.ranking.locais %}
+          {% if locais %}
+          {% with mx=locais.0.1|default:1 %}
+          {% for row in locais %}
+          {% with nome=row.0 qtd=row.1 %}
+          <div class="prog-wrap"><div class="prog-label"><span>{{ nome|default:"—" }}</span><span>{{ qtd|default:0 }} pend.</span></div><div class="prog-bar"><div class="prog-fill {% if qtd >= 15 %}red{% elif qtd >= 8 %}yellow{% elif qtd >= 4 %}accent{% else %}green{% endif %}" style="width:{% widthratio qtd mx 100 %}%"></div></div></div>
+          {% endwith %}
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if analise_payload.controle.progressao_eixos_completo|length > 6 %}
-    <div class="text-end mt-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" id="aoProgTabelaExpand" aria-expanded="false">Ver mais eixos</button>
-    </div>
-    {% endif %}
-  </section>
+          {% endwith %}
+          {% else %}
+          <div class="big-sub" style="color:var(--bi-text3)">Sem dados de locais</div>
+          {% endif %}
+          {% endwith %}
+          <a href="{% url 'engenharia:mapa' %}" class="nav-link">Ver por local <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        {% else %}
+        <div class="card">
+          <div class="card-title">Funil de materiais <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
+          <div class="funnel">
+            <div class="funnel-item"><div class="funnel-label">Sem pedido (SC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f1"><span class="funnel-num">24</span></div></div></div>
+            <div class="funnel-item"><div class="funnel-label">SC sem compra (PC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f2"><span class="funnel-num">17</span></div></div></div>
+            <div class="funnel-item"><div class="funnel-label">PC sem entrega</div><div class="funnel-bar-wrap"><div class="funnel-bar f3"><span class="funnel-num">11</span></div></div></div>
+            <div class="funnel-item"><div class="funnel-label">Entregue s/ alocar</div><div class="funnel-bar-wrap"><div class="funnel-bar f4"><span class="funnel-num">6</span></div></div></div>
+          </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:11px;color:var(--bi-text2)">Itens atrasados</div>
+            <div style="font-size:16px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-red)">9</div>
+          </div>
+          <a href="{% url 'engenharia:dashboard_2' %}" class="nav-link">Ver atrasados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Locais com mais pressão <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Bloco C — P3</span><span>18 pend.</span></div><div class="prog-bar"><div class="prog-fill red" style="width:90%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Bloco A — P2</span><span>14 pend.</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:70%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Bloco B — P1</span><span>11 pend.</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:55%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Bloco D — P4</span><span>7 pend.</span></div><div class="prog-bar"><div class="prog-fill accent" style="width:35%"></div></div></div>
+          <div class="prog-wrap"><div class="prog-label"><span>Bloco A — P1</span><span>4 pend.</span></div><div class="prog-bar"><div class="prog-fill green" style="width:20%"></div></div></div>
+          <a href="{% url 'engenharia:mapa' %}" class="nav-link">Ver por local <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        {% endif %}
+      </div>
 
-  <p class="ao-footnote d-flex flex-wrap gap-2 gap-md-3 align-items-center">
-    <span class="text-secondary small">Atalhos:</span>
-    <a href="{% url 'engenharia:dashboard_2' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Dashboard SC/PC</a>
-    <a href="{% url 'engenharia:mapa' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Mapa</a>
-    <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}" class="ao-link-footer">Controle físico</a>
-    <a href="/reports/" class="ao-link-footer">Diários</a>
-  </p>
-
-  <div class="offcanvas offcanvas-end ao-drill-offcanvas" tabindex="-1" id="aoDrilldown" aria-labelledby="aoDrilldownLabel" style="width:min(520px,100vw);">
-    <div class="offcanvas-header ao-drill-offcanvas-header border-bottom">
-      <h2 class="offcanvas-title h5" id="aoDrilldownLabel">Detalhe</h2>
-      <button type="button" class="btn-close ao-drill-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
-    </div>
-    <div class="offcanvas-body ao-drill-offcanvas-body" id="aoDrilldownBody">
-      <p class="small ao-drill-placeholder">Escolha uma linha na tabela ou toque em Abrir.</p>
     </div>
   </div>
-  {% endif %}
-</div>
-</div>
-{% endblock %}
+        </main>
+    </div>
+
+<script>
+(function() {
+  const saved = localStorage.getItem('lplan-bi-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  window.addEventListener('DOMContentLoaded', function() {
+    if (typeof updateThemeUI === 'function') updateThemeUI(saved);
+  });
+})();
+
+function updateThemeUI(theme) {
+  const box = document.getElementById('theme-icon-box');
+  const svg = document.getElementById('theme-svg');
+  const pill = document.getElementById('theme-pill');
+  const knob = document.getElementById('theme-knob');
+  const label = document.getElementById('theme-label');
+  const sub = document.getElementById('theme-sub');
+  if (theme === 'light') {
+    if (box) box.style.background = 'rgba(99,102,241,0.18)';
+    if (svg) {
+      svg.setAttribute('stroke', '#818cf8');
+      svg.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    }
+    if (pill) pill.style.background = '#6366f1';
+    if (knob) { knob.style.transform = 'translateX(14px)'; knob.style.background = '#fff'; }
+    if (label) label.textContent = 'Modo escuro';
+    if (sub) sub.textContent = 'Tema atual: claro';
+  } else {
+    if (box) box.style.background = 'rgba(245,158,11,0.18)';
+    if (svg) {
+      svg.setAttribute('stroke', '#f59e0b');
+      svg.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    }
+    if (pill) pill.style.background = 'rgba(255,255,255,0.15)';
+    if (knob) { knob.style.transform = 'translateX(0)'; knob.style.background = 'rgba(255,255,255,0.45)'; }
+    if (label) label.textContent = 'Modo claro';
+    if (sub) sub.textContent = 'Tema atual: escuro';
+  }
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('lplan-bi-theme', next);
+  updateThemeUI(next);
+}
+
+function toggleIndex() {
+  document.getElementById('bi-index').classList.toggle('open');
+}
+
+function toggleDias() {
+  const expandido = document.getElementById('dias-expandido');
+  const btn = document.getElementById('btn-ver-mais-dias');
+  const icon = document.getElementById('icon-ver-mais-dias');
+  if (!expandido || !btn || !icon) return;
+  const aberto = expandido.style.display !== 'none';
+
+  if (aberto) {
+    expandido.style.display = 'none';
+    btn.childNodes[0].textContent = 'Ver mais ';
+    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+  } else {
+    expandido.style.display = 'block';
+    btn.childNodes[0].textContent = 'Ver menos ';
+    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
+  }
+}
+
+function trocarObra(select) {
+  const obraId = select.value;
+  // Redirecionar para a mesma URL mas com a nova obra e sem datas
+  // (sem datas o servidor vai usar o padrão: data_inicio da obra e hoje)
+  const url = new URL(window.location.href);
+  url.searchParams.set('obra', obraId);
+  url.searchParams.delete('data_inicio');
+  url.searchParams.delete('data_fim');
+  window.location.href = url.toString();
+}
+
+document.addEventListener('click', function(e) {
+  const panel = document.getElementById('bi-index');
+  const btn = document.querySelector('.index-toggle-btn');
+  if (panel && panel.classList.contains('open') && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+const biSections = [
+  { id: 'hero',    idx: 0 },
+  { id: 'bloco-1', idx: 1 },
+  { id: 'bloco-2', idx: 2 },
+  { id: 'bloco-3', idx: 3 },
+  { id: 'bloco-4', idx: 4 },
+  { id: 'bloco-5', idx: 5 },
+];
+
+function updateActive() {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const windowH = window.innerHeight;
+  let current = 0;
+
+  biSections.forEach(function(s) {
+    const el = document.getElementById(s.id);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top;
+    // Marca como ativa a última seção cujo topo já passou de 30% da tela
+    if (top < windowH * 0.35) {
+      current = s.idx;
+    }
+  });
+
+  document.querySelectorAll('.index-item').forEach(function(item, i) {
+    item.classList.toggle('active', i === current);
+  });
+}
+
+// Usar IntersectionObserver para detectar seção visível ao rolar
+const observerOptions = {
+  root: null,
+  rootMargin: '-30% 0px -60% 0px',
+  threshold: 0
+};
+
+const sectionObserver = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      const idx = biSections.findIndex(s => s.id === id);
+      if (idx !== -1) {
+        document.querySelectorAll('.index-item').forEach(function(item, i) {
+          item.classList.toggle('active', i === idx);
+        });
+      }
+    }
+  });
+}, observerOptions);
+
+biSections.forEach(function(s) {
+  const el = document.getElementById(s.id);
+  if (el) sectionObserver.observe(el);
+});
+
+window.addEventListener('load', updateActive);
+document.addEventListener('DOMContentLoaded', updateActive);
+
+// Ao clicar num item do índice, fechar painel e forçar atualização após scroll
+document.querySelectorAll('.index-item').forEach(function(item) {
+  item.addEventListener('click', function() {
+    document.getElementById('bi-index').classList.remove('open');
+    setTimeout(updateActive, 400);
+  });
+});
+
+(function() {
+  'use strict';
+  function initSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('mobile-sidebar-overlay');
+    var toggleBtn = document.getElementById('mobile-sidebar-toggle');
+    if (!sidebar) return;
+    function closeSidebar() {
+      if (window.innerWidth < 768) {
+        sidebar.style.transform = 'translateX(-100%)';
+        if (overlay) overlay.style.display = 'none';
+      }
+    }
+    function updateSidebar() {
+      var isDesktop = window.innerWidth >= 768;
+      if (isDesktop && overlay) overlay.style.display = 'none';
+      else if (!isDesktop) {
+        var ct = window.getComputedStyle(sidebar).transform;
+        var open = ct === 'none' || ct.indexOf('matrix(1, 0, 0, 1, 0, 0)') !== -1 || sidebar.style.transform === 'translateX(0)';
+        if (!open) sidebar.style.transform = 'translateX(-100%)';
+      }
+    }
+    updateSidebar();
+    window.addEventListener('resize', function() {
+      setTimeout(updateSidebar, 100);
+    });
+    if (toggleBtn && overlay) {
+      toggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.innerWidth < 768) {
+          var ct = sidebar.style.transform || window.getComputedStyle(sidebar).transform;
+          var isOpen = ct === 'none' || ct === '' || ct.indexOf('translateX(0)') !== -1 || ct.indexOf('matrix(1, 0, 0, 1, 0, 0)') !== -1;
+          if (isOpen) closeSidebar();
+          else {
+            sidebar.style.transform = 'translateX(0)';
+            overlay.style.display = 'block';
+          }
+        }
+      });
+      overlay.addEventListener('click', closeSidebar);
+    }
+  }
+  function initUserMenu() {
+    var container = document.getElementById('user-menu-container');
+    var button = document.getElementById('user-menu-button');
+    var dropdown = document.getElementById('user-menu-dropdown');
+    var chevron = document.getElementById('user-menu-chevron');
+    if (!container || !button || !dropdown) return;
+    var isOpen = false;
+    function toggleDropdown(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      isOpen = !isOpen;
+      if (isOpen) {
+        dropdown.style.display = 'block';
+        dropdown.style.visibility = 'visible';
+        dropdown.style.opacity = '1';
+        button.setAttribute('aria-expanded', 'true');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+      } else {
+        dropdown.style.display = 'none';
+        dropdown.style.visibility = 'hidden';
+        dropdown.style.opacity = '0';
+        button.setAttribute('aria-expanded', 'false');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+      }
+    }
+    button.addEventListener('click', toggleDropdown);
+    document.addEventListener('click', function(e) {
+      if (isOpen && container && !container.contains(e.target)) {
+        isOpen = false;
+        dropdown.style.display = 'none';
+        dropdown.style.visibility = 'hidden';
+        dropdown.style.opacity = '0';
+        button.setAttribute('aria-expanded', 'false');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+      }
+    });
+  }
+  function initShell() {
+    initSidebar();
+    initUserMenu();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initShell);
+  } else {
+    initShell();
+  }
+})();
+</script>
+</body>
+</html>
+
