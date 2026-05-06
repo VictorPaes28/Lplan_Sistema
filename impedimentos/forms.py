@@ -73,12 +73,12 @@ class ImpedimentoForm(forms.ModelForm):
             ).order_by("nome")
         else:
             self.fields["categorias"].queryset = CategoriaImpedimento.objects.none()
-        self.fields["categorias"].required = True
+        self.fields["categorias"].required = False
 
     def clean_categorias(self):
         cats = self.cleaned_data.get("categorias")
         if not cats or not cats.exists():
-            raise forms.ValidationError("Selecione pelo menos uma categoria.")
+            raise forms.ValidationError("É necessário selecionar pelo menos 1 categoria para a restrição.")
         return cats
 
     def clean_titulo(self):
