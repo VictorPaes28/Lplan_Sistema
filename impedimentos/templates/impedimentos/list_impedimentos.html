@@ -67,9 +67,20 @@
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_quadro }}" class="imp-tab {% if active_view == 'quadro' %}is-active{% endif %}">Quadro</a>
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_calendario }}" class="imp-tab {% if active_view == 'calendario' %}is-active{% endif %}">Calendário</a>
         </nav>
+        {% if tem_categorias %}
         <button type="button" class="imp-btn imp-btn-primary" data-modal-open>
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
+        {% else %}
+        <button
+            type="button"
+            title="É necessário criar categorias antes de adicionar restrições"
+            style="opacity: .5; cursor: not-allowed;"
+            onclick="alert('É necessário ter categorias para criar uma restrição.')"
+            class="imp-btn imp-btn-primary">
+            <i class="fas fa-plus"></i> Nova Restrição
+        </button>
+        {% endif %}
     </section>
 
     <div class="imp-layout">
@@ -228,9 +239,20 @@
         <div class="imp-empty-icon"><i class="fas fa-list-check"></i></div>
         <h3>Nenhuma restrição cadastrada</h3>
         <p>Crie a primeira restrição para começar o acompanhamento desta obra.</p>
+        {% if tem_categorias %}
         <button type="button" class="imp-btn imp-btn-primary" data-modal-open>
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
+        {% else %}
+        <button
+            type="button"
+            title="É necessário criar categorias antes de adicionar restrições"
+            style="opacity: .5; cursor: not-allowed;"
+            onclick="alert('É necessário ter categorias para criar uma restrição.')"
+            class="imp-btn imp-btn-primary">
+            <i class="fas fa-plus"></i> Nova Restrição
+        </button>
+        {% endif %}
     </section>
     {% elif active_view == "quadro" %}
     <section class="imp-kanban-wrapper">
@@ -575,7 +597,7 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form method="post" enctype="multipart/form-data" class="imp-impeditivo-modal__form" id="impedimento-form">
+        <form method="post" enctype="multipart/form-data" class="imp-impeditivo-modal__form" id="impedimento-form" data-form-restricao>
             {% csrf_token %}
             <input type="hidden" name="_preserve_cat" id="imp-preserve-cat" value="{{ cat_param }}">
             <input type="hidden" name="initial_status_id" id="imp-initial-status-id" value="">
@@ -1746,6 +1768,21 @@
     }
     if (calendarPanelOverlay) {
         calendarPanelOverlay.addEventListener('click', closeSidePanel);
+    }
+
+    const formRestricaoEl = document.querySelector('[data-form-restricao]');
+    if (formRestricaoEl) {
+        formRestricaoEl.addEventListener('submit', function(e) {
+            const categoriasSelecionadas = categoriasInput
+                ? Array.from(categoriasInput.options).some((opt) => opt.selected && opt.value)
+                : false;
+            if (!categoriasSelecionadas) {
+                e.preventDefault();
+                alert('É necessário selecionar pelo menos 1 categoria para a restrição.');
+                return false;
+            }
+            return true;
+        });
     }
 
     if (kanbanBoard) {

@@ -144,6 +144,36 @@
 html{scroll-behavior:smooth}
 body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--transition)}
 
+/* Garantir que o conteúdo ocupe 100% independente do tamanho da tela */
+html, body {
+  width: 100%;
+  max-width: 100% !important;
+  overflow-x: hidden;
+}
+
+.page-wrapper,
+.bi-area,
+.bi-main {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Remover qualquer max-width herdado do projeto */
+.main-content,
+.main-content-wrapper,
+.container,
+.container-fluid {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Garantir que os grids também se expandam */
+.grid-2, .grid-3, .grid-4 {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 /* Garantir largura total do container do BI */
 .bi-area {
   flex: 1;
@@ -756,7 +786,7 @@ body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--
             <div class="top-bar-container fade-in">
                 <div class="top-bar-heading-group">
                     {% block top_bar_back %}
-                    <a href="{% block back_url %}{% if '/gestao/' in request.path %}{% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'leitura_lista_pedidos_pdf' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'detail_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'leitura_pedido_pdf' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'edit_workorder' or request.resolver_match.url_name == 'approve_workorder' or request.resolver_match.url_name == 'reject_workorder' or request.resolver_match.url_name == 'solicitar_exclusao' or request.resolver_match.url_name == 'aprovar_exclusao' or request.resolver_match.url_name == 'rejeitar_exclusao' or request.resolver_match.url_name == 'upload_attachment' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_empresas' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_empresa' or request.resolver_match.url_name == 'detail_empresa' %}{% url 'gestao:list_empresas' %}{% elif request.resolver_match.url_name == 'edit_empresa' %}{% url 'gestao:detail_empresa' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_obras' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_obra' or request.resolver_match.url_name == 'detail_obra' %}{% url 'gestao:list_obras' %}{% elif request.resolver_match.url_name == 'edit_obra' or request.resolver_match.url_name == 'manage_obra_permissions' %}{% url 'gestao:detail_obra' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_users' or request.resolver_match.url_name == 'edit_my_profile' or request.resolver_match.url_name == 'list_notificacoes' or request.resolver_match.url_name == 'desempenho_equipe' or request.resolver_match.url_name == 'manage_aprovacao_destinatarios' or request.resolver_match.url_name == 'list_email_logs' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_user' %}{% url 'gestao:list_users' %}{% elif request.resolver_match.url_name == 'edit_user' or request.resolver_match.url_name == 'delete_user' or request.resolver_match.url_name == 'user_governance' %}{% url 'gestao:list_users' %}{% else %}{% url 'gestao:home' %}{% endif %}{% else %}#{% endif %}{% endblock %}" id="top-bar-back-link"
+                    <a href="{% url 'select-system' %}" id="top-bar-back-link"
                        class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 transition-all duration-200"
                        aria-label="Voltar">
                         <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
@@ -1071,7 +1101,7 @@ body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--
         {% with g=analise_payload.gestcontroll %}
         <div class="card">
           <div class="card-title">Pedidos pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          {% for pedido in g.pedidos_pendentes %}
+          {% for pedido in g.pedidos_pendentes|slice:":7" %}
           <div class="pedido-row" onclick="location.href='{% url 'gestao:detail_workorder' pedido.id %}'">
             <div class="pedido-code">{{ pedido.codigo|default:"—" }}</div>
             <div class="pedido-credor">
@@ -1353,7 +1383,7 @@ body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--
 
             <!-- Primeiros 5 dias — sempre visíveis -->
             <div id="dias-resumo">
-              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:":5" %}
+              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:":7" %}
               <div class="tl-item">
                 <div class="tl-date">{{ dia.data|date:"d/m" }}</div>
                 <div class="tl-content">
@@ -1373,7 +1403,7 @@ body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--
 
             <!-- Dias 6 a 30 — ocultos por padrão -->
             <div id="dias-expandido" style="display:none;overflow:hidden;transition:all .3s;">
-              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:"5:30" %}
+              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:"7:30" %}
               <div class="tl-item">
                 <div class="tl-date">{{ dia.data|date:"d/m" }}</div>
                 <div class="tl-content">
@@ -1392,7 +1422,7 @@ body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--
             </div>
 
             <!-- Botões -->
-            {% if analise_payload.diario.ultimos_dias_calendario|length > 5 %}
+            {% if analise_payload.diario.ultimos_dias_calendario|length > 7 %}
             <button type="button" id="btn-ver-mais-dias" onclick="toggleDias()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
               Ver mais
               <svg id="icon-ver-mais-dias" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>

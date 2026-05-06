@@ -590,6 +590,10 @@ def select_obra(request):
                 )
                 return _with_no_cache_headers(response)
 
+            request.session["selected_project_id"] = project.id
+            request.session["selected_project_name"] = project.name
+            request.session["selected_project_code"] = project.code
+            request.session.modified = True
             return redirect("impedimentos:list_impedimentos", obra_id=project.id)
 
     response = render(
@@ -610,6 +614,11 @@ def list_impedimentos(request, obra_id):
     if not _user_can_access_project(request.user, project):
         messages.error(request, "Você não está vinculado a esta obra.")
         return redirect("impedimentos:select_obra")
+
+    request.session["selected_project_id"] = project.id
+    request.session["selected_project_name"] = project.name
+    request.session["selected_project_code"] = project.code
+    request.session.modified = True
 
     obra = get_object_or_404(Obra, project=project)
     cat_ids = _parse_cat_ids(request.GET, obra)
@@ -977,6 +986,7 @@ def list_impedimentos(request, obra_id):
         "prioridade_choices": Impedimento.PRIORIDADE_CHOICES,
         "attachments_by_impedimento_id": _attachments_payload_by_impedimento(obra),
         "categorias_obra": categorias_obra,
+        "tem_categorias": bool(categorias_obra),
         "categorias_choices": categorias_choices,
         "selected_cat_ids": cat_ids,
         "cat_param": cat_param,
