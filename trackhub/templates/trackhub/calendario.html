@@ -1,0 +1,50 @@
+{% extends "trackhub/base_trackhub.html" %}
+{% block trackhub_content %}
+
+<div class="th-cal-header">
+  <div class="th-cal-nav">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}" class="th-cal-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="th-cal-month">{{ month_label }}</span>
+    <a href="?year={{ next_year }}&month={{ next_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}" class="th-cal-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>
+  </div>
+  <form method="GET">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <select name="obra" class="th-filter-select" onchange="this.form.submit()">
+      <option value="">Todas as obras</option>
+      {% for o in obras %}<option value="{{ o.id }}" {% if filtros.obra == o.id|stringformat:"s" %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="th-cal-grid">
+  <div class="th-cal-days-header">
+    <div class="th-cal-day-name">Dom</div>
+    <div class="th-cal-day-name">Seg</div>
+    <div class="th-cal-day-name">Ter</div>
+    <div class="th-cal-day-name">Qua</div>
+    <div class="th-cal-day-name">Qui</div>
+    <div class="th-cal-day-name">Sex</div>
+    <div class="th-cal-day-name">Sáb</div>
+  </div>
+  {% for week in calendar_weeks %}
+  <div class="th-cal-week">
+    {% for day in week %}
+    <div class="th-cal-cell {% if not day.current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
+      <div class="th-cal-cell-num">{{ day.date.day }}</div>
+      {% for p in day.pendencias %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-cal-event {{ p.prioridade }}" title="{{ p.titulo }}">
+        {{ p.titulo|truncatechars:20 }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

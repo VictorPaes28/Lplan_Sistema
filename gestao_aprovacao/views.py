@@ -3068,6 +3068,7 @@ def create_user(request):
         password = request.POST.get('password')
         first_name = request.POST.get('first_name', '')
         last_name = request.POST.get('last_name', '')
+        telefone = (request.POST.get('telefone') or '').strip()
         grupo = request.POST.get('grupo')
         create_as_pending = request.POST.get('create_as_pending') == 'on'
         grupos_selecionados = filtrar_grupos_post_atribuivel(request.POST.getlist('grupos'))
@@ -3160,9 +3161,10 @@ def create_user(request):
             
             # Criar perfil de usuário e fazer upload da foto se fornecida
             perfil, created = UserProfile.objects.get_or_create(usuario=user)
+            perfil.telefone = telefone
             if 'foto_perfil' in request.FILES:
                 perfil.foto_perfil = request.FILES['foto_perfil']
-                perfil.save()
+            perfil.save()
             
             # Enviar e-mail com login e senha para o novo usuário (se tiver e-mail)
             if email and email.strip():
@@ -3274,6 +3276,7 @@ def edit_user(request, pk):
         user.email = request.POST.get('email', user.email)
         user.first_name = request.POST.get('first_name', user.first_name)
         user.last_name = request.POST.get('last_name', user.last_name)
+        telefone = (request.POST.get('telefone') or '').strip()
         
         # Atualizar senha se fornecida
         if new_password:
@@ -3335,9 +3338,10 @@ def edit_user(request, pk):
         
         # Atualizar foto de perfil se fornecida
         perfil, created = UserProfile.objects.get_or_create(usuario=user)
+        perfil.telefone = telefone
         if 'foto_perfil' in request.FILES:
             perfil.foto_perfil = request.FILES['foto_perfil']
-            perfil.save()
+        perfil.save()
         
         messages.success(request, f'Usuário "{user.username}" atualizado com sucesso!')
         user.refresh_from_db()

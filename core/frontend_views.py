@@ -410,6 +410,15 @@ def select_system_view(request):
     has_impedimentos = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
     )
+    has_trackhub = user.is_superuser or user.is_staff or bool(
+        user_groups
+        & {
+            GRUPOS.TRACKHUB,
+            GRUPOS.TRACKHUB_ADMIN,
+            GRUPOS.TRACKHUB_APROVADOR,
+            GRUPOS.TRACKHUB_SOLICITANTE,
+        }
+    )
     has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
     has_workflow = user.is_superuser or user.is_staff or bool(
         user_groups
@@ -426,7 +435,15 @@ def select_system_view(request):
     has_central = user_is_painel_sistema_admin(user)
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
     if (
-        not (has_diario or has_gestao or has_impedimentos or has_mapa or has_central or has_workflow)
+        not (
+            has_diario
+            or has_gestao
+            or has_impedimentos
+            or has_trackhub
+            or has_mapa
+            or has_central
+            or has_workflow
+        )
         and _is_work_owner(user)
     ):
         return redirect('client-diary-list')
@@ -444,6 +461,7 @@ def select_system_view(request):
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,
+        'has_trackhub': has_trackhub,
         'has_mapa': has_mapa,
         'has_bi_obra': has_bi_obra,
         'has_admin': user.is_superuser or user.is_staff,

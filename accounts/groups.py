@@ -42,6 +42,14 @@ class _Grupos:
     GESTAO_IMPEDIMENTOS = 'Gestão de Impeditivos'
 
     # ──────────────────────────────────────────────
+    # TrackHub
+    # ──────────────────────────────────────────────
+    TRACKHUB = 'TrackHub'  # legado
+    TRACKHUB_ADMIN = 'TrackHub Administrador'
+    TRACKHUB_APROVADOR = 'TrackHub Aprovador'
+    TRACKHUB_SOLICITANTE = 'TrackHub Solicitante'
+
+    # ──────────────────────────────────────────────
     # Diário de Obra (Core)
     # ──────────────────────────────────────────────
     GERENTES = 'Diário de Obra'
@@ -73,6 +81,10 @@ class _Grupos:
             self.ADMINISTRADOR, self.RESPONSAVEL_EMPRESA,
             self.APROVADOR, self.SOLICITANTE,
             self.GESTAO_IMPEDIMENTOS,
+            self.TRACKHUB,
+            self.TRACKHUB_ADMIN,
+            self.TRACKHUB_APROVADOR,
+            self.TRACKHUB_SOLICITANTE,
             self.GERENTES, self.ENGENHARIA,
             self.CENTRAL_APROVACOES_ADMIN,
             self.CENTRAL_APROVACOES_APROVADOR,
@@ -94,6 +106,9 @@ GRUPOS_OCULTOS_ATRIBUICAO_UI = frozenset({GRUPOS.RESPONSAVEL_EMPRESA})
 # Nome técnico do grupo em auth.Group (POST / permissões) → texto na UI de atribuição.
 GRUPO_LABEL_ATRIBUICAO_UI = {
     GRUPOS.GESTAO_IMPEDIMENTOS: 'Gestão de Restrições',
+    GRUPOS.TRACKHUB_ADMIN: 'Administrador',
+    GRUPOS.TRACKHUB_APROVADOR: 'Aprovador',
+    GRUPOS.TRACKHUB_SOLICITANTE: 'Solicitante',
 }
 
 
@@ -129,6 +144,16 @@ GROUP_UI_MODULES = [
         'title': 'Restrições',
         'subtitle': 'Restrições, pendências e tarefas por obra',
         'names': [GRUPOS.GESTAO_IMPEDIMENTOS],
+    },
+    {
+        'id': 'trackhub',
+        'title': 'TrackHub',
+        'subtitle': 'Pendências, etapas e comunicação por obra',
+        'names': [
+            GRUPOS.TRACKHUB_ADMIN,
+            GRUPOS.TRACKHUB_APROVADOR,
+            GRUPOS.TRACKHUB_SOLICITANTE,
+        ],
     },
     {
         'id': 'diario',

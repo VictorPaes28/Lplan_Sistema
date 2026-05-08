@@ -1,0 +1,632 @@
+{% extends "trackhub/base_trackhub.html" %}
+{% load static %}
+
+{% block page_title %}{{ form_title|default:'Pendência' }}{% endblock %}
+{% block page_subtitle %}{{ form_subtitle|default:'Cadastro' }}{% endblock %}
+
+{% block trackhub_content %}
+<div style="max-width:780px;">
+
+  <form method="POST" action="" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {{ responsaveis_por_obra|json_script:"th-responsaveis-por-obra" }}
+
+    <!-- Dados da pendência -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:16px;">Dados da Pendência</div>
+
+      {% if form.non_field_errors %}
+      <div style="border:1px solid #fecaca;background:#fef2f2;color:#991b1b;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;">{{ form.non_field_errors }}</div>
+      {% endif %}
+      {% if formset.non_form_errors %}
+      <div style="border:1px solid #fecaca;background:#fef2f2;color:#991b1b;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;">{{ formset.non_form_errors }}</div>
+      {% endif %}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Obra <span style="color:#ef4444;">*</span></label>
+          {{ form.obra }}
+          {% if form.obra.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.obra.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Tipo <span style="color:#ef4444;">*</span></label>
+          {{ form.tipo }}
+          {% if form.tipo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.tipo.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Título <span style="color:#ef4444;">*</span></label>
+        {{ form.titulo }}
+        {% if form.titulo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.titulo.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Descrição</label>
+        {{ form.descricao }}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prioridade <span style="color:#ef4444;">*</span></label>
+          {{ form.prioridade }}
+          {% if form.prioridade.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.prioridade.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prazo</label>
+          {{ form.prazo }}
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Deixe em branco se não houver prazo definido</div>
+          {% if form.prazo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.prazo.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="th-sec-divider">
+        <div class="th-sec-divider-line"></div>
+        <div class="th-sec-divider-label">Fotos & Arquivos</div>
+        <div class="th-sec-divider-line"></div>
+      </div>
+
+      <div class="th-upload-zone" id="th-zona-geral"
+        onclick="document.getElementById('th-input-geral').click()"
+        ondragover="thDragOver(event,'th-zona-geral')"
+        ondragleave="thDragLeave('th-zona-geral')"
+        ondrop="thDropFiles(event,'th-zona-geral','th-input-geral','th-preview-geral',5)">
+        <div class="th-upload-zone-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div class="th-upload-zone-label">Arraste fotos e arquivos aqui</div>
+        <div class="th-upload-zone-hint">Imagens, PDF, Word, Excel — até 5 arquivos</div>
+        <div class="th-upload-btn" onclick="event.stopPropagation();document.getElementById('th-input-geral').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Selecionar arquivos
+        </div>
+      </div>
+      <input type="file" id="th-input-geral" name="anexos_geral" multiple
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none"
+        onchange="thPreviewFiles(this,'th-preview-geral',5)">
+      <div class="th-file-grid" id="th-preview-geral"></div>
+
+    </div>
+
+    <!-- Etapas -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Etapas</div>
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:16px;">Opcional — adicione as etapas necessárias para resolver esta pendência</div>
+
+      <div id="etapas-container" data-prefix="{{ formset.prefix }}">
+        {% for ef in formset %}
+        {{ ef.id }}
+        <div class="etapa-form-bloco" style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;background:#fafafa;position:relative;">
+          {% if ef.DELETE %}<div style="display:none;">{{ ef.DELETE }}</div>{% endif %}
+
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ forloop.counter }}</div>
+            {{ ef.titulo }}
+            <button type="button" onclick="removerEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div style="margin-bottom:14px;">
+            {% if ef.titulo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ ef.titulo.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div style="display:none;">{{ ef.ordem }}</div>
+
+          <div class="bloco-responsavel-etapa" style="margin-bottom:12px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Usuário responsável</label>
+                {{ ef.responsavel_interno }}
+                {% if ef.responsavel_interno.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ ef.responsavel_interno.errors.0 }}</div>{% endif %}
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prazo da etapa</label>
+                {{ ef.prazo }}
+                {% if ef.prazo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ ef.prazo.errors.0 }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="etapa-observacao-wrap" style="margin-top:14px;">
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>
+            {{ ef.observacao }}
+          </div>
+
+          <div class="th-etapa-upload-row">
+            <span class="th-etapa-upload-label">Anexos:</span>
+            <button type="button" class="th-etapa-upload-btn"
+              onclick="this.nextElementSibling.nextElementSibling.click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Adicionar arquivo
+            </button>
+            <div class="th-file-chips"></div>
+            <input type="file" name="{{ formset.prefix }}-{{ forloop.counter0 }}-anexos_etapa" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              style="display:none" onchange="thPreviewEtapaFiles(this)">
+          </div>
+
+          <label class="th-assinatura-toggle" id="th-ass-{{ forloop.counter }}">
+            {{ ef.requer_assinatura }}
+            <span class="th-assinatura-toggle-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg>
+              Esta etapa requer assinatura
+            </span>
+            <span style="font-size:10.5px;color:#94a3b8;">Quem concluir precisará assinar</span>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+
+      <template id="etapa-template">
+        <div class="etapa-form-bloco" style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;background:#fafafa;position:relative;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">N</div>
+            <input type="text" name="{{ formset.prefix }}-__prefix__-titulo" class="th-filter-select th-etapa-titulo-inline" style="border:none;background:transparent;font-size:14px;font-weight:700;color:#1e293b;flex:1;padding:0;" placeholder="Título da etapa...">
+            <button type="button" onclick="removerEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <input type="hidden" name="{{ formset.prefix }}-__prefix__-ordem" value="0">
+          <input type="hidden" name="{{ formset.prefix }}-__prefix__-id" value="">
+          <div class="bloco-responsavel-etapa" style="margin-bottom:12px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Usuário responsável</label>
+                <select name="{{ formset.prefix }}-__prefix__-responsavel_interno" class="th-filter-select" style="width:100%;box-sizing:border-box;"><option value="">Selecione...</option></select>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prazo da etapa</label>
+                <input type="date" name="{{ formset.prefix }}-__prefix__-prazo" class="th-filter-select" style="width:100%;box-sizing:border-box;">
+              </div>
+            </div>
+          </div>
+          <div class="etapa-observacao-wrap" style="margin-top:14px;">
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>
+            <textarea name="{{ formset.prefix }}-__prefix__-observacao" class="th-filter-select" rows="4" style="width:100%;min-height:96px;resize:vertical;box-sizing:border-box;" placeholder="Observações sobre esta etapa..."></textarea>
+          </div>
+
+          <div class="th-etapa-upload-row">
+            <span class="th-etapa-upload-label">Anexos:</span>
+            <button type="button" class="th-etapa-upload-btn"
+              onclick="this.nextElementSibling.nextElementSibling.click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Adicionar arquivo
+            </button>
+            <div class="th-file-chips"></div>
+            <input type="file" name="{{ formset.prefix }}-__prefix__-anexos_etapa" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              style="display:none" onchange="thPreviewEtapaFiles(this)">
+          </div>
+
+          <label class="th-assinatura-toggle">
+            <input type="checkbox" name="{{ formset.prefix }}-__prefix__-requer_assinatura" style="width:16px;height:16px;cursor:pointer;">
+            <span class="th-assinatura-toggle-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg>
+              Esta etapa requer assinatura
+            </span>
+            <span style="font-size:10.5px;color:#94a3b8;">Quem concluir precisará assinar</span>
+          </label>
+        </div>
+      </template>
+
+      <script>
+      (function(){
+        var c = document.getElementById('etapas-container');
+        if (!c) return;
+        c.querySelectorAll('input[name$="-titulo"]').forEach(function(inp){
+          if (!inp.getAttribute('placeholder')) inp.setAttribute('placeholder','Título da etapa...');
+          inp.classList.add('th-etapa-titulo-inline');
+          inp.style.border = 'none';
+          inp.style.background = 'transparent';
+          inp.style.fontSize = '14px';
+          inp.style.fontWeight = '700';
+          inp.style.color = '#1e293b';
+          inp.style.flex = '1';
+          inp.style.padding = '0';
+        });
+        c.querySelectorAll('.etapa-observacao-wrap textarea').forEach(function(t){
+          t.rows = 4;
+          t.style.minHeight = '96px';
+        });
+      })();
+      </script>
+
+      <button type="button" onclick="adicionarEtapa()" style="width:100%;padding:10px;border:2px dashed #e2e8f0;border-radius:10px;background:transparent;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;font-family:'Sora',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;" onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar etapa
+      </button>
+    </div>
+
+    <!-- Botões -->
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      {% if pendencia %}
+      <a href="{% url 'trackhub:pendencia_detalhe' pendencia.pk %}" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#fff;color:#374151;border:1px solid #e2e8f0;font-size:13px;font-weight:600;text-decoration:none;">Cancelar</a>
+      {% else %}
+      <a href="{% url 'trackhub:fila' %}" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#fff;color:#374151;border:1px solid #e2e8f0;font-size:13px;font-weight:600;text-decoration:none;">Cancelar</a>
+      {% endif %}
+      <button type="submit" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Salvar pendência
+      </button>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=1"></script>
+<script>
+document.querySelectorAll('input[type=text], input[type=email], input[type=date], textarea, select').forEach(function(el) {
+  if (el.name && el.name.indexOf('responsavel_interno') !== -1) return;
+  if (!el.style.width) el.style.width = '100%';
+  if (!el.classList.contains('th-etapa-titulo-inline')) {
+    el.style.padding = '9px 12px';
+    el.style.borderRadius = '8px';
+    el.style.border = '1px solid #e2e8f0';
+    el.style.fontSize = '13px';
+    el.style.background = '#fff';
+  }
+  el.style.fontFamily = "'Sora', sans-serif";
+  el.style.color = '#1e293b';
+  el.style.boxSizing = 'border-box';
+  if (!el.classList.contains('th-etapa-titulo-inline')) {
+    el.addEventListener('focus', function() { this.style.borderColor = '#2563eb'; this.style.outline = 'none'; });
+    el.addEventListener('blur', function() { this.style.borderColor = '#e2e8f0'; });
+  }
+});
+
+function thGetObraSelecionadaId() {
+  var obraSel = document.querySelector('select[name="obra"]');
+  if (!obraSel) return '';
+  return (obraSel.value || '').trim();
+}
+
+function thParseResponsaveisPorObra() {
+  var el = document.getElementById('th-responsaveis-por-obra');
+  if (!el) return [];
+  try { return JSON.parse(el.textContent || '[]'); } catch (e) { return []; }
+}
+
+function thRefreshResponsaveisEtapas() {
+  document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+    if (sel._thRespRefresh) sel._thRespRefresh();
+  });
+}
+
+function removerEtapa(btn) {
+  var bloco = btn.closest('.etapa-form-bloco');
+  var deleteInput = bloco.querySelector('input[name$="-DELETE"]');
+  if (deleteInput) {
+    deleteInput.checked = true;
+    deleteInput.value = 'on';
+    bloco.style.display = 'none';
+  } else {
+    bloco.remove();
+    var container = document.getElementById('etapas-container');
+    var prefix = container.getAttribute('data-prefix');
+    var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+    if (totalInput) {
+      totalInput.value = String(document.querySelectorAll('#etapas-container .etapa-form-bloco').length);
+    }
+  }
+  atualizarNumerosEtapa();
+}
+
+function adicionarEtapa() {
+  var container = document.getElementById('etapas-container');
+  var prefix = container.getAttribute('data-prefix');
+  var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+  var total = parseInt(totalInput.value, 10);
+  var template = document.getElementById('etapa-template');
+  var frag = template.content.cloneNode(true);
+  var wrap = document.createElement('div');
+  wrap.appendChild(frag);
+  var html = wrap.innerHTML.replace(/__prefix__/g, String(total));
+  container.insertAdjacentHTML('beforeend', html);
+  totalInput.value = String(total + 1);
+  var novo = container.lastElementChild;
+  novo.querySelectorAll('input, textarea, select').forEach(function(el) {
+    if (!el.classList.contains('th-etapa-titulo-inline')) {
+      el.style.padding = '9px 12px';
+      el.style.borderRadius = '8px';
+      el.style.border = '1px solid #e2e8f0';
+      el.style.fontSize = '13px';
+    } else {
+      el.style.border = 'none';
+      el.style.background = 'transparent';
+      el.style.fontSize = '14px';
+      el.style.fontWeight = '700';
+      el.style.color = '#1e293b';
+      el.style.flex = '1';
+      el.style.padding = '0';
+    }
+    el.style.fontFamily = "'Sora', sans-serif";
+    el.style.boxSizing = 'border-box';
+    if (!el.classList.contains('th-etapa-titulo-inline')) {
+      el.addEventListener('focus', function() { this.style.borderColor = '#2563eb'; this.style.outline = 'none'; });
+      el.addEventListener('blur', function() { this.style.borderColor = '#e2e8f0'; });
+    }
+  });
+  var novoSelResp = novo.querySelector('select[name$="-responsavel_interno"]');
+  if (novoSelResp && window.ThRespPicker) {
+    window.ThRespPicker.attach(novoSelResp, thParseResponsaveisPorObra, thGetObraSelecionadaId, {});
+  }
+  atualizarNumerosEtapa();
+}
+
+function atualizarNumerosEtapa() {
+  var n = 1;
+  document.querySelectorAll('#etapas-container .etapa-form-bloco').forEach(function(bloco) {
+    if (bloco.style.display === 'none') return;
+    var nl = bloco.querySelector('.etapa-num-label');
+    if (nl) nl.textContent = n;
+    n++;
+  });
+}
+
+window.thFilesPendenciaGeral = window.thFilesPendenciaGeral || [];
+
+function thDragOver(e, id) {
+  e.preventDefault();
+  document.getElementById(id).classList.add('drag-over');
+}
+
+function thDragLeave(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('drag-over');
+}
+
+function thSyncGeralInput() {
+  var input = document.getElementById('th-input-geral');
+  if (!input) return;
+  var dt = new DataTransfer();
+  (window.thFilesPendenciaGeral || []).forEach(function(f) { dt.items.add(f); });
+  input.files = dt.files;
+}
+
+function thRedrawGeralPreview(previewId, max) {
+  var grid = document.getElementById(previewId);
+  if (!grid) return;
+  grid.innerHTML = '';
+  window.thFilesPendenciaGeral = (window.thFilesPendenciaGeral || []).slice(0, max);
+  window.thFilesPendenciaGeral.forEach(function(file, idx) {
+    var thumb = document.createElement('div');
+    thumb.className = 'th-file-thumb';
+    var isImg = file.type && file.type.startsWith('image/');
+    if (isImg) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var img = document.createElement('img');
+        img.src = e.target.result;
+        img.onclick = function() { thAbrirLightbox(e.target.result, file.name); };
+        thumb.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      thumb.innerHTML = '<div class="th-file-thumb-doc"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="th-file-thumb-name">' + String(file.name).replace(/</g,'') + '</div></div>';
+    }
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'th-file-thumb-remove';
+    btn.textContent = '\u00d7';
+    (function(i) {
+      btn.onclick = function() {
+        window.thFilesPendenciaGeral.splice(i, 1);
+        thRedrawGeralPreview(previewId, max);
+      };
+    })(idx);
+    thumb.appendChild(btn);
+    grid.appendChild(thumb);
+  });
+  thSyncGeralInput();
+}
+
+function thDropFiles(e, zonaId, inputId, previewId, max) {
+  e.preventDefault();
+  thDragLeave(zonaId);
+  var add = Array.from(e.dataTransfer.files || []);
+  window.thFilesPendenciaGeral = (window.thFilesPendenciaGeral || []).concat(add).slice(0, max);
+  thRedrawGeralPreview(previewId, max);
+}
+
+function thPreviewFiles(input, previewId, max) {
+  var add = Array.from(input.files || []);
+  window.thFilesPendenciaGeral = (window.thFilesPendenciaGeral || []).concat(add).slice(0, max);
+  input.value = '';
+  thRedrawGeralPreview(previewId, max);
+}
+
+function thRedrawEtapaChips(input) {
+  var row = input.closest('.th-etapa-upload-row');
+  if (!row) return;
+  var chips = row.querySelector('.th-file-chips');
+  input._thAcc = input._thAcc || [];
+  var acc = input._thAcc;
+  var dt = new DataTransfer();
+  acc.forEach(function(f) { dt.items.add(f); });
+  input.files = dt.files;
+  chips.innerHTML = '';
+  acc.forEach(function(file) {
+    var chip = document.createElement('div');
+    chip.className = 'th-file-chip';
+    var isImg = file.type && file.type.startsWith('image/');
+    var nm = file.name.length > 22 ? file.name.slice(0, 20) + '\u2026' : file.name;
+    chip.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      (isImg ? '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>' :
+               '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>') +
+      '</svg>' + String(nm).replace(/</g,'') +
+      '<button type="button">\u00d7</button>';
+    chip.querySelector('button').onclick = function() {
+      input._thAcc = (input._thAcc || []).filter(function(x) { return x !== file; });
+      thRedrawEtapaChips(input);
+    };
+    chips.appendChild(chip);
+  });
+  input.value = '';
+}
+
+function thPreviewEtapaFiles(input) {
+  input._thAcc = input._thAcc || [];
+  Array.from(input.files || []).forEach(function(f) { input._thAcc.push(f); });
+  thRedrawEtapaChips(input);
+}
+
+function thSyncAllEtapaInputs() {
+  document.querySelectorAll('input[type=file][name*="-anexos_etapa"]').forEach(function(inp) {
+    var acc = inp._thAcc || [];
+    if (!acc.length) return;
+    var dt = new DataTransfer();
+    acc.forEach(function(f) { dt.items.add(f); });
+    try {
+      inp.files = dt.files;
+    } catch (e) {}
+  });
+}
+
+function thEtapaFilesNeedFetchFallback() {
+  var need = false;
+  document.querySelectorAll('input[type=file][name*="-anexos_etapa"]').forEach(function(inp) {
+    var acc = inp._thAcc || [];
+    if (!acc.length) return;
+    if (!inp.files || inp.files.length !== acc.length) need = true;
+  });
+  return need;
+}
+
+function thAppendEtapaFilesToFormData(fd) {
+  document.querySelectorAll('input[type=file][name*="-anexos_etapa"]').forEach(function(inp) {
+    var name = inp.getAttribute('name');
+    if (!name) return;
+    fd.delete(name);
+    var list = (inp._thAcc && inp._thAcc.length)
+      ? inp._thAcc
+      : Array.from(inp.files || []);
+    list.forEach(function(f) {
+      if (f) fd.append(name, f, f.name);
+    });
+  });
+}
+
+function thAbrirLightbox(url, nome) {
+  var lb = document.getElementById('th-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'th-lightbox';
+    lb.className = 'th-lightbox';
+    lb.innerHTML = '<button type="button" class="th-lightbox-close" onclick="thFecharLightbox()">\u00d7</button><img id="th-lightbox-img" src="" alt=""><div id="th-lightbox-name" class="th-lightbox-name"></div>';
+    lb.addEventListener('click', function(ev) { if (ev.target === lb) thFecharLightbox(); });
+    document.body.appendChild(lb);
+  }
+  document.getElementById('th-lightbox-img').src = url;
+  document.getElementById('th-lightbox-name').textContent = nome || '';
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function thFecharLightbox() {
+  var lb = document.getElementById('th-lightbox');
+  if (lb) lb.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('change', function(e) {
+  if (e.target.type === 'checkbox' && e.target.closest('.th-assinatura-toggle')) {
+    var label = e.target.closest('.th-assinatura-toggle');
+    var checked = e.target.checked;
+    label.classList.toggle('ativo', checked);
+    var hint = label.querySelector('span:last-of-type');
+    if (hint) hint.style.color = checked ? '#7c3aed' : '#94a3b8';
+  }
+});
+
+document.addEventListener('input', function(e) {
+  if (e.target.classList.contains('th-etapa-titulo-inline') ||
+      (e.target.type === 'text' && e.target.closest('.etapa-form-bloco'))) {
+    var bloco = e.target.closest('.etapa-form-bloco');
+    if (!bloco) return;
+    var chk = bloco.querySelector('input[type="checkbox"][name$="requer_assinatura"]');
+    if (!chk) return;
+    var tem = (e.target.value || '').toLowerCase().includes('assinatura');
+    if (tem && !chk.checked) {
+      chk.checked = true;
+      chk.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+    if (window.ThRespPicker) {
+      window.ThRespPicker.attach(sel, thParseResponsaveisPorObra, thGetObraSelecionadaId, {});
+    }
+  });
+  var obraSel = document.querySelector('select[name="obra"]');
+  if (obraSel) {
+    obraSel.addEventListener('change', function () {
+      thRefreshResponsaveisEtapas();
+    });
+  }
+  document.querySelectorAll('.th-assinatura-toggle input[type=checkbox]').forEach(function(ch) {
+    var label = ch.closest('.th-assinatura-toggle');
+    if (!label) return;
+    label.classList.toggle('ativo', ch.checked);
+    var hint = label.querySelector('span:last-of-type');
+    if (hint) hint.style.color = ch.checked ? '#7c3aed' : '#94a3b8';
+  });
+  var mainForm = document.querySelector('form[enctype="multipart/form-data"]');
+  if (mainForm) {
+    mainForm.addEventListener('submit', function(ev) {
+      thSyncGeralInput();
+      thSyncAllEtapaInputs();
+      var inpGeral = document.getElementById('th-input-geral');
+      var accGeral = window.thFilesPendenciaGeral || [];
+      var geralOk = true;
+      if (accGeral.length) {
+        geralOk = !!(
+          inpGeral &&
+          inpGeral.files &&
+          inpGeral.files.length === accGeral.length &&
+          inpGeral.files.length > 0
+        );
+      }
+      var etapaNeedFetch = thEtapaFilesNeedFetchFallback();
+      if (geralOk && !etapaNeedFetch) return;
+      ev.preventDefault();
+      var fd = new FormData(mainForm);
+      if (accGeral.length) {
+        fd.delete('anexos_geral');
+        accGeral.forEach(function(f) {
+          fd.append('anexos_geral', f, f.name);
+        });
+      }
+      thAppendEtapaFilesToFormData(fd);
+      var actionAttr = mainForm.getAttribute('action');
+      var url =
+        actionAttr === null || actionAttr === ''
+          ? window.location.pathname + window.location.search
+          : actionAttr;
+      fetch(url, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        redirect: 'manual',
+      })
+        .then(function(r) {
+          if (r.status >= 301 && r.status <= 399) {
+            var loc = r.headers.get('Location');
+            if (loc) window.location.href = new URL(loc, window.location.href).href;
+            return;
+          }
+          if (r.ok) window.location.reload();
+          else {
+            alert('Não foi possível salvar. Verifique os dados e tente de novo.');
+          }
+        })
+        .catch(function() {
+          alert('Erro ao enviar. Verifique sua conexão.');
+        });
+    });
+  }
+});
+</script>
+{% endblock %}

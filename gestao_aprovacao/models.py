@@ -883,6 +883,13 @@ class UserProfile(models.Model):
         verbose_name='Foto de Perfil',
         help_text='Foto de perfil do usuário (opcional)'
     )
+
+    telefone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='Telefone',
+        help_text='Telefone de contato do usuário (opcional)',
+    )
     
     created_at = models.DateTimeField(
         auto_now_add=True,

@@ -1,0 +1,139 @@
+{% load static %}
+<div id="th-trackhub-detalhe-root" style="display:none" aria-hidden="true"
+  data-csrf="{{ csrf_token }}"
+  data-url-detail="{% url 'trackhub:pendencia_detail_ajax' pk=0 %}"
+  data-url-update="{% url 'trackhub:pendencia_update_field' pk=0 %}"
+  data-url-atividades="{% url 'trackhub:pendencia_atividades_ajax' pk=0 %}"
+  data-url-comentarios="{% url 'trackhub:pendencia_comentarios_ajax' pk=0 %}"
+  data-url-anexo-upload="{% url 'trackhub:anexo_upload' pk=0 %}"
+  data-url-anexo-deletar="{% url 'trackhub:anexo_deletar' pk=0 %}"
+  data-url-etapa-concluir="{% url 'trackhub:etapa_concluir' pk=0 %}"
+  data-url-pendencia-concluir="{% url 'trackhub:pendencia_concluir' pk=0 %}"
+  data-url-pendencia-deletar="{% url 'trackhub:pendencia_deletar' pk=0 %}"
+  data-url-pendencia-ficha="{% url 'trackhub:pendencia_detalhe' pk=0 %}"
+  data-url-etapa-notificar="{% url 'trackhub:etapa_notificar' pk=0 %}"
+  data-url-etapa-adicionar="{% url 'trackhub:etapa_adicionar' pk=0 %}">
+</div>
+
+<div id="th-detalhe-overlay" class="th-detalhe-overlay" hidden aria-hidden="true">
+  <div id="th-detalhe-modal" class="th-detalhe-modal" role="dialog" aria-modal="true" aria-labelledby="th-det-titulo">
+
+    <div class="th-modal-topbar">
+      <div class="th-modal-breadcrumb-wrap">
+        <div class="th-modal-breadcrumb" aria-label="Contexto">
+          <span id="th-det-breadcrumb-obra"></span>
+          <span class="th-breadcrumb-sep" aria-hidden="true">›</span>
+          <span id="th-det-breadcrumb-tipo" class="th-breadcrumb-bold"></span>
+        </div>
+        <div class="th-saving" id="th-det-saving" aria-live="polite">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Salvo
+        </div>
+      </div>
+      <button type="button" class="th-modal-close" id="th-detalhe-close" aria-label="Fechar">✕</button>
+    </div>
+
+    <div class="th-modal-pills" id="th-det-metabar">
+      <button type="button" class="th-detalhe-pill th-pill th-pill--status" id="th-det-pill-status" data-field="status">
+        <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="th-det-pill-status-val"></span>
+      </button>
+      <button type="button" class="th-detalhe-pill th-pill th-pill--prioridade" id="th-det-pill-prioridade" data-field="prioridade">
+        <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span id="th-det-pill-prioridade-val"></span>
+      </button>
+      <button type="button" class="th-detalhe-pill th-pill th-pill--tipo" id="th-det-pill-tipo" data-field="tipo">
+        <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V7a2 2 0 0 0-2-2h-5"/><path d="M14 17H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h8l6 6-6 6z"/></svg>
+        <span id="th-det-pill-tipo-val"></span>
+      </button>
+      <button type="button" class="th-detalhe-pill th-pill th-pill--prazo" id="th-det-pill-prazo" data-field="prazo">
+        <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="th-det-pill-prazo-val"></span>
+      </button>
+      <div class="th-modal-meta-created" id="th-det-meta-created"></div>
+    </div>
+
+    <div class="th-detalhe-body th-modal-body">
+      <div class="th-detalhe-col-left th-modal-left">
+        <div id="th-det-titulo" class="th-det-titulo th-detalhe-editable" contenteditable="false" tabindex="0"></div>
+
+        <div class="th-det-obra-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="th-det-obra-line"></span>
+        </div>
+
+        <div class="th-section-label">Descrição</div>
+        <div id="th-det-descricao" class="th-det-descricao th-detalhe-editable" contenteditable="false" tabindex="0"></div>
+
+        <div class="th-section-label th-etapas-section-head">
+          <span>Etapas</span>
+          <span id="th-det-etapas-counter" class="th-etapas-counter"></span>
+        </div>
+        <div class="th-progress-bar" aria-hidden="true"><div id="th-det-progress-fill" class="th-progress-fill" style="width:0%"></div></div>
+        <div id="th-det-progress-text" class="th-progress-text"></div>
+        <div id="th-det-etapas-list"></div>
+
+        <div class="th-detalhe-section" id="th-det-anexos-section" hidden>
+          <div class="th-section-label" id="th-det-anexos-label">Arquivos (0/5)</div>
+          <div class="th-anexos-grid" id="th-det-anexos-grid"></div>
+          <input type="file" id="th-det-anexo-input" class="sr-only" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
+        </div>
+      </div>
+
+      <div class="th-detalhe-col-right th-modal-right">
+        <div class="th-detalhe-tabs th-right-tabs">
+          <button type="button" class="th-detalhe-tab th-right-tab active" data-tab="comments">Comentários</button>
+          <button type="button" class="th-detalhe-tab th-right-tab" data-tab="activities">Atividades</button>
+        </div>
+        <div id="th-det-panel-comments" class="th-detalhe-tab-panel th-panel-stack th-tab-panel--visible">
+          <div id="th-det-comments-list" class="th-detalhe-comments-list th-comments-list"></div>
+          <div class="th-comment-input th-detalhe-composer">
+            <textarea id="th-det-comment-text" class="th-comment-textarea" rows="2" placeholder="Adicione um comentário…"></textarea>
+            <input type="file" id="th-det-comment-file-input" class="sr-only" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
+            <div id="th-det-comment-files" class="th-file-chips th-comment-file-chips" hidden></div>
+            <div class="th-comment-footer">
+              <button type="button" class="th-comment-attach" id="th-det-comment-attach">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Arquivo
+              </button>
+              <button type="button" class="btn-send" id="th-det-comment-send" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Comentar
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="th-det-panel-activities" class="th-detalhe-tab-panel th-panel-stack th-tab-panel--hidden" hidden>
+          <div id="th-det-activities-list" class="th-detalhe-activities-list th-activities-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="th-modal-footer-full" id="th-det-modal-footer">
+      <button type="button" class="btn-nova-etapa btn-nova-etapa--text" onclick="abrirFormNovaEtapa()">Nova etapa</button>
+      <div class="th-modal-footer-full-right">
+        <form id="th-form-deletar" method="POST" action="" onsubmit="return confirm('Excluir esta pendência? Esta ação não pode ser desfeita.')">
+          {% csrf_token %}
+          <button type="submit" class="btn-excluir">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            Excluir pendência
+          </button>
+        </form>
+        <form id="th-form-concluir" method="POST" action="">
+          {% csrf_token %}
+          <button type="button" class="btn-concluir" onclick="tentarConcluir()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Concluir pendência
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="th-detalhe-dropdown-host"></div>
+
+{% include "trackhub/includes/modal_notificar.html" %}
+
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=1"></script>
+<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=16"></script>

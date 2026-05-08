@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'core',
     'gestao_aprovacao',  # Gestao_aprovacao (renomeado de obras)
     'impedimentos',
+    'trackhub',
     'mapa_obras',  # Mapa_Controle/obras (renomeado)
     'accounts',  # Mapa_Controle/accounts
     'suprimentos',  # Mapa_Controle/suprimentos
