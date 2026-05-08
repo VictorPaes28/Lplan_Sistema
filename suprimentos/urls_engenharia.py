@@ -26,5 +26,10 @@ urlpatterns = [
         views_painel_operacional.editor_ambiente,
         name='ferramenta_editor_ambiente',
     ),
+    path(
+        'ferramenta/ambientes/<int:ambiente_id>/editar-mapa/',
+        views_painel_operacional.editar_mapa_controle,
+        name='ferramenta_editar_mapa_controle',
+    ),
 ]
 

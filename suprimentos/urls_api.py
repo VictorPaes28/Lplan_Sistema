@@ -55,5 +55,20 @@ urlpatterns = [
         views_painel_operacional.api_publicar_ambiente,
         name='po_api_publicar_ambiente',
     ),
+    path(
+        'ferramenta/ambientes/<int:ambiente_id>/importar-matriz-excel/',
+        views_painel_operacional.api_importar_matriz_excel,
+        name='po_api_importar_matriz_excel',
+    ),
+    path(
+        'ferramenta/ambientes/<int:ambiente_id>/exportar-matriz-excel/',
+        views_painel_operacional.api_exportar_matriz_excel,
+        name='po_api_exportar_matriz_excel',
+    ),
+    path(
+        'ferramenta/ambientes/<int:ambiente_id>/excluir/',
+        views_painel_operacional.api_excluir_ambiente,
+        name='po_api_excluir_ambiente',
+    ),
 ]
 

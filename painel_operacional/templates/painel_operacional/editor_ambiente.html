@@ -5,13 +5,70 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'painel_operacional/css/editor_ambiente.css' %}">
+{% if embed_mode %}
+<style>
+    .po-editor--embed {
+        margin-top: 0 !important;
+        padding: 0 !important;
+    }
+    .po-editor--embed .po-editor-header,
+    .po-editor--embed .po-config-card,
+    .po-editor--embed .po-quick-actions,
+    .po-editor--embed #editorAlert {
+        display: none !important;
+    }
+    .po-editor--embed #canvasCardShell {
+        border-radius: 0;
+        border: 0;
+        box-shadow: none !important;
+    }
+    .po-editor--embed #canvasCardShell .card-body {
+        padding: 6px 8px;
+        background: #fff;
+    }
+    .po-editor--embed #canvasCardShell h5 {
+        display: none;
+    }
+    .po-editor--embed .po-top-meta {
+        margin-bottom: 4px !important;
+    }
+    .po-editor--embed #saveStatusBadge {
+        background: #eef2ff !important;
+        color: #334155 !important;
+    }
+    .po-editor--embed #btnZoomOut,
+    .po-editor--embed #btnZoomIn,
+    .po-editor--embed .po-zoom-label,
+    .po-editor--embed #btnFitView,
+    .po-editor--embed #btnCanvasFullscreen,
+    .po-editor--embed #btnUndo,
+    .po-editor--embed #btnRedo {
+        display: none !important;
+    }
+    .po-editor--embed #btnToggleEdit {
+        display: none !important;
+    }
+    .po-editor--embed #btnSaveDraft {
+        min-width: 130px;
+    }
+    .po-editor--embed .offcanvas {
+        z-index: 1200;
+    }
+</style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-3 po-editor">
+<div id="poEditorRoot" class="container-fluid mt-3 po-editor{% if embed_mode %} po-editor--embed{% endif %}">
     {% if erro_acesso %}
     <div class="alert alert-danger">{{ erro_acesso }}</div>
     {% else %}
+    {% if force_quadro %}
+    <div class="alert alert-info py-2 mb-2">
+        Você está no modo de edição estrutural deste mapa (mover colunas/linhas, redimensionar, editar células).
+        <a href="{{ editor_url }}" class="alert-link">Voltar para o mapa dedicado</a>.
+    </div>
+    {% endif %}
     <div class="po-editor-header po-surface">
         <div>
             <h2 class="mb-1 po-title-main">{{ ambiente.nome }}</h2>
@@ -22,9 +79,11 @@
                 <span class="badge text-bg-light"><i class="bi bi-diagram-3"></i> Camadas opcionais</span>
             </div>
         </div>
+        {% if not embed_mode %}
         <a href="{% url 'engenharia:ferramenta_shell' %}?obra={{ obra_selecionada.id }}" class="btn btn-outline-secondary po-btn-back">
             <i class="bi bi-arrow-left"></i> Voltar para ferramenta
         </a>
+        {% endif %}
     </div>
 
     <div class="card shadow-sm mb-3 po-config-card">
@@ -70,15 +129,11 @@
 
     <div id="editorAlert" class="alert d-none" role="alert"></div>
 
-    <div class="card shadow-sm h-100">
+    <div id="canvasCardShell" class="card shadow-sm h-100">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <h5 class="mb-0">Prancheta visual</h5>
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Visualização">
-                        <button type="button" id="btnViewDraft" class="btn btn-outline-secondary active">Rascunho</button>
-                        <button type="button" id="btnViewPublished" class="btn btn-outline-secondary">Publicado</button>
-                    </div>
                     <div class="btn-group btn-group-sm po-zoom-bar" role="group" aria-label="Zoom">
                         <button type="button" id="btnZoomOut" class="btn btn-outline-secondary" title="Diminuir zoom"><i class="bi bi-zoom-out"></i></button>
                         <button type="button" id="btnZoomIn" class="btn btn-outline-secondary" title="Aumentar zoom"><i class="bi bi-zoom-in"></i></button>
@@ -90,6 +145,9 @@
                     <button id="btnFitView" type="button" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-arrows-fullscreen"></i> Ajustar visão
                     </button>
+                    <button id="btnCanvasFullscreen" type="button" class="btn btn-outline-secondary btn-sm" title="Tela cheia da prancheta">
+                        <i class="bi bi-fullscreen"></i> Tela cheia
+                    </button>
                     <button id="btnToggleEdit" type="button" class="btn btn-outline-dark btn-sm">
                         <i class="bi bi-pencil-square"></i> Modo edição: ON
                     </button>
@@ -99,8 +157,8 @@
                     <button id="btnRedo" type="button" class="btn btn-outline-secondary btn-sm" title="Refazer (Ctrl+Y)">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
-                    <button id="btnSaveDraft" type="button" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-save"></i> Salvar rascunho
+                    <button id="btnSaveDraft" type="button" class="btn btn-primary btn-sm">
+                        <i class="bi bi-save"></i> Salvar
                     </button>
                     <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#poEditorPanel" aria-controls="poEditorPanel">
                         <i class="bi bi-sliders"></i> Painel de edição
@@ -109,7 +167,85 @@
             </div>
             <div class="po-top-meta mb-2 d-flex flex-wrap align-items-center gap-2">
                 <span id="saveStatusBadge" class="badge text-bg-light">Sem alterações</span>
-                <span id="poPublishedViewBanner" class="badge text-bg-secondary d-none">Somente leitura — versão publicada (não altera o rascunho)</span>
+            </div>
+            <div class="po-layer-filter mb-2">
+                <div class="po-layer-filter-row">
+                    <span class="small text-muted">Contexto ativo</span>
+                    <select id="ctxSetor" class="form-select form-select-sm">
+                        <option value="">Setor</option>
+                    </select>
+                    <select id="ctxBloco" class="form-select form-select-sm">
+                        <option value="">Bloco</option>
+                    </select>
+                    <select id="ctxPavimento" class="form-select form-select-sm">
+                        <option value="">Pavimento</option>
+                    </select>
+                    <select id="ctxUnidade" class="form-select form-select-sm">
+                        <option value="">Unidade</option>
+                    </select>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="ctxOnlyMatches" checked>
+                        <label class="form-check-label small" for="ctxOnlyMatches">Mostrar só contexto</label>
+                    </div>
+                    <button id="btnCtxSave" type="button" class="btn btn-outline-secondary btn-sm" title="Salvar este contexto para reabrir depois">Salvar vista</button>
+                    <button id="btnCtxRestore" type="button" class="btn btn-outline-secondary btn-sm" title="Restaurar último contexto salvo">Restaurar</button>
+                    <button id="btnCtxClear" type="button" class="btn btn-outline-secondary btn-sm">Limpar</button>
+                    <span id="ctxMatchInfo" class="badge text-bg-light">Todos os blocos</span>
+                    <span id="ctxKpiCoverage" class="badge text-bg-light">Cobertura: -</span>
+                    <span id="ctxKpiMissing" class="badge text-bg-warning">Pendências: -</span>
+                </div>
+                <div id="ctxTrail" class="po-layer-trail mt-2"></div>
+                <div id="ctxDrilldown" class="po-layer-chip-row" aria-label="Drilldown guiado"></div>
+                <div id="ctxBlocoChips" class="po-layer-chip-row" aria-label="Atalhos de bloco"></div>
+                <details class="mt-2">
+                    <summary class="po-adv-summary">Personalizar leitura (fácil)</summary>
+                    <div class="small text-muted mt-2">Escolha um preset. Se precisar, ajuste os nomes dos cabeçalhos para cada obra.</div>
+                    <div class="po-layer-chip-row mt-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-read-preset="auto">Auto</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-read-preset="bloco">Por bloco</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-read-preset="pavimento">Por pavimento</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-read-preset="unidade">Por unidade</button>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-5">
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" id="ctxMatrixReadEnabled" checked>
+                                <label class="form-check-label small" for="ctxMatrixReadEnabled">Leitura contextual na matriz</label>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label small mb-1" for="ctxMatrixReadStrategy">Profundidade aplicada</label>
+                            <select id="ctxMatrixReadStrategy" class="form-select form-select-sm">
+                                <option value="auto">Auto (nível mais específico)</option>
+                                <option value="bloco">Até bloco</option>
+                                <option value="pavimento">Até pavimento</option>
+                                <option value="unidade">Até unidade</option>
+                            </select>
+                        </div>
+                    </div>
+                    <details class="mt-2">
+                        <summary class="po-adv-summary">Avançado: nomes de colunas (aliases)</summary>
+                        <div class="small text-muted mt-2">Use vírgula para separar variações. Ex.: TORRE, BLOCO, BL.</div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small mb-1" for="ctxAliasSetor">Setor</label>
+                                <input id="ctxAliasSetor" type="text" class="form-control form-control-sm" placeholder="SETOR">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small mb-1" for="ctxAliasBloco">Bloco</label>
+                                <input id="ctxAliasBloco" type="text" class="form-control form-control-sm" placeholder="BLOCO, TORRE, BL">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small mb-1" for="ctxAliasPavimento">Pavimento</label>
+                                <input id="ctxAliasPavimento" type="text" class="form-control form-control-sm" placeholder="PAVIMENTO, ANDAR, NÍVEL">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small mb-1" for="ctxAliasUnidade">Unidade</label>
+                                <input id="ctxAliasUnidade" type="text" class="form-control form-control-sm" placeholder="UNIDADE, APTO, AMBIENTE">
+                            </div>
+                        </div>
+                    </details>
+                </details>
             </div>
             <div id="canvasViewport" class="po-canvas-viewport" aria-label="Prancheta do ambiente">
                 <div id="canvasBoard" class="po-canvas-board"></div>
@@ -139,13 +275,13 @@
                 <button id="btnReloadDraft" type="button" class="btn btn-outline-secondary" data-po-action="reload">
                     <i class="bi bi-arrow-clockwise"></i> Recarregar dados
                 </button>
-                <button id="btnPublish" type="button" class="btn btn-success" data-po-action="publish">
-                    <i class="bi bi-cloud-upload"></i> Publicar versão
+                <button id="btnSavePanel" type="button" class="btn btn-primary" data-po-action="save">
+                    <i class="bi bi-save"></i> Salvar
                 </button>
             </div>
             <hr>
             <details open>
-                <summary class="po-adv-summary">Editor avançado da seção selecionada</summary>
+                <summary class="po-adv-summary">Edição da seção selecionada</summary>
                 <div class="mt-2">
                     <div id="inspectorEmpty" class="po-inspector-empty text-center text-muted py-4 mb-2"><i class="bi bi-bounding-box fs-2 opacity-25" aria-hidden="true"></i><span class="visually-hidden">Nenhum bloco selecionado</span></div>
                     <div id="inspectorForm" class="d-none">
@@ -157,92 +293,221 @@
                             <input id="insTitle" type="text" class="form-control form-control-sm">
                         </div>
                         <div class="mb-2">
-                            <label for="insSemantica" class="form-label">Semântica</label>
-                            <input id="insSemantica" type="text" class="form-control form-control-sm" placeholder="percentual_concluido...">
-                        </div>
-                        <div class="mb-2">
                             <label class="form-label">Camadas (opcional)</label>
                             <div class="row g-1">
-                                <div class="col-6"><input id="insSetor" class="form-control form-control-sm" placeholder="Setor"></div>
-                                <div class="col-6"><input id="insBloco" class="form-control form-control-sm" placeholder="Bloco"></div>
-                                <div class="col-6"><input id="insPavimento" class="form-control form-control-sm" placeholder="Pavimento"></div>
-                                <div class="col-6"><input id="insUnidade" class="form-control form-control-sm" placeholder="Unidade"></div>
+                                <div class="col-6"><input id="insSetor" list="layerSetorList" class="form-control form-control-sm" placeholder="Setor"></div>
+                                <div class="col-6"><input id="insBloco" list="layerBlocoList" class="form-control form-control-sm" placeholder="Bloco"></div>
+                                <div class="col-6"><input id="insPavimento" list="layerPavimentoList" class="form-control form-control-sm" placeholder="Pavimento"></div>
+                                <div class="col-6"><input id="insUnidade" list="layerUnidadeList" class="form-control form-control-sm" placeholder="Unidade"></div>
                             </div>
+                            <datalist id="layerSetorList"></datalist>
+                            <datalist id="layerBlocoList"></datalist>
+                            <datalist id="layerPavimentoList"></datalist>
+                            <datalist id="layerUnidadeList"></datalist>
                         </div>
-                        <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
-                            <button id="btnApplyInspector" type="button" class="btn btn-outline-primary btn-sm" data-po-action="apply">
-                                <i class="bi bi-check2"></i> Aplicar
-                            </button>
-                            <button id="btnDuplicateSection" type="button" class="btn btn-outline-secondary btn-sm" data-po-action="dup-section">
-                                <i class="bi bi-copy"></i> Duplicar
-                            </button>
-                            <button id="btnRemoveSection" type="button" class="btn btn-outline-danger btn-sm" data-po-action="remove-section">
-                                <i class="bi bi-trash3"></i> Remover
-                            </button>
+                        <details class="mb-2">
+                            <summary class="po-adv-summary">Mais opções</summary>
+                        <div class="mb-2">
+                            <label for="insSemantica" class="form-label">Semântica (opcional)</label>
+                            <input id="insSemantica" type="text" class="form-control form-control-sm" placeholder="percentual_concluido...">
                         </div>
+                        <details class="mb-2">
+                            <summary class="po-adv-summary">Pendências de camada</summary>
+                            <div class="small text-muted mt-1" id="missingLayerSummary">Sem análise.</div>
+                            <div id="missingLayerList" class="d-flex flex-wrap gap-1 mt-2"></div>
+                            <button id="btnApplyContextToSelectedMissing" type="button" class="btn btn-outline-secondary btn-sm mt-2">
+                                Aplicar contexto aos selecionados
+                            </button>
+                        </details>
+                        <details class="mb-2">
+                            <summary class="po-adv-summary">Ações da seção</summary>
+                            <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+                                <button id="btnApplyInspector" type="button" class="btn btn-outline-primary btn-sm" data-po-action="apply">
+                                    <i class="bi bi-check2"></i> Aplicar agora
+                                </button>
+                                <button id="btnDuplicateSection" type="button" class="btn btn-outline-secondary btn-sm" data-po-action="dup-section">
+                                    <i class="bi bi-copy"></i> Duplicar
+                                </button>
+                                <button id="btnRemoveSection" type="button" class="btn btn-outline-danger btn-sm" data-po-action="remove-section">
+                                    <i class="bi bi-trash3"></i> Remover
+                                </button>
+                            </div>
+                        </details>
                         <div id="matrixTools" class="d-none">
                             <div class="d-flex flex-wrap gap-2 align-items-center">
                                 <button id="btnAddRow" type="button" class="btn btn-outline-secondary btn-sm" data-po-action="add-row">+ Linha</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="remove-row" title="Remover linha">− Linha</button>
                                 <button id="btnAddCol" type="button" class="btn btn-outline-secondary btn-sm" data-po-action="add-col">+ Coluna</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="remove-col" title="Remover coluna">− Coluna</button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-po-action="matrix-preset-mapa" title="Substitui a matriz pela pré-definição do mapa de controle (eixo, cabeçalhos, totais, % cores, cabeçalhos verticais)">
-                                    <i class="bi bi-grid-3x3-gap"></i> Pré-def. mapa de controle
-                                </button>
                             </div>
-                            <p class="small text-muted mb-0 mt-1">Na prancheta, com <strong>modo edição ON</strong> e a matriz selecionada: <strong>clique no eixo</strong> (linhas de dados) para selecionar a <strong>linha</strong>; <strong>clique no cabeçalho de coluna</strong> para a <strong>coluna</strong> (realce suave). Entre células há <strong>linhas de separação discretas</strong> — aproxime o rato: o cursor muda (↔ / ↕) e pode arrastar para ajustar larguras/alturas. <strong>Pequenos indícios</strong> no cabeçalho/eixo servem para reordenar. Muito conteúdo: <strong>rodinha</strong> (vertical) ou <strong>Shift+rodinha</strong> (horizontal); <strong>Ctrl+rodinha</strong> = zoom.</p>
-                            <div class="row g-2 mt-2 align-items-end">
-                                <div class="col-7">
-                                    <label for="insMatrixLevels" class="form-label small mb-0">Topo</label>
-                                    <select id="insMatrixLevels" class="form-select form-select-sm">
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                    </select>
-                                </div>
-                                <div class="col-5">
-                                    <div class="form-check mt-3">
-                                        <input class="form-check-input" type="checkbox" id="insMatrixHeatmap">
-                                        <label class="form-check-label small" for="insMatrixHeatmap">% cores</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row g-2 mt-1 align-items-center">
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="insMatrixTotalsCol" title="Média por linha">
-                                        <label class="form-check-label small" for="insMatrixTotalsCol">Total %</label>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="insMatrixTotalsRow" title="Linha de médias">
-                                        <label class="form-check-label small" for="insMatrixTotalsRow">Totais</label>
-                                    </div>
-                                </div>
-                                <div class="col-12">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="insMatrixVerticalHeaders" title="Última faixa de cabeçalho: texto na vertical (desligue para horizontal) — prancheta e grelha iguais.">
-                                        <label class="form-check-label small" for="insMatrixVerticalHeaders">Cabeçalhos de coluna na vertical</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="matrixGridEditor" class="po-matrix-editor mt-2"></div>
+                            <p class="small text-muted mb-0 mt-1">Dica rápida: clique no eixo para linha, no topo para coluna; arraste separadores para redimensionar; Ctrl+rodinha para zoom.</p>
                             <details class="mt-2 small">
-                                <summary class="po-adv-summary">CSV</summary>
-                                <textarea id="matrixCsvArea" class="form-control form-control-sm font-monospace mb-1 mt-1" rows="4" placeholder=""></textarea>
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="matrix-csv-import">Importar para a matriz</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="matrix-csv-export">Exportar</button>
+                                <summary class="po-adv-summary">Avançado da matriz</summary>
+                                <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="remove-row" title="Remover linha">− Linha</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="remove-col" title="Remover coluna">− Coluna</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-po-action="matrix-preset-mapa" title="Substitui a matriz pela pré-definição do mapa de controle (eixo, cabeçalhos, totais, % cores, cabeçalhos verticais)">
+                                        <i class="bi bi-grid-3x3-gap"></i> Pré-def. mapa de controle
+                                    </button>
                                 </div>
+                                <div class="row g-2 mt-2 align-items-end">
+                                    <div class="col-7">
+                                        <label for="insMatrixLevels" class="form-label small mb-0">Topo</label>
+                                        <select id="insMatrixLevels" class="form-select form-select-sm">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-5">
+                                        <div class="form-check mt-3">
+                                            <input class="form-check-input" type="checkbox" id="insMatrixHeatmap">
+                                            <label class="form-check-label small" for="insMatrixHeatmap">% cores</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-1 align-items-center">
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="insMatrixTotalsCol" title="Média por linha">
+                                            <label class="form-check-label small" for="insMatrixTotalsCol">Total %</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="insMatrixTotalsRow" title="Linha de médias">
+                                            <label class="form-check-label small" for="insMatrixTotalsRow">Totais</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="insMatrixVerticalHeaders" title="Última faixa de cabeçalho: texto na vertical (desligue para horizontal) — prancheta e grelha iguais.">
+                                            <label class="form-check-label small" for="insMatrixVerticalHeaders">Cabeçalhos de coluna na vertical</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-1 align-items-end">
+                                    <div class="col-8">
+                                        <label for="insMatrixAxisPct" class="form-label small mb-0">Largura da 1ª coluna (%)</label>
+                                        <input id="insMatrixAxisPct" type="number" class="form-control form-control-sm" min="8" max="40" step="1" value="14">
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm w-100" data-po-action="matrix-axis-apply">Aplicar eixo</button>
+                                    </div>
+                                </div>
+                                <div id="matrixGridEditor" class="po-matrix-editor mt-2"></div>
+                                <details class="mt-2 small">
+                                    <summary class="po-adv-summary">Grupos e camadas (montável)</summary>
+                                    <div class="d-flex align-items-center justify-content-between gap-2 mt-1">
+                                        <span id="insMxLayerNow" class="badge text-bg-light">Camada: raiz</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="mx-layer-back">Voltar camada</button>
+                                    </div>
+                                    <div id="insMxLayerTrail" class="mt-1 po-layer-trail"></div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-8">
+                                            <label for="insMxLayerJump" class="form-label small mb-0">Ir para camada</label>
+                                            <select id="insMxLayerJump" class="form-select form-select-sm"></select>
+                                        </div>
+                                        <div class="col-4 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" data-po-action="mx-layer-go">Abrir</button>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-8">
+                                            <label for="insMxGroupName" class="form-label small mb-0">Novo grupo</label>
+                                            <input id="insMxGroupName" type="text" class="form-control form-control-sm" placeholder="Ex.: Elétrica crítica">
+                                        </div>
+                                        <div class="col-4">
+                                            <label for="insMxGroupLayer" class="form-label small mb-0">Camada alvo</label>
+                                            <input id="insMxGroupLayer" type="text" class="form-control form-control-sm" placeholder="camada_x">
+                                        </div>
+                                        <div class="col-12 d-flex gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="mx-group-add">+ Grupo</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="mx-group-del">− Grupo</button>
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="insMxGroupSel" class="form-label small mb-0">Grupos</label>
+                                            <select id="insMxGroupSel" class="form-select form-select-sm"></select>
+                                        </div>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="row g-2">
+                                        <div class="col-3">
+                                            <label for="insMxRowStart" class="form-label small mb-0">Linha de</label>
+                                            <input id="insMxRowStart" type="number" min="1" class="form-control form-control-sm" value="1">
+                                        </div>
+                                        <div class="col-3">
+                                            <label for="insMxRowEnd" class="form-label small mb-0">Linha até</label>
+                                            <input id="insMxRowEnd" type="number" min="1" class="form-control form-control-sm" value="1">
+                                        </div>
+                                        <div class="col-3">
+                                            <label for="insMxColStart" class="form-label small mb-0">Coluna de</label>
+                                            <input id="insMxColStart" type="number" min="1" class="form-control form-control-sm" value="1">
+                                        </div>
+                                        <div class="col-3">
+                                            <label for="insMxColEnd" class="form-label small mb-0">Coluna até</label>
+                                            <input id="insMxColEnd" type="number" min="1" class="form-control form-control-sm" value="1">
+                                        </div>
+                                        <div class="col-12 d-flex gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="mx-bind-add">Vincular faixa ao grupo</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="mx-bind-del">Remover vínculo</button>
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="insMxBindingSel" class="form-label small mb-0">Vínculos</label>
+                                            <select id="insMxBindingSel" class="form-select form-select-sm"></select>
+                                        </div>
+                                    </div>
+                                </details>
+                                <details class="mt-2 small">
+                                    <summary class="po-adv-summary">CSV</summary>
+                                    <textarea id="matrixCsvArea" class="form-control form-control-sm font-monospace mb-1 mt-1" rows="4" placeholder=""></textarea>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="matrix-csv-import">Importar para a matriz</button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="matrix-csv-export">Exportar</button>
+                                    </div>
+                                </details>
+                                <details class="mt-2 small">
+                                    <summary class="po-adv-summary">Excel</summary>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-8">
+                                            <input id="matrixExcelFile" type="file" class="form-control form-control-sm" accept=".xlsx,.xls,.csv">
+                                        </div>
+                                        <div class="col-4">
+                                            <input id="matrixExcelSheet" type="text" class="form-control form-control-sm" placeholder="Aba (opcional)">
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2 mt-2">
+                                        <button type="button" class="btn btn-primary btn-sm" data-po-action="matrix-excel-smart">
+                                            Importar inteligente
+                                        </button>
+                                    </div>
+                                    <details class="mt-2">
+                                        <summary class="po-adv-summary">Avançado</summary>
+                                        <div class="row g-2 mt-1">
+                                            <div class="col-12">
+                                                <select id="matrixExcelMode" class="form-select form-select-sm">
+                                                    <option value="auto" selected>Auto (recomendado)</option>
+                                                    <option value="pivot">Forçar análise</option>
+                                                    <option value="raw">Forçar bruto</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="matrix-excel-preview">Analisar</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-po-action="matrix-excel-apply" id="btnMatrixExcelApply" disabled>Aplicar prévia</button>
+                                        </div>
+                                        <div id="matrixExcelPreviewInfo" class="small text-muted mt-2">Sem prévia.</div>
+                                        <textarea id="matrixExcelPreviewArea" class="form-control form-control-sm font-monospace mt-1" rows="5" placeholder="Prévia..." readonly></textarea>
+                                    </details>
+                                    <p class="small text-muted mb-0 mt-2">`.xlsx` e `.csv` suportados. Para `.xls`, converta para `.xlsx`.</p>
+                                </details>
                             </details>
                         </div>
+                        </details>
                     </div>
                 </div>
             </details>
             <hr>
             <details>
-                <summary class="po-json-summary">JSON técnico do rascunho</summary>
+                <summary class="po-json-summary">JSON técnico da versão atual</summary>
                 <pre id="draftPreview" class="po-preview"></pre>
             </details>
         </div>
@@ -252,6 +517,7 @@
     <div class="mt-2 mb-4 d-flex flex-wrap gap-2 po-legacy-links">
         <a class="btn btn-sm btn-outline-secondary" href="{{ mapa_atual_url }}">Mapa clássico</a>
         <a class="btn btn-sm btn-outline-secondary" href="{{ importar_mapa_url }}">Importar planilha</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ exportar_mapa_url }}">Exportar Excel</a>
     </div>
     {% endif %}
     {% endif %}
@@ -260,8 +526,7 @@
 
 {% block extra_js %}
 {% if not erro_acesso %}
-{{ draft_json|json_script:"poDraftData" }}
-{{ published_json|json_script:"poPublishedData" }}
+{{ versao_json|json_script:"poVersaoData" }}
 {{ semanticas_json|json_script:"poSemanticasData" }}
 <script>
 window.PO_EDITOR_CONTEXT = {
@@ -271,7 +536,7 @@ window.PO_EDITOR_CONTEXT = {
     syncElements: "{% url 'suprimentos:po_api_sync_elementos' ambiente.id %}",
     addSection: "{% url 'suprimentos:po_api_adicionar_secao' ambiente.id %}",
     saveDraft: "{% url 'suprimentos:po_api_salvar_rascunho' ambiente.id %}",
-    publish: "{% url 'suprimentos:po_api_publicar_ambiente' ambiente.id %}",
+    importMatrixExcel: "{% url 'suprimentos:po_api_importar_matriz_excel' ambiente.id %}",
   },
   csrfToken: "{{ csrf_token }}",
 };

@@ -12,6 +12,11 @@ class AmbienteTipo(models.TextChoices):
     CUSTOM = "custom", "Customizável"
 
 
+class AmbienteModoEditor(models.TextChoices):
+    MAPA_DEDICADO = "mapa_dedicado", "Mapa dedicado"
+    QUADRO = "quadro", "Quadro"
+
+
 class VersaoEstado(models.TextChoices):
     DRAFT = "draft", "Rascunho"
     PUBLISHED = "published", "Publicado"
@@ -22,6 +27,11 @@ class AmbienteOperacional(models.Model):
     obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name="ambientes_operacionais")
     nome = models.CharField(max_length=180)
     tipo = models.CharField(max_length=40, choices=AmbienteTipo.choices, default=AmbienteTipo.MAPA_CONTROLE)
+    modo_editor = models.CharField(
+        max_length=20,
+        choices=AmbienteModoEditor.choices,
+        default=AmbienteModoEditor.QUADRO,
+    )
     descricao = models.CharField(max_length=300, blank=True, default="")
     criado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,

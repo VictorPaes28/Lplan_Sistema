@@ -57,6 +57,7 @@ class _Grupos:
     # Mapa de Suprimentos (Suprimentos/Engenharia)
     # ──────────────────────────────────────────────
     ENGENHARIA = 'Mapa de Suprimentos'
+    FERRAMENTA_OPERACIONAL = 'Ferramenta Operacional'
 
     # ──────────────────────────────────────────────
     # Conjuntos úteis para verificações rápidas
@@ -73,7 +74,7 @@ class _Grupos:
             self.ADMINISTRADOR, self.RESPONSAVEL_EMPRESA,
             self.APROVADOR, self.SOLICITANTE,
             self.GESTAO_IMPEDIMENTOS,
-            self.GERENTES, self.ENGENHARIA,
+            self.GERENTES, self.ENGENHARIA, self.FERRAMENTA_OPERACIONAL,
             self.CENTRAL_APROVACOES_ADMIN,
             self.CENTRAL_APROVACOES_APROVADOR,
             self.CENTRAL_APROVACOES_EXTERNO,
@@ -140,7 +141,7 @@ GROUP_UI_MODULES = [
         'id': 'mapa',
         'title': 'Mapa de Controle e suprimentos',
         'subtitle': 'Mapa de Controle (execução físico) e planejamento no módulo Mapa.',
-        'names': [GRUPOS.ENGENHARIA],
+        'names': [GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL],
     },
     {
         'id': 'central_aprovacoes',

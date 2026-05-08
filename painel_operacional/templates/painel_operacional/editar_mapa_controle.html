@@ -1,0 +1,284 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Editar Mapa de Controle - LPLAN{% endblock %}
+
+{% block extra_css %}
+<style>
+  .po-mapa-edit-page {
+    background: linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
+  }
+  .po-mapa-edit {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 110px);
+    gap: 12px;
+  }
+  .po-mapa-edit__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+  .po-mapa-edit__eyebrow {
+    margin: 0 0 4px 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #2563eb;
+  }
+  .po-mapa-edit__title {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .po-mapa-edit__sub {
+    margin: 4px 0 0 0;
+    font-size: 0.82rem;
+    color: #64748b;
+  }
+  .po-mapa-edit__actions .btn {
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  }
+  .po-mapa-edit__notice {
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid #c7d2fe;
+    border-radius: 10px;
+    background: #eef2ff;
+    color: #334155;
+    font-size: 0.79rem;
+    line-height: 1.45;
+  }
+  .po-mapa-edit__toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    position: sticky;
+    top: 6px;
+    z-index: 6;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+  .po-mapa-edit__toolbar .form-control {
+    max-width: 210px;
+    min-width: 170px;
+    border-radius: 8px;
+  }
+  .po-mapa-edit__toolbar-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 8px;
+    margin-right: 2px;
+    border-right: 1px solid #e2e8f0;
+    flex: 0 0 auto;
+  }
+  .po-mapa-edit__toolbar-group:last-of-type {
+    border-right: 0;
+    padding-right: 0;
+  }
+  .po-mapa-edit__toolbar--matrix {
+    margin: 0;
+  }
+  .po-mapa-edit__move-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    background: #fff;
+  }
+  .po-mapa-edit__move-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-right: 2px;
+  }
+  .po-mapa-edit__status {
+    font-size: 0.75rem;
+    color: #334155;
+    padding: 4px 9px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    white-space: nowrap;
+  }
+  .po-mapa-edit__status.is-dirty {
+    color: #b45309;
+    font-weight: 600;
+    border-color: #fcd34d;
+    background: #fffbeb;
+  }
+  .po-mapa-edit__draft-group {
+    margin-left: auto;
+  }
+  .po-mapa-edit__discard-btn {
+    margin-left: 10px;
+  }
+  .po-mapa-edit__frame-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    overflow: hidden;
+    min-height: 600px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  }
+  .po-mapa-edit__frame {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 760px;
+    border: 0;
+    min-height: 600px;
+    background: #fff;
+  }
+  .po-mapa-edit__loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.78);
+  }
+  @media (max-width: 992px) {
+    .po-mapa-edit__head {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 12px;
+    }
+    .po-mapa-edit__actions {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .po-mapa-edit__status {
+      margin-left: 0;
+    }
+    .po-mapa-edit__toolbar {
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      top: 4px;
+    }
+    .po-mapa-edit__frame-wrap {
+      min-height: 620px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 po-mapa-edit-page">
+<div class="po-mapa-edit">
+  <div class="po-mapa-edit__head">
+    <div>
+      <p class="po-mapa-edit__eyebrow">Modo especializado</p>
+      <h2 class="po-mapa-edit__title">Editar Mapa de Controle/Serviço</h2>
+      <p class="po-mapa-edit__sub">{{ ambiente.nome }} • {{ obra_selecionada.nome }}</p>
+    </div>
+    <div class="po-mapa-edit__actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ mapa_view_url }}">
+        <i class="bi bi-arrow-left"></i> Voltar para visualização
+      </a>
+      <a class="btn btn-primary btn-sm" href="{{ mapa_atual_url }}" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Abrir mapa clássico
+      </a>
+    </div>
+  </div>
+
+  <p class="po-mapa-edit__notice">
+    Você está no fluxo de edição especializado deste mapa. Clique em <strong>Ativar edição</strong>, selecione uma célula
+    da matriz e edite texto/cor dentro do contexto atual.
+  </p>
+
+  <div class="po-mapa-edit__frame-wrap">
+    <div class="po-mapa-edit__toolbar po-mapa-edit__toolbar--matrix">
+      <span class="po-mapa-edit__toolbar-group">
+        <button id="btnMapaEditToggle" type="button" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-pencil-square"></i> Ativar edição
+        </button>
+        <span id="poMapaEditStatus" class="po-mapa-edit__status">Somente visualização</span>
+      </span>
+      <span class="po-mapa-edit__toolbar-group">
+        <input id="inpMapaEditText" type="text" class="form-control form-control-sm" placeholder="Texto da célula selecionada" disabled>
+        <button id="btnMapaApplyText" type="button" class="btn btn-outline-secondary btn-sm" disabled>Aplicar texto</button>
+      </span>
+      <span class="po-mapa-edit__toolbar-group">
+        <input id="inpMapaEditColor" type="color" class="form-control form-control-color form-control-sm" value="#0ea5e9" disabled>
+        <button id="btnMapaApplyColor" type="button" class="btn btn-outline-secondary btn-sm" disabled>Aplicar cor</button>
+      </span>
+      <span class="po-mapa-edit__toolbar-group">
+        <span class="po-mapa-edit__move-group">
+          <span class="po-mapa-edit__move-label">Coluna</span>
+          <button id="btnMapaMoveColLeft" type="button" class="btn btn-outline-secondary btn-sm" disabled title="Mover coluna para a esquerda">
+            <i class="bi bi-arrow-left"></i>
+          </button>
+          <button id="btnMapaMoveColRight" type="button" class="btn btn-outline-secondary btn-sm" disabled title="Mover coluna para a direita">
+            <i class="bi bi-arrow-right"></i>
+          </button>
+        </span>
+        <span class="po-mapa-edit__move-group">
+          <span class="po-mapa-edit__move-label">Linha</span>
+          <button id="btnMapaMoveRowUp" type="button" class="btn btn-outline-secondary btn-sm" disabled title="Mover linha para cima">
+            <i class="bi bi-arrow-up"></i>
+          </button>
+          <button id="btnMapaMoveRowDown" type="button" class="btn btn-outline-secondary btn-sm" disabled title="Mover linha para baixo">
+            <i class="bi bi-arrow-down"></i>
+          </button>
+        </span>
+      </span>
+      <span class="po-mapa-edit__toolbar-group">
+        <button id="btnMapaAddCol" type="button" class="btn btn-outline-secondary btn-sm" disabled>+ Coluna</button>
+        <button id="btnMapaAddRow" type="button" class="btn btn-outline-secondary btn-sm" disabled>+ Linha</button>
+        <button id="btnMapaDeleteCol" type="button" class="btn btn-outline-danger btn-sm" disabled>Apagar coluna</button>
+        <button id="btnMapaDeleteRow" type="button" class="btn btn-outline-danger btn-sm" disabled>Apagar linha</button>
+      </span>
+      <span class="po-mapa-edit__toolbar-group po-mapa-edit__draft-group">
+        <button id="btnMapaSaveDraft" type="button" class="btn btn-primary btn-sm" disabled>Salvar rascunho local</button>
+      </span>
+      <button id="btnMapaDiscardDraft" type="button" class="btn btn-outline-danger btn-sm po-mapa-edit__discard-btn" disabled>Descartar rascunho</button>
+    </div>
+    <div id="poMapaEditLoading" class="po-mapa-edit__loading">Carregando mapa para edição...</div>
+    <iframe
+      id="poMapaEditFrame"
+      class="po-mapa-edit__frame"
+      title="Mapa de controle em edição especializada"
+      src="{{ mapa_atual_url }}"
+      loading="eager"
+      referrerpolicy="same-origin"
+    ></iframe>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.PO_MAPA_EDIT_CONTEXT = {
+  ambienteId: {{ ambiente_id }},
+};
+</script>
+<script src="{% static 'painel_operacional/js/editar_mapa_controle.js' %}"></script>
+{% endblock %}

@@ -171,6 +171,8 @@
     .system-card.central .card-inner::before { background: #475569; }
     .system-card.impedimentos:hover:not(.disabled) .card-inner { border-color: #d24e1b; }
     .system-card.impedimentos .card-inner::before { background: #d24e1b; }
+    .system-card.ferramenta:hover:not(.disabled) .card-inner { border-color: #6366f1; }
+    .system-card.ferramenta .card-inner::before { background: #6366f1; }
 
     /* System Icon */
     .system-icon {
@@ -198,6 +200,7 @@
         height: 24px;
         flex-shrink: 0;
     }
+    .system-card.ferramenta .system-icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); }
 
     /* Badges */
     .access-badge {
@@ -255,6 +258,7 @@
     .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
     .system-card.impedimentos .card-arrow { color: #d24e1b; }
+    .system-card.ferramenta .card-arrow { color: #4f46e5; }
 
     /* Acessibilidade: foco visível no teclado */
     .system-card:focus-visible,
@@ -791,6 +795,32 @@
                 </div>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+
+        <!-- Ferramenta de ambientes operacionais -->
+        <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Ferramenta de ambientes" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-border-all"></i></div>
+                    {% if has_mapa %}
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Ferramenta de ambientes</h3>
+                <p class="text-sm text-slate-500 mb-4">Monte painéis operacionais e mapas dinâmicos por obra</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Editor visual com seções e células</li>
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Rascunho e publicação por ambiente</li>
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Integrado ao fluxo do Mapa de Suprimentos</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Abrir <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>

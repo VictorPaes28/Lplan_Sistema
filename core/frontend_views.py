@@ -410,7 +410,9 @@ def select_system_view(request):
     has_impedimentos = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
     )
-    has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    has_mapa = user.is_superuser or user.is_staff or bool(
+        user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
+    )
     has_workflow = user.is_superuser or user.is_staff or bool(
         user_groups
         & {

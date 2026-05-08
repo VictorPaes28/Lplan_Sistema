@@ -175,8 +175,22 @@
 
     async function fetchJson(url) {
         const response = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
-        if (!response.ok) throw new Error("Falha ao carregar dados.");
-        return response.json();
+        const raw = await response.text();
+        let data = null;
+        try {
+            data = raw ? JSON.parse(raw) : {};
+        } catch {
+            const ct = String(response.headers.get("content-type") || "").toLowerCase();
+            if (ct.includes("text/html") || raw.trim().startsWith("<!DOCTYPE") || raw.trim().startsWith("<html")) {
+                throw new Error("A API retornou HTML em vez de JSON. Verifique sessão/rota/permissão.");
+            }
+            throw new Error("Resposta inválida da API (JSON malformado).");
+        }
+        if (!response.ok) {
+            const msg = (data && (data.error || data.message)) || "Falha ao carregar dados.";
+            throw new Error(msg);
+        }
+        return data;
     }
 
     async function refresh() {
@@ -239,7 +253,9 @@
             const el = fields[name];
             if (!el) return;
             el.addEventListener("change", () => {
-                refresh().catch(console.error);
+                refresh().catch((err) => {
+                    setErrorState(err && err.message ? err.message : "Erro ao carregar o mapa de controle.");
+                });
             });
         });
 
@@ -247,7 +263,9 @@
             fields.search.addEventListener("input", () => {
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(() => {
-                    refresh().catch(console.error);
+                    refresh().catch((err) => {
+                        setErrorState(err && err.message ? err.message : "Erro ao carregar o mapa de controle.");
+                    });
                 }, 350);
             });
         }
@@ -262,7 +280,7 @@
 
     applyInitial();
     bindEvents();
-    refresh().catch(() => {
-        setErrorState("Erro ao carregar o mapa de controle.");
+    refresh().catch((err) => {
+        setErrorState(err && err.message ? err.message : "Erro ao carregar o mapa de controle.");
     });
 })();

@@ -1,5 +1,6 @@
 {% extends 'base_mapa.html' %}
 {% load static %}
+{% load l10n %}
 {% load suprimentos_filters %}
 
 {% block title %}Mapa Engenharia - LPLAN{% endblock %}
@@ -456,7 +457,7 @@
                 <td>
                     <input type="number"
                            class="input-inline form-control form-control-sm text-end"
-                           value="{{ item.quantidade_planejada|floatformat:2 }}"
+                           value="{{ item.quantidade_planejada|unlocalize }}"
                            data-item-id="{{ item.id }}"
                            data-field="quantidade_planejada"
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
