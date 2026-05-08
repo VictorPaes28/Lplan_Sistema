@@ -455,8 +455,8 @@ class SiengeCentralSyncState(models.Model):
     last_error = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = 'Sync Sienge → Central (estado)'
-        verbose_name_plural = 'Sync Sienge → Central (estado)'
+        verbose_name = 'Sync Sienge para Central (estado)'
+        verbose_name_plural = 'Sync Sienge para Central (estado)'
 
     def __str__(self):
         return f'Sienge sync @ {self.last_run_at} ok={self.last_ok}'
