@@ -1,0 +1,162 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Mapa de Controle Dedicado - LPLAN{% endblock %}
+
+{% block extra_css %}
+<style>
+  .po-mapa-dedicado {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 110px);
+    gap: 14px;
+  }
+  .po-mapa-dedicado__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+  .po-mapa-dedicado__eyebrow {
+    margin: 0 0 4px 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #2563eb;
+  }
+  .po-mapa-dedicado__title {
+    margin: 0 0 2px 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .po-mapa-dedicado__sub {
+    margin: 0;
+    font-size: 0.83rem;
+    color: #64748b;
+  }
+  .po-mapa-dedicado__meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .po-mapa-dedicado__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.73rem;
+    color: #334155;
+    background: #eff6ff;
+    border: 1px solid #dbeafe;
+  }
+  .po-mapa-dedicado__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .po-mapa-dedicado__actions .btn {
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  }
+  .po-mapa-dedicado__frame-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+    background: transparent;
+    min-height: 520px;
+    margin-top: 0;
+  }
+  .po-mapa-dedicado__frame {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 640px;
+    border: 0;
+    min-height: 520px;
+    background: #fff;
+  }
+  .po-mapa-dedicado__loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.78);
+  }
+  @media (max-width: 992px) {
+    .po-mapa-dedicado__head {
+      padding: 12px;
+      border-radius: 12px;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .po-mapa-dedicado__actions {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .po-mapa-dedicado__frame-wrap {
+      min-height: 520px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+<div class="po-mapa-dedicado">
+  <div class="po-mapa-dedicado__head">
+    <div>
+      <p class="po-mapa-dedicado__eyebrow">Ambiente dedicado</p>
+      <h2 class="po-mapa-dedicado__title">Editor operacional do ambiente</h2>
+      <p class="po-mapa-dedicado__sub">{{ ambiente.nome }}</p>
+      <div class="po-mapa-dedicado__meta-row">
+        <span class="po-mapa-dedicado__meta">
+          <i class="bi bi-building"></i> {{ obra_selecionada.nome }}
+        </span>
+      </div>
+    </div>
+    <div class="po-mapa-dedicado__actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'engenharia:ferramenta_shell' %}?obra={{ obra_selecionada.id }}">
+        <i class="bi bi-arrow-left"></i> Ambientes
+      </a>
+      <a id="btnEditarMapa" class="btn btn-outline-primary btn-sm" href="{{ mapa_edit_url }}">
+        <i class="bi bi-pencil-square"></i> Editar mapa
+      </a>
+      <a class="btn btn-primary btn-sm" href="{{ mapa_atual_url }}" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Mapa clássico
+      </a>
+    </div>
+  </div>
+  <div class="po-mapa-dedicado__frame-wrap">
+    <div id="poMapaDedicadoLoading" class="po-mapa-dedicado__loading">Carregando ambiente...</div>
+    <iframe
+      id="poMapaDedicadoFrameVisual"
+      class="po-mapa-dedicado__frame"
+      title="Mapa de controle original"
+      src="{{ mapa_atual_url }}"
+      loading="eager"
+      referrerpolicy="same-origin"
+    ></iframe>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'painel_operacional/js/editor_mapa_controle.js' %}"></script>
+{% endblock %}
+

@@ -23,6 +23,9 @@ def home(request):
     # Se o usuário só tem grupo ENGENHARIA (sem outros), vai direto ao mapa
     if user_groups == {GRUPOS.ENGENHARIA}:
         return redirect('engenharia:mapa')
+    # Se só tem acesso à Ferramenta Operacional, vai direto para a ferramenta
+    if user_groups == {GRUPOS.FERRAMENTA_OPERACIONAL}:
+        return redirect('engenharia:ferramenta_shell')
     
     # Se tem algum grupo de qualquer sistema, vai pro seletor
     if user_groups or user.is_staff or user.is_superuser:

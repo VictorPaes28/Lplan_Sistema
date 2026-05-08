@@ -54,7 +54,7 @@ class Command(BaseCommand):
             '--category',
             type=str,
             default=None,
-            help='Só medições: força uma categoria (contrato|bm|medicao). Sem isto, bm/medicao automático.',
+            help='Só medições: força uma categoria (contrato|medicao). Sem isto, usa SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE.',
         )
         parser.add_argument(
             '--only-contracts',

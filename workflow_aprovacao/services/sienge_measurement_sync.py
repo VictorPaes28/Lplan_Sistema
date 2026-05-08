@@ -7,15 +7,21 @@ nem mapa de suprimentos — só o que alimenta aprovação de contrato/medición
 
 Fontes na API pública Sienge (contrato de suprimentos):
   - GET /v1/supply-contracts/all → categoria ``contrato``
-  - GET /v1/supply-contracts/measurements/all → categoria ``medicao`` (BM = mesma linha operacional)
+  - GET /v1/supply-contracts/measurements/all → categoria ``medicao``.
 
-A categoria das medições pode ser ``medicao`` ou ``bm`` via ``SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE``.
+A categoria das medições segue ``SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE`` (por defeito ``medicao``).
 
-Resolução de obra: o ``contractNumber`` do Sienge é casado com obras **já existentes** por, por ordem:
-  ``Project.contract_number``, ``Project.code``, tokens em ``Project.sienge_codigos_alternativos``,
-  ``gestao_aprovacao.Obra.codigo`` (com ``project``), ``mapa_obras.Obra`` (código Sienge + alternativos).
+Resolução de obra (chaves já existentes no Lplan):
 
-Não altera cadastro de obras; só usa o que já está na base.
+  - Primeiro: ``contractNumber`` da linha (lista ``/all`` ou medições) casado com o índice
+    ``Project`` / obras Gestão / Mapa (``code``, ``contract_number``, ``sienge_codigos_alternativos``,
+    ``codigo_sienge``, alternativos).
+  - Depois: campos de obra na própria linha (ex.: ``buildingCode``) se existirem.
+  - Por fim: ``GET /v1/supply-contracts/buildings`` (documentId + contractNumber) — o **número do
+    contrato** no Sienge costuma ser diferente do **código da obra**; as obras do contrato trazem
+    os códigos que batem com o cadastro (ex. 224, 260).
+
+Não cria obras; só associa a ``Project`` já existente.
 """
 from __future__ import annotations
 
@@ -34,13 +40,84 @@ from workflow_aprovacao.models import (
 )
 from workflow_aprovacao.services.backlog import upsert_inbound_backlog
 from workflow_aprovacao.services.engine import ApprovalEngine
+from workflow_aprovacao.services.sienge_display import humanize_sienge_field_value
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import AbstractUser
 
     from workflow_aprovacao.services.sienge_api import SiengeCentralApiClient
 
-CENTRAL_CATEGORY_CODES = frozenset({'contrato', 'bm', 'medicao'})
+CENTRAL_CATEGORY_CODES = frozenset({'contrato', 'medicao'})
+
+# Campos permitidos no snapshot JSON do processo (evita gravar segredos ou blobs).
+_SIENGE_SNAPSHOT_KEY_DENY = frozenset(
+    {'password', 'token', 'secret', 'authorization', 'credential', 'bearer'}
+)
+
+
+def sienge_row_public_snapshot(row: Optional[Dict[str, Any]], *, max_keys: int = 48) -> Dict[str, Any]:
+    """Subconjunto do payload Sienge seguro para ``ApprovalProcess.external_payload``."""
+    if not row or not isinstance(row, dict):
+        return {}
+    out: Dict[str, Any] = {}
+    for k, v in row.items():
+        if not isinstance(k, str) or k.startswith('_'):
+            continue
+        lk = k.lower()
+        if any(d in lk for d in _SIENGE_SNAPSHOT_KEY_DENY):
+            continue
+        if v is None or v == '':
+            continue
+        if isinstance(v, (dict, list)) and len(str(v)) > 4000:
+            continue
+        out[k] = v
+        if len(out) >= max_keys:
+            break
+    return out
+
+
+def _human_contract_lines(row: Dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    specs: list[tuple[str | None, str, Any]] = [
+        (None, 'Documento / contrato', f"{row.get('documentId', '')} {row.get('contractNumber', '')}".strip()),
+        ('status', 'Situação', row.get('status')),
+        ('statusApproval', 'Autorização (campo)', row.get('statusApproval')),
+        ('isAuthorized', 'Autorizado no Sienge', row.get('isAuthorized')),
+        ('companyName', 'Empresa', row.get('companyName') or row.get('companyId')),
+        ('supplierName', 'Fornecedor', row.get('supplierName') or row.get('supplierId')),
+        ('contractObject', 'Objeto', row.get('contractObject') or row.get('object') or row.get('description')),
+        ('notes', 'Observações', row.get('notes')),
+        ('startDate', 'Início', row.get('startDate') or row.get('contractStartDate')),
+        ('endDate', 'Término', row.get('endDate') or row.get('contractEndDate')),
+        ('totalValue', 'Valor', row.get('totalValue') or row.get('totalContractValue')),
+    ]
+    for field_key, label, raw in specs:
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            continue
+        display = humanize_sienge_field_value(field_key, raw)
+        if display:
+            lines.append(f'{label}: {display}')
+    return lines
+
+
+def _human_measurement_lines(row: Dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    specs: list[tuple[str | None, str, Any]] = [
+        (None, 'Documento / contrato', f"{row.get('documentId', '')} {row.get('contractNumber', '')}".strip()),
+        ('buildingId', 'Obra Sienge (buildingId)', row.get('buildingId')),
+        ('measurementNumber', 'Nº medição', row.get('measurementNumber')),
+        ('statusApproval', 'Situação aprovação', row.get('statusApproval')),
+        ('authorized', 'Autorizado', row.get('authorized')),
+        ('responsibleName', 'Responsável', row.get('responsibleName') or row.get('responsibleId')),
+        ('notes', 'Observações', row.get('notes')),
+    ]
+    for field_key, label, raw in specs:
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            continue
+        display = humanize_sienge_field_value(field_key, raw)
+        if display:
+            lines.append(f'{label}: {display}')
+    return lines
 
 
 def measurement_external_id(row: Dict[str, Any]) -> str:
@@ -113,16 +190,115 @@ def build_sienge_project_lookup() -> Dict[str, Project]:
     return lookup
 
 
+def _lookup_sienge_key(lookup: Dict[str, Project], raw: Any) -> Optional[Project]:
+    """Casa uma string ou número Sienge com o índice (minúsculas + variantes numéricas)."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    candidates = [s.lower()]
+    if s.isdigit():
+        n = str(int(s))
+        candidates.extend([n, n.zfill(4), n.zfill(5)])
+    for c in candidates:
+        p = lookup.get(c.lower())
+        if p:
+            return p
+    return None
+
+
+def _candidate_strings_from_building_dict(b: Dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    for key in (
+        'code',
+        'buildingCode',
+        'constructionWorkCode',
+        'workCode',
+        'buildingSiteCode',
+        'installationCode',
+        'buildingId',
+        'id',
+    ):
+        v = b.get(key)
+        if v is None or v == '':
+            continue
+        s = str(v).strip()
+        if s:
+            out.append(s)
+    return out
+
+
 def resolve_project_for_sienge_row(
     row: Dict[str, Any],
     lookup: Optional[Dict[str, Project]] = None,
+    client: Optional['SiengeCentralApiClient'] = None,
 ) -> Optional[Project]:
+    """
+    Resolve ``Project`` a partir de uma linha Sienge (contrato ou medição).
+
+    ``client`` opcional: se a linha só tiver ``contractNumber`` de contrato, tenta-se
+    ``/supply-contracts/buildings`` para obter códigos de obra.
+    """
+    if lookup is None:
+        lookup = build_sienge_project_lookup()
+
     cn = str(row.get('contractNumber', '')).strip()
     if not cn:
         return None
-    key = cn.lower()
-    if lookup is not None:
-        return lookup.get(key)
+
+    p = _lookup_sienge_key(lookup, cn)
+    if p:
+        return p
+
+    for fld in ('buildingCode', 'constructionWorkCode', 'workCode', 'buildingSiteCode'):
+        p = _lookup_sienge_key(lookup, row.get(fld))
+        if p:
+            return p
+
+    p = _lookup_sienge_key(lookup, row.get('buildingId'))
+    if p:
+        return p
+
+    buildings_inline = row.get('buildings')
+    if isinstance(buildings_inline, list):
+        bid = row.get('buildingId')
+
+        def _prio(b: Any) -> tuple:
+            if not isinstance(b, dict):
+                return (2, 0)
+            if bid is None:
+                return (1, 0)
+            return (0 if str(b.get('buildingId')) == str(bid) else 1, 0)
+
+        for b in sorted(buildings_inline, key=_prio):
+            if isinstance(b, dict):
+                for s in _candidate_strings_from_building_dict(b):
+                    p = _lookup_sienge_key(lookup, s)
+                    if p:
+                        return p
+
+    doc = str(row.get('documentId', '') or '').strip()
+    if client and doc:
+        try:
+            rows_b = client.fetch_supply_contract_buildings(document_id=doc, contract_number=cn)
+        except Exception:
+            rows_b = []
+        bid = row.get('buildingId')
+
+        def _prio_api(b: Any) -> tuple:
+            if not isinstance(b, dict):
+                return (2, 0)
+            if bid is None:
+                return (1, 0)
+            return (0 if str(b.get('buildingId')) == str(bid) else 1, 0)
+
+        for b in sorted(rows_b, key=_prio_api):
+            for s in _candidate_strings_from_building_dict(b):
+                p = _lookup_sienge_key(lookup, s)
+                if p:
+                    return p
+
     p = Project.objects.filter(contract_number=cn).first()
     if p:
         return p
@@ -191,6 +367,7 @@ def _try_create(
         stats['would_create'] += 1
         return
     try:
+        snap = sienge_row_public_snapshot(source_row or {})
         ApprovalEngine.start(
             project=project,
             category=category,
@@ -200,6 +377,7 @@ def _try_create(
             external_id=external_id,
             external_entity_type=entity_type,
             sync_status=SyncStatus.NOT_APPLICABLE,
+            external_payload=snap,
         )
         stats['created'] += 1
     except NoFlowConfigurationError as exc:
@@ -261,22 +439,16 @@ def sync_sienge_contracts_to_central(
             stats['skipped_not_pending'] += 1
             continue
 
-        project = resolve_project_for_sienge_row(row, lookup)
+        project = resolve_project_for_sienge_row(row, lookup, client=api)
         if not project:
             stats['skipped_no_project'] += 1
             continue
 
         doc = str(row.get('documentId', '') or '').strip()
         num = str(row.get('contractNumber', '') or '').strip()
-        title = f'Sienge — contrato {doc} {num}'[:300]
-        summary_lines = [
-            f'status: {row.get("status")}',
-            f'statusApproval: {row.get("statusApproval")}',
-            f'isAuthorized: {row.get("isAuthorized")}',
-            f'Empresa: {row.get("companyName") or row.get("companyId")}',
-            f'Fornecedor: {row.get("supplierName") or row.get("supplierId")}',
-        ]
-        summary = '\n'.join(str(x) for x in summary_lines if x)
+        title = f'Contrato Sienge {doc} {num} · {project.name}'[:300]
+        human = '\n'.join(_human_contract_lines(row))
+        summary = human.strip()[:2000] or title
 
         _try_create(
             project=project,
@@ -303,7 +475,7 @@ def sync_sienge_measurements_to_central(
     dry_run: bool = False,
 ) -> Dict[str, int]:
     """
-    Medições ``/measurements/all`` → uma categoria na Central (BM = mesma coisa: ``medicao`` por defeito).
+    Medições ``/measurements/all`` → categoria ``medicao`` (ou a definida em settings).
 
     ``category_code``: se None, usa ``SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE`` (default ``medicao``).
     """
@@ -315,6 +487,8 @@ def sync_sienge_measurements_to_central(
     lookup = build_sienge_project_lookup()
     if category_code:
         code = category_code.strip().lower()
+        if code == 'bm':
+            code = 'medicao'
         if code not in CENTRAL_CATEGORY_CODES:
             raise ValueError(f'Categoria inválida: {code!r}')
         category = _category_or_raise(code)
@@ -322,6 +496,8 @@ def sync_sienge_measurements_to_central(
         code = (
             getattr(settings, 'SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE', 'medicao') or 'medicao'
         ).strip().lower()
+        if code == 'bm':
+            code = 'medicao'
         if code not in CENTRAL_CATEGORY_CODES:
             raise ValueError(f'SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE inválido: {code!r}')
         category = _category_or_raise(code)
@@ -338,7 +514,7 @@ def sync_sienge_measurements_to_central(
             stats['skipped_not_pending'] += 1
             continue
 
-        project = resolve_project_for_sienge_row(row, lookup)
+        project = resolve_project_for_sienge_row(row, lookup, client=api)
         if not project:
             stats['skipped_no_project'] += 1
             continue
@@ -346,16 +522,9 @@ def sync_sienge_measurements_to_central(
         doc = str(row.get('documentId', '') or '').strip()
         num = str(row.get('contractNumber', '') or '').strip()
         mn_disp = row.get('measurementNumber', '')
-        title = f'Sienge — medição · contrato {doc} {num} · nº {mn_disp}'[:300]
-        summary_lines = [
-            f'buildingId: {row.get("buildingId")}',
-            f'Responsável: {row.get("responsibleName") or row.get("responsibleId") or ""}',
-            f'statusApproval: {row.get("statusApproval")}',
-            f'authorized: {row.get("authorized")}',
-        ]
-        if row.get('notes'):
-            summary_lines.append(str(row.get('notes')))
-        summary = '\n'.join(summary_lines)
+        title = f'Medição Sienge {doc} {num} · nº {mn_disp} · {project.name}'[:300]
+        human = '\n'.join(_human_measurement_lines(row))
+        summary = human.strip()[:2000] or title
 
         _try_create(
             project=project,

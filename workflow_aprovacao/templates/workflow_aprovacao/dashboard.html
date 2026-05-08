@@ -34,6 +34,26 @@
         {% endif %}
     </div>
 
+    <section class="wf-sync-sienge" style="margin-top:1.75rem;padding:1rem 1.25rem;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;max-width:42rem;">
+        <h2 class="wf-section-title" style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:#0f172a;">Integração Sienge → Central</h2>
+        <p style="margin:0 0 0.5rem;font-size:0.9rem;color:#475569;line-height:1.45;">
+            Os contratos e medições pendentes no Sienge alimentam esta Central (fluxos de aprovação).
+            Quando existir assinatura eletrónica ligada ao processo, segue o fluxo definido pela equipa.
+        </p>
+        {% if sienge_beat_enabled %}
+        <p style="margin:0;font-size:0.9rem;color:#166534;"><strong>Sincronização automática ativa:</strong> a cada 4 horas (Celery Beat no servidor).</p>
+        {% else %}
+        <p style="margin:0;font-size:0.9rem;color:#92400e;"><strong>Sincronização automática desligada.</strong> Em produção, ative <code>SIENGE_CENTRAL_BEAT_ENABLED=true</code> e execute o worker e o beat do Celery.</p>
+        {% endif %}
+        {% if sienge_sync_state and sienge_sync_state.last_run_at %}
+        <p style="margin:0.65rem 0 0;font-size:0.85rem;color:#64748b;">
+            Última execução agendada: {{ sienge_sync_state.last_run_at|date:"d/m/Y H:i" }}
+            {% if sienge_sync_state.last_ok %}<span style="color:#166534;">(OK)</span>{% else %}<span style="color:#b91c1c;">(erro)</span>{% endif %}
+            {% if not sienge_sync_state.last_ok and sienge_sync_state.last_error %} — {{ sienge_sync_state.last_error|truncatechars:120 }}{% endif %}
+        </p>
+        {% endif %}
+    </section>
+
     {% if workflow_minimal_shell %}
     <div class="wf-restrict" role="note">
         <strong>Modo restrito.</strong> Esta área destina-se apenas a aprovações. Para outros módulos, utilize o acesso que lhe foi atribuído.

@@ -9,6 +9,11 @@ urlpatterns = [
     path('painel/', views.dashboard, name='dashboard'),
     path('fila/', views.pending_list, name='pending'),
     path('processo/<int:pk>/', views.process_detail, name='process_detail'),
+    path(
+        'processo/<int:pk>/sienge/anexo/',
+        views.sienge_process_attachment_download,
+        name='sienge_process_attachment',
+    ),
     path('config/fluxos/', views.config_flow_list, name='config_flow_list'),
     path('config/fluxos/<int:pk>/', views.flow_edit, name='flow_edit'),
     path('config/pendencias/', views.config_backlog_list, name='config_backlog_list'),

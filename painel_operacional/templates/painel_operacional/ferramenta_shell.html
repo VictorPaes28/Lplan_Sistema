@@ -1,0 +1,137 @@
+{% extends 'base_mapa.html' %}
+{% load static %}
+
+{% block title %}Ferramenta de Ambientes - LPLAN{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'painel_operacional/css/ferramenta_shell.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 po-shell">
+    <section class="po-top-block mb-3">
+        <div class="po-header">
+            <div class="po-header-main">
+                <h2 class="po-title"><i class="bi bi-grid-1x2 me-1"></i> Central do Mapa de Controle da Obra</h2>
+                <p class="po-subtitle">
+                    Crie e abra os ambientes por obra para organizar blocos, pavimentos, unidades e a matriz de acompanhamento.
+                </p>
+            </div>
+            <form method="get" id="poObraForm" class="po-obra-switch">
+                <label for="poObra" class="form-label mb-1 po-obra-label">Obra ativa</label>
+                <select id="poObra" name="obra" class="form-select" onchange="window.PO_submitObra ? window.PO_submitObra(this.form) : this.form.submit()">
+                    {% for o in obras %}
+                    <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>
+                        {% if o.codigo_sienge %}{{ o.codigo_sienge }} — {% endif %}{{ o.nome }}
+                    </option>
+                    {% empty %}
+                    <option value="">Nenhuma obra disponível</option>
+                    {% endfor %}
+                </select>
+                <p class="small text-muted mb-0 mt-1">A lista abaixo muda conforme a obra selecionada.</p>
+            </form>
+        </div>
+        <div class="po-top-divider"></div>
+        <div class="po-create-inline">
+            <div class="po-section-label mb-2"><i class="bi bi-plus-circle me-1"></i> Criar novo ambiente</div>
+            <button id="poOpenCreateModal" class="btn btn-primary po-create-launch" type="button">
+                <i class="bi bi-plus-lg me-1"></i> Criar ambiente
+            </button>
+        </div>
+    </section>
+
+    <section class="card shadow-sm po-soft-card">
+        <div class="card-body">
+            <div class="po-list-head mb-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h5 class="mb-0">Ambientes da obra</h5>
+                    <span id="poCountBadge" class="badge text-bg-light">0 ambientes</span>
+                    <span id="poUpdatedAt" class="small text-muted">-</span>
+                </div>
+                <div class="po-search-wrap">
+                    <input id="poSearch" type="search" class="form-control form-control-sm po-search" placeholder="Buscar por nome ou tipo">
+                    <button id="poRecarregar" type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+                </div>
+            </div>
+            <div id="poAlert" class="alert d-none" role="alert"></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle po-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Última revisão</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="poTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+<div id="poPageOverlay" class="po-page-overlay" aria-hidden="true">
+    <div class="po-page-overlay__spinner spinner-border text-primary" role="status" aria-label="Carregando"></div>
+</div>
+
+<div class="modal fade" id="poCreateModal" tabindex="-1" aria-labelledby="poCreateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content po-create-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="poCreateModalLabel"><i class="bi bi-plus-circle me-1"></i>Criar novo ambiente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label" for="poNome">Nome do ambiente</label>
+                    <input id="poNome" type="text" class="form-control" placeholder="Ex.: Mapa de Controle Torre A">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="poTipo">Preset</label>
+                    <select id="poTipo" class="form-select">
+                        {% for value, label in tipos_ambiente %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="poCreateImportWrap" class="alert alert-light border small py-2 px-3 d-none mb-0">
+                    <div class="fw-semibold mb-1">Importar planilha nesta ferramenta (opcional)</div>
+                    <div class="row g-2">
+                        <div class="col-8">
+                            <input id="poCreateImportFile" type="file" class="form-control form-control-sm" accept=".xlsx,.xls,.csv">
+                        </div>
+                        <div class="col-4">
+                            <input id="poCreateImportSheet" type="text" class="form-control form-control-sm" placeholder="Aba (opcional)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button id="poCriar" class="btn btn-primary" type="button"><i class="bi bi-plus-lg me-1"></i>Criar ambiente</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ ambientes_json|json_script:"poInitialAmbientes" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.PO_CONTEXT = {
+  obraId: {{ obra_selecionada.id|default:"null" }},
+  endpoints: {
+    list: "{% url 'suprimentos:po_api_listar_ambientes' %}",
+    create: "{% url 'suprimentos:po_api_criar_ambiente' %}",
+    detailBase: "{% url 'suprimentos:po_api_detalhe_ambiente' 0 %}",
+    importMatrixBase: "{% url 'suprimentos:po_api_importar_matriz_excel' 0 %}",
+    saveBase: "{% url 'suprimentos:po_api_salvar_rascunho' 0 %}",
+    deleteBase: "{% url 'suprimentos:po_api_excluir_ambiente' 0 %}",
+  },
+  csrfToken: "{{ csrf_token }}",
+};
+</script>
+<script src="{% static 'painel_operacional/js/ferramenta_shell.js' %}"></script>
+{% endblock %}
+

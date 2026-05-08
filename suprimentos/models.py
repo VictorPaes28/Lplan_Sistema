@@ -15,7 +15,18 @@ def _normalizar_numero_sc_model(valor):
     """Normaliza número da SC para comparação (85, 085, 85.0 -> 85). Usado em recebimento_vinculado."""
     if not valor:
         return ''
-    s = str(valor).strip().replace(' ', '').replace('.', '').replace('-', '').replace('_', '')
+    s = str(valor).strip().replace(' ', '').replace('-', '').replace('_', '')
+    if not s:
+        return ''
+    # Aceitar variações vindas de planilha/export, como "16162.0"
+    if s.replace(',', '.', 1).replace('.', '', 1).isdigit():
+        try:
+            n = Decimal(s.replace(',', '.'))
+            if n == n.to_integral_value():
+                return str(int(n))
+        except Exception:
+            pass
+    s = s.replace('.', '').replace(',', '')
     if s.isdigit():
         return str(int(s))
     return s

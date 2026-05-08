@@ -56,6 +56,7 @@
 </head>
 <body data-csrf-token="{{ csrf_token|escapejs }}" data-csrf-token-url="{% url 'api_csrf_token' %}">
     <!-- LPLAN Header -->
+    {% if not embed_mode %}
     <nav class="navbar navbar-expand-lg navbar-dark lplan-navbar">
         <div class="container-fluid">
             <a class="navbar-brand lplan-brand" href="/">
@@ -115,6 +116,11 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}active fw-semibold{% endif %}" href="{% url 'engenharia:ferramenta_shell' %}" title="Ferramenta de ambientes operacionais">
+                                    <i class="bi bi-magic"></i> <span>Ferramenta</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" href="{% url 'mapa_obras:home' %}">
                                     <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
                                 </a>
@@ -143,6 +149,11 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:importar_sienge' %}">
                                     <i class="bi bi-upload"></i> <span>Importar</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}active fw-semibold{% endif %}" href="{% url 'engenharia:ferramenta_shell' %}">
+                                    <i class="bi bi-magic"></i> <span>Ferramenta</span>
                                 </a>
                             </li>
                             {% endif %}
@@ -199,6 +210,7 @@
             </div>
         </div>
     </nav>
+    {% endif %}
 
     <!-- Toast Messages -->
     {% if messages %}

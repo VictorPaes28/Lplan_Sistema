@@ -25,7 +25,7 @@ class NewFlowForm(forms.Form):
     )
     category = forms.ModelChoiceField(
         label='Categoria',
-        queryset=ProcessCategory.objects.filter(is_active=True),
+        queryset=ProcessCategory.objects.filter(is_active=True).exclude(code='bm'),
         widget=forms.Select(attrs={'class': 'wf-select'}),
     )
 

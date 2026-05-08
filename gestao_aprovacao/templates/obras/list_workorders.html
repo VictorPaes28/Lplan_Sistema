@@ -615,6 +615,22 @@ function toggleFilters() {
     }
 }
 
+// Paginação "Ir para:" — disponível para todos (onclick no botão da seta)
+function jumpToPage() {
+    const input = document.getElementById('jump-to-page');
+    if (!input) return;
+    const page = parseInt(input.value, 10);
+    const maxPages = parseInt(input.getAttribute('max'), 10);
+    if (isNaN(page) || page < 1 || page > maxPages) {
+        alert('Por favor, insira um número de página válido entre 1 e ' + maxPages);
+        input.value = '{{ page_obj.number }}';
+        return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', page);
+    window.location.href = url.toString();
+}
+
 // Ordenação clicável
 document.addEventListener('DOMContentLoaded', function() {
     var exportPdfBtn = document.getElementById('export-list-pdf-btn');
@@ -714,6 +730,16 @@ document.addEventListener('DOMContentLoaded', function() {
             indicator.style.opacity = '1';
         }
     });
+
+    const jumpInput = document.getElementById('jump-to-page');
+    if (jumpInput) {
+        jumpInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                jumpToPage();
+            }
+        });
+    }
 });
 
 {% if pode_marcar_analisado %}
@@ -855,36 +881,6 @@ function getCookie(name) {
     }
     return cookieValue;
 }
-
-// Função para pular para uma página específica
-function jumpToPage() {
-    const input = document.getElementById('jump-to-page');
-    const page = parseInt(input.value);
-    const maxPages = parseInt(input.getAttribute('max'));
-    
-    if (isNaN(page) || page < 1 || page > maxPages) {
-        alert('Por favor, insira um número de página válido entre 1 e ' + maxPages);
-        input.value = '{{ page_obj.number }}';
-        return;
-    }
-    
-    // Construir URL com todos os parâmetros
-    const url = new URL(window.location.href);
-    url.searchParams.set('page', page);
-    window.location.href = url.toString();
-}
-
-// Permitir Enter no input de página
-document.addEventListener('DOMContentLoaded', function() {
-    const jumpInput = document.getElementById('jump-to-page');
-    if (jumpInput) {
-        jumpInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                jumpToPage();
-            }
-        });
-    }
-});
 {% endif %}
 </script>
 {% endblock %}

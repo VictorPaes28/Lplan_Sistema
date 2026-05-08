@@ -19,12 +19,21 @@ from .recebimento_match import descricao_item_compativel
 
 
 def _normalizar_numero_sc(valor):
-    """Normaliza o número da SC como no import (remove espaços, pontos, hífens, underscores).
-    Se for só dígitos, remove zeros à esquerda para bater com o import (ex.: 085 -> 85).
-    """
+    """Normaliza SC de forma tolerante (85, 085, 85.0 -> 85)."""
     if not valor:
         return ''
-    s = str(valor).strip().replace(' ', '').replace('.', '').replace('-', '').replace('_', '')
+    s = str(valor).strip().replace(' ', '').replace('-', '').replace('_', '')
+    if not s:
+        return ''
+    # Caso comum de export: SC vem como número com .0 (ex.: 16162.0)
+    if s.replace(',', '.', 1).replace('.', '', 1).isdigit():
+        try:
+            n = Decimal(s.replace(',', '.'))
+            if n == n.to_integral_value():
+                return str(int(n))
+        except Exception:
+            pass
+    s = s.replace('.', '').replace(',', '')
     if s.isdigit():
         return str(int(s))
     return s
@@ -148,6 +157,13 @@ def item_detalhe(request, item_id):
     qtd_planejada = item.quantidade_planejada
     # Falta Alocar: baseado no que foi recebido na obra, não no planejado
     saldo_a_alocar = max(qtd_recebida_obra - qtd_alocada_local, Decimal('0.00'))
+
+    def fmt_qtd(valor):
+        """Formata quantidade com 2 casas para exibição no modal."""
+        try:
+            return f"{Decimal(valor or 0):.2f}"
+        except Exception:
+            return "0.00"
     
     # Nome do responsável pelo levantamento
     if item.criado_por:
@@ -184,7 +200,7 @@ def item_detalhe(request, item_id):
     </div>
     <div class="detalhe-item">
         <div class="detalhe-label">Quantidade Planejada:</div>
-                <div class="detalhe-valor"><strong>{qtd_planejada}</strong> {item.insumo.unidade}</div>
+                <div class="detalhe-valor"><strong>{fmt_qtd(qtd_planejada)}</strong> {item.insumo.unidade}</div>
     </div>
     <div class="detalhe-item">
         <div class="detalhe-label">Prazo Necessidade:</div>
@@ -221,19 +237,24 @@ def item_detalhe(request, item_id):
     <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-box-seam"></i> Quantidades</h6>
     <div class="alert alert-info py-2">
         <div class="row text-center">
-            <div class="col-4">
+            <div class="col-3">
+                <div class="small text-muted">Quantidade Planejada</div>
+                <div class="h5 mb-0">{fmt_qtd(qtd_planejada)} {item.insumo.unidade}</div>
+                <small class="text-muted">(Levantamento)</small>
+            </div>
+            <div class="col-3">
                 <div class="small text-muted">Recebido na Obra</div>
-                <div class="h5 mb-0">{qtd_recebida_obra} {item.insumo.unidade}</div>
+                <div class="h5 mb-0">{fmt_qtd(qtd_recebida_obra)} {item.insumo.unidade}</div>
                 <small class="text-muted">(Sienge)</small>
             </div>
-            <div class="col-4">
+            <div class="col-3">
                 <div class="small text-muted">Alocado p/ este Local</div>
-                <div class="h5 mb-0 {'text-success' if qtd_alocada_local >= qtd_planejada else 'text-warning'}">{qtd_alocada_local} {item.insumo.unidade}</div>
+                <div class="h5 mb-0 {'text-success' if qtd_alocada_local >= qtd_planejada else 'text-warning'}">{fmt_qtd(qtd_alocada_local)} {item.insumo.unidade}</div>
                 <small class="text-muted">(Manual)</small>
             </div>
-            <div class="col-4">
+            <div class="col-3">
                 <div class="small text-muted">Falta Alocar</div>
-                <div class="h5 mb-0 {'text-success' if saldo_a_alocar == 0 else 'text-danger'}">{saldo_a_alocar} {item.insumo.unidade}</div>
+                <div class="h5 mb-0 {'text-success' if saldo_a_alocar == 0 else 'text-danger'}">{fmt_qtd(saldo_a_alocar)} {item.insumo.unidade}</div>
             </div>
     </div>
     </div>
@@ -634,7 +655,15 @@ def item_atualizar_campo(request):
         elif field == 'quantidade_planejada':
             from decimal import Decimal as D
             try:
-                qtd = D(str(value))
+                valor_qtd = str(value or '').strip()
+                if not valor_qtd:
+                    qtd = D('0')
+                else:
+                    valor_qtd = valor_qtd.replace(' ', '')
+                    # Aceita "1.234,56", "1234,56" e "1234.56"
+                    if ',' in valor_qtd:
+                        valor_qtd = valor_qtd.replace('.', '').replace(',', '.')
+                    qtd = D(valor_qtd)
                 if qtd < 0:
                     return JsonResponse({
                         'success': False,

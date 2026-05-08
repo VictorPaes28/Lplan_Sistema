@@ -93,6 +93,7 @@ class ApprovalEngine:
         external_id: str = '',
         external_entity_type: str = '',
         sync_status=SyncStatus.NOT_APPLICABLE,
+        external_payload: Optional[dict] = None,
     ) -> ApprovalProcess:
         """
         Localiza fluxo ativo (project + category), cria processo na primeira alçada.
@@ -132,6 +133,7 @@ class ApprovalEngine:
             'external_id': external_id or '',
             'external_entity_type': external_entity_type or '',
             'sync_status': sync_status,
+            'external_payload': external_payload if isinstance(external_payload, dict) else {},
         }
         if content_object is not None:
             kwargs['content_object'] = content_object

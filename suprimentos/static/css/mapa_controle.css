@@ -1279,6 +1279,141 @@
     background: #eff6ff;
 }
 
+.layer-nav-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #f8fbff;
+    padding: 0.42rem 0.5rem;
+}
+
+.layer-nav-controls__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 0.8rem;
+}
+
+.layer-nav-controls__title {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    font-size: 0.61rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    letter-spacing: 0.01em;
+}
+
+.layer-nav-controls__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+}
+
+.layer-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    text-decoration: none;
+    border: 1px solid #1d4ed8;
+    border-radius: 999px;
+    background: #1d4ed8;
+    color: #ffffff;
+    font-size: 0.62rem;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 0.16rem 0.54rem;
+}
+
+.layer-nav-btn:hover {
+    border-color: #1e40af;
+    background: #1e40af;
+    color: #ffffff;
+}
+
+.layer-nav-btn--ghost {
+    border-color: #bfdbfe;
+    background: #ffffff;
+    color: #1d4ed8;
+}
+
+.layer-nav-btn--ghost:hover {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.layer-nav-link {
+    font-size: 0.61rem;
+    font-weight: 600;
+    color: #334155;
+    text-decoration: none;
+}
+
+.layer-nav-link:hover {
+    color: #0f172a;
+    text-decoration: underline;
+}
+
+.layer-nav-controls__current {
+    margin: 0;
+    font-size: 0.62rem;
+    color: #475569;
+    line-height: 1.3;
+}
+
+.layer-nav-controls__current strong {
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.layer-nav-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.3rem;
+}
+
+.layer-nav-crumb {
+    font-size: 0.6rem;
+    color: #475569;
+    text-decoration: none;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #fff;
+    padding: 0.08rem 0.34rem;
+}
+
+.layer-nav-crumb:hover {
+    color: #1e293b;
+    border-color: #cbd5e1;
+}
+
+.layer-nav-crumb.is-current {
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+    background: #eff6ff;
+    font-weight: 600;
+}
+
+.layer-nav-sep {
+    font-size: 0.58rem;
+    color: #94a3b8;
+}
+
+@media (max-width: 700px) {
+    .layer-nav-controls__actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
 .layer-empty {
     font-size: 0.72rem;
     color: #64748b;

@@ -95,6 +95,11 @@ GRUPOS_CONFIG = {
         'descricao': 'Acesso completo: mapa de suprimentos, dashboard, importacao Sienge.',
         'permissions': {}
     },
+    'Ferramenta Operacional': {
+        'sistema': 'Mapa de Suprimentos',
+        'descricao': 'Acesso à ferramenta de ambientes operacionais e mapa dedicado.',
+        'permissions': {}
+    },
 
     # =====================================================
     # CENTRAL DE APROVACOES (workflow_aprovacao)

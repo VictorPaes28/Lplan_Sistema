@@ -1,4 +1,5 @@
 {% extends 'workflow_aprovacao/base_workflow.html' %}
+{% load workflow_sienge %}
 
 {% block back_url %}{% url 'workflow_aprovacao:dashboard' %}{% endblock %}
 
@@ -67,6 +68,9 @@
                                         <span class="wf-mono">{{ p.project.code }}</span>
                                         — {{ p.project.name|truncatechars:48 }}
                                     </p>
+                                    {% if p.summary %}
+                                    <p class="wf-card__hint" style="margin:0.35rem 0 0;font-size:0.8rem;color:#475569;line-height:1.35;white-space:pre-wrap;">{{ p|resumo_sienge_legivel|truncatechars:200 }}</p>
+                                    {% endif %}
                                 </div>
                                 <span class="wf-badge wf-badge--await">{{ p.get_status_display }}</span>
                             </div>
@@ -86,6 +90,7 @@
                                     <th scope="col" class="wf-col-id">ID</th>
                                     <th scope="col">Obra</th>
                                     <th scope="col">Categoria</th>
+                                    <th scope="col">O que é</th>
                                     <th scope="col">Alçada</th>
                                     <th scope="col">Status</th>
                                     <th scope="col" class="wf-col-action"></th>
@@ -100,6 +105,9 @@
                                         <span class="wf-cell-sub">{{ p.project.name|truncatechars:42 }}</span>
                                     </td>
                                     <td>{{ p.category.name }}</td>
+                                    <td style="max-width:14rem;font-size:0.85rem;line-height:1.35;color:#334155;">
+                                        {% if p.summary %}<span style="white-space:pre-wrap;">{{ p|resumo_sienge_legivel|truncatechars:180 }}</span>{% else %}<span class="wf-text-muted">—</span>{% endif %}
+                                    </td>
                                     <td><span class="wf-text-muted">{{ p.current_step.sequence }}.</span> {{ p.current_step.name }}</td>
                                     <td><span class="wf-pill wf-pill--warn">{{ p.get_status_display }}</span></td>
                                     <td class="wf-col-action">

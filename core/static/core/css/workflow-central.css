@@ -1422,6 +1422,215 @@
   }
 }
 
+/* ——— Sienge: bloco de leitura antes de assinar ——— */
+.wf-sienge-review {
+  margin-bottom: 1.25rem;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+.wf-sienge-review__head {
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.wf-sienge-review__title {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+.wf-sienge-review__lede {
+  margin: 0.35rem 0 0 0;
+  font-size: 0.8125rem;
+  color: var(--wf-muted);
+  line-height: 1.45;
+  max-width: 52rem;
+}
+.wf-sienge-review__body {
+  padding-top: 0.25rem;
+}
+.wf-sienge-subhead {
+  margin: 1rem 0 0.5rem 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+.wf-sienge-summary-block {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--wf-radius);
+}
+.wf-sienge-summary-block .wf-sienge-subhead {
+  margin-top: 0;
+}
+.wf-sienge-summary-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--wf-ink);
+}
+.wf-sienge-dl-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+.wf-sienge-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) 1fr;
+  font-size: 0.8125rem;
+}
+@media (max-width: 520px) {
+  .wf-sienge-dl {
+    grid-template-columns: 1fr;
+  }
+}
+.wf-sienge-dl__row {
+  display: contents;
+}
+.wf-sienge-dl__row dt,
+.wf-sienge-dl__row dd {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.wf-sienge-dl__row dt {
+  font-weight: 600;
+  color: #64748b;
+  background: #fafbfc;
+}
+.wf-sienge-dl__row dd {
+  color: var(--wf-ink);
+  word-break: break-word;
+}
+.wf-sienge-dl__row:last-child dt,
+.wf-sienge-dl__row:last-child dd {
+  border-bottom: none;
+}
+.wf-sienge-attachments {
+  margin-top: 0.25rem;
+}
+.wf-sienge-attachments__hint {
+  margin: 0 0 0.75rem 0;
+  max-width: 48rem;
+}
+.wf-attach-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.wf-attach-card {
+  margin: 0;
+}
+.wf-attach-card__link {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.wf-attach-card__link:hover {
+  border-color: var(--wf-accent);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+.wf-attach-card__icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 1rem;
+}
+.wf-attach-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.wf-attach-card__name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--wf-ink);
+}
+.wf-attach-card__meta {
+  font-size: 0.75rem;
+  color: var(--wf-muted);
+  line-height: 1.35;
+}
+.wf-attach-card--disabled {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: var(--wf-radius);
+  background: #f8fafc;
+  opacity: 0.92;
+}
+.wf-attach-card--disabled .wf-attach-card__icon {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+.wf-sienge-zip-note {
+  margin: 0.75rem 0 0 0;
+  font-size: 0.8125rem;
+}
+.wf-link-dl {
+  font-weight: 600;
+  color: var(--wf-accent);
+  text-decoration: none;
+}
+.wf-link-dl:hover {
+  text-decoration: underline;
+}
+.wf-signing-card {
+  border: 2px solid #0f766a;
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.12);
+}
+.wf-signing-card h3 {
+  color: #0f766a;
+}
+.wf-signing-card__notice {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: var(--wf-radius);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #134e4a;
+}
+.wf-signing-card__notice p {
+  margin: 0;
+}
+.wf-signing-card__actions {
+  margin-top: 1.1rem;
+}
+.wf-btn--sign {
+  min-height: 2.75rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  font-size: 0.875rem;
+}
+.wf-signing-card__foot {
+  margin-top: 0.85rem;
+  margin-bottom: 0;
+}
+
 /* Compat: classes antigas ainda referenciadas em alguns templates */
 .wf-page-title {
   font-size: 1.25rem;

@@ -419,7 +419,9 @@ def select_system_view(request):
             GRUPOS.TRACKHUB_SOLICITANTE,
         }
     )
-    has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    has_mapa = user.is_superuser or user.is_staff or bool(
+        user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
+    )
     has_workflow = user.is_superuser or user.is_staff or bool(
         user_groups
         & {

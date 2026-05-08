@@ -1,4 +1,4 @@
-{% extends 'base_mapa.html' %}
+﻿{% extends 'base_mapa.html' %}
 {% load static %}
 
 {% block title %}Mapa de Controle - LPLAN{% endblock %}
@@ -13,19 +13,19 @@
         <header class="mapa-controle-top__head">
             <h2 class="mapa-controle-top__title">Mapa de Controle</h2>
             {% if macro_pulse and macro_pulse.visible %}
-            <p class="mapa-controle-pulse mapa-controle-pulse--{{ macro_pulse.tone }}" role="status">{{ macro_pulse.headline }}{% if macro_pulse.sub %} — {{ macro_pulse.sub }}{% endif %}</p>
+            <p class="mapa-controle-pulse mapa-controle-pulse--{{ macro_pulse.tone }}" role="status">{{ macro_pulse.headline }}{% if macro_pulse.sub %} - {{ macro_pulse.sub }}{% endif %}</p>
             {% endif %}
         </header>
         <div class="mapa-controle-top__grid">
             <form method="get" id="mapaControleObraForm" class="mapa-controle-obra-form">
                 <label class="mapa-controle-field-label" for="mapaControleObra">Obra</label>
-                <select class="form-select mapa-controle-obra-select" name="obra" id="mapaControleObra" {% if not obras %}disabled{% endif %} title="Trocar a obra zera o recorte (setor, bloco…); mantém estes filtros.">
+                <select class="form-select mapa-controle-obra-select" name="obra" id="mapaControleObra" {% if not obras %}disabled{% endif %} title="Trocar a obra zera o recorte (setor, bloco...); mantÃ©m estes filtros.">
                     {% for o in obras %}
                     <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>
-                        {% if o.codigo_sienge %}{{ o.codigo_sienge }} — {% endif %}{{ o.nome }}
+                        {% if o.codigo_sienge %}{{ o.codigo_sienge }} - {% endif %}{{ o.nome }}
                     </option>
                     {% empty %}
-                    <option value="">Nenhuma obra disponível</option>
+                    <option value="">Nenhuma obra disponÃ­vel</option>
                     {% endfor %}
                 </select>
             </form>
@@ -41,18 +41,18 @@
                         <label class="mapa-controle-field-label" for="filtro-status-mc">Status</label>
                         <select class="form-select mapa-controle-input" id="filtro-status-mc" name="status">
                             <option value="" {% if not selected.status %}selected{% endif %}>Todos</option>
-                            <option value="concluido" {% if selected.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                            <option value="concluido" {% if selected.status == 'concluido' %}selected{% endif %}>ConcluÃ­do</option>
                             <option value="em_andamento" {% if selected.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
-                            <option value="nao_iniciado" {% if selected.status == 'nao_iniciado' %}selected{% endif %}>Não iniciado</option>
+                            <option value="nao_iniciado" {% if selected.status == 'nao_iniciado' %}selected{% endif %}>NÃ£o iniciado</option>
                         </select>
                     </div>
                     <div class="mapa-controle-field mapa-controle-field--grow">
                         <label class="mapa-controle-field-label" for="filtro-search-mc">Filtrar texto</label>
-                        <input class="form-control mapa-controle-input" id="filtro-search-mc" name="search" value="{{ selected.search|default:'' }}" placeholder="Atividade, grupo, unidade…" autocomplete="off" />
+                        <input class="form-control mapa-controle-input" id="filtro-search-mc" name="search" value="{{ selected.search|default:'' }}" placeholder="Atividade, grupo, unidade..." autocomplete="off" />
                     </div>
                     <div class="mapa-controle-field mapa-controle-field--grow">
                         <label class="mapa-controle-field-label" for="filtro-quick-mc">Ir para</label>
-                        <input class="form-control mapa-controle-input" id="filtro-quick-mc" name="quick" value="{{ selected.quick_find|default:'' }}" placeholder="Apto, torre, pavimento…" autocomplete="off" title="Leva direto a um recorte quando encontrar correspondência" />
+                        <input class="form-control mapa-controle-input" id="filtro-quick-mc" name="quick" value="{{ selected.quick_find|default:'' }}" placeholder="Apto, torre, pavimento..." autocomplete="off" title="Leva direto a um recorte quando encontrar correspondÃªncia" />
                     </div>
                     <div class="mapa-controle-field mapa-controle-field--actions">
                         <button type="submit" class="btn mapa-controle-btn-apply">Aplicar</button>
@@ -64,7 +64,7 @@
     </section>
 
     {% if quick_match %}
-    <p class="mapa-controle-quick-result mb-2">Local encontrado para “{{ quick_match.query }}”: {{ quick_match.setor }} › {{ quick_match.bloco }} › {{ quick_match.pavimento }} › {{ quick_match.apto }}</p>
+    <p class="mapa-controle-quick-result mb-2">Local encontrado para â€œ{{ quick_match.query }}â€: {{ quick_match.setor }} â€º {{ quick_match.bloco }} â€º {{ quick_match.pavimento }} â€º {{ quick_match.apto }}</p>
     {% endif %}
 
     <div class="layer-block mb-2 mobile-priority-matrix">
@@ -98,21 +98,21 @@
         <div class="matrix-context-compact">
             <p class="matrix-context-compact__where" title="{{ matrix_context.obra_titulo }}">{{ matrix_context.caminho }}</p>
             <p class="matrix-context-compact__stats">
-                <span title="Linhas × colunas da grade">{{ matrix_context.n_grade_linhas }}×{{ matrix_context.n_grade_cols }}</span>
-                <span class="matrix-context-compact__sep">·</span>
+                <span title="Linhas Ã— colunas da grade">{{ matrix_context.n_grade_linhas }}Ã—{{ matrix_context.n_grade_cols }}</span>
+                <span class="matrix-context-compact__sep">Â·</span>
                 <span>{{ matrix_context.status_filtro }}</span>
-                <span class="matrix-context-compact__sep">·</span>
+                <span class="matrix-context-compact__sep">Â·</span>
                 <span title="Itens no recorte">{{ kpis.total_itens }} itens</span>
-                {% if kpis.percentual_medio %}<span class="matrix-context-compact__sep">·</span><span>média {{ kpis.percentual_medio }}%</span>{% endif %}
-                <span class="matrix-context-compact__sep">·</span>
-                <span class="matrix-context-compact__st" title="Concluídos / em andamento / não iniciados">{{ kpis.concluidos }} / {{ kpis.em_andamento }} / {{ kpis.nao_iniciados }}</span>
-                <span class="matrix-context-compact__sep">·</span>
+                {% if kpis.percentual_medio %}<span class="matrix-context-compact__sep">Â·</span><span>mÃ©dia {{ kpis.percentual_medio }}%</span>{% endif %}
+                <span class="matrix-context-compact__sep">Â·</span>
+                <span class="matrix-context-compact__st" title="ConcluÃ­dos / em andamento / nÃ£o iniciados">{{ kpis.concluidos }} / {{ kpis.em_andamento }} / {{ kpis.nao_iniciados }}</span>
+                <span class="matrix-context-compact__sep">Â·</span>
                 <span title="Qualidade dos dados neste recorte">{{ confiabilidade.score }}% {% firstof confiabilidade.nivel_display confiabilidade.nivel %}</span>
-                {% if selected.search %}<span class="matrix-context-compact__sep">·</span><span>“{{ selected.search }}”</span>{% endif %}
-                {% if selected.quick_find %}<span class="matrix-context-compact__sep">·</span><span>ir: {{ selected.quick_find }}</span>{% endif %}
+                {% if selected.search %}<span class="matrix-context-compact__sep">Â·</span><span>â€œ{{ selected.search }}â€</span>{% endif %}
+                {% if selected.quick_find %}<span class="matrix-context-compact__sep">Â·</span><span>ir: {{ selected.quick_find }}</span>{% endif %}
             </p>
             {% if importacao_info %}
-            <p class="matrix-context-compact__import" title="{{ importacao_info.nome_arquivo }} · {{ importacao_info.aba_origem }} · {{ importacao_info.total_linhas_importadas }}/{{ importacao_info.total_linhas_lidas }} linhas">Dados: {{ importacao_info.created_at|date:"d/m/Y H:i" }}</p>
+            <p class="matrix-context-compact__import" title="{{ importacao_info.nome_arquivo }} Â· {{ importacao_info.aba_origem }} Â· {{ importacao_info.total_linhas_importadas }}/{{ importacao_info.total_linhas_lidas }} linhas">Dados: {{ importacao_info.created_at|date:"d/m/Y H:i" }}</p>
             {% endif %}
         </div>
         {% endif %}
@@ -169,9 +169,9 @@
         </nav>
 
         {% if coluna_filtrada_aviso and not is_area_comum %}
-        <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver unidades.</p>
+        <p class="mapa-controle-hint mb-2" role="status">Coluna Â«{{ coluna_filtrada_aviso }}Â»: escolha um bloco e clique no % para ver unidades.</p>
         {% elif coluna_filtrada_aviso and is_area_comum %}
-        <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver o detalhe dos serviços.</p>
+        <p class="mapa-controle-hint mb-2" role="status">Coluna Â«{{ coluna_filtrada_aviso }}Â»: escolha um bloco e clique no % para ver o detalhe dos serviÃ§os.</p>
         {% endif %}
 
         <div class="matrix-wrap">
@@ -194,7 +194,7 @@
                         <td class="sticky-left row-name">
                             {% if matrix.mode == 'pavimento' %}
                             {% if is_area_comum %}
-                            <span class="row-name-txt" title="Área comum: sem camada de unidade">{{ row.row_label }}</span>
+                            <span class="row-name-txt" title="Ãrea comum: sem camada de unidade">{{ row.row_label }}</span>
                             {% else %}
                             <a class="cell-link row-link"
                                title="Ver unidades (aptos) deste pavimento na matriz"
@@ -269,12 +269,12 @@
                             <td class="total-col">
                                 <a class="cell-link"
                                    href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ total.pct }}#detalhe-celula"
-                                   title="Abrir detalhe por unidade (bloco já selecionado)">
+                                   title="Abrir detalhe por unidade (bloco jÃ¡ selecionado)">
                                     {{ total.pct }}%
                                 </a>
                             </td>
                             {% else %}
-                            <td class="total-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da média da coluna">{{ total.pct }}%</td>
+                            <td class="total-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da mÃ©dia da coluna">{{ total.pct }}%</td>
                             {% endif %}
                         {% endfor %}
                         <td class="total-col">-</td>
@@ -289,7 +289,7 @@
     <div id="detalhe-celula" class="layer-block mb-2 mobile-priority-focus focus-detail-panel">
         <div class="focus-detail-header mb-2">
             <h6 class="focus-detail-title mb-1">{{ focus_detail.atividade }}</h6>
-            <p class="focus-detail-local mb-1 text-muted small">{{ focus_detail.bloco }}{% if focus_detail.recorte_linha %} · {{ focus_detail.recorte_linha }}{% endif %} · {{ focus_detail.registros_linhas }} linhas</p>
+            <p class="focus-detail-local mb-1 text-muted small">{{ focus_detail.bloco }}{% if focus_detail.recorte_linha %} Â· {{ focus_detail.recorte_linha }}{% endif %} Â· {{ focus_detail.registros_linhas }} linhas</p>
         </div>
         {% if focus_detail.pct_na_grade != None or focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
         <div class="focus-block focus-block--macro mb-2" aria-label="Resumo e ficha STATUS">
@@ -298,14 +298,14 @@
                 <span class="focus-grade-match-pct">{{ focus_detail.pct_na_grade }}%</span>
                 <span class="focus-grade-match-label">na grade</span>
                 {% if focus_detail.media_pct != None and focus_detail.media_pct != focus_detail.pct_na_grade %}
-                <p class="focus-grade-match-note mb-0" title="Várias linhas por unidade ou % não tratável em alguns registos">Média no recorte: <strong>{{ focus_detail.media_pct }}%</strong> — pode divergir.</p>
+                <p class="focus-grade-match-note mb-0" title="VÃ¡rias linhas por unidade ou % nÃ£o tratÃ¡vel em alguns registos">MÃ©dia no recorte: <strong>{{ focus_detail.media_pct }}%</strong> - pode divergir.</p>
                 {% endif %}
             </div>
             {% endif %}
             {% if focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
             <div class="data-info-banner mb-0 {% if focus_detail.pct_na_grade != None %}mt-2{% endif %}">
                 {% if focus_detail.status_macro %}<span><strong>Status macro:</strong> {{ focus_detail.status_macro }}</span>{% endif %}
-                {% if focus_detail.situacao %}<span><strong>Situação:</strong> {{ focus_detail.situacao }}</span>{% endif %}
+                {% if focus_detail.situacao %}<span><strong>SituaÃ§Ã£o:</strong> {{ focus_detail.situacao }}</span>{% endif %}
                 {% if focus_detail.responsabilidade %}<span><strong>Resp.:</strong> {{ focus_detail.responsabilidade }}</span>{% endif %}
                 {% if focus_detail.prazo_execucao %}<span><strong>Prazo:</strong> {{ focus_detail.prazo_execucao }}</span>{% endif %}
             </div>
@@ -314,11 +314,11 @@
         {% endif %}
         <div class="focus-block focus-block--micro mb-2" aria-label="Detalhe por unidade">
         <div class="row g-2 mb-2">
-            <div class="col-md-2"><div class="kpi-box"><small>Média da célula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>MÃ©dia da cÃ©lula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>{% if focus_detail.omitir_apto %}Pavimentos{% else %}Aptos{% endif %}</small><strong>{{ focus_detail.total_aptos }}</strong></div></div>
-            <div class="col-md-2"><div class="kpi-box"><small>Concluídos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>ConcluÃ­dos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Andamento</small><strong>{{ focus_detail.em_andamento }}</strong></div></div>
-            <div class="col-md-2"><div class="kpi-box"><small>Não iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>NÃ£o iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
             <div class="col-md-2 d-flex align-items-end justify-content-md-end"><a class="mapa-controle-link-quiet" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">Fechar detalhe</a></div>
         </div>
         <div class="table-responsive">
@@ -331,7 +331,7 @@
                         {% endif %}
                         <th>%</th>
                         <th>Status</th>
-                        <th>Término</th>
+                        <th>TÃ©rmino</th>
                         <th>Obs.</th>
                     </tr>
                 </thead>
@@ -346,8 +346,8 @@
                         <td>
                             {% if row.status_bucket == 'concluido' %}<span class="focus-badge focus-badge-ok">Concl.</span>
                             {% elif row.status_bucket == 'em_andamento' %}<span class="focus-badge focus-badge-mid">Andam.</span>
-                            {% elif row.status_bucket == 'nao_iniciado' %}<span class="focus-badge focus-badge-bad">Não ini.</span>
-                            {% else %}<span class="focus-badge focus-badge-unk">—</span>{% endif %}
+                            {% elif row.status_bucket == 'nao_iniciado' %}<span class="focus-badge focus-badge-bad">NÃ£o ini.</span>
+                            {% else %}<span class="focus-badge focus-badge-unk">-</span>{% endif %}
                             <span class="focus-status-txt">{{ row.status_texto|default:"-" }}</span>
                         </td>
                         <td>{% if row.data_termino %}{{ row.data_termino|date:"d/m/Y" }}{% else %}-{% endif %}</td>
@@ -363,38 +363,38 @@
     </div>
     {% endif %}
 
-    <nav class="layer-path mb-2 mobile-priority-path" aria-label="Atalhos do recorte (clique para voltar um nível)">
+    <nav class="layer-path mb-2 mobile-priority-path" aria-label="Atalhos do recorte (clique para voltar um nÃ­vel)">
         <a class="path-pill {% if selected.setor %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
             Setor <span class="path-pill__v">{{ selected.setor|default:"(todos)" }}</span>
         </a>
         <a class="path-pill {% if selected.bloco %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
-            Bloco <span class="path-pill__v">{{ selected.bloco|default:"—" }}</span>
+            Bloco <span class="path-pill__v">{{ selected.bloco|default:"-" }}</span>
         </a>
         <a class="path-pill {% if selected.pavimento %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
-            Pav. <span class="path-pill__v">{{ selected.pavimento|default:"—" }}</span>
+            Pav. <span class="path-pill__v">{{ selected.pavimento|default:"-" }}</span>
         </a>
         {% if not is_area_comum %}
         <a class="path-pill {% if selected.apto %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
-            Unid. <span class="path-pill__v">{{ selected.apto|default:"—" }}</span>
+            Unid. <span class="path-pill__v">{{ selected.apto|default:"-" }}</span>
         </a>
         {% endif %}
         <a class="path-pill {% if selected.atividade %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
-            Coluna <span class="path-pill__v">{{ selected.atividade|default:"—" }}</span>
+            Coluna <span class="path-pill__v">{{ selected.atividade|default:"-" }}</span>
         </a>
     </nav>
 
     {% if is_area_comum %}
     {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
-    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
+    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, % {{ qualidade.sem_status_percentual }}, tÃ©rmino {{ qualidade.sem_data_termino }}</p>
     {% endif %}
     {% else %}
     {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_apto or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
-    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, unid. {{ qualidade.sem_apto }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
+    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, unid. {{ qualidade.sem_apto }}, % {{ qualidade.sem_status_percentual }}, tÃ©rmino {{ qualidade.sem_data_termino }}</p>
     {% endif %}
     {% endif %}
 
@@ -405,7 +405,7 @@
             <a class="layer-card {% if selected.setor == row.setor %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
                 <span class="name">{{ row.setor|default:"Sem setor" }}</span>
-                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -426,7 +426,7 @@
             <a class="layer-card {% if selected.bloco == row.bloco %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
                 <span class="name">{{ row.bloco|default:"Sem bloco" }}</span>
-                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -448,7 +448,7 @@
             <a class="layer-card {% if selected.pavimento == row.pavimento %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
                 <span class="name">{{ row.pavimento|default:"Sem pavimento" }}</span>
-                <span class="meta">{{ row.total }} itens • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -470,7 +470,7 @@
             <a class="layer-card {% if selected.apto == row.apto %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}">
                 <span class="name">{{ row.apto|default:"Sem apto" }}</span>
-                <span class="meta">{{ row.total }} ativ. • {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} ativ. - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -494,7 +494,7 @@
                         <th>Atividade</th>
                         <th>Status</th>
                         <th>%</th>
-                        <th>Término</th>
+                        <th>TÃ©rmino</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -540,4 +540,124 @@
     });
 })();
 </script>
+{% if embed_mode %}
+<script>
+(function () {
+    var currentUrl = new URL(window.location.href);
+    var currentAmbienteId = String(currentUrl.searchParams.get('ambiente_id') || '').trim();
+    function isMapaControlePath(pathname) {
+        return String(pathname || '').indexOf('/mapa-controle') !== -1;
+    }
+    function toEmbedHref(rawHref) {
+        var u = new URL(String(rawHref || ''), window.location.href);
+        if (u.origin !== window.location.origin) return null;
+        if (!isMapaControlePath(u.pathname)) return null;
+        u.searchParams.set('embed', '1');
+        if (currentAmbienteId) u.searchParams.set('ambiente_id', currentAmbienteId);
+        return u.pathname + u.search + (u.hash || '');
+    }
+    function ensureEmbedInput(form) {
+        if (!form) return;
+        var existing = form.querySelector('input[name="embed"]');
+        if (!existing) {
+            existing = document.createElement('input');
+            existing.type = 'hidden';
+            existing.name = 'embed';
+            form.appendChild(existing);
+        }
+        existing.value = '1';
+        if (currentAmbienteId) {
+            var amb = form.querySelector('input[name="ambiente_id"]');
+            if (!amb) {
+                amb = document.createElement('input');
+                amb.type = 'hidden';
+                amb.name = 'ambiente_id';
+                form.appendChild(amb);
+            }
+            amb.value = currentAmbienteId;
+        }
+    }
+    ensureEmbedInput(document.getElementById('mapaControleObraForm'));
+    ensureEmbedInput(document.getElementById('mapaControleFilterForm'));
+
+    var links = document.querySelectorAll('a[href]');
+    links.forEach(function (a) {
+        try {
+            var href = a.getAttribute('href');
+            if (!href || href.indexOf('javascript:') === 0 || href.indexOf('#') === 0) return;
+            var embedHref = toEmbedHref(href);
+            if (!embedHref) return;
+            a.setAttribute('href', embedHref);
+        } catch (e) {
+            void e;
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        var anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+        if (!anchor) return;
+        try {
+            var href = anchor.getAttribute('href');
+            if (!href || href.indexOf('javascript:') === 0 || href.indexOf('#') === 0) return;
+            var embedHref = toEmbedHref(href);
+            if (!embedHref) return;
+            anchor.setAttribute('href', embedHref);
+            window.parent.postMessage({ type: 'po:iframe-nav-start' }, window.location.origin);
+        } catch (e) {
+            void e;
+        }
+    }, true);
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        ensureEmbedInput(form);
+        try {
+            window.parent.postMessage({ type: 'po:iframe-nav-start' }, window.location.origin);
+        } catch (e) {
+            void e;
+        }
+    }, true);
+
+    var matrixWrap = document.querySelector('.matrix-wrap');
+    if (matrixWrap && window.parent && window.parent !== window) {
+        function normalizeWheelDeltaY(event) {
+            var dy = Number(event.deltaY || 0);
+            var mode = Number(event.deltaMode || 0);
+            // 0=pixel, 1=linha, 2=pÃ¡gina
+            if (mode === 1) dy *= 16;
+            else if (mode === 2) dy *= Math.max(window.innerHeight || 0, 600);
+            return dy;
+        }
+        matrixWrap.addEventListener('wheel', function (event) {
+            if (!event) return;
+            if (event.ctrlKey) return; // zoom gesture (trackpad/pinch)
+            var dy = normalizeWheelDeltaY(event);
+            var dx = Number(event.deltaX || 0);
+            if (!dy || Math.abs(dx) > Math.abs(dy)) return;
+
+            var top = matrixWrap.scrollTop <= 0;
+            var bottom = (matrixWrap.scrollTop + matrixWrap.clientHeight) >= (matrixWrap.scrollHeight - 1);
+            var noVerticalScroll = matrixWrap.scrollHeight <= matrixWrap.clientHeight + 1;
+            var shouldBridge =
+                noVerticalScroll ||
+                (dy > 0 && bottom) ||
+                (dy < 0 && top);
+            if (!shouldBridge) return;
+
+            event.preventDefault();
+            window.parent.postMessage(
+                {
+                    type: 'po:iframe-scroll-bridge',
+                    payload: { deltaY: dy }
+                },
+                window.location.origin
+            );
+        }, { passive: false });
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}
+
+
