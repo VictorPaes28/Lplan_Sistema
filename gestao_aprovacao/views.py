@@ -777,14 +777,17 @@ def export_list_workorders_pdf(request):
             total_reprov_events += qtd_reprov
             tipo_reprov_counts[tipo_label] = tipo_reprov_counts.get(tipo_label, 0) + qtd_reprov
 
+        credor_txt = (wo.nome_credor or '').strip() or '—'
+        vlr_med_txt = _valor_medicao_relatorio(wo)
         detail_rows.append([
-            Paragraph(_pdf_esc(wo.codigo), normal),
             Paragraph(_pdf_esc(obra_txt), normal),
-            Paragraph(_pdf_esc(_clip(tipo_label, 24)), normal),
-            Paragraph(_pdf_esc(_clip(status_label, 18)), normal),
+            Paragraph(_pdf_esc(_clip(credor_txt, 52)), normal),
+            Paragraph(_pdf_esc(_clip(tipo_label, 28)), normal),
+            Paragraph(_pdf_esc(vlr_med_txt), normal),
+            Paragraph(_pdf_esc(_clip(status_label, 22)), normal),
             Paragraph(str(qtd_reprov), normal),
-            Paragraph(_pdf_esc(_clip(ultimo_motivo, 120)), normal),
-            Paragraph(_pdf_esc(_clip(solicitante, 24)), normal),
+            Paragraph(_pdf_esc(_clip(ultimo_motivo, 140)), normal),
+            Paragraph(_pdf_esc(_clip(solicitante, 28)), normal),
             Paragraph(_pdf_esc(_fmt_dt(wo.data_envio)), normal),
             Paragraph(_pdf_esc(_fmt_dt(ultima_decisao)), normal),
         ])
@@ -847,9 +850,10 @@ def export_list_workorders_pdf(request):
 
     story.append(Paragraph('DETALHAMENTO DOS PEDIDOS', section_title))
     data_rows = [[
-        Paragraph('Código', th),
         Paragraph('Obra', th),
+        Paragraph('Credor', th),
         Paragraph('Tipo', th),
+        Paragraph('Valor<br/>medição', th),
         Paragraph('Status', th),
         Paragraph('Reprovações', th),
         Paragraph('Último motivo', th),
@@ -858,7 +862,8 @@ def export_list_workorders_pdf(request):
         Paragraph('Última decisão', th),
     ]] + detail_rows
 
-    detail_fracs = [0.12, 0.08, 0.11, 0.10, 0.08, 0.23, 0.11, 0.09, 0.08]
+    # 10 colunas (sem código — mais espaço para credor / motivo / datas); soma = 1.0
+    detail_fracs = [0.08, 0.12, 0.10, 0.08, 0.09, 0.06, 0.22, 0.10, 0.08, 0.07]
     detail_col_widths = [report_width * f for f in detail_fracs]
     tbl = LongTable(
         data_rows,
@@ -877,7 +882,8 @@ def export_list_workorders_pdf(request):
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('FONTSIZE', (0, 0), (-1, -1), 7.5),
-        ('ALIGN', (4, 1), (4, -1), 'CENTER'),
+        ('ALIGN', (3, 1), (3, -1), 'CENTER'),
+        ('ALIGN', (5, 1), (5, -1), 'CENTER'),
     ]))
     story.append(tbl)
     if total_count > MAX_ROWS:

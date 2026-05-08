@@ -29,6 +29,8 @@ urlpatterns = [
 
     # === Gestão de Aprovação ===
     path('gestao/', include('gestao_aprovacao.urls')),
+    # Tupla (urlconf, app_name) garante o namespace "impedimentos" para {% url 'impedimentos:...' %}
+    path('impedimentos/', include(('impedimentos.urls', 'impedimentos'))),
 
     # === Mapa de Suprimentos ===
     path('mapa/', include('mapa_obras.urls')),

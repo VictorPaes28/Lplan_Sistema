@@ -11,6 +11,7 @@ from django.shortcuts import render
 from django.views.decorators.cache import cache_control
 from django.views.decorators.csrf import ensure_csrf_cookie
 from accounts.groups import GRUPOS
+from core.models import Project
 from mapa_obras.models import Obra
 from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
 from suprimentos.services.analise_obra_service import (
@@ -62,6 +63,45 @@ def _parse_periodo(request):
     return ini, fim
 
 
+def _default_data_inicio_obra(obra: Obra | None):
+    """Data inicial padrão do filtro: campo na obra do mapa, senão Project.start_date, senão 30 dias."""
+    if obra is None:
+        return date.today() - timedelta(days=30)
+    inicio_mapa = getattr(obra, "data_inicio", None)
+    if inicio_mapa is not None:
+        return inicio_mapa
+    if obra.project_id:
+        sd = Project.objects.filter(pk=obra.project_id).values_list("start_date", flat=True).first()
+        if sd:
+            return sd
+    return date.today() - timedelta(days=30)
+
+
+def _effective_periodo_analise(request, obra: Obra | None):
+    """Período efetivo: querystring ou padrão (início da obra + fim = hoje)."""
+    hoje = date.today()
+    ini, fim = _parse_periodo(request)
+    tem_ini_qs = bool((request.GET.get("data_inicio") or "").strip())
+    tem_fim_qs = bool((request.GET.get("data_fim") or "").strip())
+    if not tem_ini_qs:
+        ini = _default_data_inicio_obra(obra)
+    elif ini is None:
+        ini = _default_data_inicio_obra(obra) if obra else hoje - timedelta(days=30)
+    if not tem_fim_qs:
+        fim = hoje
+    elif fim is None:
+        fim = hoje
+    if ini is None:
+        ini = hoje - timedelta(days=30)
+    if fim is None:
+        fim = hoje
+    if fim < ini:
+        fim = hoje
+        if ini > fim:
+            ini = fim - timedelta(days=30)
+    return ini, fim
+
+
 def _parse_filtros(request) -> AnaliseObraFilters:
     return AnaliseObraFilters(
         setor=(request.GET.get("setor") or "").strip(),
@@ -83,11 +123,7 @@ def _parse_filtros(request) -> AnaliseObraFilters:
 
 
 def _service_for_request(request, obra: Obra):
-    ini, fim = _parse_periodo(request)
-    hoje = date.today()
-    if not ini or not fim or fim < ini:
-        fim = hoje
-        ini = hoje - timedelta(days=30)
+    ini, fim = _effective_periodo_analise(request, obra)
     periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
     filtros = _parse_filtros(request)
     return AnaliseObraService(obra, periodo=periodo, filtros=filtros), ini, fim, filtros
@@ -100,14 +136,10 @@ def _service_for_request(request, obra: Obra):
 def analise_obra(request):
     obras, obra = _resolve_obra(request)
     payload = None
-    ini, fim = _parse_periodo(request)
     filtros = _parse_filtros(request)
+    ini, fim = _effective_periodo_analise(request, obra)
 
-    hoje = date.today()
     if obra:
-        if not ini or not fim or fim < ini:
-            fim = hoje
-            ini = hoje - timedelta(days=30)
         periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
         svc = AnaliseObraService(obra, periodo=periodo, filtros=filtros)
         payload = svc.build_payload()
@@ -121,8 +153,8 @@ def analise_obra(request):
             "obra_selecionada": obra,
             "analise_payload": payload,
             "filtros_get": {
-                "data_inicio": ini.isoformat() if obra and ini else "",
-                "data_fim": fim.isoformat() if obra and fim else "",
+                "data_inicio": ini.isoformat() if ini else "",
+                "data_fim": fim.isoformat() if fim else "",
                 **filtros_dict,
             },
         },
@@ -172,7 +204,10 @@ def analise_obra_api(request):
     data = svc.build_section(secao)
     if data is None:
         return _json_error("Não foi possível montar a seção.", 400)
-    return JsonResponse({"success": True, "secao": secao, "data": data})
+    return JsonResponse(
+        {"success": True, "secao": secao, "data": data},
+        json_dumps_params={"default": str},
+    )
 
 
 @login_required
@@ -198,4 +233,7 @@ def analise_obra_drilldown_api(request):
 
     svc, _, _, _ = _service_for_request(request, obra)
     payload = svc.build_drill_down(bloco, pavimento, setor=setor or None)
-    return JsonResponse({"success": True, "data": payload})
+    return JsonResponse(
+        {"success": True, "data": payload},
+        json_dumps_params={"default": str},
+    )
