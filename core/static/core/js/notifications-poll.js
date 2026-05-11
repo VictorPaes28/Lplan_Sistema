@@ -101,6 +101,26 @@
     }
   }
 
+  function showUnreadReminder(count) {
+    if (!count || count <= 0) return;
+    var key = 'lplan-nt-unread-reminder-shown';
+    try {
+      if (window.sessionStorage && sessionStorage.getItem(key) === '1') return;
+    } catch (e) {}
+    showToast({
+      title: 'Você tem notificações pendentes',
+      message:
+        count +
+        ' notificação(ões) não lida(s). Clique em "Ver centro" para revisar.',
+      type: 'system',
+      diary_url: null,
+      list_url: '/notifications/',
+    });
+    try {
+      if (window.sessionStorage) sessionStorage.setItem(key, '1');
+    } catch (e) {}
+  }
+
   function fetchJson(url) {
     return fetch(url, {
       credentials: 'same-origin',
@@ -115,7 +135,9 @@
     return fetchJson(pollUrl + '?bootstrap=1')
       .then(function (data) {
         sinceId = data.max_id || 0;
-        updateBellBadge(typeof data.unread_count === 'number' ? data.unread_count : 0);
+        var unread = typeof data.unread_count === 'number' ? data.unread_count : 0;
+        updateBellBadge(unread);
+        showUnreadReminder(unread);
         started = true;
       })
       .catch(function () {

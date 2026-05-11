@@ -1,0 +1,95 @@
+{% extends "trackhub/base_trackhub.html" %}
+{% block page_title %}Por obra{% endblock %}
+{% block page_subtitle %}Quadro por status{% endblock %}
+
+{% block trackhub_content %}
+
+<nav class="th-breadcrumb">
+  <a href="{% url 'select-system' %}">Apps</a> / <a href="{% url 'trackhub:fila' %}">TrackHub</a> / Por obra
+</nav>
+
+<div class="th-obra-selector">
+  {% if obra_form %}
+  <form method="get" action="{% url 'trackhub:por_obra' %}" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex:1;">
+    <label for="{{ obra_form.obra.id_for_label }}" style="font-size:12px;font-weight:600;color:#64748b;">Obra</label>
+    {{ obra_form.obra.errors }}
+    {{ obra_form.obra }}
+    <button type="submit" class="th-btn-primary" style="margin:0;">Listar</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if obra %}
+<p style="font-size:13px;color:#64748b;margin-bottom:16px;"><strong style="color:#1e293b;">{{ obra.nome }}</strong></p>
+
+<div class="th-obra-cols">
+  <div>
+    <div class="th-obra-col-header aberta">Aberta <span class="th-obra-col-count">{{ status_counts.aberta|default:0 }}</span></div>
+    {% for p in pendencias %}
+      {% if p.status == 'aberta' %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-obra-mini">
+        <div class="th-obra-mini-titulo">{{ p.titulo }}</div>
+        <div class="th-obra-mini-meta"><span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span></div>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div>
+    <div class="th-obra-col-header em_andamento">Em andamento <span class="th-obra-col-count">{{ status_counts.em_andamento|default:0 }}</span></div>
+    {% for p in pendencias %}
+      {% if p.status == 'em_andamento' %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-obra-mini">
+        <div class="th-obra-mini-titulo">{{ p.titulo }}</div>
+        <div class="th-obra-mini-meta"><span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span></div>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div>
+    <div class="th-obra-col-header aguardando">Aguardando <span class="th-obra-col-count">{{ status_counts.aguardando|default:0 }}</span></div>
+    {% for p in pendencias %}
+      {% if p.status == 'aguardando' %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-obra-mini">
+        <div class="th-obra-mini-titulo">{{ p.titulo }}</div>
+        <div class="th-obra-mini-meta"><span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span></div>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div>
+    <div class="th-obra-col-header concluida">Concluída <span class="th-obra-col-count">{{ status_counts.concluida|default:0 }}</span></div>
+    {% for p in pendencias %}
+      {% if p.status == 'concluida' %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-obra-mini">
+        <div class="th-obra-mini-titulo">{{ p.titulo }}</div>
+        <div class="th-obra-mini-meta"><span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span></div>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<section style="margin-top:24px;">
+  <h3 style="font-size:12px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Canceladas</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for p in pendencias %}
+      {% if p.status == 'cancelada' %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-obra-mini" style="display:inline-block;margin:0;">{{ p.titulo }}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+
+{% elif request.GET.obra %}
+<div class="th-empty">
+  <h3>Nenhuma pendência</h3>
+  <p>Não há pendências para esta obra.</p>
+</div>
+{% else %}
+<div class="th-empty">
+  <h3>Selecione uma obra</h3>
+  <p>Escolha uma obra para ver o quadro por status.</p>
+</div>
+{% endif %}
+
+{% endblock %}

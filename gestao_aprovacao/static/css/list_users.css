@@ -168,6 +168,67 @@
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
 }
 
+/* Botão submit na mesma linha dos links (Painel / Editar / …) */
+.list-users .list-users-toggle-form {
+    display: contents;
+}
+
+/* Desativar / Reativar: mesmo tamanho dos outros botões, sem borda nativa do <button> */
+.list-users .action-btns button.btn-user-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 8px;
+    /* UA / tema escuro às vezes desenham borda em <button>; links não têm */
+    border: none !important;
+    margin: 0;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.25;
+    color: #fff;
+    box-shadow: none;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+    background-clip: padding-box;
+}
+
+.list-users .action-btns button.btn-user-toggle::-moz-focus-inner {
+    border: 0;
+    padding: 0;
+}
+
+.list-users .action-btns button.btn-user-toggle:focus {
+    outline: none;
+}
+
+.list-users .action-btns button.btn-user-toggle:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.45);
+}
+
+.list-users .action-btns button.btn-user-toggle--deactivate {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.list-users .action-btns button.btn-user-toggle--deactivate:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.45);
+}
+
+.list-users .action-btns button.btn-user-toggle--activate {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.list-users .action-btns button.btn-user-toggle--activate:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
 .list-users .btn-delete {
     padding: 0.45rem 0.9rem;
     font-size: 0.8125rem;
@@ -183,6 +244,31 @@
     color: #fff;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.list-users .user-row-inactive td {
+    opacity: 0.88;
+    background: #fafafa;
+}
+
+.list-users .badge-user-active {
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #ecfdf5;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.list-users .badge-user-inactive {
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
 }
 
 /* Paginação */
@@ -224,7 +310,7 @@
     .list-users .data-table {
         display: table !important;
         width: 100%;
-        min-width: 720px;
+        min-width: 820px;
         border-collapse: collapse;
     }
 

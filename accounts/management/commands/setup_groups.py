@@ -139,6 +139,58 @@ GRUPOS_CONFIG = {
             }
         }
     },
+
+    # =====================================================
+    # TRACKHUB
+    # =====================================================
+    'TrackHub': {
+        'sistema': 'TrackHub',
+        'descricao': 'Perfil legado TrackHub (compatibilidade).',
+        'permissions': {
+            'trackhub': {
+                'pendencia': ['add', 'change', 'delete', 'view'],
+                'etapapendencia': ['add', 'change', 'delete', 'view'],
+                'notificacaopendencia': ['add', 'change', 'delete', 'view'],
+                'comentariopendencia': ['add', 'change', 'delete', 'view'],
+            }
+        }
+    },
+    'TrackHub Administrador': {
+        'sistema': 'TrackHub',
+        'descricao': 'Acesso total ao TrackHub (todas as obras e ações).',
+        'permissions': {
+            'trackhub': {
+                'pendencia': ['add', 'change', 'delete', 'view'],
+                'etapapendencia': ['add', 'change', 'delete', 'view'],
+                'notificacaopendencia': ['add', 'change', 'delete', 'view'],
+                'comentariopendencia': ['add', 'change', 'delete', 'view'],
+            }
+        }
+    },
+    'TrackHub Aprovador': {
+        'sistema': 'TrackHub',
+        'descricao': 'Acesso ao TrackHub nas obras designadas, com ações completas.',
+        'permissions': {
+            'trackhub': {
+                'pendencia': ['add', 'change', 'delete', 'view'],
+                'etapapendencia': ['add', 'change', 'delete', 'view'],
+                'notificacaopendencia': ['add', 'change', 'delete', 'view'],
+                'comentariopendencia': ['add', 'change', 'delete', 'view'],
+            }
+        }
+    },
+    'TrackHub Solicitante': {
+        'sistema': 'TrackHub',
+        'descricao': 'Acesso ao TrackHub nas obras designadas e pendências criadas.',
+        'permissions': {
+            'trackhub': {
+                'pendencia': ['add', 'change', 'delete', 'view'],
+                'etapapendencia': ['add', 'change', 'delete', 'view'],
+                'notificacaopendencia': ['add', 'change', 'delete', 'view'],
+                'comentariopendencia': ['add', 'change', 'delete', 'view'],
+            }
+        }
+    },
 }
 
 

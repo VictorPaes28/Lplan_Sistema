@@ -1488,6 +1488,297 @@ def detail_workorder(request, pk):
     return render(request, 'obras/detail_workorder.html', context)
 
 
+def _workorder_ajax_permission_flags(workorder, user):
+    """
+    Mesmas regras de permissão da view detail_workorder.
+    Usado apenas por workorder_detail_ajax (não altera a view de detalhe).
+    """
+    tem_permissao = False
+    if is_admin(user):
+        tem_permissao = True
+    elif is_aprovador(user):
+        if workorder.obra.empresa_id is None:
+            tem_permissao = WorkOrderPermission.objects.filter(
+                obra=workorder.obra, usuario=user, tipo_permissao='aprovador', ativo=True
+            ).exists()
+        else:
+            empresas_ids = Empresa.objects.filter(
+                obras__permissoes__usuario=user,
+                obras__permissoes__tipo_permissao='aprovador',
+                obras__permissoes__ativo=True
+            ).values_list('id', flat=True).distinct()
+            tem_permissao = workorder.obra.empresa_id in empresas_ids
+    elif is_engenheiro(user):
+        tem_permissao_obra = WorkOrderPermission.objects.filter(
+            obra=workorder.obra,
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True
+        ).exists()
+        is_solicitante_group = user.groups.filter(name='Solicitante').exists()
+        if workorder.criado_por == user:
+            tem_permissao = True
+        elif tem_permissao_obra or is_solicitante_group:
+            outros_solicitantes_obra = WorkOrderPermission.objects.filter(
+                obra=workorder.obra,
+                tipo_permissao='solicitante',
+                ativo=True
+            ).values_list('usuario_id', flat=True)
+            if workorder.criado_por_id:
+                criador_no_grupo = workorder.criado_por.groups.filter(name='Solicitante').exists()
+                criador_tem_permissao = workorder.criado_por.id in outros_solicitantes_obra
+            else:
+                criador_no_grupo = False
+                criador_tem_permissao = False
+            if criador_no_grupo or criador_tem_permissao:
+                tem_permissao = True
+            else:
+                tem_permissao = False
+        else:
+            tem_permissao = False
+
+    can_edit = workorder.pode_editar(user) if tem_permissao else False
+
+    can_approve = False
+    if tem_permissao and workorder.pode_aprovar(user):
+        if is_admin(user):
+            can_approve = True
+        elif is_aprovador(user):
+            if workorder.obra.empresa_id is None:
+                can_approve = WorkOrderPermission.objects.filter(
+                    obra=workorder.obra, usuario=user, tipo_permissao='aprovador', ativo=True
+                ).exists()
+            else:
+                empresas_ids = Empresa.objects.filter(
+                    obras__permissoes__usuario=user,
+                    obras__permissoes__tipo_permissao='aprovador',
+                    obras__permissoes__ativo=True
+                ).values_list('id', flat=True).distinct()
+                can_approve = workorder.obra.empresa_id in empresas_ids
+
+    can_add_attachment = False
+    can_delete_attachment = False
+    if tem_permissao:
+        if is_admin(user):
+            can_add_attachment = True
+            can_delete_attachment = True
+        elif is_engenheiro(user) and not (is_aprovador(user) or is_admin(user)):
+            if workorder.criado_por == user and workorder.status == 'rascunho':
+                can_add_attachment = True
+                can_delete_attachment = True
+
+    can_solicitar_exclusao = (
+        tem_permissao
+        and workorder.criado_por == user
+        and workorder.status in ['pendente', 'reprovado']
+        and not workorder.solicitado_exclusao
+    )
+
+    can_aprovar_exclusao = False
+    if tem_permissao and workorder.solicitado_exclusao and workorder.status in ['pendente', 'reprovado']:
+        if is_admin(user):
+            can_aprovar_exclusao = True
+        elif is_aprovador(user):
+            if workorder.obra.empresa_id is None:
+                can_aprovar_exclusao = WorkOrderPermission.objects.filter(
+                    obra=workorder.obra, usuario=user, tipo_permissao='aprovador', ativo=True
+                ).exists()
+            else:
+                empresas_ids = Empresa.objects.filter(
+                    obras__permissoes__usuario=user,
+                    obras__permissoes__tipo_permissao='aprovador',
+                    obras__permissoes__ativo=True
+                ).values_list('id', flat=True).distinct()
+                can_aprovar_exclusao = workorder.obra.empresa_id in empresas_ids
+
+    can_comment = tem_permissao
+
+    return {
+        'tem_permissao': tem_permissao,
+        'can_edit': can_edit,
+        'can_approve': can_approve,
+        'can_add_attachment': can_add_attachment,
+        'can_delete_attachment': can_delete_attachment,
+        'can_solicitar_exclusao': can_solicitar_exclusao,
+        'can_aprovar_exclusao': can_aprovar_exclusao,
+        'can_comment': can_comment,
+    }
+
+
+def _fmt_dt_ajax(dt):
+    if not dt:
+        return None
+    return timezone.localtime(dt).strftime('%d/%m/%Y %H:%M')
+
+
+def _fmt_brl_ajax(val):
+    if val is None:
+        return None
+    s = f'{float(val):,.2f}'
+    if '.' not in s:
+        return f'R$ {s},00'
+    inteiro, dec = s.rsplit('.', 1)
+    inteiro = inteiro.replace(',', '.')
+    return f'R$ {inteiro},{dec}'
+
+
+def _user_iniciais_ajax(u):
+    if not u:
+        return '?'
+    name = (u.get_full_name() or '').strip()
+    if name:
+        parts = name.split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+        return name[:2].upper()
+    un = (u.username or '').strip()
+    return (un[:2] or '?').upper()
+
+
+def _attachment_eh_imagem(arquivo_name):
+    if not arquivo_name:
+        return False
+    ext = arquivo_name.rsplit('.', 1)[-1].lower() if '.' in arquivo_name else ''
+    return ext in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp')
+
+
+@login_required
+def workorder_detail_ajax(request, pk):
+    """JSON para o modal de detalhe do pedido na listagem (GestControll)."""
+    workorder = get_object_or_404(
+        WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por', 'solicitado_exclusao_por'),
+        pk=pk,
+    )
+    user = request.user
+    perm = _workorder_ajax_permission_flags(workorder, user)
+    if not perm['tem_permissao']:
+        return JsonResponse({'error': 'Sem permissão para visualizar este pedido.'}, status=403)
+
+    status_labels = dict(WorkOrder.STATUS_CHOICES)
+    tipo_labels = dict(WorkOrder.TIPO_SOLICITACAO_CHOICES)
+    decisao_labels = dict(Approval.DECISAO_CHOICES)
+
+    obra = workorder.obra
+    obra_label = obra.sigla or obra.codigo
+    criado = workorder.criado_por
+
+    exclusao_pendente = None
+    if workorder.solicitado_exclusao and workorder.status in ('pendente', 'reprovado'):
+        sol = workorder.solicitado_exclusao_por
+        exclusao_pendente = {
+            'solicitado_por': (
+                (sol.get_full_name() or sol.username) if sol else None
+            ),
+            'motivo': workorder.motivo_exclusao or '',
+            'data': _fmt_dt_ajax(workorder.solicitado_exclusao_em),
+        }
+
+    comments_qs = Comment.objects.filter(work_order=workorder).select_related('autor').order_by('created_at')
+    comentarios = []
+    for c in comments_qs:
+        comentarios.append({
+            'autor': (c.autor.get_full_name() or c.autor.username) if c.autor else '—',
+            'iniciais': _user_iniciais_ajax(c.autor),
+            'texto': c.texto,
+            'data': _fmt_dt_ajax(c.created_at),
+        })
+
+    historico_status = []
+    for h in StatusHistory.objects.filter(work_order=workorder).order_by('created_at'):
+        historico_status.append({
+            'status': h.status_novo,
+            'status_display': status_labels.get(h.status_novo, h.status_novo),
+            'status_anterior': h.status_anterior,
+            'por': (h.alterado_por.get_full_name() or h.alterado_por.username) if h.alterado_por else '—',
+            'obs': (h.observacao or '').strip(),
+            'data': _fmt_dt_ajax(h.created_at),
+        })
+
+    aprovacoes_fluxo = []
+    for ap in Approval.objects.filter(work_order=workorder).select_related('aprovado_por').order_by('created_at'):
+        aprovacoes_fluxo.append({
+            'decisao': ap.decisao,
+            'decisao_display': decisao_labels.get(ap.decisao, ap.decisao),
+            'por': (ap.aprovado_por.get_full_name() or ap.aprovado_por.username) if ap.aprovado_por else '—',
+            'comentario': (ap.comentario or '').strip(),
+            'data': _fmt_dt_ajax(ap.created_at),
+        })
+
+    anexos = []
+    for att in Attachment.objects.filter(work_order=workorder).order_by('-created_at'):
+        try:
+            url = att.arquivo.url
+        except Exception:
+            url = ''
+        if url and not url.startswith('http'):
+            url = request.build_absolute_uri(url)
+        nome_arq = att.get_nome_display()
+        anexos.append({
+            'nome': nome_arq,
+            'url': url,
+            'eh_imagem': _attachment_eh_imagem(att.arquivo.name if att.arquivo else ''),
+        })
+
+    valor_med_fmt = None
+    if workorder.tipo_solicitacao == 'medicao' and workorder.valor_medicao is not None:
+        valor_med_fmt = _fmt_brl_ajax(workorder.valor_medicao)
+
+    payload = {
+        'pk': workorder.pk,
+        'codigo': workorder.codigo,
+        'nome_credor': workorder.nome_credor,
+        'tipo_solicitacao': workorder.tipo_solicitacao,
+        'tipo_solicitacao_display': tipo_labels.get(workorder.tipo_solicitacao, workorder.tipo_solicitacao),
+        'status': workorder.status,
+        'status_display': workorder.get_status_display(),
+        'valor_estimado': str(workorder.valor_estimado) if workorder.valor_estimado is not None else None,
+        'valor_estimado_formatado': _fmt_brl_ajax(workorder.valor_estimado),
+        'valor_medicao_formatado': valor_med_fmt,
+        'observacoes': (workorder.observacoes or '').strip(),
+        'obra': {
+            'nome': obra.nome,
+            'codigo': obra.codigo,
+            'sigla': obra.sigla or '',
+            'label': obra_label,
+        },
+        'criado_por': {
+            'nome': (criado.get_full_name() or criado.username) if criado else '—',
+            'email': (criado.email or '') if criado else '',
+        },
+        'created_at': _fmt_dt_ajax(workorder.created_at),
+        'updated_at': _fmt_dt_ajax(workorder.updated_at),
+        'data_envio': _fmt_dt_ajax(workorder.data_envio),
+        'pode_aprovar': perm['can_approve'],
+        'pode_editar': perm['can_edit'],
+        'pode_solicitar_exclusao': perm['can_solicitar_exclusao'],
+        'pode_comentar': perm['can_comment'],
+        'pode_adicionar_anexo': perm['can_add_attachment'],
+        'exclusao_pendente': exclusao_pendente,
+        'pode_aprovar_exclusao': perm['can_aprovar_exclusao'],
+        'comentarios': comentarios,
+        'historico_status': historico_status,
+        'aprovacoes_fluxo': aprovacoes_fluxo,
+        'anexos': anexos,
+        'url_detalhe_completo': request.build_absolute_uri(
+            reverse('gestao:detail_workorder', args=[workorder.pk])
+        ),
+        'urls': {
+            'detalhe': reverse('gestao:detail_workorder', args=[workorder.pk]),
+            'exportar_pdf': reverse('gestao:exportar_snapshot_workorder_pdf', args=[workorder.pk]),
+            'leitura_pdf': reverse('gestao:leitura_pedido_pdf', args=[workorder.pk]),
+            'editar': reverse('gestao:edit_workorder', args=[workorder.pk]),
+            'solicitar_exclusao': reverse('gestao:solicitar_exclusao', args=[workorder.pk]),
+            'aprovar_exclusao': reverse('gestao:aprovar_exclusao', args=[workorder.pk]),
+            'rejeitar_exclusao': reverse('gestao:rejeitar_exclusao', args=[workorder.pk]),
+            'aprovar': reverse('gestao:approve_workorder', args=[workorder.pk]),
+            'reprovar': reverse('gestao:reject_workorder', args=[workorder.pk]),
+            'comentar': reverse('gestao:add_comment', args=[workorder.pk]),
+            'upload_anexo': reverse('gestao:upload_attachment', args=[workorder.pk]),
+        },
+    }
+    return JsonResponse(payload)
+
+
 @login_required
 def exportar_snapshot_workorder_pdf(request, pk):
     """Exporta um PDF rápido com os detalhes do pedido e linha do tempo."""
@@ -2933,7 +3224,54 @@ def list_users(request):
     if not (is_admin(request.user) or is_responsavel_empresa(request.user)):
         messages.error(request, 'Você não tem permissão para acessar esta página.')
         return redirect('gestao:home')
-    
+
+    _list_redirect = (
+        'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
+    )
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'toggle_active':
+            uid_raw = (request.POST.get('user_id') or '').strip()
+            if not uid_raw.isdigit():
+                messages.error(request, 'Requisição inválida.')
+                return redirect(_list_redirect)
+            target = get_object_or_404(User, pk=int(uid_raw))
+
+            if target == request.user:
+                messages.error(request, 'Você não pode desativar seu próprio usuário.')
+                return redirect(_list_redirect)
+
+            if target.is_superuser and not request.user.is_superuser:
+                messages.error(request, 'Apenas superusuário pode alterar outro superusuário.')
+                return redirect(_list_redirect)
+
+            if target.is_staff and not request.user.is_superuser:
+                messages.error(
+                    request,
+                    'Apenas superusuário pode desativar ou reativar usuários da equipe interna (staff).',
+                )
+                return redirect(_list_redirect)
+
+            if is_responsavel_empresa(request.user) and not is_admin(request.user):
+                empresas_responsavel = Empresa.objects.filter(responsavel=request.user, ativo=True)
+                if not User.objects.filter(
+                    pk=target.pk,
+                    empresas_vinculadas__empresa__in=empresas_responsavel,
+                    empresas_vinculadas__ativo=True,
+                ).exists():
+                    messages.error(request, 'Sem permissão para alterar este usuário.')
+                    return redirect(_list_redirect)
+
+            target.is_active = not target.is_active
+            target.save(update_fields=['is_active'])
+            status = 'ativado' if target.is_active else 'desativado'
+            messages.success(
+                request,
+                f'Usuário "{target.get_full_name() or target.username}" foi {status}.',
+            )
+            return redirect(_list_redirect)
+
     # Se for responsável por empresa (não admin), mostrar apenas usuários de suas empresas
     if is_responsavel_empresa(request.user) and not is_admin(request.user):
         # Buscar empresas onde o usuário é responsável
@@ -3015,6 +3353,21 @@ def list_users(request):
             obras_vistas.append(p.obra)
         obras_vistas.sort(key=lambda o: (o.nome.lower(), o.codigo.lower()))
 
+        can_toggle_active = True
+        if user == request.user:
+            can_toggle_active = False
+        elif user.is_superuser and not request.user.is_superuser:
+            can_toggle_active = False
+        elif user.is_staff and not request.user.is_superuser:
+            can_toggle_active = False
+        elif is_responsavel_empresa(request.user) and not is_admin(request.user):
+            _emp_resp = Empresa.objects.filter(responsavel=request.user, ativo=True)
+            can_toggle_active = User.objects.filter(
+                pk=user.pk,
+                empresas_vinculadas__empresa__in=_emp_resp,
+                empresas_vinculadas__ativo=True,
+            ).exists()
+
         users_with_groups.append({
             'user': user,
             'groups': grupos,
@@ -3022,6 +3375,7 @@ def list_users(request):
             'is_gestor': grupos.filter(name='Gestor').exists(),
             'is_admin': grupos.filter(name='Administrador').exists() or user.is_superuser,
             'obras_list': obras_vistas,
+            'can_toggle_active': can_toggle_active,
         })
     
     # Verificar se é responsável por empresa para mostrar apenas empresas dele
@@ -3068,6 +3422,7 @@ def create_user(request):
         password = request.POST.get('password')
         first_name = request.POST.get('first_name', '')
         last_name = request.POST.get('last_name', '')
+        telefone = (request.POST.get('telefone') or '').strip()
         grupo = request.POST.get('grupo')
         create_as_pending = request.POST.get('create_as_pending') == 'on'
         grupos_selecionados = filtrar_grupos_post_atribuivel(request.POST.getlist('grupos'))
@@ -3160,9 +3515,10 @@ def create_user(request):
             
             # Criar perfil de usuário e fazer upload da foto se fornecida
             perfil, created = UserProfile.objects.get_or_create(usuario=user)
+            perfil.telefone = telefone
             if 'foto_perfil' in request.FILES:
                 perfil.foto_perfil = request.FILES['foto_perfil']
-                perfil.save()
+            perfil.save()
             
             # Enviar e-mail com login e senha para o novo usuário (se tiver e-mail)
             if email and email.strip():
@@ -3274,6 +3630,7 @@ def edit_user(request, pk):
         user.email = request.POST.get('email', user.email)
         user.first_name = request.POST.get('first_name', user.first_name)
         user.last_name = request.POST.get('last_name', user.last_name)
+        telefone = (request.POST.get('telefone') or '').strip()
         
         # Atualizar senha se fornecida
         if new_password:
@@ -3335,9 +3692,10 @@ def edit_user(request, pk):
         
         # Atualizar foto de perfil se fornecida
         perfil, created = UserProfile.objects.get_or_create(usuario=user)
+        perfil.telefone = telefone
         if 'foto_perfil' in request.FILES:
             perfil.foto_perfil = request.FILES['foto_perfil']
-            perfil.save()
+        perfil.save()
         
         messages.success(request, f'Usuário "{user.username}" atualizado com sucesso!')
         user.refresh_from_db()

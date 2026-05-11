@@ -611,7 +611,7 @@ html, body {
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Início</span>
             </a>
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obras e mapa</p>
             </div>
             <a href="{% url 'central_project_list' %}" 
@@ -650,7 +650,7 @@ html, body {
                 {% endif %}
             </a>
             {% if is_admin or is_responsavel_empresa %}
-            <div class="mt-3 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
             </div>
             <a href="{% url 'gestao:list_obras' %}" 
@@ -694,7 +694,7 @@ html, body {
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Diário de Obras</p>
             </div>
             <a href="{% url 'dashboard' %}" 
@@ -730,7 +730,7 @@ html, body {
             <div class="my-3 border-t border-slate-600"></div>
             <!-- Sistemas (troca de app) - embaixo do menu do app -->
             {% if has_diario or has_gestao or has_mapa or has_central or has_workflow %}
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
             </div>
             {% if has_diario and request.resolver_match.url_name == 'select-system' or has_diario and '/gestao/' in request.path or has_diario and '/mapa/' in request.path or has_diario and '/engenharia/' in request.path or has_diario and '/accounts/admin-central' in request.path %}

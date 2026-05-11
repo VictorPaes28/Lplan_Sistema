@@ -171,6 +171,8 @@
     .system-card.central .card-inner::before { background: #475569; }
     .system-card.impedimentos:hover:not(.disabled) .card-inner { border-color: #d24e1b; }
     .system-card.impedimentos .card-inner::before { background: #d24e1b; }
+    .system-card.trackhub:hover:not(.disabled) .card-inner { border-color: #5f6f47; }
+    .system-card.trackhub .card-inner::before { background: #5f6f47; }
     .system-card.ferramenta:hover:not(.disabled) .card-inner { border-color: #6366f1; }
     .system-card.ferramenta .card-inner::before { background: #6366f1; }
 
@@ -196,6 +198,15 @@
     .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
     .system-card.impedimentos .system-icon { background: #d24e1b; }
     .system-card.impedimentos .system-icon svg {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+    .system-card.trackhub .system-icon {
+        background: linear-gradient(135deg, #6b7c52 0%, #5a4a38 100%);
+        box-shadow: 0 4px 14px rgba(90, 74, 56, 0.35);
+    }
+    .system-card.trackhub .system-icon svg {
         width: 24px;
         height: 24px;
         flex-shrink: 0;
@@ -258,6 +269,7 @@
     .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
     .system-card.impedimentos .card-arrow { color: #d24e1b; }
+    .system-card.trackhub .card-arrow { color: #4d5c38; }
     .system-card.ferramenta .card-arrow { color: #4f46e5; }
 
     /* Acessibilidade: foco visível no teclado */
@@ -315,6 +327,10 @@
             font-size: 21px;
         }
         .system-card.impedimentos .system-icon svg {
+            width: 21px;
+            height: 21px;
+        }
+        .system-card.trackhub .system-icon svg {
             width: 21px;
             height: 21px;
         }
@@ -663,7 +679,7 @@
         <p class="select-system-hero-lead">Escolha um dos aplicativos do ecossistema LPLAN para continuar.</p>
     </header>
 
-    {% if not has_diario and not has_gestao and not has_impedimentos and not has_mapa and not has_central and not has_workflow %}
+    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_mapa and not has_central and not has_workflow %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
         <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum sistema.</p>
         <p class="text-amber-700 text-sm mt-1">Contate o administrador para que seus acessos sejam configurados (grupos e obras).</p>
@@ -884,6 +900,38 @@
                 </div>
             </div>
         </a>
+        {% if has_trackhub %}
+        <a href="{% url 'trackhub:fila' %}" class="system-card trackhub" aria-label="Acessar TrackHub">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="2.25"/>
+                            <path d="M12 12V4"/>
+                            <path d="M12 12l6.5 6.5"/>
+                            <path d="M12 12L5.5 18.5"/>
+                            <path d="M12 2.25a9.75 9.75 0 0 1 9.75 9.75"/>
+                            <path d="M12 5.25a6.75 6.75 0 0 1 6.75 6.75"/>
+                        </svg>
+                    </div>
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">TrackHub</h3>
+                <p class="text-sm text-slate-500 mb-4">Pendências, etapas e comunicação por obra</p>
+                <div class="pt-3 border-t border-slate-100">
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Fila de pendências por urgência</li>
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Etapas com responsáveis</li>
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Notificação por WhatsApp e e-mail</li>
+                        <li><i class="fas fa-check-circle text-indigo-500"></i>Múltiplas visualizações</li>
+                    </ul>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+        {% endif %}
     </div>
 
     <!-- Card de Suporte -->

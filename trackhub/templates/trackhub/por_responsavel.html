@@ -1,0 +1,37 @@
+{% extends "trackhub/base_trackhub.html" %}
+{% block page_title %}Por responsável{% endblock %}
+{% block page_subtitle %}Etapa atual{% endblock %}
+
+{% block trackhub_content %}
+
+<nav class="th-breadcrumb">
+  <a href="{% url 'select-system' %}">Apps</a> / <a href="{% url 'trackhub:fila' %}">TrackHub</a> / Por responsável
+</nav>
+
+{% if grupos %}
+{% for g in grupos %}
+<div class="th-resp-group open">
+  <div class="th-resp-header">
+    <div class="th-resp-avatar">{{ g.iniciais|default:"?" }}</div>
+    <div class="th-resp-name">{{ g.nome }}</div>
+    <span class="th-resp-count">{{ g.count }}</span>
+    <span class="th-resp-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+  </div>
+  <div class="th-resp-body">
+    {% for p in g.pendencias %}
+    <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-obra-mini" style="margin-bottom:8px;">
+      <div class="th-obra-mini-titulo">{{ p.titulo }}</div>
+      <div class="th-obra-mini-meta">{{ p.obra.nome }} · <span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span></div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="th-empty">
+  <h3>Nenhuma pendência aberta</h3>
+  <p>Não há itens para agrupar por responsável.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -8,7 +8,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
-<link rel="stylesheet" href="{% static 'css/list_users.css' %}">
+<link rel="stylesheet" href="{% static 'css/list_users.css' %}?v=3">
 {% endblock %}
 
 {% block content %}
@@ -65,12 +65,13 @@
                     <th>Obras</th>
                     <th>Grupos</th>
                     <th>Superusuário</th>
+                    <th>Situação</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in users_with_groups %}
-                    <tr>
+                    <tr class="{% if not item.user.is_active %}user-row-inactive{% endif %}">
                         <td data-label="Foto">
                             {% with item.user.perfil as perfil %}
                                 {% if perfil and perfil.foto_perfil %}
@@ -112,10 +113,26 @@
                                 <span class="text-muted">Não</span>
                             {% endif %}
                         </td>
+                        <td data-label="Situação">
+                            {% if item.user.is_active %}
+                                <span class="badge-user-active">Ativo</span>
+                            {% else %}
+                                <span class="badge-user-inactive">Inativo</span>
+                            {% endif %}
+                        </td>
                         <td data-label="Ações">
                             <div class="action-btns">
                                 <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="btn-edit">Painel</a>
                                 <a href="{% if use_central_urls %}{% url 'central_edit_user' item.user.pk %}{% else %}{% url 'gestao:edit_user' item.user.pk %}{% endif %}" class="btn-edit">Editar</a>
+                                {% if item.can_toggle_active %}
+                                <form method="post" class="list-users-toggle-form" action=""
+                                      onsubmit="return confirm('{% if item.user.is_active %}Desativar o acesso deste usuário ao sistema? Os dados e histórico permanecem; ele não poderá mais fazer login.{% else %}Reativar o acesso deste usuário ao sistema?{% endif %}');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="toggle_active">
+                                    <input type="hidden" name="user_id" value="{{ item.user.pk }}">
+                                    <button type="submit" class="btn-user-toggle {% if item.user.is_active %}btn-user-toggle--deactivate{% else %}btn-user-toggle--activate{% endif %}">{% if item.user.is_active %}Desativar{% else %}Reativar{% endif %}</button>
+                                </form>
+                                {% endif %}
                                 {% if is_admin %}
                                     <a href="{% if use_central_urls %}{% url 'central_delete_user' item.user.pk %}{% else %}{% url 'gestao:delete_user' item.user.pk %}{% endif %}" class="btn-delete" onclick="return confirm('Tem certeza que deseja excluir o usuário {{ item.user.username }}? Esta ação não pode ser desfeita.');">Excluir</a>
                                 {% endif %}

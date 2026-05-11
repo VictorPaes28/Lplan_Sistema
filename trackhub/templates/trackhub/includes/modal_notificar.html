@@ -1,0 +1,51 @@
+<div id="modal-notificar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center;" class="th-modal-notificar-root">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-size:15px;font-weight:700;color:#1e293b;">Notificar responsável</div>
+      <button type="button" onclick="fecharModal()" style="width:30px;height:30px;border-radius:8px;border:none;background:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#64748b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:16px;">Etapa: <strong id="modal-etapa-titulo" style="color:#374151;"></strong> · Responsável: <strong id="modal-etapa-resp" style="color:#374151;"></strong></div>
+
+    <div style="display:flex;gap:4px;margin-bottom:18px;background:#f1f5f9;border-radius:8px;padding:3px;">
+      <button type="button" class="modal-tab" data-tab="wpp" onclick="switchModalTab('wpp',this)" style="flex:1;padding:7px;border-radius:6px;border:none;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;color:#1e293b;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;gap:5px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>WhatsApp</button>
+      <button type="button" class="modal-tab" data-tab="email" onclick="switchModalTab('email',this)" style="flex:1;padding:7px;border-radius:6px;border:none;background:transparent;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;color:#64748b;display:flex;align-items:center;justify-content:center;gap:5px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>E-mail</button>
+    </div>
+
+    <!-- WhatsApp -->
+    <div id="modal-wpp" class="modal-body" style="display:block;">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Número WhatsApp</label>
+        <input id="modal-wpp-numero" type="text" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:'Sora',sans-serif;">
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Número cadastrado no perfil do responsável</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Mensagem</label>
+        <textarea id="modal-wpp-msg" rows="4" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:'Sora',sans-serif;resize:vertical;"></textarea>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;font-size:12px;color:#166534;">
+        ✓ Ao clicar, o WhatsApp abrirá com a mensagem pré-preenchida para você enviar.
+      </div>
+    </div>
+
+    <!-- Email -->
+    <div id="modal-email" class="modal-body" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Para</label>
+        <input id="modal-email-para" type="email" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:'Sora',sans-serif;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Assunto</label>
+        <input id="modal-email-assunto" type="text" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:'Sora',sans-serif;" value="[TrackHub] Pendência aguardando sua ação">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Mensagem</label>
+        <textarea id="modal-email-msg" rows="4" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:'Sora',sans-serif;resize:vertical;"></textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+      <button type="button" onclick="fecharModal()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#fff;color:#374151;border:1px solid #e2e8f0;font-size:13px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">Cancelar</button>
+      <button type="button" id="btn-modal-enviar" onclick="enviarNotificacao()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">Abrir WhatsApp</button>
+    </div>
+  </div>
+</div>

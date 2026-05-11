@@ -1,0 +1,1153 @@
+/**
+ * Modal de detalhe TrackHub — edição inline (AJAX), padrão alinhado a impedimentos.
+ */
+(function () {
+  'use strict';
+
+  var root = document.getElementById('th-trackhub-detalhe-root');
+  if (!root) return;
+
+  var CSRF = root.dataset.csrf || '';
+
+  function urlPk(tpl, pk) {
+    if (!tpl) return '';
+    return tpl.replace(/\/0\//g, '/' + pk + '/');
+  }
+
+  function detailUrl(pk) { return urlPk(root.dataset.urlDetail, pk); }
+  function updateUrl(pk) { return urlPk(root.dataset.urlUpdate, pk); }
+  function atividadesUrl(pk) { return urlPk(root.dataset.urlAtividades, pk); }
+  function comentariosUrl(pk) { return urlPk(root.dataset.urlComentarios, pk); }
+  function anexoUploadUrl(pk) { return urlPk(root.dataset.urlAnexoUpload, pk); }
+  function anexoDeletarUrl(anexoPk) { return urlPk(root.dataset.urlAnexoDeletar, anexoPk); }
+  function etapaConcluirUrl(etapaPk) { return urlPk(root.dataset.urlEtapaConcluir, etapaPk); }
+  function pendenciaConcluirUrl(pk) { return urlPk(root.dataset.urlPendenciaConcluir, pk); }
+  function pendenciaDeletarUrl(pk) { return urlPk(root.dataset.urlPendenciaDeletar, pk); }
+  function etapaAdicionarUrl(pk) { return urlPk(root.dataset.urlEtapaAdicionar, pk); }
+  function pendenciaFichaUrl(pk) { return urlPk(root.dataset.urlPendenciaFicha, pk); }
+  function etapaNotificarUrl(etapaPk) { return urlPk(root.dataset.urlEtapaNotificar, etapaPk); }
+
+  function pendenciaFichaUrlComEtapaPendente(pk, etapas) {
+    var base = pendenciaFichaUrl(pk);
+    if (!etapas || !etapas.length) return base;
+    var firstPend = null;
+    for (var i = 0; i < etapas.length; i++) {
+      if (etapas[i].status === 'pendente') {
+        firstPend = etapas[i];
+        break;
+      }
+    }
+    return firstPend ? (base + '#etapa-' + firstPend.id) : base;
+  }
+
+  var overlay = document.getElementById('th-detalhe-overlay');
+  var btnClose = document.getElementById('th-detalhe-close');
+  var elBreadcrumbObra = document.getElementById('th-det-breadcrumb-obra');
+  var elBreadcrumbTipo = document.getElementById('th-det-breadcrumb-tipo');
+  var elMetaCreated = document.getElementById('th-det-meta-created');
+  var elObraLine = document.getElementById('th-det-obra-line');
+  var elTitulo = document.getElementById('th-det-titulo');
+  var elDesc = document.getElementById('th-det-descricao');
+  var elEtapas = document.getElementById('th-det-etapas-list');
+  var elEtapasCounter = document.getElementById('th-det-etapas-counter');
+  var elProgressFill = document.getElementById('th-det-progress-fill');
+  var elProgressText = document.getElementById('th-det-progress-text');
+  var elAnexosSec = document.getElementById('th-det-anexos-section');
+  var elAnexosGrid = document.getElementById('th-det-anexos-grid');
+  var elAnexosLabel = document.getElementById('th-det-anexos-label');
+  var elAnexoInput = document.getElementById('th-det-anexo-input');
+  var elCommentAttach = document.getElementById('th-det-comment-attach');
+  var elCommentFileInput = document.getElementById('th-det-comment-file-input');
+  var elCommentFilesChips = document.getElementById('th-det-comment-files');
+  var elComments = document.getElementById('th-det-comments-list');
+  var elActivities = document.getElementById('th-det-activities-list');
+  var elCommentText = document.getElementById('th-det-comment-text');
+  var elCommentSend = document.getElementById('th-det-comment-send');
+  var pillStatus = document.getElementById('th-det-pill-status');
+  var pillPrio = document.getElementById('th-det-pill-prioridade');
+  var pillTipo = document.getElementById('th-det-pill-tipo');
+  var pillPrazo = document.getElementById('th-det-pill-prazo');
+  var valStatus = document.getElementById('th-det-pill-status-val');
+  var valPrio = document.getElementById('th-det-pill-prioridade-val');
+  var valTipo = document.getElementById('th-det-pill-tipo-val');
+  var valPrazo = document.getElementById('th-det-pill-prazo-val');
+
+  var panelComments = document.getElementById('th-det-panel-comments');
+  var panelActivities = document.getElementById('th-det-panel-activities');
+  var tabs = document.querySelectorAll('.th-detalhe-tab');
+
+  var currentPk = null;
+  var currentData = null;
+  var openMenuEl = null;
+  var commentPendingFiles = [];
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatPrazo(iso) {
+    if (!iso) return '—';
+    var p = String(iso).split('T')[0].split('-');
+    if (p.length !== 3) return iso;
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+
+  function shortCommentDate(s) {
+    if (!s) return '';
+    var t = String(s).trim();
+    var m = t.match(/^(\d{2})\/(\d{2})\/\d{4}\s+(\d{2}:\d{2})/);
+    if (m) return m[1] + '/' + m[2] + ' · ' + m[3];
+    return t;
+  }
+
+  function avatarStyleFromName(nome, idx) {
+    var colors = ['#6366f1', '#16a34a', '#f97316', '#e11d48', '#0ea5e9', '#7c3aed'];
+    return colors[(idx + (nome || '').length) % colors.length];
+  }
+
+  function prazoPillExtras(prazoIso, estaVencida) {
+    var ex = [];
+    if (estaVencida) {
+      ex.push('vencida');
+      return ex;
+    }
+    if (!prazoIso) return ex;
+    var raw = String(prazoIso).split('T')[0].split('-');
+    if (raw.length !== 3) return ex;
+    var d = new Date(parseInt(raw[0], 10), parseInt(raw[1], 10) - 1, parseInt(raw[2], 10));
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var diff = (d.getTime() - today.getTime()) / 86400000;
+    if (diff >= 0 && diff <= 7) ex.push('soon');
+    return ex;
+  }
+
+  function flashSaving() {
+    var el = document.getElementById('th-det-saving');
+    if (!el) return;
+    el.classList.add('visible');
+    if (window._thSaveT) clearTimeout(window._thSaveT);
+    window._thSaveT = setTimeout(function () { el.classList.remove('visible'); }, 1400);
+  }
+
+  function rebuildPillClass(el, classTokens) {
+    if (!el) return;
+    el.className = classTokens.filter(Boolean).join(' ');
+  }
+
+  function setEditable(el, on) {
+    if (!el) return;
+    el.contentEditable = on ? 'true' : 'false';
+    el.classList.toggle('is-readonly', !on);
+  }
+
+  function closeDropdown() {
+    if (openMenuEl && openMenuEl.parentNode) openMenuEl.remove();
+    openMenuEl = null;
+  }
+
+  function positionDropdown(anchor, menu) {
+    var r = anchor.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = (r.bottom + 4) + 'px';
+    menu.style.left = Math.min(r.left, window.innerWidth - 220) + 'px';
+    menu.style.zIndex = '1400';
+  }
+
+  function showChoiceMenu(anchor, field, choices, currentVal) {
+    closeDropdown();
+    var menu = document.createElement('div');
+    menu.className = 'th-detalhe-inline-menu';
+    openMenuEl = menu;
+    choices.forEach(function (opt) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'th-detalhe-inline-menu__opt' + (opt.value === currentVal ? ' is-active' : '');
+      b.textContent = opt.label;
+      b.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeDropdown();
+        if (opt.value !== currentVal) salvarCampo(field, opt.value);
+      });
+      menu.appendChild(b);
+    });
+    document.body.appendChild(menu);
+    positionDropdown(anchor, menu);
+  }
+
+  document.addEventListener('click', function () {
+    closeDropdown();
+  });
+
+  function preencherActionsFooter(pk) {
+    var delForm = document.getElementById('th-form-deletar');
+    var concForm = document.getElementById('th-form-concluir');
+    if (delForm) delForm.action = pendenciaDeletarUrl(pk);
+    if (concForm) concForm.action = pendenciaConcluirUrl(pk);
+  }
+
+  function appendEtapasVerMaisLink(pk, etapas) {
+    if (!elEtapas || !pk) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'th-etapas-ver-historico';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'th-link-ver-historico';
+    btn.textContent = 'Ver mais';
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      window.location.href = pendenciaFichaUrlComEtapaPendente(pk, etapas);
+    });
+    wrap.appendChild(btn);
+    elEtapas.appendChild(wrap);
+  }
+
+  function applyPendenciaPayload(p) {
+    currentData = p;
+    if (elBreadcrumbObra) elBreadcrumbObra.textContent = p.obra_nome || '—';
+    if (elBreadcrumbTipo) elBreadcrumbTipo.textContent = p.tipo_display || '';
+    if (elMetaCreated) {
+      var criador = p.criado_por_nome || '—';
+      var dc = p.created_at || '';
+      elMetaCreated.textContent = dc ? ('Criado por ' + criador + ' em ' + dc) : '';
+    }
+    if (elObraLine) elObraLine.textContent = p.obra_nome || '';
+    if (elTitulo) elTitulo.textContent = p.titulo || '';
+    if (elDesc) {
+      elDesc.textContent = p.descricao || '';
+      if (!p.descricao) elDesc.classList.add('is-placeholder');
+      else elDesc.classList.remove('is-placeholder');
+    }
+    if (valStatus) valStatus.textContent = p.status_display || '';
+    if (valPrio) valPrio.textContent = p.prioridade_display || '';
+    if (valTipo) valTipo.textContent = p.tipo_display || '';
+    if (valPrazo) valPrazo.textContent = formatPrazo(p.prazo);
+
+    var pode = p.pode_editar;
+    rebuildPillClass(pillStatus, ['th-detalhe-pill', 'th-pill', 'th-pill--status', 'status-' + (p.status || 'aberta')]);
+    rebuildPillClass(pillPrio, ['th-detalhe-pill', 'th-pill', 'th-pill--prioridade', 'prio-' + (p.prioridade || 'normal')]);
+    rebuildPillClass(pillTipo, ['th-detalhe-pill', 'th-pill', 'th-pill--tipo', 'tipo-' + (p.tipo || 'outro')]);
+    rebuildPillClass(pillPrazo, ['th-detalhe-pill', 'th-pill', 'th-pill--prazo', 'prazo-pill'].concat(prazoPillExtras(p.prazo, p.esta_vencida)));
+
+    setEditable(elTitulo, pode);
+    setEditable(elDesc, pode);
+    [pillStatus, pillPrio, pillTipo, pillPrazo].forEach(function (pill) {
+      if (pill) {
+        pill.disabled = !pode;
+        pill.classList.toggle('is-disabled', !pode);
+      }
+    });
+
+    renderEtapas(p);
+    renderAnexos(p);
+    renderComentarios(p.comentarios || []);
+    carregarAtividades(currentPk);
+
+    window.thDetalheAtual = p.id;
+    window.thUsuarios = p.usuarios || [];
+    window.thDetalheObraNome = p.obra_nome || '';
+    window.etapasPendentesCount = typeof p.etapas_pendentes_count === 'number'
+      ? p.etapas_pendentes_count
+      : 0;
+
+    preencherActionsFooter(p.id);
+
+    var btnNova = document.querySelector('#th-det-modal-footer .btn-nova-etapa');
+    if (btnNova) {
+      btnNova.disabled = !pode;
+      btnNova.classList.toggle('is-disabled', !pode);
+    }
+    var btnExcluirEl = document.querySelector('#th-form-deletar .btn-excluir');
+    if (btnExcluirEl) btnExcluirEl.disabled = !pode;
+    var btnConcEl = document.querySelector('#th-form-concluir .btn-concluir');
+    if (btnConcEl) {
+      var sealed = p.status === 'concluida' || p.status === 'cancelada';
+      btnConcEl.disabled = sealed;
+    }
+  }
+
+  function renderEtapas(p) {
+    if (!elEtapas) return;
+    elEtapas.innerHTML = '';
+    var etapas = p.etapas || [];
+    var total = etapas.length;
+    var concl = 0;
+    for (var j = 0; j < total; j++) {
+      if (etapas[j].status === 'concluida') concl++;
+    }
+    if (elEtapasCounter) {
+      elEtapasCounter.textContent = total ? (concl + ' de ' + total + ' concluídas') : '';
+    }
+    if (elProgressFill) {
+      elProgressFill.style.width = total ? (Math.round(100 * concl / total) + '%') : '0%';
+    }
+    if (elProgressText) {
+      var firstPend = null;
+      for (var fp = 0; fp < etapas.length; fp++) {
+        if (etapas[fp].status === 'pendente') { firstPend = etapas[fp]; break; }
+      }
+      elProgressText.textContent = total
+        ? (concl + ' de ' + total + ' etapas concluídas' + (firstPend ? (' · Etapa atual: ' + firstPend.titulo) : ''))
+        : 'Sem etapas definidas para esta pendência.';
+    }
+    if (!etapas.length) {
+      elEtapas.innerHTML = '<p class="th-detalhe-muted">Sem etapas.</p>';
+      appendEtapasVerMaisLink(p.id, p.etapas);
+      return;
+    }
+    var firstPendenteIdx = -1;
+    for (var i = 0; i < etapas.length; i++) {
+      if (etapas[i].status === 'pendente') { firstPendenteIdx = i; break; }
+    }
+    etapas.forEach(function (e, idx) {
+      var isConcl = e.status === 'concluida';
+      var isAtiva = !isConcl && idx === firstPendenteIdx;
+      var item = document.createElement('div');
+      item.className = 'th-etapa-item' + (isConcl ? ' concluida' : (isAtiva ? ' ativa' : ''));
+
+      var row = document.createElement('div');
+      row.className = 'th-etapa-row';
+      var circle = document.createElement('div');
+      circle.className = 'th-etapa-circle ' + (isConcl ? 'concluida' : 'pendente');
+      if (isConcl) {
+        circle.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      } else {
+        var ordemNum = parseInt(e.ordem, 10);
+        circle.textContent = String(!isNaN(ordemNum) && ordemNum > 0 ? ordemNum : (idx + 1));
+      }
+      var tit = document.createElement('div');
+      tit.className = 'th-etapa-titulo';
+      tit.textContent = e.titulo || '';
+      var badge = document.createElement('span');
+      badge.className = 'th-etapa-badge ' + (isConcl ? 'concluida' : 'pendente');
+      badge.textContent = e.status_display || '';
+      row.appendChild(circle);
+      row.appendChild(tit);
+      row.appendChild(badge);
+      item.appendChild(row);
+
+      var meta = document.createElement('div');
+      meta.className = 'th-etapa-meta';
+      var spanR = document.createElement('span');
+      spanR.className = 'th-etapa-meta-item';
+      spanR.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ';
+      spanR.appendChild(document.createTextNode(e.responsavel_nome || '—'));
+      meta.appendChild(spanR);
+      if (e.prazo) {
+        var spanP = document.createElement('span');
+        spanP.className = 'th-etapa-meta-item';
+        spanP.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Prazo: ' + esc(formatPrazo(e.prazo));
+        meta.appendChild(spanP);
+      }
+      if (e.requer_assinatura && !isConcl) {
+        var sigL = document.createElement('span');
+        sigL.className = 'th-etapa-req-sig';
+        sigL.textContent = '✍ Requer assinatura';
+        meta.appendChild(sigL);
+      }
+      item.appendChild(meta);
+
+      if (e.requer_assinatura && e.status === 'pendente') {
+        var box = document.createElement('div');
+        box.className = 'th-assinatura-box';
+        if (e.precisa_ficha_para_concluir) {
+          box.innerHTML = '<div class="th-assinatura-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg> Assinatura necessária</div><p class="th-assinatura-hint">Registre a assinatura na ficha da pendência para concluir esta etapa.</p>';
+        } else if (e.tem_assinatura) {
+          box.innerHTML = '<div class="th-assinatura-title">Assinatura registrada</div><p class="th-assinatura-hint">Assinatura já consta no sistema para esta etapa.</p>';
+        }
+        if (box.childNodes.length) item.appendChild(box);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'th-etapa-actions';
+
+      var btnN = document.createElement('button');
+      btnN.type = 'button';
+      btnN.className = 'btn-etapa-notif';
+      btnN.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg> Notificar';
+      btnN.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        thAbrirModalNotif(e.id, e.titulo, e.responsavel_nome, e.responsavel_whatsapp, e.responsavel_email, p.titulo);
+      });
+      actions.appendChild(btnN);
+
+      if (e.status === 'pendente') {
+        if (e.precisa_ficha_para_concluir) {
+          if (e.pode_assinar) {
+            var aF = document.createElement('a');
+            aF.href = pendenciaFichaUrl(p.id) + '#etapa-' + e.id;
+            aF.target = '_blank';
+            aF.rel = 'noopener';
+            aF.className = 'btn-etapa-concluir btn-etapa-ficha';
+            aF.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Assinar na ficha';
+            actions.appendChild(aF);
+          } else {
+            var wait = document.createElement('span');
+            wait.style.cssText = 'display:inline-flex;align-items:center;padding:7px 10px;border-radius:8px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-size:11px;font-weight:600;font-family:\'Sora\',sans-serif;';
+            wait.textContent = 'Aguardando assinatura do responsável';
+            actions.appendChild(wait);
+          }
+        } else {
+          var btnC = document.createElement('button');
+          btnC.type = 'button';
+          btnC.className = 'btn-etapa-concluir';
+          btnC.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Concluir etapa';
+          btnC.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            concluirEtapaAjax(e.id);
+          });
+          actions.appendChild(btnC);
+        }
+      }
+      item.appendChild(actions);
+      elEtapas.appendChild(item);
+    });
+    appendEtapasVerMaisLink(p.id, p.etapas);
+  }
+
+  function renderAnexos(p) {
+    if (!elAnexosGrid || !elAnexosSec) return;
+    var list = p.anexos || [];
+    var showSec = list.length > 0 || p.pode_editar;
+    elAnexosSec.hidden = !showSec;
+    elAnexosGrid.innerHTML = '';
+    if (elAnexosLabel) {
+      elAnexosLabel.textContent = 'Arquivos (' + list.length + '/5)';
+    }
+
+    list.forEach(function (a) {
+      var wrap = document.createElement('div');
+      wrap.className = 'th-anexo-thumb';
+      if (a.eh_imagem) {
+        var img = document.createElement('img');
+        img.src = a.url;
+        img.alt = a.nome;
+        img.onclick = function () { window.open(a.url, '_blank'); };
+        wrap.appendChild(img);
+      } else {
+        var doc = document.createElement('div');
+        doc.className = 'th-anexo-thumb-doc';
+        doc.onclick = function () { window.open(a.url, '_blank'); };
+        doc.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+        var nm = document.createElement('div');
+        nm.className = 'th-anexo-thumb-name';
+        nm.textContent = a.nome || 'Arquivo';
+        doc.appendChild(nm);
+        wrap.appendChild(doc);
+      }
+      if (p.pode_editar) {
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'th-file-thumb-remove';
+        rm.textContent = '×';
+        rm.title = 'Remover';
+        rm.onclick = function () { removerAnexo(a.id); };
+        wrap.appendChild(rm);
+      }
+      elAnexosGrid.appendChild(wrap);
+    });
+
+    if (p.pode_editar && list.length < 5) {
+      var add = document.createElement('div');
+      add.className = 'th-anexo-add';
+      add.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Adicionar</span>';
+      add.addEventListener('click', function () {
+        if (elAnexoInput) elAnexoInput.click();
+      });
+      elAnexosGrid.appendChild(add);
+    }
+  }
+
+  function renderComentarios(arr) {
+    if (!elComments) return;
+    elComments.innerHTML = '';
+    if (!arr.length) {
+      elComments.innerHTML = '<p class="th-detalhe-muted">Nenhum comentário.</p>';
+      return;
+    }
+    arr.forEach(function (c, idx) {
+      var item = document.createElement('div');
+      item.className = 'th-comment';
+      var ini = esc(c.autor_iniciais || (c.autor_nome || '?').slice(0, 2).toUpperCase());
+      var head = document.createElement('div');
+      head.className = 'th-comment-header';
+      head.innerHTML = '<div class="th-comment-avatar" style="background:' + avatarStyleFromName(c.autor_nome, idx) + '">' + ini + '</div>'
+        + '<span class="th-comment-author">' + esc(c.autor_nome) + '</span>'
+        + '<span class="th-comment-date">' + esc(shortCommentDate(c.criado_em)) + '</span>';
+      var txt = document.createElement('div');
+      txt.className = 'th-comment-text';
+      txt.textContent = c.texto || '';
+      item.appendChild(head);
+      if ((c.texto || '').trim()) item.appendChild(txt);
+      if (c.anexos && c.anexos.length) {
+        var filesWrap = document.createElement('div');
+        filesWrap.className = 'th-comment-files';
+        c.anexos.forEach(function (a) {
+          if (!a || !a.url) return;
+          if (a.eh_imagem) {
+            var img = document.createElement('img');
+            img.className = 'th-comentario-img';
+            img.src = a.url;
+            img.alt = a.nome || 'imagem';
+            img.loading = 'lazy';
+            img.addEventListener('click', function () {
+              window.open(a.url, '_blank');
+            });
+            filesWrap.appendChild(img);
+          } else {
+            var doc = document.createElement('a');
+            doc.className = 'th-comentario-doc';
+            doc.href = a.url;
+            doc.target = '_blank';
+            doc.rel = 'noopener';
+            doc.textContent = a.nome || 'Arquivo';
+            filesWrap.appendChild(doc);
+          }
+        });
+        if (filesWrap.childNodes.length) item.appendChild(filesWrap);
+      }
+      elComments.appendChild(item);
+    });
+  }
+
+  function renderCommentPendingFiles() {
+    if (!elCommentFilesChips) return;
+    elCommentFilesChips.innerHTML = '';
+    if (!commentPendingFiles.length) {
+      elCommentFilesChips.hidden = true;
+      return;
+    }
+    elCommentFilesChips.hidden = false;
+    commentPendingFiles.forEach(function (f, idx) {
+      var chip = document.createElement('span');
+      chip.className = 'th-file-chip';
+      var nm = f.name || ('Arquivo ' + (idx + 1));
+      chip.appendChild(document.createTextNode(nm.length > 28 ? (nm.slice(0, 27) + '…') : nm));
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remover arquivo');
+      rm.textContent = '×';
+      rm.addEventListener('click', function () {
+        commentPendingFiles.splice(idx, 1);
+        renderCommentPendingFiles();
+        if (elCommentSend) {
+          elCommentSend.disabled = !((elCommentText && (elCommentText.value || '').trim()) || commentPendingFiles.length);
+        }
+      });
+      chip.appendChild(rm);
+      elCommentFilesChips.appendChild(chip);
+    });
+  }
+
+  function renderAtividades(arr) {
+    if (!elActivities) return;
+    elActivities.innerHTML = '';
+    if (!arr.length) {
+      elActivities.innerHTML = '<p class="th-detalhe-muted">Nenhuma atividade registrada.</p>';
+      return;
+    }
+    arr.forEach(function (a) {
+      var dotMap = { criacao: 'criacao', status: 'status', comentario: 'comentario', arquivo: 'arquivo', etapa: 'etapa' };
+      var dotC = dotMap[a.tipo] || '';
+      var item = document.createElement('div');
+      item.className = 'th-activity';
+      item.innerHTML = '<div class="th-activity-dot ' + dotC + '"></div><div class="th-activity-content">'
+        + '<div class="th-activity-desc"><strong>' + esc(a.usuario) + '</strong> ' + esc(a.descricao) + '</div>'
+        + '<div class="th-activity-meta">' + esc(a.criado_em) + '</div></div>';
+      elActivities.appendChild(item);
+    });
+  }
+
+  async function salvarCampo(field, value) {
+    if (!currentPk) return;
+    var r = await fetch(updateUrl(currentPk), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF,
+      },
+      body: JSON.stringify({ field: field, value: value }),
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok || !data.ok) {
+      alert((data && data.error) || 'Não foi possível salvar.');
+      return;
+    }
+    if (data.pendencia) applyPendenciaPayload(data.pendencia);
+    carregarAtividades(currentPk);
+    flashSaving();
+  }
+
+  async function carregarAtividades(pk) {
+    if (!pk || !elActivities) return;
+    var r = await fetch(atividadesUrl(pk), { credentials: 'same-origin' });
+    var d = await r.json().catch(function () { return {}; });
+    if (r.ok && d.ok) renderAtividades(d.atividades || []);
+  }
+
+  async function carregarComentarios(pk) {
+    if (!pk) return;
+    var r = await fetch(comentariosUrl(pk), { credentials: 'same-origin' });
+    var d = await r.json().catch(function () { return {}; });
+    if (r.ok && d.ok) renderComentarios(d.comentarios || []);
+  }
+
+  async function enviarComentario() {
+    if (!currentPk || !elCommentText) return;
+    var texto = (elCommentText.value || '').trim();
+    if (!texto && !commentPendingFiles.length) return;
+    var fd = new FormData();
+    fd.append('texto', texto);
+    fd.append('csrfmiddlewaretoken', CSRF);
+    commentPendingFiles.forEach(function (f) {
+      fd.append('arquivos_comentario', f);
+    });
+    var r = await fetch(comentariosUrl(currentPk), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRFToken': CSRF },
+      body: fd,
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.ok) {
+      alert((d && d.error) || 'Erro ao enviar comentário.');
+      return;
+    }
+    elCommentText.value = '';
+    commentPendingFiles = [];
+    if (elCommentFileInput) elCommentFileInput.value = '';
+    renderCommentPendingFiles();
+    if (elCommentSend) elCommentSend.disabled = true;
+    carregarComentarios(currentPk);
+    carregarAtividades(currentPk);
+  }
+
+  async function concluirEtapaAjax(etapaPk) {
+    var fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    var r = await fetch(etapaConcluirUrl(etapaPk), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+      },
+      body: fd,
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.ok) {
+      alert((d && d.error) || 'Não foi possível concluir a etapa.');
+      return;
+    }
+    var res = await fetch(detailUrl(currentPk), { credentials: 'same-origin' });
+    var pack = await res.json().catch(function () { return {}; });
+    if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
+    carregarAtividades(currentPk);
+  }
+
+  async function removerAnexo(anexoPk) {
+    if (!confirm('Remover este arquivo?')) return;
+    var fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    var r = await fetch(anexoDeletarUrl(anexoPk), {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: fd,
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.success) {
+      alert((d && d.error) || 'Erro ao remover.');
+      return;
+    }
+    var res = await fetch(detailUrl(currentPk), { credentials: 'same-origin' });
+    var pack = await res.json().catch(function () { return {}; });
+    if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
+    carregarAtividades(currentPk);
+  }
+
+  function switchTab(name) {
+    var isComm = name === 'comments';
+    if (panelComments) {
+      panelComments.hidden = !isComm;
+      panelComments.classList.toggle('th-tab-panel--visible', isComm);
+      panelComments.classList.toggle('th-tab-panel--hidden', !isComm);
+      panelComments.style.display = isComm ? 'flex' : 'none';
+    }
+    if (panelActivities) {
+      panelActivities.hidden = isComm;
+      panelActivities.classList.toggle('th-tab-panel--visible', !isComm);
+      panelActivities.classList.toggle('th-tab-panel--hidden', isComm);
+      panelActivities.style.display = isComm ? 'none' : 'flex';
+    }
+    tabs.forEach(function (t) {
+      t.classList.toggle('active', (isComm && t.dataset.tab === 'comments') || (!isComm && t.dataset.tab === 'activities'));
+    });
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      switchTab(t.dataset.tab === 'comments' ? 'comments' : 'activities');
+    });
+  });
+
+  function onTituloBlur() {
+    if (!currentData || !currentData.pode_editar) return;
+    var v = (elTitulo.innerText || '').trim();
+    if (!v || v === (currentData.titulo || '')) return;
+    salvarCampo('titulo', v);
+  }
+
+  function onDescBlur() {
+    if (!currentData || !currentData.pode_editar) return;
+    var v = elDesc.innerText || '';
+    if (v === (currentData.descricao || '')) return;
+    salvarCampo('descricao', v);
+  }
+
+  if (elTitulo) {
+    elTitulo.addEventListener('blur', onTituloBlur);
+    elTitulo.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); elTitulo.blur(); }
+    });
+  }
+  if (elDesc) {
+    elDesc.addEventListener('blur', onDescBlur);
+    elDesc.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); elDesc.blur(); }
+    });
+  }
+
+  function bindPill(el, field, getChoices, getVal) {
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!currentData || !currentData.pode_editar) return;
+      var ch = getChoices();
+      var cv = getVal();
+      showChoiceMenu(el, field, ch, cv);
+    });
+  }
+
+  bindPill(pillStatus, 'status', function () { return currentData.status_choices || []; }, function () { return currentData.status; });
+  bindPill(pillPrio, 'prioridade', function () { return currentData.prioridade_choices || []; }, function () { return currentData.prioridade; });
+  bindPill(pillTipo, 'tipo', function () { return currentData.tipo_choices || []; }, function () { return currentData.tipo; });
+
+  if (pillPrazo) {
+    pillPrazo.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!currentData || !currentData.pode_editar) return;
+      var old = document.getElementById('th-prazo-picker-native');
+      if (old) old.remove();
+      var rect = pillPrazo.getBoundingClientRect();
+      var inp = document.createElement('input');
+      inp.type = 'date';
+      inp.id = 'th-prazo-picker-native';
+      inp.setAttribute('aria-hidden', 'true');
+      inp.tabIndex = -1;
+      inp.value = (currentData.prazo || '').split('T')[0] || '';
+      inp.style.position = 'fixed';
+      inp.style.left = Math.max(8, rect.left) + 'px';
+      inp.style.top = Math.max(8, rect.bottom + 6) + 'px';
+      inp.style.width = '1px';
+      inp.style.height = '1px';
+      inp.style.opacity = '0';
+      inp.style.border = 'none';
+      inp.style.padding = '0';
+      inp.style.pointerEvents = 'none';
+      inp.style.zIndex = '12000';
+      document.body.appendChild(inp);
+      inp.addEventListener('change', function () {
+        salvarCampo('prazo', inp.value || null);
+        inp.remove();
+      });
+      inp.addEventListener('blur', function () { setTimeout(function () { if (inp.parentNode) inp.remove(); }, 200); });
+      setTimeout(function () {
+        inp.style.pointerEvents = 'auto';
+        try {
+          if (typeof inp.showPicker === 'function') inp.showPicker();
+          else inp.click();
+        } catch (err) {
+          inp.click();
+        }
+      }, 50);
+    });
+  }
+
+  if (elCommentAttach && elCommentFileInput) {
+    elCommentAttach.addEventListener('click', function () { elCommentFileInput.click(); });
+  }
+
+  if (elCommentFileInput) {
+    elCommentFileInput.addEventListener('change', function () {
+      var files = Array.from(elCommentFileInput.files || []);
+      if (files.length) {
+        files.forEach(function (f) { commentPendingFiles.push(f); });
+        elCommentFileInput.value = '';
+      }
+      renderCommentPendingFiles();
+      if (elCommentSend) {
+        elCommentSend.disabled = !((elCommentText && (elCommentText.value || '').trim()) || commentPendingFiles.length);
+      }
+    });
+  }
+
+  if (elAnexoInput) {
+    elAnexoInput.addEventListener('change', async function () {
+      if (!currentPk || !elAnexoInput.files.length) return;
+      var fd = new FormData();
+      fd.append('csrfmiddlewaretoken', CSRF);
+      for (var i = 0; i < elAnexoInput.files.length; i++) {
+        fd.append('arquivos', elAnexoInput.files[i]);
+      }
+      var r = await fetch(anexoUploadUrl(currentPk), {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd,
+      });
+      var d = await r.json().catch(function () { return {}; });
+      elAnexoInput.value = '';
+      if (!r.ok || !d.success) {
+        alert((d && d.error) || 'Erro no upload.');
+        return;
+      }
+      var res = await fetch(detailUrl(currentPk), { credentials: 'same-origin' });
+      var pack = await res.json().catch(function () { return {}; });
+      if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
+      carregarAtividades(currentPk);
+    });
+  }
+
+  if (elCommentText && elCommentSend) {
+    elCommentText.addEventListener('input', function () {
+      elCommentSend.disabled = !((elCommentText.value || '').trim() || commentPendingFiles.length);
+    });
+    elCommentSend.addEventListener('click', enviarComentario);
+  }
+
+  function thModalNovaEtapaChips(input) {
+    var form = document.getElementById('th-form-nova-etapa');
+    if (!form || !input) return;
+    var chips = form.querySelector('.th-modal-nova-etapa-chips');
+    if (!chips) return;
+    chips.innerHTML = '';
+    if (!input.files || !input.files.length) return;
+    Array.from(input.files).forEach(function (f) {
+      var s = document.createElement('span');
+      s.style.cssText = 'display:inline-block;font-size:10.5px;padding:4px 8px;background:#e2e8f0;border-radius:6px;color:#475569;margin:2px 4px 2px 0;font-family:\'Sora\',sans-serif;';
+      var nm = f.name || '';
+      s.textContent = nm.length > 26 ? nm.slice(0, 24) + '\u2026' : nm;
+      chips.appendChild(s);
+    });
+  }
+
+  window.tentarConcluir = function () {
+    if (typeof window.etapasPendentesCount !== 'undefined' && window.etapasPendentesCount > 0) {
+      alert(
+        'Não é possível concluir esta pendência.\nAinda há ' + window.etapasPendentesCount
+        + ' etapa(s) pendente(s).\nConclua todas as etapas antes.'
+      );
+      return;
+    }
+    var f = document.getElementById('th-form-concluir');
+    if (f) f.submit();
+  };
+
+  window.abrirFormNovaEtapa = function () {
+    if (!currentData || !currentData.pode_editar) return;
+    var formExistente = document.getElementById('th-form-nova-etapa');
+    if (formExistente) {
+      formExistente.scrollIntoView({ behavior: 'smooth' });
+      var inp = formExistente.querySelector('input[name="titulo"]');
+      if (inp) inp.focus();
+      return;
+    }
+
+    var etapasList = document.querySelector('.th-modal-left');
+    if (!etapasList) return;
+
+    var novaEtapaHtml = ''
+      + '<div id="th-form-nova-etapa" style="position:relative;border:2px dashed #bfdbfe;border-radius:10px;padding:14px 14px 16px;margin-top:12px;background:#f0f7ff;">'
+      + '  <button type="button" onclick="document.getElementById(\'th-form-nova-etapa\').remove()" aria-label="Fechar" title="Fechar"'
+      + '    style="position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;font-family:\'Sora\',sans-serif;">'
+      + '    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      + '  </button>'
+      + '  <div style="font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-right:40px;">Nova etapa</div>'
+      + '  <div style="margin-bottom:10px;">'
+      + '    <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">T\u00edtulo <span style="color:#ef4444">*</span></label>'
+      + '    <input type="text" name="titulo" placeholder="T\u00edtulo da etapa\u2026"'
+      + '      style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;">'
+      + '  </div>'
+      + '  <div class="th-modal-nova-etapa-grid">'
+      + '    <div>'
+      + '      <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Usu\u00e1rio respons\u00e1vel <span style="color:#ef4444">*</span></label>'
+      + '      <select name="responsavel_interno" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;">'
+      + '        <option value="">Selecione...</option>'
+      + '      </select>'
+      + '    </div>'
+      + '    <div>'
+      + '      <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Prazo da etapa</label>'
+      + '      <input type="date" name="prazo" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;">'
+      + '    </div>'
+      + '  </div>'
+      + '  <div style="margin-bottom:10px;">'
+      + '    <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Observa\u00e7\u00e3o</label>'
+      + '    <textarea name="observacao" rows="3" placeholder="Observa\u00e7\u00f5es sobre esta etapa..."'
+      + '      style="width:100%;box-sizing:border-box;min-height:72px;resize:vertical;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;"></textarea>'
+      + '  </div>'
+      + '  <div class="th-etapa-upload-row" style="margin-bottom:10px;flex-wrap:wrap;">'
+      + '    <span class="th-etapa-upload-label">Anexos:</span>'
+      + '    <button type="button" class="th-etapa-upload-btn" onclick="this.nextElementSibling.nextElementSibling.click()">'
+      + '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
+      + '      Adicionar arquivo'
+      + '    </button>'
+      + '    <div class="th-modal-nova-etapa-chips th-file-chips" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:0;"></div>'
+      + '    <input type="file" name="anexos_etapa" id="th-nova-etapa-anexos" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none">'
+      + '  </div>'
+      + '  <label class="th-assinatura-toggle" id="th-modal-nova-etapa-ass-wrap" style="margin-top:0;margin-bottom:12px;cursor:pointer;">'
+      + '    <input type="checkbox" id="th-nova-etapa-assinatura" name="requer_assinatura" value="1" style="cursor:pointer;">'
+      + '    <span class="th-assinatura-toggle-label">'
+      + '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg>'
+      + '      Esta etapa requer assinatura'
+      + '    </span>'
+      + '    <span style="font-size:10.5px;color:#94a3b8;">Quem concluir precisar\u00e1 assinar</span>'
+      + '  </label>'
+      + '  <div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      + '    <button type="button" onclick="salvarNovaEtapa()" style="padding:8px 16px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-size:12.5px;font-weight:700;cursor:pointer;font-family:\'Sora\',sans-serif;">Adicionar etapa</button>'
+      + '  </div>'
+      + '</div>';
+
+    etapasList.insertAdjacentHTML('beforeend', novaEtapaHtml);
+
+    var select = document.querySelector('#th-form-nova-etapa select[name="responsavel_interno"]');
+    if (select && window.ThRespPicker) {
+      window.ThRespPicker.attachModalNovaEtapa(select);
+    }
+
+    var ne = document.getElementById('th-form-nova-etapa');
+    var finp = document.getElementById('th-nova-etapa-anexos');
+    if (finp) {
+      finp.addEventListener('change', function () {
+        thModalNovaEtapaChips(finp);
+      });
+    }
+    var assWrap = document.getElementById('th-modal-nova-etapa-ass-wrap');
+    var assInp = document.getElementById('th-nova-etapa-assinatura');
+    if (assWrap && assInp) {
+      assInp.addEventListener('change', function () {
+        assWrap.classList.toggle('ativo', assInp.checked);
+        var hint = assWrap.querySelector('span:last-of-type');
+        var labelSpan = assWrap.querySelector('.th-assinatura-toggle-label');
+        if (hint && hint !== labelSpan) {
+          hint.style.color = assInp.checked ? '#7c3aed' : '#94a3b8';
+        }
+      });
+    }
+
+    if (ne) {
+      ne.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var t = ne.querySelector('input[name="titulo"]');
+      if (t) t.focus();
+    }
+  };
+
+  window.salvarNovaEtapa = function () {
+    var form = document.getElementById('th-form-nova-etapa');
+    if (!form) return;
+    var titulo = (form.querySelector('input[name="titulo"]').value || '').trim();
+    if (!titulo) {
+      alert('Informe o t\u00edtulo da etapa.');
+      return;
+    }
+
+    var rid = (form.querySelector('select[name="responsavel_interno"]').value || '').trim();
+    if (!rid) {
+      alert('Informe o respons\u00e1vel interno da etapa.');
+      return;
+    }
+
+    var pk = window.thDetalheAtual;
+    if (!pk) return;
+
+    var data = new FormData();
+    data.append('titulo', titulo);
+    data.append('responsavel_interno', rid);
+    data.append('prazo', (form.querySelector('input[name="prazo"]').value || ''));
+    var obsEl = form.querySelector('textarea[name="observacao"]');
+    data.append('observacao', obsEl ? (obsEl.value || '') : '');
+    data.append('requer_assinatura', form.querySelector('#th-nova-etapa-assinatura') && form.querySelector('#th-nova-etapa-assinatura').checked ? '1' : '');
+    data.append('csrfmiddlewaretoken', CSRF);
+
+    var fileInput = document.getElementById('th-nova-etapa-anexos');
+    if (fileInput && fileInput.files && fileInput.files.length) {
+      for (var fi = 0; fi < fileInput.files.length; fi++) {
+        data.append('anexos_etapa', fileInput.files[fi]);
+      }
+    }
+
+    fetch(etapaAdicionarUrl(pk), {
+      method: 'POST',
+      body: data,
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    })
+      .then(function (r) {
+        return r.json().then(function (d) {
+          if (!r.ok || !d.success) {
+            alert((d && d.error) || 'Erro ao adicionar etapa.');
+            return;
+          }
+          form.remove();
+          window.abrirDetalhe(pk);
+        });
+      })
+      .catch(function () {
+        alert('Erro ao adicionar etapa.');
+      });
+  };
+
+  window.abrirDetalhe = async function (pk) {
+    currentPk = pk;
+    overlay.removeAttribute('hidden');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    if (elBreadcrumbObra) elBreadcrumbObra.textContent = '';
+    if (elBreadcrumbTipo) elBreadcrumbTipo.textContent = '';
+    if (elMetaCreated) elMetaCreated.textContent = '';
+    elTitulo.textContent = 'Carregando…';
+    elDesc.textContent = '';
+    elEtapas.innerHTML = '';
+    if (elEtapasCounter) elEtapasCounter.textContent = '';
+    if (elProgressFill) elProgressFill.style.width = '0%';
+    if (elProgressText) elProgressText.textContent = '';
+    elComments.innerHTML = '';
+    elActivities.innerHTML = '';
+    commentPendingFiles = [];
+    if (elCommentFileInput) elCommentFileInput.value = '';
+    if (elCommentText) elCommentText.value = '';
+    renderCommentPendingFiles();
+    if (elCommentSend) elCommentSend.disabled = true;
+    switchTab('comments');
+    try {
+      var r = await fetch(detailUrl(pk), { credentials: 'same-origin' });
+      var data = await r.json();
+      if (!r.ok || !data.ok) throw new Error((data && data.error) || 'Erro ao carregar.');
+      applyPendenciaPayload(data.pendencia);
+    } catch (err) {
+      alert(err.message || 'Erro');
+      window.fecharDetalhe();
+    }
+  };
+
+  window.fecharDetalhe = function () {
+    closeDropdown();
+    var ne = document.getElementById('th-form-nova-etapa');
+    if (ne) ne.remove();
+    overlay.setAttribute('hidden', '');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    currentPk = null;
+    currentData = null;
+    window.thDetalheObraNome = '';
+    window.thUsuarios = [];
+    commentPendingFiles = [];
+    if (elCommentFileInput) elCommentFileInput.value = '';
+    renderCommentPendingFiles();
+  };
+
+  if (btnClose) btnClose.addEventListener('click', window.fecharDetalhe);
+
+  if (overlay) {
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) window.fecharDetalhe();
+    });
+  }
+
+  /* -------- Notificar (modal existente) -------- */
+  var etapaNotifPk = null;
+  var canalNotif = 'wpp';
+
+  window.fecharModal = function () {
+    var mr = document.getElementById('modal-notificar');
+    if (mr) mr.style.display = 'none';
+  };
+
+  window.switchModalTab = function (tab, btn) {
+    canalNotif = tab;
+    document.querySelectorAll('.modal-tab').forEach(function (t) {
+      t.style.background = 'transparent';
+      t.style.color = '#64748b';
+      t.style.boxShadow = 'none';
+    });
+    if (btn) {
+      btn.style.background = '#fff';
+      btn.style.color = '#1e293b';
+      btn.style.boxShadow = '0 1px 3px rgba(0,0,0,.08)';
+    } else {
+      var sel = document.querySelector('.modal-tab[data-tab="' + tab + '"]');
+      if (sel) {
+        sel.style.background = '#fff';
+        sel.style.color = '#1e293b';
+        sel.style.boxShadow = '0 1px 3px rgba(0,0,0,.08)';
+      }
+    }
+    var wppEl = document.getElementById('modal-wpp');
+    var emEl = document.getElementById('modal-email');
+    if (wppEl) wppEl.style.display = tab === 'wpp' ? 'block' : 'none';
+    if (emEl) emEl.style.display = tab === 'email' ? 'block' : 'none';
+    var btnEnviar = document.getElementById('btn-modal-enviar');
+    if (btnEnviar) btnEnviar.textContent = tab === 'wpp' ? 'Abrir WhatsApp' : 'Enviar e-mail';
+  };
+
+  window.enviarNotificacao = function () {
+    var canal = canalNotif;
+    var msg = canal === 'wpp' ? document.getElementById('modal-wpp-msg').value : document.getElementById('modal-email-msg').value;
+    var contato = canal === 'wpp' ? document.getElementById('modal-wpp-numero').value : document.getElementById('modal-email-para').value;
+    var nome = document.getElementById('modal-etapa-resp').textContent;
+    if (canal === 'wpp' && contato) {
+      var num = contato.replace(/\D/g, '');
+      window.open('https://wa.me/55' + num + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+    if (etapaNotifPk) {
+      fetch(etapaNotificarUrl(etapaNotifPk), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({
+          canal: canal === 'wpp' ? 'whatsapp' : 'email',
+          destinatario_nome: nome,
+          destinatario_contato: contato,
+          mensagem: msg,
+        }),
+      });
+    }
+    window.fecharModal();
+  };
+
+  window.thAbrirModalNotif = function (etapaPk, tituloEtapa, responsavel, wpp, email, tituloPendencia) {
+    etapaNotifPk = etapaPk;
+    document.getElementById('modal-etapa-titulo').textContent = tituloEtapa || 'Etapa';
+    document.getElementById('modal-etapa-resp').textContent = responsavel || '—';
+    document.getElementById('modal-wpp-numero').value = wpp || '';
+    document.getElementById('modal-email-para').value = email || '';
+    var msg = 'Olá ' + (responsavel || '') + ', pendência: ' + (tituloPendencia || '') + ' — etapa: ' + (tituloEtapa || '') + '.';
+    document.getElementById('modal-wpp-msg').value = msg;
+    document.getElementById('modal-email-msg').value = msg;
+    var rootN = document.getElementById('modal-notificar');
+    if (rootN) rootN.style.display = 'flex';
+    var tabBtn = document.querySelector('.modal-tab[data-tab="wpp"]');
+    window.switchModalTab('wpp', tabBtn);
+  };
+
+  var modalN = document.getElementById('modal-notificar');
+  if (modalN) {
+    modalN.addEventListener('click', function (e) {
+      if (e.target === modalN) window.fecharModal();
+    });
+  }
+})();

@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'core',
     'gestao_aprovacao',  # Gestao_aprovacao (renomeado de obras)
     'impedimentos',
+    'trackhub',
     'mapa_obras',  # Mapa_Controle/obras (renomeado)
     'accounts',  # Mapa_Controle/accounts
     'suprimentos',  # Mapa_Controle/suprimentos
@@ -184,7 +185,7 @@ STATIC_URL = '/static/'
 
 # Versão global de assets para bust de cache em CSS/JS.
 # Defina LPLAN_STATIC_VERSION no ambiente (ex.: data/hora do deploy).
-LPLAN_STATIC_VERSION = os.environ.get('LPLAN_STATIC_VERSION', '20260511')
+LPLAN_STATIC_VERSION = os.environ.get('LPLAN_STATIC_VERSION', '20260512')
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 STORAGES = {

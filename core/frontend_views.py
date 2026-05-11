@@ -410,6 +410,15 @@ def select_system_view(request):
     has_impedimentos = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
     )
+    has_trackhub = user.is_superuser or user.is_staff or bool(
+        user_groups
+        & {
+            GRUPOS.TRACKHUB,
+            GRUPOS.TRACKHUB_ADMIN,
+            GRUPOS.TRACKHUB_APROVADOR,
+            GRUPOS.TRACKHUB_SOLICITANTE,
+        }
+    )
     has_mapa = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
     )
@@ -428,7 +437,15 @@ def select_system_view(request):
     has_central = user_is_painel_sistema_admin(user)
     # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
     if (
-        not (has_diario or has_gestao or has_impedimentos or has_mapa or has_central or has_workflow)
+        not (
+            has_diario
+            or has_gestao
+            or has_impedimentos
+            or has_trackhub
+            or has_mapa
+            or has_central
+            or has_workflow
+        )
         and _is_work_owner(user)
     ):
         return redirect('client-diary-list')
@@ -446,6 +463,7 @@ def select_system_view(request):
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,
+        'has_trackhub': has_trackhub,
         'has_mapa': has_mapa,
         'has_bi_obra': has_bi_obra,
         'has_admin': user.is_superuser or user.is_staff,
@@ -1095,6 +1113,8 @@ def _get_support_projects_for_user(user):
 
 def _user_can_access_project(user, project):
     """Verifica se o usuário pode acessar a obra (dono, vinculado ou staff/superuser)."""
+    if not project.is_active and not (user.is_staff or user.is_superuser):
+        return False
     if user.is_staff or user.is_superuser:
         return True
     from core.models import ProjectOwner
@@ -5820,6 +5840,42 @@ def project_list_view(request):
     }
 
     return render(request, 'core/project_list.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def project_toggle_active_view(request, pk):
+    """
+    Ativa/desativa obra (Project). Réplicas GestControll e Mapa seguem via sync_project_to_gestao_and_mapa.
+    Obras inativas somem das seleções operacionais; continuam listadas aqui no Painel.
+    """
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
+    from core.sync_obras import sync_project_to_gestao_and_mapa
+
+    if not user_can_central_obras_diario_e_mapa(request.user):
+        raise PermissionDenied('Você não tem permissão para alterar obras.')
+
+    project = get_object_or_404(Project, pk=pk)
+    project.is_active = not project.is_active
+    project.save(update_fields=['is_active'])
+    sync_project_to_gestao_and_mapa(project)
+
+    if not project.is_active and request.session.get('selected_project_id') == pk:
+        for key in ('selected_project_id', 'selected_project_name', 'selected_project_code'):
+            request.session.pop(key, None)
+
+    if project.is_active:
+        messages.success(
+            request,
+            f'Obra "{project.name}" foi reativada e volta a aparecer nas seleções e módulos.',
+        )
+    else:
+        messages.success(
+            request,
+            f'Obra "{project.name}" foi desativada. Deixa de aparecer para usuários nas seleções de obra; '
+            f'dados e histórico permanecem. Continua visível aqui como inativa.',
+        )
+    return redirect('central_project_list')
 
 
 @login_required
