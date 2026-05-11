@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0039_notification_types_and_related_url'),
+        ('core', '0040_notification_types_and_related_url'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
