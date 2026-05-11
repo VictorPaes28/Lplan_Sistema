@@ -365,15 +365,13 @@
         opacity: 1;
     }
 
-    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos, Orange para Controle */
+    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos */
     .system-card.diario:hover:not(.disabled) .card-inner { border-color: #3b82f6; }
     .system-card.diario .card-inner::before { background: #3b82f6; }
     .system-card.gestao:hover:not(.disabled) .card-inner { border-color: #a855f7; }
     .system-card.gestao .card-inner::before { background: #a855f7; }
     .system-card.mapa:hover:not(.disabled) .card-inner { border-color: #10b981; }
     .system-card.mapa .card-inner::before { background: #10b981; }
-    .system-card.controle:hover:not(.disabled) .card-inner { border-color: #f97316; }
-    .system-card.controle .card-inner::before { background: #f97316; }
     .system-card.biobra:hover:not(.disabled) .card-inner { border-color: #0ea5e9; }
     .system-card.biobra .card-inner::before { background: #0ea5e9; }
     .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
@@ -408,7 +406,6 @@
     .system-card.gestao .system-icon { background: linear-gradient(135deg, #f093fb, #f5576c); box-shadow: 0 4px 14px rgba(245, 87, 108, 0.35); }
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
     .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
-    .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
     .system-card.impedimentos .system-icon { background: #d24e1b; }
     .system-card.impedimentos .system-icon svg {
         width: 22px;
@@ -459,7 +456,6 @@
     .system-card.gestao .card-arrow { color: #a855f7; }
     .system-card.mapa .card-arrow   { color: #10b981; }
     .system-card.biobra .card-arrow { color: #0ea5e9; }
-    .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
     .system-card.impedimentos .card-arrow { color: #d24e1b; }
     .system-card.trackhub .card-arrow { color: #4d5c38; }
@@ -825,13 +821,16 @@
     {% endif %}
 
     <div class="select-system-cards-grid">
-        {% if has_central %}
-        <!-- Painel do sistema: hub único para admin (obras, usuários, manutenção, ajuda, dashboard) -->
-        <a href="{% url 'accounts:admin_central' %}" class="system-card central {% if not has_central %}disabled{% endif %}" aria-label="Painel do sistema">
+        <!-- Painel do sistema (sempre visível — sem permissão aparece bloqueado) -->
+        <a href="{% url 'accounts:admin_central' %}" class="system-card central {% if not has_central %}disabled{% endif %}" aria-label="Painel do sistema" {% if not has_central %}data-tooltip="Sem acesso"{% endif %}>
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon" style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%);"><i class="fas fa-cog"></i></div>
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Admin</span>
+                    {% if has_central %}
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Painel do sistema</h3>
                 <p class="text-sm text-slate-500 mb-0">Cadastro de obras, usuários e permissões; ferramentas e configurações gerais.</p>
@@ -841,13 +840,16 @@
             </div>
         </a>
 
-        {% endif %}
-        {% if has_workflow %}
-        <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card workflow-central" aria-label="Central de Aprovações">
+        <!-- Central de Aprovações (workflow institucional) -->
+        <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card workflow-central {% if not has_workflow %}disabled{% endif %}" aria-label="Central de Aprovações" {% if not has_workflow %}data-tooltip="Sem acesso"{% endif %}>
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);"><i class="fas fa-check-double"></i></div>
+                    {% if has_workflow %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Central de Aprovações</h3>
                 <p class="text-sm text-slate-500 mb-0">Fila do que falta aprovar ou devolver, conforme fluxo e papel de cada obra.</p>
@@ -856,7 +858,6 @@
                 </div>
             </div>
         </a>
-        {% endif %}
         <!-- Diário de Obra -->
         <a href="{% url 'select-project' %}" class="system-card diario {% if not has_diario %}disabled{% endif %}" aria-label="Acessar Diário de Obra" {% if not has_diario %}data-tooltip="Sem acesso"{% endif %}>
             <div class="card-inner">
@@ -889,25 +890,6 @@
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">GestControll</h3>
                 <p class="text-sm text-slate-500 mb-0">Aprovação e acompanhamento dos pedidos de compra ou serviço da obra.</p>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
-
-        <!-- Mapa de Controle -->
-        <a href="{% url 'mapa_obras:home' %}" class="system-card mapacontrole {% if not has_mapa_controle %}disabled{% endif %}" aria-label="Acessar Mapa de Controle" {% if not has_mapa_controle %}data-tooltip="Sem acesso"{% endif %}>
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-th-large"></i></div>
-                    {% if has_mapa_controle %}
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Controle</h3>
-                <p class="text-sm text-slate-500 mb-0">Grade de execução física por obra.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
@@ -996,8 +978,7 @@
                 </div>
             </div>
         </a>
-        {% if has_trackhub %}
-        <a href="{% url 'trackhub:fila' %}" class="system-card trackhub" aria-label="Acessar TrackHub">
+        <a href="{% url 'trackhub:fila' %}" class="system-card trackhub {% if not has_trackhub %}disabled{% endif %}" aria-label="Acessar TrackHub" {% if not has_trackhub %}data-tooltip="Sem acesso"{% endif %}>
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon">
@@ -1010,7 +991,11 @@
                             <path d="M12 5.25a6.75 6.75 0 0 1 6.75 6.75"/>
                         </svg>
                     </div>
+                    {% if has_trackhub %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                    {% else %}
+                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
+                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">TrackHub</h3>
                 <p class="text-sm text-slate-500 mb-0">Etapas, responsáveis e avisos — o que está parado ou avançando na obra.</p>
@@ -1019,7 +1004,6 @@
                 </div>
             </div>
         </a>
-        {% endif %}
 
         <a href="{% url 'support-home' %}" class="system-card suporte" aria-label="Acessar central de Suporte">
             <div class="card-inner">
