@@ -813,10 +813,10 @@
     </div>
     <p id="select-system-module-filter-empty" class="select-system-module-filter-empty" hidden>Nenhum módulo encontrado.</p>
 
-    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_mapa_modules_any and not has_central and not has_workflow and not has_comunicados_painel %}
+    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_mapa and not has_ferramenta_ambientes and not has_bi_obra and not has_central and not has_workflow and not has_comunicados_painel %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
-        <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum sistema.</p>
-        <p class="text-amber-700 text-sm mt-1">Contate o administrador para que seus acessos sejam configurados (grupos e obras).</p>
+        <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum módulo nesta página.</p>
+        <p class="text-amber-700 text-sm mt-1">A central de <strong>Suporte</strong> permanece disponível abaixo. Para os demais módulos, contate o administrador (grupos e obras).</p>
     </div>
     {% endif %}
 
@@ -853,16 +853,12 @@
             </div>
         </a>
         {% endif %}
-        <!-- Diário de Obra -->
-        <a href="{% url 'select-project' %}" class="system-card diario {% if not has_diario %}disabled{% endif %}" aria-label="Acessar Diário de Obra" {% if not has_diario %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_diario %}
+        <a href="{% url 'select-project' %}" class="system-card diario" aria-label="Acessar Diário de Obra">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-book"></i></div>
-                    {% if has_diario %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Diário de Obra</h3>
                 <p class="text-sm text-slate-500 mb-0">Registro e acompanhamento dos relatórios diários da obra.</p>
@@ -871,17 +867,14 @@
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- GestControll -->
-        <a href="{% url 'gestao:home' %}" class="system-card gestao {% if not has_gestao %}disabled{% endif %}" aria-label="Acessar GestControll" {% if not has_gestao %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_gestao %}
+        <a href="{% url 'gestao:home' %}" class="system-card gestao" aria-label="Acessar GestControll">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-clipboard-check"></i></div>
-                    {% if has_gestao %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">GestControll</h3>
                 <p class="text-sm text-slate-500 mb-0">Aprovação e acompanhamento dos pedidos de compra ou serviço da obra.</p>
@@ -890,17 +883,14 @@
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- Mapa de Suprimentos -->
-        <a href="{% url 'mapa_obras:home' %}" class="system-card mapa {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Mapa de Suprimentos" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_mapa %}
+        <a href="{% url 'mapa_obras:home' %}" class="system-card mapa" aria-label="Acessar Mapa de Suprimentos">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-map-marked-alt"></i></div>
-                    {% if has_mapa %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Suprimentos</h3>
                 <p class="text-sm text-slate-500 mb-0">Suprimentos, engenharia e pendências ligadas ao avanço da obra.</p>
@@ -909,17 +899,14 @@
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- Ferramenta de ambientes operacionais -->
-        <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta {% if not has_ferramenta_ambientes %}disabled{% endif %}" aria-label="Acessar Ferramenta de ambientes" {% if not has_ferramenta_ambientes %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_ferramenta_ambientes %}
+        <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta" aria-label="Acessar Ferramenta de ambientes">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-border-all"></i></div>
-                    {% if has_ferramenta_ambientes %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Ferramenta de ambientes</h3>
                 <p class="text-sm text-slate-500 mb-0">Montagem de painéis e mapas operacionais por obra, para uso no campo.</p>
@@ -928,17 +915,14 @@
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- BI da Obra (visão integrada por obra vinculada) -->
-        <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra {% if not has_bi_obra %}disabled{% endif %}" aria-label="Acessar BI da Obra" {% if not has_bi_obra %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_bi_obra %}
+        <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra" aria-label="Acessar BI da Obra">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-chart-pie"></i></div>
-                    {% if has_bi_obra %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">BI da Obra</h3>
                 <p class="text-sm text-slate-500 mb-0">Indicadores consolidados sobre andamento físico e suprimento da obra.</p>
@@ -947,11 +931,10 @@
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <a href="{% url 'impedimentos:select_obra' %}" 
-           class="system-card impedimentos {% if not has_impedimentos %}disabled{% endif %}" 
-           aria-label="Acessar Restrições" 
-           {% if not has_impedimentos %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_impedimentos %}
+        <a href="{% url 'impedimentos:select_obra' %}" class="system-card impedimentos" aria-label="Acessar Restrições">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon">
@@ -960,11 +943,7 @@
                             <polyline points="12 8 10 13 13 13 11 17"/>
                         </svg>
                     </div>
-                    {% if has_impedimentos %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Restrições</h3>
                 <p class="text-sm text-slate-500 mb-0">Pendências e bloqueios que impactam obra, cronograma e responsáveis.</p>
@@ -973,6 +952,7 @@
                 </div>
             </div>
         </a>
+        {% endif %}
         {% if has_trackhub %}
         <a href="{% url 'trackhub:fila' %}" class="system-card trackhub" aria-label="Acessar TrackHub">
             <div class="card-inner">
@@ -1027,15 +1007,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Mantém hover/tooltip dos cards sem acesso, mas bloqueia navegação.
-    var disabledSystemCards = document.querySelectorAll('.system-card.disabled');
-    disabledSystemCards.forEach(function (card) {
-        card.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        });
-    });
-
     (function selectSystemModuleFilter() {
         var input = document.getElementById('select-system-module-filter');
         var grid = document.querySelector('.select-system-cards-grid');
