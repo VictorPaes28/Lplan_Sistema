@@ -7,7 +7,8 @@
 {% block page_subtitle %}GestControll{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
+{% if debug %}{% now "U" as lplan_listwo_cb %}{% endif %}
+<link rel="stylesheet" href="{% static 'css/list_workorders.css' %}{% if debug %}?cb={{ lplan_listwo_cb }}{% endif %}">
 {% endblock %}
 
 {% block content %}
@@ -372,9 +373,9 @@
             </thead>
             <tbody>
                 {% for workorder in workorders %}
-                    <tr>
+                    <tr class="gc-pedido-row" data-pk="{{ workorder.pk }}">
                         {% if pode_marcar_analisado %}
-                        <td class="text-center" data-label="Analisado" style="padding: 0.75rem 0.5rem;">
+                        <td class="text-center gc-no-modal" data-label="Analisado" style="padding: 0.75rem 0.5rem;">
                             {% if workorder.status == 'aprovado' %}
                             <label class="checkbox-analisado" for="analisado_{{ workorder.pk }}" style="
                                 display: inline-flex;
@@ -583,6 +584,8 @@
     </div>
 {% endif %}
 
+{% include "gestao_aprovacao/includes/modal_pedido.html" %}
+
 <script>
 function toggleFilters() {
     const advancedFilters = document.getElementById('advanced-filters');
@@ -740,6 +743,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    document.querySelectorAll('tr.gc-pedido-row').forEach(function(row) {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+            if (e.target.closest('.gc-no-modal')) return;
+            if (e.target.closest('a')) e.preventDefault();
+            var pk = row.getAttribute('data-pk');
+            if (pk && typeof abrirModalPedido === 'function') {
+                abrirModalPedido(parseInt(pk, 10));
+            }
+        });
+    });
 });
 
 {% if pode_marcar_analisado %}

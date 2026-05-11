@@ -4,7 +4,9 @@ from django.core.management.base import BaseCommand
 from django.db import IntegrityError
 from django.utils import timezone
 
-from core.models import Notification
+from django.urls import reverse
+
+from core.notification_utils import criar_notificacao as core_criar_notificacao
 from trackhub.models import EtapaPendencia, NotificacaoPrazoTrackHub
 
 
@@ -25,15 +27,23 @@ def _deve_alertar_por_dia(prazo_date, hoje_local, dias_alvo):
     return delta == dias_alvo
 
 
-def _criar_notificacao(usuario, titulo, mensagem):
+def _criar_notificacao(usuario, titulo, mensagem, event_key="", pendencia_pk=None):
     if not usuario or not usuario.is_active:
         return
-    Notification.objects.create(
-        user=usuario,
-        notification_type="system",
-        title=titulo,
-        message=mensagem,
-        related_diary=None,
+    try:
+        if pendencia_pk:
+            url = reverse("trackhub:pendencia_detalhe", args=[pendencia_pk])
+        else:
+            url = reverse("trackhub:fila")
+    except Exception:
+        url = "/trackhub/"
+    core_criar_notificacao(
+        usuario,
+        "trackhub_prazo",
+        titulo,
+        mensagem,
+        url=url,
+        event_key=event_key or "",
     )
 
 
@@ -87,6 +97,8 @@ class Command(BaseCommand):
                     etapa.responsavel_interno,
                     titulo,
                     mensagem,
+                    event_key=f"trackhub:etapa:{etapa.pk}",
+                    pendencia_pk=etapa.pendencia_id,
                 )
                 total += 1
 

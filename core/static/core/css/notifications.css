@@ -2,31 +2,34 @@
 
 .lplan-nt-stack {
   position: fixed;
-  top: max(1rem, env(safe-area-inset-top));
-  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  right: max(1.25rem, env(safe-area-inset-right));
   z-index: 10050;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: min(22rem, calc(100vw - 2rem));
+  flex-direction: column-reverse;
+  gap: 8px;
+  width: 320px;
+  max-width: calc(100vw - 2rem);
   pointer-events: none;
 }
 
 .lplan-nt-toast {
   pointer-events: auto;
+  position: relative;
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 0.65rem;
+  grid-template-rows: auto auto;
+  gap: 0.55rem 0.65rem;
   align-items: start;
-  padding: 0.75rem 0.85rem;
+  padding: 0.85rem 0.9rem;
+  padding-bottom: 0.65rem;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 12px 28px rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   animation: lplanNtIn 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   border-left: 3px solid #64748b;
+  overflow: hidden;
 }
 
 .lplan-nt-toast[data-type='diary_pending'] {
@@ -39,7 +42,29 @@
   border-left-color: #dc2626;
 }
 .lplan-nt-toast[data-type='system'] {
-  border-left-color: #475569;
+  border-left-color: #64748b;
+}
+.lplan-nt-toast[data-type='rdo_pendente'],
+.lplan-nt-toast[data-type='pedido_criado'],
+.lplan-nt-toast[data-type='restricao_criada'] {
+  border-left-color: #2563eb;
+}
+.lplan-nt-toast[data-type='rdo_aprovado'],
+.lplan-nt-toast[data-type='pedido_aprovado'],
+.lplan-nt-toast[data-type='trackhub_etapa_concluida'] {
+  border-left-color: #16a34a;
+}
+.lplan-nt-toast[data-type='rdo_reprovado'],
+.lplan-nt-toast[data-type='pedido_reprovado'] {
+  border-left-color: #ef4444;
+}
+.lplan-nt-toast[data-type='restricao_prazo'],
+.lplan-nt-toast[data-type='trackhub_prazo'] {
+  border-left-color: #d97706;
+}
+.lplan-nt-toast[data-type='pedido_comentario'],
+.lplan-nt-toast[data-type='restricao_status'] {
+  border-left-color: #2563eb;
 }
 
 .lplan-nt-toast.lplan-nt-toast-out {
@@ -49,34 +74,68 @@
 @keyframes lplanNtIn {
   from {
     opacity: 0;
-    transform: translateX(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
 @keyframes lplanNtOut {
   to {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateY(6px);
+  }
+}
+
+@keyframes lplanNtProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
   }
 }
 
 .lplan-nt-toast-icon {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 4px;
+  grid-column: 1;
+  grid-row: 1;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   background: #f1f5f9;
-  color: #475569;
+  color: #64748b;
+}
+
+.lplan-nt-toast-icon--blue {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+.lplan-nt-toast-icon--green {
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+}
+.lplan-nt-toast-icon--red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+.lplan-nt-toast-icon--amber {
+  background: rgba(217, 119, 6, 0.14);
+  color: #d97706;
+}
+.lplan-nt-toast-icon--slate {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .lplan-nt-toast-body {
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
 }
 
@@ -86,6 +145,10 @@
   color: #0f172a;
   line-height: 1.35;
   margin: 0 0 0.2rem;
+}
+
+.lplan-nt-toast-title strong {
+  font-weight: 700;
 }
 
 .lplan-nt-toast-msg {
@@ -118,6 +181,9 @@
 }
 
 .lplan-nt-toast-close {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
   border: none;
   background: transparent;
   color: #94a3b8;
@@ -130,6 +196,26 @@
 .lplan-nt-toast-close:hover {
   color: #475569;
   background: #f8fafc;
+}
+
+.lplan-nt-toast-progress {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 3px;
+  margin: 0 -0.9rem -0.65rem;
+  background: #e2e8f0;
+  align-self: end;
+}
+
+.lplan-nt-toast-progress-bar {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  transform-origin: left center;
+  animation-name: lplanNtProgress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }
 
 /* Página lista — coluna mais larga em desktop; filtros compactos no mobile */

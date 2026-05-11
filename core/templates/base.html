@@ -914,11 +914,11 @@
     </script>
 
     {% if user.is_authenticated %}
-    <link rel="stylesheet" href="{% static 'core/css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/notifications.css' %}?v=2">
     <link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}?v=5">
     {% include 'comunicados/modal.html' %}
     <script src="{% static 'comunicados/js/comunicados.js' %}?v=8" defer></script>
-    <script src="{% static 'core/js/notifications-poll.js' %}" defer data-poll-url="{% url 'notifications-poll' %}"></script>
+    <script src="{% static 'core/js/notifications-poll.js' %}?v=3" defer data-poll-url="{% url 'notifications-poll' %}"></script>
     {% endif %}
 
     {% block extra_js %}{% endblock %}

@@ -1598,38 +1598,74 @@ class AnaliseObraService:
 
         sinais = 0
         motivos = []
-        if pct < 35:
-            sinais += 2
-            motivos.append("Execução física baixa no recorte.")
-        elif pct < 55:
-            sinais += 1
-            motivos.append("Execução física em atenção.")
+
+        # Execução física: desvio vs avanço esperado no tempo.
+        # mapa_obras.Obra não tem datas; usam-se core.Project.start_date / end_date via obra.project.
+        obra = self.obra
+        project = getattr(obra, "project", None)
+        data_inicio = getattr(project, "start_date", None) if project else None
+        data_fim = getattr(project, "end_date", None) if project else None
+        hoje = date.today()
+
+        usou_janela_temporal = False
+        if (
+            project is not None
+            and data_inicio is not None
+            and data_fim is not None
+            and data_fim > data_inicio
+        ):
+            duracao_total = (data_fim - data_inicio).days
+            if duracao_total > 0:
+                decorrido = (hoje - data_inicio).days
+                pct_tempo = max(0.0, min(1.0, decorrido / float(duracao_total))) * 100.0
+                avanco_esperado = pct_tempo
+                desvio = pct - avanco_esperado
+                usou_janela_temporal = True
+
+                if desvio < -20:
+                    sinais += 2
+                    motivos.append(
+                        f"Execução muito abaixo do esperado ({pct:.1f}% real vs {avanco_esperado:.1f}% esperado)"
+                    )
+                elif desvio < -5:
+                    sinais += 1
+                    motivos.append(
+                        f"Execução levemente abaixo do esperado ({pct:.1f}% real vs {avanco_esperado:.1f}% esperado)"
+                    )
+
+        if not usou_janela_temporal:
+            if pct < 35:
+                sinais += 2
+                motivos.append("Execução física baixa (sem datas de prazo cadastradas)")
+            elif pct < 55:
+                sinais += 1
+                motivos.append("Execução física requer atenção (sem datas de prazo cadastradas)")
 
         if atrasados >= 15:
             sinais += 2
-            motivos.append("Fila de suprimentos com muitos atrasos.")
+            motivos.append("Muitos itens de suprimento atrasados")
         elif atrasados >= 6:
             sinais += 1
-            motivos.append("Fila de suprimentos sob pressão.")
+            motivos.append("Pressão na fila de suprimentos")
 
         if occ_crit >= 3:
             sinais += 2
-            motivos.append("Ocorrências críticas recorrentes no diário.")
+            motivos.append("Ocorrências críticas recorrentes no diário")
         elif occ_crit >= 1:
             sinais += 1
-            motivos.append("Há ocorrência crítica no período.")
+            motivos.append("Há ocorrência crítica no período")
         elif occ >= 12:
             sinais += 1
-            motivos.append("Volume de ocorrências acima do normal.")
+            motivos.append("Volume alto de ocorrências no diário")
 
         if sinais <= 1:
-            rotulo = "Obra dentro do previsto"
             nivel = "ok"
+            rotulo = "Obra dentro do previsto"
         elif sinais <= 3:
-            rotulo = "Obra em atenção"
             nivel = "atencao"
+            rotulo = "Obra em atenção"
         else:
-            rotulo = "Obra com risco de atraso ou pressão operacional"
             nivel = "risco"
+            rotulo = "Obra com risco de atraso ou pressão operacional"
 
-        return {"rotulo": rotulo, "nivel": nivel, "motivos": motivos}
+        return {"nivel": nivel, "rotulo": rotulo, "motivos": motivos, "sinais": sinais}

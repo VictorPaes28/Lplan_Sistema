@@ -13,6 +13,9 @@ from django.db.models import Count, IntegerField, Q, Value
 from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from core.notification_utils import criar_notificacao as core_criar_notificacao
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -766,6 +769,20 @@ def list_impedimentos(request, obra_id):
                         show_modal = True
                     else:
                         messages.success(request, "Restrição criada com sucesso.")
+                        list_url = (
+                            reverse("impedimentos:list_impedimentos", kwargs={"obra_id": project.pk})
+                            + f"?obra={obra.pk}"
+                        )
+                        for resp in novo_impedimento.responsaveis.all():
+                            core_criar_notificacao(
+                                resp,
+                                "restricao_criada",
+                                "Nova restrição atribuída a você",
+                                f'"{novo_impedimento.titulo}" na obra {novo_impedimento.obra.nome}. '
+                                f"Prioridade: {novo_impedimento.get_prioridade_display()}.",
+                                url=list_url,
+                                event_key=f"impedimento:{novo_impedimento.pk}",
+                            )
                         redir = _list_redirect_url(request, request.path, query_view)
                         if parent_ref is not None:
                             sep = "&" if "?" in redir else "?"
@@ -1137,8 +1154,41 @@ def update_status_ajax(request, obra_id):
                 status=400,
             )
 
+    status_anterior = impedimento.status
     impedimento.status = novo_status
     impedimento.save(update_fields=["status", "atualizado_em"])
+    list_url = (
+        reverse("impedimentos:list_impedimentos", kwargs={"obra_id": obra_id})
+        + f"?obra={obra.pk}"
+    )
+    actor = request.user
+    destinatarios = []
+    seen = set()
+    if impedimento.criado_por_id and impedimento.criado_por_id != actor.id:
+        destinatarios.append(impedimento.criado_por)
+        seen.add(impedimento.criado_por_id)
+    for u in impedimento.responsaveis.all():
+        if u.id != actor.id and u.is_active and u.id not in seen:
+            destinatarios.append(u)
+            seen.add(u.id)
+    if destinatarios:
+        core_criar_notificacao(
+            destinatarios,
+            "restricao_status",
+            "Status da restrição atualizado",
+            f'"{impedimento.titulo}": {status_anterior.nome} → {novo_status.nome}',
+            url=list_url,
+            event_key=f"impedimento:{impedimento.pk}",
+        )
+    try:
+        from core.notification_utils import marcar_lidas_por_event_key
+
+        marcar_lidas_por_event_key(
+            f"impedimento:{impedimento.pk}",
+            ["restricao_criada", "restricao_prazo"],
+        )
+    except Exception:
+        pass
     return JsonResponse({"ok": True, "status_id": novo_status.id})
 
 
@@ -1210,6 +1260,16 @@ def impedimento_detail_ajax(request, obra_id, impedimento_id):
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
         )
+
+    try:
+        from core.notification_utils import marcar_lidas_para_usuario_event_key
+
+        marcar_lidas_para_usuario_event_key(
+            request.user,
+            f"impedimento:{impedimento.pk}",
+        )
+    except Exception:
+        pass
 
     cnt = ComentarioImpedimento.objects.filter(impedimento=impedimento).count()
     item = _build_impedimentos_items(
@@ -1406,6 +1466,37 @@ def impedimento_update_field(request, obra_id, impedimento_id):
                 f'Alterou status de "{status_anterior.nome}" → "{novo.nome}"',
                 "status",
             )
+            list_url = (
+                reverse("impedimentos:list_impedimentos", kwargs={"obra_id": project.pk})
+                + f"?obra={obra.pk}"
+            )
+            destinatarios = []
+            seen = set()
+            if impedimento.criado_por_id and impedimento.criado_por_id != actor.id:
+                destinatarios.append(impedimento.criado_por)
+                seen.add(impedimento.criado_por_id)
+            for u in impedimento.responsaveis.all():
+                if u.id != actor.id and u.is_active and u.id not in seen:
+                    destinatarios.append(u)
+                    seen.add(u.id)
+            if destinatarios:
+                core_criar_notificacao(
+                    destinatarios,
+                    "restricao_status",
+                    "Status da restrição atualizado",
+                    f'"{impedimento.titulo}": {status_anterior.nome} → {novo.nome}',
+                    url=list_url,
+                    event_key=f"impedimento:{impedimento.pk}",
+                )
+            try:
+                from core.notification_utils import marcar_lidas_por_event_key
+
+                marcar_lidas_por_event_key(
+                    f"impedimento:{impedimento.pk}",
+                    ["restricao_criada", "restricao_prazo"],
+                )
+            except Exception:
+                pass
 
         elif field == "prioridade":
             pv = value if isinstance(value, str) else ""

@@ -1771,6 +1771,18 @@ class Notification(models.Model):
             ('diary_review', 'Relatório Requer Revisão'),
             ('activity_delayed', 'Atividade Atrasada'),
             ('system', 'Notificação do Sistema'),
+            ('rdo_pendente', 'RDO Aguardando Aprovação'),
+            ('rdo_aprovado', 'RDO Aprovado'),
+            ('rdo_reprovado', 'RDO Reprovado/Revisão'),
+            ('pedido_criado', 'Novo Pedido para Aprovar'),
+            ('pedido_aprovado', 'Pedido Aprovado'),
+            ('pedido_reprovado', 'Pedido Reprovado'),
+            ('pedido_comentario', 'Comentário em Pedido'),
+            ('restricao_criada', 'Nova Restrição Atribuída'),
+            ('restricao_status', 'Status de Restrição Alterado'),
+            ('restricao_prazo', 'Prazo de Restrição Vencendo'),
+            ('trackhub_etapa_concluida', 'Etapa Concluída no TrackHub'),
+            ('trackhub_prazo', 'Prazo de Etapa TrackHub'),
         ],
         verbose_name='Tipo de Notificação'
     )
@@ -1792,6 +1804,21 @@ class Notification(models.Model):
         verbose_name='Diário Relacionado',
         help_text='Diário relacionado à notificação (se aplicável)'
     )
+    related_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='URL relacionada',
+        help_text='Link direto para o item notificado (ex.: pedido, restrição, TrackHub)',
+    )
+    event_key = models.CharField(
+        max_length=160,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='Chave do evento',
+        help_text='Identifica o mesmo item em várias notificações (ex.: gestao:wo:42) para marcar como lidas em lote.',
+    )
     is_read = models.BooleanField(
         default=False,
         verbose_name='Lida',
@@ -1808,6 +1835,7 @@ class Notification(models.Model):
         ordering = ['-created_at', '-is_read']
         indexes = [
             models.Index(fields=['user', 'is_read', '-created_at']),
+            models.Index(fields=['event_key', 'is_read']),
         ]
 
     def __str__(self) -> str:

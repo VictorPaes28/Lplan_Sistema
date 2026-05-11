@@ -1,0 +1,155 @@
+{% load static %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+{% if debug %}{% now "U" as lplan_modal_pedido_css_cb %}{% endif %}
+<link rel="stylesheet" href="{% static 'gestao_aprovacao/css/modal_pedido.css' %}{% if debug %}?cb={{ lplan_modal_pedido_css_cb }}{% endif %}">
+
+{# display:none inline: se o CSS falhar ao carregar (F5), o conteudo do modal nao aparece como HTML cru #}
+<div id="gc-overlay" aria-hidden="true" style="display:none;">
+    <div id="gc-modal" role="dialog" aria-modal="true" aria-labelledby="gc-breadcrumb">
+        <div class="gc-modal-top">
+            <div class="gc-modal-top-left">
+                <p id="gc-breadcrumb" class="gc-breadcrumb"></p>
+                <a id="gc-link-pagina-completa" href="#" target="_blank" rel="noopener" class="gc-link-fullpage">Ver página completa →</a>
+            </div>
+            <button type="button" class="gc-modal-close" id="gc-modal-close" onclick="fecharModalPedido()" aria-label="Fechar">✕</button>
+        </div>
+
+        <div class="gc-pills-row">
+            <span id="gc-pill-status" class="gc-pill gc-pill-status"></span>
+            <span id="gc-pill-tipo" class="gc-pill gc-pill-muted"></span>
+            <span id="gc-pill-obra" class="gc-pill gc-pill-plain"></span>
+            <span id="gc-pill-valor" class="gc-pill gc-pill-muted gc-mono"></span>
+            <div id="gc-pills-meta" class="gc-pills-meta"></div>
+        </div>
+
+        <div class="gc-modal-body">
+            <div class="gc-modal-col-left">
+                <div class="gc-modal-body-inner">
+                    <div class="gc-section">
+                        <h3 class="gc-section-title">Informações do Pedido</h3>
+                        <div class="gc-info-grid">
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Código</div>
+                                <div id="gc-f-codigo" class="gc-info-value gc-mono"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Nome do Credor</div>
+                                <div id="gc-f-credor" class="gc-info-value"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Tipo de Solicitação</div>
+                                <div id="gc-f-tipo" class="gc-info-value"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Valor de Medição</div>
+                                <div id="gc-f-valor-med" class="gc-info-value gc-mono"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Data de Criação</div>
+                                <div id="gc-f-created" class="gc-info-value"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Última Atualização</div>
+                                <div id="gc-f-updated" class="gc-info-value"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="gc-section">
+                        <h3 class="gc-section-title">Observações</h3>
+                        <div id="gc-observacoes" class="gc-obs-box"></div>
+                    </div>
+
+                    <div class="gc-section">
+                        <h3 class="gc-section-title">Controle</h3>
+                        <div class="gc-info-grid">
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Solicitante</div>
+                                <div id="gc-ctl-solicitante" class="gc-info-value"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">E-mail</div>
+                                <div id="gc-ctl-email" class="gc-info-value"></div>
+                            </div>
+                            <div class="gc-info-cell">
+                                <div class="gc-info-label">Data de Envio</div>
+                                <div id="gc-ctl-envio" class="gc-info-value"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="gc-sec-aprovacao" class="gc-section" style="display:none;">
+                        <div class="gc-banner-aprov">
+                            <p>Este pedido está aguardando sua aprovação.</p>
+                            <div class="gc-aprov-actions">
+                                <a id="gc-aprov-link" href="#" class="gc-btn-aprovar">Aprovar</a>
+                                <a id="gc-reprovar-link" href="#" class="gc-btn-reprovar">Reprovar</a>
+                            </div>
+                            <button type="button" class="gc-ver-mais-toggle" id="gc-ver-mais-btn" onclick="toggleVerMaisAprovacao()">Ver mais sobre o fluxo de aprovação</button>
+                            <div id="gc-ver-mais-body" class="gc-ver-mais-body"></div>
+                        </div>
+                    </div>
+
+                    <div id="gc-sec-exclusao" class="gc-section" style="display:none;">
+                        <div class="gc-exclusao-banner">
+                            <h4>Exclusão solicitada</h4>
+                            <p>Solicitado por <strong id="gc-exc-solicitante"></strong> em <span id="gc-exc-data"></span>.</p>
+                            <p><strong>Motivo:</strong></p>
+                            <p id="gc-exc-motivo"></p>
+                            <div id="gc-exc-actions" class="gc-exclusao-actions" style="display:none;">
+                                <a id="gc-exc-link-aprovar" href="#" class="gc-exclusao-aprovar">Aprovar exclusão</a>
+                                <a id="gc-exc-link-rejeitar" href="#" class="gc-exclusao-rejeitar">Rejeitar</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="gc-section">
+                        <h3 class="gc-section-title">Anexos</h3>
+                        <div id="gc-anexos-grid" class="gc-anexos-grid"></div>
+                    </div>
+
+                    <div class="gc-section">
+                        <h3 class="gc-section-title">Histórico de mudanças de status</h3>
+                        <div id="gc-historico-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gc-modal-col-right">
+                <div class="gc-comments-header">Comentários</div>
+                <div id="gc-comments-list" class="gc-comments-list"></div>
+                <div id="gc-comment-form" class="gc-comment-form">
+                    <textarea id="gc-comment-text" placeholder="Novo comentário…" rows="2"></textarea>
+                    <button type="button" onclick="enviarComentarioModal()">Enviar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="gc-modal-footer">
+            <div class="gc-footer-left">
+                <a id="gc-ft-pdf" href="#" target="_blank" rel="noopener" class="gc-footer-btn">Exportar PDF</a>
+                <a id="gc-ft-leitura" href="#" target="_blank" rel="noopener" class="gc-footer-btn">Modo leitura</a>
+                <a id="gc-ft-editar" href="#" class="gc-footer-btn gc-footer-btn--primary" style="display:none;">Editar</a>
+            </div>
+            <div class="gc-footer-right">
+                <a id="gc-ft-exclusao" href="#" class="gc-footer-btn gc-footer-btn--danger" style="display:none;">Solicitar exclusão</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.GC_WORKORDER_JSON_URL = function (pk) {
+        return "{% url 'gestao:workorder_detail_ajax' 987654321 %}".replace('987654321', String(pk));
+    };
+</script>
+{% if debug %}{% now "U" as lplan_modal_pedido_js_cb %}{% endif %}
+<script src="{% static 'gestao_aprovacao/js/modal_pedido.js' %}{% if debug %}?cb={{ lplan_modal_pedido_js_cb }}{% endif %}"></script>
+<script>
+    (function () {
+        var btn = document.getElementById('gc-modal-close');
+        if (btn) btn.addEventListener('click', function (e) { e.preventDefault(); fecharModalPedido(); });
+    })();
+</script>

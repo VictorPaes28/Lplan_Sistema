@@ -7,15 +7,18 @@
    Entrada da página (área principal + top bar dentro do wrapper)
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: no-preference) {
-    /* Só "forwards": evita fill backwards (opacity 0) antes do 1º frame se o CSS atrasar */
+    /*
+     * Entrada suave só com translate — evita opacity:0 no primeiro frame (flash ao
+     * navegar, Ctrl+F5 ou enviar filtros GET).
+     */
     .main-content-wrapper {
-        animation: lplan-main-enter 0.44s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        animation: lplan-main-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
 
     @keyframes lplan-main-enter {
         from {
-            opacity: 0;
-            transform: translateY(10px);
+            opacity: 1;
+            transform: translateY(8px);
         }
         to {
             opacity: 1;

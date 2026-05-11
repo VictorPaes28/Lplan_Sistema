@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block back_url %}{% url 'dashboard' %}{% endblock %}
+{% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block page_title %}Notificações{% endblock %}
 {% block page_subtitle %}Alertas e atualizações do sistema{% endblock %}
 
@@ -99,9 +99,16 @@
             {% else %}
             <span class="lplan-notif-status lplan-notif-status--read">Lida</span>
             {% endif %}
-            {% if notification.related_diary %}
+            {% url 'notification-open' notification.pk as notif_open %}
+            {% if notification.related_url %}
             <span class="lplan-notif-status lplan-notif-status--read" aria-hidden="true">·</span>
-            <a href="{% url 'diary-detail' notification.related_diary.id %}" class="lplan-notif-item-btn lplan-notif-item-btn--accent">
+            <a href="{{ notif_open }}?next={{ notification.related_url|urlencode }}" class="lplan-notif-item-btn lplan-notif-item-btn--accent">
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i> Abrir
+            </a>
+            {% elif notification.related_diary %}
+            {% url 'diary-detail' notification.related_diary.id as diary_open_target %}
+            <span class="lplan-notif-status lplan-notif-status--read" aria-hidden="true">·</span>
+            <a href="{{ notif_open }}?next={{ diary_open_target|urlencode }}" class="lplan-notif-item-btn lplan-notif-item-btn--accent">
                 <i class="fas fa-external-link-alt" aria-hidden="true"></i> Relatório
             </a>
             {% endif %}

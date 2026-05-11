@@ -13,12 +13,13 @@ from django.db import transaction
 from django.db.models import Max, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 
 from accounts.decorators import login_required
 from core.models import ProjectDiaryApprover, ProjectMember, ProjectOwner
-from core.models import Notification
+from core.notification_utils import criar_notificacao as core_criar_notificacao
 from mapa_obras.models import Obra
 
 from accounts.groups import GRUPOS
@@ -105,15 +106,22 @@ def _registrar_atividade_pendencia(pendencia, usuario, descricao, tipo=Atividade
     )
 
 
-def _criar_notificacao_trackhub(usuario, titulo, mensagem):
+def _criar_notificacao_trackhub(
+    usuario, titulo, mensagem, notification_type="system", url="", event_key=""
+):
     if not usuario or not getattr(usuario, "is_active", False):
         return
-    Notification.objects.create(
-        user=usuario,
-        notification_type="system",
-        title=titulo,
-        message=mensagem,
-        related_diary=None,
+    try:
+        default_url = reverse("trackhub:fila")
+    except Exception:
+        default_url = "/trackhub/"
+    core_criar_notificacao(
+        usuario,
+        notification_type,
+        titulo,
+        mensagem,
+        url=url or default_url,
+        event_key=event_key or "",
     )
 
 
@@ -136,10 +144,20 @@ def _notificar_criacao_pendencia(pendencia, autor):
         f'Pendência "{pendencia.titulo}" criada na obra "{pendencia.obra.nome}" '
         f'com prioridade {prioridade}.'
     )
+    try:
+        dest_url = reverse("trackhub:pendencia_detalhe", args=[pendencia.pk])
+    except Exception:
+        dest_url = reverse("trackhub:fila")
     for usuario in _usuarios_responsaveis_da_pendencia(pendencia):
         if autor and usuario.pk == autor.pk:
             continue
-        _criar_notificacao_trackhub(usuario, titulo, mensagem)
+        _criar_notificacao_trackhub(
+            usuario,
+            titulo,
+            mensagem,
+            url=dest_url,
+            event_key=f"trackhub:pend:{pendencia.pk}",
+        )
 
 
 def _notificar_criacao_etapa(etapa, autor):
@@ -154,7 +172,17 @@ def _notificar_criacao_etapa(etapa, autor):
         f'Você foi definido como responsável pela etapa "{etapa.titulo}" '
         f'da pendência "{etapa.pendencia.titulo}" na obra "{etapa.pendencia.obra.nome}".'
     )
-    _criar_notificacao_trackhub(usuario, titulo, mensagem)
+    try:
+        dest_url = reverse("trackhub:pendencia_detalhe", args=[etapa.pendencia_id])
+    except Exception:
+        dest_url = reverse("trackhub:fila")
+    _criar_notificacao_trackhub(
+        usuario,
+        titulo,
+        mensagem,
+        url=dest_url,
+        event_key=f"trackhub:pend:{etapa.pendencia_id}",
+    )
 
 
 def _serialize_atividade_pendencia(atividade):
@@ -1015,6 +1043,16 @@ def pendencia_detalhe_view(request, pk):
         pk=pk,
     )
 
+    try:
+        from core.notification_utils import marcar_lidas_para_usuario_event_key
+
+        marcar_lidas_para_usuario_event_key(
+            request.user,
+            f"trackhub:pend:{pendencia.pk}",
+        )
+    except Exception:
+        pass
+
     etapas = list(pendencia.etapas.all())
     comentarios = list(pendencia.comentarios.all())
     anexos_list = list(pendencia.anexos.all())
@@ -1067,12 +1105,31 @@ def pendencia_concluir_view(request, pk):
         return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
     pendencia.status = "concluida"
     pendencia.save(update_fields=["status", "updated_at"])
+    try:
+        from core.notification_utils import marcar_lidas_por_event_key
+
+        marcar_lidas_por_event_key(f"trackhub:pend:{pendencia.pk}")
+    except Exception:
+        pass
     _registrar_atividade_pendencia(
         pendencia,
         request.user,
         "Marcou a pendência como concluída",
         AtividadePendencia.TIPO_STATUS,
     )
+    try:
+        fila_url = reverse("trackhub:fila")
+    except Exception:
+        fila_url = "/trackhub/"
+    if pendencia.criado_por_id and pendencia.criado_por_id != request.user.id:
+        core_criar_notificacao(
+            pendencia.criado_por,
+            "trackhub_etapa_concluida",
+            "Pendência concluída",
+            f'A pendência "{pendencia.titulo}" foi marcada como concluída.',
+            url=fila_url,
+            event_key=f"trackhub:pend:{pendencia.pk}",
+        )
     if _wants_json_response(request):
         return _json_no_cache({"ok": True})
     messages.success(request, "Pendência concluída.")
@@ -1171,6 +1228,12 @@ def pendencia_cancelar_view(request, pk):
         return redirect("trackhub:pendencia_detalhe", pk=p.pk)
     p.status = "cancelada"
     p.save(update_fields=["status", "updated_at"])
+    try:
+        from core.notification_utils import marcar_lidas_por_event_key
+
+        marcar_lidas_por_event_key(f"trackhub:pend:{p.pk}")
+    except Exception:
+        pass
     messages.success(request, "Pendência cancelada.")
     return redirect("trackhub:fila")
 
@@ -1184,6 +1247,12 @@ def pendencia_deletar_view(request, pk):
         messages.error(request, "Você não pode excluir esta pendência.")
         return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
     pendencia_pk = pendencia.pk
+    try:
+        from core.notification_utils import marcar_lidas_por_event_key
+
+        marcar_lidas_por_event_key(f"trackhub:pend:{pendencia_pk}")
+    except Exception:
+        pass
     with transaction.atomic():
         for anexo in AnexoPendencia.objects.filter(pendencia_id=pendencia_pk):
             if anexo.arquivo:
@@ -1265,8 +1334,17 @@ def etapa_concluir_view(request, pk):
     e.concluida_por = request.user
     e.save(update_fields=["status", "concluida_em", "concluida_por"])
 
+    try:
+        from core.notification_utils import marcar_lidas_por_event_key_etapa_trackhub
+
+        marcar_lidas_por_event_key_etapa_trackhub(e.pk)
+    except Exception:
+        pass
+
     pend = Pendencia.objects.get(pk=e.pendencia_id)
+    status_antes = pend.status
     recalcular_status_pendencia(pend)
+    pend.refresh_from_db()
 
     _registrar_atividade_pendencia(
         pend,
@@ -1274,6 +1352,37 @@ def etapa_concluir_view(request, pk):
         f'Concluiu a etapa "{titulo_etapa}"',
         AtividadePendencia.TIPO_ETAPA,
     )
+
+    try:
+        fila_url = reverse("trackhub:fila")
+    except Exception:
+        fila_url = "/trackhub/"
+    nome_quem = request.user.get_full_name() or request.user.username
+    if pend.criado_por_id and pend.criado_por_id != request.user.id:
+        core_criar_notificacao(
+            pend.criado_por,
+            "trackhub_etapa_concluida",
+            f"Etapa concluída: {titulo_etapa}",
+            f'A etapa "{titulo_etapa}" da pendência "{pend.titulo}" foi concluída por {nome_quem}.',
+            url=fila_url,
+            event_key=f"trackhub:pend:{pend.pk}",
+        )
+    if pend.status == "concluida" and status_antes != "concluida":
+        if pend.criado_por_id and pend.criado_por_id != request.user.id:
+            core_criar_notificacao(
+                pend.criado_por,
+                "trackhub_etapa_concluida",
+                "Pendência concluída",
+                f'A pendência "{pend.titulo}" foi totalmente concluída.',
+                url=fila_url,
+                event_key=f"trackhub:pend:{pend.pk}",
+            )
+        try:
+            from core.notification_utils import marcar_lidas_por_event_key
+
+            marcar_lidas_por_event_key(f"trackhub:pend:{pend.pk}")
+        except Exception:
+            pass
 
     if _wants_json_response(request):
         return _json_no_cache({"ok": True, "pendencia_id": e.pendencia_id})

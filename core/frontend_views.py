@@ -505,6 +505,7 @@ def _notify_support_staff(title, message, exclude_user_id=None):
             notification_type='system',
             title=title[:255],
             message=message,
+            related_url='',
         )
         for u in staff_users
     ]
@@ -520,6 +521,7 @@ def _notify_user(user, title, message):
         notification_type='system',
         title=title[:255],
         message=message,
+        related_url='',
     )
 
 
@@ -1911,6 +1913,23 @@ def diary_detail_view(request, pk):
         request.session['selected_project_name'] = project.name
         request.session['selected_project_code'] = getattr(project, 'code', '')
     
+    try:
+        from core.notification_utils import marcar_lidas_para_usuario_event_key
+
+        marcar_lidas_para_usuario_event_key(
+            request.user,
+            f'core:diary:{diary.pk}',
+            notification_types=[
+                'rdo_pendente',
+                'rdo_aprovado',
+                'rdo_reprovado',
+                'diary_pending',
+                'diary_review',
+            ],
+        )
+    except Exception:
+        pass
+
     # Registra visualização
     DiaryView.objects.create(
         diary=diary,
@@ -2393,6 +2412,27 @@ def diary_review_decision_view(request, pk):
             comment=comment,
         )
         try:
+            from django.urls import reverse
+            from core.notification_utils import criar_notificacao as core_criar_notificacao
+
+            if diary.created_by_id and diary.created_by_id != request.user.id:
+                core_criar_notificacao(
+                    diary.created_by,
+                    'rdo_aprovado',
+                    'RDO aprovado',
+                    f'Seu relatório do dia {diary.date.strftime("%d/%m/%Y") if diary.date else ""} foi aprovado.',
+                    url=reverse('diary-detail', kwargs={'pk': diary.pk}),
+                    event_key=f'core:diary:{diary.pk}',
+                )
+        except Exception:
+            logger.exception("Erro ao criar notificação de RDO aprovado.")
+        try:
+            from core.notification_utils import marcar_lidas_por_event_key
+
+            marcar_lidas_por_event_key(f'core:diary:{diary.pk}', ['rdo_pendente'])
+        except Exception:
+            logger.exception("Erro ao marcar notificações de RDO pendente.")
+        try:
             from .diary_email import send_diary_to_owners, send_diary_pdf_to_recipients
             send_diary_to_owners(diary)
             send_diary_pdf_to_recipients(diary)
@@ -2417,6 +2457,27 @@ def diary_review_decision_view(request, pk):
             decision=DiaryApprovalHistory.DECISAO_REPROVAR,
             comment=comment,
         )
+        try:
+            from django.urls import reverse
+            from core.notification_utils import criar_notificacao as core_criar_notificacao
+
+            if diary.created_by_id and diary.created_by_id != request.user.id:
+                core_criar_notificacao(
+                    diary.created_by,
+                    'rdo_reprovado',
+                    'RDO reprovado',
+                    f'Seu relatório do dia {diary.date.strftime("%d/%m/%Y") if diary.date else ""} foi reprovado. Verifique os comentários.',
+                    url=reverse('diary-detail', kwargs={'pk': diary.pk}),
+                    event_key=f'core:diary:{diary.pk}',
+                )
+        except Exception:
+            logger.exception("Erro ao criar notificação de RDO reprovado.")
+        try:
+            from core.notification_utils import marcar_lidas_por_event_key
+
+            marcar_lidas_por_event_key(f'core:diary:{diary.pk}', ['rdo_pendente'])
+        except Exception:
+            logger.exception("Erro ao marcar notificações de RDO pendente.")
         messages.success(request, 'RDO reprovado. O responsável poderá ajustar e reenviar para aprovação.')
         return redirect('diary-detail', pk=pk)
 
@@ -3297,6 +3358,9 @@ def diary_form_view(request, pk=None):
         
         if form.is_valid():
             logger.info(f"Form principal válido. Salvando diário...")
+            original_diary_status = None
+            if diary and diary.pk:
+                original_diary_status = diary.status
             # Se o form for válido, salva o diário primeiro (mesmo que seja None)
             # Isso é necessário para que o formset tenha uma instância válida
             diary = form.save(commit=False)
@@ -4362,6 +4426,28 @@ def diary_form_view(request, pk=None):
                         send_diary_pdf_to_recipients(diary)
                     except Exception as e:
                         logger.exception("Erro ao enviar diário aos donos da obra: %s", e)
+                # Notificar aprovadores quando o RDO entra em AGUARDANDO (evita reenviar a cada edição)
+                if (
+                    diary
+                    and diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR
+                    and original_diary_status != DiaryStatus.AGUARDANDO_APROVACAO_GESTOR
+                ):
+                    from core.models import ProjectDiaryApprover
+                    from core.notification_utils import criar_notificacao as core_criar_notificacao
+
+                    diary_url = reverse('diary-detail', kwargs={'pk': diary.pk})
+                    msg_date = diary.date.strftime('%d/%m/%Y') if diary.date else ''
+                    for pa in ProjectDiaryApprover.objects.filter(
+                        project=diary.project, is_active=True
+                    ).select_related('user'):
+                        core_criar_notificacao(
+                            pa.user,
+                            'rdo_pendente',
+                            'RDO aguardando aprovação',
+                            f'O relatório do dia {msg_date} da obra {diary.project.name} precisa da sua aprovação.',
+                            url=diary_url,
+                            event_key=f'core:diary:{diary.pk}',
+                        )
                 if is_partial_save:
                     messages.success(request, 'Diário salvo parcialmente. Você pode continuar o preenchimento depois.')
                     return redirect('report-list')
@@ -5501,7 +5587,10 @@ def notifications_view(request):
     
     notifications = Notification.objects.filter(
         user=request.user
-    ).select_related('related_diary', 'related_diary__project').order_by('-created_at')
+    ).select_related('related_diary', 'related_diary__project').order_by(
+        'is_read',
+        '-created_at',
+    )
     
     # Marca notificações como lidas
     unread_count = notifications.filter(is_read=False).count()
@@ -5518,9 +5607,9 @@ def notifications_view(request):
     elif filter_read == 'read':
         notifications = notifications.filter(is_read=True)
     
-    # Paginação
+    # Paginação (não lidas primeiro via order_by acima)
     from django.core.paginator import Paginator
-    paginator = Paginator(notifications, 20)
+    paginator = Paginator(notifications, 50)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
@@ -5553,12 +5642,38 @@ def notification_mark_read_view(request, pk):
 
 
 @login_required
+def notification_open_redirect_view(request, pk):
+    """Marca como lida e redireciona para o destino (uso em Abrir / Ver)."""
+    from urllib.parse import quote
+
+    from django.shortcuts import redirect
+    from django.urls import reverse
+
+    from .models import Notification
+
+    notification = get_object_or_404(Notification, pk=pk, user=request.user)
+    notification.is_read = True
+    notification.save(update_fields=['is_read'])
+
+    next_path = (request.GET.get('next') or '').strip()
+    if next_path.startswith('/') and not next_path.startswith('//'):
+        return redirect(next_path)
+    if notification.related_url and notification.related_url.startswith('/'):
+        return redirect(notification.related_url)
+    if notification.related_diary_id:
+        return redirect('diary-detail', pk=notification.related_diary_id)
+    return redirect('notifications')
+
+
+@login_required
 def notifications_poll_view(request):
     """
     JSON para atualizar contador e toasts de novas notificações (polling leve).
-    GET ?bootstrap=1 — só max_id e unread_count (sem itens, para não disparar toast ao abrir o site).
+    GET ?bootstrap=1 — max_id, unread_count e lista das não lidas (até 15) para toasts iniciais na sessão.
     GET ?since_id=N — notificações com pk > N (ordem crescente de id).
     """
+    from urllib.parse import quote
+
     from django.db.models import Max
     from django.http import JsonResponse
     from django.urls import reverse
@@ -5568,8 +5683,44 @@ def notifications_poll_view(request):
     max_id = Notification.objects.filter(user=request.user).aggregate(m=Max('pk'))['m'] or 0
     unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
 
+    def _row(n: Notification) -> dict:
+        row: dict = {
+            'id': n.pk,
+            'title': n.title,
+            'message': (n.message or '')[:300],
+            'type': n.notification_type,
+            'is_read': n.is_read,
+            'created_at': n.created_at.isoformat(),
+            'related_url': getattr(n, 'related_url', '') or '',
+        }
+        if n.related_diary_id:
+            row['diary_url'] = reverse('diary-detail', kwargs={'pk': n.related_diary_id})
+        else:
+            row['diary_url'] = None
+        row['list_url'] = reverse('notifications')
+        target = (getattr(n, 'related_url', '') or '').strip()
+        if not target and n.related_diary_id:
+            target = reverse('diary-detail', kwargs={'pk': n.related_diary_id})
+        if target:
+            row['open_url'] = reverse('notification-open', kwargs={'pk': n.pk}) + '?next=' + quote(
+                target, safe='/'
+            )
+        else:
+            row['open_url'] = reverse('notification-open', kwargs={'pk': n.pk}) + '?next=' + quote(
+                reverse('notifications'), safe='/'
+            )
+        return row
+
     if (request.GET.get('bootstrap') or '').strip() == '1':
-        return JsonResponse({'unread_count': unread_count, 'max_id': max_id, 'items': []})
+        toast_items = []
+        if unread_count > 0:
+            unread_qs = (
+                Notification.objects.filter(user=request.user, is_read=False)
+                .select_related('related_diary')
+                .order_by('-created_at')[:15]
+            )
+            toast_items = [_row(n) for n in unread_qs]
+        return JsonResponse({'unread_count': unread_count, 'max_id': max_id, 'items': toast_items})
 
     try:
         since_id = int(request.GET.get('since_id', 0) or 0)
@@ -5581,22 +5732,6 @@ def notifications_poll_view(request):
         .select_related('related_diary')
         .order_by('pk')[:10]
     )
-
-    def _row(n: Notification) -> dict:
-        row: dict = {
-            'id': n.pk,
-            'title': n.title,
-            'message': (n.message or '')[:300],
-            'type': n.notification_type,
-            'is_read': n.is_read,
-            'created_at': n.created_at.isoformat(),
-        }
-        if n.related_diary_id:
-            row['diary_url'] = reverse('diary-detail', kwargs={'pk': n.related_diary_id})
-        else:
-            row['diary_url'] = None
-        row['list_url'] = reverse('notifications')
-        return row
 
     items = [_row(n) for n in new_qs]
 

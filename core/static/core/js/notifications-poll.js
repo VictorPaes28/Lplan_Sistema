@@ -1,12 +1,20 @@
 (function () {
-  var script = document.currentScript;
-  var pollUrl = script && script.getAttribute('data-poll-url');
+  // document.currentScript é null em muitos browsers para <script defer src="..."> — quebra o poll inteiro.
+  var pollScript =
+    document.querySelector('script[src*="notifications-poll"][data-poll-url]') ||
+    document.currentScript;
+  var pollUrl = pollScript && pollScript.getAttribute('data-poll-url');
   if (!pollUrl) return;
 
   var sinceId = 0;
   var started = false;
   var POLL_MS = 38000;
   var FIRST_POLL_MS = 12000;
+  /** Máximo de toasts visíveis em pilha (bootstrap + poll). */
+  var MAX_STACK = 8;
+  var TOAST_MS = 6000;
+  /** IDs de notificação já exibidos como toast nesta sessão (evita repetir a cada F5). */
+  var SESSION_BOOTSTRAP_SHOWN_IDS = 'lplan-nt-bootstrap-shown-ids';
 
   function updateBellBadge(count) {
     var link = document.querySelector('.notif-bell-link');
@@ -47,6 +55,63 @@
     return d.innerHTML;
   }
 
+  function truncateMsg(s, maxLen) {
+    var t = s == null ? '' : String(s);
+    if (t.length <= maxLen) return t;
+    return t.slice(0, maxLen).trim() + '…';
+  }
+
+  function iconClassForType(t) {
+    var ty = (t || 'system').toLowerCase();
+    if (
+      ty === 'rdo_pendente' ||
+      ty === 'pedido_criado' ||
+      ty === 'restricao_criada' ||
+      ty.indexOf('trackhub') === 0
+    ) {
+      return 'lplan-nt-toast-icon--blue';
+    }
+    if (
+      ty === 'rdo_aprovado' ||
+      ty === 'pedido_aprovado' ||
+      ty === 'trackhub_etapa_concluida'
+    ) {
+      return 'lplan-nt-toast-icon--green';
+    }
+    if (ty === 'rdo_reprovado' || ty === 'pedido_reprovado') {
+      return 'lplan-nt-toast-icon--red';
+    }
+    if (ty === 'restricao_prazo' || ty === 'trackhub_prazo') {
+      return 'lplan-nt-toast-icon--amber';
+    }
+    return 'lplan-nt-toast-icon--slate';
+  }
+
+  function iconGlyphForType(t) {
+    var ty = (t || 'system').toLowerCase();
+    if (
+      ty === 'rdo_aprovado' ||
+      ty === 'pedido_aprovado' ||
+      ty === 'trackhub_etapa_concluida'
+    ) {
+      return 'fa-check';
+    }
+    if (ty === 'rdo_reprovado' || ty === 'pedido_reprovado') {
+      return 'fa-times';
+    }
+    if (ty === 'pedido_comentario') {
+      return 'fa-comment';
+    }
+    return 'fa-bell';
+  }
+
+  function trimStack(stack) {
+    var nodes = stack.querySelectorAll('.lplan-nt-toast:not(.lplan-nt-toast-out)');
+    for (var i = 0; i < nodes.length - MAX_STACK; i++) {
+      removeToast(nodes[i]);
+    }
+  }
+
   function removeToast(el) {
     if (!el || el.classList.contains('lplan-nt-toast-out')) return;
     el.classList.add('lplan-nt-toast-out');
@@ -61,44 +126,93 @@
 
   function showToast(item) {
     var stack = ensureStack();
+    trimStack(stack);
+
     var el = document.createElement('div');
     el.className = 'lplan-nt-toast';
     el.setAttribute('role', 'status');
     el.dataset.type = item.type || 'system';
 
     var title = escapeHtml(item.title || 'Notificação');
-    var msg = escapeHtml(item.message || '');
-    var primaryLabel = item.diary_url ? 'Abrir relatório' : 'Ver centro';
-    var primaryHref = item.diary_url || item.list_url || '#';
+    var rawMsg = item.message || '';
+    var msg = escapeHtml(truncateMsg(rawMsg, 100));
+    var related =
+      (item.related_url && String(item.related_url).trim()) ||
+      (item.diary_url && String(item.diary_url).trim()) ||
+      '';
+    var listUrl = item.list_url || '/notifications/';
+    var openUrl = item.open_url && String(item.open_url).trim();
+    var actionUrl = openUrl || related || listUrl;
+    var iconWrapClass = 'lplan-nt-toast-icon ' + iconClassForType(item.type);
+    var ig = iconGlyphForType(item.type);
 
     el.innerHTML =
-      '<span class="lplan-nt-toast-icon" aria-hidden="true"><i class="fas fa-bell"></i></span>' +
+      '<span class="' +
+      iconWrapClass +
+      '" aria-hidden="true"><i class="fas ' +
+      ig +
+      '"></i></span>' +
       '<div class="lplan-nt-toast-body">' +
-      '<p class="lplan-nt-toast-title">' +
+      '<p class="lplan-nt-toast-title"><strong>' +
       title +
-      '</p>' +
-      (msg ? '<p class="lplan-nt-toast-msg">' + msg + '</p>' : '') +
+      '</strong></p>' +
+      (msg
+        ? '<p class="lplan-nt-toast-msg">' + msg + '</p>'
+        : '') +
       '<div class="lplan-nt-toast-actions">' +
       '<a class="lplan-nt-toast-link" href="' +
-      escapeHtml(primaryHref) +
-      '">' +
-      escapeHtml(primaryLabel) +
-      '</a>' +
+      escapeHtml(actionUrl) +
+      '">Ver</a>' +
       '</div></div>' +
-      '<button type="button" class="lplan-nt-toast-close" aria-label="Fechar"><i class="fas fa-times" aria-hidden="true"></i></button>';
+      '<button type="button" class="lplan-nt-toast-close" aria-label="Fechar"><i class="fas fa-times" aria-hidden="true"></i></button>' +
+      '<div class="lplan-nt-toast-progress" aria-hidden="true"><span class="lplan-nt-toast-progress-bar"></span></div>';
 
     stack.appendChild(el);
 
     var closeBtn = el.querySelector('.lplan-nt-toast-close');
+    var bar = el.querySelector('.lplan-nt-toast-progress-bar');
+    if (bar) {
+      bar.style.animationDuration = TOAST_MS / 1000 + 's';
+    }
     var t = window.setTimeout(function () {
       removeToast(el);
-    }, 8200);
+    }, TOAST_MS);
     if (closeBtn) {
       closeBtn.addEventListener('click', function () {
         window.clearTimeout(t);
         removeToast(el);
       });
     }
+  }
+
+  function parseBootstrapShownMap() {
+    try {
+      if (!window.sessionStorage) return {};
+      var raw = sessionStorage.getItem(SESSION_BOOTSTRAP_SHOWN_IDS);
+      if (!raw) return {};
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return {};
+      var m = {};
+      for (var i = 0; i < arr.length; i++) m[String(arr[i])] = true;
+      return m;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function rememberBootstrapShownIds(ids) {
+    if (!ids || !ids.length) return;
+    try {
+      if (!window.sessionStorage) return;
+      var m = parseBootstrapShownMap();
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (id != null) m[String(id)] = true;
+      }
+      var out = [];
+      for (var k in m) out.push(parseInt(k, 10));
+      sessionStorage.setItem(SESSION_BOOTSTRAP_SHOWN_IDS, JSON.stringify(out));
+    } catch (e) {}
   }
 
   function showUnreadReminder(count) {
@@ -111,9 +225,10 @@
       title: 'Você tem notificações pendentes',
       message:
         count +
-        ' notificação(ões) não lida(s). Clique em "Ver centro" para revisar.',
+        ' notificação(ões) não lida(s). Clique em Ver para abrir o centro.',
       type: 'system',
       diary_url: null,
+      related_url: '',
       list_url: '/notifications/',
     });
     try {
@@ -137,7 +252,28 @@
         sinceId = data.max_id || 0;
         var unread = typeof data.unread_count === 'number' ? data.unread_count : 0;
         updateBellBadge(unread);
-        showUnreadReminder(unread);
+        var items = data.items || [];
+        var shownMap = parseBootstrapShownMap();
+        var fresh = [];
+        for (var j = 0; j < items.length; j++) {
+          var row = items[j];
+          var rid = row && row.id != null ? String(row.id) : '';
+          if (rid && !shownMap[rid]) fresh.push(row);
+        }
+        if (fresh.length > 0) {
+          var newIds = [];
+          for (var k = 0; k < fresh.length; k++) {
+            (function (idx) {
+              window.setTimeout(function () {
+                showToast(fresh[idx]);
+              }, idx * 320);
+            })(k);
+            if (fresh[k].id != null) newIds.push(fresh[k].id);
+          }
+          rememberBootstrapShownIds(newIds);
+        } else if (items.length === 0 && unread > 0) {
+          showUnreadReminder(unread);
+        }
         started = true;
       })
       .catch(function () {
@@ -152,11 +288,14 @@
         updateBellBadge(typeof data.unread_count === 'number' ? data.unread_count : 0);
         if (data.max_id != null) sinceId = data.max_id;
         var items = data.items || [];
-        items.forEach(function (item, i) {
-          window.setTimeout(function () {
-            showToast(item);
-          }, i * 320);
-        });
+        var limit = Math.min(items.length, MAX_STACK);
+        for (var i = 0; i < limit; i++) {
+          (function (idx) {
+            window.setTimeout(function () {
+              showToast(items[idx]);
+            }, idx * 320);
+          })(i);
+        }
       })
       .catch(function () {});
   }
