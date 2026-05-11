@@ -1113,6 +1113,8 @@ def _get_support_projects_for_user(user):
 
 def _user_can_access_project(user, project):
     """Verifica se o usuário pode acessar a obra (dono, vinculado ou staff/superuser)."""
+    if not project.is_active and not (user.is_staff or user.is_superuser):
+        return False
     if user.is_staff or user.is_superuser:
         return True
     from core.models import ProjectOwner
@@ -5805,6 +5807,42 @@ def project_list_view(request):
     }
 
     return render(request, 'core/project_list.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def project_toggle_active_view(request, pk):
+    """
+    Ativa/desativa obra (Project). Réplicas GestControll e Mapa seguem via sync_project_to_gestao_and_mapa.
+    Obras inativas somem das seleções operacionais; continuam listadas aqui no Painel.
+    """
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
+    from core.sync_obras import sync_project_to_gestao_and_mapa
+
+    if not user_can_central_obras_diario_e_mapa(request.user):
+        raise PermissionDenied('Você não tem permissão para alterar obras.')
+
+    project = get_object_or_404(Project, pk=pk)
+    project.is_active = not project.is_active
+    project.save(update_fields=['is_active'])
+    sync_project_to_gestao_and_mapa(project)
+
+    if not project.is_active and request.session.get('selected_project_id') == pk:
+        for key in ('selected_project_id', 'selected_project_name', 'selected_project_code'):
+            request.session.pop(key, None)
+
+    if project.is_active:
+        messages.success(
+            request,
+            f'Obra "{project.name}" foi reativada e volta a aparecer nas seleções e módulos.',
+        )
+    else:
+        messages.success(
+            request,
+            f'Obra "{project.name}" foi desativada. Deixa de aparecer para usuários nas seleções de obra; '
+            f'dados e histórico permanecem. Continua visível aqui como inativa.',
+        )
+    return redirect('central_project_list')
 
 
 @login_required

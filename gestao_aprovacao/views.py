@@ -3224,7 +3224,54 @@ def list_users(request):
     if not (is_admin(request.user) or is_responsavel_empresa(request.user)):
         messages.error(request, 'Você não tem permissão para acessar esta página.')
         return redirect('gestao:home')
-    
+
+    _list_redirect = (
+        'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
+    )
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'toggle_active':
+            uid_raw = (request.POST.get('user_id') or '').strip()
+            if not uid_raw.isdigit():
+                messages.error(request, 'Requisição inválida.')
+                return redirect(_list_redirect)
+            target = get_object_or_404(User, pk=int(uid_raw))
+
+            if target == request.user:
+                messages.error(request, 'Você não pode desativar seu próprio usuário.')
+                return redirect(_list_redirect)
+
+            if target.is_superuser and not request.user.is_superuser:
+                messages.error(request, 'Apenas superusuário pode alterar outro superusuário.')
+                return redirect(_list_redirect)
+
+            if target.is_staff and not request.user.is_superuser:
+                messages.error(
+                    request,
+                    'Apenas superusuário pode desativar ou reativar usuários da equipe interna (staff).',
+                )
+                return redirect(_list_redirect)
+
+            if is_responsavel_empresa(request.user) and not is_admin(request.user):
+                empresas_responsavel = Empresa.objects.filter(responsavel=request.user, ativo=True)
+                if not User.objects.filter(
+                    pk=target.pk,
+                    empresas_vinculadas__empresa__in=empresas_responsavel,
+                    empresas_vinculadas__ativo=True,
+                ).exists():
+                    messages.error(request, 'Sem permissão para alterar este usuário.')
+                    return redirect(_list_redirect)
+
+            target.is_active = not target.is_active
+            target.save(update_fields=['is_active'])
+            status = 'ativado' if target.is_active else 'desativado'
+            messages.success(
+                request,
+                f'Usuário "{target.get_full_name() or target.username}" foi {status}.',
+            )
+            return redirect(_list_redirect)
+
     # Se for responsável por empresa (não admin), mostrar apenas usuários de suas empresas
     if is_responsavel_empresa(request.user) and not is_admin(request.user):
         # Buscar empresas onde o usuário é responsável
@@ -3306,6 +3353,21 @@ def list_users(request):
             obras_vistas.append(p.obra)
         obras_vistas.sort(key=lambda o: (o.nome.lower(), o.codigo.lower()))
 
+        can_toggle_active = True
+        if user == request.user:
+            can_toggle_active = False
+        elif user.is_superuser and not request.user.is_superuser:
+            can_toggle_active = False
+        elif user.is_staff and not request.user.is_superuser:
+            can_toggle_active = False
+        elif is_responsavel_empresa(request.user) and not is_admin(request.user):
+            _emp_resp = Empresa.objects.filter(responsavel=request.user, ativo=True)
+            can_toggle_active = User.objects.filter(
+                pk=user.pk,
+                empresas_vinculadas__empresa__in=_emp_resp,
+                empresas_vinculadas__ativo=True,
+            ).exists()
+
         users_with_groups.append({
             'user': user,
             'groups': grupos,
@@ -3313,6 +3375,7 @@ def list_users(request):
             'is_gestor': grupos.filter(name='Gestor').exists(),
             'is_admin': grupos.filter(name='Administrador').exists() or user.is_superuser,
             'obras_list': obras_vistas,
+            'can_toggle_active': can_toggle_active,
         })
     
     # Verificar se é responsável por empresa para mostrar apenas empresas dele

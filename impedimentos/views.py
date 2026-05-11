@@ -223,6 +223,8 @@ def _attachments_payload_by_impedimento(obra):
 
 
 def _user_can_access_project(user, project):
+    if not project.is_active and not (user.is_staff or user.is_superuser):
+        return False
     if user.is_staff or user.is_superuser:
         return True
     if ProjectOwner.objects.filter(user=user, project=project).exists():

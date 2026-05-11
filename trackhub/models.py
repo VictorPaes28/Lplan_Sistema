@@ -174,7 +174,15 @@ class EtapaPendencia(models.Model):
 
     @property
     def responsavel_whatsapp(self):
-        return ""
+        u = self.responsavel_interno
+        if not u:
+            return ""
+        from gestao_aprovacao.models import UserProfile
+
+        tel = UserProfile.objects.filter(usuario_id=u.pk).values_list(
+            "telefone", flat=True
+        ).first()
+        return (tel or "").strip()
 
     @property
     def responsavel_email(self):
