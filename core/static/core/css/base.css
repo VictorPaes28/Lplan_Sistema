@@ -731,10 +731,19 @@ button[data-sidebar-close] {
         padding-bottom: 0.75rem !important;
     }
 
-    #sidebar.is-collapsed .p-4.border-t .w-12 {
+    #sidebar.is-collapsed .p-4.border-t > div.flex.items-center {
+        justify-content: center !important;
+    }
+
+    #sidebar.is-collapsed .p-4.border-t > div.flex.items-center > div:first-child {
         margin-right: 0 !important;
-        margin-left: auto !important;
-        margin-bottom: 0.25rem !important;
+        margin-left: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    /* Títulos de seção ficam só no modo expandido; recolhido eles viravam faixa “vazia” */
+    #sidebar.is-collapsed .sidebar-nav-section-title {
+        display: none !important;
     }
 
     #sidebar.is-collapsed .p-4.border-t a {
@@ -811,14 +820,31 @@ button[data-sidebar-close] {
     body.sidebar-collapsed #sidebar .p-4.border-t {
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
     }
 
-    body.sidebar-collapsed #sidebar .p-4.border-t .w-12 {
+    body.sidebar-collapsed #sidebar .p-4.border-t > div.flex.items-center {
+        justify-content: center !important;
+    }
+
+    body.sidebar-collapsed #sidebar .p-4.border-t > div.flex.items-center > div:first-child {
         margin-right: 0 !important;
+        margin-left: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    body.sidebar-collapsed #sidebar .sidebar-nav-section-title {
+        display: none !important;
     }
 
     body.sidebar-collapsed #sidebar .p-4.border-t a {
         justify-content: center !important;
+        width: 2.7rem !important;
+        height: 2.7rem !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding: 0 !important;
     }
 }
 
