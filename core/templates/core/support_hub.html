@@ -1,0 +1,389 @@
+{% extends 'base.html' %}
+
+{% block title %}Suporte · LPLAN{% endblock %}
+
+{% block page_title %}Suporte{% endblock %}
+{% block page_subtitle %}Chamados, acompanhamento e equipe técnica{% endblock %}
+
+{% block extra_css %}
+<style>
+.support-hub-scope {
+    max-width: 42rem;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.support-hub-scope .support-hub-intro {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.15rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+html[data-theme="dark"] .support-hub-scope .support-hub-intro {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(71, 85, 105, 0.6);
+}
+
+.support-hub-scope .support-hub-intro p {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: #475569;
+}
+
+html[data-theme="dark"] .support-hub-scope .support-hub-intro p {
+    color: #cbd5e1;
+}
+
+.support-hub-shell {
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.42);
+    background: #fff;
+    box-shadow: 0 4px 24px -12px rgba(15, 23, 42, 0.12), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+    overflow: hidden;
+}
+
+html[data-theme="dark"] .support-hub-shell {
+    background: #1e293b;
+    border-color: rgba(71, 85, 105, 0.75);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.support-hub-shell__head {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(249, 250, 251, 0.85);
+}
+
+html[data-theme="dark"] .support-hub-shell__head {
+    background: rgba(15, 23, 42, 0.45);
+    border-bottom-color: #334155;
+}
+
+.support-hub-shell__head-title {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+html[data-theme="dark"] .support-hub-shell__head-title {
+    color: #94a3b8;
+}
+
+.support-hub-actions {
+    padding: 0.95rem;
+    display: grid;
+    gap: 0.65rem;
+}
+
+/* IMPORTANTE: `button.support-hub-card` tem especificidade maior que só `.support-hub-card--primary`;
+   sempre qualificar botão primário como `button...--primary`. */
+.support-hub-actions a.support-hub-card,
+.support-hub-actions button.support-hub-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    text-align: left;
+    text-decoration: none;
+    color: #0f172a;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+html[data-theme="dark"] .support-hub-actions a.support-hub-card,
+html[data-theme="dark"] .support-hub-actions button.support-hub-card {
+    background: #334155;
+    border-color: #475569;
+    color: #f1f5f9;
+}
+
+.support-hub-actions a.support-hub-card:hover,
+.support-hub-actions button.support-hub-card:hover {
+    border-color: rgba(20, 184, 166, 0.55);
+    box-shadow: 0 6px 20px -8px rgba(13, 148, 136, 0.25);
+    background: #fafffe;
+}
+
+html[data-theme="dark"] .support-hub-actions a.support-hub-card:hover,
+html[data-theme="dark"] .support-hub-actions button.support-hub-card:hover {
+    background: #475569;
+    border-color: rgba(45, 212, 191, 0.35);
+}
+
+.support-hub-actions button.support-hub-card.support-hub-card--primary,
+.support-hub-actions a.support-hub-card.support-hub-card--primary {
+    border-color: rgba(15, 118, 110, 0.45);
+    background-color: #0d9488;
+    background-image: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 45%, #0d9488 100%);
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    box-shadow: 0 4px 18px rgba(13, 148, 136, 0.35);
+}
+
+.support-hub-actions button.support-hub-card.support-hub-card--primary *,
+.support-hub-actions a.support-hub-card.support-hub-card--primary * {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+}
+
+.support-hub-actions button.support-hub-card.support-hub-card--primary:hover,
+.support-hub-actions a.support-hub-card.support-hub-card--primary:hover {
+    filter: brightness(1.04);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.support-hub-actions .support-hub-card i {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.support-hub-actions button.support-hub-card.support-hub-card--primary i {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+}
+
+.support-hub-actions .support-hub-card:not(.support-hub-card--primary) i {
+    background: linear-gradient(135deg, #ccfbf1, #99f6e4);
+    color: #0f766e;
+}
+
+html[data-theme="dark"] .support-hub-actions .support-hub-card:not(.support-hub-card--primary) i {
+    background: linear-gradient(135deg, #134e4a, #115e59);
+    color: #5eead4 !important;
+    -webkit-text-fill-color: #5eead4 !important;
+}
+
+.support-hub-actions .support-hub-card-meta {
+    display: block;
+    margin-top: 0.22rem;
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+html[data-theme="dark"] .support-hub-actions .support-hub-card-meta {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
+}
+
+.support-hub-actions button.support-hub-card.support-hub-card--primary .support-hub-card-meta {
+    color: rgba(255, 255, 255, 0.9) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.support-hub-actions .support-hub-card-text-wrap {
+    min-width: 0;
+}
+
+.support-hub-actions .support-hub-card-title-line {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+/* Modal de chamado */
+{% include 'core/includes/support_ticket_modal_styles.html' %}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="support-hub-scope fade-in pb-16 px-0">
+    <div class="support-hub-intro">
+        <p>Use os atalhos abaixo quando algo travar sua rotina, para ver seus chamados ou falar direto por e-mail com a equipe.</p>
+    </div>
+
+    <div class="support-hub-shell" aria-labelledby="support-hub-quick-label">
+        <div class="support-hub-shell__head">
+            <h2 id="support-hub-quick-label" class="support-hub-shell__head-title">Escolha uma ação</h2>
+        </div>
+
+        <div class="support-hub-actions">
+            <button type="button" id="open-support-modal-btn" class="support-hub-card support-hub-card--primary">
+                <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                <span class="support-hub-card-text-wrap">
+                    <span class="support-hub-card-title-line">Abrir novo chamado</span>
+                    <span class="support-hub-card-meta">Descreva o problema; você pode anexar capturas de tela</span>
+                </span>
+            </button>
+            <a href="{% url 'support-ticket-list' %}" class="support-hub-card">
+                <i class="fas fa-list" aria-hidden="true"></i>
+                <span class="support-hub-card-text-wrap">
+                    <span class="support-hub-card-title-line">Meus chamados</span>
+                    <span class="support-hub-card-meta">Acompanhe status e mensagens da equipe</span>
+                </span>
+            </a>
+            {% if can_manage_support_tickets %}
+            <a href="{% url 'support-ticket-admin-list' %}" class="support-hub-card">
+                <i class="fas fa-headset" aria-hidden="true"></i>
+                <span class="support-hub-card-text-wrap">
+                    <span class="support-hub-card-title-line">Painel suporte (equipe)</span>
+                    <span class="support-hub-card-meta">Fila e atendimento interno dos chamados</span>
+                </span>
+            </a>
+            {% endif %}
+            <a href="mailto:suporte@lplan.app.br" class="support-hub-card">
+                <i class="fas fa-envelope" aria-hidden="true"></i>
+                <span class="support-hub-card-text-wrap">
+                    <span class="support-hub-card-title-line">E-mail ao suporte</span>
+                    <span class="support-hub-card-meta">suporte@lplan.app.br</span>
+                </span>
+            </a>
+        </div>
+    </div>
+
+    {% include 'core/includes/support_ticket_modal.html' %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    (function hoistSupportModalOverlay() {
+        var ov = document.getElementById('support-modal-overlay');
+        if (ov && ov.parentNode !== document.body) {
+            document.body.appendChild(ov);
+        }
+    })();
+
+    var supportCreateUrl = "{% url 'support-ticket-create' %}";
+    var openModalBtn = document.getElementById('open-support-modal-btn');
+    var modalOverlay = document.getElementById('support-modal-overlay');
+    var closeModalBtn = document.getElementById('close-support-modal-btn');
+    var cancelModalBtn = document.getElementById('cancel-support-btn');
+    var sendSupportBtn = document.getElementById('send-support-btn');
+    var supportForm = document.getElementById('support-form');
+    var supportCategory = document.getElementById('support-category');
+    var supportSeverity = document.getElementById('support-severity');
+    var supportProject = document.getElementById('support-project');
+    var supportTitle = document.getElementById('support-title');
+    var supportDesc = document.getElementById('support-desc');
+    var supportAttachments = document.getElementById('support-attachments');
+
+    function openModal() {
+        if (!modalOverlay) return;
+        modalOverlay.scrollTop = 0;
+        modalOverlay.classList.add('is-open');
+        modalOverlay.setAttribute('aria-hidden', 'false');
+        setTimeout(function () {
+            if (supportCategory) supportCategory.focus();
+        }, 80);
+    }
+    function closeModal() {
+        if (!modalOverlay) return;
+        modalOverlay.classList.remove('is-open');
+        modalOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+    if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', function (e) {
+            if (e.target === modalOverlay) closeModal();
+        });
+    }
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modalOverlay && modalOverlay.classList.contains('is-open')) {
+            closeModal();
+        }
+    });
+
+    try {
+        var supportSearchParams = new URLSearchParams(window.location.search || '');
+        if (supportSearchParams.get('abrir_chamado') === '1') {
+            openModal();
+            if (window.history && typeof window.history.replaceState === 'function') {
+                supportSearchParams.delete('abrir_chamado');
+                var cleanedQuery = supportSearchParams.toString();
+                var cleanedUrl = window.location.pathname + (cleanedQuery ? ('?' + cleanedQuery) : '') + window.location.hash;
+                window.history.replaceState({}, '', cleanedUrl);
+            }
+        }
+    } catch (_e) {
+    }
+
+    if (supportCategory && supportTitle) {
+        supportCategory.addEventListener('change', function () {
+            if (!supportTitle.value && supportCategory.value) {
+                supportTitle.value = 'Incidente - ' + supportCategory.value;
+            }
+        });
+    }
+
+    if (sendSupportBtn) {
+        sendSupportBtn.addEventListener('click', function () {
+            if (!supportCategory.value || !supportSeverity.value || !supportTitle.value.trim() || !supportDesc.value.trim()) {
+                alert('Preencha Categoria, Impacto, Título e Descrição.');
+                return;
+            }
+            if (supportProject && !supportProject.value) {
+                alert('Selecione a obra relacionada.');
+                return;
+            }
+            sendSupportBtn.disabled = true;
+            var formData = new FormData();
+            formData.append('category', supportCategory.value);
+            formData.append('severity', supportSeverity.value);
+            formData.append('title', supportTitle.value.trim());
+            formData.append('description', supportDesc.value.trim());
+            if (supportProject && supportProject.value) {
+                formData.append('project_id', supportProject.value);
+            }
+            formData.append('screen_path', window.location.pathname);
+            if (supportAttachments && supportAttachments.files) {
+                for (var i = 0; i < supportAttachments.files.length; i++) {
+                    formData.append('attachments', supportAttachments.files[i]);
+                }
+            }
+            fetch(supportCreateUrl, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': '{{ csrf_token|escapejs }}' },
+                credentials: 'same-origin'
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data.success) {
+                        throw new Error((result.data && result.data.error) || 'Não foi possível criar o chamado.');
+                    }
+                    closeModal();
+                    if (supportForm) supportForm.reset();
+                    window.location.href = result.data.detail_url || "{% url 'support-ticket-list' %}";
+                })
+                .catch(function (error) {
+                    alert(error.message || 'Falha ao criar chamado de suporte.');
+                })
+                .finally(function () {
+                    sendSupportBtn.disabled = false;
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

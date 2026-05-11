@@ -1,0 +1,166 @@
+{% comment %}
+Seleção de grupos por seção + módulo.
+  - grupos_secoes: saída de grupos_secoes_para_atribuicao()
+  - field_name: name do POST (ex.: grupos, approved_groups)
+  - user_grupos: queryset/lista de Group (edição) — opcional
+  - checked_group_names: lista de nomes marcados (signup) — opcional
+  - layout: "compact" (lista aprovações) ou omitir (form Gestão)
+{% endcomment %}
+<style>
+.lplan-ugs { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.lplan-ugs .ugs-section {
+    margin-bottom: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+}
+.lplan-ugs .ugs-section:last-child { margin-bottom: 0; }
+.lplan-ugs .ugs-section-inner {
+    display: grid;
+    gap: 0.55rem 1rem;
+    align-items: start;
+}
+@media (min-width: 640px) {
+    .lplan-ugs.layout-form .ugs-section-inner {
+        grid-template-columns: minmax(11rem, 22%) minmax(0, 1fr);
+    }
+}
+@media (min-width: 960px) {
+    .lplan-ugs.layout-form .ugs-section-inner {
+        grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+    }
+}
+.lplan-ugs .ugs-section-head {
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+.lplan-ugs .ugs-sec-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 0.15rem;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+}
+.lplan-ugs .ugs-sec-desc {
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: #64748b;
+    margin: 0;
+    max-width: 36rem;
+}
+.lplan-ugs .ugs-mod-grid {
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: 1fr;
+    min-width: 0;
+}
+.lplan-ugs .ugs-mod-card {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
+}
+.lplan-ugs .ugs-mod-card--info-only {
+    padding: 0.45rem 0.55rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    border-left: 4px solid #94a3b8;
+}
+.lplan-ugs .ugs-infotext {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #475569;
+    margin: 0;
+}
+.lplan-ugs .ugs-mod-title { font-weight: 600; font-size: 0.85rem; color: #0f172a; margin: 0 0 0.15rem; }
+.lplan-ugs .ugs-mod-sub { font-size: 0.72rem; color: #64748b; line-height: 1.4; margin: 0 0 0.35rem; }
+/* Checkboxes em linha (quebra só quando falta espaço) */
+.lplan-ugs .ugs-check-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 1.1rem;
+    row-gap: 0.4rem;
+}
+.lplan-ugs .ugs-check-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    flex: 0 1 auto;
+    max-width: 100%;
+}
+.lplan-ugs .ugs-check-row input { margin: 0; flex-shrink: 0; }
+.lplan-ugs .ugs-check-row label {
+    font-size: 0.8rem;
+    line-height: 1.28;
+    color: #334155;
+    cursor: pointer;
+}
+/* signup / formulário compacto: ainda lado a lado se couber */
+.lplan-ugs.layout-compact .ugs-section { padding: 0.5rem 0.55rem; margin-bottom: 0.5rem; border-radius: 8px; }
+.lplan-ugs.layout-compact .ugs-section-inner {
+    gap: 0.45rem 0.75rem;
+}
+@media (min-width: 520px) {
+    .lplan-ugs.layout-compact .ugs-section-inner {
+        grid-template-columns: minmax(8.5rem, 32%) minmax(0, 1fr);
+    }
+}
+.lplan-ugs.layout-compact .ugs-sec-title { font-size: 0.82rem; }
+.lplan-ugs.layout-compact .ugs-sec-desc { font-size: 0.68rem; }
+.lplan-ugs.layout-compact .ugs-mod-title { font-size: 0.76rem; }
+.lplan-ugs.layout-compact .ugs-mod-sub { font-size: 0.65rem; margin-bottom: 0.25rem; }
+.lplan-ugs.layout-compact .ugs-check-fields { gap: 0.28rem 0.85rem; }
+.lplan-ugs.layout-compact .ugs-check-row label { font-size: 0.72rem; line-height: 1.22; }
+.lplan-ugs.layout-compact .ugs-infotext { font-size: 0.7rem; line-height: 1.4; }
+</style>
+<div class="lplan-ugs{% if layout == 'compact' %} layout-compact{% else %} layout-form{% endif %}">
+    {% for secao in grupos_secoes %}
+    <section class="ugs-section" aria-labelledby="ugs-sec-{{ secao.id }}">
+        <div class="ugs-section-inner">
+            <header class="ugs-section-head">
+                <h3 class="ugs-sec-title" id="ugs-sec-{{ secao.id }}">{{ secao.title }}</h3>
+                {% if secao.description %}
+                <p class="ugs-sec-desc">{{ secao.description }}</p>
+                {% endif %}
+            </header>
+            <div class="ugs-mod-grid">
+                {% for modulo in secao.modules %}
+                <div class="ugs-mod-card{% if modulo.info_only %} ugs-mod-card--info-only{% endif %}">
+                    {% if modulo.title %}
+                    <div class="ugs-mod-title">{{ modulo.title }}</div>
+                    {% endif %}
+                    {% if modulo.info_only %}
+                    <p class="ugs-infotext">{{ modulo.info_only }}</p>
+                    {% else %}
+                    {% if modulo.subtitle %}
+                    <p class="ugs-mod-sub">{{ modulo.subtitle }}</p>
+                    {% endif %}
+                    <div class="ugs-check-fields">
+                        {% for item in modulo.groups %}
+                        <div class="ugs-check-row">
+                            <input type="checkbox"
+                                   id="ugs{% if id_prefix %}-{{ id_prefix }}{% endif %}_{{ field_name }}_{{ item.group.id }}"
+                                   name="{{ field_name }}"
+                                   value="{{ item.group.name }}"
+                                   class="form-check-input"
+                                   {% if user_grupos %}{% if item.group in user_grupos %}checked{% endif %}{% elif checked_group_names %}{% if item.group.name in checked_group_names %}checked{% endif %}{% endif %}>
+                            <label class="form-check-label" for="ugs{% if id_prefix %}-{{ id_prefix }}{% endif %}_{{ field_name }}_{{ item.group.id }}">{{ item.label }}</label>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted small mb-0">Nenhum grupo neste bloco.</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endfor %}
+</div>

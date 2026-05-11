@@ -1,0 +1,43 @@
+{% comment %}
+Área hierárquica separada da zona Módulos: chamados, ajuda e atalhos staff.
+{% endcomment %}
+{% if user.is_authenticated %}
+<div class="sidebar-support-zone">
+    <div class="sidebar-support-zone-accent" aria-hidden="true"></div>
+    <div class="sidebar-nav-section-title sidebar-support-zone-heading mt-1 mb-2 px-4">
+        <p class="text-xs font-semibold uppercase tracking-wider">Suporte</p>
+    </div>
+    <div class="sidebar-support-zone-card">
+        <a href="{% url 'support-home' %}?abrir_chamado=1"
+           class="sidebar-link sidebar-link-support flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+            <i class="fas fa-bug w-5 mr-3"></i>
+            <span class="font-medium">Novo chamado</span>
+        </a>
+        <a href="{% url 'support-ticket-list' %}"
+           class="sidebar-link sidebar-link-support flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 {% if '/support/tickets/' in request.path and '/support/tickets/admin/' not in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <i class="fas fa-list w-5 mr-3"></i>
+            <span class="font-medium">Meus chamados</span>
+        </a>
+        {% if user.is_staff or user.is_superuser %}
+        <a href="{% url 'support-ticket-admin-list' %}"
+           class="sidebar-link sidebar-link-support flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 {% if '/support/tickets/admin/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <i class="fas fa-headset w-5 mr-3"></i>
+            <span class="font-medium">Fila de chamados</span>
+        </a>
+        <a href="{% url 'central_ajuda' %}"
+           class="sidebar-link sidebar-link-support flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <i class="fas fa-question-circle w-5 mr-3"></i>
+            <span class="font-medium">Ajuda</span>
+        </a>
+        {% if not has_central or '/accounts/admin-central' in request.path %}
+        <div class="sidebar-support-staff-split" role="presentation"></div>
+        <a href="{% url 'accounts:admin_central' %}"
+           class="sidebar-link sidebar-link-support sidebar-link-support-admin flex items-center px-4 py-3 rounded-lg mb-0 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <i class="fas fa-cog w-5 mr-3"></i>
+            <span class="font-medium">Painel do sistema</span>
+        </a>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endif %}
