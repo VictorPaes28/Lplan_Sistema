@@ -1,6 +1,8 @@
 """
 Context processors para disponibilizar dados globais em todos os templates.
 """
+from django.conf import settings
+
 from .models import (
     ConstructionDiary,
     DiaryImage,
@@ -12,9 +14,9 @@ from .models import (
 
 
 def _get_system_access(user):
-    """Retorna has_diario, has_gestao, has_mapa, has_central, has_workflow para o usuário."""
+    """Retorna flags globais de acesso por módulo para o usuário autenticado."""
     if not user or not user.is_authenticated:
-        return False, False, False, False, False
+        return False, False, False, False, False, False
     from accounts.groups import GRUPOS
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
@@ -23,7 +25,12 @@ def _get_system_access(user):
     has_gestao = user.is_superuser or user.is_staff or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
-    has_mapa = user.is_superuser or user.is_staff or GRUPOS.ENGENHARIA in user_groups
+    has_impedimentos = user.is_superuser or user.is_staff or bool(
+        user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
+    )
+    has_mapa = user.is_superuser or user.is_staff or bool(
+        user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
+    )
     has_central = user_is_painel_sistema_admin(user)
     has_workflow = user.is_superuser or user.is_staff or bool(
         user_groups
@@ -33,29 +40,31 @@ def _get_system_access(user):
             GRUPOS.CENTRAL_APROVACOES_EXTERNO,
         }
     )
-    return has_diario, has_gestao, has_mapa, has_central, has_workflow
+    return has_diario, has_gestao, has_impedimentos, has_mapa, has_central, has_workflow
 
 
 def sidebar_systems(request):
     """
-    Disponibiliza has_diario, has_gestao, has_mapa, has_central em todos os templates
+    Disponibiliza flags de sistemas em todos os templates
     para exibir os links dos sistemas na sidebar.
     """
     if not request.user.is_authenticated:
         return {
             'has_diario': False,
             'has_gestao': False,
+            'has_impedimentos': False,
             'has_mapa': False,
             'has_central': False,
             'has_workflow': False,
             'can_manage_central_projects': False,
         }
-    has_diario, has_gestao, has_mapa, has_central, has_workflow_cp = _get_system_access(request.user)
+    has_diario, has_gestao, has_impedimentos, has_mapa, has_central, has_workflow_cp = _get_system_access(request.user)
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
 
     return {
         'has_diario': has_diario,
         'has_gestao': has_gestao,
+        'has_impedimentos': has_impedimentos,
         'has_mapa': has_mapa,
         'has_central': has_central,
         'has_workflow': has_workflow_cp,
@@ -146,3 +155,11 @@ def sidebar_counters(request):
             'total_attachments_count': 0,
         }
 
+
+def static_assets_version(request):
+    """
+    Versão global para invalidar cache de estáticos quando necessário.
+    """
+    return {
+        'lplan_static_version': getattr(settings, 'LPLAN_STATIC_VERSION', '1'),
+    }

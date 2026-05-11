@@ -83,13 +83,33 @@
                 <ul class="navbar-nav me-auto">
                     {% if user.is_authenticated %}
                         <li class="nav-item">
-                            <a class="nav-link nav-link-switch-system px-3 py-2 rounded me-1" href="{% url 'select-system' %}" title="Trocar de sistema">
+                            <a class="nav-link nav-link-switch-system px-3 py-2 rounded me-1 {% if request.resolver_match.url_name == 'select-system' %}active fw-semibold{% endif %}" href="{% url 'select-system' %}" title="Trocar de sistema">
                                 <i class="bi bi-grid-3x3-gap"></i> <span>Trocar Sistema</span>
                             </a>
                         </li>
-                        {% if user.is_staff or user.is_superuser %}
+                        {% if has_diario and '/reports/' not in request.path and '/dashboard/' not in request.path %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'accounts:admin_central' %}"><i class="bi bi-gear"></i> <span>Painel</span></a>
+                                <a class="nav-link {% if '/reports/' in request.path or '/dashboard/' in request.path or '/diaries/' in request.path %}active fw-semibold{% endif %}" href="{% url 'select-project' %}"><i class="bi bi-journal-text"></i> <span>Diário de Obras</span></a>
+                            </li>
+                        {% endif %}
+                        {% if has_gestao and '/gestao/' not in request.path %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if '/gestao/' in request.path %}active fw-semibold{% endif %}" href="{% url 'gestao:home' %}"><i class="bi bi-clipboard-check"></i> <span>GestControll</span></a>
+                            </li>
+                        {% endif %}
+                        {% if has_impedimentos and '/impedimentos/' not in request.path %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if '/impedimentos/' in request.path %}active fw-semibold{% endif %}" href="{% url 'impedimentos:select_obra' %}"><i class="bi bi-list-task"></i> <span>Restrições</span></a>
+                            </li>
+                        {% endif %}
+                        {% if has_workflow and '/aprovacoes/' not in request.path %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if '/aprovacoes/' in request.path %}active fw-semibold{% endif %}" href="{% url 'workflow_aprovacao:pending' %}"><i class="bi bi-check2-square"></i> <span>Aprovações</span></a>
+                            </li>
+                        {% endif %}
+                        {% if has_central and '/accounts/admin-central' not in request.path %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if '/accounts/admin-central' in request.path %}active fw-semibold{% endif %}" href="{% url 'accounts:admin_central' %}"><i class="bi bi-gear"></i> <span>Painel do Sistema</span></a>
                             </li>
                         {% endif %}
                         {% if user.groups.all %}
@@ -102,22 +122,12 @@
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:mapa' %}" title="Mapa de suprimentos (planilha)">
-                                    <i class="bi bi-table"></i> <span>Mapa suprimentos</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link {% if request.resolver_match.url_name == 'mapa_controle' %}active fw-semibold{% endif %}" href="{% url 'engenharia:mapa_controle' %}" title="Mapa de Controle — execução físico">
-                                    <i class="bi bi-clipboard2-data"></i> <span>Mapa de Controle</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link {% if request.resolver_match.url_name == 'importar_mapa_controle' %}active fw-semibold{% endif %}" href="{% url 'engenharia:importar_mapa_controle' %}" title="Importar dados do Mapa de Controle (planilha)">
-                                    <i class="bi bi-upload"></i> <span>Importar Controle</span>
+                                    <i class="bi bi-table"></i> <span>Mapa</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}active fw-semibold{% endif %}" href="{% url 'engenharia:ferramenta_shell' %}" title="Ferramenta de ambientes operacionais">
-                                    <i class="bi bi-magic"></i> <span>Ferramenta</span>
+                                    <i class="bi bi-magic"></i> <span>Ferramenta operacional</span>
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -142,18 +152,13 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'engenharia:mapa_controle' %}">
-                                    <i class="bi bi-clipboard2-data"></i> <span>Controle</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:importar_sienge' %}">
-                                    <i class="bi bi-upload"></i> <span>Importar</span>
+                                    <i class="bi bi-upload"></i> <span>Importar Sienge</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}active fw-semibold{% endif %}" href="{% url 'engenharia:ferramenta_shell' %}">
-                                    <i class="bi bi-magic"></i> <span>Ferramenta</span>
+                                    <i class="bi bi-magic"></i> <span>Ferramenta operacional</span>
                                 </a>
                             </li>
                             {% endif %}

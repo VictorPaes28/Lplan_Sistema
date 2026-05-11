@@ -7,8 +7,16 @@ app_name = 'workflow_aprovacao'
 urlpatterns = [
     path('', views.home, name='home'),
     path('painel/', views.dashboard, name='dashboard'),
+    path('sincronizar/forcar/', views.force_sync, name='force_sync'),
+    path('config/integracoes/', views.outbox_list, name='outbox_list'),
+    path('config/integracoes/<int:pk>/enviar/', views.outbox_dispatch, name='outbox_dispatch'),
     path('fila/', views.pending_list, name='pending'),
     path('processo/<int:pk>/', views.process_detail, name='process_detail'),
+    path(
+        'processo/<int:pk>/assinatura/comprovante.pdf',
+        views.process_signature_receipt_pdf,
+        name='process_signature_receipt_pdf',
+    ),
     path(
         'processo/<int:pk>/sienge/anexo/',
         views.sienge_process_attachment_download,

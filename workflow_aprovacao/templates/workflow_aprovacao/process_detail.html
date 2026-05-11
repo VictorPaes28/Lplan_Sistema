@@ -7,7 +7,6 @@
 
 {% block content %}
 <div class="wf-root">
-    {% include 'workflow_aprovacao/_subnav.html' %}
     {% include 'workflow_aprovacao/_messages.html' %}
 
     <div class="wf-detail-grid">
@@ -139,6 +138,43 @@
             </section>
             {% endif %}
 
+            {% if process.status == 'approved' or process.status == 'rejected' %}
+            <section class="wf-panel" style="margin-bottom:1.25rem;">
+                <div class="wf-panel__head">
+                    <h2 class="wf-panel__title">Retorno ao Sienge</h2>
+                </div>
+                <div class="wf-panel__body">
+                    <p class="wf-help" style="margin:0 0 0.6rem;">
+                        <a href="{% url 'workflow_aprovacao:process_signature_receipt_pdf' process.pk %}" class="wf-btn-table">Baixar comprovante de assinatura (PDF)</a>
+                    </p>
+                    {% if latest_outbox %}
+                    <p class="wf-help" style="margin:0 0 0.5rem;">
+                        Último evento: <strong>{{ latest_outbox.get_status_display }}</strong>
+                        {% if latest_outbox.sent_at %}em {{ latest_outbox.sent_at|date:"d/m/Y H:i" }}{% endif %}
+                        · tentativas: {{ latest_outbox.attempts }}
+                    </p>
+                    {% if latest_outbox.last_error %}
+                    <p class="wf-help" style="margin:0 0 0.6rem;color:#b91c1c;">{{ latest_outbox.last_error }}</p>
+                    {% endif %}
+                    {% if workflow_show_config_nav and latest_outbox.status != 'sent' %}
+                    <form method="post" action="{% url 'workflow_aprovacao:outbox_dispatch' latest_outbox.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="wf-btn wf-btn--approve">
+                            <i class="fas fa-paper-plane" aria-hidden="true"></i> Enviar retorno agora
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% elif workflow_show_config_nav %}
+                    <p class="wf-help" style="margin:0 0 0.6rem;">Ainda não existe item na fila de retorno para este processo.</p>
+                    <a href="{% url 'workflow_aprovacao:outbox_list' %}" class="wf-btn-table">Abrir fila de retorno</a>
+                    {% else %}
+                    <p class="wf-help">A fila de retorno para integração está disponível para administradores da Central.</p>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+
             <section class="wf-panel" style="margin-bottom:1.25rem;">
                 <div class="wf-panel__head">
                     <h2 class="wf-panel__title">Linha do tempo</h2>
@@ -168,7 +204,13 @@
             {% if can_act and workflow_can_act %}
             <form method="post" class="wf-decision wf-signing-card" aria-labelledby="wf-decision-heading">
                 {% csrf_token %}
-                <h3 id="wf-decision-heading">A sua decisão</h3>
+                <input type="hidden" name="action" id="id_action_hidden" value="">
+                <h3 id="wf-decision-heading">Cerimônia de assinatura</h3>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.35rem 0 0.9rem;">
+                    <span style="background:#0f172a;color:#fff;border-radius:999px;padding:0.2rem 0.6rem;font-size:0.78rem;">1. Revisar</span>
+                    <span style="background:#e2e8f0;color:#334155;border-radius:999px;padding:0.2rem 0.6rem;font-size:0.78rem;">2. Confirmar assinatura</span>
+                </div>
+                <p class="wf-help" style="margin:0 0 0.8rem;">Revise os dados, confirme sua identidade e finalize a assinatura no modal de confirmação.</p>
                 {% if sienge_is_inbound %}
                 <div class="wf-signing-card__notice" role="note">
                     <p><strong>Leu o resumo e, se aplicável, abriu o PDF do contrato ou da medição?</strong> A aprovação aqui registada faz parte do fluxo interno; o efeito no Sienge depende da integração configurada.</p>
@@ -180,16 +222,84 @@
                 <label class="wf-label" for="id_comment">{{ form.comment.label }}</label>
                 {{ form.comment }}
                 {% if form.comment.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.comment.errors }}</p>{% endif %}
+                <label class="wf-label" for="id_signer_name">{{ form.signer_name.label }}</label>
+                {{ form.signer_name }}
+                {% if form.signer_name.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.signer_name.errors }}</p>{% endif %}
+                <div style="margin-top:0.65rem;">
+                    <label class="wf-check" for="id_confirm_read" style="display:flex;gap:0.45rem;align-items:flex-start;font-size:0.9rem;color:#334155;">
+                        {{ form.confirm_read }}
+                        <span>{{ form.confirm_read.label }}</span>
+                    </label>
+                    {% if form.confirm_read.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.confirm_read.errors }}</p>{% endif %}
+                </div>
+                <label class="wf-label" for="id_confirm_phrase">{{ form.confirm_phrase.label }}</label>
+                {{ form.confirm_phrase }}
+                <p class="wf-help" style="margin-top:0.25rem;">Para este processo, use <strong id="wf-expected-approve">APROVAR #{{ process.pk }}</strong> ou <strong id="wf-expected-reject">REPROVAR #{{ process.pk }}</strong>.</p>
+                {% if form.confirm_phrase.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.confirm_phrase.errors }}</p>{% endif %}
+                <div style="margin:0.8rem 0;padding:0.7rem 0.8rem;border:1px solid #dbeafe;border-radius:10px;background:#f8fbff;">
+                    <p class="wf-help" style="margin:0 0 0.4rem;font-weight:600;color:#0f172a;">Segurança desta assinatura</p>
+                    <p class="wf-help" style="margin:0;color:#334155;">
+                        <i class="fas fa-user-lock" aria-hidden="true"></i> Utilizador autenticado
+                        · <i class="fas fa-clock" aria-hidden="true"></i> Carimbo de data/hora
+                        · <i class="fas fa-fingerprint" aria-hidden="true"></i> Hash SHA-256
+                        · <i class="fas fa-history" aria-hidden="true"></i> Trilha auditável
+                    </p>
+                </div>
                 <div class="wf-actions wf-signing-card__actions">
-                    <button type="submit" name="action" value="approve" class="wf-btn wf-btn--approve wf-btn--sign">
-                        <i class="fas fa-check" aria-hidden="true"></i> Aprovar e avançar
+                    <button type="button" class="wf-btn wf-btn--approve wf-btn--sign" data-sign-action="approve">
+                        <i class="fas fa-signature" aria-hidden="true"></i> Revisar e assinar aprovação
                     </button>
-                    <button type="submit" name="action" value="reject" class="wf-btn wf-btn--reject">
-                        <i class="fas fa-times" aria-hidden="true"></i> Reprovar
+                    <button type="button" class="wf-btn wf-btn--reject" data-sign-action="reject">
+                        <i class="fas fa-signature" aria-hidden="true"></i> Revisar e assinar reprovação
                     </button>
                 </div>
-                <p class="wf-help wf-signing-card__foot">Aprovar envia à próxima etapa ou conclui o fluxo. Reprovar encerra o processo.</p>
+                <p class="wf-help wf-signing-card__foot">Ao confirmar no próximo passo, você concorda com os termos e com o registro integral das evidências.</p>
             </form>
+
+            <div id="wf-sign-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.56);z-index:3000;padding:1rem;overflow:auto;align-items:center;justify-content:center;">
+                <div role="dialog" aria-modal="true" aria-labelledby="wf-sign-modal-title" style="width:min(620px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 12px 32px rgba(0,0,0,0.2);padding:1rem 1.15rem;margin:auto;position:relative;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.35rem;">
+                        <h3 id="wf-sign-modal-title" style="margin:0;font-size:1.1rem;color:#0f172a;">Confirmação final da assinatura</h3>
+                        <span style="border:1px solid #cbd5e1;border-radius:999px;padding:0.18rem 0.55rem;font-size:0.76rem;color:#0f172a;background:#f8fafc;">
+                            Assinatura eletrónica interna
+                        </span>
+                    </div>
+                    <p style="margin:0 0 0.7rem;color:#334155;font-size:0.92rem;">
+                        Princípio WYSIWYS: você está a assinar exatamente os dados exibidos nesta tela para o processo <strong>#{{ process.pk }}</strong>.
+                    </p>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.5rem;margin-bottom:0.7rem;">
+                        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0.55rem;background:#fff;">
+                            <p style="margin:0 0 0.15rem;font-size:0.75rem;color:#64748b;">Processo</p>
+                            <p style="margin:0;font-size:0.92rem;color:#0f172a;font-weight:600;">#{{ process.pk }}</p>
+                        </div>
+                        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0.55rem;background:#fff;">
+                            <p style="margin:0 0 0.15rem;font-size:0.75rem;color:#64748b;">Obra / Categoria</p>
+                            <p style="margin:0;font-size:0.92rem;color:#0f172a;font-weight:600;">{{ process.project.code }} · {{ process.category.name }}</p>
+                        </div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0.7rem;background:#f8fafc;">
+                        <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Ação:</strong> <span id="wf-sign-modal-action">-</span></p>
+                        <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Signatário:</strong> <span id="wf-sign-modal-signer">-</span></p>
+                        <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Frase digitada:</strong> <span id="wf-sign-modal-phrase">-</span></p>
+                        <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Comentário:</strong> <span id="wf-sign-modal-comment">Sem comentário</span></p>
+                    </div>
+                    <div style="margin-top:0.65rem;border:1px solid #dbeafe;border-radius:10px;padding:0.6rem 0.7rem;background:#f8fbff;">
+                        <p style="margin:0 0 0.35rem;font-size:0.8rem;color:#0f172a;font-weight:600;">Controles aplicados nesta assinatura</p>
+                        <p style="margin:0;font-size:0.82rem;color:#334155;line-height:1.45;">
+                            Autenticação da sessão ativa, confirmação textual da decisão, registo de data/hora,
+                            IP, user-agent e hash criptográfico do snapshot assinado.
+                        </p>
+                    </div>
+                    <p style="margin:0.8rem 0 0.65rem;font-size:0.84rem;color:#64748b;">
+                        Termo: Confirmo que esta assinatura eletrónica foi realizada por mim, com acesso autenticado, e autorizo o registo das evidências técnicas para auditoria.
+                    </p>
+                    <div style="display:flex;gap:0.5rem;justify-content:flex-end;flex-wrap:wrap;" id="wf-sign-modal-actions">
+                        <button type="button" id="wf-sign-close" class="wf-btn-table" style="background:#fff;color:#334155;border:1px solid #cbd5e1;min-width:110px;">Fechar</button>
+                        <button type="button" id="wf-sign-cancel" class="wf-btn-table" style="background:#fff;color:#334155;border:1px solid #cbd5e1;min-width:150px;">Voltar e revisar</button>
+                        <button type="button" id="wf-sign-confirm" class="wf-btn wf-btn--approve"><i class="fas fa-shield-alt" aria-hidden="true"></i> Confirmar assinatura</button>
+                    </div>
+                </div>
+            </div>
             {% elif process.status == 'awaiting_step' %}
             <div class="wf-notice" role="status">
                 <strong>Sem permissão nesta etapa.</strong> Você não está designado como aprovador nesta alçada.
@@ -198,4 +308,117 @@
         </div>
     </div>
 </div>
+<script>
+(function () {
+    const form = document.querySelector('.wf-signing-card');
+    if (!form) return;
+    const modal = document.getElementById('wf-sign-modal');
+    const hiddenAction = document.getElementById('id_action_hidden');
+    const signer = document.getElementById('id_signer_name');
+    const phrase = document.getElementById('id_confirm_phrase');
+    const comment = document.getElementById('id_comment');
+    const actionTarget = document.getElementById('wf-sign-modal-action');
+    const signerTarget = document.getElementById('wf-sign-modal-signer');
+    const phraseTarget = document.getElementById('wf-sign-modal-phrase');
+    const commentTarget = document.getElementById('wf-sign-modal-comment');
+    const confirmBtn = document.getElementById('wf-sign-confirm');
+    const cancelBtn = document.getElementById('wf-sign-cancel');
+    const closeBtn = document.getElementById('wf-sign-close');
+    const expectedApprove = 'APROVAR #{{ process.pk }}';
+    const expectedReject = 'REPROVAR #{{ process.pk }}';
+
+    if (!modal || !hiddenAction || !confirmBtn || !cancelBtn || !closeBtn) {
+        return;
+    }
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
+    const dialog = modal.querySelector('[role="dialog"]');
+    if (dialog) {
+        dialog.addEventListener('click', function (evt) {
+            evt.stopPropagation();
+        });
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function openModal(action) {
+        hiddenAction.value = action;
+        if (!actionTarget || !signerTarget || !phraseTarget || !commentTarget) {
+            const label = action === 'approve' ? 'aprovação' : 'reprovação';
+            const ok = window.confirm('Confirmar assinatura de ' + label + ' para o processo #{{ process.pk }}?');
+            if (ok) {
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
+            }
+            return;
+        }
+        hiddenAction.value = action;
+        actionTarget.textContent = action === 'approve' ? 'Assinar aprovação' : 'Assinar reprovação';
+        signerTarget.textContent = (signer && signer.value.trim()) || '-';
+        phraseTarget.textContent = (phrase && phrase.value.trim()) || '-';
+        commentTarget.textContent = (comment && comment.value.trim()) || 'Sem comentário';
+        confirmBtn.classList.toggle('wf-btn--approve', action === 'approve');
+        confirmBtn.classList.toggle('wf-btn--reject', action !== 'approve');
+        confirmBtn.innerHTML = action === 'approve'
+            ? '<i class="fas fa-shield-alt" aria-hidden="true"></i> Confirmar assinatura de aprovação'
+            : '<i class="fas fa-shield-alt" aria-hidden="true"></i> Confirmar assinatura de reprovação';
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    document.querySelectorAll('[data-sign-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const action = btn.getAttribute('data-sign-action');
+            if (phrase && !phrase.value.trim()) {
+                phrase.value = action === 'approve' ? expectedApprove : expectedReject;
+            }
+            openModal(action);
+        });
+    });
+
+    cancelBtn.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', closeModal);
+
+    confirmBtn.addEventListener('click', function () {
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
+    });
+
+    modal.addEventListener('click', function (evt) {
+        if (evt.target === modal) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (evt) {
+        if (evt.key === 'Escape' && modal.style.display !== 'none') {
+            closeModal();
+        }
+    });
+    window.addEventListener('pageshow', function () {
+        closeModal();
+    });
+})();
+</script>
+<style>
+@media (max-width: 640px) {
+    #wf-sign-modal-actions {
+        flex-direction: column;
+    }
+    #wf-sign-modal-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
 {% endblock %}

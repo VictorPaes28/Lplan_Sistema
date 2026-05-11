@@ -851,32 +851,6 @@
             </div>
         </a>
 
-        <!-- Mapa de Controle -->
-        <a href="{% url 'engenharia:mapa_controle' %}" class="system-card controle {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Mapa de Controle" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-gauge-high"></i></div>
-                    {% if has_mapa %}
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Controle</h3>
-                <p class="text-sm text-slate-500 mb-4">Visão gerencial de pendências e exceções</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-orange-500"></i>KPIs de operação por obra</li>
-                        <li><i class="fas fa-check-circle text-orange-500"></i>Top riscos por local/categoria</li>
-                        <li><i class="fas fa-check-circle text-orange-500"></i>Quem cobrar em cada etapa</li>
-                        <li><i class="fas fa-check-circle text-orange-500"></i>Tabela detalhada semelhante ao mapa</li>
-                    </ul>
-                </div>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
         <a href="{% url 'impedimentos:select_obra' %}" 
            class="system-card impedimentos {% if not has_impedimentos %}disabled{% endif %}" 
            aria-label="Acessar Restrições" 
@@ -1068,6 +1042,22 @@ document.addEventListener('DOMContentLoaded', function () {
             closeModal();
         }
     });
+
+    // Permite abrir o modal de suporte direto por URL (ex.: sidebar).
+    try {
+        var supportSearchParams = new URLSearchParams(window.location.search || '');
+        if (supportSearchParams.get('abrir_chamado') === '1') {
+            openModal();
+            if (window.history && typeof window.history.replaceState === 'function') {
+                supportSearchParams.delete('abrir_chamado');
+                var cleanedQuery = supportSearchParams.toString();
+                var cleanedUrl = window.location.pathname + (cleanedQuery ? ('?' + cleanedQuery) : '') + window.location.hash;
+                window.history.replaceState({}, '', cleanedUrl);
+            }
+        }
+    } catch (e) {
+        // ignora browsers antigos sem URLSearchParams
+    }
 
     if (supportCategory && supportTitle) {
         supportCategory.addEventListener('change', function () {

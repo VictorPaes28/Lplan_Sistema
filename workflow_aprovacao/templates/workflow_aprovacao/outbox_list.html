@@ -1,0 +1,86 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:dashboard' %}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <section class="wf-panel" style="margin-bottom:1rem;">
+        <div class="wf-panel__body">
+            <form method="get" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                <label for="status" class="wf-help" style="margin:0;">Status</label>
+                <select id="status" name="status" style="padding:0.35rem 0.45rem;border:1px solid #cbd5e1;border-radius:8px;">
+                    <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pendente</option>
+                    <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Falhou</option>
+                    <option value="sent" {% if filter_status == 'sent' %}selected{% endif %}>Enviado</option>
+                    <option value="all" {% if filter_status == 'all' %}selected{% endif %}>Todos</option>
+                </select>
+                <button type="submit" class="wf-btn-table">Aplicar</button>
+            </form>
+            <p class="wf-help" style="margin:0.7rem 0 0;">
+                Modo atual:
+                {% if outbox_shadow_mode %}<strong>shadow (simulado)</strong>{% else %}<strong>real</strong>{% endif %}
+                · Envio real habilitado:
+                {% if outbox_enabled %}<strong>sim</strong>{% else %}<strong>não</strong>{% endif %}
+            </p>
+        </div>
+    </section>
+
+    <section class="wf-panel">
+        <div class="wf-panel__head">
+            <h2 class="wf-panel__title">Fila de saída</h2>
+        </div>
+        <div class="wf-panel__body wf-panel__body--flush">
+            {% if entries %}
+            <div class="wf-table-scroll">
+                <table class="wf-data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Processo</th>
+                            <th>Obra</th>
+                            <th>Status</th>
+                            <th>Tentativas</th>
+                            <th>Criado em</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in entries %}
+                        <tr>
+                            <td class="wf-mono">#{{ e.pk }}</td>
+                            <td><a href="{% url 'workflow_aprovacao:process_detail' e.process.pk %}" class="wf-row-hit">#{{ e.process.pk }}</a></td>
+                            <td>{{ e.process.project.code }} · {{ e.process.category.name }}</td>
+                            <td>{{ e.get_status_display }}</td>
+                            <td>{{ e.attempts }}</td>
+                            <td>{{ e.created_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if e.status != 'sent' %}
+                                <form method="post" action="{% url 'workflow_aprovacao:outbox_dispatch' e.pk %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit" class="wf-btn-table">Enviar</button>
+                                </form>
+                                {% else %}
+                                <span class="wf-help">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="wf-empty wf-empty--inline">
+                <p class="wf-empty__title">Sem itens na fila</p>
+                <p class="wf-empty__text">Novos itens de retorno aparecem quando processos chegam ao estado final.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

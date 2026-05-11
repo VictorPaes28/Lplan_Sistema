@@ -2279,7 +2279,7 @@ def diary_add_owner_comment_view(request, pk):
         messages.error(request, "Escreva um comentário.")
         return redirect('diary-detail', pk=pk)
     DiaryComment.objects.create(diary=diary, author=request.user, text=text)
-    messages.success(request, "Comentário enviado. O dono da obra poderá ver na página de visualização.")
+    messages.success(request, "Comentário enviado. O cliente poderá ver na página de visualização.")
     return redirect('diary-detail', pk=pk)
 
 
@@ -3915,6 +3915,31 @@ def diary_form_view(request, pk=None):
                     import json
                     from core.models import Labor, Equipment, DiaryLaborEntry, LaborCargo, LaborCategory
                     
+                    # Catálogo de novos cargos informados no front (sem depender de quantidade).
+                    labor_catalog_json = request.POST.get('diary_labor_catalog_data', '')
+                    if labor_catalog_json:
+                        try:
+                            labor_catalog_data = json.loads(labor_catalog_json) if labor_catalog_json else []
+                            if not isinstance(labor_catalog_data, list):
+                                labor_catalog_data = []
+                            for item in labor_catalog_data:
+                                if not isinstance(item, dict):
+                                    continue
+                                cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
+                                category_slug = (item.get('category_slug') or item.get('categorySlug') or '').strip()
+                                if not cargo_name or not category_slug:
+                                    continue
+                                target_category = LaborCategory.objects.filter(slug=category_slug).first()
+                                if target_category is None:
+                                    continue
+                                LaborCargo.objects.get_or_create(
+                                    category=target_category,
+                                    name=cargo_name,
+                                    defaults={'order': 0},
+                                )
+                        except (json.JSONDecodeError, TypeError):
+                            logger.debug("Erro ao processar diary_labor_catalog_data", exc_info=True)
+
                     # Novo sistema: mão de obra por categorias/cargos (diary_labor_data)
                     diary_labor_json = request.POST.get('diary_labor_data', '')
                     if diary_labor_json:
@@ -3927,20 +3952,28 @@ def diary_form_view(request, pk=None):
                                 cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
                                 quantity = max(1, int(item.get('quantity') or 1))
                                 company = (item.get('company') or '').strip()
+                                category_slug = (item.get('category_slug') or item.get('categorySlug') or '').strip()
 
                                 selected_cargo_id = None
                                 if cargo_id and LaborCargo.objects.filter(pk=cargo_id).exists():
                                     selected_cargo_id = int(cargo_id)
-                                elif cargo_name and terceirizada_category:
+                                elif cargo_name:
+                                    target_category = None
+                                    if category_slug:
+                                        target_category = LaborCategory.objects.filter(slug=category_slug).first()
+                                    if target_category is None:
+                                        target_category = terceirizada_category
+                                    if target_category is None:
+                                        continue
                                     existing_cargo = LaborCargo.objects.filter(
-                                        category=terceirizada_category,
+                                        category=target_category,
                                         name__iexact=cargo_name
                                     ).only('id').first()
                                     if existing_cargo:
                                         selected_cargo_id = existing_cargo.id
                                     else:
                                         selected_cargo_id = LaborCargo.objects.create(
-                                            category=terceirizada_category,
+                                            category=target_category,
                                             name=cargo_name,
                                             order=0
                                         ).id

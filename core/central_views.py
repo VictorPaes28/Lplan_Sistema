@@ -151,7 +151,7 @@ def central_user_governance(request, pk):
 @_staff_required
 def central_user_panel_view(request):
     """
-    Hub enxuto para gestão de usuários: usuários, cadastros e clientes (dono da obra).
+    Hub enxuto para gestão de usuários: usuários, cadastros e clientes.
     """
     return render(request, 'core/central_user_panel.html')
 
