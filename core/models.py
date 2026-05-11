@@ -33,7 +33,7 @@ class DiaryStatus(models.TextChoices):
     - SALVAMENTO_PARCIAL: rascunho (Salvar rascunho); editável.
     - PREENCHENDO: em preenchimento (legado ou estado intermediário); editável.
     - REVISAR: legado (não usado no fluxo atual).
-    - APROVADO: diário finalizado (Salvar diário); enviado ao dono da obra; somente leitura.
+    - APROVADO: diário finalizado (Salvar diário); enviado ao cliente; somente leitura.
     """
     PREENCHENDO = 'PR', 'Preenchendo'
     SALVAMENTO_PARCIAL = 'SP', 'Salvamento Parcial'
@@ -204,8 +204,8 @@ class ProjectDiaryRecipient(models.Model):
 
 class ProjectOwner(models.Model):
     """
-    Dono da obra (cliente): usuário real com acesso restrito.
-    Só visualiza diários das obras das quais é dono e pode comentar na janela de 24h.
+    Cliente: usuário real com acesso restrito.
+    Só visualiza diários das obras às quais está vinculado e pode comentar na janela de 24h.
     """
     project = models.ForeignKey(
         Project,
@@ -217,12 +217,12 @@ class ProjectOwner(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='owned_projects',
-        verbose_name='Dono (usuário)',
+        verbose_name='Cliente (usuário)',
     )
 
     class Meta:
-        verbose_name = 'Dono da Obra'
-        verbose_name_plural = 'Donos da Obra'
+        verbose_name = 'Cliente'
+        verbose_name_plural = 'Clientes'
         unique_together = [['project', 'user']]
         indexes = [
             models.Index(fields=['user']),
@@ -694,7 +694,7 @@ class ConstructionDiary(models.Model):
         null=True,
         blank=True,
         verbose_name='Enviado ao dono em',
-        help_text='Data/hora em que o diário foi enviado ao dono da obra (início da janela de 24h para comentários)'
+        help_text='Data/hora em que o diário foi enviado ao cliente (início da janela de 24h para comentários)'
     )
     inspection_responsible = models.CharField(
         max_length=255,
@@ -1104,7 +1104,7 @@ class DiaryCorrectionRequestLog(models.Model):
 
 class DiaryComment(models.Model):
     """
-    Comentário do dono da obra (ou da LPLAN) no diário.
+    Comentário do cliente (ou da LPLAN) no diário.
     Vinculado ao User que criou e ao ConstructionDiary.
     Janela de 24h após sent_to_owner_at para novos comentários.
     """

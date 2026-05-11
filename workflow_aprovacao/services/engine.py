@@ -159,7 +159,14 @@ class ApprovalEngine:
 
     @classmethod
     @transaction.atomic
-    def approve(cls, process: ApprovalProcess, *, user: User, comment: str = '') -> ApprovalProcess:
+    def approve(
+        cls,
+        process: ApprovalProcess,
+        *,
+        user: User,
+        comment: str = '',
+        decision_payload: Optional[dict] = None,
+    ) -> ApprovalProcess:
         process = ApprovalProcess.objects.select_for_update().get(pk=process.pk)
         if process.status != ProcessStatus.AWAITING_STEP:
             raise InvalidTransitionError('Processo não está aguardando aprovação.')
@@ -183,6 +190,10 @@ class ApprovalEngine:
 
         process.save(update_fields=['status', 'current_step', 'updated_at'])
 
+        payload = {'advanced_to_sequence': next_step.sequence if next_step else None}
+        if isinstance(decision_payload, dict) and decision_payload:
+            payload.update(decision_payload)
+
         ApprovalHistoryEntry.objects.create(
             process=process,
             step=step,
@@ -192,7 +203,7 @@ class ApprovalEngine:
             comment=comment,
             previous_status=prev,
             new_status=process.status,
-            payload={'advanced_to_sequence': next_step.sequence if next_step else None},
+            payload=payload,
         )
 
         if process.status == ProcessStatus.APPROVED:
@@ -202,7 +213,14 @@ class ApprovalEngine:
 
     @classmethod
     @transaction.atomic
-    def reject(cls, process: ApprovalProcess, *, user: User, comment: str = '') -> ApprovalProcess:
+    def reject(
+        cls,
+        process: ApprovalProcess,
+        *,
+        user: User,
+        comment: str = '',
+        decision_payload: Optional[dict] = None,
+    ) -> ApprovalProcess:
         process = ApprovalProcess.objects.select_for_update().get(pk=process.pk)
         if process.status != ProcessStatus.AWAITING_STEP:
             raise InvalidTransitionError('Processo não está aguardando aprovação.')
@@ -215,6 +233,10 @@ class ApprovalEngine:
         process.status = ProcessStatus.REJECTED
         process.save(update_fields=['status', 'updated_at'])
 
+        payload = {}
+        if isinstance(decision_payload, dict) and decision_payload:
+            payload.update(decision_payload)
+
         ApprovalHistoryEntry.objects.create(
             process=process,
             step=step,
@@ -224,7 +246,7 @@ class ApprovalEngine:
             comment=comment,
             previous_status=prev,
             new_status=process.status,
-            payload={},
+            payload=payload,
         )
 
         cls._enqueue_final_sync_if_needed(process)
@@ -264,6 +286,16 @@ class ApprovalEngine:
                 'external_system': process.external_system,
                 'external_id': process.external_id,
                 'finished_at': timezone.now().isoformat(),
+                'signature_hash_sha256': (
+                    process.history_entries.filter(
+                        action__in=(HistoryAction.APPROVED_STEP, HistoryAction.REJECTED),
+                        new_status__in=(ProcessStatus.APPROVED, ProcessStatus.REJECTED),
+                    )
+                    .order_by('-created_at')
+                    .values_list('payload__signature_evidence__signature_hash_sha256', flat=True)
+                    .first()
+                )
+                or '',
             },
             status=OutboxStatus.PENDING,
         )

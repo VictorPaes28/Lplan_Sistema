@@ -1,23 +1,39 @@
-<nav class="wf-nav" aria-label="Central de Aprovações">
-    <a href="{% url 'workflow_aprovacao:pending' %}"
-       class="{% if request.resolver_match.url_name == 'pending' or request.resolver_match.url_name == 'home' %}wf-nav--active{% endif %}">
-        <i class="fas fa-inbox" aria-hidden="true"></i> Fila
-    </a>
-    <a href="{% url 'workflow_aprovacao:dashboard' %}"
-       class="{% if request.resolver_match.url_name == 'dashboard' %}wf-nav--active{% endif %}">
-        <i class="fas fa-chart-pie" aria-hidden="true"></i> Resumo
-    </a>
-    {% if workflow_show_config_nav %}
-    <a href="{% url 'workflow_aprovacao:config_backlog_list' %}"
-       class="{% if request.resolver_match.url_name == 'config_backlog_list' %}wf-nav--active{% endif %}">
-        <i class="fas fa-clipboard-list" aria-hidden="true"></i> Pendências
-        {% if workflow_backlog_pending_count and workflow_backlog_pending_count > 0 %}
-        <span class="wf-nav-badge" title="Aguardando configuração de fluxo">{{ workflow_backlog_pending_count }}</span>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
+    <nav class="wf-nav" aria-label="Central de Aprovações">
+        <a href="{% url 'workflow_aprovacao:pending' %}"
+           class="{% if request.resolver_match.url_name == 'pending' or request.resolver_match.url_name == 'home' %}wf-nav--active{% endif %}">
+            <i class="fas fa-inbox" aria-hidden="true"></i> Fila
+        </a>
+        <a href="{% url 'workflow_aprovacao:dashboard' %}"
+           class="{% if request.resolver_match.url_name == 'dashboard' %}wf-nav--active{% endif %}">
+            <i class="fas fa-chart-pie" aria-hidden="true"></i> Resumo
+        </a>
+        {% if workflow_show_config_nav %}
+        <a href="{% url 'workflow_aprovacao:config_backlog_list' %}"
+           class="{% if request.resolver_match.url_name == 'config_backlog_list' %}wf-nav--active{% endif %}">
+            <i class="fas fa-clipboard-list" aria-hidden="true"></i> Pendências
+            {% if workflow_backlog_pending_count and workflow_backlog_pending_count > 0 %}
+            <span class="wf-nav-badge" title="Aguardando configuração de fluxo">{{ workflow_backlog_pending_count }}</span>
+            {% endif %}
+        </a>
+        <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
+           class="{% if request.resolver_match.url_name == 'config_flow_list' or request.resolver_match.url_name == 'flow_edit' %}wf-nav--active{% endif %}">
+            <i class="fas fa-sitemap" aria-hidden="true"></i> Fluxos
+        </a>
+        <a href="{% url 'workflow_aprovacao:outbox_list' %}"
+           class="{% if request.resolver_match.url_name == 'outbox_list' %}wf-nav--active{% endif %}">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i> Retorno Sienge
+        </a>
         {% endif %}
-    </a>
-    <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
-       class="{% if request.resolver_match.url_name == 'config_flow_list' or request.resolver_match.url_name == 'flow_edit' %}wf-nav--active{% endif %}">
-        <i class="fas fa-sitemap" aria-hidden="true"></i> Fluxos
-    </a>
-    {% endif %}
-</nav>
+    </nav>
+
+    <form method="post" action="{% url 'workflow_aprovacao:force_sync' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit"
+                style="border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;padding:0.45rem 0.65rem;font-size:0.82rem;font-weight:600;cursor:pointer;white-space:nowrap;"
+                title="Força sincronização imediata com Sienge, mesmo fora da janela automática.">
+            <i class="fas fa-sync-alt" aria-hidden="true"></i> Atualizar agora
+        </button>
+    </form>
+</div>

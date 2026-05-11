@@ -10,9 +10,10 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group
-from django.http import FileResponse, Http404, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from workflow_aprovacao.access import (
@@ -27,12 +28,13 @@ from workflow_aprovacao.decorators import (
     require_workflow_module_access,
 )
 from workflow_aprovacao.exceptions import InvalidTransitionError
-from workflow_aprovacao.forms import CommentForm, NewFlowForm
+from workflow_aprovacao.forms import DecisionForm, NewFlowForm
 from core.models import Project
 from workflow_aprovacao.models import (
     ApprovalConfigBacklog,
     ApprovalConfigBacklogStatus,
     ApprovalFlowDefinition,
+    ApprovalIntegrationOutbox,
     ApprovalProcess,
     ProcessCategory,
     ProcessStatus,
@@ -47,7 +49,14 @@ from workflow_aprovacao.services.flow_config import (
     flow_structure_locked,
     serialize_flow_for_editor,
 )
+from workflow_aprovacao.services.outbound_dispatch import dispatch_outbox_entry_now
+from workflow_aprovacao.services.signing import (
+    build_signature_evidence,
+    latest_final_signature_event,
+    render_signature_receipt_pdf,
+)
 from workflow_aprovacao.services.sienge_display import beautify_stored_summary_for_display, sienge_payload_display_rows
+from workflow_aprovacao.services.sync_trigger import trigger_sienge_sync_if_due
 
 User = get_user_model()
 
@@ -140,17 +149,37 @@ def process_detail(request, pk):
     if request.method == 'POST' and can_act:
         if not user_can_act_on_workflow_processes(request.user):
             return HttpResponseForbidden('Sem permissão para decidir neste processo.')
-        form = CommentForm(request.POST)
+        form = DecisionForm(request.POST)
         action = request.POST.get('action')
         if form.is_valid() and action in ('approve', 'reject'):
+            form.validate_for_action(action=action, user=request.user, process_id=process.pk)
+        if form.is_valid() and action in ('approve', 'reject'):
             comment = form.cleaned_data.get('comment') or ''
+            signer_name = (form.cleaned_data.get('signer_name') or '').strip()
+            evidence = build_signature_evidence(
+                request=request,
+                process=process,
+                action=action,
+                comment=comment,
+                signer_name=signer_name,
+            )
             try:
                 if action == 'approve':
-                    ApprovalEngine.approve(process, user=request.user, comment=comment)
-                    messages.success(request, 'Aprovação registrada.')
+                    ApprovalEngine.approve(
+                        process,
+                        user=request.user,
+                        comment=comment,
+                        decision_payload={'signature_evidence': evidence},
+                    )
+                    messages.success(request, 'Assinatura de aprovação registrada com sucesso.')
                 else:
-                    ApprovalEngine.reject(process, user=request.user, comment=comment)
-                    messages.warning(request, 'Reprovação registrada.')
+                    ApprovalEngine.reject(
+                        process,
+                        user=request.user,
+                        comment=comment,
+                        decision_payload={'signature_evidence': evidence},
+                    )
+                    messages.warning(request, 'Assinatura de reprovação registrada com sucesso.')
                 return redirect('workflow_aprovacao:process_detail', pk=process.pk)
             except InvalidTransitionError as e:
                 messages.error(request, str(e))
@@ -159,7 +188,11 @@ def process_detail(request, pk):
         else:
             messages.error(request, 'Ação inválida.')
     else:
-        form = CommentForm()
+        form = DecisionForm(
+            initial={
+                'signer_name': (request.user.get_full_name() or '').strip() or request.user.username,
+            }
+        )
 
     sienge_attachments: list[dict] = []
     sienge_display_rows: list[dict] = []
@@ -189,6 +222,12 @@ def process_detail(request, pk):
     else:
         sienge_resumo_exibicao = process.summary or ''
 
+    latest_outbox = (
+        ApprovalIntegrationOutbox.objects.filter(process=process)
+        .order_by('-created_at')
+        .first()
+    )
+
     return render(
         request,
         'workflow_aprovacao/process_detail.html',
@@ -205,6 +244,7 @@ def process_detail(request, pk):
                 'sienge_display_rows': sienge_display_rows,
                 'sienge_is_inbound': sienge_is_inbound,
                 'sienge_resumo_exibicao': sienge_resumo_exibicao,
+                'latest_outbox': latest_outbox,
             },
         ),
     )
@@ -268,6 +308,22 @@ def sienge_process_attachment_download(request, pk):
     resp = FileResponse(io.BytesIO(content), content_type=ctype, as_attachment=True, filename=fname)
     resp['Cache-Control'] = 'private, no-store'
     return resp
+
+
+@require_workflow_module_access
+def process_signature_receipt_pdf(request, pk):
+    process = get_object_or_404(
+        ApprovalProcess.objects.select_related('project', 'category'),
+        pk=pk,
+    )
+    event = latest_final_signature_event(process)
+    if not event:
+        raise Http404('Sem evento final de assinatura neste processo.')
+    pdf = render_signature_receipt_pdf(process=process, event=event)
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="comprovante_processo_{process.pk}.pdf"'
+    response['Cache-Control'] = 'private, no-store'
+    return response
 
 
 @require_workflow_configure
@@ -363,6 +419,90 @@ def dashboard(request):
             },
         ),
     )
+
+
+@require_workflow_module_access
+@require_POST
+def force_sync(request):
+    result = trigger_sienge_sync_if_due(initiated_by=request.user, force=True)
+    status = result.get('status')
+    if status == 'ok':
+        messages.success(request, 'Sincronização com Sienge concluída com sucesso.')
+    elif status == 'skipped_running':
+        messages.info(request, 'Já existe uma sincronização em andamento. Aguarde alguns minutos.')
+    else:
+        messages.error(request, f'Falha ao sincronizar com Sienge: {result.get("error") or "erro desconhecido"}')
+
+    target = (request.POST.get('next') or '').strip()
+    if not target or not url_has_allowed_host_and_scheme(
+        url=target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        target = reverse('workflow_aprovacao:dashboard')
+    return redirect(target)
+
+
+@require_workflow_configure
+def outbox_list(request):
+    status = (request.GET.get('status') or 'pending').strip().lower()
+    allowed = {'pending', 'failed', 'sent', 'all'}
+    if status not in allowed:
+        status = 'pending'
+
+    qs = ApprovalIntegrationOutbox.objects.select_related(
+        'process',
+        'process__project',
+        'process__category',
+    ).order_by('-created_at')
+    if status != 'all':
+        qs = qs.filter(status=status)
+    entries = list(qs[:250])
+
+    return render(
+        request,
+        'workflow_aprovacao/outbox_list.html',
+        _workflow_context(
+            request,
+            {
+                'entries': entries,
+                'filter_status': status,
+                'page_title': 'Retorno para Sienge',
+                'page_subtitle': 'Fila de saída com revisão manual',
+                'outbox_shadow_mode': getattr(settings, 'SIENGE_OUTBOUND_SHADOW_MODE', True),
+                'outbox_enabled': getattr(settings, 'SIENGE_OUTBOUND_ENABLED', False),
+            },
+        ),
+    )
+
+
+@require_workflow_configure
+@require_POST
+def outbox_dispatch(request, pk):
+    entry = get_object_or_404(ApprovalIntegrationOutbox, pk=pk)
+    force = (request.POST.get('force') or '').strip() in ('1', 'true', 'on', 'yes')
+    result = dispatch_outbox_entry_now(outbox_id=entry.pk, actor=request.user, force=force)
+
+    status = result.get('status')
+    if status == 'ok':
+        mode = result.get('mode') or 'shadow'
+        if mode == 'shadow':
+            messages.success(request, 'Envio simulado concluído (shadow mode).')
+        else:
+            messages.success(request, 'Envio para o Sienge concluído.')
+    elif status == 'skipped_sent':
+        messages.info(request, result.get('message') or 'Este item já foi enviado.')
+    else:
+        messages.error(request, result.get('message') or 'Falha ao enviar para o Sienge.')
+
+    target = (request.POST.get('next') or '').strip()
+    if not target or not url_has_allowed_host_and_scheme(
+        url=target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        target = reverse('workflow_aprovacao:outbox_list')
+    return redirect(target)
 
 
 def _flow_pk_for_project_category(project, category) -> Optional[int]:

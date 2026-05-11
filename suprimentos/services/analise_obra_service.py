@@ -869,12 +869,68 @@ class AnaliseObraService:
 
     def build_section(self, secao: str) -> dict[str, Any] | None:
         """Retorna apenas um bloco do payload (para carregamento assíncrono por seção)."""
-        full = self.build_payload()
         s = (secao or "").strip().lower()
         if s in ("", "all", "full"):
-            return full
-        if s in full:
-            return {s: full[s]}
+            return self.build_payload()
+        if s == "meta":
+            project = _resolve_project_for_obra(self.obra)
+            dias_periodo = max(1, (self.periodo.data_fim - self.periodo.data_inicio).days + 1)
+            controle = self._build_controle()
+            diario = self._build_diario(project)
+            gestcontroll = self._build_gestcontroll()
+            restricoes = self._build_restricoes()
+            rdos = diario.get("rdos_resumo") if isinstance(diario.get("rdos_resumo"), dict) else {}
+            gv = gestcontroll["kpis"]["pendentes_valor"]
+            return {
+                "meta": {
+                    "obra_id": self.obra.id,
+                    "obra_nome": self.obra.nome,
+                    "obra_codigo": self.obra.codigo_sienge,
+                    "projeto_diario_id": project.id if project else None,
+                    "projeto_diario_codigo": project.code if project else None,
+                    "projeto_diario_nome": project.name if project else None,
+                    "periodo": {
+                        "inicio": self.periodo.data_inicio.isoformat(),
+                        "fim": self.periodo.data_fim.isoformat(),
+                        "dias": dias_periodo,
+                    },
+                    "gerado_em": timezone.now().isoformat(),
+                    "situacao_executiva": self._classify_situacao(
+                        controle,
+                        {"kpis": {}},
+                        diario,
+                    ),
+                    "kpis_hero": {
+                        "valor_em_aprovacao": gv,
+                        "restricoes_abertas": restricoes["kpis"]["total_aberto"],
+                        "rdos_pendentes": int(rdos.get("pendentes_rdos_count") or 0),
+                    },
+                    "baseline_planejamento": {
+                        "disponivel": False,
+                        "mensagem": (
+                            "Curva planejada × real depende da fonte de baseline definida pelo produto; "
+                            "até lá o comparativo oficial de prazo não é exibido automaticamente."
+                        ),
+                    },
+                }
+            }
+        if s == "filtros":
+            return {"filtros": self.build_filtros_payload()}
+        if s == "controle":
+            return {"controle": self._build_controle()}
+        if s == "suprimentos":
+            return {"suprimentos": self._build_suprimentos()}
+        if s == "diario":
+            project = _resolve_project_for_obra(self.obra)
+            return {"diario": self._build_diario(project)}
+        if s == "heatmap":
+            return {"heatmap": self._build_heatmap()}
+        if s == "cruzamento":
+            project = _resolve_project_for_obra(self.obra)
+            controle = self._build_controle()
+            suprimentos = self._build_suprimentos()
+            diario = self._build_diario(project)
+            return {"cruzamento": self._build_cruzamento(controle, suprimentos, diario)}
         return None
 
     def build_drill_down(self, bloco: str, pavimento: str, setor: str | None = None) -> dict[str, Any]:
@@ -1256,17 +1312,26 @@ class AnaliseObraService:
                 Q(inspection_responsible__icontains=rt) | Q(production_responsible__icontains=rt)
             )
 
-        rdos_aprovados_dias = rdos_pendentes_dias = rdos_sem = 0
-        cur = d1
-        while cur <= d2:
-            day_q = diaries_qs.filter(date=cur)
-            if not day_q.exists():
-                rdos_sem += 1
-            elif day_q.filter(status=DiaryStatus.APROVADO).exists():
+        # Calcula resumo diário com uma consulta agregada (evita N queries por dia).
+        resumo_por_data = {
+            row["date"]: {
+                "total": int(row.get("n_total") or 0),
+                "max_ap": int(row.get("n_aprovados") or 0),
+            }
+            for row in diaries_qs.values("date").annotate(
+                n_total=Count("id"),
+                n_aprovados=Count("id", filter=Q(status=DiaryStatus.APROVADO)),
+            )
+        }
+        dias_periodo = max(1, (d2 - d1).days + 1)
+        rdos_aprovados_dias = 0
+        rdos_pendentes_dias = 0
+        for info in resumo_por_data.values():
+            if info["max_ap"] > 0:
                 rdos_aprovados_dias += 1
-            else:
+            elif info["total"] > 0:
                 rdos_pendentes_dias += 1
-            cur += timedelta(days=1)
+        rdos_sem = max(0, dias_periodo - rdos_aprovados_dias - rdos_pendentes_dias)
 
         pendentes_rdos_count = diaries_qs.filter(
             status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
@@ -1367,7 +1432,6 @@ class AnaliseObraService:
             )
         dias_com_ocorrencia = len(ocorrencias_por_dia)
         media_dia_com_evento = round((total_ocorrencias / dias_com_ocorrencia), 2) if dias_com_ocorrencia else 0.0
-        dias_periodo = max(1, (d2 - d1).days + 1)
         taxa_dias_com_ocorrencia = round((dias_com_ocorrencia / dias_periodo) * 100.0, 1)
 
         tags_qs = (
