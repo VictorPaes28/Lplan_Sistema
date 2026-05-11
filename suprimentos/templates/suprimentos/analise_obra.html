@@ -6,12 +6,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BI da Obra — LPLAN</title>
-  {% if debug %}{% now "U" as lplan_static_cb %}{% endif %}
-  <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-  <link rel="stylesheet" href="{% static 'core/css/base.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+  <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="{% static 'core/css/base.css' %}?v={{ lplan_static_version }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'core/css/notifications.css' %}">{% endif %}
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
 :root { --transition: 0.3s cubic-bezier(.4,0,.2,1); }
 
@@ -142,7 +141,7 @@
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:'Sora',sans-serif;min-height:100vh;transition:background var(--transition)}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;transition:background var(--transition)}
 
 /* Garantir que o conteúdo ocupe 100% independente do tamanho da tela */
 html, body {
@@ -220,8 +219,8 @@ html, body {
 }
 @media (min-width: 768px) {
   .main-content-wrapper {
-    margin-left: 16rem !important;
-    width: calc(100% - 16rem) !important;
+    margin-left: 5.25rem !important;
+    width: calc(100% - 5.25rem) !important;
     padding-bottom: 0 !important;
   }
 }
@@ -239,14 +238,29 @@ html, body {
 }
 
 .index-toggle-btn {
-  position: fixed; top: 68px; right: 18px; z-index: 400;
-  width: 38px; height: 38px; border-radius: 10px;
-  background: var(--bi-bg2); border: 1px solid var(--bi-border2);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,0.2); transition: all .2s;
+  position: fixed;
+  top: 64px;
+  right: 14px;
+  z-index: 401;
+  width: auto;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--bi-card);
+  border: 1px solid var(--bi-border2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  transition: all .2s;
+  color: var(--bi-text2);
 }
-.index-toggle-btn:hover { border-color: var(--bi-accent); background: var(--bi-accent-bg); }
-.index-toggle-btn svg { width: 15px; height: 15px; color: var(--bi-text2); }
+.index-toggle-btn:hover { border-color: var(--bi-accent); background: var(--bi-accent-bg); color: var(--bi-accent); }
+.index-toggle-btn.is-open { border-color: var(--bi-accent); background: var(--bi-accent-bg); color: var(--bi-accent); }
+.index-toggle-btn svg { width: 14px; height: 14px; color: currentColor; }
+.index-toggle-btn span { font-size: 11.5px; font-weight: 700; letter-spacing: .2px; }
 
 .bi-index {
   position: fixed; top: 56px; right: 0; z-index: 350;
@@ -254,11 +268,20 @@ html, body {
   overflow-y: auto; padding: 16px 14px;
   border-left: 1px solid var(--bi-border);
   background: var(--bi-bg2);
-  transform: translateX(110%);
-  transition: transform .25s cubic-bezier(.4,0,.2,1), background var(--transition);
+  transform: translateX(calc(100% + 12px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .24s ease, visibility 0s linear .24s, background var(--transition);
   box-shadow: -6px 0 24px rgba(0,0,0,0.15);
 }
-.bi-index.open { transform: translateX(0); }
+.bi-index.open {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
 .bi-index::-webkit-scrollbar { width: 3px; }
 .bi-index::-webkit-scrollbar-thumb { background: var(--bi-border2); border-radius: 99px; }
 .index-header {
@@ -285,25 +308,70 @@ html, body {
 .index-item.active .index-dot { transform: scale(1.35); }
 
 .filters-bar {
-  background: var(--bi-bg2); border-bottom: 1px solid var(--bi-border);
-  padding: 10px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--bi-card);
+  border: 1px solid var(--bi-border);
+  border-radius: 12px;
+  margin: 0 20px 14px;
+  padding: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
   transition: background var(--transition);
 }
-.filter-label { font-size: 10.5px; color: var(--bi-text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.filter-field { display: flex; flex-direction: column; gap: 4px; min-width: 128px; }
+.filter-field--obra { min-width: min(360px, 100%); flex: 1 1 320px; }
+.filter-label { font-size: 10px; color: var(--bi-text3); font-weight: 700; text-transform: uppercase; letter-spacing: .55px; }
 .filter-select {
-  padding: 6px 11px; border-radius: 7px;
-  border: 1px solid var(--bi-border2); background: var(--bi-bg3); color: var(--bi-text);
-  font-size: 12px; font-family: 'Sora', sans-serif; font-weight: 500; cursor: pointer;
-  transition: border-color .2s;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid var(--bi-border2);
+  background: var(--bi-bg3);
+  color: var(--bi-text);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .2s, box-shadow .2s;
 }
-.filter-select:focus { outline: none; border-color: var(--bi-accent); }
+.filter-select:focus { outline: none; border-color: var(--bi-accent); box-shadow: 0 0 0 2px var(--bi-accent-bg); }
 .btn-apply {
-  padding: 6px 16px; border-radius: 7px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 9px;
   background: var(--bi-accent); color: #fff;
-  border: none; font-size: 12px; font-weight: 700;
-  cursor: pointer; font-family: 'Sora', sans-serif; transition: opacity .2s;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .2s, transform .15s ease;
 }
-.btn-apply:hover { opacity: .85; }
+.btn-apply:hover { opacity: .9; transform: translateY(-1px); }
+
+@media (max-width: 900px) {
+  .index-toggle-btn {
+    top: 68px;
+    right: 12px;
+    z-index: 400;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    padding: 0;
+  }
+  .index-toggle-btn span { display: none; }
+  .filters-bar {
+    margin-left: 12px;
+    margin-right: 12px;
+    padding: 10px;
+  }
+  .filter-field,
+  .filter-field--obra {
+    min-width: 100%;
+    flex: 1 1 100%;
+  }
+}
 
 .hero {
   background: var(--bi-card); border: 1px solid var(--bi-border);
@@ -491,6 +559,7 @@ html, body {
          class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" style="display: none;"></div>
 
     <aside id="sidebar"
+            data-default-collapsed="1"
             class="fixed top-0 left-0 h-full w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out flex flex-col flex-shrink-0">
         
         <!-- Header com Logo e Branding -->
@@ -499,7 +568,7 @@ html, body {
                 <div class="logo-white-box w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1 flex-shrink-0">
                     <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" style="max-width: 90%; max-height: 90%;">
                 </div>
-                <div class="flex-1 min-w-0 ml-3 text-center">
+                <div class="flex-1 min-w-0 ml-3 text-center sidebar-brand-text">
                     <h1 class="text-xl font-bold text-white tracking-tight mb-1">LPLAN</h1>
                     <p class="text-xs text-gray-400 truncate">
                         {% if '/accounts/admin-central' in request.path %}
@@ -518,7 +587,7 @@ html, body {
             </div>
         </div>
         
-        <!-- Navegação: Home + Trocar Obra + menu do app + Sistemas embaixo -->
+        <!-- Navegação: Home + Trocar Obra + menu do app + Módulos embaixo -->
         <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
             {% if not '/gestao/' in request.path or request.resolver_match.url_name != 'home' %}
             <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -526,29 +595,6 @@ html, body {
                 <span class="font-medium">Home</span>
             </a>
             {% endif %}
-            <div style="padding:4px 8px 2px;">
-  <button type="button" onclick="toggleTheme()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);border-radius:10px;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,0.10)';this.style.borderColor='rgba(99,102,241,0.5)'" onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.borderColor='rgba(255,255,255,0.10)'">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div id="theme-icon-box" style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:rgba(245,158,11,0.18);transition:background .3s;flex-shrink:0;">
-        <svg id="theme-svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-      </div>
-      <div>
-        <div id="theme-label" style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);display:block;line-height:1.2;">Modo claro</div>
-        <div id="theme-sub" style="font-size:9px;color:rgba(255,255,255,0.35);display:block;margin-top:1px;">Tema atual: escuro</div>
-      </div>
-    </div>
-    <div id="theme-pill" style="width:30px;height:16px;border-radius:99px;background:rgba(255,255,255,0.15);position:relative;flex-shrink:0;transition:background .3s;">
-      <div id="theme-knob" style="position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.45);transition:transform .3s cubic-bezier(.4,0,.2,1),background .3s;"></div>
-    </div>
-  </button>
-</div>
-
             {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
@@ -565,7 +611,7 @@ html, body {
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Início</span>
             </a>
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obras e mapa</p>
             </div>
             <a href="{% url 'central_project_list' %}" 
@@ -604,7 +650,7 @@ html, body {
                 {% endif %}
             </a>
             {% if is_admin or is_responsavel_empresa %}
-            <div class="mt-3 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
             </div>
             <a href="{% url 'gestao:list_obras' %}" 
@@ -640,20 +686,15 @@ html, body {
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
-            <a href="{% url 'engenharia:mapa_controle' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-gauge-high w-5 mr-3"></i>
-                <span class="font-medium">Mapa de Controle</span>
-            </a>
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
             <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
 
             {% elif request.resolver_match.url_name == 'analise_obra' %}
-            <!-- BI da Obra: sem menu do Diário; navegação principal em Sistemas -->
+            <!-- BI da Obra: sem menu do Diário; navegação principal em Módulos -->
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Diário de Obras</p>
             </div>
             <a href="{% url 'dashboard' %}" 
@@ -686,77 +727,10 @@ html, body {
             {% endif %}
             {% endif %}
 
-            <div class="my-3 border-t border-slate-600"></div>
-            <!-- Sistemas (troca de app) - embaixo do menu do app -->
-            {% if has_diario or has_gestao or has_mapa or has_central or has_workflow %}
-            <div class="mt-2 mb-2 px-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
-            </div>
-            {% if has_diario and request.resolver_match.url_name == 'select-system' or has_diario and '/gestao/' in request.path or has_diario and '/mapa/' in request.path or has_diario and '/engenharia/' in request.path or has_diario and '/accounts/admin-central' in request.path %}
-            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-file-alt w-5 mr-3"></i>
-                <span class="font-medium">Diário de Obras</span>
-            </a>
-            {% endif %}
-            {% if has_gestao and '/gestao/' not in request.path %}
-            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-clipboard-list w-5 mr-3"></i>
-                <span class="font-medium">GestControll</span>
-            </a>
-            {% endif %}
-            {% if has_mapa and '/mapa/' not in request.path and '/engenharia/' not in request.path %}
-            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-map-marked-alt w-5 mr-3"></i>
-                <span class="font-medium">Mapa de Suprimentos</span>
-            </a>
-            {% endif %}
-            {% if has_mapa and '/engenharia/' in request.path %}
-            <a href="{% url 'engenharia:analise_obra' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analise_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-chart-pie w-5 mr-3"></i>
-                <span class="font-medium">BI da Obra</span>
-            </a>
-            {% endif %}
-            {% if has_central and '/accounts/admin-central' not in request.path %}
-            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-cog w-5 mr-3"></i>
-                <span class="font-medium">Painel do sistema</span>
-            </a>
-            {% endif %}
-            {% if has_workflow and '/aprovacoes/' not in request.path %}
-            <a href="{% url 'workflow_aprovacao:pending' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/aprovacoes/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-check-double w-5 mr-3"></i>
-                <span class="font-medium">Central de Aprovações</span>
-            </a>
-            {% endif %}
-            {% endif %}
+            {% include 'core/_sidebar_systems_links.html' %}
 
-            <!-- Webmail (todos autenticados) + Ajuda/Painel (staff/superuser) -->
-            {% if user.is_authenticated %}
-            <div class="mt-3 pt-3 border-t border-slate-700">
-                <a href="https://lplan.com.br/webmail"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                    <i class="fas fa-envelope w-5 mr-3"></i>
-                    <span class="font-medium">Webmail LPLAN</span>
-                    <i class="fas fa-external-link-alt ml-auto text-xs opacity-75"></i>
-                </a>
-                {% if user.is_staff or user.is_superuser %}
-                <a href="{% url 'central_ajuda' %}" 
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                    <i class="fas fa-question-circle w-5 mr-3"></i>
-                    <span class="font-medium">Ajuda</span>
-                </a>
-                {% if not has_central or '/accounts/admin-central' in request.path %}
-                <a href="{% url 'accounts:admin_central' %}" 
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                    <i class="fas fa-cog w-5 mr-3"></i>
-                    <span class="font-medium">Painel do sistema</span>
-                </a>
-                {% endif %}
-                {% endif %}
-            </div>
-            {% endif %}
+            {% include 'core/_sidebar_support_block.html' %}
+
         </nav>
 
         <!-- User Section (Bottom) -->
@@ -768,7 +742,7 @@ html, body {
                         {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
                     </span>
                 </div>
-                <div class="flex-1 min-w-0">
+                <div class="flex-1 min-w-0 sidebar-user-meta">
                     <p class="text-sm font-semibold text-white truncate">{{ user.get_full_name|default:user.username|title }}</p>
                     <p class="text-xs text-gray-400 truncate">{{ user.email|truncatechars:20 }}</p>
                 </div>
@@ -850,8 +824,15 @@ html, body {
             
 <div class="bi-area">
 
-    <button type="button" class="index-toggle-btn" onclick="toggleIndex()" aria-label="Abrir índice">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <button type="button" class="index-toggle-btn" onclick="toggleIndex()" aria-label="Abrir índice do BI" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="7" height="7" rx="1.4"></rect>
+        <rect x="14" y="4" width="7" height="7" rx="1.4"></rect>
+        <rect x="3" y="13" width="7" height="7" rx="1.4"></rect>
+        <path d="M14 16.5h7"></path>
+        <path d="M14 20h5"></path>
+      </svg>
+      <span>Indice do BI</span>
     </button>
 
     <div class="bi-index" id="bi-index">
@@ -859,25 +840,51 @@ html, body {
         <div class="index-title">Índice do BI</div>
         <button type="button" class="index-close" onclick="toggleIndex()">✕</button>
       </div>
-      <a href="#hero"    class="index-item active" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-text3)"></div>Visão geral</a>
-      <a href="#bloco-1" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-accent)"></div>Execução física</a>
-      <a href="#bloco-2" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-blue)"></div>Pedidos & Aprovações</a>
-      <a href="#bloco-3" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-red)"></div>Restrições</a>
-      <a href="#bloco-4" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-green)"></div>Diário de obras</a>
-      <a href="#bloco-5" class="index-item" onclick="toggleIndex()"><div class="index-dot" style="background:var(--bi-yellow)"></div>Suprimentos</a>
+      <button type="button" onclick="toggleTheme()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;margin-bottom:8px;background:var(--bi-card);border:1px solid var(--bi-border);border-radius:10px;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--bi-bg3)';this.style.borderColor='var(--bi-accent)'" onmouseout="this.style.background='var(--bi-card)';this.style.borderColor='var(--bi-border)'">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="theme-icon-box" style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:rgba(245,158,11,0.18);transition:background .3s;flex-shrink:0;">
+            <svg id="theme-svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+          </div>
+          <div style="text-align:left">
+            <div id="theme-label" style="font-size:11px;font-weight:600;color:var(--bi-text);display:block;line-height:1.2;">Modo claro</div>
+            <div id="theme-sub" style="font-size:9px;color:var(--bi-text3);display:block;margin-top:1px;">Tema atual: escuro</div>
+          </div>
+        </div>
+        <div id="theme-pill" style="width:30px;height:16px;border-radius:99px;background:var(--bi-border2);position:relative;flex-shrink:0;transition:background .3s;">
+          <div id="theme-knob" style="position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--bi-text3);transition:transform .3s cubic-bezier(.4,0,.2,1),background .3s;"></div>
+        </div>
+      </button>
+      <a href="#hero"    class="index-item active"><div class="index-dot" style="background:var(--bi-text3)"></div>Visão geral</a>
+      <a href="#bloco-1" class="index-item"><div class="index-dot" style="background:var(--bi-accent)"></div>Execução física</a>
+      <a href="#bloco-2" class="index-item"><div class="index-dot" style="background:var(--bi-blue)"></div>Pedidos & Aprovações</a>
+      <a href="#bloco-3" class="index-item"><div class="index-dot" style="background:var(--bi-red)"></div>Restrições</a>
+      <a href="#bloco-4" class="index-item"><div class="index-dot" style="background:var(--bi-green)"></div>Diário de obras</a>
+      <a href="#bloco-5" class="index-item"><div class="index-dot" style="background:var(--bi-yellow)"></div>Suprimentos</a>
     </div>
 
     <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filters-bar">
-      <span class="filter-label">Obra</span>
-      <select name="obra" class="filter-select" id="select-obra" onchange="trocarObra(this)" aria-label="Obra">
-        {% for o in obras %}
-        <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
-        {% endfor %}
-      </select>
-      <span class="filter-label">De</span>
-      <input type="date" name="data_inicio" class="filter-select" value="{% if filtros_get.data_inicio %}{{ filtros_get.data_inicio }}{% elif analise_payload %}{{ analise_payload.meta.periodo.inicio }}{% endif %}">
-      <span class="filter-label">Até</span>
-      <input type="date" name="data_fim" class="filter-select" value="{% if filtros_get.data_fim %}{{ filtros_get.data_fim }}{% elif analise_payload %}{{ analise_payload.meta.periodo.fim }}{% endif %}">
+      <div class="filter-field filter-field--obra">
+        <label class="filter-label" for="select-obra">Obra</label>
+        <select name="obra" class="filter-select" id="select-obra" onchange="trocarObra(this)" aria-label="Obra">
+          {% for o in obras %}
+          <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label" for="filtro-data-inicio">Data inicial</label>
+        <input id="filtro-data-inicio" type="date" name="data_inicio" class="filter-select" value="{% if filtros_get.data_inicio %}{{ filtros_get.data_inicio }}{% elif analise_payload %}{{ analise_payload.meta.periodo.inicio }}{% endif %}">
+      </div>
+      <div class="filter-field">
+        <label class="filter-label" for="filtro-data-fim">Data final</label>
+        <input id="filtro-data-fim" type="date" name="data_fim" class="filter-select" value="{% if filtros_get.data_fim %}{{ filtros_get.data_fim }}{% elif analise_payload %}{{ analise_payload.meta.periodo.fim }}{% endif %}">
+      </div>
       <button type="submit" class="btn-apply">Aplicar</button>
     </form>
 
@@ -924,7 +931,7 @@ html, body {
 
       <div class="sec-header" id="bloco-1">
         <div class="sec-title"><div class="sec-num">1</div>Execução física</div>
-        <div class="sec-right"><div class="sec-source">Mapa de Controle</div><a href="{% url 'engenharia:mapa_controle' %}{% if obra_selecionada %}?obra={{ obra_selecionada.id }}{% endif %}" class="nav-link">Abrir Mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
+        <div class="sec-right"><div class="sec-source">Mapa de Controle</div></div>
       </div>
       <div class="grid-3">
         {% if analise_payload %}
@@ -950,7 +957,6 @@ html, body {
           {% empty %}
           <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
           {% endfor %}
-          <a href="{% url 'engenharia:mapa_controle' %}{% if obra_selecionada %}?obra={{ obra_selecionada.id }}{% endif %}" class="nav-link">Ver no Mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
         <div class="card">
           <div class="card-title">Progresso por eixo <span class="card-tag tag-obra">OBRA</span></div>
@@ -981,7 +987,6 @@ html, body {
           <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco B — P4</div><div class="stat-row-value" style="color:var(--bi-yellow)">31%</div></div>
           <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Bloco D — P1</div><div class="stat-row-value" style="color:var(--bi-blue)">47%</div></div>
           <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-green)"></div>Bloco A — P1</div><div class="stat-row-value" style="color:var(--bi-green)">72%</div></div>
-          <a href="{% url 'engenharia:mapa_controle' %}{% if obra_selecionada %}?obra={{ obra_selecionada.id }}{% endif %}" class="nav-link">Ver no Mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
         <div class="card">
           <div class="card-title">Progresso por eixo <span class="card-tag tag-obra">OBRA</span></div>
@@ -1598,8 +1603,21 @@ function toggleTheme() {
   updateThemeUI(next);
 }
 
+function setIndexOpenState(open) {
+  const panel = document.getElementById('bi-index');
+  const btn = document.querySelector('.index-toggle-btn');
+  if (!panel) return;
+  panel.classList.toggle('open', !!open);
+  if (btn) {
+    btn.classList.toggle('is-open', !!open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+}
+
 function toggleIndex() {
-  document.getElementById('bi-index').classList.toggle('open');
+  const panel = document.getElementById('bi-index');
+  if (!panel) return;
+  setIndexOpenState(!panel.classList.contains('open'));
 }
 
 function toggleDias() {
@@ -1635,7 +1653,7 @@ document.addEventListener('click', function(e) {
   const panel = document.getElementById('bi-index');
   const btn = document.querySelector('.index-toggle-btn');
   if (panel && panel.classList.contains('open') && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
-    panel.classList.remove('open');
+    setIndexOpenState(false);
   }
 });
 
@@ -1697,10 +1715,9 @@ biSections.forEach(function(s) {
 window.addEventListener('load', updateActive);
 document.addEventListener('DOMContentLoaded', updateActive);
 
-// Ao clicar num item do índice, fechar painel e forçar atualização após scroll
+// Ao clicar num item do índice, manter painel aberto e atualizar estado ativo após scroll
 document.querySelectorAll('.index-item').forEach(function(item) {
   item.addEventListener('click', function() {
-    document.getElementById('bi-index').classList.remove('open');
     setTimeout(updateActive, 400);
   });
 });
@@ -1711,7 +1728,32 @@ document.querySelectorAll('.index-item').forEach(function(item) {
     var sidebar = document.getElementById('sidebar');
     var overlay = document.getElementById('mobile-sidebar-overlay');
     var toggleBtn = document.getElementById('mobile-sidebar-toggle');
+    var mainWrapper = document.querySelector('.main-content-wrapper');
+    var desktopDefaultCollapsed = sidebar && sidebar.dataset.defaultCollapsed === '1';
     if (!sidebar) return;
+
+    function setDesktopSidebarCollapsed(collapsed) {
+      var isDesktop = window.innerWidth >= 768;
+      if (!isDesktop) return;
+      document.body.classList.toggle('sidebar-collapsed', !!collapsed);
+      sidebar.classList.toggle('is-collapsed', !!collapsed);
+      if (mainWrapper) {
+        if (desktopDefaultCollapsed) {
+          mainWrapper.classList.add('sidebar-wrapper-collapsed');
+          mainWrapper.style.marginLeft = '5.25rem';
+          mainWrapper.style.width = 'calc(100% - 5.25rem)';
+        } else {
+          mainWrapper.classList.toggle('sidebar-wrapper-collapsed', !!collapsed);
+          mainWrapper.style.marginLeft = collapsed ? '5.25rem' : '16rem';
+          mainWrapper.style.width = collapsed ? 'calc(100% - 5.25rem)' : 'calc(100% - 16rem)';
+        }
+      }
+      document.querySelectorAll('#sidebar .sidebar-link').forEach(function (link) {
+        var label = (link.textContent || '').trim().replace(/\s+/g, ' ');
+        if (label) link.setAttribute('title', label);
+      });
+    }
+
     function closeSidebar() {
       if (window.innerWidth < 768) {
         sidebar.style.transform = 'translateX(-100%)';
@@ -1720,14 +1762,24 @@ document.querySelectorAll('.index-item').forEach(function(item) {
     }
     function updateSidebar() {
       var isDesktop = window.innerWidth >= 768;
-      if (isDesktop && overlay) overlay.style.display = 'none';
-      else if (!isDesktop) {
+      if (isDesktop) {
+        if (overlay) overlay.style.display = 'none';
+        setDesktopSidebarCollapsed(desktopDefaultCollapsed);
+      } else {
+        document.body.classList.remove('sidebar-collapsed');
+        sidebar.classList.remove('is-collapsed');
+        if (mainWrapper) {
+          mainWrapper.classList.remove('sidebar-wrapper-collapsed');
+          mainWrapper.style.marginLeft = '';
+          mainWrapper.style.width = '';
+        }
         var ct = window.getComputedStyle(sidebar).transform;
         var open = ct === 'none' || ct.indexOf('matrix(1, 0, 0, 1, 0, 0)') !== -1 || sidebar.style.transform === 'translateX(0)';
         if (!open) sidebar.style.transform = 'translateX(-100%)';
       }
     }
     updateSidebar();
+    window.addEventListener('pageshow', updateSidebar);
     window.addEventListener('resize', function() {
       setTimeout(updateSidebar, 100);
     });
@@ -1746,6 +1798,43 @@ document.querySelectorAll('.index-item').forEach(function(item) {
         }
       });
       overlay.addEventListener('click', closeSidebar);
+    }
+
+    if (desktopDefaultCollapsed) {
+      var hoverOpenTimer = null;
+      var hoverCloseTimer = null;
+      sidebar.addEventListener('mouseenter', function() {
+        if (window.innerWidth < 768) return;
+        if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
+        if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
+        hoverOpenTimer = setTimeout(function () {
+          setDesktopSidebarCollapsed(false);
+          hoverOpenTimer = null;
+        }, 130);
+      });
+      sidebar.addEventListener('mouseleave', function() {
+        if (window.innerWidth < 768) return;
+        if (hoverOpenTimer) { clearTimeout(hoverOpenTimer); hoverOpenTimer = null; }
+        if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
+        hoverCloseTimer = setTimeout(function () {
+          setDesktopSidebarCollapsed(true);
+          hoverCloseTimer = null;
+        }, 170);
+      });
+      sidebar.addEventListener('focusin', function() {
+        if (window.innerWidth < 768) return;
+        if (hoverOpenTimer) { clearTimeout(hoverOpenTimer); hoverOpenTimer = null; }
+        if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
+        setDesktopSidebarCollapsed(false);
+      });
+      sidebar.addEventListener('focusout', function() {
+        if (window.innerWidth < 768) return;
+        setTimeout(function () {
+          if (!sidebar.contains(document.activeElement)) {
+            setDesktopSidebarCollapsed(true);
+          }
+        }, 0);
+      });
     }
   }
   function initUserMenu() {

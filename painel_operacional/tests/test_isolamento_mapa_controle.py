@@ -23,13 +23,14 @@ User = get_user_model()
 class MapaControleIsolamentoRegressaoTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.grupo_eng, _ = Group.objects.get_or_create(name=GRUPOS.ENGENHARIA)
+        cls.grupo_fo, _ = Group.objects.get_or_create(name=GRUPOS.FERRAMENTA_OPERACIONAL)
+        cls.grupo_mc, _ = Group.objects.get_or_create(name=GRUPOS.MAPA_CONTROLE)
         cls.user = User.objects.create_user(
             username="teste_isolamento_mapa",
             email="isolamento@teste.com",
             password="senha123",
         )
-        cls.user.groups.add(cls.grupo_eng)
+        cls.user.groups.add(cls.grupo_fo, cls.grupo_mc)
 
         cls.obra = Obra.objects.create(
             codigo_sienge="OBR-ISO-001",

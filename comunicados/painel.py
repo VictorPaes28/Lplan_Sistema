@@ -1,5 +1,5 @@
 """
-Gestão de comunicados (Painel do sistema — grupo Administrador).
+Gestão de comunicados (Painel — administrador da plataforma).
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from django.views.decorators.http import require_POST
 from django.core.files.base import ContentFile
 
 from accounts.decorators import require_group
-from accounts.groups import GRUPOS
+from accounts.groups import ADMINISTRADOR_GLOBAL_GROUP_NAMES, GRUPOS
 
 from .forms import (
     ComunicadoForm,
@@ -76,7 +76,7 @@ def _redirect_painel_lista(request):
     return redirect(base)
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 def lista(request):
     agora = timezone.now()
     q_busca = (request.GET.get('q') or '').strip()
@@ -139,7 +139,7 @@ def lista(request):
     )
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 def criar(request):
     FS = comunicado_imagem_formset_factory()
     if request.method == 'POST':
@@ -200,7 +200,7 @@ def criar(request):
     )
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 def editar(request, pk):
     comunicado = get_object_or_404(Comunicado, pk=pk)
     FS = comunicado_imagem_formset_factory()
@@ -264,7 +264,7 @@ def editar(request, pk):
     )
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 @require_POST
 def duplicar(request, pk):
     orig = get_object_or_404(Comunicado, pk=pk)
@@ -312,7 +312,7 @@ def duplicar(request, pk):
     return redirect('comunicados_painel_editar', pk=novo.pk)
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 @require_POST
 def toggle(request, pk):
     c = get_object_or_404(Comunicado, pk=pk)
@@ -322,7 +322,7 @@ def toggle(request, pk):
     return _redirect_painel_lista(request)
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 @require_POST
 def encerrar(request, pk):
     c = get_object_or_404(Comunicado, pk=pk)
@@ -420,14 +420,14 @@ def _montar_contexto_desempenho(comunicado: Comunicado) -> dict:
     }
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 def desempenho(request, pk):
     comunicado = get_object_or_404(Comunicado, pk=pk)
     ctx = _montar_contexto_desempenho(comunicado)
     return render(request, 'comunicados/desempenho.html', ctx)
 
 
-@require_group(GRUPOS.ADMINISTRADOR)
+@require_group(*ADMINISTRADOR_GLOBAL_GROUP_NAMES)
 def desempenho_exportar_csv(request, pk):
     comunicado = get_object_or_404(Comunicado, pk=pk)
     ctx = _montar_contexto_desempenho(comunicado)

@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.urls import reverse
+from accounts.groups import GRUPOS
 from core.user_messages import flash_message, resolve_message
 from .models import Obra, LocalObra
 
@@ -85,14 +86,34 @@ def selecionar_obra(request, obra_id):
         })
     
     messages.success(request, f'Obra "{obra.nome}" selecionada com sucesso!')
-    
-    # Sempre redirecionar para o Mapa COM ?obra= na URL, para que ao recarregar a página
-    # a mesma obra seja exibida (evita perda de sessão em produção e "dados que somem").
-    mapa_url = reverse('engenharia:mapa') + '?obra=' + str(obra.id)
+
+    # Retorno após seleção depende da tela que chamou este fluxo (evita jogar sempre na planilha).
+    obra_q = '?obra=' + str(obra.id)
     referer = request.META.get('HTTP_REFERER', '')
-    if '/engenharia/' in referer:
-        return redirect(mapa_url)
-    return redirect(mapa_url)
+    rl = referer.lower()
+    if '/engenharia/analise-obra' in rl:
+        return redirect(reverse('engenharia:analise_obra') + obra_q)
+    if '/engenharia/mapa-controle' in rl:
+        return redirect(reverse('engenharia:mapa_controle') + obra_q)
+    if '/engenharia/ferramenta' in rl:
+        return redirect(reverse('engenharia:ferramenta_shell'))
+
+    # Sem referer útil: destino padrão conforme grupos (evita 403 por cair na planilha sem "Mapa de Suprimentos").
+    gn = set(request.user.groups.values_list("name", flat=True))
+    if request.user.is_superuser or GRUPOS.ENGENHARIA in gn:
+        return redirect(reverse("engenharia:mapa") + obra_q)
+    if GRUPOS.BI_DA_OBRA in gn:
+        return redirect(reverse("engenharia:analise_obra") + obra_q)
+    if GRUPOS.MAPA_CONTROLE in gn:
+        return redirect(reverse("engenharia:mapa_controle") + obra_q)
+    if GRUPOS.FERRAMENTA_OPERACIONAL in gn:
+        return redirect(reverse("engenharia:ferramenta_shell"))
+
+    messages.info(
+        request,
+        "Para continuar, abra primeiro o sistema desejado pela tela de seleção.",
+    )
+    return redirect("mapa_obras:home")
 
 
 @login_required

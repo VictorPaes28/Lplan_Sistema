@@ -1,0 +1,79 @@
+<div id="support-modal-overlay" class="support-modal-overlay" aria-hidden="true">
+    <div class="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
+        <div class="support-modal-header">
+            <div>
+                <div id="support-modal-title" class="support-modal-title">Novo chamado</div>
+                <div class="support-form-helper">Explique o problema em poucas linhas.</div>
+            </div>
+            <button type="button" class="support-modal-close" id="close-support-modal-btn" aria-label="Fechar">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="support-form" class="support-modal-body" novalidate>
+            {% csrf_token %}
+            <div class="support-form-grid">
+                <div class="support-form-field">
+                    <label for="support-category">Área do problema <span class="support-required">*</span></label>
+                    <select id="support-category" required>
+                        <option value="">Selecione...</option>
+                        {% for category in support_categories %}
+                        <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="support-form-helper">Escolha o módulo mais próximo para agilizar o atendimento.</div>
+                </div>
+                <div class="support-form-field">
+                    <label for="support-severity">Impacto do problema <span class="support-required">*</span></label>
+                    <select id="support-severity" required>
+                        <option value="">Selecione...</option>
+                        <option value="BL">Sistema parado (urgente)</option>
+                        <option value="IM">Prejudica bastante o trabalho</option>
+                        <option value="MD">Incomoda, mas dá para continuar</option>
+                        <option value="LW">Dúvida ou ajuste simples</option>
+                    </select>
+                </div>
+                {% if support_projects|length > 1 %}
+                <div class="support-form-field full">
+                    <label for="support-project">Obra relacionada <span class="support-required">*</span></label>
+                    <select id="support-project" required>
+                        <option value="">Selecione a obra...</option>
+                        {% for p in support_projects %}
+                        <option value="{{ p.id }}">{{ p.code }} - {{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% elif support_auto_project %}
+                <div class="support-form-field full">
+                    <label>Obra relacionada</label>
+                    <input type="text" value="{{ support_auto_project.code }} - {{ support_auto_project.name }}" readonly>
+                    <input type="hidden" id="support-project" value="{{ support_auto_project.id }}">
+                    <div class="support-form-helper">A obra foi vinculada automaticamente, pois você tem acesso a apenas uma.</div>
+                </div>
+                {% endif %}
+
+                <div class="support-form-field full">
+                    <label for="support-title">Título <span class="support-required">*</span></label>
+                    <input id="support-title" type="text" maxlength="120" required placeholder="Resumo curto do problema">
+                </div>
+
+                <div class="support-form-field full">
+                    <label for="support-desc">Descrição do problema <span class="support-required">*</span></label>
+                    <textarea id="support-desc" required placeholder="Descreva o que aconteceu e como reproduzir."></textarea>
+                </div>
+                <div class="support-form-field full">
+                    <label for="support-attachments">Anexos (opcional)</label>
+                    <input id="support-attachments" type="file" multiple>
+                    <div class="support-form-helper">Print da tela já ajuda bastante.</div>
+                </div>
+            </div>
+            <div class="support-modal-footer">
+                <div class="support-card-actions" style="margin-top:0;">
+                    <button type="button" id="cancel-support-btn" class="support-card-btn support-card-btn-secondary">Cancelar</button>
+                    <button type="button" id="send-support-btn" class="support-card-btn support-card-btn-primary">
+                        <i class="fas fa-paper-plane"></i>Abrir chamado
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}?v=2">
 {% endblock %}
 
 {% block page_title %}Obras{% endblock %}
@@ -62,6 +62,12 @@
             <a href="{% url 'project-edit' project.id %}" class="central-project-btn central-project-btn-icon" title="Editar obra">
                 <i class="fas fa-edit" aria-hidden="true"></i>
             </a>
+            <form action="{% url 'project-toggle-active' project.id %}" method="post" class="central-project-toggle-form" onsubmit="return confirm('{% if project.is_active %}Desativar esta obra? Ela deixará de aparecer nas seleções de obra para os usuários; dados e histórico permanecem.{% else %}Reativar esta obra? Ela voltará a aparecer nas seleções e nos módulos.{% endif %}');">
+                {% csrf_token %}
+                <button type="submit" class="central-project-btn central-project-btn-icon {% if project.is_active %}central-project-btn-toggle-off{% else %}central-project-btn-toggle-on{% endif %}" title="{% if project.is_active %}Desativar obra{% else %}Reativar obra{% endif %}">
+                    <i class="fas fa-{% if project.is_active %}ban{% else %}check{% endif %}" aria-hidden="true"></i>
+                </button>
+            </form>
             <form action="{% url 'project-delete' project.id %}" method="post" class="central-project-delete-form" onsubmit="return confirm('Tem certeza que deseja excluir a obra \u00AB{{ project.name|escapejs }}\u00BB? Esta ação não pode ser desfeita.');">
                 {% csrf_token %}
                 <button type="submit" class="central-project-btn central-project-btn-icon central-project-btn-delete" title="Excluir obra">

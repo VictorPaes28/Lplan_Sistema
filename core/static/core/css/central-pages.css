@@ -369,6 +369,29 @@
 .central-project-delete-form {
   display: inline-flex;
 }
+.central-project-toggle-form {
+  display: inline-flex;
+}
+.central-project-btn-toggle-off {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+.central-project-btn-toggle-off:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+.central-project-btn-toggle-on {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #6ee7b7;
+}
+.central-project-btn-toggle-on:hover {
+  background: #d1fae5;
+  border-color: #34d399;
+  color: #065f46;
+}
 
 /* Lista de obras (project_list): mobile retrato — coluna clara: dados → botões com wrap (complementa correção em mobile.css) */
 @media (max-width: 768px) and (orientation: portrait) {
@@ -396,7 +419,8 @@
   .central-project-actions .central-project-btn-icon {
     flex: 0 0 auto;
   }
-  .central-project-delete-form {
+  .central-project-delete-form,
+  .central-project-toggle-form {
     flex: 0 0 auto;
   }
 }

@@ -762,6 +762,44 @@ class DiaryFlowTestCase(TestCase):
         self.assertIsNotNone(diary)
         self.assertEqual(diary.status, DiaryStatus.SALVAMENTO_PARCIAL)
 
+    def test_save_draft_persists_new_labor_cargo_catalog_without_quantity(self):
+        """Novo cargo cadastrado sem quantidade deve persistir após salvar rascunho."""
+        self._login_and_select_project()
+        new_date = date.today()
+        category = LaborCategory.objects.exclude(slug='terceirizada').order_by('pk').first()
+        self.assertIsNotNone(category, "É necessário ao menos uma categoria não-terceirizada para o teste.")
+
+        cargo_name = 'Cargo Novo Sem Quantidade'
+        post = _minimal_diary_post(
+            self.project,
+            new_date,
+            partial_save=True,
+            diary_labor_catalog_data=json.dumps([
+                {'category_slug': category.slug, 'cargo_name': cargo_name}
+            ]),
+            diary_labor_data='[]',
+        )
+
+        resp = self.client.post(reverse('diary-new'), post)
+        form_errors = ''
+        if hasattr(resp, 'context') and resp.context and resp.context.get('form'):
+            form_errors = resp.context['form'].errors.as_text()
+        self.assertEqual(resp.status_code, 302, form_errors)
+        self.assertTrue(
+            LaborCargo.objects.filter(category=category, name=cargo_name).exists(),
+            "Cargo novo não foi persistido no catálogo após salvar rascunho.",
+        )
+
+        get_resp = self.client.get(reverse('diary-new'))
+        self.assertEqual(get_resp.status_code, 200)
+        labor_categories = list(get_resp.context['labor_categories'])
+        category_refreshed = next((c for c in labor_categories if c.slug == category.slug), None)
+        self.assertIsNotNone(category_refreshed)
+        self.assertTrue(
+            any(c.name == cargo_name for c in category_refreshed.cargos.all()),
+            "Cargo novo não apareceu na listagem de mão de obra ao abrir novo diário.",
+        )
+
     def test_signature_value_is_preserved_on_validation_error(self):
         """Quando houver erro de validação, a assinatura enviada deve permanecer no HTML retornado."""
         self._login_and_select_project()

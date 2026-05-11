@@ -226,6 +226,8 @@ def _attachments_payload_by_impedimento(obra):
 
 
 def _user_can_access_project(user, project):
+    if not project.is_active and not (user.is_staff or user.is_superuser):
+        return False
     if user.is_staff or user.is_superuser:
         return True
     if ProjectOwner.objects.filter(user=user, project=project).exists():
@@ -554,13 +556,13 @@ ALLOWED_UPDATE_FIELDS = frozenset(
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def home(request):
     return redirect("impedimentos:select_obra")
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def select_obra(request):
     projects = _get_projects_for_user(request.user)
 
@@ -611,7 +613,7 @@ def select_obra(request):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def list_impedimentos(request, obra_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
     if not _user_can_access_project(request.user, project):
@@ -1025,7 +1027,7 @@ def list_impedimentos(request, obra_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def criar_categoria_ajax(request, obra_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1045,7 +1047,7 @@ def criar_categoria_ajax(request, obra_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def remover_categoria_ajax(request, obra_id, categoria_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1076,7 +1078,7 @@ def remover_categoria_ajax(request, obra_id, categoria_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def export_impedimentos_pdf(request, obra_id):
     if not (request.user.is_staff or request.user.is_superuser):
         return HttpResponseForbidden("Apenas administradores podem exportar o PDF.")
@@ -1121,7 +1123,7 @@ def export_impedimentos_pdf(request, obra_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def update_status_ajax(request, obra_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1193,7 +1195,7 @@ def update_status_ajax(request, obra_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET", "POST"])
 def comentarios_impedimento_ajax(request, obra_id, impedimento_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1238,7 +1240,7 @@ def comentarios_impedimento_ajax(request, obra_id, impedimento_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET"])
 def impedimento_detail_ajax(request, obra_id, impedimento_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1304,7 +1306,7 @@ def impedimento_detail_ajax(request, obra_id, impedimento_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET"])
 def impedimento_atividades_ajax(request, obra_id, impedimento_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1335,7 +1337,7 @@ def impedimento_atividades_ajax(request, obra_id, impedimento_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET"])
 def impedimento_subtarefas_ajax(request, obra_id, impedimento_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1378,7 +1380,7 @@ def impedimento_subtarefas_ajax(request, obra_id, impedimento_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 @transaction.atomic
 def impedimento_update_field(request, obra_id, impedimento_id):
@@ -1651,7 +1653,7 @@ def impedimento_update_field(request, obra_id, impedimento_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def impedimento_arquivo_upload(request, obra_id, impedimento_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1705,7 +1707,7 @@ def impedimento_arquivo_upload(request, obra_id, impedimento_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def impedimento_arquivo_remover(request, obra_id, impedimento_id, arquivo_id):
     project = get_object_or_404(Project, pk=obra_id, is_active=True)
@@ -1740,13 +1742,13 @@ def impedimento_arquivo_remover(request, obra_id, impedimento_id, arquivo_id):
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def legacy_list_impedimentos(request):
     return redirect("impedimentos:select_obra")
 
 
 @login_required
-@require_group(GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def legacy_list_status_redirect(request):
     messages.info(
         request,

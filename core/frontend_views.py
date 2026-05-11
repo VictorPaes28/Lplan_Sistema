@@ -40,7 +40,7 @@ from .models import (
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 import logging
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from accounts.models import UserSignupRequest
 from accounts.signup_services import (
     create_signup_request,
@@ -401,16 +401,15 @@ def select_system_view(request):
     """View para seleção de sistema após login."""
     user = request.user
     user_groups = set(user.groups.values_list('name', flat=True))
-    
-    # Determinar acesso por sistema baseado nos grupos
-    has_diario = user.is_superuser or user.is_staff or GRUPOS.GERENTES in user_groups
-    has_gestao = user.is_superuser or user.is_staff or bool(
+
+    adm = user.is_superuser or user.is_staff
+    plat_admin = usuario_tem_administracao_global_na_plataforma(user)
+    has_diario = adm or GRUPOS.GERENTES in user_groups
+    has_gestao = adm or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
-    has_impedimentos = user.is_superuser or user.is_staff or bool(
-        user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
-    )
-    has_trackhub = user.is_superuser or user.is_staff or bool(
+    has_impedimentos = adm or (GRUPOS.GESTAO_IMPEDIMENTOS in user_groups)
+    has_trackhub = adm or plat_admin or bool(
         user_groups
         & {
             GRUPOS.TRACKHUB,
@@ -419,10 +418,16 @@ def select_system_view(request):
             GRUPOS.TRACKHUB_SOLICITANTE,
         }
     )
-    has_mapa = user.is_superuser or user.is_staff or bool(
-        user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
+    has_mapa_suprimentos = adm or (GRUPOS.ENGENHARIA in user_groups)
+    has_mapa_controle = adm or (GRUPOS.MAPA_CONTROLE in user_groups)
+    has_ferramenta_ambientes = adm or (GRUPOS.FERRAMENTA_OPERACIONAL in user_groups)
+    has_bi_obra = adm or (GRUPOS.BI_DA_OBRA in user_groups)
+    has_mapa_modules_any = (
+        has_mapa_suprimentos or has_mapa_controle or has_ferramenta_ambientes or has_bi_obra
     )
-    has_workflow = user.is_superuser or user.is_staff or bool(
+    # Compatível com código que tratou «has_mapa» como Mapa de Suprimentos
+    has_mapa = has_mapa_suprimentos
+    has_workflow = adm or plat_admin or bool(
         user_groups
         & {
             GRUPOS.CENTRAL_APROVACOES_ADMIN,
@@ -430,26 +435,24 @@ def select_system_view(request):
             GRUPOS.CENTRAL_APROVACOES_EXTERNO,
         }
     )
-    # BI da Obra: mesma base de obras (projeto vinculado); visível para quem usa Diário ou Mapa
-    has_bi_obra = user.is_superuser or user.is_staff or has_diario or has_mapa
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
     has_central = user_is_painel_sistema_admin(user)
-    # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
+    has_comunicados_painel = user.is_superuser or plat_admin
     if (
         not (
             has_diario
             or has_gestao
             or has_impedimentos
             or has_trackhub
-            or has_mapa
+            or has_mapa_modules_any
             or has_central
             or has_workflow
+            or has_comunicados_painel
         )
         and _is_work_owner(user)
     ):
         return redirect('client-diary-list')
-    support_projects = list(_get_support_projects_for_user(user))
     local_now = timezone.localtime()
     hour = local_now.hour
     if hour < 12:
@@ -458,6 +461,7 @@ def select_system_view(request):
         time_greeting = 'Boa tarde'
     else:
         time_greeting = 'Boa noite'
+
     context = {
         'time_greeting': time_greeting,
         'has_diario': has_diario,
@@ -465,16 +469,30 @@ def select_system_view(request):
         'has_impedimentos': has_impedimentos,
         'has_trackhub': has_trackhub,
         'has_mapa': has_mapa,
+        'has_mapa_suprimentos': has_mapa_suprimentos,
+        'has_mapa_controle': has_mapa_controle,
+        'has_ferramenta_ambientes': has_ferramenta_ambientes,
+        'has_mapa_modules_any': has_mapa_modules_any,
         'has_bi_obra': has_bi_obra,
+        'has_comunicados_painel': has_comunicados_painel,
         'has_admin': user.is_superuser or user.is_staff,
         'has_central': has_central,
         'has_workflow': has_workflow,
-        'can_manage_support_tickets': user.is_superuser or user.is_staff,
+    }
+    return render(request, 'core/select_system.html', context)
+
+
+@login_required
+def support_hub_view(request):
+    """Página única do suporte: novo chamado, lista e painel (quando aplicável)."""
+    support_projects = list(_get_support_projects_for_user(request.user))
+    context = {
+        'can_manage_support_tickets': _can_manage_support_tickets(request.user),
         'support_projects': support_projects,
         'support_auto_project': support_projects[0] if len(support_projects) == 1 else None,
         'support_categories': SUPPORT_CATEGORY_CHOICES,
     }
-    return render(request, 'core/select_system.html', context)
+    return render(request, 'core/support_hub.html', context)
 
 
 def _can_manage_support_tickets(user):
@@ -1115,6 +1133,8 @@ def _get_support_projects_for_user(user):
 
 def _user_can_access_project(user, project):
     """Verifica se o usuário pode acessar a obra (dono, vinculado ou staff/superuser)."""
+    if not project.is_active and not (user.is_staff or user.is_superuser):
+        return False
     if user.is_staff or user.is_superuser:
         return True
     from core.models import ProjectOwner
@@ -2316,7 +2336,7 @@ def diary_add_owner_comment_view(request, pk):
         messages.error(request, "Escreva um comentário.")
         return redirect('diary-detail', pk=pk)
     DiaryComment.objects.create(diary=diary, author=request.user, text=text)
-    messages.success(request, "Comentário enviado. O dono da obra poderá ver na página de visualização.")
+    messages.success(request, "Comentário enviado. O cliente poderá ver na página de visualização.")
     return redirect('diary-detail', pk=pk)
 
 
@@ -3997,6 +4017,31 @@ def diary_form_view(request, pk=None):
                     import json
                     from core.models import Labor, Equipment, DiaryLaborEntry, LaborCargo, LaborCategory
                     
+                    # Catálogo de novos cargos informados no front (sem depender de quantidade).
+                    labor_catalog_json = request.POST.get('diary_labor_catalog_data', '')
+                    if labor_catalog_json:
+                        try:
+                            labor_catalog_data = json.loads(labor_catalog_json) if labor_catalog_json else []
+                            if not isinstance(labor_catalog_data, list):
+                                labor_catalog_data = []
+                            for item in labor_catalog_data:
+                                if not isinstance(item, dict):
+                                    continue
+                                cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
+                                category_slug = (item.get('category_slug') or item.get('categorySlug') or '').strip()
+                                if not cargo_name or not category_slug:
+                                    continue
+                                target_category = LaborCategory.objects.filter(slug=category_slug).first()
+                                if target_category is None:
+                                    continue
+                                LaborCargo.objects.get_or_create(
+                                    category=target_category,
+                                    name=cargo_name,
+                                    defaults={'order': 0},
+                                )
+                        except (json.JSONDecodeError, TypeError):
+                            logger.debug("Erro ao processar diary_labor_catalog_data", exc_info=True)
+
                     # Novo sistema: mão de obra por categorias/cargos (diary_labor_data)
                     diary_labor_json = request.POST.get('diary_labor_data', '')
                     if diary_labor_json:
@@ -4009,20 +4054,28 @@ def diary_form_view(request, pk=None):
                                 cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
                                 quantity = max(1, int(item.get('quantity') or 1))
                                 company = (item.get('company') or '').strip()
+                                category_slug = (item.get('category_slug') or item.get('categorySlug') or '').strip()
 
                                 selected_cargo_id = None
                                 if cargo_id and LaborCargo.objects.filter(pk=cargo_id).exists():
                                     selected_cargo_id = int(cargo_id)
-                                elif cargo_name and terceirizada_category:
+                                elif cargo_name:
+                                    target_category = None
+                                    if category_slug:
+                                        target_category = LaborCategory.objects.filter(slug=category_slug).first()
+                                    if target_category is None:
+                                        target_category = terceirizada_category
+                                    if target_category is None:
+                                        continue
                                     existing_cargo = LaborCargo.objects.filter(
-                                        category=terceirizada_category,
+                                        category=target_category,
                                         name__iexact=cargo_name
                                     ).only('id').first()
                                     if existing_cargo:
                                         selected_cargo_id = existing_cargo.id
                                     else:
                                         selected_cargo_id = LaborCargo.objects.create(
-                                            category=terceirizada_category,
+                                            category=target_category,
                                             name=cargo_name,
                                             order=0
                                         ).id
@@ -5940,6 +5993,42 @@ def project_list_view(request):
     }
 
     return render(request, 'core/project_list.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def project_toggle_active_view(request, pk):
+    """
+    Ativa/desativa obra (Project). Réplicas GestControll e Mapa seguem via sync_project_to_gestao_and_mapa.
+    Obras inativas somem das seleções operacionais; continuam listadas aqui no Painel.
+    """
+    from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
+    from core.sync_obras import sync_project_to_gestao_and_mapa
+
+    if not user_can_central_obras_diario_e_mapa(request.user):
+        raise PermissionDenied('Você não tem permissão para alterar obras.')
+
+    project = get_object_or_404(Project, pk=pk)
+    project.is_active = not project.is_active
+    project.save(update_fields=['is_active'])
+    sync_project_to_gestao_and_mapa(project)
+
+    if not project.is_active and request.session.get('selected_project_id') == pk:
+        for key in ('selected_project_id', 'selected_project_name', 'selected_project_code'):
+            request.session.pop(key, None)
+
+    if project.is_active:
+        messages.success(
+            request,
+            f'Obra "{project.name}" foi reativada e volta a aparecer nas seleções e módulos.',
+        )
+    else:
+        messages.success(
+            request,
+            f'Obra "{project.name}" foi desativada. Deixa de aparecer para usuários nas seleções de obra; '
+            f'dados e histórico permanecem. Continua visível aqui como inativa.',
+        )
+    return redirect('central_project_list')
 
 
 @login_required

@@ -3,14 +3,14 @@ Acesso ao Painel do sistema (URLs em accounts: admin-central, locais-obras, aná
 
 Modelo:
   - Superuser: acesso técnico total (ex.: fornecedor/Lplan), inclui /admin/ Django se is_staff.
-  - Grupo «Administrador»: administração operacional do cliente (obras, locais, métricas, …)
-    sem necessidade de ser superuser nem is_staff.
+  - Grupo «Administrador» (+ equivalentes legados até migração): administração operacional do cliente (obras,
+    locais, métricas, …) sem necessidade de ser superuser nem is_staff.
 
 O Django Admin (/admin/) continua a usar is_staff + permissões; isto é independente.
 """
 from __future__ import annotations
 
-from .groups import GRUPOS
+from .groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 
 
 def user_is_painel_sistema_admin(user) -> bool:
@@ -19,7 +19,7 @@ def user_is_painel_sistema_admin(user) -> bool:
         return False
     if user.is_superuser:
         return True
-    return user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists()
+    return usuario_tem_administracao_global_na_plataforma(user)
 
 
 def user_can_view_audit_events(user) -> bool:
@@ -47,4 +47,4 @@ def user_can_central_obras_diario_e_mapa(user) -> bool:
         return False
     if user.is_superuser or user.is_staff:
         return True
-    return user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists()
+    return usuario_tem_administracao_global_na_plataforma(user)

@@ -12,15 +12,14 @@
     
     <!-- Custom CSS - Tailwind Utilities Replacement -->
     {% load core_tags %}
-    {% if debug %}{% now "U" as lplan_static_cb %}{% endif %}
-    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/base.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/alpine-fixes.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/ux-improvements.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/video-fixes.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/filters.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
-    <link rel="stylesheet" href="{% static 'core/css/page-transitions.css' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}">
+    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/base.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/alpine-fixes.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/ux-improvements.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/video-fixes.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/filters.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}?v={{ lplan_static_version }}">
+    <link rel="stylesheet" href="{% static 'core/css/page-transitions.css' %}?v={{ lplan_static_version }}">
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -113,6 +112,7 @@
 
     <!-- Sidebar (z-index definido em base.css para ficar sempre acima do header) -->
     <aside id="sidebar"
+            data-default-collapsed="1"
             class="fixed top-0 left-0 h-full w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out flex flex-col flex-shrink-0">
         
         <!-- Header com Logo e Branding -->
@@ -121,15 +121,19 @@
                 <div class="logo-white-box w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1 flex-shrink-0">
                     <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain" style="max-width: 90%; max-height: 90%;">
                 </div>
-                <div class="flex-1 min-w-0 ml-3 text-center">
+                <div class="flex-1 min-w-0 ml-3 text-center sidebar-brand-text">
                     <h1 class="text-xl font-bold text-white tracking-tight mb-1">LPLAN</h1>
                     <p class="text-xs text-gray-400 truncate">
                         {% if '/accounts/admin-central' in request.path %}
                             Painel do sistema
                         {% elif '/gestao/' in request.path %}
                             GestControll
+                        {% elif '/aprovacoes/' in request.path %}
+                            Central de Aprovações
+                        {% elif '/impedimentos/' in request.path %}
+                            Restrições
                         {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
-                            Mapa de Suprimentos
+                            Mapa e Suprimentos
                         {% elif request.session.selected_project_name %}
                             {{ request.session.selected_project_name|truncatechars:20 }}
                         {% else %}
@@ -140,15 +144,23 @@
             </div>
         </div>
         
-        <!-- Navegação: Home + Trocar Obra + menu do app + Sistemas embaixo -->
+        <!-- Navegação: Home + Trocar Obra + menu do app + Módulos embaixo -->
         <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
-            {% if not '/gestao/' in request.path or request.resolver_match.url_name != 'home' %}
+            <div class="px-1 mb-2 sidebar-search-wrap">
+                <label for="sidebar-search-input" class="sr-only">Buscar no menu</label>
+                <div class="sidebar-search-field">
+                    <i class="fas fa-search sidebar-search-icon" aria-hidden="true"></i>
+                    <input id="sidebar-search-input"
+                           type="text"
+                           class="sidebar-search-input w-full"
+                           placeholder="Buscar no menu...">
+                </div>
+            </div>
             <a href="{% url 'select-system' %}" class="sidebar-link sidebar-switch-system flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select-system' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Home</span>
             </a>
-            {% endif %}
-            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/trackhub/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
+            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/trackhub/' not in request.path and '/aprovacoes/' not in request.path and '/impedimentos/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
@@ -164,7 +176,7 @@
                 <i class="fas fa-cog w-5 mr-3"></i>
                 <span class="font-medium">Início</span>
             </a>
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Obras e mapa</p>
             </div>
             <a href="{% url 'central_project_list' %}" 
@@ -179,7 +191,7 @@
             <a href="{% url 'gestao:home' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-home w-5 mr-3"></i>
-                <span class="font-medium">Visão Geral</span>
+                <span class="font-medium">Visão geral</span>
             </a>
             {% endif %}
             <a href="{% url 'gestao:list_workorders' %}" 
@@ -203,7 +215,7 @@
                 {% endif %}
             </a>
             {% if is_admin or is_responsavel_empresa %}
-            <div class="mt-3 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
             </div>
             <a href="{% url 'gestao:list_obras' %}" 
@@ -219,7 +231,7 @@
             {% endif %}
             {% if is_admin %}
             <a href="{% if user.is_staff or user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_users' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_users' or request.resolver_match.url_name == 'central_list_users' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-users-cog w-5 mr-3"></i>
                 <span class="font-medium">Usuários</span>
             </a>
@@ -232,27 +244,114 @@
             </a>
             {% endif %}
 
+            {% elif '/aprovacoes/' in request.path %}
+            <!-- ═══════ MENU: Central de Aprovações ═══════ -->
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Central de Aprovações</p>
+            </div>
+            <a href="{% url 'workflow_aprovacao:pending' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'pending' or request.resolver_match.url_name == 'home' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-inbox w-5 mr-3"></i>
+                <span class="font-medium">Fila</span>
+            </a>
+            <a href="{% url 'workflow_aprovacao:dashboard' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-chart-pie w-5 mr-3"></i>
+                <span class="font-medium">Resumo</span>
+            </a>
+            {% if workflow_show_config_nav %}
+            <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Configuração</p>
+            </div>
+            <a href="{% url 'workflow_aprovacao:config_backlog_list' %}"
+               class="sidebar-link flex items-center justify-between px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'config_backlog_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <span class="flex items-center">
+                    <i class="fas fa-clipboard-list w-5 mr-3"></i>
+                    <span class="font-medium">Pendências</span>
+                </span>
+                {% if workflow_backlog_pending_count and workflow_backlog_pending_count > 0 %}
+                <span class="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{{ workflow_backlog_pending_count }}</span>
+                {% endif %}
+            </a>
+            <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'config_flow_list' or request.resolver_match.url_name == 'flow_edit' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-sitemap w-5 mr-3"></i>
+                <span class="font-medium">Fluxos</span>
+            </a>
+            <a href="{% url 'workflow_aprovacao:outbox_list' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'outbox_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-paper-plane w-5 mr-3"></i>
+                <span class="font-medium">Retorno Sienge</span>
+            </a>
+            <form method="post" action="{% url 'workflow_aprovacao:force_sync' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit"
+                        class="sidebar-link w-full text-left flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                    <i class="fas fa-sync-alt w-5 mr-3"></i>
+                    <span class="font-medium">Atualizar agora</span>
+                </button>
+            </form>
+            {% endif %}
+
             {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
-            <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
+            <!-- ═══════ MENU: Mapa e Suprimentos ═══════ -->
             <a href="{% url 'engenharia:dashboard_2' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
-            <a href="{% url 'engenharia:mapa_controle' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-gauge-high w-5 mr-3"></i>
-                <span class="font-medium">Mapa de Controle</span>
+            <a href="{% url 'engenharia:analise_obra' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analise_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-layer-group w-5 mr-3"></i>
+                <span class="font-medium">BI da Obra</span>
+            </a>
+            <a href="{% url 'engenharia:mapa' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' or request.resolver_match.url_name == 'mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-table w-5 mr-3"></i>
+                <span class="font-medium">Mapa</span>
+            </a>
+            <a href="{% url 'engenharia:ferramenta_shell' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-magic w-5 mr-3"></i>
+                <span class="font-medium">Ferramenta</span>
+            </a>
+            <a href="{% url 'engenharia:importar_sienge' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-upload w-5 mr-3"></i>
+                <span class="font-medium">Importar Sienge</span>
+            </a>
+            <a href="{% url 'mapa_obras:home' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i>
+                <span class="font-medium">Trocar Obra</span>
+            </a>
+            {% elif '/impedimentos/' in request.path %}
+            <!-- ═══════ MENU: Restrições ═══════ -->
+            <a href="{% url 'impedimentos:select_obra' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'select_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-project-diagram w-5 mr-3"></i>
+                <span class="font-medium">Selecionar Obra</span>
+            </a>
+            <a href="{% url 'impedimentos:home' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' or request.resolver_match.url_name == 'list_impedimentos' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-list-check w-5 mr-3"></i>
+                <span class="font-medium">Itens</span>
+            </a>
+            <a href="{% url 'impedimentos:legacy_list_status_redirect' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_status' or request.resolver_match.url_name == 'legacy_list_status_redirect' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-columns w-5 mr-3"></i>
+                <span class="font-medium">Status</span>
             </a>
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
-            <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
+            <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de módulos acima já cobre os links -->
 
             {% elif '/trackhub/' in request.path %}
             <!-- TrackHub: navegação principal nas abas da página; sem Diário de Obras / Trocar Obra aqui -->
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->
-            <div class="mt-2 mb-2 px-4">
+            <div class="sidebar-nav-section-title mt-2 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Diário de Obras</p>
             </div>
             <a href="{% url 'dashboard' %}" 
@@ -285,71 +384,10 @@
             {% endif %}
             {% endif %}
 
-            <div class="my-3 border-t border-slate-600"></div>
-            <!-- Sistemas (troca de app) - embaixo do menu do app -->
-            {% if has_diario or has_gestao or has_mapa or has_central or has_workflow %}
-            <div class="mt-2 mb-2 px-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sistemas</p>
-            </div>
-            {% if has_diario and request.resolver_match.url_name == 'select-system' or has_diario and '/gestao/' in request.path or has_diario and '/mapa/' in request.path or has_diario and '/engenharia/' in request.path or has_diario and '/accounts/admin-central' in request.path %}
-            <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-file-alt w-5 mr-3"></i>
-                <span class="font-medium">Diário de Obras</span>
-            </a>
-            {% endif %}
-            {% if has_gestao and '/gestao/' not in request.path %}
-            <a href="{% url 'gestao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-clipboard-list w-5 mr-3"></i>
-                <span class="font-medium">GestControll</span>
-            </a>
-            {% endif %}
-            {% if has_mapa and '/mapa/' not in request.path and '/engenharia/' not in request.path %}
-            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-map-marked-alt w-5 mr-3"></i>
-                <span class="font-medium">Mapa de Suprimentos</span>
-            </a>
-            {% endif %}
-            {% if has_central and '/accounts/admin-central' not in request.path %}
-            <a href="{% url 'accounts:admin_central' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                <i class="fas fa-cog w-5 mr-3"></i>
-                <span class="font-medium">Painel do sistema</span>
-            </a>
-            {% endif %}
-            {% if has_workflow and '/aprovacoes/' not in request.path %}
-            <a href="{% url 'workflow_aprovacao:pending' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/aprovacoes/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-check-double w-5 mr-3"></i>
-                <span class="font-medium">Central de Aprovações</span>
-            </a>
-            {% endif %}
-            {% endif %}
+            {% include 'core/_sidebar_systems_links.html' %}
 
-            <!-- Webmail (todos autenticados) + Ajuda/Painel (staff/superuser) -->
-            {% if user.is_authenticated %}
-            <div class="mt-3 pt-3 border-t border-slate-700">
-                <a href="https://lplan.com.br/webmail"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                    <i class="fas fa-envelope w-5 mr-3"></i>
-                    <span class="font-medium">Webmail LPLAN</span>
-                    <i class="fas fa-external-link-alt ml-auto text-xs opacity-75"></i>
-                </a>
-                {% if user.is_staff or user.is_superuser %}
-                <a href="{% url 'central_ajuda' %}" 
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'central_ajuda' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                    <i class="fas fa-question-circle w-5 mr-3"></i>
-                    <span class="font-medium">Ajuda</span>
-                </a>
-                {% if not has_central or '/accounts/admin-central' in request.path %}
-                <a href="{% url 'accounts:admin_central' %}" 
-                   class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if '/accounts/admin-central' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                    <i class="fas fa-cog w-5 mr-3"></i>
-                    <span class="font-medium">Painel do sistema</span>
-                </a>
-                {% endif %}
-                {% endif %}
-            </div>
-            {% endif %}
+            {% include 'core/_sidebar_support_block.html' %}
+
         </nav>
 
         <!-- User Section (Bottom) -->
@@ -361,7 +399,7 @@
                         {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
                     </span>
                 </div>
-                <div class="flex-1 min-w-0">
+                <div class="flex-1 min-w-0 sidebar-user-meta">
                     <p class="text-sm font-semibold text-white truncate">{{ user.get_full_name|default:user.username|title }}</p>
                     <p class="text-xs text-gray-400 truncate">{{ user.email|truncatechars:20 }}</p>
                 </div>
@@ -373,7 +411,6 @@
         </div>
         {% endif %}
     </aside>
-
     <!-- Main Content -->
     <div class="main-content-wrapper">
         <!-- Page Content -->
@@ -596,11 +633,11 @@
     <!-- Scripts - Carregados no final do body para melhor performance -->
     <!-- Accordion Manager - Sistema robusto de seções expansíveis -->
     {% load static %}
-    <script src="{% static 'core/js/accordion.js' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}"></script>
+    <script src="{% static 'core/js/accordion.js' %}?v={{ lplan_static_version }}"></script>
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="{% static 'core/js/page-transitions.js' %}{% if debug %}?cb={{ lplan_static_cb }}{% endif %}"></script>
+    <script src="{% static 'core/js/page-transitions.js' %}?v={{ lplan_static_version }}"></script>
     
     <!-- Flatpickr JS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -699,9 +736,36 @@
                 const sidebar = document.getElementById('sidebar');
                 const overlay = document.getElementById('mobile-sidebar-overlay');
                 const toggleBtn = document.getElementById('mobile-sidebar-toggle');
+                const mainWrapper = document.querySelector('.main-content-wrapper');
+                const desktopDefaultCollapsed = sidebar && sidebar.dataset.defaultCollapsed === '1';
                 
                 if (!sidebar) return;
-                
+
+                function setDesktopSidebarCollapsed(collapsed) {
+                    const isDesktop = window.innerWidth >= 768;
+                    if (!isDesktop) return;
+                    document.body.classList.toggle('sidebar-collapsed', !!collapsed);
+                    sidebar.classList.toggle('is-collapsed', !!collapsed);
+                    sidebar.style.width = collapsed ? '5.25rem' : '16rem';
+                    if (mainWrapper) {
+                        // Em modo hover (sidebar recolhida por padrão), mantém o conteúdo fixo
+                        // para evitar "tranco" de layout durante abrir/fechar.
+                        if (desktopDefaultCollapsed) {
+                            mainWrapper.classList.add('sidebar-wrapper-collapsed');
+                            mainWrapper.style.marginLeft = '5.25rem';
+                            mainWrapper.style.width = 'calc(100% - 5.25rem)';
+                        } else {
+                            mainWrapper.classList.toggle('sidebar-wrapper-collapsed', !!collapsed);
+                            mainWrapper.style.marginLeft = collapsed ? '5.25rem' : '16rem';
+                            mainWrapper.style.width = collapsed ? 'calc(100% - 5.25rem)' : 'calc(100% - 16rem)';
+                        }
+                    }
+                    document.querySelectorAll('#sidebar .sidebar-link').forEach(function (link) {
+                        const label = (link.textContent || '').trim().replace(/\s+/g, ' ');
+                        if (label) link.setAttribute('title', label);
+                    });
+                }
+
                 function closeSidebar() {
                     if (window.innerWidth < 768) {
                         sidebar.style.transform = 'translateX(-100%)';
@@ -716,30 +780,32 @@
                     const isCurrentlyVisible = currentTransform === 'none' || currentTransform === 'matrix(1, 0, 0, 1, 0, 0)' || sidebar.style.transform === 'translateX(0)';
                     
                     if (isDesktop) {
-                        // Desktop - CSS já define via !important no media query
-                        // Apenas garantimos que overlay esteja escondido
                         if (overlay) overlay.style.display = 'none';
-                        // Não precisamos definir transform/height/position aqui
-                        // porque o CSS media query já faz isso com !important
+                        setDesktopSidebarCollapsed(desktopDefaultCollapsed);
                     } else {
-                        // Mobile - esconde se não estiver aberta
+                        document.body.classList.remove('sidebar-collapsed');
+                        sidebar.classList.remove('is-collapsed');
+                        if (mainWrapper) {
+                            mainWrapper.classList.remove('sidebar-wrapper-collapsed');
+                            mainWrapper.style.marginLeft = '';
+                            mainWrapper.style.width = '';
+                        }
+                        sidebar.style.width = '';
                         if (!isCurrentlyVisible) {
                             sidebar.style.transform = 'translateX(-100%)';
                         }
                     }
                 }
                 
-                // Inicializa baseado no tamanho da tela
                 updateSidebar();
+                window.addEventListener('pageshow', updateSidebar);
                 
-                // Atualiza ao redimensionar
                 let resizeTimer;
                 window.addEventListener('resize', function() {
                     clearTimeout(resizeTimer);
                     resizeTimer = setTimeout(updateSidebar, 100);
                 });
                 
-                // Mobile toggle (apenas em mobile)
                 if (toggleBtn && overlay) {
                     toggleBtn.addEventListener('click', function(e) {
                         e.preventDefault();
@@ -764,6 +830,99 @@
                     
                     overlay.addEventListener('click', closeSidebar);
                 }
+                
+                // Desktop: quando recolhida por padrão, expande ao hover/foco e recolhe ao sair.
+                if (desktopDefaultCollapsed) {
+                    let hoverOpenTimer = null;
+                    let hoverCloseTimer = null;
+                    sidebar.addEventListener('mouseenter', function() {
+                        if (window.innerWidth < 768) return;
+                        if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
+                        if (hoverCloseTimer) {
+                            clearTimeout(hoverCloseTimer);
+                            hoverCloseTimer = null;
+                        }
+                        hoverOpenTimer = setTimeout(function () {
+                            setDesktopSidebarCollapsed(false);
+                            hoverOpenTimer = null;
+                        }, 130);
+                    });
+                    sidebar.addEventListener('mouseleave', function() {
+                        if (window.innerWidth < 768) return;
+                        if (hoverOpenTimer) {
+                            clearTimeout(hoverOpenTimer);
+                            hoverOpenTimer = null;
+                        }
+                        if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
+                        hoverCloseTimer = setTimeout(function () {
+                            setDesktopSidebarCollapsed(true);
+                            hoverCloseTimer = null;
+                        }, 170);
+                    });
+                    sidebar.addEventListener('focusin', function() {
+                        if (window.innerWidth < 768) return;
+                        if (hoverOpenTimer) {
+                            clearTimeout(hoverOpenTimer);
+                            hoverOpenTimer = null;
+                        }
+                        if (hoverCloseTimer) {
+                            clearTimeout(hoverCloseTimer);
+                            hoverCloseTimer = null;
+                        }
+                        setDesktopSidebarCollapsed(false);
+                    });
+                    sidebar.addEventListener('focusout', function() {
+                        if (window.innerWidth < 768) return;
+                        setTimeout(function () {
+                            if (!sidebar.contains(document.activeElement)) {
+                                setDesktopSidebarCollapsed(true);
+                            }
+                        }, 0);
+                    });
+                }
+
+            }
+
+            function initSidebarSearch() {
+                const input = document.getElementById('sidebar-search-input');
+                const sidebar = document.getElementById('sidebar');
+                if (!input || !sidebar) return;
+                const nav = sidebar.querySelector('.sidebar-nav');
+                if (!nav) return;
+                const items = Array.prototype.slice.call(nav.querySelectorAll('.sidebar-link'));
+                const sectionHeaders = Array.prototype.slice.call(
+                    nav.querySelectorAll('.sidebar-nav-section-title, div.mt-2.mb-2.px-4, div.mt-3.mb-2.px-4')
+                );
+
+                function updateSectionVisibility() {
+                    sectionHeaders.forEach(function (header) {
+                        let el = header.nextElementSibling;
+                        let hasVisibleItem = false;
+                        while (el) {
+                            if (sectionHeaders.indexOf(el) !== -1) break;
+                            if (el.classList && el.classList.contains('sidebar-link') && el.style.display !== 'none') {
+                                hasVisibleItem = true;
+                                break;
+                            }
+                            const nested = el.querySelector && el.querySelector('.sidebar-link');
+                            if (nested && nested.style.display !== 'none') {
+                                hasVisibleItem = true;
+                                break;
+                            }
+                            el = el.nextElementSibling;
+                        }
+                        header.style.display = hasVisibleItem ? '' : 'none';
+                    });
+                }
+
+                input.addEventListener('input', function () {
+                    const q = (input.value || '').toLowerCase().trim();
+                    items.forEach(function (item) {
+                        const text = (item.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
+                        item.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+                    });
+                    updateSectionVisibility();
+                });
             }
             
             // ============================================
@@ -900,6 +1059,7 @@
             // ============================================
             function init() {
                 initSidebar();
+                initSidebarSearch();
                 initFilterSearch();
                 initUserMenu();
                 initMediaImageRetry();

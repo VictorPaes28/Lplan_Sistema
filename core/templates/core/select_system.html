@@ -1,13 +1,20 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block main_extra_class %}select-system-main{% endblock %}
 
-{% block page_title %}<span class="sr-only">Selecionar app</span>{% endblock %}
-{% block page_subtitle %}<span class="select-system-brand-line">Sistema Lplan</span>{% endblock %}
+{% block page_title %}
+<span id="lplan-top-brand-lockup" class="select-system-brand-lockup">
+    <span class="select-system-brand-name">LPLAN</span>
+    <span class="select-system-brand-tag">
+        <span class="select-system-brand-tag-w">Engenharia</span>
+        <span class="select-system-brand-tag-sep" aria-hidden="true">|</span>
+        <span class="select-system-brand-tag-w">integrada</span>
+    </span>
+</span>
+{% endblock %}
+{% block page_subtitle %}<span class="sr-only">Seleção de módulos</span>{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400&display=swap">
 <style>
     /* Tela inicial: não exibir botão de voltar */
     #top-bar-back-link {
@@ -17,75 +24,292 @@
     /* Fundo da área principal (texto do herói “no papel”, cards brancos em cima) */
     .main-content.select-system-main {
         background: #f5f7f9;
-    }
-    /* Top bar: sem “Selecionar app” visível; só marca (título real fica em .sr-only no h2) */
-    .main-content.select-system-main .top-bar-title {
-        margin: 0;
-        padding: 0;
-    }
-    .main-content.select-system-main .top-bar-subtitle {
-        display: block !important;
-        margin-top: 0;
-        margin-bottom: 0;
-    }
-    .main-content.select-system-main .select-system-brand-line {
-        font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
-        font-weight: 300;
-        font-size: 0.9375rem;
-        letter-spacing: 0.04em;
-        color: #64748b;
-        line-height: 1.35;
+        /* Um único recuo lateral: top bar + bloco do hero/grid alinhados */
+        --select-sys-inline: 0.75rem;
     }
     @media (min-width: 768px) {
-        .main-content.select-system-main .select-system-brand-line {
-            font-size: 1rem;
-            letter-spacing: 0.05em;
+        .main-content.select-system-main {
+            --select-sys-inline: 1rem;
+        }
+    }
+    @media (min-width: 1024px) {
+        .main-content.select-system-main {
+            --select-sys-inline: 1.125rem;
         }
     }
 
-    /* Ligeiramente mais largo que antes (~1248px) para aproveitar melhor o main */
-    .main-content.select-system-main > *:not(.top-bar-container) {
-        padding-left: 0.875rem;
-        padding-right: 0.875rem;
+    /*
+     * Top bar = mesma tinta da área (#f5f7f9) + tipografia alinhada ao hero (system-ui).
+     * `main` no seletor vence background-color:white do base.css só nesta página.
+     */
+    main.main-content.select-system-main > .top-bar-container {
+        background-color: #f5f7f9 !important;
+        background-image: none !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.42) !important;
+        box-shadow: none !important;
     }
-    @media (min-width: 768px) {
-        .main-content.select-system-main > *:not(.top-bar-container) {
-            padding-left: 1.125rem;
-            padding-right: 1.125rem;
-        }
+    main.main-content.select-system-main > .top-bar-container .top-bar-heading-text {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     }
 
-    .select-system-root {
-        max-width: 78rem;
+    /* h2 não define tamanho do lockup: filhos usam rem; neutraliza mobile .top-bar-title { font-size: … !important } */
+    html body main.main-content.select-system-main > .top-bar-container .top-bar-heading-text > h2.top-bar-title {
+        font-size: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 0 !important;
+        letter-spacing: 0 !important;
+        border: none;
+        font-weight: unset !important;
+        color: transparent !important;
+    }
+    html body main.main-content.select-system-main > .top-bar-container .top-bar-heading-text > h2.top-bar-title #lplan-top-brand-lockup.select-system-brand-lockup {
+        --select-brand-blue: #3573d9;
+        --select-brand-blue-dark: #2a63bf;
+        box-sizing: border-box;
+        /* h2 pai está com font-size:0 só para driblar mobile; este “âncora” volta para 1rem (os filhos usam clamp em rem) */
+        font-size: 1rem;
+        line-height: 1.2;
+        color: #3573d9;
+        vertical-align: top;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: fit-content;
+        max-width: min(20.5rem, 90vw);
+        gap: 0.12rem;
+    }
+
+    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-name {
+        display: block;
+        font-size: clamp(1.6rem, 1.95vw + 1.06rem, 2.125rem) !important;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #3573d9 !important;
+        color: var(--select-brand-blue) !important;
+        line-height: 1.05 !important;
+    }
+
+    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-tag {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
         width: 100%;
-        margin-left: auto;
-        margin-right: auto;
-        /* Respiro abaixo da top bar (o main não aplica padding-top aos filhos) */
-        padding-top: 2rem;
+        margin-top: 0.12rem;
+        padding-top: 0.08rem;
+        column-gap: 0.45rem;
+    }
+
+    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-tag-w {
+        font-size: clamp(0.5625rem, 0.24vw + 0.478rem, 0.625rem) !important;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+        text-transform: none;
+        color: #2a63bf !important;
+        color: var(--select-brand-blue-dark) !important;
+        line-height: 1.35 !important;
+        white-space: nowrap;
+    }
+
+    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-tag-sep {
+        flex: 0 0 auto;
+        font-weight: 600;
+        font-size: clamp(0.53125rem, 0.2vw + 0.446rem, 0.59375rem) !important;
+        color: rgba(42, 99, 191, 0.52) !important;
+        letter-spacing: 0.08em;
+        padding: 0 0.12rem;
+    }
+
+    main.main-content.select-system-main > .top-bar-container .top-bar-subtitle {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        line-height: 0 !important;
+        font-size: 0 !important;
+    }
+
+    main.main-content.select-system-main > .top-bar-container .top-bar-subtitle .sr-only {
+        position: absolute !important;
+    }
+
+    main.main-content.select-system-main > .top-bar-container .notif-bell-link {
+        color: #475569 !important;
+    }
+    main.main-content.select-system-main > .top-bar-container .notif-bell-link:hover {
+        color: #0f172a !important;
+        background-color: rgba(15, 23, 42, 0.06) !important;
+    }
+    main.main-content.select-system-main > .top-bar-container #user-menu-button {
+        background-color: #ffffff !important;
+        border: 1px solid rgba(148, 163, 184, 0.38) !important;
+        box-shadow: none !important;
+    }
+    main.main-content.select-system-main > .top-bar-container #user-menu-button:hover {
+        background-color: #fafafa !important;
+    }
+    main.main-content.select-system-main > .top-bar-container #user-menu-chevron {
+        color: #64748b !important;
+    }
+    main.main-content.select-system-main > .top-bar-container .notif-count-badge {
+        border-color: #f5f7f9 !important;
+    }
+    /* Estreita só nesta página + mesma pintura do miolo (menos contraste estranho com body slate-50) */
+    .main-content-wrapper:has(main.main-content.select-system-main) {
+        background-color: #f5f7f9;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-bottom: 0;
+        /* Coluna em altura total: rodapé desce até o fim da área útil da viewport */
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        min-height: 100dvh;
+        box-sizing: border-box;
+    }
+    @media (min-width: 768px) {
+        .main-content-wrapper:has(main.main-content.select-system-main) {
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-bottom: 0;
+        }
+    }
+    @media (min-width: 1024px) {
+        .main-content-wrapper:has(main.main-content.select-system-main) {
+            padding-left: 1.25rem;
+            padding-right: 1.25rem;
+            padding-bottom: 0;
+        }
+    }
+
+    /* Main ocupa espaço livre dentro do wrapper (sticky footer leve) */
+    .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
+        flex: 1 1 auto;
+        width: 100%;
+        min-height: 0;
+        box-sizing: border-box;
+    }
+    /* Força altura útil quando há poucos cards: sem isso main some com o conteúdo e o rodapé fica “no meio”. */
+    @media (max-width: 767.98px) {
+        .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
+            min-height: calc(100svh - 4rem);
+            min-height: calc(100dvh - 4rem);
+        }
+    }
+    @media (min-width: 768px) {
+        .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
+            min-height: calc(100vh - 2.5rem);
+            min-height: calc(100dvh - 2.5rem);
+        }
+    }
+
+    main.main-content.select-system-main > .top-bar-container {
+        flex-shrink: 0;
+    }
+
+    /* Hero, alertas e grid: mesmo inset horizontal que a top bar */
+    .main-content.select-system-main > *:not(.top-bar-container) {
+        padding-left: var(--select-sys-inline);
+        padding-right: var(--select-sys-inline);
+        padding-bottom: 0;
+    }
+
+    /* Miolo: cresce e empurra o rodapé com margin-top: auto para o fundo da área útil */
+    .select-system-root {
+        max-width: none;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        padding-top: 0.95rem;
+        padding-bottom: 0 !important;
+        flex: 1 1 0%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
     }
     @media (min-width: 768px) {
         .select-system-root {
-            padding-top: 2.75rem;
+            padding-top: 1.35rem;
         }
     }
 
-    /* Grid: mesma altura por linha; rodapé “Acessar” alinhado ao fundo do card */
+    /* base.css (≥1280px) impõe max-width 1400px no main — aqui usamos a área toda */
+    @media (min-width: 1280px) {
+        main.main-content.select-system-main {
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+    }
+
+    /* Top bar: mesmos --select-sys-inline que o hero e a grade */
+    .main-content.select-system-main > .top-bar-container:first-child {
+        padding-top: 0.95rem !important;
+        padding-bottom: 0.95rem !important;
+        padding-left: var(--select-sys-inline) !important;
+        padding-right: var(--select-sys-inline) !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+    @media (min-width: 768px) {
+        .main-content.select-system-main > .top-bar-container:first-child {
+            padding-top: 1.15rem !important;
+            padding-bottom: 1.1rem !important;
+        }
+    }
+
+    /*
+     * Grade com teto de colunas: mais largura por card que auto-fill estreito (ex.: 6 colunas).
+     * 4 colunas só em telas amplas (~1440+) para não espremer texto.
+     */
     .select-system-cards-grid {
         display: grid;
-        gap: 1.75rem;
+        gap: 1.45rem;
         grid-template-columns: 1fr;
         align-items: stretch;
+        /* Margem discreta; o “vão” grande com poucos cards vem do margin-top: auto do rodapé */
+        margin-bottom: clamp(1rem, 2vw, 1.75rem);
     }
-    @media (min-width: 640px) {
+    /* order: evita Central de Aprovações ir para o fim (order:1 após todos os order:0) */
+    .select-system-cards-grid > .system-card {
+        order: 2;
+    }
+    .select-system-cards-grid > .system-card.central {
+        order: 0;
+    }
+    .select-system-cards-grid > .system-card.workflow-central {
+        order: 1;
+    }
+    @media (min-width: 560px) {
         .select-system-cards-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.5rem;
+        }
+    }
+    @media (min-width: 992px) {
+        .select-system-cards-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 1.75rem;
         }
     }
-    @media (min-width: 1080px) {
+    @media (min-width: 1440px) {
         .select-system-cards-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 2rem;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1.875rem;
+        }
+    }
+
+    /* Padding interno um tiquinho menor (mobile + telas grandes) */
+    @media (min-width: 768px) {
+        .main-content.select-system-main .system-card .card-inner {
+            padding: 1.5rem 1.625rem;
+        }
+    }
+    @media (min-width: 1024px) {
+        .main-content.select-system-main .system-card .card-inner {
+            padding: 1.625rem 1.75rem;
         }
     }
 
@@ -118,14 +342,14 @@
         position: absolute;
         inset: 0;
         background: rgba(0, 0, 0, 0.05);
-        border-radius: 16px;
+        border-radius: 14px;
         pointer-events: none;
     }
     .system-card .card-inner {
         background: #fff;
-        border-radius: 16px;
+        border-radius: 14px;
         border: 2px solid #e2e8f0;
-        padding: 1.75rem;
+        padding: 1.5rem;
         position: relative;
         overflow: hidden;
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -137,7 +361,7 @@
     /* Empurra seta/link para a base quando a linha da grelha é mais alta que o conteúdo */
     .main-content.select-system-main .system-card .card-inner > div:last-child {
         margin-top: auto;
-        padding-top: 1rem;
+        padding-top: 0.85rem;
     }
     .system-card:hover:not(.disabled) .card-inner {
         box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.12);
@@ -156,35 +380,37 @@
         opacity: 1;
     }
 
-    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos, Orange para Controle */
+    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos */
     .system-card.diario:hover:not(.disabled) .card-inner { border-color: #3b82f6; }
     .system-card.diario .card-inner::before { background: #3b82f6; }
     .system-card.gestao:hover:not(.disabled) .card-inner { border-color: #a855f7; }
     .system-card.gestao .card-inner::before { background: #a855f7; }
     .system-card.mapa:hover:not(.disabled) .card-inner { border-color: #10b981; }
     .system-card.mapa .card-inner::before { background: #10b981; }
-    .system-card.controle:hover:not(.disabled) .card-inner { border-color: #f97316; }
-    .system-card.controle .card-inner::before { background: #f97316; }
     .system-card.biobra:hover:not(.disabled) .card-inner { border-color: #0ea5e9; }
     .system-card.biobra .card-inner::before { background: #0ea5e9; }
     .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
     .system-card.central .card-inner::before { background: #475569; }
     .system-card.impedimentos:hover:not(.disabled) .card-inner { border-color: #d24e1b; }
     .system-card.impedimentos .card-inner::before { background: #d24e1b; }
-    .system-card.trackhub:hover:not(.disabled) .card-inner { border-color: #6366f1; }
-    .system-card.trackhub .card-inner::before { background: #6366f1; }
+    .system-card.trackhub:hover:not(.disabled) .card-inner { border-color: #5f6f47; }
+    .system-card.trackhub .card-inner::before { background: #5f6f47; }
     .system-card.ferramenta:hover:not(.disabled) .card-inner { border-color: #6366f1; }
     .system-card.ferramenta .card-inner::before { background: #6366f1; }
+    .system-card.suporte:hover:not(.disabled) .card-inner { border-color: #14b8a6; }
+    .system-card.suporte .card-inner::before { background: #14b8a6; }
+    .system-card.workflow-central:hover:not(.disabled) .card-inner { border-color: #0d9488; }
+    .system-card.workflow-central .card-inner::before { background: #0d9488; }
 
     /* System Icon */
     .system-icon {
-        width: 56px;
-        height: 56px;
-        border-radius: 14px;
+        width: 52px;
+        height: 52px;
+        border-radius: 13px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 24px;
+        font-size: 22px;
         color: white;
         transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
@@ -195,23 +421,26 @@
     .system-card.gestao .system-icon { background: linear-gradient(135deg, #f093fb, #f5576c); box-shadow: 0 4px 14px rgba(245, 87, 108, 0.35); }
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
     .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
-    .system-card.controle .system-icon { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
     .system-card.impedimentos .system-icon { background: #d24e1b; }
     .system-card.impedimentos .system-icon svg {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
         flex-shrink: 0;
     }
     .system-card.trackhub .system-icon {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+        background: linear-gradient(135deg, #6b7c52 0%, #5a4a38 100%);
+        box-shadow: 0 4px 14px rgba(90, 74, 56, 0.35);
     }
     .system-card.trackhub .system-icon svg {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
         flex-shrink: 0;
     }
     .system-card.ferramenta .system-icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); }
+    .system-card.suporte .system-icon {
+        background: linear-gradient(135deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
+        box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+    }
 
     /* Badges */
     .access-badge {
@@ -228,30 +457,6 @@
     .access-badge.granted { background: #dcfce7; color: #166534; }
     .access-badge.denied  { background: #fef2f2; color: #991b1b; }
 
-    /* Feature list */
-    .feature-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    .feature-list li {
-        display: flex;
-        align-items: center;
-        font-size: 0.8rem;
-        color: #64748b;
-        padding: 0.3rem 0;
-    }
-    .feature-list li i {
-        width: 18px;
-        text-align: center;
-        margin-right: 0.5rem;
-        font-size: 0.7rem;
-        flex-shrink: 0;
-    }
-    .feature-list li i.fa-check-circle {
-        color: inherit;
-    }
-
     /* Arrow */
     .card-arrow {
         display: inline-flex;
@@ -266,11 +471,13 @@
     .system-card.gestao .card-arrow { color: #a855f7; }
     .system-card.mapa .card-arrow   { color: #10b981; }
     .system-card.biobra .card-arrow { color: #0ea5e9; }
-    .system-card.controle .card-arrow { color: #ea580c; }
     .system-card.central .card-arrow { color: #475569; }
     .system-card.impedimentos .card-arrow { color: #d24e1b; }
-    .system-card.trackhub .card-arrow { color: #6366f1; }
+    .system-card.trackhub .card-arrow { color: #4d5c38; }
     .system-card.ferramenta .card-arrow { color: #4f46e5; }
+    .system-card.workflow-central .card-arrow { color: #0f766e; }
+
+    .system-card.suporte .card-arrow { color: #14b8a6; }
 
     /* Acessibilidade: foco visível no teclado */
     .system-card:focus-visible,
@@ -278,7 +485,7 @@
         outline: 2px solid #3b82f6;
         outline-offset: 2px;
     }
-    .system-card:focus-visible { border-radius: 16px; }
+    .system-card:focus-visible { border-radius: 14px; }
 
     /* Título da página: direto no fundo (sem caixa branca), como o mockup */
     .select-system-hero-panel {
@@ -286,57 +493,149 @@
         border: none;
         border-radius: 0;
         box-shadow: none;
-        padding: 0.75rem 0 1.5rem;
-        margin-bottom: 2rem;
+        padding: 0.35rem 0 1.2rem;
+        margin-top: 0.65rem;
+        margin-bottom: 1.55rem;
         font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }
-    .select-system-hero-panel .select-system-hero-eyebrow {
-        margin: 0 0 0.55rem 0;
-        font-size: 0.6875rem;
-        font-weight: 600;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: #868e96;
-    }
     .select-system-hero-panel .select-system-hero-title {
-        margin: 0 0 0.5rem 0;
-        font-size: clamp(1.4rem, 2.4vw, 1.75rem);
+        margin: 0;
+        padding: 0;
+        font-size: clamp(1.45rem, 2.85vw + 0.82rem, 2rem);
         font-weight: 700;
-        line-height: 1.2;
+        line-height: 1.38;
         color: #1a1a1b;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.018em;
     }
     .select-system-hero-panel .select-system-hero-lead {
-        margin: 0;
-        font-size: 0.9375rem;
+        margin: 0.55rem 0 0;
+        padding: 0;
+        font-size: clamp(0.9375rem, 0.9vw + 0.82rem, 1.0625rem);
+        font-weight: 500;
         line-height: 1.45;
-        color: #6c757d;
-        font-weight: 400;
-        max-width: 40rem;
+        color: #64748b;
+        letter-spacing: -0.01em;
     }
 
-    /* Desktop: ligeiramente maior para melhorar leitura */
-    @media (min-width: 1024px) {
-        .system-card .card-inner {
-            padding: 1.35rem;
-        }
+    /* Pequenas pílulas de atalho (abaixo da saudação) */
+    .select-system-quick-strip {
+        margin-top: 0.85rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.42rem 0.55rem;
+    }
+    .select-system-quick-label {
+        flex: 0 0 auto;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+    }
+    .select-system-quick-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.42rem;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+    }
+    .select-system-quick-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.78rem;
+        border-radius: 999px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        color: #334155;
+        background: #ffffff;
+        border: 1px solid rgba(148, 163, 184, 0.52);
+        text-decoration: none;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .select-system-quick-link:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        color: #0f172a;
+    }
+    .select-system-quick-link i {
+        font-size: 0.72rem;
+        opacity: 0.82;
+        flex-shrink: 0;
+    }
+
+    /* Busca discreta (filtra os cards por título/descrição) */
+    .select-system-search-wrap {
+        position: relative;
+        margin: 0 0 1.1rem;
+        max-width: min(22rem, 100%);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    .select-system-search-wrap .select-system-search-ico {
+        position: absolute;
+        left: 0.72rem;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        font-size: 0.76rem;
+        color: #94a3b8;
+    }
+    .select-system-module-filter {
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0.45rem 2.75rem 0.45rem 2.15rem;
+        font-size: 0.875rem;
+        font-weight: 450;
+        line-height: 1.4;
+        color: #334155;
+        background: rgba(255, 255, 255, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.38);
+        border-radius: 10px;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
+        transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .select-system-module-filter::placeholder {
+        color: #94a3b8;
+        font-weight: 400;
+        opacity: 1;
+    }
+    .select-system-module-filter:hover {
+        background: rgba(255, 255, 255, 0.78);
+        border-color: rgba(148, 163, 184, 0.5);
+    }
+    .select-system-module-filter:focus {
+        outline: none;
+        background: #fff;
+        border-color: rgba(43, 84, 149, 0.45);
+        box-shadow: 0 0 0 3px rgba(43, 84, 149, 0.12);
+    }
+    .select-system-module-filter::-webkit-search-cancel-button {
+        opacity: 0.55;
+    }
+    .select-system-module-filter-empty {
+        margin: -0.6rem 0 1rem;
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+    @media (max-width: 640px) {
         .system-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
-            font-size: 21px;
+            width: 46px;
+            height: 46px;
+            border-radius: 11px;
+            font-size: 19px;
         }
         .system-card.impedimentos .system-icon svg {
-            width: 21px;
-            height: 21px;
+            width: 19px;
+            height: 19px;
         }
         .system-card.trackhub .system-icon svg {
-            width: 21px;
-            height: 21px;
-        }
-        .feature-list li {
-            font-size: 0.78rem;
-            padding: 0.26rem 0;
+            width: 19px;
+            height: 19px;
         }
     }
 
@@ -423,480 +722,234 @@
 
     @media (max-width: 768px) {
         .select-system-hero-panel {
-            padding-bottom: 1.35rem;
-            margin-bottom: 2rem;
+            padding: 0.25rem 0 1.1rem;
+            margin-top: 0.55rem;
+            margin-bottom: 1.35rem;
         }
     }
 
-    /* Card de Suporte */
-    .support-card {
-        display: flex;
-        align-items: center;
-        gap: 1.25rem;
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 1.25rem 1.5rem;
-        margin-top: 2rem;
-        transition: all 0.3s ease;
-    }
-    .support-card:hover {
-        border-color: #64748b;
-        box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.1);
-    }
-    .support-card:focus-visible {
-        outline: 2px solid #3b82f6;
-        outline-offset: 2px;
-    }
-    .support-card-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #475569 0%, #334155 100%);
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
+    /* Rodapé fixado ao fundo da coluna quando o miolo ocupa viewport; espaço livre vai para o margin-top: auto acima da faixa */
+    .select-system-root .select-system-site-footer {
+        margin-top: auto;
         flex-shrink: 0;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        border-top: 1px solid rgba(148, 163, 184, 0.38);
+        background: transparent;
+        margin-left: calc(-1 * var(--select-sys-inline));
+        margin-right: calc(-1 * var(--select-sys-inline));
+        width: calc(100% + (2 * var(--select-sys-inline)));
+        padding-top: clamp(1.75rem, 3.5vw, 2.75rem);
+        padding-left: var(--select-sys-inline);
+        padding-right: var(--select-sys-inline);
+        padding-bottom: max(5.5rem, calc(4.85rem + env(safe-area-inset-bottom, 0px)), env(safe-area-inset-bottom, 0px));
+        box-sizing: border-box;
     }
-    .support-card-content { flex: 1; min-width: 0; }
-    .support-card-title { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem; }
-    .support-card-text { font-size: 0.875rem; color: #64748b; margin-bottom: 0; }
-    .support-card-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: #475569;
-        flex-shrink: 0;
-    }
-    .support-card:hover .support-card-link { color: #0f172a; }
-    .support-card-actions {
+    .select-system-root .select-system-footer-brand-row {
         display: flex;
-        align-items: center;
-        gap: 0.55rem;
         flex-wrap: wrap;
-        margin-top: 0.75rem;
-    }
-    .support-card-btn {
-        display: inline-flex;
-        align-items: center;
         justify-content: center;
-        gap: 0.4rem;
-        min-height: 40px;
-        padding: 0.55rem 0.9rem;
-        border-radius: 10px;
-        border: 1px solid transparent;
+        align-items: baseline;
+        gap: 0.35rem 0.5rem;
+        margin: 0 0 0.5rem;
+        text-align: center;
+    }
+    .select-system-root .select-system-footer-brand-name {
+        font-size: 0.9375rem;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #3573d9;
+    }
+    .select-system-root .select-system-footer-brand-sep {
+        color: rgba(42, 99, 191, 0.45);
+        font-weight: 600;
         font-size: 0.8125rem;
-        font-weight: 600;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all 0.18s ease;
-        opacity: 1 !important;
     }
-    .support-card-btn-primary {
-        background: #0f172a !important;
-        color: #fff !important;
-        border-color: #0f172a !important;
-        -webkit-text-fill-color: #fff !important;
-    }
-    .support-card-btn-primary:hover {
-        background: #1e293b !important;
-        color: #fff !important;
-        border-color: #1e293b !important;
-        -webkit-text-fill-color: #fff !important;
-    }
-    .support-card-btn-secondary {
-        background: #ffffff !important;
-        color: #334155 !important;
-        border-color: #cbd5e1 !important;
-        -webkit-text-fill-color: #334155 !important;
-    }
-    .support-card-btn-secondary:hover {
-        background: #f8fafc !important;
-        border-color: #94a3b8 !important;
-        color: #0f172a !important;
-        -webkit-text-fill-color: #0f172a !important;
-    }
-    .support-card-btn:disabled {
-        opacity: 0.65 !important;
-        cursor: not-allowed;
-    }
-    #open-support-modal-btn {
-        background: #ffffff !important;
-        color: #334155 !important;
-        border-color: #cbd5e1 !important;
-        -webkit-text-fill-color: #334155 !important;
-        opacity: 1 !important;
-    }
-    #open-support-modal-btn:hover {
-        background: #f8fafc !important;
-        color: #0f172a !important;
-        border-color: #94a3b8 !important;
-        -webkit-text-fill-color: #0f172a !important;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .support-card { transition: none; }
-    }
-    @media (max-width: 640px) {
-        .support-card { flex-direction: column; text-align: center; }
-        .support-card-link { align-self: center; }
-        .support-card-actions { justify-content: center; }
-    }
-
-    .support-modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(2, 6, 23, 0.55);
-        z-index: 1200;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem;
-    }
-    .support-modal-overlay.is-open {
-        display: flex;
-    }
-    .support-modal {
-        width: min(760px, 100%);
-        max-height: 90vh;
-        overflow: auto;
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.35);
-    }
-    .support-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem 1.1rem;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .support-modal-title {
-        font-size: 1rem;
+    .select-system-root .select-system-footer-brand-tag {
+        font-size: 0.75rem;
         font-weight: 700;
-        color: #0f172a;
+        color: #2a63bf;
+        letter-spacing: 0.04em;
     }
-    .support-modal-close {
-        border: 1px solid #cbd5e1;
-        background: #fff;
-        color: #334155;
-        border-radius: 8px;
-        width: 34px;
-        height: 34px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-    }
-    .support-modal-body {
-        padding: 1rem 1.1rem;
-    }
-    .support-form-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem;
-    }
-    .support-form-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-    }
-    .support-form-field.full {
-        grid-column: 1 / -1;
-    }
-    .support-form-field label {
-        font-size: 0.78rem;
-        font-weight: 600;
-        color: #334155;
-    }
-    .support-form-field input,
-    .support-form-field select,
-    .support-form-field textarea {
-        width: 100%;
-        border: 1px solid #cbd5e1;
-        border-radius: 10px;
-        padding: 0.6rem 0.75rem;
-        font-size: 0.88rem;
-        color: #0f172a;
-        background: #fff;
-    }
-    .support-form-field textarea {
-        min-height: 86px;
-        resize: vertical;
-    }
-    .support-form-helper {
-        font-size: 0.74rem;
+    .select-system-root .select-system-footer-legal {
+        margin: 0 auto;
+        max-width: 36rem;
+        text-align: center;
+        font-size: 0.65625rem;
+        line-height: 1.55;
         color: #64748b;
-    }
-    .support-shortcuts {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem;
-    }
-    .support-shortcut-btn {
-        border: 1px solid #cbd5e1;
-        background: #f8fafc;
-        color: #334155;
-        border-radius: 9999px;
-        padding: 0.35rem 0.7rem;
-        font-size: 0.76rem;
-        font-weight: 600;
-        cursor: pointer;
-    }
-    .support-shortcut-btn:hover {
-        background: #e2e8f0;
-    }
-    .support-modal-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.95rem 1.1rem;
-        border-top: 1px solid #e2e8f0;
-    }
-    .support-required {
-        color: #dc2626;
-    }
-    @media (max-width: 700px) {
-        .support-form-grid {
-            grid-template-columns: 1fr;
-        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="fade-in select-system-root px-1 sm:px-0">
-    <header class="select-system-hero-panel" aria-labelledby="select-system-hero-heading">
-        <p class="select-system-hero-eyebrow">Selecionar app</p>
-        <h2 id="select-system-hero-heading" class="select-system-hero-title">
+<div class="fade-in select-system-root">
+    <header class="select-system-hero-panel" aria-labelledby="select-system-hero-heading" aria-describedby="select-system-hero-lead">
+        <h1 id="select-system-hero-heading" class="select-system-hero-title">
             {{ time_greeting }}, {{ user.get_full_name|default:user.username }}.
-        </h2>
-        <p class="select-system-hero-lead">Escolha um dos aplicativos do ecossistema LPLAN para continuar.</p>
+        </h1>
+        <p id="select-system-hero-lead" class="select-system-hero-lead">Selecione o módulo.</p>
+        <nav class="select-system-quick-strip" aria-label="Atalhos rápidos">
+            <span class="select-system-quick-label">Acesso rápido</span>
+            <div class="select-system-quick-links">
+                {% with sp=request.session.selected_project_id %}
+                {% if has_diario or has_impedimentos or has_mapa_modules_any %}
+                {% if has_diario %}
+                <a href="{% url 'select-project' %}" class="select-system-quick-link">{% if sp %}<i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Trocar obra</span>{% else %}<i class="fas fa-hard-hat" aria-hidden="true"></i><span>Escolher obra</span>{% endif %}</a>
+                {% elif has_impedimentos %}
+                <a href="{% url 'impedimentos:select_obra' %}" class="select-system-quick-link">{% if sp %}<i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Trocar obra</span>{% else %}<i class="fas fa-hard-hat" aria-hidden="true"></i><span>Escolher obra</span>{% endif %}</a>
+                {% else %}
+                <a href="{% url 'mapa_obras:home' %}" class="select-system-quick-link">{% if sp %}<i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Trocar obra</span>{% else %}<i class="fas fa-hard-hat" aria-hidden="true"></i><span>Escolher obra</span>{% endif %}</a>
+                {% endif %}
+                {% endif %}
+                {% if has_diario and sp %}
+                <a href="{% url 'dashboard' %}" class="select-system-quick-link"><i class="fas fa-book" aria-hidden="true"></i><span>Diário</span></a>
+                {% endif %}
+                {% if has_gestao %}
+                <a href="{% url 'gestao:list_workorders' %}" class="select-system-quick-link"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>Pedidos</span></a>
+                {% endif %}
+                {% if has_workflow %}
+                <a href="{% url 'workflow_aprovacao:pending' %}" class="select-system-quick-link"><i class="fas fa-hourglass-half" aria-hidden="true"></i><span>Aprovações</span></a>
+                {% endif %}
+                {% if has_trackhub %}
+                <a href="{% url 'trackhub:fila' %}" class="select-system-quick-link"><i class="fas fa-compass" aria-hidden="true"></i><span>TrackHub</span></a>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </nav>
     </header>
 
-    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_mapa and not has_central and not has_workflow %}
+    <div class="select-system-search-wrap">
+        <label for="select-system-module-filter" class="sr-only">Filtrar módulos</label>
+        <span class="select-system-search-ico" aria-hidden="true"><i class="fas fa-search"></i></span>
+        <input type="search" id="select-system-module-filter" class="select-system-module-filter"
+               autocomplete="off" autocorrect="off" spellcheck="false"
+               placeholder="Filtrar módulos…">
+    </div>
+    <p id="select-system-module-filter-empty" class="select-system-module-filter-empty" hidden>Nenhum módulo encontrado.</p>
+
+    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_mapa and not has_ferramenta_ambientes and not has_bi_obra and not has_central and not has_workflow and not has_comunicados_painel %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
-        <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum sistema.</p>
-        <p class="text-amber-700 text-sm mt-1">Contate o administrador para que seus acessos sejam configurados (grupos e obras).</p>
+        <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum módulo nesta página.</p>
+        <p class="text-amber-700 text-sm mt-1">A central de <strong>Suporte</strong> permanece disponível abaixo. Para os demais módulos, contate o administrador (grupos e obras).</p>
     </div>
     {% endif %}
 
     <div class="select-system-cards-grid">
         {% if has_central %}
-        <!-- Painel do sistema: hub único para admin (obras, usuários, manutenção, ajuda, dashboard) -->
-        <a href="{% url 'accounts:admin_central' %}" class="system-card central {% if not has_central %}disabled{% endif %}" aria-label="Painel do sistema" style="order: 0;">
+        <!-- Painel do sistema -->
+        <a href="{% url 'accounts:admin_central' %}" class="system-card central" aria-label="Painel do sistema">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon" style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%);"><i class="fas fa-cog"></i></div>
                     <span class="access-badge granted"><i class="fas fa-check"></i> Admin</span>
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Painel do sistema</h3>
-                <p class="text-sm text-slate-500 mb-4">Tudo em um lugar: obras, usuários, ajuda e dados</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-slate-500"></i>Obras e usuários</li>
-                        <li><i class="fas fa-check-circle text-slate-500"></i>Manutenção e ajuda</li>
-                        <li><i class="fas fa-check-circle text-slate-500"></i>Dashboard e estatísticas</li>
-                        <li><i class="fas fa-check-circle text-slate-500"></i>Mapa de Suprimentos (obras)</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Cadastro de obras, usuários e permissões; ferramentas e configurações gerais.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow" style="color: #475569;">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
-
         {% endif %}
+
         {% if has_workflow %}
-        <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card" style="order: 1;" aria-label="Central de Aprovações">
+        <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card workflow-central" aria-label="Central de Aprovações">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);"><i class="fas fa-check-double"></i></div>
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Central de Aprovações</h3>
-                <p class="text-sm text-slate-500 mb-4">Fluxos por obra e categoria — fila de aprovação</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-teal-500"></i>Alçadas configuráveis</li>
-                        <li><i class="fas fa-check-circle text-teal-500"></i>Histórico e auditoria</li>
-                        <li><i class="fas fa-check-circle text-teal-500"></i>Integração Sienge (em evolução)</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Fila do que falta aprovar ou devolver, conforme fluxo e papel de cada obra.</p>
                 <div class="mt-4 text-right">
-                    <span class="card-arrow" style="color: #0f766e;">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
         {% endif %}
-        <!-- Diário de Obra -->
-        <a href="{% url 'select-project' %}" class="system-card diario {% if not has_diario %}disabled{% endif %}" aria-label="Acessar Diário de Obra" {% if not has_diario %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_diario %}
+        <a href="{% url 'select-project' %}" class="system-card diario" aria-label="Acessar Diário de Obra">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-book"></i></div>
-                    {% if has_diario %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Diário de Obra</h3>
-                <p class="text-sm text-slate-500 mb-4">Registro e gestão de relatórios diários</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Registro de atividades diárias</li>
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Controle de mão de obra</li>
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Workflow de aprovação</li>
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Relatórios PDF</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Registro e acompanhamento dos relatórios diários da obra.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- GestControll -->
-        <a href="{% url 'gestao:home' %}" class="system-card gestao {% if not has_gestao %}disabled{% endif %}" aria-label="Acessar GestControll" {% if not has_gestao %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_gestao %}
+        <a href="{% url 'gestao:home' %}" class="system-card gestao" aria-label="Acessar GestControll">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-clipboard-check"></i></div>
-                    {% if has_gestao %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">GestControll</h3>
-                <p class="text-sm text-slate-500 mb-4">Aprovação e controle de pedidos</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-purple-500"></i>Criação e gestão de pedidos</li>
-                        <li><i class="fas fa-check-circle text-purple-500"></i>Fluxo de aprovação e rejeição</li>
-                        <li><i class="fas fa-check-circle text-purple-500"></i>Notificações e e-mails</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Aprovação e acompanhamento dos pedidos de compra ou serviço da obra.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- Mapa de Suprimentos -->
-        <a href="{% url 'mapa_obras:home' %}" class="system-card mapa {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Mapa de Suprimentos" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_mapa %}
+        <a href="{% url 'mapa_obras:home' %}" class="system-card mapa" aria-label="Acessar Mapa de Suprimentos">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-map-marked-alt"></i></div>
-                    {% if has_mapa %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Suprimentos</h3>
-                <p class="text-sm text-slate-500 mb-4">Controle de suprimentos, engenharia e mapa de controle</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-emerald-500"></i>Mapa de suprimentos por obra</li>
-                        <li><i class="fas fa-check-circle text-emerald-500"></i>Mapa de controle com KPIs e pendências</li>
-                        <li><i class="fas fa-check-circle text-emerald-500"></i>Recebimentos e alocações</li>
-                        <li><i class="fas fa-check-circle text-emerald-500"></i>Importação Sienge</li>
-                        <li><i class="fas fa-check-circle text-emerald-500"></i>Dashboard de engenharia</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Suprimentos, engenharia e pendências ligadas ao avanço da obra.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- Ferramenta de ambientes operacionais -->
-        <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Ferramenta de ambientes" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_ferramenta_ambientes %}
+        <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta" aria-label="Acessar Ferramenta de ambientes">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-border-all"></i></div>
-                    {% if has_mapa %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Ferramenta de ambientes</h3>
-                <p class="text-sm text-slate-500 mb-4">Monte painéis operacionais e mapas dinâmicos por obra</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Editor visual com seções e células</li>
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Rascunho e publicação por ambiente</li>
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Integrado ao fluxo do Mapa de Suprimentos</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Montagem de painéis e mapas operacionais por obra, para uso no campo.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Abrir <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- BI da Obra (visão integrada por obra vinculada) -->
-        <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra {% if not has_bi_obra %}disabled{% endif %}" aria-label="Acessar BI da Obra" {% if not has_bi_obra %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_bi_obra %}
+        <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra" aria-label="Acessar BI da Obra">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon"><i class="fas fa-chart-pie"></i></div>
-                    {% if has_bi_obra %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">BI da Obra</h3>
-                <p class="text-sm text-slate-500 mb-4">Obra, campo e material numa leitura só</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-sky-500"></i>Indicadores por obra</li>
-                        <li><i class="fas fa-check-circle text-sky-500"></i>Diário + mapa + suprimentos</li>
-                        <li><i class="fas fa-check-circle text-sky-500"></i>Gráficos e mapa de calor</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Indicadores consolidados sobre andamento físico e suprimento da obra.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Abrir <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
+        {% endif %}
 
-        <!-- Mapa de Controle -->
-        <a href="{% url 'engenharia:mapa_controle' %}" class="system-card controle {% if not has_mapa %}disabled{% endif %}" aria-label="Acessar Mapa de Controle" {% if not has_mapa %}data-tooltip="Sem acesso"{% endif %}>
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-gauge-high"></i></div>
-                    {% if has_mapa %}
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Controle</h3>
-                <p class="text-sm text-slate-500 mb-4">Visão gerencial de pendências e exceções</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-orange-500"></i>KPIs de operação por obra</li>
-                        <li><i class="fas fa-check-circle text-orange-500"></i>Top riscos por local/categoria</li>
-                        <li><i class="fas fa-check-circle text-orange-500"></i>Quem cobrar em cada etapa</li>
-                        <li><i class="fas fa-check-circle text-orange-500"></i>Tabela detalhada semelhante ao mapa</li>
-                    </ul>
-                </div>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
-        <a href="{% url 'impedimentos:select_obra' %}" 
-           class="system-card impedimentos {% if not has_impedimentos %}disabled{% endif %}" 
-           aria-label="Acessar Restrições" 
-           {% if not has_impedimentos %}data-tooltip="Sem acesso"{% endif %}>
+        {% if has_impedimentos %}
+        <a href="{% url 'impedimentos:select_obra' %}" class="system-card impedimentos" aria-label="Acessar Restrições">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon">
@@ -905,27 +958,16 @@
                             <polyline points="12 8 10 13 13 13 11 17"/>
                         </svg>
                     </div>
-                    {% if has_impedimentos %}
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                    {% else %}
-                    <span class="access-badge denied"><i class="fas fa-lock"></i> Sem acesso</span>
-                    {% endif %}
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Restrições</h3>
-                <p class="text-sm text-slate-500 mb-4">Restrições, pendências e tarefas por obra</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Lista, quadro e calendário</li>
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Filtros por obra e status</li>
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Múltiplos responsáveis</li>
-                        <li><i class="fas fa-check-circle text-blue-500"></i>Exportação PDF</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Pendências e bloqueios que impactam obra, cronograma e responsáveis.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
+        {% endif %}
         {% if has_trackhub %}
         <a href="{% url 'trackhub:fila' %}" class="system-card trackhub" aria-label="Acessar TrackHub">
             <div class="card-inner">
@@ -943,240 +985,89 @@
                     <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">TrackHub</h3>
-                <p class="text-sm text-slate-500 mb-4">Pendências, etapas e comunicação por obra</p>
-                <div class="pt-3 border-t border-slate-100">
-                    <ul class="feature-list">
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Fila de pendências por urgência</li>
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Etapas com responsáveis</li>
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Notificação por WhatsApp e e-mail</li>
-                        <li><i class="fas fa-check-circle text-indigo-500"></i>Múltiplas visualizações</li>
-                    </ul>
-                </div>
+                <p class="text-sm text-slate-500 mb-0">Etapas, responsáveis e avisos — o que está parado ou avançando na obra.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>
             </div>
         </a>
         {% endif %}
+
+        <a href="{% url 'support-home' %}" class="system-card suporte" aria-label="Acessar central de Suporte">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-headset" aria-hidden="true"></i></div>
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Suporte</h3>
+                <p class="text-sm text-slate-500 mb-0">Abra chamados, acompanhe respostas e acesse recursos da equipe em um só lugar.</p>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Abrir central <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
     </div>
 
-    <!-- Card de Suporte -->
-    <section class="support-card" aria-label="Abrir chamado com o suporte">
-        <div class="support-card-icon"><i class="fas fa-headset"></i></div>
-        <div class="support-card-content">
-            <div class="support-card-title">Suporte</div>
-            <p class="support-card-text">Abra um chamado dentro do sistema e acompanhe o retorno da equipe sem depender de e-mail.</p>
-            <div class="support-card-actions">
-                <button type="button" id="open-support-modal-btn" class="support-card-btn support-card-btn-secondary">
-                    <i class="fas fa-bug"></i>Novo chamado
-                </button>
-                <a href="{% url 'support-ticket-list' %}" class="support-card-btn support-card-btn-primary">
-                    <i class="fas fa-list"></i>Meus chamados
-                </a>
-                {% if can_manage_support_tickets %}
-                <a href="{% url 'support-ticket-admin-list' %}" class="support-card-btn support-card-btn-primary">
-                    <i class="fas fa-headset"></i>Painel suporte
-                </a>
-                {% endif %}
-            </div>
+    <footer class="select-system-site-footer" role="contentinfo">
+        <div class="select-system-footer-brand-row">
+            <span class="select-system-footer-brand-name">LPLAN</span>
+            <span class="select-system-footer-brand-sep" aria-hidden="true">·</span>
+            <span class="select-system-footer-brand-tag">Engenharia integrada</span>
         </div>
-    </section>
-</div>
-
-<div id="support-modal-overlay" class="support-modal-overlay" aria-hidden="true">
-    <div class="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
-        <div class="support-modal-header">
-            <div>
-                <div id="support-modal-title" class="support-modal-title">Novo chamado</div>
-                <div class="support-form-helper">Explique o problema em poucas linhas.</div>
-            </div>
-            <button type="button" class="support-modal-close" id="close-support-modal-btn" aria-label="Fechar">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <form id="support-form" class="support-modal-body" novalidate>
-            {% csrf_token %}
-            <div class="support-form-grid">
-                <div class="support-form-field">
-                    <label for="support-category">Área do problema <span class="support-required">*</span></label>
-                    <select id="support-category" required>
-                        <option value="">Selecione...</option>
-                        {% for category in support_categories %}
-                        <option value="{{ category }}">{{ category }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="support-form-helper">Escolha o módulo mais próximo para agilizar o atendimento.</div>
-                </div>
-                <div class="support-form-field">
-                    <label for="support-severity">Impacto do problema <span class="support-required">*</span></label>
-                    <select id="support-severity" required>
-                        <option value="">Selecione...</option>
-                        <option value="BL">Sistema parado (urgente)</option>
-                        <option value="IM">Prejudica bastante o trabalho</option>
-                        <option value="MD">Incomoda, mas dá para continuar</option>
-                        <option value="LW">Dúvida ou ajuste simples</option>
-                    </select>
-                </div>
-                {% if support_projects|length > 1 %}
-                <div class="support-form-field full">
-                    <label for="support-project">Obra relacionada <span class="support-required">*</span></label>
-                    <select id="support-project" required>
-                        <option value="">Selecione a obra...</option>
-                        {% for p in support_projects %}
-                        <option value="{{ p.id }}">{{ p.code }} - {{ p.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% elif support_auto_project %}
-                <div class="support-form-field full">
-                    <label>Obra relacionada</label>
-                    <input type="text" value="{{ support_auto_project.code }} - {{ support_auto_project.name }}" readonly>
-                    <input type="hidden" id="support-project" value="{{ support_auto_project.id }}">
-                    <div class="support-form-helper">A obra foi vinculada automaticamente, pois você tem acesso a apenas uma.</div>
-                </div>
-                {% endif %}
-
-                <div class="support-form-field full">
-                    <label for="support-title">Título <span class="support-required">*</span></label>
-                    <input id="support-title" type="text" maxlength="120" required placeholder="Resumo curto do problema">
-                </div>
-
-                <div class="support-form-field full">
-                    <label for="support-desc">Descrição do problema <span class="support-required">*</span></label>
-                    <textarea id="support-desc" required placeholder="Descreva o que aconteceu e como reproduzir."></textarea>
-                </div>
-                <div class="support-form-field full">
-                    <label for="support-attachments">Anexos (opcional)</label>
-                    <input id="support-attachments" type="file" multiple>
-                    <div class="support-form-helper">Print da tela já ajuda bastante.</div>
-                </div>
-            </div>
-            <div class="support-modal-footer">
-                <div class="support-card-actions" style="margin-top:0;">
-                    <button type="button" id="cancel-support-btn" class="support-card-btn support-card-btn-secondary">Cancelar</button>
-                    <button type="button" id="send-support-btn" class="support-card-btn support-card-btn-primary">
-                        <i class="fas fa-paper-plane"></i>Abrir chamado
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
+        <p class="select-system-footer-legal">
+            {% now "Y" as footer_year %}© {{ footer_year }} LPLAN · Uso autorizado apenas para usuários da sua empresa conforme política interna do contratante.
+        </p>
+    </footer>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var supportCreateUrl = "{% url 'support-ticket-create' %}";
-    var openModalBtn = document.getElementById('open-support-modal-btn');
-    var modalOverlay = document.getElementById('support-modal-overlay');
-    var closeModalBtn = document.getElementById('close-support-modal-btn');
-    var cancelModalBtn = document.getElementById('cancel-support-btn');
-    var sendSupportBtn = document.getElementById('send-support-btn');
-    var supportForm = document.getElementById('support-form');
-    var supportCategory = document.getElementById('support-category');
-    var supportSeverity = document.getElementById('support-severity');
-    var supportProject = document.getElementById('support-project');
-    var supportTitle = document.getElementById('support-title');
-    var supportDesc = document.getElementById('support-desc');
-    var supportAttachments = document.getElementById('support-attachments');
+    (function selectSystemModuleFilter() {
+        var input = document.getElementById('select-system-module-filter');
+        var grid = document.querySelector('.select-system-cards-grid');
+        if (!input || !grid) return;
+        var cards = grid.querySelectorAll('.system-card');
+        var emptyEl = document.getElementById('select-system-module-filter-empty');
+        if (!cards.length) return;
 
-    // Mantém hover/tooltip dos cards sem acesso, mas bloqueia navegação.
-    var disabledSystemCards = document.querySelectorAll('.system-card.disabled');
-    disabledSystemCards.forEach(function (card) {
-        card.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        });
-    });
-
-    function openModal() {
-        if (!modalOverlay) return;
-        modalOverlay.classList.add('is-open');
-        modalOverlay.setAttribute('aria-hidden', 'false');
-        setTimeout(function () {
-            if (supportCategory) supportCategory.focus();
-        }, 80);
-    }
-    function closeModal() {
-        if (!modalOverlay) return;
-        modalOverlay.classList.remove('is-open');
-        modalOverlay.setAttribute('aria-hidden', 'true');
-    }
-
-    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
-    if (openModalBtn) openModalBtn.disabled = false;
-    if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-    if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeModal);
-    if (modalOverlay) {
-        modalOverlay.addEventListener('click', function (e) {
-            if (e.target === modalOverlay) closeModal();
-        });
-    }
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modalOverlay && modalOverlay.classList.contains('is-open')) {
-            closeModal();
+        function normalize(str) {
+            try {
+                return (String(str || '').toLowerCase()
+                    .normalize('NFD').replace(/\p{M}/gu, ''));
+            } catch (_e) {
+                return String(str || '').toLowerCase()
+                    .replace(/[\u0300-\u036f]/g, '');
+            }
         }
-    });
+        function haystack(card) {
+            var label = card.getAttribute('aria-label') || '';
+            var inner = card.querySelector('.card-inner');
+            var text = inner ? (inner.innerText || inner.textContent || '') : '';
+            return normalize(label + ' ' + text);
+        }
 
-    if (supportCategory && supportTitle) {
-        supportCategory.addEventListener('change', function () {
-            if (!supportTitle.value && supportCategory.value) {
-                supportTitle.value = 'Incidente - ' + supportCategory.value;
-            }
+        var rows = [];
+        cards.forEach(function (card) {
+            rows.push({ el: card, text: haystack(card) });
         });
-    }
 
-    if (sendSupportBtn) {
-        sendSupportBtn.addEventListener('click', function () {
-            if (!supportCategory.value || !supportSeverity.value || !supportTitle.value.trim() || !supportDesc.value.trim()) {
-                alert('Preencha Categoria, Impacto, Título e Descrição.');
-                return;
+        function apply() {
+            var q = normalize(String(input.value).trim());
+            var n = 0;
+            rows.forEach(function (o) {
+                var show = !q || o.text.indexOf(q) !== -1;
+                o.el.style.display = show ? '' : 'none';
+                if (show) n += 1;
+            });
+            if (emptyEl) {
+                emptyEl.hidden = !(q.length > 0 && n === 0);
+                emptyEl.setAttribute('aria-live', 'polite');
             }
-            if (supportProject && !supportProject.value) {
-                alert('Selecione a obra relacionada.');
-                return;
-            }
-            sendSupportBtn.disabled = true;
-            var formData = new FormData();
-            formData.append('category', supportCategory.value);
-            formData.append('severity', supportSeverity.value);
-            formData.append('title', supportTitle.value.trim());
-            formData.append('description', supportDesc.value.trim());
-            if (supportProject && supportProject.value) {
-                formData.append('project_id', supportProject.value);
-            }
-            formData.append('screen_path', window.location.pathname);
-            if (supportAttachments && supportAttachments.files) {
-                for (var i = 0; i < supportAttachments.files.length; i++) {
-                    formData.append('attachments', supportAttachments.files[i]);
-                }
-            }
-            fetch(supportCreateUrl, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-CSRFToken': '{{ csrf_token|escapejs }}' },
-                credentials: 'same-origin'
-            })
-                .then(function (response) {
-                    return response.json().then(function (data) {
-                        return { ok: response.ok, data: data };
-                    });
-                })
-                .then(function (result) {
-                    if (!result.ok || !result.data.success) {
-                        throw new Error((result.data && result.data.error) || 'Não foi possível criar o chamado.');
-                    }
-                    closeModal();
-                    if (supportForm) supportForm.reset();
-                    window.location.href = result.data.detail_url || "{% url 'support-ticket-list' %}";
-                })
-                .catch(function (error) {
-                    alert(error.message || 'Falha ao criar chamado de suporte.');
-                })
-                .finally(function () {
-                    sendSupportBtn.disabled = false;
-                });
-        });
-    }
+        }
+
+        input.addEventListener('input', apply);
+        input.addEventListener('search', apply);
+    })();
 });
 </script>
 {% endblock %}

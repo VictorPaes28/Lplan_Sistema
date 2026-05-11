@@ -130,6 +130,10 @@ class Command(BaseCommand):
             "mapa_de_suprimentos": GRUPOS.ENGENHARIA,
             "mapa_suprimentos": GRUPOS.ENGENHARIA,
             "mapa": GRUPOS.ENGENHARIA,
+            "mapa_de_controle": GRUPOS.MAPA_CONTROLE,
+            "mapa_controle": GRUPOS.MAPA_CONTROLE,
+            "bi_da_obra": GRUPOS.BI_DA_OBRA,
+            "bi_obra": GRUPOS.BI_DA_OBRA,
         }
         if chave in mapa:
             return mapa[chave]

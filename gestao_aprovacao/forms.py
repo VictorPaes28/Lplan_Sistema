@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
-from accounts.groups import GRUPOS
+from accounts.groups import ADMINISTRADOR_GLOBAL_GROUP_NAMES, GRUPOS
 from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission, AprovacaoEmailDestinatario
 
 
@@ -42,12 +42,12 @@ class EmpresaForm(forms.ModelForm):
             grupo_responsavel = Group.objects.get(name=GRUPOS.RESPONSAVEL_EMPRESA)
             # Usuários do grupo Responsavel Empresa + Administradores + Superusers
             self.fields['responsavel'].queryset = User.objects.filter(
-                Q(groups=grupo_responsavel) | Q(is_superuser=True) | Q(groups__name=GRUPOS.ADMINISTRADOR)
+                Q(groups=grupo_responsavel) | Q(is_superuser=True) | Q(groups__name__in=ADMINISTRADOR_GLOBAL_GROUP_NAMES)
             ).distinct().order_by('first_name', 'last_name', 'username')
         except Group.DoesNotExist:
             # Se o grupo não existir, mostrar apenas admins e superusers
             self.fields['responsavel'].queryset = User.objects.filter(
-                Q(is_superuser=True) | Q(groups__name=GRUPOS.ADMINISTRADOR)
+                Q(is_superuser=True) | Q(groups__name__in=ADMINISTRADOR_GLOBAL_GROUP_NAMES)
             ).distinct().order_by('first_name', 'last_name', 'username')
         
         # Tornar o campo opcional (pode ser None)

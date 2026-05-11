@@ -4,8 +4,11 @@ API JSON com o mesmo contrato de acesso por obra do Mapa (vínculo a projeto / P
 """
 
 from datetime import date, datetime, timedelta
+import hashlib
+import json
 
 from accounts.decorators import login_required, require_group
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import cache_control
@@ -19,6 +22,9 @@ from suprimentos.services.analise_obra_service import (
     AnaliseObraPeriodo,
     AnaliseObraService,
 )
+
+
+ANALISE_OBRA_CACHE_TTL_SECONDS = 120
 
 
 def _resolve_obra(request):
@@ -129,8 +135,34 @@ def _service_for_request(request, obra: Obra):
     return AnaliseObraService(obra, periodo=periodo, filtros=filtros), ini, fim, filtros
 
 
+def _build_cache_key(prefix: str, *, user_id: int, obra_id: int, ini, fim, filtros: AnaliseObraFilters, extra: str = "") -> str:
+    filtros_json = json.dumps(filtros.to_dict(), sort_keys=True, ensure_ascii=True)
+    raw = f"{prefix}|u:{user_id}|o:{obra_id}|ini:{ini}|fim:{fim}|f:{filtros_json}|x:{extra}"
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return f"analise_obra:{prefix}:{digest}"
+
+
+def _get_cached_payload_or_build(request, obra: Obra, ini, fim, filtros: AnaliseObraFilters):
+    key = _build_cache_key(
+        "full",
+        user_id=request.user.id,
+        obra_id=obra.id,
+        ini=ini.isoformat() if ini else "",
+        fim=fim.isoformat() if fim else "",
+        filtros=filtros,
+    )
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
+    svc = AnaliseObraService(obra, periodo=periodo, filtros=filtros)
+    payload = svc.build_payload()
+    cache.set(key, payload, ANALISE_OBRA_CACHE_TTL_SECONDS)
+    return payload
+
+
 @login_required
-@require_group(GRUPOS.ENGENHARIA, GRUPOS.GERENTES)
+@require_group(GRUPOS.BI_DA_OBRA)
 @ensure_csrf_cookie
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra(request):
@@ -140,9 +172,7 @@ def analise_obra(request):
     ini, fim = _effective_periodo_analise(request, obra)
 
     if obra:
-        periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
-        svc = AnaliseObraService(obra, periodo=periodo, filtros=filtros)
-        payload = svc.build_payload()
+        payload = _get_cached_payload_or_build(request, obra, ini, fim, filtros)
 
     filtros_dict = filtros.to_dict()
     return render(
@@ -166,7 +196,7 @@ def _json_error(message: str, status: int = 400):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA, GRUPOS.GERENTES)
+@require_group(GRUPOS.BI_DA_OBRA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra_api(request):
     """
@@ -184,7 +214,7 @@ def analise_obra_api(request):
     if not _user_can_access_obra(request, obra):
         return _json_error("Sem permissão para esta obra.", 403)
 
-    svc, _, _, _ = _service_for_request(request, obra)
+    svc, ini, fim, filtros = _service_for_request(request, obra)
     secao = (request.GET.get("secao") or "all").strip().lower()
     validas = frozenset(
         {
@@ -201,7 +231,23 @@ def analise_obra_api(request):
     )
     if secao not in validas:
         return _json_error("Parâmetro secao inválido.", 400)
-    data = svc.build_section(secao)
+    if secao in {"all", "full"}:
+        data = _get_cached_payload_or_build(request, obra, ini, fim, filtros)
+    else:
+        key = _build_cache_key(
+            "section",
+            user_id=request.user.id,
+            obra_id=obra.id,
+            ini=ini.isoformat() if ini else "",
+            fim=fim.isoformat() if fim else "",
+            filtros=filtros,
+            extra=secao,
+        )
+        data = cache.get(key)
+        if data is None:
+            data = svc.build_section(secao)
+            if data is not None:
+                cache.set(key, data, ANALISE_OBRA_CACHE_TTL_SECONDS)
     if data is None:
         return _json_error("Não foi possível montar a seção.", 400)
     return JsonResponse(
@@ -211,7 +257,7 @@ def analise_obra_api(request):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA, GRUPOS.GERENTES)
+@require_group(GRUPOS.BI_DA_OBRA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra_drilldown_api(request):
     """GET .../analise-obra/drilldown/?obra=&bloco=&pavimento= — detalhe para drawer."""

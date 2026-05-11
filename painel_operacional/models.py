@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -236,13 +237,25 @@ class AmbienteElemento(models.Model):
         verbose_name = "Elemento de ambiente"
         verbose_name_plural = "Elementos de ambiente"
         ordering = ["z_index", "id"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["ambiente", "chave_externa"],
-                condition=~models.Q(chave_externa=""),
-                name="uniq_ambiente_elemento_chave_externa",
-            ),
-        ]
+        # Removida UniqueConstraint condicional — não suportada pelo MariaDB (W036).
+        # Unicidade (ambiente, chave_externa) só quando chave_externa não é vazia: validate_unique.
+
+    def validate_unique(self, exclude=None):
+        super().validate_unique(exclude=exclude)
+        ce = self.chave_externa or ""
+        if ce == "":
+            return
+        qs = AmbienteElemento.objects.filter(ambiente_id=self.ambiente_id, chave_externa=ce)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {
+                    "chave_externa": (
+                        "Já existe um elemento neste ambiente com esta chave externa."
+                    )
+                }
+            )
 
     def __str__(self):
         return f"{self.ambiente.nome} - {self.titulo or self.tipo}"

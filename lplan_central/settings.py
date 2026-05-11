@@ -98,6 +98,7 @@ TEMPLATES = [
                 # Context processors dos apps
                 'core.context_processors.sidebar_systems',
                 'core.context_processors.sidebar_counters',
+                'core.context_processors.static_assets_version',
                 'gestao_aprovacao.context_processors.notificacoes_count',
                 'gestao_aprovacao.context_processors.user_context',
                 'mapa_obras.context_processors.obra_context',
@@ -181,6 +182,10 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
+
+# Versão global de assets para bust de cache em CSS/JS.
+# Defina LPLAN_STATIC_VERSION no ambiente (ex.: data/hora do deploy).
+LPLAN_STATIC_VERSION = os.environ.get('LPLAN_STATIC_VERSION', '20260516')
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 STORAGES = {
@@ -381,6 +386,18 @@ SIENGE_API_MAPA_ENDPOINT_TEMPLATE = os.environ.get(
     '',
 ).strip()
 SIENGE_WEBHOOK_SECRET = os.environ.get('SIENGE_WEBHOOK_SECRET', '')
+# Retorno da Central para Sienge (saída): mantenha desligado até validar fluxo.
+SIENGE_OUTBOUND_ENABLED = os.environ.get('SIENGE_OUTBOUND_ENABLED', 'False').lower() in (
+    'true',
+    '1',
+    'yes',
+)
+# Shadow mode permite validar o fluxo de envio sem chamar API real do Sienge.
+SIENGE_OUTBOUND_SHADOW_MODE = os.environ.get('SIENGE_OUTBOUND_SHADOW_MODE', 'True').lower() in (
+    'true',
+    '1',
+    'yes',
+)
 
 # Central de Aprovações (workflow): ingestão a partir de medições Sienge (contrato/BM/medição)
 SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE = os.environ.get(
@@ -391,6 +408,22 @@ SIENGE_CENTRAL_SYNC_MAX_ROWS = int(os.environ.get('SIENGE_CENTRAL_SYNC_MAX_ROWS'
 # Ingestão agendada (Celery Beat): limite por fonte por execução (contratos + medições)
 SIENGE_CENTRAL_PERIODIC_SYNC_MAX_ROWS = int(
     os.environ.get('SIENGE_CENTRAL_PERIODIC_SYNC_MAX_ROWS', '20000') or '20000'
+)
+# Gatilho web (sem Celery): ao entrar na Central, tenta sync se passou a janela.
+SIENGE_CENTRAL_WEB_SYNC_COOLDOWN_HOURS = int(
+    os.environ.get('SIENGE_CENTRAL_WEB_SYNC_COOLDOWN_HOURS', '2') or '2'
+)
+# Limite por fonte no sync disparado pela web (evita sobrecarga em hosts pequenos).
+SIENGE_CENTRAL_WEB_SYNC_MAX_ROWS = int(
+    os.environ.get('SIENGE_CENTRAL_WEB_SYNC_MAX_ROWS', '800') or '800'
+)
+# Limite por fonte no sync forçado manualmente na Central (mais completo).
+SIENGE_CENTRAL_WEB_SYNC_FORCE_MAX_ROWS = int(
+    os.environ.get('SIENGE_CENTRAL_WEB_SYNC_FORCE_MAX_ROWS', '2000') or '2000'
+)
+# Janela de lock para evitar duas execuções simultâneas.
+SIENGE_CENTRAL_WEB_SYNC_LOCK_SECONDS = int(
+    os.environ.get('SIENGE_CENTRAL_WEB_SYNC_LOCK_SECONDS', '2700') or '2700'
 )
 # Ligar agendamento Celery Beat a cada 4 h (requer worker + beat com Redis)
 SIENGE_CENTRAL_BEAT_ENABLED = os.environ.get('SIENGE_CENTRAL_BEAT_ENABLED', 'False').lower() in (
