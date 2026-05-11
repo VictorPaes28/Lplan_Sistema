@@ -190,6 +190,19 @@
         min-height: 0;
         box-sizing: border-box;
     }
+    /* Força altura útil quando há poucos cards: sem isso main some com o conteúdo e o rodapé fica “no meio”. */
+    @media (max-width: 767.98px) {
+        .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
+            min-height: calc(100svh - 4rem);
+            min-height: calc(100dvh - 4rem);
+        }
+    }
+    @media (min-width: 768px) {
+        .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
+            min-height: calc(100vh - 2.5rem);
+            min-height: calc(100dvh - 2.5rem);
+        }
+    }
 
     main.main-content.select-system-main > .top-bar-container {
         flex-shrink: 0;
@@ -202,7 +215,7 @@
         padding-bottom: 0;
     }
 
-    /* Miolo: ocupa alto disponível + empurra o rodapé para baixo quando há poucos cards */
+    /* Miolo: cresce e empurra o rodapé com margin-top: auto para o fundo da área útil */
     .select-system-root {
         max-width: none;
         width: 100%;
@@ -210,10 +223,10 @@
         margin-right: 0;
         padding-top: 0.95rem;
         padding-bottom: 0 !important;
-        flex: 1 1 auto;
+        flex: 1 1 0%;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        min-height: 0;
         box-sizing: border-box;
     }
     @media (min-width: 768px) {
@@ -256,6 +269,8 @@
         gap: 1.45rem;
         grid-template-columns: 1fr;
         align-items: stretch;
+        /* Margem discreta; o “vão” grande com poucos cards vem do margin-top: auto do rodapé */
+        margin-bottom: clamp(1rem, 2vw, 1.75rem);
     }
     /* order: evita Central de Aprovações ir para o fim (order:1 após todos os order:0) */
     .select-system-cards-grid > .system-card {
@@ -713,7 +728,7 @@
         }
     }
 
-    /* Rodapé: faixa discreta no fim da coluna útil — sem “card” destacado demais no meio da página */
+    /* Rodapé fixado ao fundo da coluna quando o miolo ocupa viewport; espaço livre vai para o margin-top: auto acima da faixa */
     .select-system-root .select-system-site-footer {
         margin-top: auto;
         flex-shrink: 0;
@@ -723,7 +738,7 @@
         margin-left: calc(-1 * var(--select-sys-inline));
         margin-right: calc(-1 * var(--select-sys-inline));
         width: calc(100% + (2 * var(--select-sys-inline)));
-        padding-top: clamp(1.35rem, 3vw + 0.65rem, 2rem);
+        padding-top: clamp(1.75rem, 3.5vw, 2.75rem);
         padding-left: var(--select-sys-inline);
         padding-right: var(--select-sys-inline);
         padding-bottom: max(5.5rem, calc(4.85rem + env(safe-area-inset-bottom, 0px)), env(safe-area-inset-bottom, 0px));
