@@ -75,6 +75,25 @@ GRUPOS_CONFIG = {
     },
 
     # =====================================================
+    # RESTRIÇÕES / IMPEDITIVOS
+    # =====================================================
+    'Gestão de Impeditivos': {
+        'sistema': 'Restrições (Impeditivos)',
+        'descricao': 'Restrições, pendências e tarefas por obra no módulo Restrições.',
+        'permissions': {
+            'impedimentos': {
+                'impedimento': ['add', 'change', 'delete', 'view'],
+                'statusimpedimento': ['add', 'change', 'delete', 'view'],
+                'categoriaimpedimento': ['add', 'change', 'delete', 'view'],
+                'comentarioimpedimento': ['add', 'change', 'delete', 'view'],
+                'atividadeimpedimento': ['add', 'change', 'delete', 'view'],
+                'imagemimpedimento': ['add', 'change', 'delete', 'view'],
+                'arquivoimpedimento': ['add', 'change', 'delete', 'view'],
+            }
+        }
+    },
+
+    # =====================================================
     # DIARIO DE OBRA (Core)
     # =====================================================
     'Diário de Obra': {
@@ -92,13 +111,23 @@ GRUPOS_CONFIG = {
     # =====================================================
     'Mapa de Suprimentos': {
         'sistema': 'Mapa de Suprimentos',
-        'descricao': 'Acesso completo: mapa de suprimentos, dashboard, importacao Sienge.',
-        'permissions': {}
+        'descricao': 'Dashboard SC/recebimento, folha macro, importações Sienge (sem Mapa de Controle nem BI, se não forem marcados).',
+        'permissions': {},
+    },
+    'Mapa de Controle': {
+        'sistema': 'Mapa de Controle',
+        'descricao': 'Grade de execução física e fluxos próprios de /mapa-controle/',
+        'permissions': {},
+    },
+    'BI da Obra': {
+        'sistema': 'BI da Obra',
+        'descricao': 'Análise da obra (/analise-obra/) e APIs de consolidação.',
+        'permissions': {},
     },
     'Ferramenta Operacional': {
         'sistema': 'Mapa de Suprimentos',
         'descricao': 'Acesso à ferramenta de ambientes operacionais e mapa dedicado.',
-        'permissions': {}
+        'permissions': {},
     },
 
     # =====================================================

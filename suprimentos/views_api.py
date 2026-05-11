@@ -173,8 +173,8 @@ def item_detalhe(request, item_id):
 
     from accounts.groups import GRUPOS
     pode_excluir = (
-        request.user.is_superuser or
-        request.user.groups.filter(name=GRUPOS.ENGENHARIA).exists()
+        request.user.is_superuser
+        or request.user.groups.filter(name__in=(GRUPOS.ENGENHARIA, GRUPOS.MAPA_CONTROLE)).exists()
     )
 
     # HTML do modal

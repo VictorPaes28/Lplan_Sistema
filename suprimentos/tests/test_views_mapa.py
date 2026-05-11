@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from mapa_obras.models import Obra
 from core.models import Project, ProjectMember
+from accounts.groups import GRUPOS
 
 User = get_user_model()
 
@@ -113,3 +114,69 @@ class TestMapaViewsFuncionando(TestCase):
         # Endpoint existe e exige login; com item inexistente pode retornar 400/403/404 ou 500
         self.assertFalse(r.status_code == 302, 'Não deve redirecionar (está logado)')
         self.assertGreaterEqual(r.status_code, 400)
+
+
+class TestSelecionarObraRedirecionamentoFallback(TestCase):
+    """Sem Referer, selecionar obra no hub deve cair na rota esperada pelo grupo (não na planilha por engano)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.obra = Obra.objects.create(
+            codigo_sienge='OBR-REDIRECT-FB',
+            nome='Obra Redirect Fallback',
+            ativa=True,
+        )
+        cls.project = Project.objects.create(
+            name='Proj Fallback',
+            code='OBR-REDIRECT-FB',
+            start_date=date(2024, 1, 1),
+            end_date=date(2027, 12, 31),
+            is_active=True,
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def _fixture_user(self, username, group_name):
+        user = User.objects.create_user(username=username, password='senha123', email=f'{username}@t.local')
+        g, _ = Group.objects.get_or_create(name=group_name)
+        user.groups.add(g)
+        ProjectMember.objects.get_or_create(user=user, project=self.project)
+        return user
+
+    def test_fallback_bi_va_para_analise_obra(self):
+        user = self._fixture_user('u_fallback_bi', GRUPOS.BI_DA_OBRA)
+        self.client.login(username=user.username, password='senha123')
+        r = self.client.get(reverse('mapa_obras:selecionar', args=[self.obra.id]))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.url, f"{reverse('engenharia:analise_obra')}?obra={self.obra.id}")
+
+    def test_fallback_mapa_controle_va_para_view_controle(self):
+        user = self._fixture_user('u_fallback_mc', GRUPOS.MAPA_CONTROLE)
+        self.client.login(username=user.username, password='senha123')
+        r = self.client.get(reverse('mapa_obras:selecionar', args=[self.obra.id]))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.url, f"{reverse('engenharia:mapa_controle')}?obra={self.obra.id}")
+
+    def test_fallback_ferramenta_va_para_shell(self):
+        user = self._fixture_user('u_fallback_fo', GRUPOS.FERRAMENTA_OPERACIONAL)
+        self.client.login(username=user.username, password='senha123')
+        r = self.client.get(reverse('mapa_obras:selecionar', args=[self.obra.id]))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.url, reverse('engenharia:ferramenta_shell'))
+
+    def test_so_ferramenta_sem_mc_redirect_select_system_no_mapa_controle(self):
+        """Mesma sessão da ferramenta: view do Mapa de Controle exige grupo dedicado."""
+        fo, _ = Group.objects.get_or_create(name=GRUPOS.FERRAMENTA_OPERACIONAL)
+        user = User.objects.create_user(
+            username='u_fo_so_map_view',
+            password='senha123',
+            email='fo_map_view@t.local',
+        )
+        user.groups.add(fo)
+        ProjectMember.objects.get_or_create(user=user, project=self.project)
+        self.client.login(username=user.username, password='senha123')
+        url = reverse('engenharia:mapa_controle')
+        r = self.client.get(url, {'obra': self.obra.id, 'embed': '1'})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn(reverse('select-system'), r.url)

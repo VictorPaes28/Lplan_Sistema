@@ -859,7 +859,7 @@ def _macro_pulse(kpis: dict, confiabilidade: dict, qualidade: dict) -> dict | No
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA)
+@require_group(GRUPOS.MAPA_CONTROLE)
 @ensure_csrf_cookie
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle(request):
@@ -973,7 +973,7 @@ def mapa_controle(request):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA)
+@require_group(GRUPOS.MAPA_CONTROLE)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def importar_mapa_controle(request):
     obras, obra = _resolve_obra_for_request(request)
@@ -1042,7 +1042,7 @@ def importar_mapa_controle(request):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA)
+@require_group(GRUPOS.MAPA_CONTROLE)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle_summary(request):
     obra_id = request.GET.get("obra")
@@ -1056,7 +1056,7 @@ def mapa_controle_summary(request):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA)
+@require_group(GRUPOS.MAPA_CONTROLE)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_controle_items(request):
     obra_id = request.GET.get("obra")

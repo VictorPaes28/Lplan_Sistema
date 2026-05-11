@@ -32,10 +32,18 @@ def login_required(view_func):
 
 def require_group(*group_names):
     """
-    Decorator para verificar se o usuário pertence a um dos grupos especificados.
-    Superusers sempre têm acesso.
-    Para requisições AJAX/API (X-Requested-With: XMLHttpRequest ou Accept: application/json),
-    retorna JsonResponse com 401/403 em vez de redirect.
+    Exige login e que o usuário pertença a **pelo menos um** dos grupos listados (*OR*)
+    dentro do conjunto esperado para aquela área ou rota.
+
+    Importante para quem autoriza vistas:
+      - Liste **somente grupos válidos para aquele módulo/funcionalidade** (papéis alternativos
+        do próprio recurso, ex.: três níveis TrackHub ou Diário vs Mapa no BI quando fizer sentido).
+      - **Não** use como ``atalho`` um grupo de outro sistema só para liberar página
+        de outra área sem que isso está documentado; quem opera em vários módulos deve ter
+        **vários grupos atribuídos**, não papéis emprestados cruza-módulos.
+
+    Superusuários sempre têm acesso (uso técnico).
+    AJAX/API recebe JSON 401/403 em vez de redirect.
     """
     def decorator(view_func):
         @wraps(view_func)

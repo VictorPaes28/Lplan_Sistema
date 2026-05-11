@@ -73,27 +73,20 @@
             
             <div class="form-group">
                 <label class="form-label">Grupos e módulos</label>
-                <div class="form-help mb-2">Perfis por módulo. Grupos legados não listados permanecem no usuário ao salvar.</div>
-                {% for modulo in grupos_modulos %}
-                <div class="mb-3" style="border: 1px solid #e9ecef; border-radius: 8px; padding: 0.75rem 1rem; background: #fafbfc;">
-                    <div class="fw-semibold" style="margin-bottom: 0.25rem;">{{ modulo.title }}</div>
-                    {% if modulo.subtitle %}<div class="text-muted small mb-2">{{ modulo.subtitle }}</div>{% endif %}
-                    {% for item in modulo.groups %}
-                    <div class="form-check">
-                        <input type="checkbox" id="grupo_{{ item.group.id }}" name="grupos" value="{{ item.group.name }}" class="form-check-input" {% if item.group in user_grupos %}checked{% endif %}>
-                        <label for="grupo_{{ item.group.id }}" class="form-check-label">{{ item.label }}</label>
-                    </div>
-                    {% empty %}
-                    <p class="text-muted small mb-0">Nenhum grupo configurado neste módulo.</p>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-                <small class="form-text text-muted"><strong>Central de Aprovações:</strong> <em>Externo</em> para terceirizados; <em>Aprovador</em> para a fila; <em>Admin</em> para configurar fluxos.</small>
+                <p class="form-help mb-3" style="max-width:52rem;line-height:1.5;color:#475569;font-size:0.875rem;">
+                    Perfis por módulo. Grupos legados não listados permanecem no usuário ao salvar conforme mesclagem atual.
+                    Cada entrada corresponde a um registro oficial em Django <code style="font-size:0.8em;">auth_group</code>, filtrado no backend pelo cadastro central.
+                </p>
+                {% include 'core/includes/user_groups_sections_fields.html' with grupos_secoes=grupos_secoes field_name='grupos' user_grupos=user_grupos %}
+                <small class="form-text text-muted">Central de Aprovações usa grupos diferentes do GestControll mesmo quando o texto contém «Aprovador».</small>
             </div>
             
             <div class="form-group">
-                <label class="form-label">Obras (Diário de Obra e GestControll)</label>
-                <div class="form-help">Mesma lista para todo o sistema. O usuário terá acesso ao Diário e ao GestControll nas obras selecionadas.</div>
+                <label class="form-label">Projetos / obras (vínculo do usuário)</label>
+                <div class="form-help">
+                    Lista usada pelo <strong>Diário de Obra</strong> e pelo <strong>GestControll (pedidos)</strong> quando a obra/projeto aplicam esse modelo.
+                    Outros módulos também podem respeitar o mesmo vínculo conforme configurado para o projeto ou para a empresa.
+                </div>
                 {% if projects %}
                     <div style="max-height: 220px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
                         {% for project in projects %}

@@ -441,6 +441,113 @@ button[data-sidebar-close] {
     color: #fff;
 }
 
+/* Bloco Módulos: troca entre apps — índigo/azul vs. teal do Suporte */
+.sidebar-modules-zone {
+    margin-top: 0.85rem;
+    padding-top: 0.55rem;
+    position: relative;
+}
+
+.sidebar-modules-zone-accent {
+    height: 2px;
+    margin: 0 0 0.6rem;
+    margin-left: 1rem;
+    margin-right: 1rem;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.55), rgba(59, 130, 246, 0.45), transparent);
+}
+
+#sidebar .sidebar-nav .sidebar-modules-zone-heading p {
+    color: #93c5fd !important;
+    letter-spacing: 0.14em !important;
+    opacity: 0.95 !important;
+}
+
+.sidebar-modules-zone-card {
+    margin: 0 0.15rem 0.35rem;
+    padding: 0.35rem 0.3rem;
+    border-radius: 0.62rem;
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+/* Bloco Suporte: abaixo da zona Módulos — hierarquia e cor teal/ciano */
+.sidebar-support-zone {
+    margin-top: 0.85rem;
+    padding-top: 0.55rem;
+    position: relative;
+}
+
+.sidebar-support-zone-accent {
+    height: 2px;
+    margin: 0 0 0.6rem;
+    margin-left: 1rem;
+    margin-right: 1rem;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.6), rgba(45, 212, 191, 0.5), transparent);
+}
+
+#sidebar .sidebar-nav .sidebar-support-zone-heading p {
+    color: #7dd3fc !important;
+    letter-spacing: 0.14em !important;
+    opacity: 0.95 !important;
+}
+
+.sidebar-support-zone-card {
+    margin: 0 0.15rem 0.35rem;
+    padding: 0.35rem 0.3rem;
+    border-radius: 0.62rem;
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.sidebar-support-staff-split {
+    height: 0;
+    margin: 0.45rem 0.5rem;
+    padding: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support {
+    font-size: 0.855rem !important;
+    letter-spacing: 0;
+    margin-bottom: 0.08rem !important;
+    border-radius: 0.5rem;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support span {
+    color: #9ca8bc !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support i {
+    color: #7790a9 !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support:hover {
+    background: rgba(56, 189, 248, 0.12) !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support:hover span {
+    color: #f1f5f9 !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support:hover i {
+    color: #7dd3fc !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support.sidebar-link-support-admin i {
+    color: #8896a9 !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support.sidebar-link-support-admin:hover i {
+    color: #a5b4fc !important;
+}
+
+#sidebar .sidebar-nav .sidebar-link.sidebar-link-support.sidebar-item-active {
+    border-left-color: #22d3ee !important;
+    background: rgba(34, 211, 238, 0.1) !important;
+}
+
 /* Botão Filtro de busca: mesmo estilo dos links (sem borda, mesmo hover) */
 #sidebar .sidebar-nav #filter-search-container {
     margin-bottom: 0.5rem;
@@ -685,6 +792,9 @@ button[data-sidebar-close] {
         border-radius: 0.72rem;
         margin-bottom: 0.38rem !important;
         background: transparent !important;
+        border: none !important;
+        border-left: none !important;
+        box-shadow: none !important;
     }
 
     #sidebar.is-collapsed .sidebar-link i {
@@ -715,16 +825,67 @@ button[data-sidebar-close] {
         margin-top: 0.55rem !important;
         margin-bottom: 0.55rem !important;
         padding-top: 0.55rem !important;
+        border-top: none !important;
     }
 
     #sidebar.is-collapsed .sidebar-switch-system,
-    #sidebar.is-collapsed .sidebar-item-active {
+    #sidebar.is-collapsed .sidebar-link.sidebar-item-active:not(.sidebar-link-support) {
         border-left-width: 0 !important;
+        border: none !important;
         padding-left: 0.68rem !important;
         background: rgba(37, 99, 235, 0.2) !important;
     }
 
+    #sidebar.is-collapsed .sidebar-link.sidebar-link-support.sidebar-item-active {
+        padding-left: 0.68rem !important;
+        background: rgba(34, 211, 238, 0.16) !important;
+        border: none !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-support-zone {
+        margin-top: 0.45rem !important;
+        padding-top: 0.35rem !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-support-zone-accent {
+        display: none !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-support-zone-card {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 0.28rem !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: rgba(15, 23, 42, 0.45) !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-modules-zone {
+        margin-top: 0.45rem !important;
+        padding-top: 0.35rem !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-modules-zone-accent {
+        display: none !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-modules-zone-card {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 0.28rem !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: rgba(15, 23, 42, 0.45) !important;
+    }
+
+    #sidebar.is-collapsed .sidebar-support-staff-split {
+        margin-left: 0.3rem !important;
+        margin-right: 0.3rem !important;
+        border-top: none !important;
+    }
+
     #sidebar.is-collapsed .p-4.border-t {
+        border-top: none !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
         padding-top: 0.75rem !important;
@@ -792,6 +953,8 @@ button[data-sidebar-close] {
         justify-content: center !important;
         padding-left: 0.75rem !important;
         padding-right: 0.75rem !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
     body.sidebar-collapsed #sidebar .sidebar-link i {
@@ -812,12 +975,34 @@ button[data-sidebar-close] {
     }
 
     body.sidebar-collapsed #sidebar .sidebar-switch-system,
-    body.sidebar-collapsed #sidebar .sidebar-item-active {
+    body.sidebar-collapsed #sidebar .sidebar-link.sidebar-item-active:not(.sidebar-link-support) {
         border-left-width: 0 !important;
+        border: none !important;
         padding-left: 0.75rem !important;
     }
 
+    body.sidebar-collapsed #sidebar .sidebar-link.sidebar-link-support.sidebar-item-active {
+        background: rgba(34, 211, 238, 0.14) !important;
+        border: none !important;
+    }
+
+    body.sidebar-collapsed #sidebar .sidebar-support-zone-accent,
+    body.sidebar-collapsed #sidebar .sidebar-modules-zone-accent {
+        display: none !important;
+    }
+
+    body.sidebar-collapsed #sidebar .sidebar-support-zone-card,
+    body.sidebar-collapsed #sidebar .sidebar-modules-zone-card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    body.sidebar-collapsed #sidebar .sidebar-support-staff-split {
+        border-top: none !important;
+    }
+
     body.sidebar-collapsed #sidebar .p-4.border-t {
+        border-top: none !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
         padding-top: 0.75rem !important;
@@ -934,6 +1119,48 @@ button[data-sidebar-close] {
         max-height: 0 !important;
         margin-bottom: 0 !important;
         pointer-events: none !important;
+    }
+}
+
+/* Lista de módulos: rolagem só nesta faixa quando expandida (desktop); recolhido = sem caixa de scroll */
+.sidebar-systems-links-scroll {
+    max-height: min(50vh, 22.5rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 0.2rem;
+    margin-bottom: 0.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.sidebar-systems-links-scroll::-webkit-scrollbar {
+    width: 5px;
+}
+
+.sidebar-systems-links-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 4px;
+}
+
+.sidebar-systems-links-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+@media (min-width: 768px) {
+    #sidebar.is-collapsed .sidebar-systems-links-scroll,
+    body.sidebar-collapsed #sidebar .sidebar-systems-links-scroll {
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: visible;
+        scrollbar-width: none;
+        margin-bottom: 0;
+    }
+
+    #sidebar.is-collapsed .sidebar-systems-links-scroll::-webkit-scrollbar,
+    body.sidebar-collapsed #sidebar .sidebar-systems-links-scroll::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
     }
 }
 

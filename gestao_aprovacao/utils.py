@@ -5,7 +5,7 @@ from functools import wraps
 from django.conf import settings
 from django.shortcuts import redirect
 from django.contrib import messages
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from .models import Notificacao, AprovacaoEmailDestinatario
 
 # Coluna "Analisado" (lista de pedidos): fallback quando o banco não está acessível; senão AprovacaoEmailDestinatario + superuser.
@@ -53,7 +53,7 @@ def get_user_profile(user):
     if not user.is_authenticated:
         return None
     
-    if user.is_superuser or user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists():
+    if user.is_superuser or usuario_tem_administracao_global_na_plataforma(user):
         return 'admin'
     elif user.groups.filter(name=GRUPOS.RESPONSAVEL_EMPRESA).exists():
         return 'responsavel_empresa'
@@ -95,9 +95,9 @@ def is_gestor(user):
 
 
 def is_admin(user):
-    """Verifica se o usuário é administrador."""
+    """Verifica se o usuário é administrador de plataforma (Gestão + equivalentes globais legados)."""
     return user.is_authenticated and (
-        user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists() or
+        usuario_tem_administracao_global_na_plataforma(user) or
         user.is_superuser
     )
 

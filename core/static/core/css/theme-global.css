@@ -54,7 +54,7 @@ html[data-theme="dark"] .top-bar-container.gestao-top-bar {
   border-bottom-color: #334155 !important;
 }
 
-html[data-theme="dark"] .top-bar-title {
+html[data-theme="dark"] main.main-content:not(.select-system-main) .top-bar-title {
   color: #f8fafc !important;
 }
 
@@ -282,11 +282,26 @@ html[data-theme="dark"] #messages-container .toast-body p {
 }
 
 /* Tela Select System (Home de apps): garantir contraste real no dark */
-html[data-theme="dark"] .select-system-root .welcome-banner,
-html[data-theme="dark"] .select-system-root .support-card,
-html[data-theme="dark"] .select-system-root .support-modal {
+html[data-theme="dark"] .select-system-root .welcome-banner {
   background: #1e293b !important;
   border-color: #334155 !important;
+}
+
+/* Modal de suporte é movido ao <body>; estilizar sem depender de .select-system-root */
+html[data-theme="dark"] .support-modal {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .support-modal-header,
+html[data-theme="dark"] .support-modal-footer {
+  border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .support-modal-close {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
 }
 
 html[data-theme="dark"] .select-system-root .system-card .card-inner {
@@ -307,51 +322,131 @@ html[data-theme="dark"] .select-system-root .feature-list li i {
   color: #93c5fd !important;
 }
 
-html[data-theme="dark"] .select-system-root .card-arrow,
-html[data-theme="dark"] .select-system-root .support-card-link,
-html[data-theme="dark"] .select-system-root .support-form-helper {
+html[data-theme="dark"] .select-system-root .card-arrow {
   color: #cbd5e1 !important;
 }
 
-html[data-theme="dark"] .select-system-root .support-modal-title,
-html[data-theme="dark"] .select-system-root .support-card-title,
-html[data-theme="dark"] .select-system-root .support-form-field label {
+html[data-theme="dark"] .support-form-helper {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .select-system-root .select-system-quick-link {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-quick-link:hover {
+  background: #334155 !important;
+  border-color: #64748b !important;
+  color: #f8fafc !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-quick-label {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .select-system-root .select-system-module-filter {
+  background: rgba(30, 41, 59, 0.75) !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+  box-shadow: none !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-module-filter::placeholder {
+  color: #94a3b8 !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-module-filter:hover {
+  background: rgba(51, 65, 85, 0.75) !important;
+  border-color: #64748b !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-module-filter:focus {
+  background: #1e293b !important;
+  border-color: rgba(96, 165, 250, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-search-ico i {
+  color: #64748b !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-module-filter-empty {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .support-modal-title,
+html[data-theme="dark"] .support-form-field label {
   color: #f8fafc !important;
 }
 
-html[data-theme="dark"] .select-system-root .support-card-btn-secondary,
-html[data-theme="dark"] .select-system-root #open-support-modal-btn {
+html[data-theme="dark"] .support-card-btn-secondary {
   background: #334155 !important;
   color: #f8fafc !important;
   border-color: #475569 !important;
   -webkit-text-fill-color: #f8fafc !important;
 }
 
-html[data-theme="dark"] .select-system-root .support-card-btn-secondary:hover,
-html[data-theme="dark"] .select-system-root #open-support-modal-btn:hover {
+html[data-theme="dark"] .support-card-btn-secondary:hover {
   background: #475569 !important;
   color: #ffffff !important;
   border-color: #64748b !important;
   -webkit-text-fill-color: #ffffff !important;
 }
 
-html[data-theme="dark"] .select-system-root .support-form-field input,
-html[data-theme="dark"] .select-system-root .support-form-field select,
-html[data-theme="dark"] .select-system-root .support-form-field textarea {
+html[data-theme="dark"] .support-form-field input,
+html[data-theme="dark"] .support-form-field select,
+html[data-theme="dark"] .support-form-field textarea {
   background: #0f172a !important;
   border-color: #475569 !important;
   color: #f8fafc !important;
 }
 
-html[data-theme="dark"] .select-system-root .support-shortcut-btn {
+html[data-theme="dark"] .support-shortcut-btn {
   background: #334155 !important;
   border-color: #475569 !important;
   color: #e2e8f0 !important;
 }
 
-html[data-theme="dark"] .select-system-root .support-shortcut-btn:hover {
+html[data-theme="dark"] .support-shortcut-btn:hover {
   background: #475569 !important;
   color: #ffffff !important;
+}
+
+/* Central de suporte (/support/) */
+html[data-theme="dark"] .support-hub-scope .support-hub-intro p {
+  color: #94a3b8 !important;
+}
+html[data-theme="dark"] .support-hub-actions a.support-hub-card:not(.support-hub-card--primary),
+html[data-theme="dark"] .support-hub-actions button.support-hub-card:not(.support-hub-card--primary) {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .support-hub-actions a.support-hub-card:not(.support-hub-card--primary):hover,
+html[data-theme="dark"] .support-hub-actions button.support-hub-card:not(.support-hub-card--primary):hover {
+  background: #334155 !important;
+  border-color: rgba(45, 212, 191, 0.4) !important;
+  box-shadow: 0 4px 20px -8px rgba(13, 148, 136, 0.35) !important;
+}
+html[data-theme="dark"] .support-hub-actions .support-hub-card:not(.support-hub-card--primary) .support-hub-card-meta {
+  color: #94a3b8 !important;
+}
+html[data-theme="dark"] .support-hub-actions .support-hub-card:not(.support-hub-card--primary) i {
+  background: linear-gradient(135deg, #134e4a, #115e59) !important;
+  color: #5eead4 !important;
+}
+
+html[data-theme="dark"] .select-system-root .select-system-site-footer {
+  border-top-color: rgba(71, 85, 105, 0.65) !important;
+}
+
+html[data-theme="dark"] .select-system-root .select-system-footer-brand-name {
+  color: #93c5fd !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-footer-brand-sep {
+  color: rgba(147, 197, 253, 0.45) !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-footer-brand-tag {
+  color: #bae6fd !important;
+}
+html[data-theme="dark"] .select-system-root .select-system-footer-legal {
+  color: #94a3b8 !important;
 }
 
 /* Seletor de tema na sidebar */

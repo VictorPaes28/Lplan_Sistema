@@ -10,7 +10,7 @@ from django.http import HttpResponse
 import csv
 from mapa_obras.models import Obra
 from suprimentos.models import ItemMapa, Insumo
-from .groups import GRUPOS
+from .groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from .painel_sistema_access import user_is_painel_sistema_admin
 
 
@@ -51,12 +51,11 @@ def admin_central(request):
     
     # Grupos organizados por sistema com descricoes
     _grupo_descs = {
-        GRUPOS.ADMINISTRADOR: 'Acesso total',
+        GRUPOS.ADMINISTRADOR: 'Administrador da plataforma',
         GRUPOS.APROVADOR: 'Aprova pedidos',
         GRUPOS.SOLICITANTE: 'Cria pedidos',
         GRUPOS.GERENTES: 'Aprova diarios',
         GRUPOS.ENGENHARIA: 'Edita planejamento',
-        GRUPOS.CENTRAL_APROVACOES_ADMIN: 'Configura fluxos',
         GRUPOS.CENTRAL_APROVACOES_APROVADOR: 'Fila de aprovacoes',
         GRUPOS.CENTRAL_APROVACOES_EXTERNO: 'Acesso externo',
     }
@@ -70,7 +69,6 @@ def admin_central(request):
     grupos_diario = _make_grupo_list([GRUPOS.GERENTES])
     grupos_mapa = _make_grupo_list([GRUPOS.ENGENHARIA])
     grupos_central = _make_grupo_list([
-        GRUPOS.CENTRAL_APROVACOES_ADMIN,
         GRUPOS.CENTRAL_APROVACOES_APROVADOR,
         GRUPOS.CENTRAL_APROVACOES_EXTERNO,
     ])
@@ -134,7 +132,7 @@ def admin_central(request):
         'stats_email_logs': stats_email_logs,
         'stats_system_logs': stats_system_logs,
         'pending_diary_edit_requests_count': pending_diary_edit_requests_count,
-        'painel_comunicados': request.user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists(),
+        'painel_comunicados': usuario_tem_administracao_global_na_plataforma(request.user),
     }
 
     return render(request, 'accounts/admin_central.html', context)

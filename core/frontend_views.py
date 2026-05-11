@@ -40,7 +40,7 @@ from .models import (
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 import logging
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from accounts.models import UserSignupRequest
 from accounts.signup_services import (
     create_signup_request,
@@ -401,16 +401,15 @@ def select_system_view(request):
     """View para seleção de sistema após login."""
     user = request.user
     user_groups = set(user.groups.values_list('name', flat=True))
-    
-    # Determinar acesso por sistema baseado nos grupos
-    has_diario = user.is_superuser or user.is_staff or GRUPOS.GERENTES in user_groups
-    has_gestao = user.is_superuser or user.is_staff or bool(
+
+    adm = user.is_superuser or user.is_staff
+    plat_admin = usuario_tem_administracao_global_na_plataforma(user)
+    has_diario = adm or GRUPOS.GERENTES in user_groups
+    has_gestao = adm or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
-    has_impedimentos = user.is_superuser or user.is_staff or bool(
-        user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
-    )
-    has_trackhub = user.is_superuser or user.is_staff or bool(
+    has_impedimentos = adm or (GRUPOS.GESTAO_IMPEDIMENTOS in user_groups)
+    has_trackhub = adm or plat_admin or bool(
         user_groups
         & {
             GRUPOS.TRACKHUB,
@@ -419,10 +418,16 @@ def select_system_view(request):
             GRUPOS.TRACKHUB_SOLICITANTE,
         }
     )
-    has_mapa = user.is_superuser or user.is_staff or bool(
-        user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
+    has_mapa_suprimentos = adm or (GRUPOS.ENGENHARIA in user_groups)
+    has_mapa_controle = adm or (GRUPOS.MAPA_CONTROLE in user_groups)
+    has_ferramenta_ambientes = adm or (GRUPOS.FERRAMENTA_OPERACIONAL in user_groups)
+    has_bi_obra = adm or (GRUPOS.BI_DA_OBRA in user_groups)
+    has_mapa_modules_any = (
+        has_mapa_suprimentos or has_mapa_controle or has_ferramenta_ambientes or has_bi_obra
     )
-    has_workflow = user.is_superuser or user.is_staff or bool(
+    # Compatível com código que tratou «has_mapa» como Mapa de Suprimentos
+    has_mapa = has_mapa_suprimentos
+    has_workflow = adm or plat_admin or bool(
         user_groups
         & {
             GRUPOS.CENTRAL_APROVACOES_ADMIN,
@@ -430,26 +435,24 @@ def select_system_view(request):
             GRUPOS.CENTRAL_APROVACOES_EXTERNO,
         }
     )
-    # BI da Obra: mesma base de obras (projeto vinculado); visível para quem usa Diário ou Mapa
-    has_bi_obra = user.is_superuser or user.is_staff or has_diario or has_mapa
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
     has_central = user_is_painel_sistema_admin(user)
-    # Dono da obra: se só tem acesso ao portal cliente, redireciona direto
+    has_comunicados_painel = user.is_superuser or plat_admin
     if (
         not (
             has_diario
             or has_gestao
             or has_impedimentos
             or has_trackhub
-            or has_mapa
+            or has_mapa_modules_any
             or has_central
             or has_workflow
+            or has_comunicados_painel
         )
         and _is_work_owner(user)
     ):
         return redirect('client-diary-list')
-    support_projects = list(_get_support_projects_for_user(user))
     local_now = timezone.localtime()
     hour = local_now.hour
     if hour < 12:
@@ -458,6 +461,7 @@ def select_system_view(request):
         time_greeting = 'Boa tarde'
     else:
         time_greeting = 'Boa noite'
+
     context = {
         'time_greeting': time_greeting,
         'has_diario': has_diario,
@@ -465,16 +469,30 @@ def select_system_view(request):
         'has_impedimentos': has_impedimentos,
         'has_trackhub': has_trackhub,
         'has_mapa': has_mapa,
+        'has_mapa_suprimentos': has_mapa_suprimentos,
+        'has_mapa_controle': has_mapa_controle,
+        'has_ferramenta_ambientes': has_ferramenta_ambientes,
+        'has_mapa_modules_any': has_mapa_modules_any,
         'has_bi_obra': has_bi_obra,
+        'has_comunicados_painel': has_comunicados_painel,
         'has_admin': user.is_superuser or user.is_staff,
         'has_central': has_central,
         'has_workflow': has_workflow,
-        'can_manage_support_tickets': user.is_superuser or user.is_staff,
+    }
+    return render(request, 'core/select_system.html', context)
+
+
+@login_required
+def support_hub_view(request):
+    """Página única do suporte: novo chamado, lista e painel (quando aplicável)."""
+    support_projects = list(_get_support_projects_for_user(request.user))
+    context = {
+        'can_manage_support_tickets': _can_manage_support_tickets(request.user),
         'support_projects': support_projects,
         'support_auto_project': support_projects[0] if len(support_projects) == 1 else None,
         'support_categories': SUPPORT_CATEGORY_CHOICES,
     }
-    return render(request, 'core/select_system.html', context)
+    return render(request, 'core/support_hub.html', context)
 
 
 def _can_manage_support_tickets(user):

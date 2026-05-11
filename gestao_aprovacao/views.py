@@ -61,7 +61,7 @@ from .services.user_governance import (
 from accounts.groups import (
     GRUPOS,
     filtrar_grupos_post_atribuivel,
-    grupos_modulos_para_atribuicao,
+    grupos_secoes_para_atribuicao,
     grupos_ordenados_atribuivel,
     merge_grupos_legados_ocultos,
 )
@@ -3574,12 +3574,12 @@ def create_user(request):
     else:
         empresas_disponiveis = Empresa.objects.filter(ativo=True).order_by('codigo')
     
-    grupos_modulos = grupos_modulos_para_atribuicao()
-    
+    grupos_secoes = grupos_secoes_para_atribuicao()
+
     # Lista única de obras do sistema = core.Project (mesma lista do Diário de Obra)
     projects = Project.objects.filter(is_active=True).order_by('name')
     context = {
-        'grupos_modulos': grupos_modulos,
+        'grupos_secoes': grupos_secoes,
         'empresas': empresas_disponiveis,
         'projects': projects,
         'user_profile': get_user_profile(request.user),
@@ -3731,8 +3731,8 @@ def edit_user(request, pk):
     except UserProfile.DoesNotExist:
         user_perfil = None
     
-    grupos_modulos = grupos_modulos_para_atribuicao()
-    
+    grupos_secoes = grupos_secoes_para_atribuicao()
+
     projects = Project.objects.filter(is_active=True).order_by('name')
     user_project_ids = list(ProjectMember.objects.filter(user=user).values_list('project_id', flat=True))
     # Sincronizar Diário: se o usuário tem obras no GestControll mas não tem ProjectMember, criar a partir das Obras vinculadas
@@ -3751,7 +3751,7 @@ def edit_user(request, pk):
     context = {
         'user_obj': user,
         'user_perfil': user_perfil,
-        'grupos_modulos': grupos_modulos,
+        'grupos_secoes': grupos_secoes,
         'user_grupos': user.groups.all(),
         'empresas': empresas_disponiveis,
         'user_empresas': user_empresas,

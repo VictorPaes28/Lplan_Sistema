@@ -23,6 +23,7 @@ from suprimentos.services.analise_obra_service import (
     AnaliseObraService,
 )
 
+
 ANALISE_OBRA_CACHE_TTL_SECONDS = 120
 
 
@@ -161,7 +162,7 @@ def _get_cached_payload_or_build(request, obra: Obra, ini, fim, filtros: Analise
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA, GRUPOS.GERENTES)
+@require_group(GRUPOS.BI_DA_OBRA)
 @ensure_csrf_cookie
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra(request):
@@ -195,7 +196,7 @@ def _json_error(message: str, status: int = 400):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA, GRUPOS.GERENTES)
+@require_group(GRUPOS.BI_DA_OBRA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra_api(request):
     """
@@ -256,7 +257,7 @@ def analise_obra_api(request):
 
 
 @login_required
-@require_group(GRUPOS.ENGENHARIA, GRUPOS.GERENTES)
+@require_group(GRUPOS.BI_DA_OBRA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra_drilldown_api(request):
     """GET .../analise-obra/drilldown/?obra=&bloco=&pavimento= — detalhe para drawer."""

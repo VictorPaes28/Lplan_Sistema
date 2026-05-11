@@ -21,7 +21,7 @@ from core.models import ProjectDiaryApprover, ProjectMember, ProjectOwner
 from core.models import Notification
 from mapa_obras.models import Obra
 
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from .decorators import require_trackhub
 from .forms import (
     AnexoPendenciaUploadForm,
@@ -382,8 +382,9 @@ def _trackhub_roles(user):
     gset = set(user.groups.values_list("name", flat=True))
     # Grupo legado TrackHub mantém acesso administrativo por compatibilidade.
     legacy_admin = GRUPOS.TRACKHUB in gset
+    plat_admin = usuario_tem_administracao_global_na_plataforma(user)
     return {
-        "admin": legacy_admin or (GRUPOS.TRACKHUB_ADMIN in gset),
+        "admin": plat_admin or legacy_admin,
         "aprovador": GRUPOS.TRACKHUB_APROVADOR in gset,
         "solicitante": GRUPOS.TRACKHUB_SOLICITANTE in gset,
     }

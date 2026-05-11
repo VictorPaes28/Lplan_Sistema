@@ -33,12 +33,14 @@ class _Grupos:
     # ──────────────────────────────────────────────
     # Gestão de Aprovação (GestControll)
     # ──────────────────────────────────────────────
-    # Painel do sistema (accounts/admin-central, locais por obra, análise): ver accounts.painel_sistema_access
+    # «Administrador» = papel global de administração operacional do cliente (painel, comunicados,
+    # configurações correlatas — não apenas GestControll). Legacy: mesmo privilégio reconhecido
+    # também para grupos TrackHub Administrador e Central Aprovacoes Admin (ver migrações).
     ADMINISTRADOR = 'Administrador'
     RESPONSAVEL_EMPRESA = 'Responsavel Empresa'
     APROVADOR = 'Aprovador'
     SOLICITANTE = 'Solicitante'
-    # Nome do grupo em auth.Group (UI exibe "Restrições" em GROUP_UI_MODULES).
+    # Django auth.Group nomeado para o app de impeditivos (tela própria de Restrições).
     GESTAO_IMPEDIMENTOS = 'Gestão de Impeditivos'
 
     # ──────────────────────────────────────────────
@@ -62,9 +64,11 @@ class _Grupos:
     CENTRAL_APROVACOES_EXTERNO = 'Central Aprovacoes Externo'
 
     # ──────────────────────────────────────────────
-    # Mapa de Suprimentos (Suprimentos/Engenharia)
+    # Mapa de Suprimentos / Mapa de Controle / BI (Suprimentos)
     # ──────────────────────────────────────────────
     ENGENHARIA = 'Mapa de Suprimentos'
+    MAPA_CONTROLE = 'Mapa de Controle'
+    BI_DA_OBRA = 'BI da Obra'
     FERRAMENTA_OPERACIONAL = 'Ferramenta Operacional'
 
     # ──────────────────────────────────────────────
@@ -86,7 +90,7 @@ class _Grupos:
             self.TRACKHUB_ADMIN,
             self.TRACKHUB_APROVADOR,
             self.TRACKHUB_SOLICITANTE,
-            self.GERENTES, self.ENGENHARIA, self.FERRAMENTA_OPERACIONAL,
+            self.GERENTES, self.ENGENHARIA, self.MAPA_CONTROLE, self.BI_DA_OBRA, self.FERRAMENTA_OPERACIONAL,
             self.CENTRAL_APROVACOES_ADMIN,
             self.CENTRAL_APROVACOES_APROVADOR,
             self.CENTRAL_APROVACOES_EXTERNO,
@@ -96,20 +100,54 @@ class _Grupos:
 # Instância singleton para importar diretamente
 GRUPOS = _Grupos()
 
+# Papel único de administrador operacional: grupo canônico «Administrador» no cadastro;
+# TrackHub Administrador / Central Aprovacoes Admin permanecem reconhecidos no código e na migração.
+ADMINISTRADOR_GLOBAL_GROUP_NAMES = (
+    GRUPOS.ADMINISTRADOR,
+    GRUPOS.TRACKHUB_ADMIN,
+    GRUPOS.CENTRAL_APROVACOES_ADMIN,
+)
+_ADMIN_GLOBAL_FSET = frozenset(ADMINISTRADOR_GLOBAL_GROUP_NAMES)
+
+
+def usuario_tem_administracao_global_na_plataforma(user) -> bool:
+    """True se o usuário tem o papel de administrador global (vários nomes Django legados)."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    return bool(_ADMIN_GLOBAL_FSET.intersection(user.groups.values_list("name", flat=True)))
+
+
 # ──────────────────────────────────────────────
 # UI de atribuição (cadastro/edição de usuário, aprovação de signup)
 # ──────────────────────────────────────────────
 # Grupos que permanecem no banco e nas regras de código, mas não devem ser
 # atribuídos nem exibidos em formulários operacionais (legado preservado no save).
 
-GRUPOS_OCULTOS_ATRIBUICAO_UI = frozenset({GRUPOS.RESPONSAVEL_EMPRESA})
+GRUPOS_OCULTOS_ATRIBUICAO_UI = frozenset({
+    GRUPOS.RESPONSAVEL_EMPRESA,
+    GRUPOS.TRACKHUB_ADMIN,
+    GRUPOS.CENTRAL_APROVACOES_ADMIN,
+})
 
 # Nome técnico do grupo em auth.Group (POST / permissões) → texto na UI de atribuição.
+# Mantém nome do arquivo de grupo sempre explícito no rótulo para não confundir papéis homônimos.
 GRUPO_LABEL_ATRIBUICAO_UI = {
-    GRUPOS.GESTAO_IMPEDIMENTOS: 'Gestão de Restrições',
-    GRUPOS.TRACKHUB_ADMIN: 'Administrador',
-    GRUPOS.TRACKHUB_APROVADOR: 'Aprovador',
-    GRUPOS.TRACKHUB_SOLICITANTE: 'Solicitante',
+    GRUPOS.ADMINISTRADOR: 'Administrador do sistema',
+    GRUPOS.APROVADOR: 'Aprovador GestControll',
+    GRUPOS.SOLICITANTE: 'Solicitante GestControll',
+    GRUPOS.GESTAO_IMPEDIMENTOS: 'Acesso a Restrições (Gestão de Impeditivos)',
+    GRUPOS.TRACKHUB: 'TrackHub — perfil único (legado)',
+    GRUPOS.TRACKHUB_ADMIN: 'TrackHub — administrador',
+    GRUPOS.TRACKHUB_APROVADOR: 'TrackHub — aprovador',
+    GRUPOS.TRACKHUB_SOLICITANTE: 'TrackHub — solicitante',
+    GRUPOS.GERENTES: 'Acesso ao Diário de Obra',
+    GRUPOS.ENGENHARIA: 'Acesso ao Mapa de Suprimentos',
+    GRUPOS.MAPA_CONTROLE: 'Acesso ao Mapa de Controle',
+    GRUPOS.BI_DA_OBRA: 'Acesso ao BI da Obra',
+    GRUPOS.FERRAMENTA_OPERACIONAL: 'Acesso à Ferramenta de ambientes (Ferramenta Operacional)',
+    GRUPOS.CENTRAL_APROVACOES_ADMIN: 'Central de Aprovações — configurador de fluxos',
+    GRUPOS.CENTRAL_APROVACOES_APROVADOR: 'Central de Aprovações — fila interna',
+    GRUPOS.CENTRAL_APROVACOES_EXTERNO: 'Central de Aprovações — aprovador externo',
 }
 
 
@@ -117,68 +155,181 @@ def grupo_label_atribuicao(nome_oficial: str) -> str:
     """Rótulo para checkboxes de grupos; padrão é o próprio nome do grupo."""
     return GRUPO_LABEL_ATRIBUICAO_UI.get(nome_oficial, nome_oficial)
 
-# Layout das telas de grupos (cadastro/edição de usuário, aprovação de signup).
-#
-# Como incluir um módulo novo no futuro:
-#   1. Defina o(s) nome(s) do grupo em _Grupos acima, inclua em GRUPOS.TODOS e garanta criação
-#      do registro em auth (ex.: setup_groups, bootstrap ou migração), como já é feito hoje.
-#   2. Acrescente um dict abaixo com: id (slug estável), title, subtitle (opcional), names
-#      (lista de constantes GRUPOS.* que pertencem a esse módulo na UI).
-#   3. Templates usam grupos_modulos_para_atribuicao(): cada entrada em modulo.groups
-#      é um dict {'group': Group, 'label': str} (label pode diferir do group.name).
-#   4. Para ocultar um grupo só da seleção (legado), use GRUPOS_OCULTOS_ATRIBUICAO_UI — não
-#      remova o nome de GRUPOS.TODOS nem das regras de permissão.
-#
-GROUP_UI_MODULES = [
+
+# Cada entrada = um módulo claro na UI (sem misturar domínios). Papéis do mesmo produto ficam na mesma seção em linha.
+GROUP_UI_SECTIONS = [
     {
-        'id': 'gestcontroll',
-        'title': 'Gestão de pedidos (GestControll)',
-        'subtitle': 'Pedidos de obra, vínculo por obra e papéis de solicitante ou aprovador.',
-        'names': [
-            GRUPOS.ADMINISTRADOR,
-            GRUPOS.APROVADOR,
-            GRUPOS.SOLICITANTE,
+        'id': 'mod_admin_global',
+        'title': 'Administrador do sistema',
+        'description': (
+            'Acesso ao painel administrativo do cliente, comunicados institucionais e à configuração '
+            'onde aplicável nos módulos (inclui o que antes eram admins separados do TrackHub ou da Central).'
+        ),
+        'modules': [
+            {
+                'id': 'admin_plataforma_credencial',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.ADMINISTRADOR],
+            },
         ],
     },
     {
-        'id': 'impeditivos',
-        'title': 'Restrições',
-        'subtitle': 'Restrições, pendências e tarefas por obra',
-        'names': [GRUPOS.GESTAO_IMPEDIMENTOS],
-    },
-    {
-        'id': 'trackhub',
-        'title': 'TrackHub',
-        'subtitle': 'Pendências, etapas e comunicação por obra',
-        'names': [
-            GRUPOS.TRACKHUB_ADMIN,
-            GRUPOS.TRACKHUB_APROVADOR,
-            GRUPOS.TRACKHUB_SOLICITANTE,
+        'id': 'mod_gestcontroll_pedidos',
+        'title': 'GestControll — pedidos de compra',
+        'description': '',
+        'modules': [
+            {
+                'id': 'gestcontroll_papeis',
+                'title': '',
+                'subtitle': '',
+                'names': [
+                    GRUPOS.APROVADOR,
+                    GRUPOS.SOLICITANTE,
+                ],
+            },
         ],
     },
     {
-        'id': 'diario',
+        'id': 'mod_diario_obra',
         'title': 'Diário de Obra',
-        'subtitle': 'Registro diário (RDO). O BI da obra segue as regras atuais do Diário e da obra.',
-        'names': [GRUPOS.GERENTES],
+        'description': '',
+        'modules': [
+            {
+                'id': 'diario_rdo',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.GERENTES],
+            },
+        ],
     },
     {
-        'id': 'mapa',
-        'title': 'Mapa de Controle e suprimentos',
-        'subtitle': 'Mapa de Controle (execução físico) e planejamento no módulo Mapa.',
-        'names': [GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL],
+        'id': 'mod_restricoes',
+        'title': 'Restrições (Gestão de Impeditivos)',
+        'description': '',
+        'modules': [
+            {
+                'id': 'restricoes_operador',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.GESTAO_IMPEDIMENTOS],
+            },
+        ],
     },
     {
-        'id': 'central_aprovacoes',
+        'id': 'mod_trackhub',
+        'title': 'TrackHub',
+        'description': '',
+        'modules': [
+            {
+                'id': 'trackhub_papeis',
+                'title': '',
+                'subtitle': '',
+                'names': [
+                    GRUPOS.TRACKHUB_APROVADOR,
+                    GRUPOS.TRACKHUB_SOLICITANTE,
+                    GRUPOS.TRACKHUB,
+                ],
+            },
+        ],
+    },
+    {
+        'id': 'mod_mapa_suprimentos',
+        'title': 'Mapa de Suprimentos',
+        'description': '',
+        'modules': [
+            {
+                'id': 'mapa_sup_credencial',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.ENGENHARIA],
+            },
+        ],
+    },
+    {
+        'id': 'mod_mapa_controle',
+        'title': 'Mapa de Controle',
+        'description': '',
+        'modules': [
+            {
+                'id': 'mapa_controle_credencial',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.MAPA_CONTROLE],
+            },
+        ],
+    },
+    {
+        'id': 'mod_bi_obra',
+        'title': 'BI da Obra',
+        'description': '',
+        'modules': [
+            {
+                'id': 'bi_obra_credencial',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.BI_DA_OBRA],
+            },
+        ],
+    },
+    {
+        'id': 'mod_ferramenta_ambientes',
+        'title': 'Ferramenta Operacional',
+        'description': '',
+        'modules': [
+            {
+                'id': 'ferramenta_oper_ambientes',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.FERRAMENTA_OPERACIONAL],
+            },
+        ],
+    },
+    {
+        'id': 'mod_central_aprov_institucional',
         'title': 'Central de Aprovações',
-        'subtitle': 'Fluxos por obra e categoria (admin, aprovador ou externo).',
-        'names': [
-            GRUPOS.CENTRAL_APROVACOES_ADMIN,
-            GRUPOS.CENTRAL_APROVACOES_APROVADOR,
-            GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+        'description': '',
+        'modules': [
+            {
+                'id': 'central_fluxo_papeis',
+                'title': '',
+                'subtitle': '',
+                'names': [
+                    GRUPOS.CENTRAL_APROVACOES_APROVADOR,
+                    GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+                ],
+            },
         ],
     },
 ]
+
+
+def grupos_secoes_para_atribuicao():
+    """Seções para a UI com listas ``modules`` já resolvidas em ``groups`` [{group,label}, …]."""
+    from django.contrib.auth.models import Group
+
+    ensure_official_groups_exist()
+    by_name = {g.name: g for g in Group.objects.filter(name__in=GRUPOS.TODOS)}
+    sections_out = []
+    for sec in GROUP_UI_SECTIONS:
+        sec_row = {
+            'id': sec['id'],
+            'title': sec['title'],
+            'description': sec.get('description', ''),
+            'modules': [],
+        }
+        for mod in sec['modules']:
+            row = {k: v for k, v in mod.items() if k != 'names'}
+            row['groups'] = []
+            for name in mod.get('names', []):
+                if name in GRUPOS_OCULTOS_ATRIBUICAO_UI:
+                    continue
+                g = by_name.get(name)
+                if g is not None:
+                    row['groups'].append({'group': g, 'label': grupo_label_atribuicao(name)})
+            sec_row['modules'].append(row)
+        sections_out.append(sec_row)
+    return sections_out
 
 
 def ensure_official_groups_exist():
@@ -197,11 +348,12 @@ def grupos_ordenados_atribuivel():
 
     ensure_official_groups_exist()
     flat = []
-    for mod in GROUP_UI_MODULES:
-        for name in mod['names']:
-            if name in GRUPOS_OCULTOS_ATRIBUICAO_UI:
-                continue
-            flat.append(name)
+    for sec in GROUP_UI_SECTIONS:
+        for mod in sec['modules']:
+            for name in mod.get('names', []):
+                if name in GRUPOS_OCULTOS_ATRIBUICAO_UI:
+                    continue
+                flat.append(name)
     qs = list(Group.objects.filter(name__in=flat))
     by_name = {g.name: g for g in qs}
     return [by_name[n] for n in flat if n in by_name]
@@ -209,30 +361,11 @@ def grupos_ordenados_atribuivel():
 
 def grupos_modulos_para_atribuicao():
     """
-    Lista de seções para templates: cada item tem id, title, subtitle, groups.
+    Lista **plana** de módulos (sem nível ``seções``).
 
-    Cada elemento de groups é ``{'group': Group, 'label': str}``; ``label`` segue
-    GRUPO_LABEL_ATRIBUICAO_UI quando houver, mantendo ``group.name``
-    para value do checkbox e permissões.
+    Preferir ``grupos_secoes_para_atribuicao()`` nos templates novos para leitura.
     """
-    from django.contrib.auth.models import Group
-
-    ensure_official_groups_exist()
-    by_name = {g.name: g for g in Group.objects.filter(name__in=GRUPOS.TODOS)}
-    out = []
-    for mod in GROUP_UI_MODULES:
-        row = {k: v for k, v in mod.items() if k != 'names'}
-        row['groups'] = []
-        for name in mod['names']:
-            if name in GRUPOS_OCULTOS_ATRIBUICAO_UI:
-                continue
-            g = by_name.get(name)
-            if g is not None:
-                row['groups'].append(
-                    {'group': g, 'label': grupo_label_atribuicao(name)}
-                )
-        out.append(row)
-    return out
+    return [module for sec in grupos_secoes_para_atribuicao() for module in sec['modules']]
 
 
 def filtrar_grupos_post_atribuivel(raw_names):

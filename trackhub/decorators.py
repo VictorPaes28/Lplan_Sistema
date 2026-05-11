@@ -18,6 +18,8 @@ def user_has_trackhub_access(user):
     if user.is_superuser or user.is_staff:
         return True
     allowed = {
+        GRUPOS.ADMINISTRADOR,
+        GRUPOS.CENTRAL_APROVACOES_ADMIN,
         GRUPOS.TRACKHUB,  # legado
         GRUPOS.TRACKHUB_ADMIN,
         GRUPOS.TRACKHUB_APROVADOR,

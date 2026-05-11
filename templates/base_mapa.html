@@ -112,40 +112,51 @@
                                 <a class="nav-link {% if '/accounts/admin-central' in request.path %}active fw-semibold{% endif %}" href="{% url 'accounts:admin_central' %}"><i class="bi bi-gear"></i> <span>Painel do Sistema</span></a>
                             </li>
                         {% endif %}
-                        {% if user.groups.all %}
+                        {% if has_mapa_suprimentos or has_mapa_controle or has_bi_obra or has_ferramenta_ambientes %}
                             {% if request.resolver_match.url_name == 'mapa_controle' or request.resolver_match.url_name == 'importar_mapa_controle' %}
-                            {# Cabeçalho focado no Mapa de Controle: sem Dashboard / atalho "Controle" / import Sienge (suprimentos) #}
+                            {# Cabeçalho focado no Mapa de Controle #}
+                            {% if has_bi_obra %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:analise_obra' %}" title="BI da obra: leitura integrada">
                                     <i class="bi bi-layers"></i> <span class="d-none d-sm-inline">BI </span><span>Obra</span>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if has_mapa_suprimentos %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:mapa' %}" title="Mapa de suprimentos (planilha)">
                                     <i class="bi bi-table"></i> <span>Mapa</span>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if has_ferramenta_ambientes %}
                             <li class="nav-item">
                                 <a class="nav-link {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}active fw-semibold{% endif %}" href="{% url 'engenharia:ferramenta_shell' %}" title="Ferramenta de ambientes operacionais">
                                     <i class="bi bi-magic"></i> <span>Ferramenta operacional</span>
                                 </a>
                             </li>
+                            {% endif %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'mapa_obras:home' %}">
                                     <i class="bi bi-arrow-left-right"></i> <span>Trocar Obra</span>
                                 </a>
                             </li>
                             {% else %}
+                            {% if has_mapa_suprimentos %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:dashboard_2' %}">
                                     <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if has_bi_obra %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:analise_obra' %}" title="BI da obra: leitura integrada (não é o Dashboard de suprimentos nem o Gestão)">
                                     <i class="bi bi-layers"></i> <span class="d-none d-sm-inline">BI </span><span>Obra</span>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if has_mapa_suprimentos %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'engenharia:mapa' %}">
                                     <i class="bi bi-table"></i> <span>Mapa</span>
@@ -156,11 +167,21 @@
                                     <i class="bi bi-upload"></i> <span>Importar Sienge</span>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if has_ferramenta_ambientes %}
                             <li class="nav-item">
                                 <a class="nav-link {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}active fw-semibold{% endif %}" href="{% url 'engenharia:ferramenta_shell' %}">
                                     <i class="bi bi-magic"></i> <span>Ferramenta operacional</span>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if has_mapa_controle %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'mapa_controle' or request.resolver_match.url_name == 'importar_mapa_controle' %}active fw-semibold{% endif %}" href="{% url 'engenharia:mapa_controle' %}">
+                                    <i class="bi bi-grid-3x3-gap"></i> <span>Mapa de Controle</span>
+                                </a>
+                            </li>
+                            {% endif %}
                             {% endif %}
                         {% endif %}
                     {% endif %}

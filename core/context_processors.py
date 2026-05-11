@@ -14,25 +14,23 @@ from .models import (
 
 
 def _get_system_access(user):
-    """Retorna flags globais de acesso por módulo para o usuário autenticado."""
+    """Flags usados no seletor de sistema e na sidebar (exceto granularidade engenharia via _engenharia_groups)."""
     if not user or not user.is_authenticated:
-        return False, False, False, False, False, False
-    from accounts.groups import GRUPOS
+        return False, False, False, False, False, False, False
+    from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
     user_groups = set(user.groups.values_list('name', flat=True))
-    has_diario = user.is_superuser or user.is_staff or GRUPOS.GERENTES in user_groups
-    has_gestao = user.is_superuser or user.is_staff or bool(
+    adminish = user.is_superuser or user.is_staff
+    has_diario = adminish or GRUPOS.GERENTES in user_groups
+    has_gestao = adminish or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
-    has_impedimentos = user.is_superuser or user.is_staff or bool(
-        user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.GESTAO_IMPEDIMENTOS}
-    )
-    has_mapa = user.is_superuser or user.is_staff or bool(
-        user_groups & {GRUPOS.ENGENHARIA, GRUPOS.FERRAMENTA_OPERACIONAL}
-    )
+    has_impedimentos = adminish or (GRUPOS.GESTAO_IMPEDIMENTOS in user_groups)
+    has_mapa_suprimentos = adminish or (GRUPOS.ENGENHARIA in user_groups)
     has_central = user_is_painel_sistema_admin(user)
-    has_workflow = user.is_superuser or user.is_staff or bool(
+    plat_admin = usuario_tem_administracao_global_na_plataforma(user)
+    has_workflow = adminish or plat_admin or bool(
         user_groups
         & {
             GRUPOS.CENTRAL_APROVACOES_ADMIN,
@@ -40,7 +38,35 @@ def _get_system_access(user):
             GRUPOS.CENTRAL_APROVACOES_EXTERNO,
         }
     )
-    return has_diario, has_gestao, has_impedimentos, has_mapa, has_central, has_workflow
+    has_trackhub = adminish or plat_admin or bool(
+        user_groups
+        & {
+            GRUPOS.TRACKHUB,
+            GRUPOS.TRACKHUB_ADMIN,
+            GRUPOS.TRACKHUB_APROVADOR,
+            GRUPOS.TRACKHUB_SOLICITANTE,
+        }
+    )
+    return has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow, has_trackhub
+
+
+def _engenharia_groups(user):
+    """Grupos independentes dos módulos Mapa/Bi/Ferramenta."""
+    from accounts.groups import GRUPOS
+
+    if not user or not user.is_authenticated:
+        user_groups = set()
+        adminish = False
+    else:
+        user_groups = set(user.groups.values_list('name', flat=True))
+        adminish = user.is_superuser or user.is_staff
+
+    hs = adminish or (GRUPOS.ENGENHARIA in user_groups)
+    hmc = adminish or (GRUPOS.MAPA_CONTROLE in user_groups)
+    hbi = adminish or (GRUPOS.BI_DA_OBRA in user_groups)
+    hf = adminish or (GRUPOS.FERRAMENTA_OPERACIONAL in user_groups)
+    hub = hs or hmc or hbi or hf
+    return {'has_mapa_suprimentos': hs, 'has_mapa_controle': hmc, 'has_bi_obra': hbi, 'has_ferramenta_ambientes': hf, 'has_mapa_modules_any': hub}
 
 
 def sidebar_systems(request):
@@ -49,25 +75,54 @@ def sidebar_systems(request):
     para exibir os links dos sistemas na sidebar.
     """
     if not request.user.is_authenticated:
+        z = False
         return {
-            'has_diario': False,
-            'has_gestao': False,
-            'has_impedimentos': False,
-            'has_mapa': False,
-            'has_central': False,
-            'has_workflow': False,
+            'has_diario': z,
+            'has_gestao': z,
+            'has_impedimentos': z,
+            'has_mapa': z,
+            'has_mapa_suprimentos': z,
+            'has_mapa_controle': z,
+            'has_ferramenta_ambientes': z,
+            'has_mapa_modules_any': z,
+            'has_central': z,
+            'has_workflow': z,
+            'has_trackhub': z,
+            'has_bi_obra': z,
+            'has_comunicados_painel': False,
+            'sidebar_show_assistente': False,
             'can_manage_central_projects': False,
         }
-    has_diario, has_gestao, has_impedimentos, has_mapa, has_central, has_workflow_cp = _get_system_access(request.user)
+
+    has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow_cp, has_trackhub = (
+        _get_system_access(request.user)
+    )
+    eng = _engenharia_groups(request.user)
+    has_mapa_modules_any = eng['has_mapa_modules_any']
+
+    from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
+
+    user_groups = set(request.user.groups.values_list('name', flat=True))
+    has_comunicados_painel = request.user.is_superuser or usuario_tem_administracao_global_na_plataforma(
+        request.user
+    )
 
     return {
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,
-        'has_mapa': has_mapa,
+        'has_mapa': has_mapa_suprimentos,
+        'has_mapa_suprimentos': has_mapa_suprimentos,
+        'has_mapa_controle': eng['has_mapa_controle'],
+        'has_ferramenta_ambientes': eng['has_ferramenta_ambientes'],
+        'has_mapa_modules_any': has_mapa_modules_any,
         'has_central': has_central,
         'has_workflow': has_workflow_cp,
+        'has_trackhub': has_trackhub,
+        'has_bi_obra': eng['has_bi_obra'],
+        'has_comunicados_painel': has_comunicados_painel,
+        'sidebar_show_assistente': True,
         'can_manage_central_projects': user_can_central_obras_diario_e_mapa(request.user),
     }
 

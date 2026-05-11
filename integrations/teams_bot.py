@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from accounts.models import UserSignupRequest
 from accounts.signup_services import approve_signup_request
 from gestao_aprovacao.models import Approval, StatusHistory, WorkOrder
@@ -26,7 +26,7 @@ class BotResult:
 def _is_approver(user) -> bool:
     if not user:
         return False
-    if user.is_superuser or user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists():
+    if user.is_superuser or usuario_tem_administracao_global_na_plataforma(user):
         return True
     return user.groups.filter(name=GRUPOS.APROVADOR).exists()
 

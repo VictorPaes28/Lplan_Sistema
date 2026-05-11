@@ -11,6 +11,7 @@ from django.contrib.auth.models import Group
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
 
 from core.models import Project, ProjectMember
@@ -214,7 +215,7 @@ class TestAnaliseObraApi(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        Group.objects.get_or_create(name="Mapa de Suprimentos")
+        Group.objects.get_or_create(name=GRUPOS.BI_DA_OBRA)
 
     def setUp(self):
         from django.contrib.auth import get_user_model
@@ -222,7 +223,7 @@ class TestAnaliseObraApi(TestCase):
         User = get_user_model()
         self.client = Client()
         self.user = User.objects.create_user(username="u_analise", password="senha123")
-        g = Group.objects.get(name="Mapa de Suprimentos")
+        g = Group.objects.get(name=GRUPOS.BI_DA_OBRA)
         self.user.groups.add(g)
         self.obra = Obra.objects.create(codigo_sienge="TST-API", nome="API", ativa=True)
         self.project = Project.objects.create(
