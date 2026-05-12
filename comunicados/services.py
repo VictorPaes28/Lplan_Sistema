@@ -159,24 +159,10 @@ def _passa_regra_exibicao(c: Comunicado, vis: ComunicadoVisualizacao | None, now
         dia_ultima = timezone.localtime(ultima).date()
         return dia_ultima < hoje
 
-    if tipo == TipoExibicao.ATE_CONFIRMAR:
-        if vis is None:
-            return True
-        return not vis.confirmou_leitura
-
     if tipo == TipoExibicao.ATE_RESPONDER:
         if vis is None:
             return True
         return not vis.respondeu
-
-    if tipo == TipoExibicao.X_VEZES:
-        if c.max_exibicoes_por_usuario is None:
-            return False
-        total = vis.total_visualizacoes if vis else 0
-        return total < c.max_exibicoes_por_usuario
-
-    if tipo == TipoExibicao.X_DIAS:
-        return True
 
     return False
 

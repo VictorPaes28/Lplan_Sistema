@@ -276,15 +276,6 @@
   }
 }
 
-.comunicados-painel #wrap-max-ex,
-.comunicados-painel #wrap-dias {
-  display: none;
-}
-.comunicados-painel #wrap-max-ex.is-on,
-.comunicados-painel #wrap-dias.is-on {
-  display: block;
-  animation: comunicados-fld-in 0.2s ease forwards;
-}
 .comunicados-painel #publico-restrito {
   display: none;
 }

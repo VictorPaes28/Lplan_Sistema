@@ -80,10 +80,8 @@ class ComunicadoForm(forms.ModelForm):
             'texto_botao',
             'destaque_visual',
             'tipo_exibicao',
-            'max_exibicoes_por_usuario',
             'data_inicio',
             'data_fim',
-            'dias_ativo',
             'prioridade',
             'publico_todos',
             'publico_escopo_criterios',
@@ -127,7 +125,6 @@ class ComunicadoForm(forms.ModelForm):
             'tipo_exibicao': forms.Select(attrs={'class': 'central-input', 'id': 'id_tipo_exibicao'}),
             'destaque_visual': forms.Select(attrs={'class': 'central-input'}),
             'prioridade': forms.Select(attrs={'class': 'central-input'}),
-            'max_exibicoes_por_usuario': forms.NumberInput(attrs={'class': 'central-input', 'min': 1}),
             'data_inicio': forms.DateTimeInput(
                 format='%Y-%m-%dT%H:%M',
                 attrs={'class': 'central-input', 'type': 'datetime-local'},
@@ -136,7 +133,6 @@ class ComunicadoForm(forms.ModelForm):
                 format='%Y-%m-%dT%H:%M',
                 attrs={'class': 'central-input', 'type': 'datetime-local'},
             ),
-            'dias_ativo': forms.NumberInput(attrs={'class': 'central-input', 'min': 1}),
             'grupos_permitidos': forms.CheckboxSelectMultiple(),
             'usuarios_permitidos': forms.SelectMultiple(
                 attrs={'class': 'central-input select-m2m-click-toggle', 'size': '12'}
@@ -208,20 +204,6 @@ class ComunicadoForm(forms.ModelForm):
         tipo = cleaned.get('tipo_conteudo')
         if tipo in (TipoConteudo.TEXTO, TipoConteudo.IMAGEM, TipoConteudo.IMAGEM_LINK):
             cleaned['pode_fechar'] = True
-
-        tipo_ex = cleaned.get('tipo_exibicao')
-        if tipo_ex == TipoExibicao.X_VEZES:
-            max_v = cleaned.get('max_exibicoes_por_usuario')
-            if max_v is None or max_v < 1:
-                self.add_error(
-                    'max_exibicoes_por_usuario',
-                    'Informe o número máximo de exibições por usuário (≥ 1).',
-                )
-
-        if tipo_ex == TipoExibicao.X_DIAS:
-            dias = cleaned.get('dias_ativo')
-            if dias is None or dias < 1:
-                self.add_error('dias_ativo', 'Informe a quantidade de dias (≥ 1) para este tipo de exibição.')
 
         di = cleaned.get('data_inicio')
         df = cleaned.get('data_fim')

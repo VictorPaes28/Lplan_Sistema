@@ -360,7 +360,7 @@ class RuleBasedIntentParser:
 
         obra_match = re.search(r"\bobra\s+([a-z0-9\-_/ ]+)", text)
         if obra_match:
-            obra_value = obra_match.group(1).strip(" .,:;?!)\]}\"'")
+            obra_value = obra_match.group(1).strip(" .,:;?!)]}\\\"'")
             if obra_value.startswith("atual "):
                 obra_value = obra_value[6:].strip()
             if obra_value in {"atual", "selecionada", "selecionado", "corrente"}:
@@ -370,16 +370,16 @@ class RuleBasedIntentParser:
 
         usuario_match = re.search(r"\b(?:usuario|usuário|desempenho do|status do)\s+([a-z0-9._@\- ]+)", text)
         if usuario_match:
-            entities["usuario"] = usuario_match.group(1).strip(" .,:;?!)\]}\"'")
+            entities["usuario"] = usuario_match.group(1).strip(" .,:;?!)]}\\\"'")
         else:
             # Captura consultas do tipo "como joao esta nos ultimos 30 dias"
             como_match = re.search(r"\bcomo\s+([a-z0-9._@\-]+)\s+est", text)
             if como_match:
-                entities["usuario"] = como_match.group(1).strip(" .,:;?!)\]}\"'")
+                entities["usuario"] = como_match.group(1).strip(" .,:;?!)]}\\\"'")
 
         bloco_match = re.search(r"\b(?:bloco|bloko)\s+([a-z0-9\-_/]+)", normalized_text)
         if bloco_match:
-            entities["bloco"] = bloco_match.group(1).strip(" .,:;?!)\]}\"'")
+            entities["bloco"] = bloco_match.group(1).strip(" .,:;?!)]}\\\"'")
 
         apt_match = re.search(
             r"\b(?:apartamento|apto\.?|apt\.?)\s+([a-z0-9\-_/]+)",

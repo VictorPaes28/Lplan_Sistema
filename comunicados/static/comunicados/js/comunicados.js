@@ -7,6 +7,12 @@
   var API_PENDENTES = '/comunicados/api/pendentes/';
   var API_REGISTRAR = '/comunicados/api/registrar/';
 
+  /** No painel /comunicados/ o criador costuma estar no público-alvo — não abrir o Megafone aqui. */
+  function skipMegafoneNestaPagina() {
+    var p = typeof location.pathname === 'string' ? location.pathname : '';
+    return p.indexOf('/comunicados/') === 0;
+  }
+
   function getCookie(name) {
     var cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -396,6 +402,34 @@
     };
   }
 
+  function parseRegistroErroMsg(result) {
+    var d = result.data || {};
+    return (
+      d.erro ||
+      d.error ||
+      'Falha ao registar (' + result.status + '). Recarregue a página e tente novamente.'
+    );
+  }
+
+  function postRegistroFetch(payload) {
+    return fetch(API_REGISTRAR, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    }).then(function (r) {
+      return r.text().then(function (text) {
+        var data = {};
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch (parseErr) {}
+        }
+        return { ok: r.ok, status: r.status, data: data };
+      });
+    });
+  }
+
   /** Só ao abrir: não fecha o modal; falha não bloqueia UI. */
   function registrarVisualizou() {
     var cid = currentComunicado ? currentComunicado.id : null;
@@ -403,23 +437,7 @@
       return;
     }
     var payload = { comunicado_id: cid, acao: 'visualizou' };
-    fetch(API_REGISTRAR, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: jsonHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(function (r) {
-        return r.text().then(function (text) {
-          var data = {};
-          if (text) {
-            try {
-              data = JSON.parse(text);
-            } catch (parseErr) {}
-          }
-          return { ok: r.ok, status: r.status, data: data };
-        });
-      })
+    postRegistroFetch(payload)
       .then(function (result) {
         if (!result.ok) {
           console.warn('[comunicados] registrar visualizou falhou', result.status, result.data);
@@ -430,9 +448,51 @@
       });
   }
 
+  function aguardarPostAntesDeFechar(acao) {
+    return acao === 'respondeu' || acao === 'confirmou' || acao === 'nao_mostrar_novamente';
+  }
+
   /**
-   * Fecha o modal de imediato e envia o registo em segundo plano.
-   * O fechamento não depende do POST (evita ficar preso por erro de rede/500).
+   * Ações que alteram pendência de forma definitiva: só fechamos o modal após POST OK
+   * (evita fechar com sucesso visual e 403 CSRF / erro de rede sem registo no servidor).
+   */
+  function registrarAntesFechar(acao, resposta, comunicadoId) {
+    var payload = { comunicado_id: comunicadoId, acao: acao };
+    if (acao === 'respondeu' && resposta) {
+      payload.resposta = resposta;
+    }
+    var btn = document.getElementById('comunicados-btn-enviar');
+    if (btn) {
+      btn.disabled = true;
+    }
+    postRegistroFetch(payload)
+      .then(function (result) {
+        if (btn) {
+          btn.disabled = false;
+          syncFormularioControles();
+        }
+        if (!result.ok) {
+          window.alert(parseRegistroErroMsg(result));
+          return;
+        }
+        hideModal();
+        if (result.data && result.data.proximo_pendente) {
+          fetchPendentesEProximo();
+        }
+      })
+      .catch(function (e) {
+        if (btn) {
+          btn.disabled = false;
+          syncFormularioControles();
+        }
+        console.warn('[comunicados] registrar erro', e);
+        window.alert('Erro de rede ao registar. Tente novamente.');
+      });
+  }
+
+  /**
+   * Fecha o modal e envia em segundo plano (ação "fechou" sem confirmação extra).
+   * Resposta / confirmação / não mostrar: ver registrarAntesFechar.
    */
   function fecharModalERegistrar(acao, resposta) {
     var c = currentComunicado;
@@ -440,6 +500,10 @@
       return;
     }
     var cid = c.id;
+    if (aguardarPostAntesDeFechar(acao)) {
+      registrarAntesFechar(acao, resposta, cid);
+      return;
+    }
     hideModal();
     postRegistroAposFechar(acao, resposta, cid);
   }
@@ -453,23 +517,7 @@
       payload.resposta = resposta;
     }
 
-    fetch(API_REGISTRAR, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: jsonHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(function (r) {
-        return r.text().then(function (text) {
-          var data = {};
-          if (text) {
-            try {
-              data = JSON.parse(text);
-            } catch (parseErr) {}
-          }
-          return { ok: r.ok, status: r.status, data: data };
-        });
-      })
+    postRegistroFetch(payload)
       .then(function (result) {
         if (!result.ok) {
           console.warn('[comunicados] registrar falhou (modal já fechado)', result.status, result.data);
@@ -509,6 +557,9 @@
   }
 
   function iniciar() {
+    if (skipMegafoneNestaPagina()) {
+      return;
+    }
     fetch(API_PENDENTES, {
       method: 'GET',
       credentials: 'same-origin',
@@ -643,6 +694,9 @@
   /** Sincroniza com o servidor quando o navegador restaura a página a partir da cache (botão Voltar). */
   window.addEventListener('pageshow', function (ev) {
     if (!ev.persisted) {
+      return;
+    }
+    if (skipMegafoneNestaPagina()) {
       return;
     }
     fetchPendentesEProximo();
