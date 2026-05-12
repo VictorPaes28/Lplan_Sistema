@@ -5746,6 +5746,17 @@ def notifications_poll_view(request):
 
     from .models import Notification
 
+    gestao_nt_unread = 0
+    try:
+        from gestao_aprovacao.models import Notificacao as GestaoNotificacaoModel
+
+        gestao_nt_unread = GestaoNotificacaoModel.objects.filter(
+            usuario=request.user,
+            lida=False,
+        ).count()
+    except Exception:
+        pass
+
     max_id = Notification.objects.filter(user=request.user).aggregate(m=Max('pk'))['m'] or 0
     unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
 
@@ -5786,7 +5797,14 @@ def notifications_poll_view(request):
                 .order_by('-created_at')[:15]
             )
             toast_items = [_row(n) for n in unread_qs]
-        return JsonResponse({'unread_count': unread_count, 'max_id': max_id, 'items': toast_items})
+        return JsonResponse(
+            {
+                'unread_count': unread_count,
+                'gestao_unread': gestao_nt_unread,
+                'max_id': max_id,
+                'items': toast_items,
+            }
+        )
 
     try:
         since_id = int(request.GET.get('since_id', 0) or 0)
@@ -5801,7 +5819,14 @@ def notifications_poll_view(request):
 
     items = [_row(n) for n in new_qs]
 
-    return JsonResponse({'unread_count': unread_count, 'max_id': max_id, 'items': items})
+    return JsonResponse(
+        {
+            'unread_count': unread_count,
+            'gestao_unread': gestao_nt_unread,
+            'max_id': max_id,
+            'items': items,
+        }
+    )
 
 
 @login_required

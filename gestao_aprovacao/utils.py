@@ -3,10 +3,11 @@ Utilitários para verificação de permissões e perfis de usuário.
 """
 from functools import wraps
 from django.conf import settings
-from django.shortcuts import redirect
+from django.contrib.auth import get_user_model
 from django.contrib import messages
+from django.shortcuts import redirect
 from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
-from .models import Notificacao, AprovacaoEmailDestinatario
+from .models import Notificacao, AprovacaoEmailDestinatario, Empresa
 
 # Coluna "Analisado" (lista de pedidos): fallback quando o banco não está acessível; senão AprovacaoEmailDestinatario + superuser.
 _EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT = frozenset({
@@ -100,6 +101,46 @@ def is_admin(user):
         usuario_tem_administracao_global_na_plataforma(user) or
         user.is_superuser
     )
+
+
+def usuarios_escopo_pedido_para_notificar(workorder):
+    """
+    Destinatários de notificações operacionais ligadas ao pedido (GestControll).
+
+    Inclui apenas quem está no contexto da obra/empresa: aprovadores com permissão
+    ativa e o responsável da empresa (quando existir empresa). Superusuários ou
+    administradores globais deixam de ser notificados em massa sobre todos os projetos —
+    esse tipo de visão continua em listas/ações de administração ou na auditoria.
+    """
+    User = get_user_model()
+    obra = getattr(workorder, "obra", None)
+    if obra is None:
+        return User.objects.none()
+
+    empresa_id = obra.empresa_id
+    if empresa_id:
+        qs = User.objects.filter(
+            permissoes_obra__obra__empresa_id=empresa_id,
+            permissoes_obra__tipo_permissao="aprovador",
+            permissoes_obra__ativo=True,
+            is_active=True,
+        ).distinct()
+        responsavel_id = (
+            Empresa.objects.filter(pk=empresa_id, ativo=True, responsavel_id__isnull=False)
+            .values_list("responsavel_id", flat=True)
+            .first()
+        )
+        if responsavel_id:
+            qs = qs | User.objects.filter(pk=responsavel_id, is_active=True)
+            return qs.distinct()
+        return qs
+
+    return User.objects.filter(
+        permissoes_obra__obra_id=obra.pk,
+        permissoes_obra__tipo_permissao="aprovador",
+        permissoes_obra__ativo=True,
+        is_active=True,
+    ).distinct()
 
 
 def gestor_required(view_func):

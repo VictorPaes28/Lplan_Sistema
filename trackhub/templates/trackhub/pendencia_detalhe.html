@@ -12,7 +12,7 @@
   <div style="display:flex;flex-direction:column;gap:12px;">
 
     <!-- Cabeçalho da pendência -->
-    <div class="th-panel" style="border-left:4px solid {% if pendencia.prioridade == 'urgente' %}#ef4444{% elif pendencia.prioridade == 'alta' %}#f97316{% elif pendencia.prioridade == 'normal' %}#3b82f6{% else %}#94a3b8{% endif %};margin-bottom:0;">
+    <div class="th-panel th-panel--prioridade-{{ pendencia.prioridade }}" style="margin-bottom:0;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
@@ -71,7 +71,7 @@
           {% if pendencia.anexos.count < 5 and pode_editar %}
           <div style="width:80px;height:80px;border:2px dashed #e2e8f0;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:#fafafa;transition:all .2s;"
             onclick="document.getElementById('th-input-upload-detalhe').click()"
-            onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor='#e2e8f0'">
+            onmouseover="this.style.borderColor='#3498db'" onmouseout="this.style.borderColor='#e2e8f0'">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span style="font-size:10px;color:#94a3b8;">Adicionar</span>
           </div>
@@ -97,7 +97,7 @@
         {% with total=etapas|length %}
         <div style="margin-bottom:16px;">
           <div style="height:4px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-bottom:4px;">
-            <div style="height:100%;background:#16a34a;border-radius:99px;width:{% if total %}{% widthratio etapas_concluidas_count total 100 %}{% else %}0{% endif %}%;transition:width .6s;"></div>
+            <div style="height:100%;background:#27ae60;border-radius:99px;width:{% if total %}{% widthratio etapas_concluidas_count total 100 %}{% else %}0{% endif %}%;transition:width .6s;"></div>
           </div>
           <div style="font-size:11px;color:#64748b;">
             {{ etapas_concluidas_count }} de {{ total }} etapas concluídas
@@ -107,9 +107,9 @@
         {% endwith %}
 
         {% for etapa in etapas %}
-        <div id="etapa-{{ etapa.pk }}" style="scroll-margin-top: 16px;border:1px solid {% if etapa.status == 'concluida' %}#86efac{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#bfdbfe{% else %}#e2e8f0{% endif %};border-radius:10px;padding:14px 16px;margin-bottom:8px;background:{% if etapa.status == 'concluida' %}#f0fdf4{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#f0f7ff{% else %}#fff{% endif %};">
+        <div id="etapa-{{ etapa.pk }}" style="scroll-margin-top: 16px;border:1px solid {% if etapa.status == 'concluida' %}#c8ebd6{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#b8d4eb{% else %}#e2e8f0{% endif %};border-radius:10px;padding:14px 16px;margin-bottom:8px;background:{% if etapa.status == 'concluida' %}#ecf8f0{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#ebf6fd{% else %}#fff{% endif %};">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;background:{% if etapa.status == 'concluida' %}#16a34a{% else %}#e2e8f0{% endif %};color:{% if etapa.status == 'concluida' %}#fff{% else %}#64748b{% endif %};">
+            <div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;background:{% if etapa.status == 'concluida' %}#27ae60{% else %}#e2e8f0{% endif %};color:{% if etapa.status == 'concluida' %}#fff{% else %}#64748b{% endif %};">
               {% if etapa.status == 'concluida' %}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               {% else %}
@@ -136,7 +136,7 @@
           </div>
 
           {% if etapa.status == 'concluida' %}
-          <div style="margin-top:8px;font-size:11px;color:#16a34a;font-weight:500;display:flex;align-items:center;gap:4px;">
+          <div style="margin-top:8px;font-size:11px;color:#27ae60;font-weight:500;display:flex;align-items:center;gap:4px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             {% if etapa.concluida_por %}Concluída por {{ etapa.concluida_por.get_full_name|default:etapa.concluida_por.username }} em {{ etapa.concluida_em|date:"d/m/Y H:i" }}{% elif etapa.concluida_em %}Concluída em {{ etapa.concluida_em|date:"d/m/Y H:i" }}{% else %}Concluída{% endif %}
           </div>
@@ -144,7 +144,7 @@
 
           {% if etapa.requer_assinatura and etapa.status == 'pendente' %}
             {% if etapa.assinatura and etapa.assinatura.signature_data %}
-              <div style="margin-top:10px;padding:10px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#16a34a;font-weight:600;">
+              <div style="margin-top:10px;padding:10px 12px;background:#ecf8f0;border:1px solid #c8ebd6;border-radius:8px;font-size:12px;color:#27ae60;font-weight:600;">
                 ✓ Assinatura registrada em {{ etapa.assinatura.assinado_em|date:"d/m/Y H:i" }}
                 por {{ etapa.assinatura.assinado_por.get_full_name|default:etapa.assinatura.assinado_por.username }}
               </div>
@@ -153,25 +153,25 @@
                 Esta etapa requer assinatura do responsável: {{ etapa.responsavel_nome }}.
               </div>
             {% else %}
-              <div style="margin-top:12px;padding:14px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;">
-                <div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+              <div style="margin-top:12px;padding:14px;background:#ebf6fd;border:1px solid #b8d4eb;border-radius:10px;">
+                <div style="font-size:12px;font-weight:700;color:#2980b9;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg>
                   Assinatura Manual
                 </div>
                 <div style="display:flex;gap:8px;margin-bottom:8px;">
                   <button type="button" onclick="usarUltimaAssinatura({{ etapa.pk }})"
-                    style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+                    style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                     Usar última assinatura
                   </button>
                   <button type="button" onclick="limparAssinatura({{ etapa.pk }})"
-                    style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+                    style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                     Limpar
                   </button>
                 </div>
                 <canvas id="canvas-etapa-{{ etapa.pk }}"
-                  style="border:2px dashed #d8b4fe;border-radius:8px;width:100%;touch-action:none;cursor:crosshair;display:block;background:#fff;"
+                  style="border:2px dashed #b8d4eb;border-radius:8px;width:100%;touch-action:none;cursor:crosshair;display:block;background:#fff;"
                   height="160">
                 </canvas>
                 <input type="hidden" id="signature-etapa-{{ etapa.pk }}" name="signature_etapa_{{ etapa.pk }}">
@@ -214,14 +214,14 @@
             <form method="POST" action="{% url 'trackhub:etapa_concluir' etapa.pk %}" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" id="signature-submit-etapa-{{ etapa.pk }}" name="signature_etapa_{{ etapa.pk }}">
-              <button type="submit" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;background:#16a34a;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+              <button type="submit" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;background:#27ae60;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 Concluir etapa
               </button>
             </form>
             {% endif %}
             <button type="button" onclick="abrirModalNotif({{ etapa.pk }}, '{{ etapa.titulo|escapejs }}', '{{ etapa.responsavel_nome|escapejs }}', '{{ etapa.responsavel_whatsapp|escapejs }}', '{{ etapa.responsavel_email|escapejs }}')"
-              style="display:inline-flex;align-items:center;gap:5px;padding:8px 12px;border-radius:8px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:11px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+              style="display:inline-flex;align-items:center;gap:5px;padding:8px 12px;border-radius:8px;background:#ebf6fd;color:#3498db;border:1px solid #b8d4eb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
               Notificar
             </button>
@@ -250,7 +250,7 @@
               <div class="th-ficha-nova-etapa-num" id="th-ficha-nova-etapa-num">{{ etapas|length|add:1 }}</div>
               <input type="text" name="titulo" required class="th-filter-select th-etapa-titulo-inline"
                 placeholder="Título da etapa…"
-                style="flex:1;border:none;background:transparent;font-size:14px;font-weight:700;color:#1e293b;padding:0;font-family:'Sora',sans-serif;">
+                style="flex:1;border:none;background:transparent;font-size:14px;font-weight:700;color:#1e293b;padding:0;font-family:inherit;">
               <button type="button" onclick="thFichaFecharNovaEtapa()" title="Fechar" aria-label="Fechar formulário"
                 style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -278,7 +278,7 @@
             <div class="etapa-observacao-wrap" style="margin-bottom:12px;">
               <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>
               <textarea name="observacao" class="th-filter-select" rows="4" placeholder="Observações sobre esta etapa…"
-                style="width:100%;min-height:96px;resize:vertical;box-sizing:border-box;font-family:'Sora',sans-serif;"></textarea>
+                style="width:100%;min-height:96px;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
             </div>
 
             <div class="th-etapa-upload-row" style="margin-bottom:12px;">
@@ -323,7 +323,7 @@
       {% for comentario in comentarios %}
       <div style="padding:12px 0;border-bottom:1px solid #f1f5f9;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-          <div style="width:26px;height:26px;border-radius:50%;background:#6366f1;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <div style="width:26px;height:26px;border-radius:50%;background:#3498db;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             {% if comentario.autor %}
               {% if comentario.autor.first_name or comentario.autor.last_name %}
                 {{ comentario.autor.first_name|first|default:''|upper }}{{ comentario.autor.last_name|first|default:''|upper }}
@@ -361,7 +361,7 @@
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
         <form method="POST" action="{% url 'trackhub:comentario_criar' pendencia.pk %}" enctype="multipart/form-data">
           {% csrf_token %}
-          <textarea name="texto" style="width:100%;min-height:70px;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:'Sora',sans-serif;resize:vertical;margin-bottom:8px;" placeholder="Adicionar comentário..."></textarea>
+          <textarea name="texto" style="width:100%;min-height:70px;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;resize:vertical;margin-bottom:8px;" placeholder="Adicionar comentário..."></textarea>
 
           <div class="th-file-chips" id="th-comentario-chips"></div>
 
@@ -374,7 +374,7 @@
             <input type="file" id="th-input-comentario" name="arquivos_comentario"
               multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none"
               onchange="thPreviewComentarioFiles(this)">
-            <button type="submit" style="display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Sora',sans-serif;">
+            <button type="submit" style="display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;background:#3498db;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               Comentar
             </button>
@@ -396,7 +396,7 @@
         <div style="display:flex;gap:8px;width:100%;box-sizing:border-box;">
           <form method="POST" action="{% url 'trackhub:pendencia_deletar' pendencia.pk %}" style="flex:1;margin:0;min-width:0;" onsubmit="return confirm('Excluir esta pendência e todos os dados associados? Esta ação não pode ser desfeita.');">
             {% csrf_token %}
-            <button type="submit" style="width:100%;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border-radius:8px;background:#fff;color:#b91c1c;border:1px solid #fecaca;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+            <button type="submit" style="width:100%;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border-radius:8px;background:#fff;color:#b91c1c;border:1px solid #fecaca;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
               Excluir
             </button>
@@ -406,7 +406,7 @@
         {% if pendencia.status != 'concluida' and pendencia.status != 'cancelada' %}
         <form method="POST" action="{% url 'trackhub:pendencia_concluir' pendencia.pk %}">
           {% csrf_token %}
-          <button type="submit" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:8px;background:#16a34a;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+          <button type="submit" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:8px;background:#27ae60;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             Concluir pendência
           </button>
@@ -419,33 +419,33 @@
     <div class="th-panel" style="margin-bottom:0;">
       <div class="th-panel-title">Informações</div>
       <div class="th-ficha-info-grid">
-        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Obra</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.obra.nome }}</div>
         </div>
-        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Tipo</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.get_tipo_display }}</div>
         </div>
-        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Prioridade</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.get_prioridade_display }}</div>
         </div>
-        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Status</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.get_status_display }}</div>
         </div>
         {% if pendencia.prazo %}
-        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Prazo</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.prazo|date:"d/m/Y" }}</div>
         </div>
         {% endif %}
-        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Criado por</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{% if pendencia.criado_por %}{{ pendencia.criado_por.get_full_name|default:pendencia.criado_por.username }}{% else %}—{% endif %}</div>
         </div>
-        <div class="th-ficha-info-row" style="padding:10px 0;display:flex;gap:10px;font-size:13px;font-family:'Sora',sans-serif;">
+        <div class="th-ficha-info-row" style="padding:10px 0;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Criado em</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.created_at|date:"d/m/Y" }}</div>
         </div>
@@ -459,7 +459,7 @@
       {% for etapa in etapas %}
         {% for n in etapa.notificacoes.all %}
         <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12px;">
-          <div style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:{% if n.canal == 'whatsapp' %}#dcfce7{% else %}#eff6ff{% endif %};color:{% if n.canal == 'whatsapp' %}#16a34a{% else %}#2563eb{% endif %};">
+          <div style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:{% if n.canal == 'whatsapp' %}#ecf8f0{% else %}#ebf6fd{% endif %};color:{% if n.canal == 'whatsapp' %}#27ae60{% else %}#3498db{% endif %};">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               {% if n.canal == 'whatsapp' %}<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
               {% else %}<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>{% endif %}
@@ -476,7 +476,7 @@
       <div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px;">Nenhuma notificação enviada.</div>
       {% endif %}
       <div style="margin-top:8px;">
-        <button type="button" onclick="abrirModalNotif(null,'','','','','','email')" style="width:100%;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 12px;border-radius:8px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:11px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+        <button type="button" onclick="abrirModalNotif(null,'','','','','','email')" style="width:100%;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 12px;border-radius:8px;background:#ebf6fd;color:#3498db;border:1px solid #b8d4eb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
           Notificar responsável
         </button>
@@ -491,7 +491,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=1"></script>
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=2"></script>
 <script>
 var UPLOAD_URL = "{% url 'trackhub:anexo_upload' pendencia.pk %}";
 var CSRF_TOKEN = "{{ csrf_token }}";
@@ -897,7 +897,7 @@ document.addEventListener('change', function(e) {
   label.classList.toggle('ativo', e.target.checked);
   var hint = label.querySelector('span:last-of-type');
   if (hint && hint !== label.querySelector('.th-assinatura-toggle-label')) {
-    hint.style.color = e.target.checked ? '#7c3aed' : '#94a3b8';
+    hint.style.color = e.target.checked ? '#2980b9' : '#94a3b8';
   }
 });
 
