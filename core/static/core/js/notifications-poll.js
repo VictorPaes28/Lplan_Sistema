@@ -8,32 +8,66 @@
 
   var sinceId = 0;
   var started = false;
-  var POLL_MS = 38000;
-  var FIRST_POLL_MS = 12000;
+  /** Polling REST leve (~3×/min) — não depende só do reload para atualizar badge/toasts Core. */
+  var POLL_MS = 20000;
+  var FIRST_POLL_MS = 4000;
   /** Máximo de toasts visíveis em pilha (bootstrap + poll). */
   var MAX_STACK = 8;
   var TOAST_MS = 6000;
   /** IDs de notificação já exibidos como toast nesta sessão (evita repetir a cada F5). */
   var SESSION_BOOTSTRAP_SHOWN_IDS = 'lplan-nt-bootstrap-shown-ids';
 
+  function gestaoBellMode() {
+    return !!(document.querySelector && document.querySelector('a.notifications-link'));
+  }
+
+  function defaultNotificationsListUrl() {
+    return gestaoBellMode() ? '/gestao/notificacoes/' : '/notifications/';
+  }
+
+  /** Badge do header GestControll (gestao.Notificacao) vs sino Core (notification unread). */
+  function unreadCountForBell(data) {
+    var c = typeof data.unread_count === 'number' ? data.unread_count : 0;
+    var g = typeof data.gestao_unread === 'number' ? data.gestao_unread : 0;
+    return gestaoBellMode() ? g : c;
+  }
+
+  function bellLinkNodes() {
+    var out = [];
+    var desktop = document.querySelectorAll('.notif-bell-link, a.notifications-link');
+    for (var i = 0; i < desktop.length; i++) out.push(desktop[i]);
+    var mobile = document.querySelectorAll('a.mobile-menu-item[href*="notificacoes"]');
+    for (var j = 0; j < mobile.length; j++) out.push(mobile[j]);
+    return out;
+  }
+
   function updateBellBadge(count) {
-    var link = document.querySelector('.notif-bell-link');
-    if (!link) return;
-    var badge = link.querySelector('.notif-count-badge');
-    if (count > 0) {
-      var text = count > 99 ? '99+' : String(count);
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'notif-count-badge';
-        link.appendChild(badge);
+    var links = bellLinkNodes();
+    if (!links.length) return;
+    var text = count > 99 ? '99+' : String(count);
+    links.forEach(function (link) {
+      var badge =
+        link.querySelector('.notif-count-badge') ||
+        link.querySelector('.notification-badge') ||
+        link.querySelector('.mobile-menu-badge');
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          if (link.classList && link.classList.contains('notifications-link'))
+            badge.className = 'notification-badge';
+          else if (link.classList && link.classList.contains('mobile-menu-item'))
+            badge.className = 'mobile-menu-badge';
+          else badge.className = 'notif-count-badge';
+          link.appendChild(badge);
+        }
+        badge.textContent = text;
+        badge.setAttribute('aria-label', count + ' notificações não lidas');
+        link.setAttribute('aria-label', 'Notificações. ' + count + ' não lidas');
+      } else {
+        if (badge) badge.remove();
+        link.setAttribute('aria-label', 'Notificações');
       }
-      badge.textContent = text;
-      badge.setAttribute('aria-label', count + ' notificações não lidas');
-      link.setAttribute('aria-label', 'Notificações. ' + count + ' não lidas');
-    } else {
-      if (badge) badge.remove();
-      link.setAttribute('aria-label', 'Notificações');
-    }
+    });
   }
 
   function ensureStack() {
@@ -229,7 +263,7 @@
       type: 'system',
       diary_url: null,
       related_url: '',
-      list_url: '/notifications/',
+      list_url: defaultNotificationsListUrl(),
     });
     try {
       if (window.sessionStorage) sessionStorage.setItem(key, '1');
@@ -250,8 +284,8 @@
     return fetchJson(pollUrl + '?bootstrap=1')
       .then(function (data) {
         sinceId = data.max_id || 0;
-        var unread = typeof data.unread_count === 'number' ? data.unread_count : 0;
-        updateBellBadge(unread);
+        var bellUnread = unreadCountForBell(data);
+        updateBellBadge(bellUnread);
         var items = data.items || [];
         var shownMap = parseBootstrapShownMap();
         var fresh = [];
@@ -271,8 +305,8 @@
             if (fresh[k].id != null) newIds.push(fresh[k].id);
           }
           rememberBootstrapShownIds(newIds);
-        } else if (items.length === 0 && unread > 0) {
-          showUnreadReminder(unread);
+        } else if (items.length === 0 && bellUnread > 0) {
+          showUnreadReminder(bellUnread);
         }
         started = true;
       })
@@ -285,7 +319,7 @@
     if (!started) return;
     fetchJson(pollUrl + '?since_id=' + encodeURIComponent(String(sinceId)))
       .then(function (data) {
-        updateBellBadge(typeof data.unread_count === 'number' ? data.unread_count : 0);
+        updateBellBadge(unreadCountForBell(data));
         if (data.max_id != null) sinceId = data.max_id;
         var items = data.items || [];
         var limit = Math.min(items.length, MAX_STACK);
@@ -304,6 +338,9 @@
     bootstrap().then(function () {
       window.setInterval(poll, POLL_MS);
       window.setTimeout(poll, FIRST_POLL_MS);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && started) poll();
+      });
     });
   }
 

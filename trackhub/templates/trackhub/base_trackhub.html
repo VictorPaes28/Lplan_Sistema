@@ -4,8 +4,8 @@
 {% block back_url %}{% url 'trackhub:fila' %}{% endblock %}
 
 {% block extra_css %}
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'trackhub/css/trackhub.css' %}?v=23">
+{# Tipografia herdada do layout Core (Inter) — evita segunda família apenas no TrackHub #}
+<link rel="stylesheet" href="{% static 'trackhub/css/trackhub.css' %}?v=26">
 {% endblock %}
 
 {% block title %}TrackHub — LPLAN{% endblock %}

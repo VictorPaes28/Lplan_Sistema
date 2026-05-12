@@ -104,7 +104,7 @@
   }
 
   function avatarStyleFromName(nome, idx) {
-    var colors = ['#6366f1', '#16a34a', '#f97316', '#e11d48', '#0ea5e9', '#7c3aed'];
+    var colors = ['#3498db', '#2980b9', '#5dade2', '#577590', '#7f8c8d', '#34495e'];
     return colors[(idx + (nome || '').length) % colors.length];
   }
 
@@ -387,7 +387,7 @@
             actions.appendChild(aF);
           } else {
             var wait = document.createElement('span');
-            wait.style.cssText = 'display:inline-flex;align-items:center;padding:7px 10px;border-radius:8px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-size:11px;font-weight:600;font-family:\'Sora\',sans-serif;';
+            wait.style.cssText = 'display:inline-flex;align-items:center;padding:7px 10px;border-radius:8px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-size:11px;font-weight:600;font-family:inherit;';
             wait.textContent = 'Aguardando assinatura do responsável';
             actions.appendChild(wait);
           }
@@ -838,7 +838,7 @@
     if (!input.files || !input.files.length) return;
     Array.from(input.files).forEach(function (f) {
       var s = document.createElement('span');
-      s.style.cssText = 'display:inline-block;font-size:10.5px;padding:4px 8px;background:#e2e8f0;border-radius:6px;color:#475569;margin:2px 4px 2px 0;font-family:\'Sora\',sans-serif;';
+      s.style.cssText = 'display:inline-block;font-size:10.5px;padding:4px 8px;background:#e2e8f0;border-radius:6px;color:#475569;margin:2px 4px 2px 0;font-family:inherit;';
       var nm = f.name || '';
       s.textContent = nm.length > 26 ? nm.slice(0, 24) + '\u2026' : nm;
       chips.appendChild(s);
@@ -871,33 +871,33 @@
     if (!etapasList) return;
 
     var novaEtapaHtml = ''
-      + '<div id="th-form-nova-etapa" style="position:relative;border:2px dashed #bfdbfe;border-radius:10px;padding:14px 14px 16px;margin-top:12px;background:#f0f7ff;">'
+      + '<div id="th-form-nova-etapa" style="position:relative;border:2px dashed #b8d4eb;border-radius:10px;padding:14px 14px 16px;margin-top:12px;background:#ebf6fd;">'
       + '  <button type="button" onclick="document.getElementById(\'th-form-nova-etapa\').remove()" aria-label="Fechar" title="Fechar"'
-      + '    style="position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;font-family:\'Sora\',sans-serif;">'
+      + '    style="position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;font-family:inherit;">'
       + '    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
       + '  </button>'
-      + '  <div style="font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-right:40px;">Nova etapa</div>'
+      + '  <div style="font-size:11px;font-weight:700;color:#2980b9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-right:40px;">Nova etapa</div>'
       + '  <div style="margin-bottom:10px;">'
       + '    <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">T\u00edtulo <span style="color:#ef4444">*</span></label>'
       + '    <input type="text" name="titulo" placeholder="T\u00edtulo da etapa\u2026"'
-      + '      style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;">'
+      + '      style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;">'
       + '  </div>'
       + '  <div class="th-modal-nova-etapa-grid">'
       + '    <div>'
       + '      <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Usu\u00e1rio respons\u00e1vel <span style="color:#ef4444">*</span></label>'
-      + '      <select name="responsavel_interno" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;">'
+      + '      <select name="responsavel_interno" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;">'
       + '        <option value="">Selecione...</option>'
       + '      </select>'
       + '    </div>'
       + '    <div>'
       + '      <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Prazo da etapa</label>'
-      + '      <input type="date" name="prazo" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;">'
+      + '      <input type="date" name="prazo" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;">'
       + '    </div>'
       + '  </div>'
       + '  <div style="margin-bottom:10px;">'
       + '    <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Observa\u00e7\u00e3o</label>'
       + '    <textarea name="observacao" rows="3" placeholder="Observa\u00e7\u00f5es sobre esta etapa..."'
-      + '      style="width:100%;box-sizing:border-box;min-height:72px;resize:vertical;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:\'Sora\',sans-serif;"></textarea>'
+      + '      style="width:100%;box-sizing:border-box;min-height:72px;resize:vertical;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;"></textarea>'
       + '  </div>'
       + '  <div class="th-etapa-upload-row" style="margin-bottom:10px;flex-wrap:wrap;">'
       + '    <span class="th-etapa-upload-label">Anexos:</span>'
@@ -917,7 +917,7 @@
       + '    <span style="font-size:10.5px;color:#94a3b8;">Quem concluir precisar\u00e1 assinar</span>'
       + '  </label>'
       + '  <div style="display:flex;gap:8px;flex-wrap:wrap;">'
-      + '    <button type="button" onclick="salvarNovaEtapa()" style="padding:8px 16px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-size:12.5px;font-weight:700;cursor:pointer;font-family:\'Sora\',sans-serif;">Adicionar etapa</button>'
+      + '    <button type="button" onclick="salvarNovaEtapa()" style="padding:8px 16px;border-radius:8px;background:#3498db;color:#fff;border:none;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Adicionar etapa</button>'
       + '  </div>'
       + '</div>';
 
@@ -943,7 +943,7 @@
         var hint = assWrap.querySelector('span:last-of-type');
         var labelSpan = assWrap.querySelector('.th-assinatura-toggle-label');
         if (hint && hint !== labelSpan) {
-          hint.style.color = assInp.checked ? '#7c3aed' : '#94a3b8';
+          hint.style.color = assInp.checked ? '#2980b9' : '#94a3b8';
         }
       });
     }
