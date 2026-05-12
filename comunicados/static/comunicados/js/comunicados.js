@@ -141,16 +141,20 @@
     if (interceptLeituraTiposSimples(c)) {
       var acaoLeitura = acao;
       var respostaLeitura = resposta;
-      openIntercept('Tem certeza que já leu?', 'Sim, já li', function () {
-        if (!currentComunicado) {
-          return;
+      openIntercept(
+        'Confirme que leu este comunicado antes de continuar.',
+        'Li e entendi',
+        function () {
+          if (!currentComunicado) {
+            return;
+          }
+          if (acaoLeitura === 'fechou') {
+            fecharModalERegistrar('confirmou', respostaLeitura);
+          } else {
+            fecharModalERegistrar(acaoLeitura, respostaLeitura);
+          }
         }
-        if (acaoLeitura === 'fechou') {
-          fecharModalERegistrar('confirmou', respostaLeitura);
-        } else {
-          fecharModalERegistrar(acaoLeitura, respostaLeitura);
-        }
-      });
+      );
       return;
     }
     fecharModalERegistrar(acao, resposta);
@@ -408,14 +412,6 @@
       btnFechar.id = 'comunicados-btn-fechar-simples';
       btnFechar.textContent = 'Fechar';
       elActions.appendChild(btnFechar);
-    }
-    if (c.exige_confirmacao) {
-      var btnConf = document.createElement('button');
-      btnConf.type = 'button';
-      btnConf.className = 'comunicados-btn comunicados-btn--primary';
-      btnConf.id = 'comunicados-btn-confirmar-leitura';
-      btnConf.textContent = 'Li e entendi';
-      elActions.appendChild(btnConf);
     }
     if ((tipo === 'TEXTO' || tipo === 'IMAGEM') && c.texto_botao && c.link_destino) {
       var a = document.createElement('a');
@@ -792,11 +788,6 @@
       if (bid === 'comunicados-btn-fechar-simples' || bid === 'comunicados-btn-fechar-form') {
         e.preventDefault();
         tentarFecharComOpcaoLeitura('fechou');
-        return;
-      }
-      if (bid === 'comunicados-btn-confirmar-leitura') {
-        e.preventDefault();
-        fecharModalERegistrar('confirmou');
         return;
       }
       if (bid === 'comunicados-btn-enviar') {
