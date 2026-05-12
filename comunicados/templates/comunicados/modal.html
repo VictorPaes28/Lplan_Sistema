@@ -1,20 +1,57 @@
-{# Modal de comunicados — exibido via comunicados.js #}
+{# Modal de comunicados — estrutura + lightbox; conteúdo e tema via comunicados.js #}
+{# Estilos críticos inline: evitam ícone SVG gigante se comunicados.css vier de cache antigo (pós-login). #}
+<style>
+#comunicados-root .com-tipo-badge svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  display: block;
+}
+#comunicados-root .com-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+}
+#comunicados-root .com-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+#comunicados-root .com-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+#comunicados-root #comunicados-dialog.com-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#comunicados-root #comunicados-body.com-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+</style>
 <div id="comunicados-root" class="comunicados-root" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="comunicados-titulo">
   <div id="comunicados-overlay" tabindex="-1"></div>
-  <div id="comunicados-dialog" class="comunicados-destaque-PADRAO">
-    <div id="comunicados-header" class="comunicados-header-bar comunicados-header--padrao">
-      <div id="comunicados-header-text">
-        <h2 id="comunicados-titulo"></h2>
-        <p id="comunicados-subtitulo" style="display:none;"></p>
+  <div id="comunicados-dialog" class="com-modal tipo-texto">
+    <div class="com-topbar">
+      <div class="com-topbar-left">
+        <span id="comunicados-tipo-badge" class="com-tipo-badge" aria-live="polite"></span>
+        <span id="comunicados-topbar-date" class="com-topbar-date" hidden></span>
       </div>
-      <button type="button" id="comunicados-close" aria-label="Fechar" style="display:none;">&times;</button>
+      <button type="button" id="comunicados-close" class="com-close" aria-label="Fechar" style="display:none;">✕</button>
     </div>
-    <div id="comunicados-body"></div>
-    <div id="comunicados-footer">
-      <div id="comunicados-actions"></div>
-      <div id="comunicados-nunca-wrap" style="display:none;">
-        <button type="button" id="comunicados-nunca">Não mostrar novamente</button>
+    <div id="comunicados-body" class="com-body" role="region" aria-labelledby="comunicados-titulo"></div>
+    <div id="comunicados-footer" class="com-footer">
+      <div id="comunicados-nunca-wrap" class="com-nunca-wrap" style="display:none;">
+        <button type="button" id="comunicados-nunca" class="com-nunca-btn">Não mostrar novamente</button>
       </div>
+      <div id="comunicados-actions" class="com-footer-actions"></div>
     </div>
   </div>
   <div id="comunicados-intercept" class="comunicados-intercept" hidden>
@@ -26,5 +63,9 @@
         <button type="button" id="comunicados-intercept-secondary" class="comunicados-btn comunicados-btn--secondary">Voltar</button>
       </div>
     </div>
+  </div>
+  <div id="comunicados-lightbox" class="com-lb-overlay" hidden aria-hidden="true" role="presentation">
+    <button type="button" id="comunicados-lightbox-close" class="com-lb-close" aria-label="Fechar">✕</button>
+    <img id="comunicados-lightbox-img" src="" alt="">
   </div>
 </div>
