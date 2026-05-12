@@ -6,17 +6,13 @@
 
 {% block page_title %}
 <span id="lplan-top-brand-lockup" class="select-system-brand-lockup">
-    <span class="select-system-brand-name">LPLAN</span>
-    <span class="select-system-brand-tag">
-        <span class="select-system-brand-tag-w">Engenharia</span>
-        <span class="select-system-brand-tag-sep" aria-hidden="true">|</span>
-        <span class="select-system-brand-tag-w">integrada</span>
-    </span>
+    <span style="color:#0e6da8;font-weight:800;font-family:'Sora',sans-serif;">LPLAN</span><span style="color:#94a3b8;font-weight:400;font-family:'Sora',sans-serif;"> Engenharia | integrada</span>
 </span>
 {% endblock %}
 {% block page_subtitle %}<span class="sr-only">Seleção de módulos</span>{% endblock %}
 
 {% block extra_css %}
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
     /* Tela inicial: não exibir botão de voltar */
     #top-bar-back-link {
@@ -66,13 +62,10 @@
         color: transparent !important;
     }
     html body main.main-content.select-system-main > .top-bar-container .top-bar-heading-text > h2.top-bar-title #lplan-top-brand-lockup.select-system-brand-lockup {
-        --select-brand-blue: #3573d9;
-        --select-brand-blue-dark: #2a63bf;
         box-sizing: border-box;
         /* h2 pai está com font-size:0 só para driblar mobile; este “âncora” volta para 1rem (os filhos usam clamp em rem) */
         font-size: 1rem;
         line-height: 1.2;
-        color: #3573d9;
         vertical-align: top;
         display: inline-flex;
         flex-direction: column;
@@ -82,45 +75,26 @@
         gap: 0.12rem;
     }
 
-    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-name {
+    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup > span:first-child {
         display: block;
-        font-size: clamp(1.6rem, 1.95vw + 1.06rem, 2.125rem) !important;
-        font-weight: 900;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #3573d9 !important;
-        color: var(--select-brand-blue) !important;
-        line-height: 1.05 !important;
+        font-size: 1.25rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.08em !important;
+        text-transform: uppercase !important;
+        line-height: 1.2 !important;
+        color: #0e6da8 !important;
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
     }
-
-    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-tag {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        width: 100%;
-        margin-top: 0.12rem;
-        padding-top: 0.08rem;
-        column-gap: 0.45rem;
-    }
-
-    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-tag-w {
-        font-size: clamp(0.5625rem, 0.24vw + 0.478rem, 0.625rem) !important;
-        font-weight: 700;
-        letter-spacing: 0.09em;
-        text-transform: none;
-        color: #2a63bf !important;
-        color: var(--select-brand-blue-dark) !important;
-        line-height: 1.35 !important;
-        white-space: nowrap;
-    }
-
-    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup .select-system-brand-tag-sep {
-        flex: 0 0 auto;
-        font-weight: 600;
-        font-size: clamp(0.53125rem, 0.2vw + 0.446rem, 0.59375rem) !important;
-        color: rgba(42, 99, 191, 0.52) !important;
-        letter-spacing: 0.08em;
-        padding: 0 0.12rem;
+    main.main-content.select-system-main #lplan-top-brand-lockup.select-system-brand-lockup > span:last-child {
+        display: block;
+        font-size: 0.65rem !important;
+        font-weight: 400 !important;
+        letter-spacing: 0.06em !important;
+        line-height: 1.3 !important;
+        color: #94a3b8 !important;
+        text-transform: none !important;
+        white-space: nowrap !important;
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
     }
 
     main.main-content.select-system-main > .top-bar-container .top-bar-subtitle {
@@ -136,23 +110,39 @@
         position: absolute !important;
     }
 
+    /* Top bar: sino e perfil no estilo do protótipo (caixa / pílula com borda, sem alterar cor do avatar) */
     main.main-content.select-system-main > .top-bar-container .notif-bell-link {
-        color: #475569 !important;
+        box-sizing: border-box !important;
+        width: 2.125rem !important;
+        height: 2.125rem !important;
+        min-width: 2.125rem !important;
+        min-height: 2.125rem !important;
+        padding: 0 !important;
+        border-radius: 0.625rem !important;
+        border: 1px solid #e8edf2 !important;
+        background: #ffffff !important;
+        color: #64748b !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     main.main-content.select-system-main > .top-bar-container .notif-bell-link:hover {
-        color: #0f172a !important;
-        background-color: rgba(15, 23, 42, 0.06) !important;
+        color: #475569 !important;
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff !important;
     }
     main.main-content.select-system-main > .top-bar-container #user-menu-button {
+        border-radius: 9999px !important;
+        border: 1px solid #e8edf2 !important;
         background-color: #ffffff !important;
-        border: 1px solid rgba(148, 163, 184, 0.38) !important;
         box-shadow: none !important;
     }
     main.main-content.select-system-main > .top-bar-container #user-menu-button:hover {
         background-color: #fafafa !important;
+        border-color: #cbd5e1 !important;
     }
     main.main-content.select-system-main > .top-bar-container #user-menu-chevron {
-        color: #64748b !important;
+        color: #94a3b8 !important;
     }
     main.main-content.select-system-main > .top-bar-container .notif-count-badge {
         border-color: #f5f7f9 !important;
@@ -342,7 +332,7 @@
         }
     }
 
-    /* System Cards */
+    /* System Cards: sem overflow hidden no <a> (cortava a borda inferior na grelha); clip só no .card-inner quando necessário */
     .system-card {
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         text-decoration: none;
@@ -351,9 +341,11 @@
         min-width: 0;
         min-height: 0;
         height: 100%;
+        position: relative;
+        overflow: visible;
     }
     .system-card:hover:not(.disabled) {
-        transform: translateY(-8px);
+        transform: translateY(-3px);
     }
     .system-card.disabled {
         opacity: 0.35;
@@ -371,21 +363,42 @@
         position: absolute;
         inset: 0;
         background: rgba(0, 0, 0, 0.05);
-        border-radius: 14px;
+        border-radius: 16px;
         pointer-events: none;
     }
     .system-card .card-inner {
         background: #fff;
-        border-radius: 14px;
-        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        border: 1.5px solid #e8edf2;
         padding: 1.5rem;
         position: relative;
         overflow: hidden;
         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         flex: 1 1 auto;
-        min-height: 0;
+        min-height: auto;
         display: flex;
         flex-direction: column;
+    }
+    /* Faixa superior: dentro do .card-inner (cantos alinhados ao cartão), como tmp/select_system_v2 */
+    .system-card .card-inner::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 14px 14px 0 0;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+        z-index: 2;
+    }
+    .system-card:hover:not(.disabled) .card-inner::before {
+        transform: scaleX(1);
+    }
+    .system-card.disabled .card-inner::before {
+        display: none;
     }
     /* Empurra seta/link para a base quando a linha da grelha é mais alta que o conteúdo */
     .main-content.select-system-main .system-card .card-inner > div:last-child {
@@ -393,41 +406,28 @@
         padding-top: 0.85rem;
     }
     .system-card:hover:not(.disabled) .card-inner {
-        box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.12);
-    }
-    .system-card .card-inner::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-    .system-card:hover:not(.disabled) .card-inner::before {
-        opacity: 1;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
     }
 
-    /* Card hover colors - Blue for Diário, Purple for GestControll, Green for Mapa de Suprimentos */
-    .system-card.diario:hover:not(.disabled) .card-inner { border-color: #3b82f6; }
-    .system-card.diario .card-inner::before { background: #3b82f6; }
-    .system-card.gestao:hover:not(.disabled) .card-inner { border-color: #a855f7; }
-    .system-card.gestao .card-inner::before { background: #a855f7; }
-    .system-card.mapa:hover:not(.disabled) .card-inner { border-color: #10b981; }
-    .system-card.mapa .card-inner::before { background: #10b981; }
+    /* Borda e faixa = cor de destaque do módulo (mesma família do ícone / seta) */
+    .system-card.diario:hover:not(.disabled) .card-inner { border-color: #667eea; }
+    .system-card.diario .card-inner::before { background: #667eea; }
+    .system-card.gestao:hover:not(.disabled) .card-inner { border-color: #f5576c; }
+    .system-card.gestao .card-inner::before { background: #f5576c; }
+    .system-card.mapa:hover:not(.disabled) .card-inner { border-color: #4facfe; }
+    .system-card.mapa .card-inner::before { background: #4facfe; }
     .system-card.biobra:hover:not(.disabled) .card-inner { border-color: #0ea5e9; }
     .system-card.biobra .card-inner::before { background: #0ea5e9; }
-    .system-card.central:hover:not(.disabled) .card-inner { border-color: #475569; }
-    .system-card.central .card-inner::before { background: #475569; }
+    .system-card.central:hover:not(.disabled) .card-inner { border-color: #64748b; }
+    .system-card.central .card-inner::before { background: #64748b; }
     .system-card.impedimentos:hover:not(.disabled) .card-inner { border-color: #d24e1b; }
     .system-card.impedimentos .card-inner::before { background: #d24e1b; }
-    .system-card.trackhub:hover:not(.disabled) .card-inner { border-color: #5f6f47; }
-    .system-card.trackhub .card-inner::before { background: #5f6f47; }
+    .system-card.trackhub:hover:not(.disabled) .card-inner { border-color: #6b7c52; }
+    .system-card.trackhub .card-inner::before { background: #6b7c52; }
     .system-card.ferramenta:hover:not(.disabled) .card-inner { border-color: #6366f1; }
     .system-card.ferramenta .card-inner::before { background: #6366f1; }
-    .system-card.suporte:hover:not(.disabled) .card-inner { border-color: #14b8a6; }
-    .system-card.suporte .card-inner::before { background: #14b8a6; }
+    .system-card.suporte:hover:not(.disabled) .card-inner { border-color: #0d9488; }
+    .system-card.suporte .card-inner::before { background: #0d9488; }
     .system-card.workflow-central:hover:not(.disabled) .card-inner { border-color: #0d9488; }
     .system-card.workflow-central .card-inner::before { background: #0d9488; }
 
@@ -496,17 +496,17 @@
         transition: transform 0.2s ease;
     }
     .system-card:hover:not(.disabled) .card-arrow { transform: translateX(4px); }
-    .system-card.diario .card-arrow { color: #3b82f6; }
-    .system-card.gestao .card-arrow { color: #a855f7; }
-    .system-card.mapa .card-arrow   { color: #10b981; }
+    .system-card.diario .card-arrow { color: #667eea; }
+    .system-card.gestao .card-arrow { color: #f5576c; }
+    .system-card.mapa .card-arrow   { color: #4facfe; }
     .system-card.biobra .card-arrow { color: #0ea5e9; }
-    .system-card.central .card-arrow { color: #475569; }
+    .system-card.central .card-arrow { color: #64748b; }
     .system-card.impedimentos .card-arrow { color: #d24e1b; }
-    .system-card.trackhub .card-arrow { color: #4d5c38; }
-    .system-card.ferramenta .card-arrow { color: #4f46e5; }
-    .system-card.workflow-central .card-arrow { color: #0f766e; }
+    .system-card.trackhub .card-arrow { color: #6b7c52; }
+    .system-card.ferramenta .card-arrow { color: #6366f1; }
+    .system-card.workflow-central .card-arrow { color: #0d9488; }
 
-    .system-card.suporte .card-arrow { color: #14b8a6; }
+    .system-card.suporte .card-arrow { color: #0d9488; }
 
     /* Acessibilidade: foco visível no teclado */
     .system-card:focus-visible,
@@ -514,7 +514,7 @@
         outline: 2px solid #3b82f6;
         outline-offset: 2px;
     }
-    .system-card:focus-visible { border-radius: 14px; }
+    .system-card:focus-visible { border-radius: 16px; }
 
     /* Título da página: direto no fundo (sem caixa branca), como o mockup */
     .select-system-hero-panel {
@@ -526,6 +526,7 @@
         margin-top: 0.65rem;
         margin-bottom: 1.55rem;
         font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
     }
     .select-system-hero-panel .select-system-hero-title {
         margin: 0;
@@ -535,6 +536,7 @@
         line-height: 1.38;
         color: #1a1a1b;
         letter-spacing: -0.018em;
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
     }
     .select-system-hero-panel .select-system-hero-lead {
         margin: 0.55rem 0 0;
@@ -544,6 +546,11 @@
         line-height: 1.45;
         color: #64748b;
         letter-spacing: -0.01em;
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
+    }
+    .select-system-hero-panel .select-system-hero-title,
+    .select-system-hero-panel .select-system-hero-title * {
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
     }
 
     /* Pequenas pílulas de atalho (abaixo da saudação) */
@@ -729,6 +736,7 @@
     @media (prefers-reduced-motion: reduce) {
         .system-card,
         .system-card .card-inner,
+        .system-card .card-inner::before,
         .system-card .system-icon,
         .system-card .card-arrow,
         .admin-btn {
@@ -736,6 +744,9 @@
             animation: none;
         }
         .system-card:hover:not(.disabled) {
+            transform: none;
+        }
+        .system-card:hover:not(.disabled) .card-inner::before {
             transform: none;
         }
         .system-card:hover:not(.disabled) .system-icon {
@@ -814,16 +825,43 @@
         line-height: 1.55;
         color: #64748b;
     }
+
+    .select-system-hero-panel,
+    .select-system-hero-panel .select-system-hero-title,
+    .select-system-hero-panel .select-system-hero-lead,
+    .select-system-quick-link,
+    .select-system-module-filter,
+    .select-system-search-wrap {
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
+    }
+
+    main.main-content.select-system-main > .top-bar-container .top-bar-heading-text {
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif !important;
+    }
+
+    .ss-username-label {
+        display: none;
+        margin: 0 0.15rem 0 0.35rem;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #374151;
+        font-family: 'Sora', 'Segoe UI', system-ui, sans-serif;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    @media (min-width: 768px) {
+        .ss-username-label { display: inline !important; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="fade-in select-system-root">
+<div class="fade-in select-system-root" data-user-display="{{ user.get_full_name|default:user.username|escape }}">
     <header class="select-system-hero-panel" aria-labelledby="select-system-hero-heading" aria-describedby="select-system-hero-lead">
         <h1 id="select-system-hero-heading" class="select-system-hero-title">
-            {{ time_greeting }}, {{ user.get_full_name|default:user.username }}.
+            <span>{{ time_greeting }}, </span><span style="color:#e07018;">{{ user.get_full_name|default:user.username }}</span><span>.</span>
         </h1>
-        <p id="select-system-hero-lead" class="select-system-hero-lead">Selecione o módulo.</p>
+        <p id="select-system-hero-lead" class="select-system-hero-lead">Selecione o módulo que deseja acessar.</p>
         <nav class="select-system-quick-strip" aria-label="Atalhos rápidos">
             <span class="select-system-quick-label">Acesso rápido</span>
             <div class="select-system-quick-links">
@@ -1103,6 +1141,60 @@ document.addEventListener('DOMContentLoaded', function () {
         input.addEventListener('input', apply);
         input.addEventListener('search', apply);
     })();
+
+    (function selectSystemHeaderUser() {
+        var root = document.querySelector('.select-system-root[data-user-display]');
+        if (!root) {
+            return;
+        }
+        var raw = root.getAttribute('data-user-display') || '';
+        if (!raw) {
+            return;
+        }
+        function initials(s) {
+            s = String(s).trim();
+            if (!s) {
+                return '?';
+            }
+            var p = s.split(/\s+/).filter(Boolean);
+            if (p.length >= 2) {
+                return (p[0].charAt(0) + p[p.length - 1].charAt(0)).toUpperCase();
+            }
+            return s.slice(0, Math.min(2, s.length)).toUpperCase();
+        }
+        var btn = document.getElementById('user-menu-button');
+        if (!btn) {
+            return;
+        }
+        var bubble = btn.querySelector('div.shadow-md');
+        if (bubble) {
+            var sp = bubble.querySelector('span');
+            if (sp) {
+                sp.textContent = initials(raw);
+            }
+        }
+    })();
 });
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const btn = document.getElementById('user-menu-button');
+    if (!btn) return;
+    // Verificar se já existe span com o nome
+    if (btn.querySelector('.ss-username-label')) return;
+    const username = "{{ user.get_full_name|default:user.username|escapejs }}";
+    const chevron = btn.querySelector('#user-menu-chevron');
+    const label = document.createElement('span');
+    label.className = 'ss-username-label';
+    label.textContent = username;
+    if (chevron) {
+        btn.insertBefore(label, chevron);
+    } else {
+        btn.appendChild(label);
+    }
+})();
 </script>
 {% endblock %}

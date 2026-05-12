@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="{% static 'core/css/page-transitions.css' %}?v={{ lplan_static_version }}">
     
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=6.4.0">
     
     <!-- Preload fonte principal para evitar FOUT -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -433,9 +433,9 @@
                     <!-- Notificações -->
                     {% get_unread_notifications_count user as unread_notifications %}
                     <a href="{% url 'notifications' %}" 
-                       class="notif-bell-link relative p-2 text-gray-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                       class="notif-bell-link relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 p-0 text-slate-600 hover:text-slate-700 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                        aria-label="Notificações{% if unread_notifications > 0 %}. {{ unread_notifications }} não lida{{ unread_notifications|pluralize }}{% endif %}">
-                        <i class="fas fa-bell text-lg md:text-xl" aria-hidden="true"></i>
+                        <i class="fa-regular fa-bell text-lg md:text-xl" aria-hidden="true"></i>
                         {% if unread_notifications > 0 %}
                         <span class="notif-count-badge" aria-label="{{ unread_notifications }} notificação{{ unread_notifications|pluralize }} não lida{{ unread_notifications|pluralize }}">
                             {{ unread_notifications }}
@@ -446,7 +446,7 @@
                     <!-- User Menu Dropdown -->
                     <div class="relative" id="user-menu-container">
                         <button type="button" id="user-menu-button" 
-                                class="flex items-center space-x-2 focus:outline-none bg-white hover:bg-gray-50 p-1.5 md:p-2 rounded-lg transition-all duration-200 no-underline"
+                                class="flex items-center space-x-2 focus:outline-none bg-white hover:bg-gray-50 p-1.5 md:p-2 rounded-full border border-slate-200 transition-all duration-200 no-underline"
                                 aria-expanded="false"
                                 aria-haspopup="true">
                             <div class="w-9 h-9 md:w-10 md:h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-105 flex-shrink-0 overflow-hidden">

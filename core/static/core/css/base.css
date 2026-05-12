@@ -186,16 +186,16 @@ div[x-show="open"]:not([style*="display: block"]) {
     outline-offset: 2px !important;
 }
 
-/* User Menu Button - Fundo branco */
+/* User Menu Button - fundo branco e borda fina (alinhado ao sino) */
 #user-menu-button {
     background-color: white !important;
-    border: none !important;
+    border: 1px solid #e8edf2 !important;
     box-shadow: none !important;
 }
 
 #user-menu-button:hover {
     background-color: #f9fafb !important; /* bg-gray-50 */
-    border: none !important;
+    border-color: #cbd5e1 !important;
     box-shadow: none !important;
 }
 
@@ -1540,9 +1540,9 @@ main::-webkit-scrollbar-thumb:hover {
         min-height: 44px;
         min-width: 44px;
         padding: 0.4rem !important;
-        border-radius: 0.65rem !important;
+        border-radius: 9999px !important;
         background: #ffffff !important;
-        border: 1px solid #e2e8f0 !important;
+        border: 1px solid #e8edf2 !important;
     }
     #user-menu-dropdown {
         position: fixed !important;
@@ -2356,6 +2356,15 @@ main .report-status--rejected,
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    box-sizing: border-box !important;
+    background-color: #ffffff !important;
+    border: 1px solid #e8edf2 !important;
+    border-radius: 0.625rem !important;
+}
+
+.notif-bell-link:hover {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
 }
 
 .notif-count-badge {

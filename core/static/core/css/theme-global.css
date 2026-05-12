@@ -96,11 +96,14 @@ html[data-theme="dark"] .top-bar-container .back-link-layer:hover i.fas {
 
 html[data-theme="dark"] .notif-bell-link {
   color: #cbd5e1 !important;
+  background: #334155 !important;
+  border: 1px solid #475569 !important;
 }
 
 html[data-theme="dark"] .notif-bell-link:hover {
   color: #38bdf8 !important;
   background: rgba(56, 189, 248, 0.12) !important;
+  border-color: #64748b !important;
 }
 
 html[data-theme="dark"] .notif-count-badge {

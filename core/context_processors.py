@@ -214,7 +214,27 @@ def sidebar_counters(request):
 def static_assets_version(request):
     """
     Versão global para invalidar cache de estáticos quando necessário.
+
+    Em DEBUG, acrescenta o mtime dos CSS principais à query ?v= dos links em
+    base.html, para o browser não ficar com base.css antigo sem Ctrl+F5.
     """
-    return {
-        'lplan_static_version': getattr(settings, 'LPLAN_STATIC_VERSION', '1'),
-    }
+    version = getattr(settings, 'LPLAN_STATIC_VERSION', '1')
+    if getattr(settings, 'DEBUG', False):
+        from pathlib import Path
+
+        base = Path(getattr(settings, 'BASE_DIR', '.'))
+        candidates = (
+            base / 'core' / 'static' / 'core' / 'css' / 'base.css',
+            base / 'core' / 'static' / 'core' / 'css' / 'tailwind-utilities.css',
+            base / 'core' / 'static' / 'core' / 'css' / 'mobile.css',
+        )
+        newest = 0
+        for path in candidates:
+            try:
+                if path.is_file():
+                    newest = max(newest, int(path.stat().st_mtime))
+            except OSError:
+                continue
+        if newest:
+            version = f'{version}-d{newest}'
+    return {'lplan_static_version': version}
