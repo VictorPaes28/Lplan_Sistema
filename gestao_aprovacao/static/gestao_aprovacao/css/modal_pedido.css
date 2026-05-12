@@ -4,11 +4,14 @@
     display: none;
     position: fixed;
     inset: 0;
-    z-index: 500;
+    /* Acima do header sticky do GestControll (base.css ~1000) */
+    z-index: 10040;
     background: rgba(15, 23, 42, 0.55);
     align-items: center;
     justify-content: center;
     padding: 1rem;
+    box-sizing: border-box;
+    overflow-y: auto;
     font-family: 'Sora', 'Inter', system-ui, sans-serif;
 }
 

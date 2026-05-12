@@ -349,6 +349,10 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         var overlay = document.getElementById('gc-overlay');
+        /* Ancora no body: evita fixed relativo a ancestral com transform/contain (modal “no fundo” da página). */
+        if (overlay && overlay.parentNode !== document.body) {
+            document.body.appendChild(overlay);
+        }
         if (overlay) {
             overlay.addEventListener('click', function (e) {
                 if (e.target === overlay) window.fecharModalPedido();
