@@ -27,6 +27,13 @@
         <div class="gc-modal-body">
             <div class="gc-modal-col-left">
                 <div class="gc-modal-body-inner">
+                    <div id="gc-sec-reprovado" class="gc-section" style="display:none;" role="region" aria-label="Pedido reprovado">
+                        <div class="gc-banner-reprovado">
+                            <p class="gc-banner-reprovado-title">Pedido reprovado — é preciso reenviar</p>
+                            <p class="gc-banner-reprovado-text">Revise os dados e o histórico acima (motivo da reprovação). Depois use o botão laranja para abrir o formulário: ao salvar, o pedido volta para a fila de <strong>reaprovação</strong>.</p>
+                            <a id="gc-reprovado-cta" href="#" class="gc-btn-reenviar-modal">Reenviar para Reavaliação</a>
+                        </div>
+                    </div>
                     <div class="gc-section">
                         <h3 class="gc-section-title">Informações do Pedido</h3>
                         <div class="gc-info-grid">
@@ -131,7 +138,7 @@
             <div class="gc-footer-left">
                 <a id="gc-ft-pdf" href="#" target="_blank" rel="noopener" class="gc-footer-btn">Exportar PDF</a>
                 <a id="gc-ft-leitura" href="#" target="_blank" rel="noopener" class="gc-footer-btn">Modo leitura</a>
-                <a id="gc-ft-editar" href="#" class="gc-footer-btn gc-footer-btn--primary" style="display:none;">Editar</a>
+                <a id="gc-ft-editar" href="#" class="gc-footer-btn gc-footer-btn--primary" style="display:none;"><span id="gc-ft-editar-label">Editar</span></a>
             </div>
             <div class="gc-footer-right">
                 <a id="gc-ft-exclusao" href="#" class="gc-footer-btn gc-footer-btn--danger" style="display:none;">Solicitar exclusão</a>

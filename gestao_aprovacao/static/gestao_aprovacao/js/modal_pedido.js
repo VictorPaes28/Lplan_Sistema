@@ -9,10 +9,20 @@
         return '';
     }
 
+    /** Overlay precisa ficar sob document.body para position:fixed ser sempre da viewport (ancestral com transform quebra às vezes). */
+    function garantirOverlayNoBody() {
+        var overlay = document.getElementById('gc-overlay');
+        if (overlay && overlay.parentNode !== document.body) {
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    }
+
     window.fecharModalPedido = function () {
         var overlay = document.getElementById('gc-overlay');
         if (overlay) overlay.style.display = 'none';
         document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
         window._gcModalCurrentPk = null;
         window._gcModalUrls = null;
     };
@@ -82,7 +92,16 @@
         if (secExc) secExc.style.display = 'none';
         var lp = document.getElementById('gc-link-pagina-completa');
         if (lp) lp.href = '#';
-        ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-aprov-link', 'gc-reprovar-link'].forEach(
+        var secRep = document.getElementById('gc-sec-reprovado');
+        if (secRep) secRep.style.display = 'none';
+        var ftLab = document.getElementById('gc-ft-editar-label');
+        if (ftLab) ftLab.textContent = 'Editar';
+        var ftEd = document.getElementById('gc-ft-editar');
+        if (ftEd) {
+            ftEd.classList.remove('gc-footer-btn--reenviar');
+            ftEd.classList.add('gc-footer-btn--primary');
+        }
+        ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-aprov-link', 'gc-reprovar-link', 'gc-reprovado-cta'].forEach(
             function (id) {
                 var el = document.getElementById(id);
                 if (el) el.href = '#';
@@ -269,6 +288,25 @@
         var ftEdit = document.getElementById('gc-ft-editar');
         if (ftEdit) ftEdit.style.display = d.pode_editar ? 'inline-flex' : 'none';
 
+        var secReprov = document.getElementById('gc-sec-reprovado');
+        var repCta = document.getElementById('gc-reprovado-cta');
+        var showReprovHelp = d.status === 'reprovado' && d.pode_editar;
+        if (secReprov) secReprov.style.display = showReprovHelp ? 'block' : 'none';
+        if (repCta) setHref('gc-reprovado-cta', u.editar);
+
+        var ftEditLabel = document.getElementById('gc-ft-editar-label');
+        if (ftEdit && ftEditLabel && d.pode_editar) {
+            if (d.status === 'reprovado') {
+                ftEditLabel.textContent = 'Reenviar para Reavaliação';
+                ftEdit.classList.add('gc-footer-btn--reenviar');
+                ftEdit.classList.remove('gc-footer-btn--primary');
+            } else {
+                ftEditLabel.textContent = 'Editar';
+                ftEdit.classList.remove('gc-footer-btn--reenviar');
+                ftEdit.classList.add('gc-footer-btn--primary');
+            }
+        }
+
         var ftExc = document.getElementById('gc-ft-exclusao');
         if (ftExc) {
             var showExc = d.pode_solicitar_exclusao && !d.exclusao_pendente;
@@ -308,11 +346,13 @@
     };
 
     window.abrirModalPedido = async function (pk) {
-        var overlay = document.getElementById('gc-overlay');
+        var overlay = garantirOverlayNoBody();
         var modal = document.getElementById('gc-modal');
         if (!overlay || !window.GC_WORKORDER_JSON_URL) return;
+        overlay.scrollTop = 0;
         overlay.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
         if (modal) modal.setAttribute('aria-busy', 'true');
         if (typeof window.modalPedidoResetParaCarregar === 'function') {
             window.modalPedidoResetParaCarregar();
@@ -348,11 +388,7 @@
     };
 
     document.addEventListener('DOMContentLoaded', function () {
-        var overlay = document.getElementById('gc-overlay');
-        /* Ancora no body: evita fixed relativo a ancestral com transform/contain (modal “no fundo” da página). */
-        if (overlay && overlay.parentNode !== document.body) {
-            document.body.appendChild(overlay);
-        }
+        var overlay = garantirOverlayNoBody();
         if (overlay) {
             overlay.addEventListener('click', function (e) {
                 if (e.target === overlay) window.fecharModalPedido();

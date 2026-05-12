@@ -5360,27 +5360,40 @@ def profile_view(request):
     
     # Processa o formulário se for POST
     if request.method == 'POST':
-        form = ProfileEditForm(request.POST, user=user)
+        submit_action = (
+            request.POST.get('submit_action') or ProfileEditForm.SUBMIT_INFO
+        ).strip()
+        if submit_action not in (ProfileEditForm.SUBMIT_INFO, ProfileEditForm.SUBMIT_PASSWORD):
+            submit_action = ProfileEditForm.SUBMIT_INFO
+        form = ProfileEditForm(request.POST, user=user, submit_action=submit_action)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Perfil atualizado com sucesso!')
-            # Se a senha foi alterada, faz logout e redireciona para login
-            if form.cleaned_data.get('new_password'):
+            if submit_action == ProfileEditForm.SUBMIT_PASSWORD and form.cleaned_data.get('new_password'):
+                messages.success(request, 'Senha alterada com sucesso.')
                 from django.contrib.auth import logout
                 logout(request)
                 messages.info(request, 'Sua senha foi alterada. Por favor, faça login novamente.')
                 return redirect('login')
+            messages.success(request, 'Perfil atualizado com sucesso!')
             return redirect('profile')
         else:
             flash_message(request, "error", "core.form.fix_errors.profile")
     else:
         form = ProfileEditForm(user=user)
     
+    try:
+        from gestao_aprovacao.models import UserProfile as GestaoUserProfile
+        gestao_user_perfil = GestaoUserProfile.objects.filter(usuario=user).first()
+    except Exception:
+        gestao_user_perfil = None
+
     context = {
         'user': user,
+        'project': project,
         'user_diaries_count': user_diaries_count,
         'user_photos_count': user_photos_count,
         'form': form,
+        'gestao_user_perfil': gestao_user_perfil,
     }
     
     return render(request, 'core/profile.html', context)

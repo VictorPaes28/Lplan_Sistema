@@ -1,240 +1,277 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block title %}Meu Perfil{% endblock %}
+
+{% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block page_title %}Perfil{% endblock %}
+{% block page_subtitle %}Gerencie suas informações pessoais, segurança e preferências.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+<link rel="stylesheet" href="{% static 'css/edit_my_profile.css' %}?v=2">
+{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h2 class="text-2xl md:text-3xl font-bold text-slate-800">Meu Perfil</h2>
-    <p class="text-sm text-gray-600 mt-1">Gerencie suas informações pessoais e preferências</p>
-</div>
-
-{% if messages %}
-<div class="mb-6">
-    {% for message in messages %}
-    <div class="p-4 rounded-lg mb-4 {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
-        <div class="flex items-center">
-            <i class="fas {% if message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %} mr-2"></i>
-            {{ message }}
-        </div>
+<div class="page-container perfil-page">
+    <div class="perfil-top-actions">
+        <a href="{% url 'dashboard' %}" class="perfil-btn-ghost">Painel</a>
     </div>
-    {% endfor %}
-</div>
-{% endif %}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Informações do Usuário -->
-    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <!-- Header com Avatar (mesmo estilo do header e sidebar: fundo azul, iniciais brancas) -->
-        <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8">
-            <div class="flex items-center space-x-4">
-                <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center shadow-xl ring-4 ring-white/20 flex-shrink-0">
-                    <span class="text-white font-bold text-2xl">
-                        {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+    <div class="perfil-layout">
+        <aside class="card perfil-card perfil-aside-summary" aria-label="Resumo do seu perfil">
+            {% if gestao_user_perfil and gestao_user_perfil.foto_perfil %}
+                <img src="{{ gestao_user_perfil.foto_perfil.url }}" alt="" class="perfil-aside-summary__avatar-img" loading="lazy">
+            {% else %}
+                <div class="perfil-aside-summary__avatar-fallback" aria-hidden="true">
+                    {% if user.get_full_name %}
+                        {{ user.get_full_name|slice:":1"|upper }}
+                    {% else %}
+                        {{ user.username|slice:":1"|upper }}
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {% if user.get_full_name %}
+                <h2 class="perfil-aside-summary__principal">{{ user.get_full_name }}</h2>
+                <p class="perfil-aside-summary__username">@{{ user.username }}</p>
+            {% else %}
+                <h2 class="perfil-aside-summary__principal">@{{ user.username }}</h2>
+            {% endif %}
+
+            <div class="perfil-aside-summary__body">
+                {% if user.email %}
+                    <div class="perfil-meta-row">
+                        <span class="perfil-meta-row__label">E-mail</span>
+                        <span class="perfil-meta-row__value">{{ user.email }}</span>
+                    </div>
+                {% endif %}
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Tipo de conta</span>
+                    <span class="perfil-meta-row__value">
+                        {% if user.is_superuser %}
+                            Superusuário
+                        {% elif user.is_staff %}
+                            Equipe interna / administrador
+                        {% else %}
+                            Utilizador
+                        {% endif %}
                     </span>
                 </div>
-                <div class="text-white">
-                    <h4 class="text-xl font-bold">{{ user.get_full_name|default:user.username|title }}</h4>
-                    <p class="text-sm text-blue-100">{{ user.email }}</p>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Situação</span>
+                    <span class="perfil-meta-row__value">
+                        {% if user.is_active %}
+                            <span class="perfil-pill-status is-active">Ativa</span>
+                        {% else %}
+                            <span class="perfil-pill-status is-inactive">Inativa</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Último acesso</span>
+                    <span class="perfil-meta-row__value perfil-meta-row__value-muted">
+                        {% if user.last_login %}
+                            {{ user.last_login|date:"d/m/Y H:i" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Cadastro</span>
+                    <span class="perfil-meta-row__value perfil-meta-row__value-muted">
+                        {{ user.date_joined|date:"d/m/Y"|default:"—" }}
+                    </span>
                 </div>
             </div>
-        </div>
-        
-        <form method="post" class="p-6 space-y-6">
-            {% csrf_token %}
-            
-            <!-- Informações Básicas -->
-            <div>
-                <h4 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
-                    <i class="fas fa-user-circle mr-2 text-blue-600"></i>
-                    Informações Básicas
-                </h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome de usuário</label>
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
-                            <p class="text-sm text-gray-900 font-medium">{{ user.username }}</p>
+        </aside>
+
+        <div class="perfil-main-stack">
+            <header class="perfil-main-header">
+                <h1 class="perfil-main-header__title">Meu Perfil</h1>
+                <p class="perfil-main-header__lead">Atualize seus dados e acompanhe suas informações de uso.</p>
+            </header>
+
+            {% if messages %}
+                <div class="perfil-msg-stack" role="status">
+                    {% for message in messages %}
+                        <div class="form-error-box{% if message.tags %} {{ message.tags }}{% endif %}"
+                             style="{% if message.tags == 'success' %}border-left-color: #28a745; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); color: #14532d;{% elif message.tags == 'error' %}border-left-color: #dc2626;{% elif message.tags == 'info' %}border-left-color: #0891b2;{% endif %}">
+                            {{ message }}
                         </div>
-                        <p class="text-xs text-gray-500 mt-1 flex items-center">
-                            <i class="fas fa-lock text-xs mr-1"></i>
-                            Não pode ser alterado
-                        </p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" class="perfil-form-principal core-profile-form">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="perfil-msg-stack">
+                        {% for err in form.non_field_errors %}
+                            <div class="form-error-box error">{{ err }}</div>
+                        {% endfor %}
                     </div>
-                    
-                    <div>
-                        <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ form.email.label }}
-                            {% if form.email.field.required %}<span class="text-red-500">*</span>{% endif %}
-                        </label>
+                {% endif %}
+
+                <section class="card perfil-card" aria-labelledby="perfil-info-heading-core">
+                    <div class="perfil-card__head">
+                        <h2 id="perfil-info-heading-core" class="perfil-card__title">Informações pessoais</h2>
+                        <p class="perfil-card__subtitle">Mantenha seus dados básicos atualizados.</p>
+                    </div>
+
+                    <div class="form-group perfil-field-readonly-wrap">
+                        <label class="form-label">Nome de usuário</label>
+                        <input type="text"
+                               value="{{ user.username }}"
+                               class="form-control"
+                               disabled
+                               autocomplete="username"
+                               aria-describedby="hint-username-ro-core">
+                        <span id="hint-username-ro-core" class="perfil-hint-micro">Não pode ser alterado nesta tela.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
                         {{ form.email }}
                         {% if form.email.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.email.errors.0 }}</p>
+                            <p class="perfil-hint-micro" style="color:#b91c1c;">{{ form.email.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
-                    <div>
-                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ form.first_name.label }}
-                        </label>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
                         {{ form.first_name }}
                         {% if form.first_name.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.first_name.errors.0 }}</p>
+                            <p class="perfil-hint-micro" style="color:#b91c1c;">{{ form.first_name.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
-                    <div>
-                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ form.last_name.label }}
-                        </label>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
                         {{ form.last_name }}
                         {% if form.last_name.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.last_name.errors.0 }}</p>
+                            <p class="perfil-hint-micro" style="color:#b91c1c;">{{ form.last_name.errors.0 }}</p>
                         {% endif %}
                     </div>
-                </div>
-            </div>
-            
-            <!-- Informações da Conta -->
-            <div class="pt-4 border-t border-slate-200">
-                <h4 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
-                    <i class="fas fa-info-circle mr-2 text-blue-600"></i>
-                    Informações da Conta
-                </h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Último acesso</label>
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
-                            <p class="text-sm text-gray-900 flex items-center">
-                                <i class="fas fa-clock text-gray-400 text-xs mr-2"></i>
-                                {{ user.last_login|date:"d/m/Y H:i"|default:"Nunca" }}
-                            </p>
-                        </div>
+
+                    <div class="perfil-actions-inline">
+                        <button type="submit"
+                                name="submit_action"
+                                value="informacoes"
+                                class="perfil-btn-primary">
+                            Salvar informações
+                        </button>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Data de cadastro</label>
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
-                            <p class="text-sm text-gray-900 flex items-center">
-                                <i class="fas fa-calendar text-gray-400 text-xs mr-2"></i>
-                                {{ user.date_joined|date:"d/m/Y" }}
-                            </p>
-                        </div>
+                </section>
+
+                <section class="card perfil-card" aria-labelledby="perfil-pass-heading-core">
+                    <div class="perfil-card__head">
+                        <h2 id="perfil-pass-heading-core" class="perfil-card__title">Segurança da conta</h2>
+                        <p class="perfil-card__subtitle">Preencha os campos abaixo apenas se desejar alterar sua senha.</p>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de conta</label>
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
-                            {% if user.is_superuser %}
-                                <span class="inline-flex items-center px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
-                                    <i class="fas fa-crown mr-1"></i>Superusuário
-                                </span>
-                            {% elif user.is_staff %}
-                                <span class="inline-flex items-center px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                                    <i class="fas fa-user-shield mr-1"></i>Administrador
-                                </span>
-                            {% else %}
-                                <span class="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">
-                                    <i class="fas fa-user mr-1"></i>Usuário
-                                </span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Seção de Alteração de Senha -->
-            <div class="pt-6 border-t border-slate-200">
-                <h4 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
-                    <i class="fas fa-key mr-2 text-blue-600"></i>
-                    Alterar Senha
-                </h4>
-                <p class="text-sm text-gray-600 mb-4">Deixe os campos de senha em branco se não quiser alterar</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="{{ form.current_password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ form.current_password.label }}
-                        </label>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.current_password.id_for_label }}">{{ form.current_password.label }}</label>
                         {{ form.current_password }}
                         {% if form.current_password.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.current_password.errors.0 }}</p>
+                            <p class="perfil-hint-micro" style="color:#b91c1c;">{{ form.current_password.errors.0 }}</p>
                         {% elif form.current_password.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.current_password.help_text }}</p>
+                            <span class="perfil-hint-micro">{{ form.current_password.help_text }}</span>
                         {% endif %}
                     </div>
-                    
-                    <div></div>
-                    
-                    <div>
-                        <label for="{{ form.new_password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ form.new_password.label }}
-                        </label>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.new_password.id_for_label }}">{{ form.new_password.label }}</label>
                         {{ form.new_password }}
                         {% if form.new_password.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.new_password.errors.0 }}</p>
+                            <p class="perfil-hint-micro" style="color:#b91c1c;">{{ form.new_password.errors.0 }}</p>
                         {% elif form.new_password.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.new_password.help_text }}</p>
+                            <span class="perfil-hint-micro">{{ form.new_password.help_text }}</span>
                         {% endif %}
                     </div>
-                    
-                    <div>
-                        <label for="{{ form.confirm_password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ form.confirm_password.label }}
-                        </label>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.confirm_password.id_for_label }}">{{ form.confirm_password.label }}</label>
                         {{ form.confirm_password }}
                         {% if form.confirm_password.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.confirm_password.errors.0 }}</p>
+                            <p class="perfil-hint-micro" style="color:#b91c1c;">{{ form.confirm_password.errors.0 }}</p>
                         {% endif %}
                     </div>
+
+                    <div class="perfil-actions-inline">
+                        <button type="submit"
+                                name="submit_action"
+                                value="senha"
+                                class="perfil-btn-primary">
+                            Alterar senha
+                        </button>
+                    </div>
+                </section>
+            </form>
+
+            <section class="card perfil-card" aria-labelledby="perfil-stats-heading-core">
+                <div class="perfil-card__head perfil-stats-head-row">
+                    <div>
+                        <h2 id="perfil-stats-heading-core" class="perfil-card__title">Minhas estatísticas</h2>
+                        <p class="perfil-card__subtitle">Acompanhe sua atividade no sistema.</p>
+                    </div>
+                    <a href="{% url 'report-list' %}" class="perfil-btn-ghost perfil-stats-link">Ver meus relatórios</a>
                 </div>
-            </div>
-            
-            <div class="pt-6 border-t border-slate-200">
-                <button type="submit" class="w-full md:w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg flex items-center justify-center">
-                    <i class="fas fa-save mr-2"></i>Salvar Alterações
-                </button>
-            </div>
-        </form>
-    </div>
-    
-    <!-- Estatísticas -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
-            <h3 class="text-lg font-semibold text-slate-800 flex items-center">
-                <i class="fas fa-chart-bar mr-2 text-blue-600"></i>
-                Minhas Estatísticas
-            </h3>
-        </div>
-        
-        <div class="p-6 space-y-4">
-            <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between overflow-visible">
-                <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-slate-600 mb-1">Relatórios Criados</p>
-                    <p class="text-3xl font-bold text-blue-600">{{ user_diaries_count }}</p>
-                    <p class="text-xs text-slate-500 mt-1">Neste projeto</p>
+
+                <div class="perfil-stats-row">
+                    <div class="perfil-stat-tile">
+                        <div class="perfil-stat-tile__icon" aria-hidden="true">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div>
+                            <span class="perfil-stat-tile__value tabular-nums">{{ user_diaries_count }}</span>
+                            <span class="perfil-stat-tile__label">Relatórios criados</span>
+                            <p class="perfil-stat-tile__hint">Neste projeto</p>
+                        </div>
+                    </div>
+                    <div class="perfil-stat-tile">
+                        <div class="perfil-stat-tile__icon" aria-hidden="true">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <div>
+                            <span class="perfil-stat-tile__value tabular-nums">{{ user_photos_count }}</span>
+                            <span class="perfil-stat-tile__label">Fotos enviadas</span>
+                            <p class="perfil-stat-tile__hint">Neste projeto</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="w-14 h-14 flex-shrink-0 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg ml-4">
-                    <i class="fas fa-file-alt text-white text-xl" aria-hidden="true"></i>
-                </div>
-            </div>
-            
-            <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between overflow-visible">
-                <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-slate-600 mb-1">Fotos Enviadas</p>
-                    <p class="text-3xl font-bold text-green-600">{{ user_photos_count }}</p>
-                    <p class="text-xs text-slate-500 mt-1">Neste projeto</p>
-                </div>
-                <div class="w-14 h-14 flex-shrink-0 bg-green-600 rounded-xl flex items-center justify-center shadow-lg ml-4">
-                    <i class="fas fa-camera text-white text-xl" aria-hidden="true"></i>
-                </div>
-            </div>
-        </div>
-        
-        <div class="px-6 pb-6">
-            <a href="{% url 'report-list' %}" class="block w-full text-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg">
-                <i class="fas fa-arrow-right mr-2"></i>Ver meus relatórios
-            </a>
+
+                {% if not project %}
+                    <p class="perfil-photo-hint">Selecione um projeto para atualizar contagens do diário.</p>
+                {% endif %}
+            </section>
         </div>
     </div>
 </div>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.querySelector('.core-profile-form');
+    if (!form) return;
+    var passHeading = document.getElementById('perfil-pass-heading-core');
+    var passSection = passHeading ? passHeading.closest('section') : null;
+    form.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+        if (!passSection || !passSection.contains(e.target)) return;
+        var t = (e.target.getAttribute('type') || '').toLowerCase();
+        if (t === 'submit' || t === 'button') return;
+        e.preventDefault();
+        var btn = form.querySelector('button[name="submit_action"][value="senha"]');
+        if (btn) btn.click();
+    });
+})();
+</script>
+{% endblock %}

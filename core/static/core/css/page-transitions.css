@@ -10,8 +10,10 @@
     /*
      * Entrada suave só com translate — evita opacity:0 no primeiro frame (flash ao
      * navegar, Ctrl+F5 ou enviar filtros GET).
+     * Home de módulos (select-system) usa coluna flex em altura de viewport; animar o
+     * wrapper inteiro pode interferir no cálculo de altura em alguns navegadores.
      */
-    .main-content-wrapper {
+    .main-content-wrapper:not(.lplan-select-system-shell) {
         animation: lplan-main-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
 

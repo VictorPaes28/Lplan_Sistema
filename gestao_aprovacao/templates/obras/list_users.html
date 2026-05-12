@@ -3,28 +3,32 @@
 
 {% block title %}Usuários{% endblock %}
 
-{% block page_title %}Usuários{% endblock %}
-{% block page_subtitle %}{% if use_central_urls %}Central - Usuários{% else %}GestControll - Gerenciamento{% endif %}{% endblock %}
+{% block back_url %}{% if use_central_urls %}{% url 'accounts:admin_central' %}{% else %}{% url 'gestao:home' %}{% endif %}{% endblock %}
+{% block page_title %}{% if use_central_urls %}Central{% else %}Gestão{% endif %}{% endblock %}
+{% block page_subtitle %}Lista de usuários{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
-<link rel="stylesheet" href="{% static 'css/list_users.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'css/list_users.css' %}?v=7">
 {% endblock %}
 
 {% block content %}
 <div class="page-container list-users">
-    <div class="list-header">
-        <h1 class="list-title">Usuários</h1>
-        <a href="{% if use_central_urls %}{% url 'central_create_user' %}{% else %}{% url 'gestao:create_user' %}{% endif %}" class="btn">+ Novo Usuário</a>
-    </div>
+    <header class="list-users-page-header">
+        <div class="list-users-page-heading">
+            <h1 class="list-users-title">Usuários</h1>
+            <p class="list-users-lead">Gerencie acessos, obras vinculadas e permissões dos usuários do sistema.</p>
+        </div>
+        <a href="{% if use_central_urls %}{% url 'central_create_user' %}{% else %}{% url 'gestao:create_user' %}{% endif %}" class="btn list-users-btn-new">+ Novo usuário</a>
+    </header>
 
     <!-- Filtros e Busca -->
-    <div class="card filters-card">
-        <form method="get" class="filters-form">
+    <div class="card filters-card list-users-filters-card">
+        <form method="get" class="filters-form list-users-filters-form">
             <div class="filter-group">
                 <label for="search" class="filter-label">Buscar</label>
                 <input type="text" id="search" name="search" class="filter-input"
-                       value="{{ search_query|default:'' }}" placeholder="Username, e-mail ou nome">
+                       value="{{ search_query|default:'' }}" placeholder="Username, e-mail ou nome" autocomplete="off">
             </div>
             <div class="filter-group">
                 <label for="obra" class="filter-label">Obra</label>
@@ -44,26 +48,46 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn">Filtrar</button>
-            <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary">Limpar</a>
+            <button type="submit" class="btn list-users-btn-filter">Filtrar</button>
+            <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary list-users-btn-clear">Limpar</a>
         </form>
     </div>
 
     <!-- Lista de Usuários -->
-    <div class="card table-container">
-        {% if users_with_groups %}
-        <div class="users-count">
-            <strong>{{ page_obj.paginator.count }}</strong> usuário{{ page_obj.paginator.count|pluralize }} encontrado{{ page_obj.paginator.count|pluralize }}
+    <div class="card table-container list-users-table-card">
+        {% if list_users_stats %}
+        <div class="list-users-stats" aria-label="Resumo da listagem filtrada">
+            <div class="list-users-stat-card">
+                <span class="list-users-stat-value">{{ list_users_stats.total }}</span>
+                <span class="list-users-stat-label">Total</span>
+            </div>
+            <div class="list-users-stat-card">
+                <span class="list-users-stat-value">{{ list_users_stats.active }}</span>
+                <span class="list-users-stat-label">Ativos</span>
+            </div>
+            <div class="list-users-stat-card">
+                <span class="list-users-stat-value">{{ list_users_stats.inactive }}</span>
+                <span class="list-users-stat-label">Inativos</span>
+            </div>
+            <div class="list-users-stat-card">
+                <span class="list-users-stat-value">{{ list_users_stats.admins }}</span>
+                <span class="list-users-stat-label">Administradores</span>
+            </div>
         </div>
-        <table class="data-table">
+        {% endif %}
+
+        {% if users_with_groups %}
+        <div class="users-count list-users-count-bar">
+            <strong>{{ page_obj.paginator.count }}</strong> usuário{{ page_obj.paginator.count|pluralize }} nesta listagem (página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }})
+        </div>
+        <table class="data-table list-users-table">
             <thead>
                 <tr>
-                    <th>Foto</th>
-                    <th>Username</th>
+                    <th>Usuário</th>
                     <th>Nome</th>
-                    <th>Email</th>
+                    <th>E-mail</th>
                     <th>Obras</th>
-                    <th>Grupos</th>
+                    <th>Permissões</th>
                     <th>Superusuário</th>
                     <th>Situação</th>
                     <th>Ações</th>
@@ -72,45 +96,117 @@
             <tbody>
                 {% for item in users_with_groups %}
                     <tr class="{% if not item.user.is_active %}user-row-inactive{% endif %}">
-                        <td data-label="Foto">
-                            {% with item.user.perfil as perfil %}
-                                {% if perfil and perfil.foto_perfil %}
-                                    <img src="{{ perfil.foto_perfil.url }}" alt="">
-                                {% else %}
-                                    <div>{{ item.user.get_full_name|default:item.user.username|slice:":1"|upper }}</div>
-                                {% endif %}
-                            {% endwith %}
-                        </td>
-                        <td data-label="Username">
-                            <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="user-governance-link" title="Painel de governança e atividade">{{ item.user.username }}</a>
+                        <td data-label="Usuário">
+                            <div class="list-users-usercell">
+                                {% with perfil=item.perfil %}
+                                <span class="list-users-avatar-wrap" aria-hidden="true">
+                                    {% if perfil and perfil.foto_perfil %}
+                                        <img class="list-users-avatar-img" src="{{ perfil.foto_perfil.url }}" alt="">
+                                    {% else %}
+                                        <span class="list-users-avatar-fallback">{{ item.user.get_full_name|default:item.user.username|slice:":1"|upper }}</span>
+                                    {% endif %}
+                                </span>
+                                {% endwith %}
+                                <div class="list-users-usercell-text">
+                                    <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="user-governance-link">{{ item.user.username }}</a>
+                                </div>
+                            </div>
                         </td>
                         <td data-label="Nome">{{ item.user.get_full_name|default:"—" }}</td>
-                        <td data-label="Email">{{ item.user.email|default:"—" }}</td>
+                        <td data-label="E-mail">{{ item.user.email|default:"—" }}</td>
                         <td data-label="Obras">
-                            <div class="group-badges obra-badges">
-                                {% for obra in item.obras_list %}
-                                    <span class="obra-badge" title="{{ obra.codigo }} — {{ obra.nome }}">{{ obra.nome }}</span>
-                                {% empty %}
-                                    <span class="group-badge group-badge-muted">Sem obra</span>
-                                {% endfor %}
-                            </div>
+                            {% if item.obras_list %}
+                                {% with total=item.obras_list|length %}
+                                <div class="list-users-popover-wrap">
+                                    <div class="list-users-badge-row">
+                                        {% for obra in item.obras_list %}
+                                            {% if forloop.counter <= 2 %}
+                                            <span class="obra-badge" title="{{ obra.codigo }} — {{ obra.nome }}">{{ obra.nome }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% if total > 2 %}
+                                        {% with extra=total|add:"-2" %}
+                                        <button type="button"
+                                                class="list-users-more-btn"
+                                                id="list-users-obras-btn-{{ item.user.pk }}"
+                                                aria-expanded="false"
+                                                aria-controls="list-users-obras-pop-{{ item.user.pk }}"
+                                                data-list-users-popover-toggle>
+                                            +{{ extra }} {% if extra == 1 %}obra{% else %}obras{% endif %}
+                                        </button>
+                                        {% endwith %}
+                                        {% endif %}
+                                    </div>
+                                    {% if total > 2 %}
+                                    <div id="list-users-obras-pop-{{ item.user.pk }}"
+                                         class="list-users-popover-panel"
+                                         hidden
+                                         role="dialog"
+                                         aria-modal="true"
+                                         aria-labelledby="list-users-obras-title-{{ item.user.pk }}">
+                                        <div class="list-users-popover-heading" id="list-users-obras-title-{{ item.user.pk }}">Obras vinculadas</div>
+                                        <ul class="list-users-popover-list">
+                                            {% for obra in item.obras_list %}
+                                            <li>{{ obra.codigo }} — {{ obra.nome }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endwith %}
+                            {% else %}
+                                <span class="group-badge group-badge-muted">Sem obra</span>
+                            {% endif %}
                         </td>
-                        <td data-label="Grupos">
-                            <div class="group-badges">
-                                {% if item.groups %}
-                                    {% for grupo in item.groups %}
-                                        <span class="group-badge">{{ grupo.name }}</span>
-                                    {% endfor %}
-                                {% else %}
-                                    <span class="group-badge group-badge-muted">Sem grupo</span>
-                                {% endif %}
-                            </div>
+                        <td data-label="Permissões">
+                            {% if item.groups %}
+                                {% with total=item.groups|length %}
+                                <div class="list-users-popover-wrap">
+                                    <div class="list-users-badge-row">
+                                        {% for grupo in item.groups %}
+                                            {% if forloop.counter <= 2 %}
+                                            <span class="group-badge">{{ grupo.name }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% if total > 2 %}
+                                        {% with extra=total|add:"-2" %}
+                                        <button type="button"
+                                                class="list-users-more-btn"
+                                                id="list-users-grupos-btn-{{ item.user.pk }}"
+                                                aria-expanded="false"
+                                                aria-controls="list-users-grupos-pop-{{ item.user.pk }}"
+                                                data-list-users-popover-toggle>
+                                            +{{ extra }} {% if extra == 1 %}permissão{% else %}permissões{% endif %}
+                                        </button>
+                                        {% endwith %}
+                                        {% endif %}
+                                    </div>
+                                    {% if total > 2 %}
+                                    <div id="list-users-grupos-pop-{{ item.user.pk }}"
+                                         class="list-users-popover-panel"
+                                         hidden
+                                         role="dialog"
+                                         aria-modal="true"
+                                         aria-labelledby="list-users-grupos-title-{{ item.user.pk }}">
+                                        <div class="list-users-popover-heading" id="list-users-grupos-title-{{ item.user.pk }}">Permissões</div>
+                                        <ul class="list-users-popover-list">
+                                            {% for grupo in item.groups %}
+                                            <li>{{ grupo.name }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endwith %}
+                            {% else %}
+                                <span class="group-badge group-badge-muted">Sem grupo</span>
+                            {% endif %}
                         </td>
                         <td data-label="Superusuário">
                             {% if item.user.is_superuser %}
-                                <span class="badge-super">Sim</span>
+                                <span class="list-users-super-yes">Sim</span>
                             {% else %}
-                                <span class="text-muted">Não</span>
+                                <span class="list-users-super-no">Não</span>
                             {% endif %}
                         </td>
                         <td data-label="Situação">
@@ -121,21 +217,47 @@
                             {% endif %}
                         </td>
                         <td data-label="Ações">
-                            <div class="action-btns">
-                                <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="btn-edit">Painel</a>
-                                <a href="{% if use_central_urls %}{% url 'central_edit_user' item.user.pk %}{% else %}{% url 'gestao:edit_user' item.user.pk %}{% endif %}" class="btn-edit">Editar</a>
-                                {% if item.can_toggle_active %}
-                                <form method="post" class="list-users-toggle-form" action=""
-                                      onsubmit="return confirm('{% if item.user.is_active %}Desativar o acesso deste usuário ao sistema? Os dados e histórico permanecem; ele não poderá mais fazer login.{% else %}Reativar o acesso deste usuário ao sistema?{% endif %}');">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="toggle_active">
-                                    <input type="hidden" name="user_id" value="{{ item.user.pk }}">
-                                    <button type="submit" class="btn-user-toggle {% if item.user.is_active %}btn-user-toggle--deactivate{% else %}btn-user-toggle--activate{% endif %}">{% if item.user.is_active %}Desativar{% else %}Reativar{% endif %}</button>
-                                </form>
-                                {% endif %}
-                                {% if is_admin %}
-                                    <a href="{% if use_central_urls %}{% url 'central_delete_user' item.user.pk %}{% else %}{% url 'gestao:delete_user' item.user.pk %}{% endif %}" class="btn-delete" onclick="return confirm('Tem certeza que deseja excluir o usuário {{ item.user.username }}? Esta ação não pode ser desfeita.');">Excluir</a>
-                                {% endif %}
+                            <div class="list-users-actions-cell">
+                                <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="list-users-btn-panel">Ver painel</a>
+                                <div class="list-users-action-menu">
+                                    <button type="button"
+                                            class="list-users-action-menu-trigger"
+                                            aria-label="Mais ações para {{ item.user.username }}"
+                                            aria-expanded="false"
+                                            aria-haspopup="true"
+                                            aria-controls="list-users-menu-{{ item.user.pk }}"
+                                            data-list-users-menu-toggle>
+                                        <span aria-hidden="true"><i class="fas fa-ellipsis-v"></i></span>
+                                    </button>
+                                    <div id="list-users-menu-{{ item.user.pk }}"
+                                         class="list-users-action-menu-panel"
+                                         hidden
+                                         role="menu">
+                                        <a role="menuitem" class="list-users-menu-link"
+                                           href="{% if use_central_urls %}{% url 'central_edit_user' item.user.pk %}{% else %}{% url 'gestao:edit_user' item.user.pk %}{% endif %}">Editar</a>
+                                        {% if item.can_toggle_active %}
+                                        <form method="post"
+                                              action=""
+                                              class="list-users-menu-form"
+                                              onsubmit="return confirm('{% if item.user.is_active %}Desativar o acesso deste usuário ao sistema? Os dados e histórico permanecem; ele não poderá mais fazer login.{% else %}Reativar o acesso deste usuário ao sistema?{% endif %}');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="toggle_active">
+                                            <input type="hidden" name="user_id" value="{{ item.user.pk }}">
+                                            <button type="submit"
+                                                    role="menuitem"
+                                                    class="list-users-menu-submit {% if item.user.is_active %}list-users-menu-submit--muted{% else %}list-users-menu-submit--activate{% endif %}">
+                                                {% if item.user.is_active %}Desativar{% else %}Reativar{% endif %}
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        {% if is_admin %}
+                                        <a role="menuitem"
+                                           href="{% if use_central_urls %}{% url 'central_delete_user' item.user.pk %}{% else %}{% url 'gestao:delete_user' item.user.pk %}{% endif %}"
+                                           class="list-users-menu-link list-users-menu-link--danger"
+                                           onclick="return confirm('Tem certeza que deseja excluir o usuário {{ item.user.username|escapejs }}? Esta ação não pode ser desfeita.');">Excluir</a>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -143,11 +265,10 @@
             </tbody>
         </table>
         
-        <!-- Paginação -->
         {% if page_obj.has_other_pages %}
             <div class="pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Anterior</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn list-users-pagination-btn">Anterior</a>
                 {% endif %}
                 
                 <span class="pagination-info">
@@ -155,7 +276,7 @@
                 </span>
                 
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn">Próxima</a>
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if grupo_filter %}&grupo={{ grupo_filter }}{% endif %}" class="btn list-users-pagination-btn">Próxima</a>
                 {% endif %}
             </div>
         {% endif %}
@@ -166,4 +287,8 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/list_users.js' %}?v=3"></script>
 {% endblock %}

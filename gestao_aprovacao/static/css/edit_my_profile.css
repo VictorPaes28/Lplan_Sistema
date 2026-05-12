@@ -1,0 +1,404 @@
+/* Meu Perfil — layout em grid, reutiliza variáveis do layout Gestão (base.html :root) */
+.perfil-page.page-container {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.perfil-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .perfil-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.perfil-page .card {
+    padding: 1.35rem 1.5rem;
+    box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.05));
+    transition: box-shadow 0.2s ease;
+}
+
+.perfil-page .card:hover {
+    transform: none;
+}
+
+.perfil-page .perfil-card {
+    padding: 1.35rem 1.5rem;
+}
+
+.perfil-aside-summary {
+    text-align: center;
+}
+
+.perfil-aside-summary__avatar-img {
+    width: 104px;
+    height: 104px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color, #e9ecef);
+    display: block;
+    margin: 0 auto 0.85rem;
+    background: var(--light-bg, #f4f6f8);
+}
+
+.perfil-aside-summary__avatar-fallback {
+    width: 104px;
+    height: 104px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.35rem;
+    font-weight: 700;
+    color: var(--text-muted, #64748b);
+    background: var(--light-bg, #eef1f5);
+    border: 2px solid var(--border-color, #e2e8f0);
+    margin: 0 auto 0.85rem;
+}
+
+.perfil-aside-summary__principal {
+    margin: 0 0 0.15rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.perfil-aside-summary__username {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-muted, #64748b);
+}
+
+.perfil-aside-summary__body {
+    text-align: left;
+    margin-top: 1.1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #ebebeb);
+}
+
+.perfil-meta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-bottom: 0.72rem;
+    font-size: 0.8125rem;
+}
+
+.perfil-meta-row:last-child {
+    margin-bottom: 0;
+}
+
+.perfil-meta-row__label {
+    font-weight: 600;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted, #94a3b8);
+}
+
+.perfil-meta-row__value {
+    color: var(--text-color, #334155);
+    word-break: break-word;
+}
+
+.perfil-meta-row__value-muted {
+    color: var(--text-muted, #64748b);
+    font-weight: 500;
+}
+
+.perfil-pill-status {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.perfil-pill-status.is-active {
+    background: var(--success-light, #ecfdf5);
+    color: #166534;
+    border: 1px solid #d1fae5;
+}
+
+.perfil-pill-status.is-inactive {
+    background: var(--light-bg, #f4f6f8);
+    color: var(--text-muted, #64748b);
+    border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.perfil-pill-scope {
+    margin-top: 0.85rem;
+    font-size: 0.8125rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.45;
+}
+
+.perfil-main-header {
+    margin-bottom: 1.1rem;
+}
+
+.perfil-main-header__title {
+    margin: 0 0 0.35rem;
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+    letter-spacing: -0.02em;
+}
+
+.perfil-main-header__lead {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.45;
+    max-width: 40rem;
+}
+
+.perfil-main-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.perfil-stats-head-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.perfil-stats-link {
+    align-self: center;
+}
+
+.perfil-card__head {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color, #ebebeb);
+}
+
+.perfil-card__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+}
+
+.perfil-card__subtitle {
+    margin: 0;
+    font-size: 0.84rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.4;
+}
+
+.perfil-page .form-group {
+    margin-bottom: 1.1rem;
+}
+
+.perfil-page .form-label {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-color, #334155);
+}
+
+.perfil-page .form-control,
+.perfil-page input.form-control {
+    border-width: 1px;
+    border-color: var(--border-color, #e2e8f0);
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.55rem 0.75rem;
+    min-height: 2.65rem;
+    font-size: 0.9rem;
+}
+
+.perfil-page .form-control:focus {
+    border-color: var(--primary-color, #3498db);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.14);
+}
+
+.perfil-field-readonly-wrap .form-control:disabled {
+    background: var(--light-bg, #f4f6f8);
+    border-color: #e2e8f0;
+    color: var(--text-muted, #475569);
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+.perfil-hint-micro {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.74rem;
+    color: var(--text-muted, #94a3b8);
+}
+
+.perfil-actions-inline {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #f1f5f9);
+}
+
+.perfil-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.52rem 1.15rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-radius: var(--radius-md, 8px);
+    background: var(--primary-color, #3498db);
+    color: #fff !important;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.perfil-btn-primary:hover {
+    background: var(--primary-dark, #2980b9);
+    color: #fff !important;
+}
+
+.perfil-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.52rem 1rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-radius: var(--radius-md, 8px);
+    background: var(--card-bg, #fff);
+    color: var(--text-color, #475569) !important;
+    border: 1px solid var(--border-color, #e2e8f0);
+    text-decoration: none;
+}
+
+.perfil-btn-ghost:hover {
+    background: var(--light-bg, #f4f6f8);
+}
+
+.perfil-stats-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 520px) {
+    .perfil-stats-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.perfil-stat-tile {
+    border: 1px solid var(--border-color, #e8edf2);
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.85rem 1rem;
+    background: var(--light-bg, #fafbfc);
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.perfil-stat-tile__icon {
+    flex-shrink: 0;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 8px;
+    background: rgba(52, 152, 219, 0.1);
+    color: var(--primary-dark, #2980b9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+}
+
+.perfil-stat-tile__value {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+    line-height: 1.15;
+}
+
+.perfil-stat-tile__label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-color, #475569);
+    margin-top: 0.08rem;
+}
+
+.perfil-stat-tile__hint {
+    margin: 0.2rem 0 0;
+    font-size: 0.72rem;
+    color: var(--text-muted, #94a3b8);
+}
+
+.perfil-top-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.85rem;
+}
+
+.perfil-photo-preview-thumb {
+    display: inline-block;
+}
+
+.perfil-photo-preview-thumb img {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-color, #e2e8f0);
+    vertical-align: middle;
+}
+
+.perfil-photo-hint {
+    font-size: 0.8125rem;
+    color: var(--text-muted, #64748b);
+    margin-top: 0.35rem;
+}
+
+.perfil-msg-stack > * + * {
+    margin-top: 0.65rem;
+}
+
+/*
+ * Rota /profile/ (core): inputs do ProfileEditForm podem trazer classes Tailwind.
+ * Harmonizamos visual com o restante do bloco perfil.
+ */
+.perfil-page input.perfil-form-control {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    border-radius: var(--radius-sm, 8px) !important;
+    border-width: 1px !important;
+    border-color: var(--border-color, #e2e8f0) !important;
+    background: var(--card-bg, #fff) !important;
+    color: var(--text-color, #1e293b) !important;
+    padding: 0.55rem 0.75rem !important;
+    min-height: 2.65rem;
+    font-size: 0.9rem !important;
+    line-height: 1.35;
+    box-shadow: none !important;
+}
+
+.perfil-page input.perfil-form-control:focus {
+    outline: none !important;
+    border-color: var(--primary-color, #3498db) !important;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.14) !important;
+}

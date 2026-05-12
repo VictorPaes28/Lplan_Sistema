@@ -178,21 +178,6 @@
                             <span class="mobile-menu-badge">{{ notificacoes_count }}</span>
                         {% endif %}
                     </a>
-                    {% if is_admin or is_responsavel_empresa %}
-                    <a href="{% url 'gestao:list_obras' %}" class="mobile-menu-item">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        </svg>
-                        <span>Gerenciar Obras</span>
-                    </a>
-                    <a href="{% url 'gestao:list_empresas' %}" class="mobile-menu-item">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                        </svg>
-                        <span>Gerenciar Empresas</span>
-                    </a>
-                    {% endif %}
                     {% if is_admin %}
                     <a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="mobile-menu-item">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -277,7 +262,6 @@
                             <li><a href="{% url 'gestao:home' %}">Home</a></li>
                             <li><a href="{% url 'gestao:list_workorders' %}">Pedidos</a></li>
                             {% if user_profile == 'admin' %}
-                                <li><a href="{% url 'gestao:list_empresas' %}">Empresas</a></li>
                                 <li><a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}">Usuários</a></li>
                             {% endif %}
                         {% else %}

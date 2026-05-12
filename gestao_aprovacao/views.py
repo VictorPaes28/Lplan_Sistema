@@ -11,6 +11,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
 from datetime import timedelta, datetime, time
 from urllib.parse import urlencode
@@ -131,7 +132,7 @@ def _no_cache_form_response(response):
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
     return response
-from core.models import Project, ProjectMember
+from core.models import ConstructionDiary, Project, ProjectMember
 
 logger = logging.getLogger(__name__)
 
@@ -3432,7 +3433,7 @@ def list_users(request):
         )
     ).order_by(Coalesce('_obra_sort', Value('ZZZZZZZZZZ')), 'username')
 
-    users = users.prefetch_related(
+    users = users.select_related('perfil').prefetch_related(
         Prefetch(
             'permissoes_obra',
             queryset=WorkOrderPermission.objects.filter(ativo=True).select_related('obra'),
@@ -3472,8 +3473,14 @@ def list_users(request):
                 empresas_vinculadas__ativo=True,
             ).exists()
 
+        try:
+            perfil_inst = user.perfil
+        except ObjectDoesNotExist:
+            perfil_inst = None
+
         users_with_groups.append({
             'user': user,
+            'perfil': perfil_inst,
             'groups': grupos,
             'is_engenheiro': grupos.filter(name='Solicitante').exists(),
             'is_gestor': grupos.filter(name='Gestor').exists(),
@@ -3492,6 +3499,15 @@ def list_users(request):
     # Grupos oficiais para o filtro (ordem por módulo; sem perfis ocultos na UI)
     grupos_filtro = grupos_ordenados_atribuivel()
     _central = getattr(request, '_central_redirect', False)
+    # Resumo (mesmo recorte dos filtros, antes da paginação)
+    list_users_stats = {
+        'total': users.count(),
+        'active': users.filter(is_active=True).count(),
+        'inactive': users.filter(is_active=False).count(),
+        'admins': users.filter(Q(is_superuser=True) | Q(groups__name='Administrador'))
+        .distinct()
+        .count(),
+    }
     context = {
         'page_obj': page_obj,
         'users_with_groups': users_with_groups,
@@ -3505,6 +3521,7 @@ def list_users(request):
         'use_central_urls': _central,
         'obras_filtro': obras_queryset.order_by('nome', 'codigo'),
         'obra_filter': str(obra_filter_id) if obra_filter_id is not None else '',
+        'list_users_stats': list_users_stats,
     }
     return render(request, 'obras/list_users.html', context)
 
@@ -3979,63 +3996,103 @@ def delete_user(request, pk):
 def edit_my_profile(request):
     """
     Permite que o usuário edite seu próprio perfil (nome, email, senha e foto).
+    POST com submit_action='informacoes' atualiza dados e foto sem alterar senha.
+    POST com submit_action='senha' altera senha apenas (validação de confirmação).
     """
+    from django.contrib.auth import update_session_auth_hash
+
     user = request.user
-    
+
+    tipo_labels = {
+        'admin': 'Administrador',
+        'responsavel_empresa': 'Responsável por empresa',
+        'aprovador': 'Aprovador',
+        'solicitante': 'Solicitante',
+    }
+    pk_prof = get_user_profile(user)
+    tipo_conta_display = tipo_labels.get(pk_prof or '')
+    if not tipo_conta_display:
+        g0 = user.groups.order_by('name').first()
+        tipo_conta_display = g0.name if g0 else 'Sem grupo'
+
+    img_suffix_q = Q()
+    for suf in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'):
+        img_suffix_q |= Q(arquivo__iendswith=suf)
+    perfil_reports_count = ConstructionDiary.objects.filter(created_by=user).count()
+    perfil_photo_uploads_count = Attachment.objects.filter(enviado_por=user).filter(img_suffix_q).count()
+
     if request.method == 'POST':
-        # Atualizar informações básicas
-        user.email = request.POST.get('email', user.email)
-        user.first_name = request.POST.get('first_name', user.first_name)
-        user.last_name = request.POST.get('last_name', user.last_name)
-        
-        # Atualizar senha se fornecida
-        new_password = request.POST.get('password')
-        if new_password:
-            user.set_password(new_password)
-        
-        user.save()
-        
-        # Atualizar foto de perfil se fornecida
-        perfil, created = UserProfile.objects.get_or_create(usuario=user)
-        if 'foto_perfil' in request.FILES:
-            perfil.foto_perfil = request.FILES['foto_perfil']
-            perfil.save()
-        
-        try:
-            from audit.action_codes import AuditAction
-            from audit.recording import record_audit_event
+        action = (request.POST.get('submit_action') or 'informacoes').strip()
 
-            record_audit_event(
-                actor=user,
-                subject_user=user,
-                action_code=AuditAction.USER_SELF_PROFILE_UPDATED,
-                summary='Perfil próprio atualizado (nome, e-mail, foto e/ou senha)',
-                payload={
-                    'password_changed': bool(new_password),
-                    'photo_changed': 'foto_perfil' in request.FILES,
-                },
-                module='accounts',
-                request=request,
-            )
-        except Exception:
-            pass
+        def _audit(pwd_changed: bool, foto_changed: bool):
+            try:
+                from audit.action_codes import AuditAction
+                from audit.recording import record_audit_event
 
-        messages.success(request, 'Seu perfil foi atualizado com sucesso!')
+                record_audit_event(
+                    actor=user,
+                    subject_user=user,
+                    action_code=AuditAction.USER_SELF_PROFILE_UPDATED,
+                    summary=(
+                        'Perfil próprio: alteração de senha'
+                        if pwd_changed and action == 'senha'
+                        else 'Perfil próprio atualizado (dados e/ou foto)'
+                    ),
+                    payload={
+                        'password_changed': pwd_changed,
+                        'photo_changed': foto_changed,
+                    },
+                    module='accounts',
+                    request=request,
+                )
+            except Exception:
+                pass
+
+        if action == 'senha':
+            nova = (request.POST.get('password') or '').strip()
+            confirm = (request.POST.get('password_confirm') or '').strip()
+            if not nova:
+                messages.info(request, 'Preencha a nova senha e a confirmação para alterar.')
+            elif nova != confirm:
+                messages.error(request, 'A confirmação da nova senha não confere.')
+            else:
+                user.set_password(nova)
+                user.save(update_fields=['password'])
+                update_session_auth_hash(request, user)
+                messages.success(request, 'Senha alterada com sucesso.')
+                _audit(pwd_changed=True, foto_changed=False)
+        else:
+            user.email = (request.POST.get('email') or user.email).strip()
+            user.first_name = (request.POST.get('first_name') or '').strip()
+            user.last_name = (request.POST.get('last_name') or '').strip()
+
+            foto_changed = False
+            perfil_rw, _ = UserProfile.objects.get_or_create(usuario=user)
+            if 'foto_perfil' in request.FILES:
+                perfil_rw.foto_perfil = request.FILES['foto_perfil']
+                foto_changed = True
+            perfil_rw.save()
+
+            user.save()
+            messages.success(request, 'Suas informações foram atualizadas com sucesso!')
+            _audit(pwd_changed=False, foto_changed=foto_changed)
+
         return redirect('gestao:edit_my_profile')
-    
-    # Obter perfil do usuário
+
     try:
         user_perfil = UserProfile.objects.get(usuario=user)
     except UserProfile.DoesNotExist:
         user_perfil = None
-    
+
     context = {
         'user_obj': user,
         'user_perfil': user_perfil,
         'user_profile': get_user_profile(request.user),
+        'tipo_conta_display': tipo_conta_display,
+        'perfil_reports_count': perfil_reports_count,
+        'perfil_photo_uploads_count': perfil_photo_uploads_count,
     }
     return render(request, 'obras/edit_my_profile.html', context)
-
 
 @login_required
 def list_notificacoes(request):

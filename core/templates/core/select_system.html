@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 
+{% block body_extra_class %} lplan-select-system-page{% endblock %}
+{% block wrapper_extra_class %} lplan-select-system-shell{% endblock %}
 {% block main_extra_class %}select-system-main{% endblock %}
 
 {% block page_title %}
@@ -156,51 +158,76 @@
         border-color: #f5f7f9 !important;
     }
     /* Estreita só nesta página + mesma pintura do miolo (menos contraste estranho com body slate-50) */
-    .main-content-wrapper:has(main.main-content.select-system-main) {
-        background-color: #f5f7f9;
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
-        padding-bottom: 0;
-        /* Coluna em altura total: rodapé desce até o fim da área útil da viewport */
+    /*
+     * O body só tem o wrapper como filho “em fluxo” (aside/topbar/FAB são fixed).
+     * Sem coluna flex no body, min-height no wrapper não dá uma altura *definite* aos
+     * filhos flex (main/root) → o rodapé fica logo abaixo dos cards.
+     */
+    body.lplan-select-system-page {
+        height: auto;
         display: flex;
         flex-direction: column;
         min-height: 100vh;
         min-height: 100dvh;
         box-sizing: border-box;
     }
-    @media (min-width: 768px) {
-        .main-content-wrapper:has(main.main-content.select-system-main) {
-            padding-left: 1rem;
-            padding-right: 1rem;
-            padding-bottom: 0;
-        }
-    }
-    @media (min-width: 1024px) {
-        .main-content-wrapper:has(main.main-content.select-system-main) {
-            padding-left: 1.25rem;
-            padding-right: 1.25rem;
-            padding-bottom: 0;
-        }
-    }
-
-    /* Main ocupa espaço livre dentro do wrapper (sticky footer leve) */
-    .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
+    body.lplan-select-system-page > .main-content-wrapper.lplan-select-system-shell {
         flex: 1 1 auto;
         width: 100%;
         min-height: 0;
+    }
+
+    /*
+     * Shell da home de módulos: coluna em altura útil da viewport + padding-bottom zerado
+     * (o base.css aplica padding-bottom nas telas grandes e empurrava o miolo para cima).
+     */
+    .main-content-wrapper.lplan-select-system-shell {
+        background-color: #f5f7f9;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-bottom: 0 !important;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
         box-sizing: border-box;
     }
-    /* Força altura útil quando há poucos cards: sem isso main some com o conteúdo e o rodapé fica “no meio”. */
-    @media (max-width: 767.98px) {
-        .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
-            min-height: calc(100svh - 4rem);
-            min-height: calc(100dvh - 4rem);
+    @media (min-width: 768px) {
+        .main-content-wrapper.lplan-select-system-shell {
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-bottom: 0 !important;
         }
     }
-    @media (min-width: 768px) {
-        .main-content-wrapper:has(main.main-content.select-system-main) > main.main-content.select-system-main {
-            min-height: calc(100vh - 2.5rem);
-            min-height: calc(100dvh - 2.5rem);
+    @media (min-width: 1024px) {
+        .main-content-wrapper.lplan-select-system-shell {
+            padding-left: 1.25rem;
+            padding-right: 1.25rem;
+            padding-bottom: 0 !important;
+        }
+    }
+    @media (min-width: 1280px) {
+        .main-content-wrapper.lplan-select-system-shell {
+            padding-bottom: 0 !important;
+        }
+    }
+
+    /*
+     * Main ocupa o espaço livre do wrapper: flex-basis 0% deixa o grow distribuir
+     * corretamente (1 1 auto com min-height:0 no desktop não preenchia a coluna).
+     */
+    .main-content-wrapper.lplan-select-system-shell > main.main-content.select-system-main {
+        flex: 1 1 0%;
+        width: 100%;
+        min-height: 0;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+    }
+    @media (max-width: 767.98px) {
+        .main-content-wrapper.lplan-select-system-shell > main.main-content.select-system-main {
+            flex: 1 1 auto;
+            min-height: calc(100svh - 4rem);
+            min-height: calc(100dvh - 4rem);
         }
     }
 
@@ -223,7 +250,8 @@
         margin-right: 0;
         padding-top: 0.95rem;
         padding-bottom: 0 !important;
-        flex: 1 1 0%;
+        /* flex-grow: ocupa miolo inteiro sob a top bar (pai main também é flex column) */
+        flex: 1 1 auto;
         min-height: 0;
         display: flex;
         flex-direction: column;
@@ -232,6 +260,7 @@
     @media (min-width: 768px) {
         .select-system-root {
             padding-top: 1.35rem;
+            flex: 1 1 0%;
         }
     }
 
@@ -269,8 +298,8 @@
         gap: 1.45rem;
         grid-template-columns: 1fr;
         align-items: stretch;
-        /* Margem discreta; o “vão” grande com poucos cards vem do margin-top: auto do rodapé */
-        margin-bottom: clamp(1rem, 2vw, 1.75rem);
+        /* Muito respiro antes da faixa do rodapé (altura + largura da viewport) */
+        margin-bottom: clamp(5.5rem, 18vh + 2.5rem, 14rem);
     }
     /* order: evita Central de Aprovações ir para o fim (order:1 após todos os order:0) */
     .select-system-cards-grid > .system-card {
@@ -728,7 +757,7 @@
         }
     }
 
-    /* Rodapé fixado ao fundo da coluna quando o miolo ocupa viewport; espaço livre vai para o margin-top: auto acima da faixa */
+    /* Rodapé no fundo da coluna; margin-top:auto consome o espaço entre grade e faixa */
     .select-system-root .select-system-site-footer {
         margin-top: auto;
         flex-shrink: 0;
@@ -738,11 +767,17 @@
         margin-left: calc(-1 * var(--select-sys-inline));
         margin-right: calc(-1 * var(--select-sys-inline));
         width: calc(100% + (2 * var(--select-sys-inline)));
-        padding-top: clamp(1.75rem, 3.5vw, 2.75rem);
+        padding-top: clamp(2.75rem, 5.5vw, 4.5rem);
         padding-left: var(--select-sys-inline);
         padding-right: var(--select-sys-inline);
-        padding-bottom: max(5.5rem, calc(4.85rem + env(safe-area-inset-bottom, 0px)), env(safe-area-inset-bottom, 0px));
+        /* Mobile: reserva forte para FAB + barra do sistema; desktop: menos “vácuo” visual */
+        padding-bottom: max(5.5rem, calc(4.85rem + env(safe-area-inset-bottom, 0px)));
         box-sizing: border-box;
+    }
+    @media (min-width: 768px) {
+        .select-system-root .select-system-site-footer {
+            padding-bottom: max(3.25rem, calc(1.75rem + env(safe-area-inset-bottom, 0px)));
+        }
     }
     .select-system-root .select-system-footer-brand-row {
         display: flex;

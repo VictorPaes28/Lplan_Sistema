@@ -3,147 +3,284 @@
 
 {% block title %}Meu Perfil{% endblock %}
 
-{% block page_title %}Meu Perfil{% endblock %}
-{% block page_subtitle %}GestControll{% endblock %}
+{% block back_url %}{% url 'gestao:home' %}{% endblock %}
+{% block page_title %}Perfil{% endblock %}
+{% block page_subtitle %}Gerencie suas informações pessoais, segurança e preferências.{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
-<style>
-    .profile-preview {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding: 2rem;
-        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-        border-radius: 12px;
-        border: 2px solid #e9ecef;
-    }
-    
-    .profile-preview img {
-        width: 150px;
-        height: 150px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 4px solid #3498db;
-        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
-        margin-bottom: 1rem;
-    }
-    
-    .profile-preview .avatar-placeholder {
-        width: 150px;
-        height: 150px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 4rem;
-        font-weight: 700;
-        color: white;
-        border: 4px solid #3498db;
-        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
-        margin-bottom: 1rem;
-    }
-    
-    .profile-preview h2 {
-        color: #2c3e50;
-        margin: 0.5rem 0;
-        font-size: 1.5rem;
-    }
-    
-    .profile-preview p {
-        color: #6c757d;
-        margin: 0.25rem 0;
-    }
-    @media (max-width: 768px) {
-        .profile-preview { padding: 1.25rem; }
-        .profile-preview img,
-        .profile-preview .avatar-placeholder {
-            width: 100px;
-            height: 100px;
-            font-size: 2.5rem;
-        }
-        .profile-preview h2 { font-size: 1.2rem; }
-    }
-</style>
+<link rel="stylesheet" href="{% static 'css/edit_my_profile.css' %}?v=2">
 {% endblock %}
 
 {% block content %}
-<div class="form-container">
-    <div class="card">
-        <h1 class="form-title">Meu Perfil</h1>
-        
-        <!-- Preview do Perfil -->
-        <div class="profile-preview">
+<div class="page-container perfil-page">
+    <div class="perfil-top-actions">
+        <a href="{% url 'gestao:home' %}" class="perfil-btn-ghost">Voltar ao início</a>
+    </div>
+
+    <div class="perfil-layout">
+        <aside class="card perfil-card perfil-aside-summary" aria-label="Resumo do seu perfil">
             {% if user_perfil and user_perfil.foto_perfil %}
-                <img src="{{ user_perfil.foto_perfil.url }}" alt="Foto de perfil" loading="lazy">
+                <img src="{{ user_perfil.foto_perfil.url }}" alt="" class="perfil-aside-summary__avatar-img" loading="lazy">
             {% else %}
-                <div class="avatar-placeholder">
-                    <span>{{ user_obj.get_full_name|default:user_obj.username|first|upper }}</span>
+                <div class="perfil-aside-summary__avatar-fallback" aria-hidden="true">
+                    {% if user_obj.get_full_name %}
+                        {{ user_obj.get_full_name|slice:":1"|upper }}
+                    {% else %}
+                        {{ user_obj.username|slice:":1"|upper }}
+                    {% endif %}
                 </div>
             {% endif %}
-            <h2>{{ user_obj.get_full_name|default:user_obj.username }}</h2>
-            <p>@{{ user_obj.username }}</p>
-            {% if user_obj.email %}
-                <p>{{ user_obj.email }}</p>
+
+            {% if user_obj.get_full_name %}
+                <h2 class="perfil-aside-summary__principal">{{ user_obj.get_full_name }}</h2>
+                <p class="perfil-aside-summary__username">@{{ user_obj.username }}</p>
+            {% else %}
+                <h2 class="perfil-aside-summary__principal">@{{ user_obj.username }}</h2>
             {% endif %}
-        </div>
-        
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="form-error-box" style="{% if message.tags == 'success' %}background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); color: #155724; border-left-color: #28a745;{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-            
-            <div class="form-group">
-                <label class="form-label">Username</label>
-                <input type="text" value="{{ user_obj.username }}" class="form-control" disabled>
-                <small class="form-text">O username não pode ser alterado</small>
-            </div>
-            
-            <div class="form-group">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" id="email" name="email" value="{{ user_obj.email|default:'' }}" class="form-control">
-            </div>
-            
-            <div class="form-group">
-                <label for="first_name" class="form-label">Nome</label>
-                <input type="text" id="first_name" name="first_name" value="{{ user_obj.first_name|default:'' }}" class="form-control">
-            </div>
-            
-            <div class="form-group">
-                <label for="last_name" class="form-label">Sobrenome</label>
-                <input type="text" id="last_name" name="last_name" value="{{ user_obj.last_name|default:'' }}" class="form-control">
-            </div>
-            
-            <div class="form-group">
-                <label for="foto_perfil" class="form-label">Foto de Perfil</label>
-                {% if user_perfil and user_perfil.foto_perfil %}
-                    <div style="margin-bottom: 1rem;">
-                        <img src="{{ user_perfil.foto_perfil.url }}" alt="Foto atual" loading="lazy"
-                             style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #e9ecef;">
-                        <p class="form-text" style="margin-top: 0.5rem;">Foto atual</p>
+
+            <div class="perfil-aside-summary__body">
+                {% if user_obj.email %}
+                    <div class="perfil-meta-row">
+                        <span class="perfil-meta-row__label">E-mail</span>
+                        <span class="perfil-meta-row__value">{{ user_obj.email }}</span>
                     </div>
                 {% endif %}
-                <input type="file" id="foto_perfil" name="foto_perfil" accept="image/*" class="form-control">
-                <small class="form-text">Envie uma nova foto para substituir a atual (opcional). Formatos aceitos: JPG, PNG, GIF.</small>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Tipo de conta</span>
+                    <span class="perfil-meta-row__value">{{ tipo_conta_display }}</span>
+                </div>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Situação</span>
+                    <span class="perfil-meta-row__value">
+                        {% if user_obj.is_active %}
+                            <span class="perfil-pill-status is-active">Ativa</span>
+                        {% else %}
+                            <span class="perfil-pill-status is-inactive">Inativa</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Último acesso</span>
+                    <span class="perfil-meta-row__value perfil-meta-row__value-muted">
+                        {% if user_obj.last_login %}
+                            {{ user_obj.last_login|date:"d/m/Y H:i" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="perfil-meta-row">
+                    <span class="perfil-meta-row__label">Cadastro</span>
+                    <span class="perfil-meta-row__value perfil-meta-row__value-muted">
+                        {% if user_obj.date_joined %}
+                            {{ user_obj.date_joined|date:"d/m/Y" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label for="password" class="form-label">Nova Senha</label>
-                <input type="password" id="password" name="password" class="form-control">
-                <small class="form-text">Deixe em branco para manter a senha atual</small>
-            </div>
-            
-            <div class="form-actions">
-                <button type="submit" class="btn">Salvar Alterações</button>
-                <a href="{% url 'gestao:home' %}" class="btn btn-secondary">Cancelar</a>
-            </div>
-        </form>
+        </aside>
+
+        <div class="perfil-main-stack">
+            <header class="perfil-main-header">
+                <h1 class="perfil-main-header__title">Meu Perfil</h1>
+                <p class="perfil-main-header__lead">Atualize seus dados e acompanhe suas informações de uso.</p>
+            </header>
+
+            {% if messages %}
+                <div class="perfil-msg-stack" role="status">
+                    {% for message in messages %}
+                        <div class="form-error-box{% if message.tags %} {{ message.tags }}{% endif %}"
+                             style="{% if message.tags == 'success' %}border-left-color: #28a745; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); color: #14532d;{% elif message.tags == 'error' %}border-left-color: #dc2626;{% elif message.tags == 'info' %}border-left-color: #0891b2;{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" class="perfil-form-principal">
+                {% csrf_token %}
+
+                <section class="card perfil-card" aria-labelledby="perfil-info-heading">
+                    <div class="perfil-card__head">
+                        <h2 id="perfil-info-heading" class="perfil-card__title">Informações pessoais</h2>
+                        <p class="perfil-card__subtitle">Mantenha seus dados básicos atualizados.</p>
+                    </div>
+
+                    <div class="form-group perfil-field-readonly-wrap">
+                        <label class="form-label" for="perfil_username">Nome de usuário</label>
+                        <input type="text"
+                               id="perfil_username"
+                               value="{{ user_obj.username }}"
+                               class="form-control"
+                               disabled
+                               autocomplete="username"
+                               aria-describedby="hint-username-ro">
+                        <span id="hint-username-ro" class="perfil-hint-micro">Não pode ser alterado nesta tela.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="email">E-mail</label>
+                        <input type="email"
+                               id="email"
+                               name="email"
+                               value="{{ user_obj.email|default:'' }}"
+                               class="form-control"
+                               placeholder="nome@empresa.com"
+                               autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="first_name">Nome</label>
+                        <input type="text"
+                               id="first_name"
+                               name="first_name"
+                               value="{{ user_obj.first_name|default:'' }}"
+                               class="form-control"
+                               placeholder="Nome"
+                               autocomplete="given-name">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="last_name">Sobrenome</label>
+                        <input type="text"
+                               id="last_name"
+                               name="last_name"
+                               value="{{ user_obj.last_name|default:'' }}"
+                               class="form-control"
+                               placeholder="Sobrenome"
+                               autocomplete="family-name">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="foto_perfil">Foto de perfil</label>
+                        {% if user_perfil and user_perfil.foto_perfil %}
+                            <div class="perfil-photo-preview-thumb" style="margin-bottom: 0.5rem;">
+                                <img src="{{ user_perfil.foto_perfil.url }}" alt="Foto atual" loading="lazy">
+                            </div>
+                        {% endif %}
+                        <input type="file" id="foto_perfil" name="foto_perfil" accept="image/*" class="form-control">
+                        <p class="perfil-photo-hint">Opcional — JPG, PNG ou GIF substituirão a foto atual quando você salvar.</p>
+                    </div>
+
+                    <div class="perfil-actions-inline">
+                        <button type="submit"
+                                name="submit_action"
+                                value="informacoes"
+                                class="perfil-btn-primary">
+                            Salvar informações
+                        </button>
+                    </div>
+                </section>
+
+                <section class="card perfil-card" aria-labelledby="perfil-pass-heading">
+                    <div class="perfil-card__head">
+                        <h2 id="perfil-pass-heading" class="perfil-card__title">Segurança da conta</h2>
+                        <p class="perfil-card__subtitle">Preencha os campos abaixo apenas se desejar alterar sua senha.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password_current">Senha atual</label>
+                        <input type="password"
+                               id="password_current"
+                               name="password_current"
+                               class="form-control"
+                               autocomplete="current-password"
+                               placeholder="Opcional">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">Nova senha</label>
+                        <input type="password"
+                               id="password"
+                               name="password"
+                               class="form-control"
+                               autocomplete="new-password"
+                               placeholder="Deixe em branco para não alterar">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password_confirm">Confirmar nova senha</label>
+                        <input type="password"
+                               id="password_confirm"
+                               name="password_confirm"
+                               class="form-control"
+                               autocomplete="new-password"
+                               placeholder="Repita a nova senha">
+                    </div>
+
+                    <div class="perfil-actions-inline">
+                        <button type="submit"
+                                name="submit_action"
+                                value="senha"
+                                class="perfil-btn-primary">
+                            Alterar senha
+                        </button>
+                    </div>
+                </section>
+            </form>
+
+            <section class="card perfil-card" aria-labelledby="perfil-stats-heading">
+                <div class="perfil-card__head perfil-stats-head-row">
+                    <div>
+                        <h2 id="perfil-stats-heading" class="perfil-card__title">Minhas estatísticas</h2>
+                        <p class="perfil-card__subtitle">Acompanhe sua atividade no sistema.</p>
+                    </div>
+                    <a href="{% url 'report-list' %}" class="perfil-btn-ghost perfil-stats-link">Ver meus relatórios</a>
+                </div>
+
+                <div class="perfil-stats-row">
+                    <div class="perfil-stat-tile">
+                        <div class="perfil-stat-tile__icon" aria-hidden="true">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div>
+                            <span class="perfil-stat-tile__value tabular-nums">{{ perfil_reports_count }}</span>
+                            <span class="perfil-stat-tile__label">Relatórios criados</span>
+                            <p class="perfil-stat-tile__hint">No Diário de Obra (registros em que você é autor)</p>
+                        </div>
+                    </div>
+                    <div class="perfil-stat-tile">
+                        <div class="perfil-stat-tile__icon" aria-hidden="true">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <div>
+                            <span class="perfil-stat-tile__value tabular-nums">{{ perfil_photo_uploads_count }}</span>
+                            <span class="perfil-stat-tile__label">Fotos enviadas</span>
+                            <p class="perfil-stat-tile__hint">Anexos de imagem nos pedidos (GestControll)</p>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.querySelector('.perfil-form-principal');
+    if (!form) return;
+    form.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+        var heading = document.getElementById('perfil-pass-heading');
+        if (!heading) return;
+        var section = heading.closest('section');
+        if (!section || !section.contains(e.target)) return;
+        var t = (e.target.getAttribute('type') || '').toLowerCase();
+        if (t === 'submit' || t === 'button') return;
+        e.preventDefault();
+        var btn = form.querySelector('button[name="submit_action"][value="senha"]');
+        if (btn) btn.click();
+    });
+})();
+</script>
 {% endblock %}

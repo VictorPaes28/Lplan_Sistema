@@ -1253,6 +1253,10 @@ class EquipmentForm(forms.ModelForm):
 
 class ProfileEditForm(forms.Form):
     """Form para edição de perfil do usuário."""
+
+    #: 'informacoes' = só dados de perfil (sem alterar senha); 'senha' = apenas alteração de senha.
+    SUBMIT_INFO = 'informacoes'
+    SUBMIT_PASSWORD = 'senha'
     
     first_name = forms.CharField(
         max_length=150,
@@ -1313,7 +1317,38 @@ class ProfileEditForm(forms.Form):
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
+        self.submit_action = kwargs.pop('submit_action', self.SUBMIT_INFO)
         super().__init__(*args, **kwargs)
+
+        self.fields['email'].widget.attrs.setdefault(
+            'class',
+            (
+                self.fields['email'].widget.attrs.get('class', '')
+                + ' perfil-form-control perfil-email-input'
+            ).strip(),
+        )
+        self.fields['first_name'].widget.attrs.setdefault(
+            'class',
+            (
+                self.fields['first_name'].widget.attrs.get('class', '')
+                + ' perfil-form-control'
+            ).strip(),
+        )
+        self.fields['last_name'].widget.attrs.setdefault(
+            'class',
+            (
+                self.fields['last_name'].widget.attrs.get('class', '')
+                + ' perfil-form-control'
+            ).strip(),
+        )
+        for _fn in ('current_password', 'new_password', 'confirm_password'):
+            self.fields[_fn].widget.attrs.setdefault(
+                'class',
+                (
+                    self.fields[_fn].widget.attrs.get('class', '')
+                    + ' perfil-form-control'
+                ).strip(),
+            )
         
         if self.user:
             self.fields['first_name'].initial = self.user.first_name
@@ -1322,6 +1357,8 @@ class ProfileEditForm(forms.Form):
     
     def clean_email(self):
         email = self.cleaned_data.get('email')
+        if getattr(self, 'submit_action', self.SUBMIT_INFO) == self.SUBMIT_PASSWORD:
+            return email
         if email and self.user:
             # Verifica se o email já está em uso por outro usuário
             if User.objects.filter(email=email).exclude(pk=self.user.pk).exists():
@@ -1330,55 +1367,62 @@ class ProfileEditForm(forms.Form):
     
     def clean(self):
         cleaned_data = super().clean()
+
+        action = getattr(self, 'submit_action', self.SUBMIT_INFO)
+
+        # Submissão só de dados: não validar nem obrigar campos de senha
+        if action != self.SUBMIT_PASSWORD:
+            return cleaned_data
+
+        # Submissão de senha: validar apenas o fluxo de troca de senha
+        if not cleaned_data.get('current_password'):
+            raise ValidationError({
+                'current_password': 'Informe sua senha atual para alterá-la.'
+            })
+
+        current_password = cleaned_data.get('current_password')
         new_password = cleaned_data.get('new_password')
         confirm_password = cleaned_data.get('confirm_password')
-        current_password = cleaned_data.get('current_password')
-        
-        # Se o usuário quer alterar a senha
-        if new_password or confirm_password:
-            if not current_password:
-                raise ValidationError({
-                    'current_password': 'Você deve informar sua senha atual para alterar a senha.'
-                })
-            
-            # Verifica se a senha atual está correta
-            if self.user and not self.user.check_password(current_password):
-                raise ValidationError({
-                    'current_password': 'Senha atual incorreta.'
-                })
-            
-            # Verifica se as novas senhas coincidem
-            if new_password != confirm_password:
-                raise ValidationError({
-                    'confirm_password': 'As senhas não coincidem.'
-                })
-            
-            # Valida a nova senha
-            if new_password:
-                try:
-                    validate_password(new_password, self.user)
-                except ValidationError as e:
-                    raise ValidationError({
-                        'new_password': e.messages
-                    })
-        
+
+        if self.user and current_password is not None and not self.user.check_password(current_password):
+            raise ValidationError({
+                'current_password': 'Senha atual incorreta.'
+            })
+
+        # Se não quer alterar, não faz sentido submeter apenas "senha"
+        if not (new_password or confirm_password):
+            raise ValidationError('Preencha a nova senha e a confirmação.')
+
+        if new_password != confirm_password:
+            raise ValidationError({'confirm_password': 'As novas senhas não coincidem.'})
+
+        if new_password:
+            try:
+                validate_password(new_password, self.user)
+            except ValidationError as e:
+                raise ValidationError({'new_password': e.messages})
+
         return cleaned_data
-    
+
     def save(self):
-        """Salva as alterações no usuário."""
+        """Salva apenas o que corresponde à ação enviada (dados OU senha)."""
         if not self.user:
             return None
-        
+
         user = self.user
-        user.first_name = self.cleaned_data['first_name']
-        user.last_name = self.cleaned_data['last_name']
-        user.email = self.cleaned_data['email']
-        
-        # Altera a senha se fornecida
-        if self.cleaned_data.get('new_password'):
-            user.set_password(self.cleaned_data['new_password'])
-        
-        user.save()
+        act = getattr(self, 'submit_action', self.SUBMIT_INFO)
+
+        if act == self.SUBMIT_PASSWORD:
+            np = self.cleaned_data.get('new_password')
+            if np:
+                user.set_password(np)
+                user.save(update_fields=['password'])
+            return user
+
+        user.first_name = self.cleaned_data.get('first_name') or ''
+        user.last_name = self.cleaned_data.get('last_name') or ''
+        user.email = self.cleaned_data.get('email') or ''
+        user.save(update_fields=['first_name', 'last_name', 'email'])
         return user
 
 
