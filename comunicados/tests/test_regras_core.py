@@ -130,18 +130,6 @@ class ComunicadosPendentesFixtures(TestCase):
         c.obras_excluidas.add(self.obra)
         self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
 
-    def test_x_vezes_respeita_maximo(self):
-        c = self._novo_com(
-            tipo_exibicao=TipoExibicao.X_VEZES,
-            max_exibicoes_por_usuario=2,
-        )
-        ComunicadoVisualizacao.objects.create(
-            comunicado=c,
-            usuario=self.u_plain,
-            total_visualizacoes=2,
-        )
-        self.assertNotIn(c.pk, [x.pk for x in listar_comunicados_pendentes(self.u_plain)])
-
     def test_usuario_excluido_nao_ve(self):
         c = self._novo_com()
         c.usuarios_excluidos.add(self.u_plain)
@@ -165,8 +153,7 @@ class ComunicadosPendentesFixtures(TestCase):
 
     def test_mostrar_apos_fechar_reabre_outros_tipos_na_mesma_sessao(self):
         c = self._novo_com(
-            tipo_exibicao=TipoExibicao.X_VEZES,
-            max_exibicoes_por_usuario=5,
+            tipo_exibicao=TipoExibicao.ATE_RESPONDER,
             mostrar_apos_fechar=True,
         )
         ComunicadoVisualizacao.objects.create(
@@ -294,10 +281,8 @@ class ComunicadosPendentesFixtures(TestCase):
             'texto_botao': c.texto_botao or '',
             'destaque_visual': c.destaque_visual,
             'tipo_exibicao': c.tipo_exibicao,
-            'max_exibicoes_por_usuario': '',
             'data_inicio': '',
             'data_fim': '',
-            'dias_ativo': '',
             'prioridade': c.prioridade,
             'publico_todos': 'on',
             'publico_escopo_criterios': c.publico_escopo_criterios,
@@ -387,3 +372,36 @@ class ComunicadosApiRegistrarTests(TestCase):
         self.assertTrue(data.get('sucesso'))
         vis = ComunicadoVisualizacao.objects.get(comunicado=self.com, usuario=self.user)
         self.assertGreaterEqual(vis.total_visualizacoes, 1)
+
+    def test_select_system_inclui_meta_csrf_para_js(self):
+        """Com CSRF_COOKIE_HTTPONLY, o modal de comunicados precisa do token no HTML."""
+        self.client.login(username='api_u', password='pw')
+        r = self.client.get(reverse('select-system'))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'name="csrf-token"', r.content)
+
+    def test_api_registrar_com_enforce_csrf_exige_header(self):
+        cli = Client(enforce_csrf_checks=True)
+        cli.login(username='api_u', password='pw')
+        r0 = cli.get(reverse('select-system'))
+        self.assertEqual(r0.status_code, 200)
+        ck = cli.cookies.get('csrftoken')
+        self.assertIsNotNone(ck)
+        token_val = ck.value
+        url = reverse('api_comunicados_registrar')
+        bad = cli.post(
+            url,
+            data=f'{{"comunicado_id":{self.com.pk},"acao":"visualizou"}}',
+            content_type='application/json',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(bad.status_code, 403)
+        ok = cli.post(
+            url,
+            data=f'{{"comunicado_id":{self.com.pk},"acao":"visualizou"}}',
+            content_type='application/json',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_X_CSRFTOKEN=token_val,
+        )
+        self.assertEqual(ok.status_code, 200)
+        self.assertTrue(ok.json().get('sucesso'))

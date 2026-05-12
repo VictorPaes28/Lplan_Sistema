@@ -176,11 +176,6 @@
                         <label for="id_tipo_exibicao">Tipo de exibição</label>
                         {{ form.tipo_exibicao }}
                     </div>
-                    <div class="field-row" id="wrap-max-ex">
-                        <label for="id_max_exibicoes_por_usuario">Máx. exibições por usuário</label>
-                        {{ form.max_exibicoes_por_usuario }}
-                        {% if form.max_exibicoes_por_usuario.errors %}<div class="field-error">{{ form.max_exibicoes_por_usuario.errors }}</div>{% endif %}
-                    </div>
                     <div class="field-row">
                         <label for="id_data_inicio">Data de início</label>
                         {{ form.data_inicio }}
@@ -190,11 +185,6 @@
                         <label for="id_data_fim">Data de fim</label>
                         {{ form.data_fim }}
                         {% if form.data_fim.errors %}<div class="field-error">{{ form.data_fim.errors }}</div>{% endif %}
-                    </div>
-                    <div class="field-row" id="wrap-dias">
-                        <label for="id_dias_ativo">Dias ativo</label>
-                        {{ form.dias_ativo }}
-                        {% if form.dias_ativo.errors %}<div class="field-error">{{ form.dias_ativo.errors }}</div>{% endif %}
                     </div>
                     <div class="field-row">
                         <label for="id_prioridade">Prioridade</label>
@@ -312,10 +302,7 @@ window.__MEGAFONE_PREVIEW_IMG_URLS__ = [
 <script>
 (function() {
   var tipoSel = document.getElementById('id_tipo_conteudo');
-  var exSel = document.getElementById('id_tipo_exibicao');
   var pub = document.getElementById('id_publico_todos');
-  var wrapMax = document.getElementById('wrap-max-ex');
-  var wrapDias = document.getElementById('wrap-dias');
   var restrito = document.getElementById('publico-restrito');
 
   var COMPORTAMENTO_DEFAULTS = {
@@ -380,12 +367,6 @@ window.__MEGAFONE_PREVIEW_IMG_URLS__ = [
   }
   setComportamento._trocou = false;
 
-  function setExibicao() {
-    var v = exSel ? exSel.value : '';
-    if (wrapMax) wrapMax.classList.toggle('is-on', v === 'X_VEZES');
-    if (wrapDias) wrapDias.classList.toggle('is-on', v === 'X_DIAS');
-  }
-
   function limparSomentePermitidos() {
     if (!restrito) return;
     restrito.querySelectorAll('input[name="grupos_permitidos"]').forEach(function (inp) {
@@ -412,11 +393,9 @@ window.__MEGAFONE_PREVIEW_IMG_URLS__ = [
       setComportamento();
     });
   }
-  if (exSel) exSel.addEventListener('change', setExibicao);
   if (pub) pub.addEventListener('change', setPublico);
 
   setComportamento();
-  setExibicao();
   setPublico();
 
   (function () {

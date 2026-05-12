@@ -22,10 +22,7 @@ class TipoExibicao(models.TextChoices):
     SEMPRE = 'SEMPRE', 'Sempre (a cada novo login)'
     UMA_VEZ = 'UMA_VEZ', 'Uma vez por usuário'
     UMA_VEZ_POR_DIA = 'UMA_VEZ_POR_DIA', 'Uma vez por dia'
-    ATE_CONFIRMAR = 'ATE_CONFIRMAR', 'Até confirmar leitura'
     ATE_RESPONDER = 'ATE_RESPONDER', 'Até responder'
-    X_VEZES = 'X_VEZES', 'Número máximo de exibições (por usuário)'
-    X_DIAS = 'X_DIAS', 'Por dias (duração)'
 
 
 class Prioridade(models.TextChoices):
@@ -142,7 +139,7 @@ class Comunicado(models.Model):
         blank=True,
         null=True,
         verbose_name='Máx. exibições por usuário',
-        help_text='Usado quando o tipo é “Número máximo de exibições”.',
+        help_text='Campo legado (não utilizado no painel).',
     )
     data_inicio = models.DateTimeField(blank=True, null=True, verbose_name='Data de início')
     data_fim = models.DateTimeField(blank=True, null=True, verbose_name='Data de fim')
@@ -150,7 +147,7 @@ class Comunicado(models.Model):
         blank=True,
         null=True,
         verbose_name='Dias ativo',
-        help_text='Usado quando o tipo é “Por dias (duração)”.',
+        help_text='Janela opcional: com data de início, limita quantos dias o comunicado fica ativo (independente do tipo de exibição).',
     )
     prioridade = models.CharField(
         max_length=16,

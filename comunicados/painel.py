@@ -175,7 +175,7 @@ def criar(request):
             messages.success(request, 'Comunicado criado com sucesso.')
             if 'salvar_visualizar' in request.POST:
                 return redirect('comunicados_painel_desempenho', pk=obj.pk)
-            return redirect('comunicados_painel_criar')
+            return redirect('comunicados_painel_lista')
         return render(
             request,
             'comunicados/form.html',
