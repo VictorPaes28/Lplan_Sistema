@@ -15,7 +15,7 @@
   }
 
   function avatarColor(name) {
-    var colors = ['#2563EB', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2'];
+    var colors = ['#3498db', '#2980b9', '#5dade2', '#577590', '#7f8c8d', '#34495e'];
     var hash = 0;
     var str = name || '';
     for (var i = 0; i < str.length; i += 1) {

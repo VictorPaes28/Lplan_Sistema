@@ -368,7 +368,12 @@
     });
     </script>
     {% endif %}
-    
+
+    {% if user.is_authenticated %}
+    <link rel="stylesheet" href="{% static 'core/css/notifications.css' %}?v=2">
+    <script src="{% static 'core/js/notifications-poll.js' %}?v=5" defer data-poll-url="{% url 'notifications-poll' %}"></script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

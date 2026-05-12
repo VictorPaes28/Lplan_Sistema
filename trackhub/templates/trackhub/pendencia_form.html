@@ -5,7 +5,7 @@
 {% block page_subtitle %}{{ form_subtitle|default:'Cadastro' }}{% endblock %}
 
 {% block trackhub_content %}
-<div style="max-width:780px;">
+<div class="th-form-page">
 
   <form method="POST" action="" enctype="multipart/form-data">
     {% csrf_token %}
@@ -101,7 +101,7 @@
           {% if ef.DELETE %}<div style="display:none;">{{ ef.DELETE }}</div>{% endif %}
 
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-            <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ forloop.counter }}</div>
+            <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#3498db;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ forloop.counter }}</div>
             {{ ef.titulo }}
             <button type="button" onclick="removerEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -160,7 +160,7 @@
       <template id="etapa-template">
         <div class="etapa-form-bloco" style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;background:#fafafa;position:relative;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-            <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">N</div>
+            <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#3498db;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">N</div>
             <input type="text" name="{{ formset.prefix }}-__prefix__-titulo" class="th-filter-select th-etapa-titulo-inline" style="border:none;background:transparent;font-size:14px;font-weight:700;color:#1e293b;flex:1;padding:0;" placeholder="Título da etapa...">
             <button type="button" onclick="removerEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -230,7 +230,7 @@
       })();
       </script>
 
-      <button type="button" onclick="adicionarEtapa()" style="width:100%;padding:10px;border:2px dashed #e2e8f0;border-radius:10px;background:transparent;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;font-family:'Sora',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;" onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">
+      <button type="button" onclick="adicionarEtapa()" style="width:100%;padding:10px;border:2px dashed #e2e8f0;border-radius:10px;background:transparent;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;" onmouseover="this.style.borderColor='#3498db';this.style.color='#3498db'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Adicionar etapa
       </button>
@@ -243,7 +243,7 @@
       {% else %}
       <a href="{% url 'trackhub:fila' %}" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#fff;color:#374151;border:1px solid #e2e8f0;font-size:13px;font-weight:600;text-decoration:none;">Cancelar</a>
       {% endif %}
-      <button type="submit" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;">
+      <button type="submit" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#3498db;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Salvar pendência
       </button>
@@ -254,7 +254,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=1"></script>
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=2"></script>
 <script>
 document.querySelectorAll('input[type=text], input[type=email], input[type=date], textarea, select').forEach(function(el) {
   if (el.name && el.name.indexOf('responsavel_interno') !== -1) return;
@@ -266,11 +266,11 @@ document.querySelectorAll('input[type=text], input[type=email], input[type=date]
     el.style.fontSize = '13px';
     el.style.background = '#fff';
   }
-  el.style.fontFamily = "'Sora', sans-serif";
+  el.style.fontFamily = "inherit";
   el.style.color = '#1e293b';
   el.style.boxSizing = 'border-box';
   if (!el.classList.contains('th-etapa-titulo-inline')) {
-    el.addEventListener('focus', function() { this.style.borderColor = '#2563eb'; this.style.outline = 'none'; });
+    el.addEventListener('focus', function() { this.style.borderColor = '#3498db'; this.style.outline = 'none'; });
     el.addEventListener('blur', function() { this.style.borderColor = '#e2e8f0'; });
   }
 });
@@ -340,10 +340,10 @@ function adicionarEtapa() {
       el.style.flex = '1';
       el.style.padding = '0';
     }
-    el.style.fontFamily = "'Sora', sans-serif";
+    el.style.fontFamily = "inherit";
     el.style.boxSizing = 'border-box';
     if (!el.classList.contains('th-etapa-titulo-inline')) {
-      el.addEventListener('focus', function() { this.style.borderColor = '#2563eb'; this.style.outline = 'none'; });
+      el.addEventListener('focus', function() { this.style.borderColor = '#3498db'; this.style.outline = 'none'; });
       el.addEventListener('blur', function() { this.style.borderColor = '#e2e8f0'; });
     }
   });
@@ -535,7 +535,7 @@ document.addEventListener('change', function(e) {
     var checked = e.target.checked;
     label.classList.toggle('ativo', checked);
     var hint = label.querySelector('span:last-of-type');
-    if (hint) hint.style.color = checked ? '#7c3aed' : '#94a3b8';
+    if (hint) hint.style.color = checked ? '#2980b9' : '#94a3b8';
   }
 });
 
@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!label) return;
     label.classList.toggle('ativo', ch.checked);
     var hint = label.querySelector('span:last-of-type');
-    if (hint) hint.style.color = ch.checked ? '#7c3aed' : '#94a3b8';
+    if (hint) hint.style.color = ch.checked ? '#2980b9' : '#94a3b8';
   });
   var mainForm = document.querySelector('form[enctype="multipart/form-data"]');
   if (mainForm) {

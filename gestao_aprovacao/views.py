@@ -44,6 +44,7 @@ from .utils import (
     criar_notificacao,
     admin_required,
     usuario_pode_marcar_pedido_analisado,
+    usuarios_escopo_pedido_para_notificar,
 )
 from core.notification_utils import criar_notificacao as core_criar_notificacao
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
@@ -162,27 +163,11 @@ def validar_extensao_arquivo(nome_arquivo):
 
 def _get_approvers_for_exclusion(workorder):
     """
-    Retorna usuários que efetivamente podem aprovar/rejeitar exclusão
-    para o pedido informado, seguindo a mesma regra das views de aprovação.
+    Usuários a notificar quando uma exclusão de pedido é solicitada —
+    apenas aprovadores/responsável no âmbito do pedido (sem broadcast a admins globais).
+    Quem pode aprovar pela UI continua sendo `is_admin` / aprovadores com permissão nas views.
     """
-    if workorder.obra.empresa_id is None:
-        approvers = User.objects.filter(
-            permissoes_obra__obra=workorder.obra,
-            permissoes_obra__tipo_permissao='aprovador',
-            permissoes_obra__ativo=True,
-        )
-    else:
-        approvers = User.objects.filter(
-            permissoes_obra__obra__empresa_id=workorder.obra.empresa_id,
-            permissoes_obra__tipo_permissao='aprovador',
-            permissoes_obra__ativo=True,
-        )
-
-    admins = User.objects.filter(
-        Q(is_superuser=True) | Q(groups__name='Administrador')
-    )
-
-    return (approvers | admins).distinct()
+    return usuarios_escopo_pedido_para_notificar(workorder)
 
 
 @login_required
@@ -1239,31 +1224,21 @@ def create_workorder(request):
             if workorder.status == 'pendente':
                 enviar_email_novo_pedido(workorder)
                 
-                # Criar notificações para aprovadores da empresa
-                aprovadores = User.objects.filter(
-                    permissoes_obra__obra__empresa=workorder.obra.empresa,
-                    permissoes_obra__tipo_permissao='aprovador',
-                    permissoes_obra__ativo=True
-                ).distinct()
-                
-                # Adicionar admins também (podem aprovar qualquer pedido)
-                admins = User.objects.filter(
-                    Q(is_superuser=True) | Q(groups__name='Administrador')
-                ).distinct()
-                
-                # Combinar aprovadores e admins (sem duplicatas)
-                usuarios_notificar = set(list(aprovadores) + list(admins))
+                # Destinatários: só aprovadores e responsável no âmbito da empresa/obra
+                usuarios_notificar = [
+                    u
+                    for u in usuarios_escopo_pedido_para_notificar(workorder)
+                    if u != request.user
+                ]
                 
                 for usuario in usuarios_notificar:
-                    # Não notificar o próprio criador do pedido
-                    if usuario != request.user:
-                        criar_notificacao(
-                            usuario=usuario,
-                            tipo='pedido_criado',
-                            titulo=f'Novo Pedido: {workorder.codigo}',
-                            mensagem=f'Um novo pedido foi criado por {request.user.get_full_name() or request.user.username}: {workorder.codigo}',
-                            work_order=workorder
-                        )
+                    criar_notificacao(
+                        usuario=usuario,
+                        tipo='pedido_criado',
+                        titulo=f'Novo Pedido: {workorder.codigo}',
+                        mensagem=f'Um novo pedido foi criado por {request.user.get_full_name() or request.user.username}: {workorder.codigo}',
+                        work_order=workorder,
+                    )
                 detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
                 ve = workorder.valor_estimado
                 valor_txt = (
@@ -1274,7 +1249,7 @@ def create_workorder(request):
                 msg_core = (
                     f'{workorder.nome_credor} · {workorder.get_tipo_solicitacao_display()} · {valor_txt}'
                 )
-                core_users = [u for u in usuarios_notificar if u != request.user]
+                core_users = list(usuarios_notificar)
                 if core_users:
                     core_criar_notificacao(
                         core_users,
@@ -2286,22 +2261,8 @@ def edit_workorder(request, pk):
                                         work_order=workorder
                                     )
                                 
-                                # Notificar aprovadores da empresa
-                                aprovadores = User.objects.filter(
-                                    permissoes_obra__obra__empresa=workorder.obra.empresa,
-                                    permissoes_obra__tipo_permissao='aprovador',
-                                    permissoes_obra__ativo=True
-                                ).distinct()
-                                
-                                # Adicionar admins também
-                                admins = User.objects.filter(
-                                    Q(is_superuser=True) | Q(groups__name='Administrador')
-                                ).distinct()
-                                
-                                usuarios_notificar = set(list(aprovadores) + list(admins))
-                                
-                                for usuario in usuarios_notificar:
-                                    # Não notificar o próprio usuário que excluiu
+                                # Notificar aprovadores/responsável no âmbito do pedido (sem admins globais)
+                                for usuario in usuarios_escopo_pedido_para_notificar(workorder):
                                     if usuario != user:
                                         criar_notificacao(
                                             usuario=usuario,
@@ -2429,30 +2390,17 @@ def edit_workorder(request, pk):
                 if workorder.status == 'pendente':
                     enviar_email_novo_pedido(workorder)
                 elif workorder.status == 'reaprovacao':
-                    # Criar notificações para aprovadores quando pedido é reenviado para reaprovação
-                    from django.db.models import Q
-                    aprovadores = User.objects.filter(
-                        permissoes_obra__obra__empresa=workorder.obra.empresa,
-                        permissoes_obra__tipo_permissao='aprovador',
-                        permissoes_obra__ativo=True
-                    ).distinct()
-                    
-                    # Adicionar admins também
-                    admins = User.objects.filter(
-                        Q(is_superuser=True) | Q(groups__name='Administrador')
-                    ).distinct()
-                    
-                    usuarios_notificar = set(list(aprovadores) + list(admins))
+                    # Notificar apenas quem está no âmbito operacional da empresa/obra
+                    usuarios_notificar = [u for u in usuarios_escopo_pedido_para_notificar(workorder) if u != user]
                     
                     for usuario in usuarios_notificar:
-                        if usuario != user:  # Não notificar o próprio criador
-                            criar_notificacao(
-                                usuario=usuario,
-                                tipo='pedido_atualizado',
-                                titulo=f'Pedido {workorder.codigo} Enviado para Reaprovação',
-                                mensagem=f'O pedido {workorder.codigo} foi reenviado para reaprovação (versão {versao_reaprovacao_atual}) por {user.get_full_name() or user.username}.',
-                                work_order=workorder
-                            )
+                        criar_notificacao(
+                            usuario=usuario,
+                            tipo='pedido_atualizado',
+                            titulo=f'Pedido {workorder.codigo} Enviado para Reaprovação',
+                            mensagem=f'O pedido {workorder.codigo} foi reenviado para reaprovação (versão {versao_reaprovacao_atual}) por {user.get_full_name() or user.username}.',
+                            work_order=workorder,
+                        )
                     detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
                     ve = workorder.valor_estimado
                     valor_txt = (
@@ -2463,7 +2411,7 @@ def edit_workorder(request, pk):
                     msg_core = (
                         f'{workorder.nome_credor} · {workorder.get_tipo_solicitacao_display()} · {valor_txt}'
                     )
-                    core_users = [u for u in usuarios_notificar if u != user]
+                    core_users = list(usuarios_notificar)
                     if core_users:
                         core_criar_notificacao(
                             core_users,
@@ -2488,32 +2436,20 @@ def edit_workorder(request, pk):
                     observacao=observacao
                 )
                 
-                # Criar notificações para aprovadores quando o pedido é editado
+                # Notificar apenas quem está no âmbito operacional da empresa/obra
                 if workorder.status == 'pendente':
-                    from django.db.models import Q
-                    aprovadores = User.objects.filter(
-                        permissoes_obra__obra__empresa=workorder.obra.empresa,
-                        permissoes_obra__tipo_permissao='aprovador',
-                        permissoes_obra__ativo=True
-                    ).distinct()
-                    
-                    # Adicionar admins também
-                    admins = User.objects.filter(
-                        Q(is_superuser=True) | Q(groups__name='Administrador')
-                    ).distinct()
-                    
-                    usuarios_notificar = set(list(aprovadores) + list(admins))
+                    usuarios_notificar = [
+                        u for u in usuarios_escopo_pedido_para_notificar(workorder) if u != user
+                    ]
                     
                     for usuario in usuarios_notificar:
-                        # Não notificar o próprio editor
-                        if usuario != user:
-                            criar_notificacao(
-                                usuario=usuario,
-                                tipo='pedido_atualizado',
-                                titulo=f'Pedido {workorder.codigo} Editado',
-                                mensagem=f'O pedido {workorder.codigo} foi editado por {user.get_full_name() or user.username}.',
-                                work_order=workorder
-                            )
+                        criar_notificacao(
+                            usuario=usuario,
+                            tipo='pedido_atualizado',
+                            titulo=f'Pedido {workorder.codigo} Editado',
+                            mensagem=f'O pedido {workorder.codigo} foi editado por {user.get_full_name() or user.username}.',
+                            work_order=workorder,
+                        )
                     detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
                     ve = workorder.valor_estimado
                     valor_txt = (
@@ -2524,7 +2460,7 @@ def edit_workorder(request, pk):
                     msg_core = (
                         f'{workorder.nome_credor} · {workorder.get_tipo_solicitacao_display()} · {valor_txt}'
                     )
-                    core_users = [u for u in usuarios_notificar if u != user]
+                    core_users = list(usuarios_notificar)
                     if core_users:
                         core_criar_notificacao(
                             core_users,
@@ -5587,25 +5523,10 @@ def add_comment(request, pk):
             if workorder.criado_por and workorder.criado_por != user:
                 usuarios_notificar.add(workorder.criado_por)
         else:
-            # Se quem comentou é solicitante, notificar aprovadores
-            aprovadores = WorkOrderPermission.objects.filter(
-                obra=workorder.obra,
-                tipo_permissao='aprovador',
-                ativo=True
-            ).select_related('usuario')
-            
-            for perm in aprovadores:
-                if perm.usuario != user and perm.usuario.is_active:
-                    usuarios_notificar.add(perm.usuario)
-            
-            # Também notificar admins
-            admins = User.objects.filter(
-                groups__name='Administrador',
-                is_active=True
-            ).exclude(id=user.id)
-            
-            for admin_user in admins:
-                usuarios_notificar.add(admin_user)
+            # Solicitante comentou: notificar intervenientes operacionais (escopo empresa/obra)
+            for u in usuarios_escopo_pedido_para_notificar(workorder):
+                if u != user and u.is_active:
+                    usuarios_notificar.add(u)
         
         # Criar notificações
         autor_nome = user.get_full_name() or user.username
