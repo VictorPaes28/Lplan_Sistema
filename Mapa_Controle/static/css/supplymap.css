@@ -152,8 +152,8 @@ h2 {
 }
 
 .lplan-avatar {
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
     border-radius: 10px;
     display: inline-flex;
     align-items: center;
@@ -162,16 +162,16 @@ h2 {
     border: 1px solid rgba(99,102,241,0.35);
     color: #e0e7ff;
     font-weight: 800;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 @media (max-width: 991px) {
     .lplan-avatar {
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
         border-radius: 8px !important;
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
         display: inline-flex !important;
         align-items: center !important;

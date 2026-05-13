@@ -1070,11 +1070,11 @@
 
 @media (max-width: 991px) {
     .lplan-avatar {
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
         border-radius: 8px !important;
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
         display: inline-flex !important;
         align-items: center !important;
@@ -1134,16 +1134,16 @@
     }
 }
 
-/* Retrato: avatar da top bar — mesmo tamanho do desktop (md:w-10 / md:text-sm). Não afeta landscape. */
+/* Retrato: avatar da top bar — alinhado a w-8 / iniciais text-xs. Não afeta landscape. */
 @media (max-width: 768px) and (orientation: portrait) {
     .top-bar-container #user-menu-button > div.bg-blue-600.rounded-full {
-        width: 2.5rem !important;
-        height: 2.5rem !important;
-        min-width: 2.5rem !important;
+        width: 2rem !important;
+        height: 2rem !important;
+        min-width: 2rem !important;
         border-radius: 9999px !important;
     }
     .top-bar-container #user-menu-button > div.bg-blue-600.rounded-full > span {
-        font-size: 0.875rem !important;
+        font-size: 0.75rem !important;
         line-height: 1 !important;
     }
 }

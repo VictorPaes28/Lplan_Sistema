@@ -7,52 +7,214 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/select_project.css' %}?v=4">
+<style>
+/* Toolbar dentro da mesma coluna centralizada dos cards */
+.select-project-toolbar-wrap {
+    margin-bottom: 24px;
+    width: 100%;
+}
+/* Toolbar — esquerda: título + subtítulo (uma linha); direita: busca + Criar Obra */
+.select-project-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 0;
+    flex-wrap: nowrap;
+}
+.select-project-toolbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+}
+.select-project-toolbar-left .select-project-title {
+    margin: 0 0 0.25rem 0;
+}
+.select-project-toolbar-left .select-project-subtitle {
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.select-project-toolbar-actions {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+.select-project-toolbar-search-inner {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    max-width: 400px;
+}
+.select-project-toolbar-search-inner .search-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+.select-project-toolbar-search-inner .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+}
+.select-project-toolbar-search-inner .search-input {
+    width: 100%;
+    box-sizing: border-box;
+    height: auto;
+    min-height: 42px;
+    padding: 10px 14px 10px 36px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    background: #fff;
+    color: #0f172a;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.select-project-toolbar-search-inner .search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.08);
+}
+/* Botão Criar Obra — mesmo degradê do mock diario_select_obra_v2 */
+a.select-project-create-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff !important;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
+    transition: opacity 0.2s ease, box-shadow 0.2s ease;
+    min-height: auto;
+    flex-shrink: 0;
+}
+a.select-project-create-btn:hover {
+    opacity: 0.88;
+    color: #fff !important;
+    border: none;
+    box-shadow: 0 4px 18px rgba(102, 126, 234, 0.38);
+}
+a.select-project-create-btn .fa-plus,
+a.select-project-create-btn .fas.fa-plus {
+    margin: 0 !important;
+}
+.select-project-body {
+    width: 100%;
+}
+.project-search-meta {
+    margin: 0 0 1rem;
+}
+@media (max-width: 900px) {
+    .select-project-toolbar {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+    .select-project-toolbar-left {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+    .select-project-toolbar-actions {
+        flex: 1 1 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+    .select-project-toolbar-search-inner {
+        max-width: none;
+        flex: 1 1 200px;
+    }
+}
+/* Meta do card: local e responsável alinhados, ícones compactos (mesma cor/tamanho) */
+.select-project-card-meta-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 0.75rem;
+}
+.select-project-card-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: #4b5563;
+    text-align: left;
+}
+.select-project-card-meta-icon {
+    flex-shrink: 0;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1;
+    vertical-align: middle;
+}
+/* Pin com fa-fw deixa mais ar à direita do glifo que o ícone de pessoa — compensa só o espaço até ao texto */
+.select-project-card-meta-icon.select-project-card-meta-icon--location {
+    margin-inline-end: -6px;
+}
+.select-project-card-meta-row .truncate {
+    min-width: 0;
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="select-project-page max-w-6xl mx-auto fade-in">
+<div class="select-project-page fade-in">
+    <div class="select-project-body max-w-6xl mx-auto">
     {% if error %}
-    <div class="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg shadow-sm flex items-start" role="alert" aria-live="polite">
-        <i class="fas fa-exclamation-circle mr-2 mt-0.5 flex-shrink-0"></i>
-        <div>
-            <p class="font-semibold text-sm">Erro</p>
-            <p class="text-sm mt-1">{{ error }}</p>
+    <div class="mb-6">
+        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg shadow-sm flex items-start" role="alert" aria-live="polite">
+            <i class="fas fa-exclamation-circle mr-2 mt-0.5 flex-shrink-0"></i>
+            <div>
+                <p class="font-semibold text-sm">Erro</p>
+                <p class="text-sm mt-1">{{ error }}</p>
+            </div>
         </div>
     </div>
     {% endif %}
 
-    <div class="select-project-hero">
-        <div class="select-project-hero-header">
-            <div>
+    <div class="select-project-toolbar-wrap">
+        <div class="select-project-toolbar">
+            <div class="select-project-toolbar-left">
                 <h2 class="select-project-title">Selecione uma Obra</h2>
                 <p class="select-project-subtitle">Escolha a obra que deseja visualizar e gerenciar no sistema.</p>
             </div>
-            {% if user.is_staff or user.is_superuser %}
-            <a href="{% url 'project-new' %}" class="select-project-create-btn">
-                <i class="fas fa-plus mr-2" aria-hidden="true"></i>
-                Criar Obra
-            </a>
-            {% endif %}
+            <div class="select-project-toolbar-actions">
+                {% if projects %}
+                <div class="select-project-toolbar-search-inner">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search search-icon" aria-hidden="true"></i>
+                        <input type="text"
+                               id="projectSearch"
+                               class="search-input"
+                               placeholder="Buscar obra por nome ou código..."
+                               autocomplete="off">
+                    </div>
+                </div>
+                {% endif %}
+                {% if user.is_staff or user.is_superuser %}
+                <a href="{% url 'project-new' %}" class="select-project-create-btn">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    Criar Obra
+                </a>
+                {% endif %}
+            </div>
         </div>
     </div>
 
     {% if projects %}
-    <div class="project-search-block">
-        <!-- Search Input -->
-        <div class="project-search">
-            <div class="search-input-wrapper">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" 
-                       id="projectSearch" 
-                       class="search-input" 
-                       placeholder="Buscar obra por nome ou código..."
-                       autocomplete="off">
-            </div>
-        </div>
-        <p class="project-results-count"><span id="projectVisibleCount">{{ projects|length }}</span> obras encontradas</p>
-    </div>
+    <p class="project-results-count project-search-meta"><span id="projectVisibleCount">{{ projects|length }}</span> obras encontradas</p>
 
-    <!-- No results message (hidden by default) -->
     <div class="no-results hidden" id="noResults">
         <i class="fas fa-search"></i>
         <h3 class="text-lg font-semibold text-slate-700 mb-1">Nenhuma obra encontrada</h3>
@@ -80,21 +242,23 @@
                     </div>
                     <i class="fas fa-chevron-right select-project-card-arrow flex-shrink-0 ml-2"></i>
                 </div>
-                
-                {% if project.address %}
-                <p class="text-sm text-gray-600 mb-3 line-clamp-1 flex items-center" title="{{ project.address }}">
-                    <i class="fas fa-map-marker-alt text-gray-400 mr-1.5 flex-shrink-0 text-xs"></i>
-                    <span class="truncate">{{ project.address }}</span>
-                </p>
-                {% elif project.responsible %}
-                <p class="text-sm text-gray-600 mb-3 flex items-center">
-                    <i class="fas fa-user-hard-hat text-gray-400 mr-1.5 flex-shrink-0 text-xs"></i>
-                    <span>Responsável: {{ project.responsible }}</span>
-                </p>
-                {% elif project.description and project.description != project.name %}
-                <p class="text-sm text-gray-600 mb-3 line-clamp-2">{{ project.description }}</p>
-                {% endif %}
-                
+
+                <div class="select-project-card-meta-rows">
+                    {% if project.address %}
+                    <div class="select-project-card-meta-row" title="{{ project.address }}">
+                        <i class="fas fa-map-marker-alt fa-fw select-project-card-meta-icon select-project-card-meta-icon--location" aria-hidden="true"></i>
+                        <span class="truncate">{{ project.address }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="select-project-card-meta-row">
+                        <i class="fa-regular fa-user fa-fw select-project-card-meta-icon" aria-hidden="true" title="Responsável"></i>
+                        <span class="truncate">
+                            <span class="sr-only">Responsável: </span>
+                            {% if project.responsible %}{{ project.responsible }}{% else %}<span class="text-gray-400">—</span>{% endif %}
+                        </span>
+                    </div>
+                </div>
+
                 <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-slate-100">
                     <div class="flex items-center">
                         <i class="fas fa-calendar mr-1"></i>
@@ -120,8 +284,8 @@
         <h3 class="text-xl font-semibold text-slate-900 mb-2">Nenhuma obra disponível</h3>
         {% if user.is_staff or user.is_superuser %}
         <p class="text-gray-600 mb-6">Não há obras ativas cadastradas no sistema.</p>
-        <a href="{% url 'project-new' %}" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
-            <i class="fas fa-plus mr-2"></i>
+        <a href="{% url 'project-new' %}" class="select-project-create-btn">
+            <i class="fas fa-plus" aria-hidden="true"></i>
             Criar Nova Obra
         </a>
         {% else %}
@@ -130,29 +294,31 @@
         {% endif %}
     </div>
     {% endif %}
+    </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-// Project search functionality
 (function() {
     const searchInput = document.getElementById('projectSearch');
     const projectsGrid = document.getElementById('projectsGrid');
     const noResults = document.getElementById('noResults');
     const projectVisibleCount = document.getElementById('projectVisibleCount');
-    
+
     if (!searchInput || !projectsGrid) return;
-    
+
     searchInput.addEventListener('input', function(e) {
         const searchTerm = e.target.value.toLowerCase().trim();
         const projectCards = projectsGrid.querySelectorAll('.project-card');
         let visibleCount = 0;
-        
+
         projectCards.forEach(function(card) {
             const projectName = card.getAttribute('data-project-name') || '';
             const projectCode = card.getAttribute('data-project-code') || '';
-            
-            if (searchTerm === '' || 
-                projectName.includes(searchTerm) || 
+
+            if (searchTerm === '' ||
+                projectName.includes(searchTerm) ||
                 projectCode.includes(searchTerm)) {
                 card.classList.remove('hidden');
                 visibleCount++;
@@ -160,8 +326,7 @@
                 card.classList.add('hidden');
             }
         });
-        
-        // Show/hide no results message
+
         if (visibleCount === 0 && searchTerm !== '') {
             noResults.classList.remove('hidden');
             projectsGrid.classList.add('hidden');
@@ -177,4 +342,3 @@
 })();
 </script>
 {% endblock %}
-

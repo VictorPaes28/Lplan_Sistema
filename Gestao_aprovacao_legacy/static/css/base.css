@@ -194,8 +194,8 @@ header h1,
 }
 
 .user-avatar {
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid rgba(255, 255, 255, 0.3);
@@ -209,7 +209,7 @@ header h1,
     background: rgba(255, 255, 255, 0.2);
     color: white;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.875rem;
     border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
@@ -769,8 +769,8 @@ footer {
     }
 
     .user-avatar {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         margin-right: 0.25rem;
     }
 
@@ -864,8 +864,8 @@ footer {
     }
 
     .user-avatar {
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
     }
 
     .user-info {
