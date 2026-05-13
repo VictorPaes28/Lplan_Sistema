@@ -459,8 +459,8 @@
                 <div class="diary-detail-labor-col-scroll">
                 <div class="diary-detail-terceirizada-columns">
                 {% for block in labor_entries_by_category.terceirizada %}
-                <div class="diary-detail-terceirizada-company{% if not forloop.first %} mt-3 pt-3 border-t border-slate-100{% endif %}">
-                    <p class="text-xs font-medium text-slate-700 mb-1.5">{{ block.company }}</p>
+                <div class="diary-detail-terceirizada-company{% if not forloop.first %} diary-detail-terceirizada-company--spaced{% endif %}">
+                    <p class="diary-detail-terceirizada-company-title">{{ block.company }}</p>
                     <table class="diary-detail-data-table">
                         <thead>
                             <tr>

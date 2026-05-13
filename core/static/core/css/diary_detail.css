@@ -182,6 +182,26 @@
     }
 }
 
+/* Título por empresa (Terceirizada): hierarquia clara em relação ao cabeçalho FUNÇÃO / Qtd. */
+.diary-detail-terceirizada-company--spaced {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.diary-detail-terceirizada-company-title {
+    margin: 0 0 0.5rem;
+    padding: 0.35rem 0 0.4rem 0.55rem;
+    border-left: 3px solid #1a3a5c;
+    border-radius: 0 2px 2px 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-transform: uppercase;
+    letter-spacing: 0.055em;
+    color: #0f172a;
+}
+
 @media print {
     .diary-detail-labor-col-scroll {
         max-height: none;
