@@ -52,6 +52,19 @@ def _normalizar_codigo_insumo(valor):
     return s
 
 
+def _recebimentos_preferir_consolidado(recebimentos_list):
+    """
+    Import com coluna ITEM cria linha consolidada (item_sc vazio) + linhas por ITEM.
+    Para preencher ItemMapa / totais, usar só o consolidado se existir — evita somar duas vezes.
+    """
+    if not recebimentos_list:
+        return recebimentos_list
+    consolidados = [r for r in recebimentos_list if (r.item_sc or '').strip() == '']
+    if consolidados:
+        return consolidados
+    return recebimentos_list
+
+
 def _aplicar_dados_recebimento_obra(item):
     """
     Preenche ItemMapa com dados do RecebimentoObra (obra + numero_sc normalizado + insumo).
@@ -73,6 +86,7 @@ def _aplicar_dados_recebimento_obra(item):
         if _normalizar_numero_sc(r.numero_sc) == numero_sc
         and _normalizar_codigo_insumo(r.insumo.codigo_sienge if r.insumo else '') == codigo_insumo_item
     ]
+    recebimentos_todos = _recebimentos_preferir_consolidado(recebimentos_todos)
     # Insumo provisório (SM-LEV-*): casar com recebimento já consolidado pelo import
     # (não interfere na agrupagem MÁXIMO/Excel — isso é só em importar_mapa_controle).
     if not recebimentos_todos and item.insumo and (item.insumo.codigo_sienge or '').startswith('SM-LEV-'):
@@ -80,7 +94,12 @@ def _aplicar_dados_recebimento_obra(item):
             r for r in candidatos
             if _normalizar_numero_sc(r.numero_sc) == numero_sc
         ]
-        if len(sc_only) == 1:
+        # Várias linhas na mesma SC (parcelas + consolidado): preferir linha consolidada (item_sc vazio)
+        pref = _recebimentos_preferir_consolidado(sc_only)
+        if len(pref) == 1:
+            recebimentos_todos = pref
+            item.insumo = pref[0].insumo
+        elif len(sc_only) == 1:
             recebimentos_todos = sc_only
             item.insumo = sc_only[0].insumo
         else:
@@ -723,6 +742,7 @@ def item_atualizar_campo(request):
                     # IMPORTANTE: Atualizar campos consolidados do Sienge (PC, Prazo, Empresa, Quantidades)
                     codigo_item = _normalizar_codigo_insumo(item.insumo.codigo_sienge if item.insumo else '')
                     recebimentos_todos = [r for r in recebimentos_obra_sc if r.insumo and _normalizar_codigo_insumo(r.insumo.codigo_sienge) == codigo_item]
+                    recebimentos_todos = _recebimentos_preferir_consolidado(recebimentos_todos)
                     
                     if recebimentos_todos:
                         # Consolidar dados: usar primeiro valor não vazio de cada campo
@@ -871,7 +891,13 @@ def item_atualizar_campo(request):
             'obra_id': item.obra_id,
             'status_css': item.status_css,
             'filled_from_sienge': filled_from_sienge,
-            'debug_no_recebimento': (field in ('insumo_codigo', 'numero_sc') and not filled_from_sienge and bool((item.numero_sc or '').strip()) and bool(item.insumo_id)),
+            'debug_no_recebimento': (
+                field in ('insumo_codigo', 'numero_sc')
+                and not filled_from_sienge
+                and bool((item.numero_sc or '').strip())
+                and bool(item.insumo_id)
+                and not (item.insumo and (item.insumo.codigo_sienge or '').startswith('SM-LEV-'))
+            ),
         })
     
     except Exception as e:

@@ -507,6 +507,9 @@ class ItemMapa(models.Model):
         Busca o RecebimentoObra vinculado a este item pela SC + Insumo.
         Busca tolerante: numero_sc (85, 085, 85.0) e codigo_insumo (15666, 15666.0) normalizados.
         Prioriza o consolidado (item_sc='') que é criado na importação.
+
+        Observação: quando o CSV traz ITEM da SC, também existem registros por ``item_sc``
+        (uma linha por entrega); eles preservam quantidade/status por parcela — o mapa usa o consolidado.
         """
         if not self.numero_sc or not self.insumo_id:
             return None

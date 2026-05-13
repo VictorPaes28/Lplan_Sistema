@@ -860,7 +860,7 @@
                 <a href="{% url 'gestao:list_workorders' %}" class="select-system-quick-link"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>Pedidos</span></a>
                 {% endif %}
                 {% if has_workflow %}
-                <a href="{% url 'workflow_aprovacao:pending' %}" class="select-system-quick-link"><i class="fas fa-hourglass-half" aria-hidden="true"></i><span>Aprovações</span></a>
+                <a href="{% url 'workflow_aprovacao:home' %}" class="select-system-quick-link"><i class="fas fa-hourglass-half" aria-hidden="true"></i><span>Aprovações</span></a>
                 {% endif %}
                 {% if has_trackhub %}
                 <a href="{% url 'trackhub:fila' %}" class="select-system-quick-link"><i class="fas fa-compass" aria-hidden="true"></i><span>TrackHub</span></a>
@@ -905,7 +905,7 @@
         {% endif %}
 
         {% if has_workflow %}
-        <a href="{% url 'workflow_aprovacao:pending' %}" class="system-card workflow-central" aria-label="Central de Aprovações">
+        <a href="{% url 'workflow_aprovacao:home' %}" class="system-card workflow-central" aria-label="Central de Aprovações">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
                     <div class="system-icon" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);"><i class="fas fa-check-double"></i></div>

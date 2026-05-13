@@ -18,7 +18,7 @@ Requer flags do context_processor sidebar_systems: has_* + sidebar_show_assisten
             </a>
             {% endif %}
             {% if has_workflow and '/aprovacoes/' not in request.path %}
-            <a href="{% url 'workflow_aprovacao:pending' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 {% if '/aprovacoes/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+            <a href="{% url 'workflow_aprovacao:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 {% if '/aprovacoes/' in request.path %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-check-double w-5 mr-3"></i>
                 <span class="font-medium">Central de Aprovações</span>
             </a>

@@ -219,7 +219,101 @@
 }
 
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody tr:last-child td {
-    border-bottom: none;
+    border-bottom: 1px solid #e8edf3;
+}
+
+/* Somatórios MO / equipamentos: alinhado ao PDF ReportLab — COLOR_ACCENT #E8F0F8, texto ~9pt, divisor #64748b */
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tfoot td {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #1c1c1c;
+    background: #e8f0f8;
+    border-top: 1px solid #64748b;
+}
+
+.diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tfoot .diary-detail-data-table__num {
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #1c1c1c;
+}
+
+.diary-detail-labor-third-col-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    margin-top: 0;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5a5a5a;
+    background: #e8f0f8;
+    border-top: 1px solid #64748b;
+}
+
+.diary-detail-labor-third-col-summary__value {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #1c1c1c;
+}
+
+/* Total geral (MO / unidades): mesma hierarquia que linha TOTAL do PDF (sem barra institucional) */
+.diary-detail-labor-grand-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    font-weight: 700;
+    color: #1c1c1c;
+    background: #e8f0f8;
+    border-radius: 0.25rem;
+    border-top: 1px solid #64748b;
+}
+
+.diary-detail-labor-grand-total .diary-detail-labor-grand-total__label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5a5a5a;
+}
+
+.diary-detail-labor-grand-total .diary-detail-labor-grand-total__value {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #1c1c1c;
+}
+
+.diary-detail-labor-columns--legacy .diary-detail-data-table tfoot td {
+    padding: 0.35rem 0.5rem;
+    font-weight: 700;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #1c1c1c;
+    background: #e8f0f8;
+    border-top: 1px solid #64748b;
+}
+
+.diary-detail-labor-columns--legacy .diary-detail-data-table tfoot .diary-detail-data-table__num {
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #1c1c1c;
 }
 
 .diary-detail-labor-columns > .diary-detail-labor-col .diary-detail-data-table tbody tr:nth-child(even) {

@@ -11,6 +11,9 @@ SEGREGAÇÃO MULTI-OBRA:
 - Se não tiver, usa --obra-codigo como fallback
 - NUNCA mistura dados de obras diferentes
 
+SC com mesmo insumo em várias linhas — qt. solicitada: valores iguais em todas as linhas → usa um;
+valores diferentes (parcelas) → soma. Qt. entregue: continua MÁXIMO entre linhas.
+
 ⚠️ IMPORTANTE - UNIDADE:
 - A unidade de medida (UND, KG, M², etc) NÃO é importada do CSV
 - A unidade deve ser definida MANUALMENTE no cadastro do insumo
@@ -24,7 +27,11 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db import models
 from apps.suprimentos.models import Obra, ItemMapa, RecebimentoObra, Insumo
-from suprimentos.utils_importacao import sanitizar_texto_sienge
+from suprimentos.utils_importacao import (
+    consolidar_quantidade_entregue_sienge,
+    consolidar_quantidade_solicitada_sienge,
+    sanitizar_texto_sienge,
+)
 from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
@@ -205,6 +212,27 @@ class Command(BaseCommand):
 
         def _codigo(v):
             return _txt(v, max_length=100)
+
+        def _norm_item_sc(raw):
+            """Normaliza ITEM da SC para chave ``RecebimentoObra.item_sc`` (ex.: 1783.0 → 1783)."""
+            if raw is None:
+                return ''
+            try:
+                if pd.isna(raw):
+                    return ''
+            except TypeError:
+                pass
+            s = _txt(raw, max_length=50)
+            if not s or s.lower() == 'nan':
+                return ''
+            s = s.replace(' ', '').replace('-', '').replace('_', '')
+            numtok = s.replace('.', '', 1).replace(',', '', 1)
+            if numtok.isdigit():
+                try:
+                    return str(int(float(s.replace(',', '.'))))
+                except (ValueError, TypeError):
+                    pass
+            return s.replace('.', '').replace(',', '')
         
         # Caches
         obras_cache = {}
@@ -374,7 +402,8 @@ class Command(BaseCommand):
                     'numero_pc': '',
                     'previsao_entrega': None,
                     'quantidade_solicitada': Decimal('0.00'),
-                    'quantidade_entregue': Decimal('0.00'),  # Será o MÁXIMO encontrado
+                    '_linhas_grupo': [],
+                    'quantidade_entregue': Decimal('0.00'),  # consolidado após o loop
                     'saldo': Decimal('0.00'),
                     'saldo_arquivo': Decimal('0.00'),
                     'data_emissao_pc': None,
@@ -408,29 +437,24 @@ class Command(BaseCommand):
                 if prazo_val and not grupos_sc[chave]['previsao_entrega']:
                     grupos_sc[chave]['previsao_entrega'] = prazo_val
             
-            # IMPORTANTE: Quantidade solicitada - usar primeira encontrada (geralmente é a mesma)
-            if 'quantidade_solicitada' in colunas_encontradas:
-                qtd_sol = self.parse_decimal(row[colunas_encontradas['quantidade_solicitada']])
-                # Debug: logar valores para verificar se está parseando corretamente
-                if qtd_sol > Decimal('0.00') and grupos_sc[chave]['quantidade_solicitada'] == Decimal('0.00'):
-                    grupos_sc[chave]['quantidade_solicitada'] = qtd_sol
-                    # Log para debug (apenas primeira vez que encontra)
-                    valor_original = str(row[colunas_encontradas['quantidade_solicitada']])
-                    if qtd_sol != Decimal(valor_original.replace(',', '.').replace('.', '', valor_original.count('.') - 1) if '.' in valor_original and ',' in valor_original else valor_original.replace(',', '.')):
-                        self.stdout.write(
-                            f'   📊 [{codigo_obra}] SC {numero_sc}: Quantidade solicitada parseada: "{valor_original}" → {qtd_sol}'
-                        )
-            
-            # IMPORTANTE: Quantidade entregue - capturar o MÁXIMO (não somar!)
-            # PROBLEMA DO SIENGE: O Sienge exporta múltiplas linhas para o mesmo insumo na mesma SC,
-            # e cada linha mostra o TOTAL entregue (ex: 4000) repetido em todas as linhas.
-            # Exemplo: SC 12345 tem 4 linhas de Cimento, cada uma mostra "4000 entregue",
-            # mas 4000 é o total entregue para TODAS as linhas juntas, não 4000 x 4 = 16000.
-            # Por isso pegamos apenas o MÁXIMO valor encontrado (que será o mesmo em todas as linhas).
-            if 'quantidade_entregue' in colunas_encontradas:
-                qtd_val = self.parse_decimal(row[colunas_encontradas['quantidade_entregue']])
-                if qtd_val > grupos_sc[chave]['quantidade_entregue']:
-                    grupos_sc[chave]['quantidade_entregue'] = qtd_val
+            qtd_sol = (
+                self.parse_decimal(row[colunas_encontradas['quantidade_solicitada']])
+                if 'quantidade_solicitada' in colunas_encontradas
+                else Decimal('0.00')
+            )
+            qtd_ent = (
+                self.parse_decimal(row[colunas_encontradas['quantidade_entregue']])
+                if 'quantidade_entregue' in colunas_encontradas
+                else Decimal('0.00')
+            )
+            item_sc_linha = ''
+            if 'item_sc' in colunas_encontradas:
+                item_sc_linha = _norm_item_sc(row[colunas_encontradas['item_sc']])
+            grupos_sc[chave]['_linhas_grupo'].append({
+                'item_sc': item_sc_linha,
+                'qtd_sol': qtd_sol,
+                'qtd_ent': qtd_ent,
+            })
             
             # Saldo do arquivo - usar o máximo
             if 'saldo' in colunas_encontradas:
@@ -460,6 +484,16 @@ class Command(BaseCommand):
                 if fornecedor_val and fornecedor_val != 'nan' and not grupos_sc[chave]['empresa_fornecedora']:
                     grupos_sc[chave]['empresa_fornecedora'] = fornecedor_val
         
+        for dados in grupos_sc.values():
+            linhas = dados['_linhas_grupo']
+            fatias = [L for L in linhas if L['qtd_sol'] > Decimal('0.00')]
+            vals_sol = [L['qtd_sol'] for L in fatias]
+            vals_ent = [L['qtd_ent'] for L in fatias]
+            dados['quantidade_solicitada'] = consolidar_quantidade_solicitada_sienge(vals_sol)
+            dados['quantidade_entregue'] = (
+                consolidar_quantidade_entregue_sienge(vals_ent) if vals_ent else Decimal('0.00')
+            )
+        
         if obras_ignoradas:
             self.stdout.write(self.style.WARNING(
                 f'   ⚠️ Obras não cadastradas: {", ".join(sorted(obras_ignoradas))}'
@@ -487,7 +521,14 @@ class Command(BaseCommand):
         
         self.stdout.write(f'   🔑 Grupos únicos processados (obra, SC, código_insumo): {len(grupos_sc)}')
         self.stdout.write(f'   ⚠️ NOTA: Múltiplas linhas do mesmo insumo na mesma SC foram consolidadas.')
-        self.stdout.write(f'      A quantidade entregue é o MÁXIMO encontrado (não a soma), pois o Sienge repete o total em todas as linhas.')
+        self.stdout.write(
+            '      Consolidado (item SC vazio): qt. solicitada e qt. entregue — valores iguais → um valor; '
+            'diferentes (parcelas) → SOMA.'
+        )
+        self.stdout.write(
+            '      Se existir coluna ITEM da SC: também grava um RecebimentoObra por item '
+            '(quantidades por entrega + status por linha no modelo).'
+        )
         self.stdout.write(f'      Exemplo: SC 12345 pode ter 4 linhas de Cimento (4000 cada) + 1 linha de Tijolo (500).')
         self.stdout.write(f'      Resultado: 1 RecebimentoObra para Cimento (4000) + 1 RecebimentoObra para Tijolo (500).')
         
@@ -498,7 +539,7 @@ class Command(BaseCommand):
                 insumo_desc = dados['insumo'].descricao[:40] if dados['insumo'] else 'N/A'
                 self.stdout.write(
                     f'   📝 Exemplo: Obra {cod_obra}, SC {sc}, Insumo {cod_ins} ({insumo_desc}) '
-                    f'-> Solicitado: {dados["quantidade_solicitada"]}, Entregue (MÁX consolidado): {dados["quantidade_entregue"]}'
+                    f'-> Solicitado: {dados["quantidade_solicitada"]}, Entregue (consolidado): {dados["quantidade_entregue"]}'
                 )
         
         # Processar - criar/atualizar RecebimentoObra e atualizar ItemMapa
@@ -527,13 +568,49 @@ class Command(BaseCommand):
                     saldo_final = saldo_calc
                 
                 try:
-                    # === 1. CRIAR/ATUALIZAR RecebimentoObra ===
-                    # IMPORTANTE: Criar apenas UM RecebimentoObra por (obra, numero_sc, insumo)
-                    # Uma mesma SC pode ter diferentes insumos, então cada insumo tem seu próprio RecebimentoObra
-                    # Usar item_sc vazio para consolidar, usando a quantidade MÁXIMA entregue
-                    # IMPORTANTE: Criar/atualizar SEMPRE que houver quantidade_solicitada > 0
-                    # Isso permite calcular o saldo_a_entregar mesmo quando ainda não recebeu nada
-                    if insumo and dados['quantidade_solicitada'] > Decimal('0.00'):
+                    # === 1a. LINHAS DE ITEM (entregas parceladas): um RecebimentoObra por ITEM da SC ===
+                    linhas_csv = dados.get('_linhas_grupo') or []
+                    if insumo and any((x.get('item_sc') or '').strip() for x in linhas_csv):
+                        for L in linhas_csv:
+                            isc = (L.get('item_sc') or '').strip()
+                            if not isc:
+                                continue
+                            qs = L['qtd_sol']
+                            qr = L['qtd_ent']
+                            if qs <= Decimal('0.00') and qr <= Decimal('0.00'):
+                                continue
+                            saldo_linha = qs - qr
+                            if saldo_linha < Decimal('0.00'):
+                                saldo_linha = Decimal('0.00')
+                            det_defaults = {
+                                'data_sc': dados['data_sc'],
+                                'numero_pc': dados['numero_pc'],
+                                'data_pc': dados['data_emissao_pc'],
+                                'empresa_fornecedora': dados['empresa_fornecedora'],
+                                'prazo_recebimento': dados['previsao_entrega'],
+                                'descricao_item': sanitizar_texto_sienge(
+                                    str(dados.get('descricao_insumo') or ''), max_length=500
+                                ),
+                                'quantidade_solicitada': qs,
+                                'quantidade_recebida': qr,
+                                'saldo_a_entregar': saldo_linha,
+                                'numero_nf': dados['numero_nf'],
+                                'data_nf': dados['data_nf'],
+                            }
+                            _, created_det = RecebimentoObra.objects.update_or_create(
+                                obra=obra,
+                                numero_sc=numero_sc,
+                                insumo=insumo,
+                                item_sc=isc,
+                                defaults=det_defaults,
+                            )
+                            if created_det:
+                                total_recebimentos_criados += 1
+                            else:
+                                total_recebimentos_atualizados += 1
+
+                    # === 1b. CONSOLIDADO (item_sc vazio): vínculo principal do ItemMapa ===
+                    if insumo:
                         recebimento, created = RecebimentoObra.objects.update_or_create(
                             obra=obra,
                             numero_sc=numero_sc,
@@ -548,8 +625,8 @@ class Command(BaseCommand):
                                 'descricao_item': sanitizar_texto_sienge(
                                     str(dados.get('descricao_insumo') or ''), max_length=500
                                 ),
-                                'quantidade_solicitada': dados['quantidade_solicitada'],  # Ex: 20000.00 (do CSV)
-                                'quantidade_recebida': dados['quantidade_entregue'],  # Pode ser 0 se ainda não chegou
+                                'quantidade_solicitada': dados['quantidade_solicitada'],
+                                'quantidade_recebida': dados['quantidade_entregue'],
                                 'saldo_a_entregar': saldo_final,
                                 'numero_nf': dados['numero_nf'],
                                 'data_nf': dados['data_nf'],

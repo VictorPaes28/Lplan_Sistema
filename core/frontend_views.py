@@ -2123,6 +2123,7 @@ def diary_detail_view(request, pk):
         'total_indirect_labor': total_indirect_labor,
         'total_direct_labor': total_direct_labor,
         'total_third_party_labor': total_third_party_labor,
+        'total_labor_efetivo': total_indirect_labor + total_direct_labor + total_third_party_labor,
         'equipment_list': equipment_list,
         'equipment_total_quantity': equipment_total_quantity,
         'labor_entries_by_category': labor_entries_by_category,
@@ -2453,12 +2454,14 @@ def diary_review_decision_view(request, pk):
         except Exception:
             logger.exception("Erro ao marcar notificações de RDO pendente.")
         try:
-            from .diary_email import send_diary_to_owners, send_diary_pdf_to_recipients
-            send_diary_to_owners(diary)
-            send_diary_pdf_to_recipients(diary)
+            from .tasks import enqueue_send_approved_diary_emails
+            enqueue_send_approved_diary_emails(diary.pk)
         except Exception as exc:
-            logger.exception("Erro ao enviar RDO aprovado aos destinatários: %s", exc)
-        messages.success(request, 'RDO aprovado e enviado ao cliente.')
+            logger.exception("Erro ao enfileirar envio do RDO aprovado: %s", exc)
+        messages.success(
+            request,
+            'RDO aprovado. A notificação por e-mail será enviada em instantes.',
+        )
         return redirect('diary-detail', pk=pk)
 
     if decision == 'reject':
@@ -4471,14 +4474,13 @@ def diary_form_view(request, pk=None):
                         edit_requested_by_id=None,
                         edit_request_note='',
                     )
-                # Salvar diário (não rascunho) = diário aprovado → enviar e-mail ao dono da obra
+                # Salvar diário (não rascunho) = diário aprovado → e-mail ao dono + PDF (assíncrono: evita 504 no nginx)
                 if not is_partial_save and diary and diary.status == DiaryStatus.APROVADO:
                     try:
-                        from .diary_email import send_diary_to_owners, send_diary_pdf_to_recipients
-                        send_diary_to_owners(diary)
-                        send_diary_pdf_to_recipients(diary)
+                        from .tasks import enqueue_send_approved_diary_emails
+                        enqueue_send_approved_diary_emails(diary.pk)
                     except Exception as e:
-                        logger.exception("Erro ao enviar diário aos donos da obra: %s", e)
+                        logger.exception("Erro ao enfileirar envio de e-mails do diário %s: %s", diary.pk, e)
                 # Notificar aprovadores quando o RDO entra em AGUARDANDO (evita reenviar a cada edição)
                 if (
                     diary

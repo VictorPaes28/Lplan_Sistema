@@ -1436,3 +1436,11 @@ class EquipmentDisplayChunksFilterTestCase(TestCase):
         t_in = sum(r['quantity'] for r in rows)
         t_out = sum(r['quantity'] for c in parts for r in c)
         self.assertEqual(t_in, t_out)
+
+    def test_equipment_quantity_sum(self):
+        from core.templatetags.core_tags import equipment_quantity_sum
+
+        rows = [{'name': 'A', 'quantity': 3}, {'name': 'B', 'quantity': 7}]
+        self.assertEqual(equipment_quantity_sum(rows), 10)
+        self.assertEqual(equipment_quantity_sum([]), 0)
+        self.assertEqual(equipment_quantity_sum(None), 0)

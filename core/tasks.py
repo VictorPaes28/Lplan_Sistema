@@ -3,6 +3,7 @@ Tarefas Celery para Diário de Obra V2.0.
 
 Tarefas assíncronas para processamento pesado:
 - Geração de PDFs de diários de obra
+- Envio de e-mails pós-aprovação (PDF + SMTP), para não causar timeout no gateway
 - Otimização em lote de imagens
 """
 import os
@@ -26,6 +27,74 @@ except ImportError:
         def decorator(func):
             return func
         return decorator
+
+
+def run_send_approved_diary_emails(diary_id: int) -> None:
+    """
+    Gera/envia e-mails aos donos da obra e PDF detalhado aos recipients cadastrados.
+    Destinado a worker Celery ou thread em background (fecha conexões Django corretamente).
+    """
+    from django.db import close_old_connections
+
+    close_old_connections()
+    try:
+        from core.models import ConstructionDiary
+        from core.diary_email import send_diary_pdf_to_recipients, send_diary_to_owners
+
+        diary = ConstructionDiary.objects.select_related("project").get(pk=diary_id)
+        send_diary_to_owners(diary)
+        send_diary_pdf_to_recipients(diary)
+    except ConstructionDiary.DoesNotExist:
+        logger.warning("run_send_approved_diary_emails: diário id=%s não encontrado.", diary_id)
+    except Exception:
+        logger.exception("run_send_approved_diary_emails: erro diary_id=%s", diary_id)
+        raise
+    finally:
+        close_old_connections()
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=120)
+def send_approved_diary_emails_task(self, diary_id: int):
+    """Fila Celery: e-mails de RDO aprovado (evita bloquear a resposta HTTP)."""
+    if not CELERY_AVAILABLE:
+        logger.warning(
+            "send_approved_diary_emails_task: Celery não disponível; use enqueue_send_approved_diary_emails."
+        )
+        return None
+    try:
+        run_send_approved_diary_emails(diary_id)
+        return diary_id
+    except Exception as exc:
+        logger.error("send_approved_diary_emails_task falhou diary_id=%s: %s", diary_id, exc)
+        raise self.retry(exc=exc)
+
+
+def enqueue_send_approved_diary_emails(diary_id: int) -> None:
+    """
+    Agenda envio assíncrono. Com Celery ativo usa a fila; senão usa thread daemon
+    para não segurar nginx/gunicorn após o commit do formulário.
+    """
+    import threading
+
+    if CELERY_AVAILABLE:
+        try:
+            send_approved_diary_emails_task.delay(diary_id)
+            return
+        except Exception:
+            logger.exception(
+                "enqueue_send_approved_diary_emails: delay() falhou, usando thread diary_id=%s",
+                diary_id,
+            )
+
+    def _runner() -> None:
+        try:
+            run_send_approved_diary_emails(diary_id)
+        except Exception:
+            logger.exception(
+                "enqueue_send_approved_diary_emails: thread falhou diary_id=%s", diary_id
+            )
+
+    threading.Thread(target=_runner, name=f"diary-email-{diary_id}", daemon=True).start()
 
 
 @shared_task(bind=True, max_retries=3)

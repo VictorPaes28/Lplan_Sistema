@@ -1,7 +1,8 @@
 """Consultas reutilizáveis para o painel e relatórios."""
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 
 from workflow_aprovacao.models import (
+    ApprovalHistoryEntry,
     ApprovalProcess,
     ParticipantRole,
     ProcessStatus,
@@ -45,16 +46,18 @@ def processes_pending_for_user(user):
 def processes_inbox_snapshot(user, limit: int = 100):
     """Pendentes + últimos concluídos/reprovados envolvendo o usuário (visão resumida)."""
     pending = processes_pending_for_user(user)
-    # Concluídos recentes onde o usuário aparece no histórico
-    from workflow_aprovacao.models import ApprovalHistoryEntry
-
-    touched_ids = ApprovalHistoryEntry.objects.filter(actor=user).values_list(
-        'process_id', flat=True
+    if not user or not user.is_authenticated:
+        return pending, ApprovalProcess.objects.none()
+    # Evita montar lista gigante ``pk__in`` com todos os processos já tocados no histórico
+    # (para utilizadores antigos isto pode ser dezenas de milhares de IDs → consulta pesada).
+    acted = ApprovalHistoryEntry.objects.filter(
+        process_id=OuterRef('pk'),
+        actor_id=user.pk,
     )
     recent = (
-        ApprovalProcess.objects.filter(pk__in=touched_ids)
+        ApprovalProcess.objects.filter(Exists(acted))
         .exclude(status=ProcessStatus.AWAITING_STEP)
         .select_related('project', 'category')
-        .order_by('-updated_at')[: limit]
+        .order_by('-updated_at')[:limit]
     )
     return pending, recent
