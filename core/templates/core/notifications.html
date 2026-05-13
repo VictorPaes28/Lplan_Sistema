@@ -4,169 +4,815 @@
 {% block page_title %}Notificações{% endblock %}
 {% block page_subtitle %}Alertas e atualizações do sistema{% endblock %}
 
+{% block wrapper_extra_class %} main-content-wrapper--notif-full{% endblock %}
+{% block main_extra_class %} main-content--notifications-full{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* base.css (≥1280px) centra .main-content em max-width:1400px — esta página usa a largura útil toda */
+@media (min-width: 1280px) {
+  main.main-content.main-content--notifications-full {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+}
+@media (min-width: 768px) {
+  .main-content-wrapper.main-content-wrapper--notif-full {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+  .main-content.main-content--notifications-full {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+}
+/* Remove padding horizontal duplicado do main nesta página; o recuo fica em .notif-page-v2 */
+.main-content.main-content--notifications-full > *:not(.top-bar-container) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.notif-page-v2 {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  font-family: 'Sora', sans-serif;
+  color: #1e293b;
+  background: #f8fafc;
+}
+@media (min-width: 768px) {
+  .notif-page-v2 {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .notif-page-v2 {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+.notif-v2-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* LEFT PANEL — filtros (gabarito notificacoes_v2) */
+.filters-panel {
+  width: 280px;
+  min-width: 280px;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.filters-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 2px;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.stat-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.stat-num {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-num.highlight {
+  color: #2563eb;
+}
+.stat-label {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.filter-select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  font-size: 13px;
+  font-family: 'Sora', sans-serif;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+.filter-select:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.filter-btn {
+  width: 100%;
+  padding: 9px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+.filter-btn:hover {
+  opacity: 0.88;
+}
+.filter-clear {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  border: 1.5px solid #e2e8f0;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+.filter-clear:hover {
+  border-color: #94a3b8;
+  color: #374151;
+}
+
+.tipo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tipo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+}
+.tipo-item:hover {
+  background: #f8fafc;
+}
+.tipo-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+.tipo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tipo-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: #94a3b8;
+}
+.tipo-item.active .tipo-count {
+  color: #2563eb;
+}
+
+.marcar-todas-form {
+  margin: 0;
+}
+.marcar-todas {
+  width: 100%;
+  padding: 9px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1.5px solid #86efac;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.marcar-todas:hover {
+  background: #dcfce7;
+}
+
+/* MAIN — lista */
+.notif-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+.notif-main::-webkit-scrollbar {
+  width: 4px;
+}
+.notif-main::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 99px;
+}
+
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.notif-header-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.notif-header-count {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.notif-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #94a3b8;
+}
+.notif-empty .fas {
+  font-size: 40px;
+  margin: 0 auto 12px;
+  opacity: 0.4;
+  display: block;
+}
+.notif-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+/* NOTIF ITEM */
+.notif-item {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 14px;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.notif-item:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+.notif-item.unread {
+  border-color: #bfdbfe;
+  background: #fafcff;
+}
+.notif-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #2563eb;
+  border-radius: 99px 0 0 99px;
+}
+
+.notif-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.notif-icon .fas {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.notif-icon.pedido {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+.notif-icon.aprovado {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+.notif-icon.reprovado {
+  background: #fef2f2;
+  color: #ef4444;
+}
+.notif-icon.sistema {
+  background: #f8fafc;
+  color: #64748b;
+}
+.notif-icon.trackhub {
+  background: #f0fdfa;
+  color: #0d9488;
+}
+.notif-icon.rdo {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.notif-body {
+  flex: 1;
+  min-width: 0;
+}
+/* Bolinha absoluta no canto do card — reservar espaço para o horário (.notif-date) não colidir */
+.notif-item.unread .notif-body {
+  padding-right: 28px;
+}
+.notif-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.notif-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.4;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.notif-item.unread .notif-title {
+  color: #1e3a8a;
+}
+.notif-date {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.notif-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.notif-badge.pedido {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+.notif-badge.aprovado {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+.notif-badge.reprovado {
+  background: #fef2f2;
+  color: #ef4444;
+}
+.notif-badge.sistema {
+  background: #f8fafc;
+  color: #64748b;
+}
+.notif-badge.trackhub {
+  background: #f0fdfa;
+  color: #0d9488;
+}
+.notif-badge.rdo {
+  background: #eff6ff;
+  color: #2563eb;
+}
+.notif-msg {
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+.notif-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-abrir:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.btn-abrir .fas {
+  font-size: 11px;
+}
+.btn-lida {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  transition: all 0.2s;
+}
+.btn-lida:hover {
+  border-color: #94a3b8;
+  color: #374151;
+}
+.notif-unread-dot {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+.form-lida-inline {
+  margin: 0;
+  display: inline;
+}
+
+/* PAGINAÇÃO */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+}
+.page-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Sora', sans-serif;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.page-btn:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+.page-btn .fas {
+  font-size: 14px;
+}
+.page-indicator {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 0 8px;
+}
+
+/* DATA GROUP */
+.notif-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 20px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notif-group-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #f1f5f9;
+}
+.notif-header + .notif-group-label {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .notif-v2-row {
+    flex-direction: column;
+    overflow: visible;
+  }
+  .filters-panel {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .notif-main {
+    overflow-y: visible;
+  }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="lplan-notif-page">
-    <div class="lplan-notif-toolbar">
-        <p class="lplan-notif-lead">
-            {% if unread_count > 0 %}
-            {{ unread_count }} não lida{{ unread_count|pluralize }} no total.
-            {% else %}
-            Nenhuma pendência de leitura.
-            {% endif %}
-        </p>
-        <div class="lplan-notif-metrics">
-            <div class="lplan-notif-metric" role="status">
-                <span class="lplan-notif-metric-lbl">Nesta lista</span>
-                <span class="lplan-notif-metric-val">{{ notifications.paginator.count|default:notifications|length }}</span>
-            </div>
-            <div class="lplan-notif-metric" role="status">
-                <span class="lplan-notif-metric-lbl">Não lidas</span>
-                <span class="lplan-notif-metric-val">{{ unread_count }}</span>
-            </div>
-            {% if unread_count > 0 %}
-            <form method="post" action="{% url 'notification-mark-all-read' %}" class="lplan-notif-markall-form" style="margin:0;display:inline;">
-                {% csrf_token %}
-                <button type="submit" class="lplan-notif-markall">
-                    <i class="fas fa-check-double" aria-hidden="true"></i> Marcar todas
-                </button>
-            </form>
-            {% endif %}
+{% now "Y-m-d" as notif_today_iso %}
+<div class="notif-page-v2">
+  <div class="notif-v2-row">
+    <aside class="filters-panel" aria-label="Filtros e resumo">
+      <div>
+        <div class="filters-title">Resumo</div>
+        <div class="stats-row" style="margin-top: 10px;">
+          <div class="stat-card" role="status">
+            <div class="stat-num">{{ notifications.paginator.count }}</div>
+            <div class="stat-label">Nesta lista</div>
+          </div>
+          <div class="stat-card" role="status">
+            <div class="stat-num highlight">{{ unread_count }}</div>
+            <div class="stat-label">Não lidas</div>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <details class="lplan-notif-filters-details" id="lplan-notif-filters-details">
-        <summary class="lplan-notif-filters-summary">
-            <span class="lplan-notif-filters-summary-main">
-                <i class="fas fa-sliders-h" aria-hidden="true"></i>
-                Filtros
-            </span>
-            <span class="lplan-notif-filters-summary-meta" aria-hidden="true">tipo · leitura</span>
-            <i class="fas fa-chevron-down lplan-notif-filters-chevron" aria-hidden="true"></i>
-        </summary>
-        <div class="lplan-notif-filters-panel">
-            <form method="get" class="lplan-notif-filters-row" aria-label="Filtros de notificações">
-                <div class="lplan-notif-field">
-                    <label class="lplan-notif-label" for="notif-filter-type">Tipo</label>
-                    <select name="type" id="notif-filter-type" class="lplan-notif-select">
-                        <option value="">Todos</option>
-                        <option value="diary_pending" {% if filter_type == 'diary_pending' %}selected{% endif %}>Relatório pendente</option>
-                        <option value="diary_review" {% if filter_type == 'diary_review' %}selected{% endif %}>Revisão de relatório</option>
-                        <option value="activity_delayed" {% if filter_type == 'activity_delayed' %}selected{% endif %}>Atividade atrasada</option>
-                        <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Sistema</option>
-                    </select>
-                </div>
-                <div class="lplan-notif-field">
-                    <label class="lplan-notif-label" for="notif-filter-read">Leitura</label>
-                    <select name="read" id="notif-filter-read" class="lplan-notif-select">
-                        <option value="">Todas</option>
-                        <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
-                        <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
-                    </select>
-                </div>
-                <div class="lplan-notif-filters-actions">
-                    <button type="submit" class="lplan-notif-btn lplan-notif-btn-primary">
-                        <i class="fas fa-filter" aria-hidden="true"></i> Aplicar
-                    </button>
-                    <a href="{% url 'notifications' %}" class="lplan-notif-btn lplan-notif-btn-ghost">Limpar</a>
-                </div>
-            </form>
+      {% if unread_count > 0 %}
+      <form method="post" action="{% url 'notification-mark-all-read' %}" class="marcar-todas-form">
+        {% csrf_token %}
+        <button type="submit" class="marcar-todas">
+          <i class="fas fa-check-double" aria-hidden="true"></i>
+          Marcar todas como lidas
+        </button>
+      </form>
+      {% endif %}
+
+      <form method="get" aria-label="Filtros de notificações">
+        <div class="filter-group">
+          <div class="filter-label">Tipo</div>
+          <select name="type" class="filter-select" id="notif-filter-type">
+            <option value="" {% if not filter_type %}selected{% endif %}>Todos</option>
+            <option value="pedido_criado" {% if filter_type == 'pedido_criado' %}selected{% endif %}>Novo Pedido para Aprovar</option>
+            <option value="pedido_aprovado" {% if filter_type == 'pedido_aprovado' %}selected{% endif %}>Pedido Aprovado</option>
+            <option value="pedido_reprovado" {% if filter_type == 'pedido_reprovado' %}selected{% endif %}>Pedido Reprovado</option>
+            <option value="rdo_pendente" {% if filter_type == 'rdo_pendente' %}selected{% endif %}>RDO Pendente</option>
+            <option value="trackhub_etapa_concluida" {% if filter_type == 'trackhub_etapa_concluida' %}selected{% endif %}>TrackHub</option>
+            <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Notificação do Sistema</option>
+          </select>
         </div>
-    </details>
-
-    <div class="lplan-notif-list">
-    {% for notification in notifications %}
-    <article class="lplan-notif-item {% if not notification.is_read %}lplan-notif-item--unread{% endif %}">
-        <div class="lplan-notif-item-head">
-            <div class="lplan-notif-item-title-row">
-                <span class="lplan-notif-item-ico
-                    {% if notification.notification_type == 'diary_pending' %}bg-amber-100 text-amber-800
-                    {% elif notification.notification_type == 'diary_review' %}bg-orange-100 text-orange-800
-                    {% elif notification.notification_type == 'activity_delayed' %}bg-red-100 text-red-800
-                    {% else %}bg-slate-100 text-slate-700{% endif %}">
-                    <i class="fas fa-bell" aria-hidden="true"></i>
-                </span>
-                <h3 class="lplan-notif-item-title">{{ notification.title }}</h3>
-                <span class="lplan-notif-tag">{{ notification.get_notification_type_display }}</span>
-            </div>
-            <span class="lplan-notif-time">{{ notification.created_at|date:"d/m/Y H:i" }}</span>
+        <div class="filter-group">
+          <div class="filter-label">Leitura</div>
+          <select name="read" class="filter-select" id="notif-filter-read">
+            <option value="" {% if not filter_read %}selected{% endif %}>Todas</option>
+            <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
+            <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
+          </select>
         </div>
+        <div class="filter-actions">
+          <button type="submit" class="filter-btn">
+            <i class="fas fa-filter" aria-hidden="true"></i>
+            Aplicar filtros
+          </button>
+          <a href="{% url 'notifications' %}" class="filter-clear">Limpar</a>
+        </div>
+      </form>
 
-        <p class="lplan-notif-msg">{{ notification.message }}</p>
+      {% if sidebar_types %}
+      <div>
+        <div class="filter-label" style="margin-bottom: 10px;">Por tipo</div>
+        <div class="tipo-list">
+          {% for row in sidebar_types %}
+          <a href="{% url 'notifications' %}?type={{ row.slug }}{% if filter_read %}&read={{ filter_read }}{% endif %}"
+             class="tipo-item{% if filter_type == row.slug %} active{% endif %}">
+            <span class="tipo-dot" style="background: {{ row.dot }};"></span>
+            {{ row.label }}
+            <span class="tipo-count">{{ row.count }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </aside>
 
-        <div class="lplan-notif-foot">
-            {% if not notification.is_read %}
-            <span class="lplan-notif-status lplan-notif-status--unread">Não lida</span>
-            {% else %}
-            <span class="lplan-notif-status lplan-notif-status--read">Lida</span>
-            {% endif %}
+    <div class="notif-main">
+      <div class="notif-header">
+        <div class="notif-header-title">
+          {% if filter_type == 'pedido_criado' %}Novo Pedido para Aprovar
+          {% elif filter_type == 'pedido_aprovado' %}Pedido Aprovado
+          {% elif filter_type == 'pedido_reprovado' %}Pedido Reprovado
+          {% elif filter_type == 'pedido_comentario' %}Comentário em Pedido
+          {% elif filter_type == 'rdo_pendente' %}RDO Pendente
+          {% elif filter_type == 'rdo_aprovado' %}RDO Aprovado
+          {% elif filter_type == 'rdo_reprovado' %}RDO Reprovado
+          {% elif filter_type == 'restricao_criada' %}Nova Restrição Atribuída
+          {% elif filter_type == 'restricao_status' %}Status de Restrição Alterado
+          {% elif filter_type == 'restricao_prazo' %}Prazo de Restrição
+          {% elif filter_type == 'trackhub_etapa_concluida' %}TrackHub
+          {% elif filter_type == 'trackhub_prazo' %}Prazo TrackHub
+          {% elif filter_type == 'system' %}Notificação do Sistema
+          {% elif filter_read == 'unread' %}Não lidas
+          {% elif filter_read == 'read' %}Lidas
+          {% else %}Todas as notificações{% endif %}
+        </div>
+        <div class="notif-header-count">{{ notifications.paginator.count }} notificações · {{ unread_count }} não lidas</div>
+      </div>
+
+      {% regroup notifications by created_at|date:"Y-m-d" as notif_by_day %}
+      {% for day in notif_by_day %}
+      <div class="notif-group-label notif-day-label" data-day-iso="{{ day.grouper }}">
+        {% if day.grouper == notif_today_iso %}Hoje{% else %}{{ day.list.0.created_at|date:"d/m/Y" }}{% endif %}
+      </div>
+      {% for notification in day.list %}
+      {% with t=notification.notification_type %}
+      <div class="notif-item{% if not notification.is_read %} unread{% endif %}">
+        <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">
+          {% if t == 'pedido_criado' %}<i class="fas fa-file-alt" aria-hidden="true"></i>
+          {% elif t == 'pedido_comentario' %}<i class="fas fa-comment" aria-hidden="true"></i>
+          {% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}<i class="fas fa-check" aria-hidden="true"></i>
+          {% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}<i class="fas fa-times" aria-hidden="true"></i>
+          {% elif t == 'rdo_pendente' %}<i class="fas fa-file-lines" aria-hidden="true"></i>
+          {% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}<i class="fas fa-crosshairs" aria-hidden="true"></i>
+          {% else %}<i class="fas fa-bell" aria-hidden="true"></i>{% endif %}
+        </div>
+        <div class="notif-body">
+          <div class="notif-top">
+            <h3 class="notif-title">{{ notification.title }}</h3>
+            <div class="notif-date">{{ notification.created_at|date:"d/m H:i" }}</div>
+          </div>
+          <span class="notif-badge {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">{{ notification.get_notification_type_display }}</span>
+          <div class="notif-msg">{{ notification.message }}</div>
+          <div class="notif-actions">
             {% url 'notification-open' notification.pk as notif_open %}
             {% if notification.related_url %}
-            <span class="lplan-notif-status lplan-notif-status--read" aria-hidden="true">·</span>
-            <a href="{{ notif_open }}?next={{ notification.related_url|urlencode }}" class="lplan-notif-item-btn lplan-notif-item-btn--accent">
-                <i class="fas fa-external-link-alt" aria-hidden="true"></i> Abrir
+            <a href="{{ notif_open }}?next={{ notification.related_url|urlencode }}" class="btn-abrir">
+              <i class="fas fa-external-link-alt" aria-hidden="true"></i> Abrir
             </a>
             {% elif notification.related_diary %}
-            {% url 'diary-detail' notification.related_diary.id as diary_open_target %}
-            <span class="lplan-notif-status lplan-notif-status--read" aria-hidden="true">·</span>
-            <a href="{{ notif_open }}?next={{ diary_open_target|urlencode }}" class="lplan-notif-item-btn lplan-notif-item-btn--accent">
-                <i class="fas fa-external-link-alt" aria-hidden="true"></i> Relatório
+            {% url 'diary-detail' notification.related_diary.id as diary_target %}
+            <a href="{{ notif_open }}?next={{ diary_target|urlencode }}" class="btn-abrir">
+              <i class="fas fa-external-link-alt" aria-hidden="true"></i> Ver relatório
             </a>
             {% endif %}
-            <div class="lplan-notif-foot-actions">
-                {% if not notification.is_read %}
-                <form method="post" action="{% url 'notification-mark-read' notification.id %}" style="margin:0;display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="lplan-notif-item-btn">
-                        <i class="fas fa-check" aria-hidden="true"></i> Marcar lida
-                    </button>
-                </form>
-                {% endif %}
-            </div>
+            {% if not notification.is_read %}
+            <form method="post" action="{% url 'notification-mark-read' notification.id %}" class="form-lida-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn-lida">Marcar como lida</button>
+            </form>
+            {% endif %}
+          </div>
         </div>
-    </article>
-    {% empty %}
-    <div class="lplan-notif-empty">
-        <i class="fas fa-bell-slash" aria-hidden="true"></i>
-        <p style="margin:0;font-size:0.9375rem;font-weight:600;color:#475569;">Nenhuma notificação nesta vista</p>
-        <p style="margin:0.35rem 0 0;font-size:0.8125rem;">Ajuste os filtros ou volte mais tarde.</p>
-    </div>
-    {% endfor %}
-    </div>
+        {% if not notification.is_read %}<div class="notif-unread-dot" aria-hidden="true"></div>{% endif %}
+      </div>
+      {% endwith %}
+      {% endfor %}
+      {% empty %}
+      <div class="notif-empty">
+        <i class="fas fa-bell" aria-hidden="true"></i>
+        <p class="notif-empty-title">Nenhuma notificação encontrada.</p>
+      </div>
+      {% endfor %}
 
-    {% if notifications.has_other_pages %}
-    <nav class="lplan-notif-pager" aria-label="Paginação">
+      {% if notifications.has_other_pages %}
+      <nav class="pagination" aria-label="Paginação">
         {% if notifications.has_previous %}
-        <a href="?page={{ notifications.previous_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}"
-           aria-label="Página anterior">
-            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+        <a class="page-btn" href="?page={{ notifications.previous_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" aria-label="Página anterior">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
         </a>
         {% endif %}
-
-        <span class="lplan-notif-pager-current" aria-current="page">
-            {{ notifications.number }} / {{ notifications.paginator.num_pages }}
-        </span>
-
+        <span class="page-indicator">{{ notifications.number }} / {{ notifications.paginator.num_pages }}</span>
         {% if notifications.has_next %}
-        <a href="?page={{ notifications.next_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}"
-           aria-label="Próxima página">
-            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        <a class="page-btn" href="?page={{ notifications.next_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" aria-label="Próxima página">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
         </a>
         {% endif %}
-    </nav>
-    {% endif %}
+      </nav>
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
-  var el = document.getElementById('lplan-notif-filters-details');
-  if (!el || !window.matchMedia) return;
-  function sync() {
-    el.open = window.matchMedia('(min-width: 768px)').matches;
+  function ymd(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
   }
-  sync();
-  window.matchMedia('(min-width: 768px)').addEventListener('change', sync);
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  var yStr = ymd(yesterday);
+  document.querySelectorAll('.notif-day-label[data-day-iso]').forEach(function (el) {
+    if (el.getAttribute('data-day-iso') === yStr && el.textContent.trim() !== 'Hoje') {
+      el.textContent = 'Ontem';
+    }
+  });
 })();
 </script>
 {% endblock %}

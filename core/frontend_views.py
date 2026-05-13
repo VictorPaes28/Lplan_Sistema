@@ -5649,43 +5649,66 @@ def equipment_form_view(request, pk=None):
 @login_required
 def notifications_view(request):
     """View para listar notificações do usuário."""
+    from django.db.models import Count
+
     from .models import Notification
-    
+
     notifications = Notification.objects.filter(
         user=request.user
     ).select_related('related_diary', 'related_diary__project').order_by(
         'is_read',
         '-created_at',
     )
-    
+
     # Marca notificações como lidas
     unread_count = notifications.filter(is_read=False).count()
-    
+
     # Filtros
     filter_type = request.GET.get('type')
     filter_read = request.GET.get('read')
-    
+
     if filter_type:
         notifications = notifications.filter(notification_type=filter_type)
-    
+
     if filter_read == 'unread':
         notifications = notifications.filter(is_read=False)
     elif filter_read == 'read':
         notifications = notifications.filter(is_read=True)
-    
+
     # Paginação (não lidas primeiro via order_by acima)
     from django.core.paginator import Paginator
     paginator = Paginator(notifications, 50)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
-    
+
+    count_by_type = dict(
+        Notification.objects.filter(user=request.user)
+        .values('notification_type')
+        .annotate(c=Count('pk'))
+        .values_list('notification_type', 'c')
+    )
+    sidebar_meta = [
+        ('pedido_criado', 'Novo Pedido', '#7c3aed'),
+        ('pedido_aprovado', 'Aprovado', '#16a34a'),
+        ('pedido_reprovado', 'Reprovado', '#ef4444'),
+        ('rdo_pendente', 'RDO', '#2563eb'),
+        ('trackhub_etapa_concluida', 'TrackHub', '#0d9488'),
+        ('system', 'Sistema', '#64748b'),
+    ]
+    sidebar_types = [
+        {'slug': slug, 'label': label, 'dot': dot, 'count': count_by_type[slug]}
+        for slug, label, dot in sidebar_meta
+        if count_by_type.get(slug)
+    ]
+
     context = {
         'notifications': page_obj,
         'unread_count': unread_count,
         'filter_type': filter_type,
         'filter_read': filter_read,
+        'sidebar_types': sidebar_types,
     }
-    
+
     return render(request, 'core/notifications.html', context)
 
 
