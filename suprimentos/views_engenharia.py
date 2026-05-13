@@ -11,7 +11,16 @@ from django.views.decorators.cache import cache_control
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
-from suprimentos.models import ItemMapa, Insumo, HistoricoAlteracao, RecebimentoObra, AlocacaoRecebimento, ImportacaoSienge
+from suprimentos.models import (
+    ItemMapa,
+    Insumo,
+    HistoricoAlteracao,
+    RecebimentoObra,
+    AlocacaoRecebimento,
+    ImportacaoSienge,
+    _normalizar_codigo_insumo_model,
+    _normalizar_numero_sc_model,
+)
 from suprimentos.forms import InsumoForm, ItemMapaForm, SiengeImportUploadForm
 from collections import defaultdict
 from datetime import datetime
@@ -21,6 +30,7 @@ from io import BytesIO
 import pandas as pd
 import numpy as np
 import re
+import json
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
@@ -44,15 +54,113 @@ def get_obra_da_sessao(request):
     return obra
 
 
+_STATUS_RECEBIMENTO_ETAPA_DISPLAY = {
+    'AGUARDANDO_PC': 'Aguardando PC',
+    'AGUARDANDO_ENTREGA': 'Aguardando entrega',
+    'PARCIAL': 'Parcial',
+    'COMPLETO': 'Completo',
+}
+
+
+def _display_status_parcela(codigo):
+    if codigo is None:
+        return '-'
+    s = str(codigo).strip()
+    return _STATUS_RECEBIMENTO_ETAPA_DISPLAY.get(s, s)
+
+
+def _saldo_linha_parcela(q_sol, q_ent):
+    """Saldo solicitado − entregue por linha da SC (não usa alocação)."""
+    qs = q_sol or Decimal('0.00')
+    qr = q_ent or Decimal('0.00')
+    saldo = qs - qr
+    if saldo < Decimal('0.00'):
+        return Decimal('0.00')
+    return saldo
+
+
 def _attach_recebimentos_obra_cache(itens_list, obra_id):
-    """Uma query de recebimentos por obra, compartilhada entre itens (ver ItemMapa.recebimento_vinculado)."""
-    if not obra_id or not itens_list:
+    """
+    Cache de recebimentos por obra + metadados de entrega parcelada (vários item_sc por SC/insumo).
+    Um único query em RecebimentoObra por renderização da lista.
+    """
+    if not itens_list:
         return
+    oid = None
+    if obra_id not in (None, ''):
+        try:
+            oid = int(obra_id)
+        except (TypeError, ValueError):
+            oid = None
+    if oid is None:
+        vazio = []
+        for item in itens_list:
+            item._recebimentos_obra_cache = vazio
+            item.has_entrega_parcelada = False
+            item.total_etapas_entrega = 0
+            item.etapas_entrega = []
+            item.etapas_entrega_json = '[]'
+        return
+
     recs = list(
-        RecebimentoObra.objects.filter(obra_id=obra_id).select_related('insumo')
+        RecebimentoObra.objects.filter(obra_id=oid).select_related('insumo')
     )
+    parcelas_por_chave = defaultdict(list)
+    for r in recs:
+        isc = (r.item_sc or '').strip()
+        if not isc or not r.insumo_id:
+            continue
+        chave = (
+            _normalizar_numero_sc_model(r.numero_sc),
+            _normalizar_codigo_insumo_model(r.insumo.codigo_sienge),
+        )
+        parcelas_por_chave[chave].append(r)
+    for plist in parcelas_por_chave.values():
+        plist.sort(key=lambda x: (str(x.item_sc or ''), x.pk))
+
     for item in itens_list:
         item._recebimentos_obra_cache = recs
+        item.has_entrega_parcelada = False
+        item.total_etapas_entrega = 0
+        item.etapas_entrega = []
+        item.etapas_entrega_json = '[]'
+        if not item.numero_sc or not item.insumo_id:
+            continue
+        chave = (
+            _normalizar_numero_sc_model(item.numero_sc),
+            _normalizar_codigo_insumo_model(item.insumo.codigo_sienge),
+        )
+        plist = parcelas_por_chave.get(chave, [])
+        if len(plist) < 2:
+            continue
+        etapas = []
+        rows_json = []
+        for r in plist:
+            qs = r.quantidade_solicitada or Decimal('0.00')
+            qr = r.quantidade_recebida or Decimal('0.00')
+            saldo_lin = _saldo_linha_parcela(qs, qr)
+            st_code = r.status_recebimento
+            st_disp = _display_status_parcela(st_code)
+            etapas.append({
+                'item_sc': r.item_sc or '',
+                'quantidade_solicitada': qs,
+                'quantidade_entregue': qr,
+                'saldo': saldo_lin,
+                'status_recebimento': st_code,
+                'status_display': st_disp,
+            })
+            rows_json.append({
+                'item_sc': r.item_sc or '',
+                'quantidade_solicitada': str(qs),
+                'quantidade_entregue': str(qr),
+                'saldo': str(saldo_lin),
+                'status_recebimento': st_code,
+                'status_display': st_disp,
+            })
+        item.has_entrega_parcelada = True
+        item.total_etapas_entrega = len(etapas)
+        item.etapas_entrega = etapas
+        item.etapas_entrega_json = json.dumps(rows_json, ensure_ascii=False)
 
 
 def _build_confiabilidade_suprimentos(itens_list):
@@ -233,7 +341,8 @@ def mapa_engenharia(request):
     if status_filtro:
         # Converter para lista para poder usar propriedades calculadas
         itens_lista = list(itens)
-        _attach_recebimentos_obra_cache(itens_lista, obra_id)
+        _oid_rec = int(obra_id) if obra_id else None
+        _attach_recebimentos_obra_cache(itens_lista, _oid_rec)
 
         if status_filtro == 'LEVANTAMENTO':
             # Sem SC

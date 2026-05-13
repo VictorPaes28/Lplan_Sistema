@@ -19,7 +19,6 @@ from django.views.decorators.http import require_POST
 from workflow_aprovacao.access import (
     user_can_act_on_workflow_processes,
     user_can_configure_workflow,
-    user_in_any_workflow_group,
     user_should_use_minimal_workflow_shell,
 )
 from workflow_aprovacao.decorators import (
@@ -97,12 +96,33 @@ def _workflow_context(request, extra=None):
     return ctx
 
 
-@login_required(login_url='/accounts/login/')
+def render_workflow_dashboard(request):
+    """Painel inicial da Central — contadores, atalhos e estado do sync."""
+    pending_qs = processes_pending_for_user(request.user)
+    sync_state = SiengeCentralSyncState.objects.filter(pk=1).first()
+    return render(
+        request,
+        'workflow_aprovacao/dashboard.html',
+        _workflow_context(
+            request,
+            {
+                'pending_count': pending_qs.count(),
+                'page_title': 'Central de Aprovações',
+                'page_subtitle': 'Resumo',
+                'sienge_beat_enabled': getattr(settings, 'SIENGE_CENTRAL_BEAT_ENABLED', False),
+                'sienge_sync_state': sync_state,
+            },
+        ),
+    )
+
+
+@require_workflow_module_access
 def home(request):
-    """Entrada: redireciona para a fila de pendentes."""
-    if not user_in_any_workflow_group(request.user):
-        return HttpResponseForbidden('Sem acesso à Central de Aprovações.')
-    return redirect('workflow_aprovacao:pending')
+    """
+    Entrada em ``/aprovacoes/`` — mesma página que ``/painel/`` (visão geral),
+    antes de navegar para a fila de pendências ou configurações.
+    """
+    return render_workflow_dashboard(request)
 
 
 @require_workflow_module_access
@@ -402,23 +422,8 @@ def flow_edit(request, pk):
 
 @require_workflow_module_access
 def dashboard(request):
-    """Resumo: contagem de pendentes e atalhos."""
-    pending_qs = processes_pending_for_user(request.user)
-    sync_state = SiengeCentralSyncState.objects.filter(pk=1).first()
-    return render(
-        request,
-        'workflow_aprovacao/dashboard.html',
-        _workflow_context(
-            request,
-            {
-                'pending_count': pending_qs.count(),
-                'page_title': 'Central de Aprovações',
-                'page_subtitle': 'Resumo',
-                'sienge_beat_enabled': getattr(settings, 'SIENGE_CENTRAL_BEAT_ENABLED', False),
-                'sienge_sync_state': sync_state,
-            },
-        ),
-    )
+    """Resumo — alias explícito em ``/aprovacoes/painel/``."""
+    return render_workflow_dashboard(request)
 
 
 @require_workflow_module_access

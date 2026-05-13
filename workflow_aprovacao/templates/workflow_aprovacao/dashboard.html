@@ -24,6 +24,13 @@
             <span class="wf-tile__hint">Abrir fila <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
         </a>
         {% if workflow_show_config_nav %}
+        <a href="{% url 'workflow_aprovacao:config_backlog_list' %}" class="wf-tile wf-tile--config">
+            <div class="wf-tile__val" style="font-size:1.5rem;color:#0f172a;"><i class="fas fa-database" aria-hidden="true"></i></div>
+            <div class="wf-tile__label">Importados · pendências de configuração</div>
+            <span class="wf-tile__hint">Contratos/medições recebidos que precisam de fluxo na obra <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+        {% endif %}
+        {% if workflow_show_config_nav %}
         <a href="{% url 'workflow_aprovacao:config_flow_list' %}" class="wf-tile wf-tile--config">
             <div class="wf-tile__val" style="font-size:1.5rem;color:#0f172a;"><i class="fas fa-sitemap" aria-hidden="true"></i></div>
             <div class="wf-tile__label">Fluxos por obra e categoria</div>

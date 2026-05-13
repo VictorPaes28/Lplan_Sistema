@@ -171,6 +171,23 @@ def equipment_display_chunks(value, rows_per_table=14):
 
 
 @register.filter
+def equipment_quantity_sum(value):
+    """
+    Soma o campo ``quantity`` de cada item (dict ou objeto com atributo quantity).
+    Usado nos somatórios por coluna no detalhe do RDO.
+    """
+    if value is None:
+        return 0
+    total = 0
+    for item in value:
+        if isinstance(item, dict):
+            total += int(item.get('quantity') or 0)
+        else:
+            total += int(getattr(item, 'quantity', 0) or 0)
+    return total
+
+
+@register.filter
 def get_item(dictionary, key):
     """Obtém um item de um dicionário."""
     if dictionary and isinstance(dictionary, dict):

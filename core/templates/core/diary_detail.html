@@ -413,6 +413,12 @@
                     </tr>
                     {% endfor %}
                     </tbody>
+                    <tfoot>
+                    <tr class="diary-detail-labor-total-row">
+                        <td class="text-slate-800">Total</td>
+                        <td class="diary-detail-data-table__num">{{ total_indirect_labor }}</td>
+                    </tr>
+                    </tfoot>
                 </table>
                 </div>
             </div>
@@ -436,6 +442,12 @@
                     </tr>
                     {% endfor %}
                     </tbody>
+                    <tfoot>
+                    <tr class="diary-detail-labor-total-row">
+                        <td class="text-slate-800">Total</td>
+                        <td class="diary-detail-data-table__num">{{ total_direct_labor }}</td>
+                    </tr>
+                    </tfoot>
                 </table>
                 </div>
             </div>
@@ -447,8 +459,8 @@
                 <div class="diary-detail-labor-col-scroll">
                 <div class="diary-detail-terceirizada-columns">
                 {% for block in labor_entries_by_category.terceirizada %}
-                <div class="diary-detail-terceirizada-company{% if not forloop.first %} mt-3 pt-3 border-t border-slate-100{% endif %}">
-                    <p class="text-xs font-medium text-slate-700 mb-1.5">{{ block.company }}</p>
+                <div class="diary-detail-terceirizada-company{% if not forloop.first %} diary-detail-terceirizada-company--spaced{% endif %}">
+                    <p class="diary-detail-terceirizada-company-title">{{ block.company }}</p>
                     <table class="diary-detail-data-table">
                         <thead>
                             <tr>
@@ -464,13 +476,27 @@
                         </tr>
                         {% endfor %}
                         </tbody>
+                        <tfoot>
+                        <tr class="diary-detail-labor-total-row">
+                            <td class="text-slate-800">Total</td>
+                            <td class="diary-detail-data-table__num">{{ block.company_total }}</td>
+                        </tr>
+                        </tfoot>
                     </table>
                 </div>
                 {% endfor %}
                 </div>
                 </div>
+                <div class="diary-detail-labor-third-col-summary">
+                    <span class="diary-detail-labor-third-col-summary__label">Total terceiros</span>
+                    <span class="diary-detail-labor-third-col-summary__value">{{ total_third_party_labor }}</span>
+                </div>
             </div>
             {% endif %}
+        </div>
+        <div class="diary-detail-labor-grand-total mt-2" role="status">
+            <span class="diary-detail-labor-grand-total__label">Efetivo total geral</span>
+            <span class="diary-detail-labor-grand-total__value">{{ total_labor_efetivo }}</span>
         </div>
         {% else %}
         {% if total_direct_labor > 0 or total_indirect_labor > 0 or total_third_party_labor > 0 %}
@@ -528,6 +554,12 @@
                     </tr>
                     {% endfor %}
                     </tbody>
+                    <tfoot>
+                    <tr class="diary-detail-labor-total-row">
+                        <td class="text-slate-800">Total</td>
+                        <td class="diary-detail-data-table__num">{{ total_direct_labor }}</td>
+                    </tr>
+                    </tfoot>
                 </table>
                 </div>
             </div>
@@ -551,6 +583,12 @@
                     </tr>
                     {% endfor %}
                     </tbody>
+                    <tfoot>
+                    <tr class="diary-detail-labor-total-row">
+                        <td class="text-slate-800">Total</td>
+                        <td class="diary-detail-data-table__num">{{ total_indirect_labor }}</td>
+                    </tr>
+                    </tfoot>
                 </table>
                 </div>
             </div>
@@ -573,11 +611,21 @@
                     </tr>
                     {% endfor %}
                     </tbody>
+                    <tfoot>
+                    <tr class="diary-detail-labor-total-row">
+                        <td class="text-slate-800">Total</td>
+                        <td class="diary-detail-data-table__num">{{ total_third_party_labor }}</td>
+                    </tr>
+                    </tfoot>
                 </table>
             </div>
             {% endif %}
         </div>
         {% endif %}
+        <div class="diary-detail-labor-grand-total mt-2" role="status">
+            <span class="diary-detail-labor-grand-total__label">Efetivo total geral</span>
+            <span class="diary-detail-labor-grand-total__value">{{ total_labor_efetivo }}</span>
+        </div>
         {% else %}
         <p class="diary-detail-empty">Nenhuma mão de obra registrada para este dia.</p>
         {% endif %}
@@ -597,8 +645,9 @@
         </h3>
         {% if equipment_list %}
         {# Até ~14 linhas: uma tabela; acima: reparte em mais colunas (máx. 5) para não ficar scroll demasiado denso #}
+        {% with equip_chunks=equipment_list|equipment_display_chunks:14 %}
         <div class="diary-detail-labor-columns diary-detail-equipment-columns">
-            {% for chunk in equipment_list|equipment_display_chunks:14 %}
+            {% for chunk in equip_chunks %}
             <div class="diary-detail-compact-section diary-detail-labor-col min-w-0">
                 <div class="diary-detail-labor-col-scroll">
                 <table class="diary-detail-data-table">
@@ -616,11 +665,24 @@
                     </tr>
                     {% endfor %}
                     </tbody>
+                    {% if equip_chunks|length > 1 %}
+                    <tfoot>
+                    <tr class="diary-detail-labor-total-row">
+                        <td class="text-slate-800">Total</td>
+                        <td class="diary-detail-data-table__num">{{ chunk|equipment_quantity_sum }}</td>
+                    </tr>
+                    </tfoot>
+                    {% endif %}
                 </table>
                 </div>
             </div>
             {% endfor %}
         </div>
+        <div class="diary-detail-labor-grand-total mt-2" role="status">
+            <span class="diary-detail-labor-grand-total__label">Total de unidades</span>
+            <span class="diary-detail-labor-grand-total__value">{{ equipment_total_quantity }}</span>
+        </div>
+        {% endwith %}
         {% else %}
         <p class="diary-detail-empty">Nenhum equipamento registrado para este dia.</p>
         {% endif %}

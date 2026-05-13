@@ -104,7 +104,7 @@
                         {% endif %}
                         {% if has_workflow and '/aprovacoes/' not in request.path %}
                             <li class="nav-item">
-                                <a class="nav-link {% if '/aprovacoes/' in request.path %}active fw-semibold{% endif %}" href="{% url 'workflow_aprovacao:pending' %}"><i class="bi bi-check2-square"></i> <span>Aprovações</span></a>
+                                <a class="nav-link {% if '/aprovacoes/' in request.path %}active fw-semibold{% endif %}" href="{% url 'workflow_aprovacao:home' %}"><i class="bi bi-check2-square"></i> <span>Aprovações</span></a>
                             </li>
                         {% endif %}
                         {% if has_central and '/accounts/admin-central' not in request.path %}

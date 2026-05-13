@@ -426,6 +426,9 @@ class ItemMapa(models.Model):
         """
         Busca o RecebimentoObra vinculado a este item pela SC + Insumo.
         SIMPLES: Prioriza o consolidado (item_sc='') que é criado na importação.
+
+        Quando o CSV traz ITEM da SC, há também registros por ``item_sc`` (detalhe por entrega);
+        o mapa continua usando o consolidado para quantidades agregadas.
         """
         if not self.numero_sc:
             return None

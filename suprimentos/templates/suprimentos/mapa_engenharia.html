@@ -3,6 +3,32 @@
 {% load l10n %}
 {% load suprimentos_filters %}
 
+{% block extra_css %}
+<style>
+/* Popover parcelado: largura e legibilidade */
+.popover.parcela-popover-wide {
+    max-width: min(380px, 94vw);
+}
+.popover.parcela-popover-wide .popover-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.parcela-etapa-card:last-child { margin-bottom: 0 !important; }
+.btn-parcela-trigger {
+    border-radius: 0.375rem;
+    font-weight: 500;
+    border-color: rgba(13, 110, 253, 0.35);
+    color: #0d6efd;
+    background: rgba(13, 110, 253, 0.06);
+}
+.btn-parcela-trigger:hover {
+    background: rgba(13, 110, 253, 0.12);
+    color: #0a58ca;
+    border-color: #0d6efd;
+}
+</style>
+{% endblock %}
+
 {% block title %}Mapa Engenharia - LPLAN{% endblock %}
 
 {% block content %}
@@ -488,20 +514,60 @@
                 </td>
                 <!-- 10. Nº SOLICITAÇÃO (SC) -->
                 <!-- Novo fluxo: pode ser cadastrado manualmente após criar no Sienge, para vincular importação -->
-                <td class="campo-sienge" style="padding: 4px 6px;"
-                    data-bs-toggle="tooltip"
-                    title="Digite a SC após criar no Sienge (vincula na próxima importação).">
+                <td class="campo-sienge" style="padding: 4px 6px; min-width: 112px;">
+                    <div class="d-flex flex-column align-items-stretch gap-1">
                         <input type="text" 
-                           class="input-inline form-control form-control-sm ghost-input"
-                           style="min-width: 100px; max-width: 130px; font-size: 0.9em; padding: 2px 6px; font-weight: 500;"
+                               class="input-inline form-control form-control-sm ghost-input"
+                               style="min-width: 100px; max-width: 100%; font-size: 0.9em; padding: 2px 6px; font-weight: 500;"
                                value="{{ item.numero_sc|default:'' }}"
-                           placeholder="SC"
+                               placeholder="SC"
+                               data-bs-toggle="tooltip"
+                               title="Digite a SC após criar no Sienge (vincula na próxima importação)."
                                data-item-id="{{ item.id }}" 
                                data-field="numero_sc"
-                           data-insumo-id="{{ item.insumo.id }}"
+                               data-insumo-id="{{ item.insumo.id }}"
                                data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
-                           list="sc-datalist-{{ item.id }}">
-                    <datalist id="sc-datalist-{{ item.id }}"></datalist>
+                               list="sc-datalist-{{ item.id }}">
+                        <datalist id="sc-datalist-{{ item.id }}"></datalist>
+                        {% if item.has_entrega_parcelada %}
+                        <div id="parcelas-src-{{ item.id }}" class="d-none parcelas-etapas-html">
+                            {% if item.recebimento_vinculado %}
+                            <div class="rounded border px-2 py-2 mb-2 text-start bg-body-secondary bg-opacity-25">
+                                <div class="d-flex align-items-center gap-1 mb-1 small fw-semibold text-body">
+                                    <i class="bi bi-box-seam"></i> Total consolidado (Sienge)
+                                </div>
+                                <div class="small"><span class="text-muted">Solicitado:</span> <strong>{{ item.recebimento_vinculado.quantidade_solicitada|floatformat:2 }}</strong></div>
+                                <div class="small"><span class="text-muted">Entregue na obra:</span> <strong>{{ item.recebimento_vinculado.quantidade_recebida|floatformat:2 }}</strong></div>
+                                <div class="small"><span class="text-muted">Saldo (arquivo):</span> <strong>{{ item.recebimento_vinculado.saldo_a_entregar|floatformat:2 }}</strong></div>
+                                <p class="text-muted mb-0 mt-2" style="font-size: 0.68rem; line-height: 1.35;">
+                                    Se cada linha do arquivo repetir o mesmo &quot;solicitado&quot;, o import usa <strong>um</strong> valor no mapa (não soma as linhas). Valores <strong>diferentes</strong> por ITEM são <strong>somados</strong> no total.
+                                </p>
+                            </div>
+                            {% endif %}
+                            <div class="text-uppercase text-muted fw-semibold mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Detalhe por ITEM</div>
+                            {% for etapa in item.etapas_entrega %}
+                            <div class="parcela-etapa-card rounded border bg-white px-2 py-2 mb-2 text-start shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center gap-1 mb-1">
+                                    <span class="badge rounded-pill text-bg-light border">ITEM {{ etapa.item_sc }}</span>
+                                    <span class="badge rounded-pill bg-secondary bg-opacity-15 text-secondary">{{ etapa.status_display }}</span>
+                                </div>
+                                <div class="small"><span class="text-muted">Solicitado:</span> <span class="text-dark fw-medium">{{ etapa.quantidade_solicitada|floatformat:2 }}</span></div>
+                                <div class="small"><span class="text-muted">Entregue:</span> <span class="text-dark fw-medium">{{ etapa.quantidade_entregue|floatformat:2 }}</span></div>
+                                <div class="small"><span class="text-muted">Saldo linha:</span> <span class="text-dark fw-medium">{{ etapa.saldo|floatformat:2 }}</span></div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button"
+                                class="btn btn-sm parcela-popover-trigger btn-parcela-trigger d-inline-flex align-items-center justify-content-center gap-1 w-100 px-1"
+                                style="font-size: 0.72rem;"
+                                data-parcel-src="parcelas-src-{{ item.id }}"
+                                data-popover-title="Entrega em {{ item.total_etapas_entrega }} etapas"
+                                aria-label="Ver detalhe da entrega parcelada por ITEM da SC">
+                            <i class="bi bi-layers"></i>
+                            <span>{{ item.total_etapas_entrega }} etapas</span>
+                        </button>
+                        {% endif %}
+                    </div>
                 </td>
                 <!-- 11. Nº PEDIDO (Readonly - Sienge - Automático) -->
                 <td class="input-readonly campo-sienge text-center" 
@@ -1154,6 +1220,24 @@
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        document.querySelectorAll('.parcela-popover-trigger').forEach(function(btn) {
+            var sid = btn.getAttribute('data-parcel-src');
+            var src = sid ? document.getElementById(sid) : null;
+            if (!src) return;
+            var pTitle = btn.getAttribute('data-popover-title') || 'Entrega parcelada';
+            new bootstrap.Popover(btn, {
+                html: true,
+                sanitize: false,
+                placement: 'left',
+                fallbackPlacements: ['right', 'bottom', 'top'],
+                trigger: 'hover focus',
+                container: 'body',
+                customClass: 'parcela-popover-wide',
+                title: pTitle,
+                content: src.innerHTML,
+            });
         });
         
         // Destacar linhas atrasadas

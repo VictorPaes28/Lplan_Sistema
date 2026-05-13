@@ -73,7 +73,10 @@ def _terceirizada_blocks_from_m2m(diary: 'ConstructionDiary') -> List[Dict[str, 
         if company not in by_company:
             by_company[company] = []
         by_company[company].append(row)
-    return [{'company': c, 'items': items} for c, items in by_company.items()]
+    return [
+        {'company': c, 'items': items, 'company_total': sum(int(i['quantity']) for i in items)}
+        for c, items in by_company.items()
+    ]
 
 
 def merge_labor_entries_m2m_fallback_for_html(
@@ -89,16 +92,20 @@ def merge_labor_entries_m2m_fallback_for_html(
     if labor_entries_by_category is None:
         return None
 
+    out_terceirizada_merge: List[Dict[str, Any]] = []
+    for b in (labor_entries_by_category.get('terceirizada') or []):
+        items = [dict(i) for i in (b.get('items') or [])]
+        ct = b.get('company_total')
+        if ct is None:
+            ct = sum(int(i.get('quantity') or 0) for i in items)
+        out_terceirizada_merge.append(
+            {'company': b.get('company'), 'items': items, 'company_total': int(ct)}
+        )
+
     out: Dict[str, Any] = {
         'indireta': list(labor_entries_by_category.get('indireta') or []),
         'direta': list(labor_entries_by_category.get('direta') or []),
-        'terceirizada': [
-            {
-                'company': b.get('company'),
-                'items': [dict(i) for i in (b.get('items') or [])],
-            }
-            for b in (labor_entries_by_category.get('terceirizada') or [])
-        ],
+        'terceirizada': out_terceirizada_merge,
     }
 
     if not out['indireta']:
@@ -172,9 +179,11 @@ def build_labor_entries_by_category(diary: 'ConstructionDiary') -> Optional[Dict
 
         out_terceirizada: List[Dict[str, Any]] = []
         for company, by_cargo in terceirizada.items():
+            cargo_rows = list(by_cargo.values())
             out_terceirizada.append({
                 'company': company,
-                'items': list(by_cargo.values()),
+                'items': cargo_rows,
+                'company_total': sum(int(row.get('quantity') or 0) for row in cargo_rows),
             })
 
         return {

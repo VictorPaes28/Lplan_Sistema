@@ -1,12 +1,12 @@
 <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
     <nav class="wf-nav" aria-label="Central de Aprovações">
-        <a href="{% url 'workflow_aprovacao:pending' %}"
-           class="{% if request.resolver_match.url_name == 'pending' or request.resolver_match.url_name == 'home' %}wf-nav--active{% endif %}">
-            <i class="fas fa-inbox" aria-hidden="true"></i> Fila
+        <a href="{% url 'workflow_aprovacao:home' %}"
+           class="{% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'home' %}wf-nav--active{% endif %}">
+            <i class="fas fa-chart-pie" aria-hidden="true"></i> Visão geral
         </a>
-        <a href="{% url 'workflow_aprovacao:dashboard' %}"
-           class="{% if request.resolver_match.url_name == 'dashboard' %}wf-nav--active{% endif %}">
-            <i class="fas fa-chart-pie" aria-hidden="true"></i> Resumo
+        <a href="{% url 'workflow_aprovacao:pending' %}"
+           class="{% if request.resolver_match.url_name == 'pending' %}wf-nav--active{% endif %}">
+            <i class="fas fa-inbox" aria-hidden="true"></i> Fila
         </a>
         {% if workflow_show_config_nav %}
         <a href="{% url 'workflow_aprovacao:config_backlog_list' %}"
