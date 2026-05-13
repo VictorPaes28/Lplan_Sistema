@@ -125,15 +125,6 @@
                             </div>
                             <span class="action-text">Ver Todos os Pedidos</span>
                         </a>
-                        <a href="{% url 'gestao:list_notificacoes' %}" class="action-btn">
-                            <div class="action-icon">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                                </svg>
-                            </div>
-                            <span class="action-text">Notificações</span>
-                        </a>
                         {% if is_admin %}
                         <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="action-btn" title="E-mails que recebem cópia ao aprovar pedido">
                             <div class="action-icon">

@@ -213,14 +213,6 @@
                 <span class="font-medium">Novo Pedido</span>
             </a>
             {% endif %}
-            <a href="{% url 'gestao:list_notificacoes' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_notificacoes' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-bell w-5 mr-3"></i>
-                <span class="font-medium">Notificações</span>
-                {% if notificacoes_count and notificacoes_count > 0 %}
-                <span class="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{{ notificacoes_count }}</span>
-                {% endif %}
-            </a>
             {% if is_admin %}
             <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
@@ -414,7 +406,7 @@
             <div class="top-bar-container fade-in {% if '/gestao/' in request.path %}gestao-top-bar{% endif %}">
                 <div class="top-bar-heading-group">
                     {% block top_bar_back %}
-                    <a href="{% block back_url %}{% if '/gestao/' in request.path %}{% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'leitura_lista_pedidos_pdf' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'detail_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'leitura_pedido_pdf' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'edit_workorder' or request.resolver_match.url_name == 'approve_workorder' or request.resolver_match.url_name == 'reject_workorder' or request.resolver_match.url_name == 'solicitar_exclusao' or request.resolver_match.url_name == 'aprovar_exclusao' or request.resolver_match.url_name == 'rejeitar_exclusao' or request.resolver_match.url_name == 'upload_attachment' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_empresas' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_empresa' or request.resolver_match.url_name == 'detail_empresa' %}{% url 'gestao:list_empresas' %}{% elif request.resolver_match.url_name == 'edit_empresa' %}{% url 'gestao:detail_empresa' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_obras' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_obra' or request.resolver_match.url_name == 'detail_obra' %}{% url 'gestao:list_obras' %}{% elif request.resolver_match.url_name == 'edit_obra' or request.resolver_match.url_name == 'manage_obra_permissions' %}{% url 'gestao:detail_obra' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_users' or request.resolver_match.url_name == 'edit_my_profile' or request.resolver_match.url_name == 'list_notificacoes' or request.resolver_match.url_name == 'desempenho_equipe' or request.resolver_match.url_name == 'manage_aprovacao_destinatarios' or request.resolver_match.url_name == 'list_email_logs' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_user' %}{% url 'gestao:list_users' %}{% elif request.resolver_match.url_name == 'edit_user' or request.resolver_match.url_name == 'delete_user' or request.resolver_match.url_name == 'user_governance' %}{% url 'gestao:list_users' %}{% else %}{% url 'gestao:home' %}{% endif %}{% elif '/comunicados/' in request.path %}{% url 'accounts:admin_central' %}{% else %}#{% endif %}{% endblock %}" id="top-bar-back-link"
+                    <a href="{% block back_url %}{% if '/gestao/' in request.path %}{% if request.resolver_match.url_name == 'list_workorders' or request.resolver_match.url_name == 'leitura_lista_pedidos_pdf' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'detail_workorder' %}{% url 'gestao:list_workorders' %}{% elif request.resolver_match.url_name == 'leitura_pedido_pdf' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'edit_workorder' or request.resolver_match.url_name == 'approve_workorder' or request.resolver_match.url_name == 'reject_workorder' or request.resolver_match.url_name == 'solicitar_exclusao' or request.resolver_match.url_name == 'aprovar_exclusao' or request.resolver_match.url_name == 'rejeitar_exclusao' or request.resolver_match.url_name == 'upload_attachment' %}{% url 'gestao:detail_workorder' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_empresas' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_empresa' or request.resolver_match.url_name == 'detail_empresa' %}{% url 'gestao:list_empresas' %}{% elif request.resolver_match.url_name == 'edit_empresa' %}{% url 'gestao:detail_empresa' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_obras' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_obra' or request.resolver_match.url_name == 'detail_obra' %}{% url 'gestao:list_obras' %}{% elif request.resolver_match.url_name == 'edit_obra' or request.resolver_match.url_name == 'manage_obra_permissions' %}{% url 'gestao:detail_obra' request.resolver_match.kwargs.pk %}{% elif request.resolver_match.url_name == 'list_users' or request.resolver_match.url_name == 'edit_my_profile' or request.resolver_match.url_name == 'desempenho_equipe' or request.resolver_match.url_name == 'manage_aprovacao_destinatarios' or request.resolver_match.url_name == 'list_email_logs' %}{% url 'gestao:home' %}{% elif request.resolver_match.url_name == 'create_user' %}{% url 'gestao:list_users' %}{% elif request.resolver_match.url_name == 'edit_user' or request.resolver_match.url_name == 'delete_user' or request.resolver_match.url_name == 'user_governance' %}{% url 'gestao:list_users' %}{% else %}{% url 'gestao:home' %}{% endif %}{% elif '/comunicados/' in request.path %}{% url 'accounts:admin_central' %}{% else %}#{% endif %}{% endblock %}" id="top-bar-back-link"
                        class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-2 px-3 transition-all duration-200"
                        aria-label="Voltar">
                         <i class="fas fa-arrow-left back-link-layer-icon" aria-hidden="true"></i>
@@ -454,6 +446,7 @@
                                     {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
                                 </span>
                             </div>
+                            <span class="top-bar-user-name" title="{{ user.get_full_name|default:user.username }}">{{ user.get_full_name|default:user.username }}</span>
                             <i class="fas fa-chevron-down text-gray-400 text-xs hidden md:block transition-transform duration-200" id="user-menu-chevron"></i>
                         </button>
                         
@@ -1073,7 +1066,7 @@
     <link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}?v=12">
     {% include 'comunicados/modal.html' %}
     <script src="{% static 'comunicados/js/comunicados.js' %}?v=13" defer></script>
-    <script src="{% static 'core/js/notifications-poll.js' %}?v=5" defer data-poll-url="{% url 'notifications-poll' %}"></script>
+    <script src="{% static 'core/js/notifications-poll.js' %}?v=6" defer data-poll-url="{% url 'notifications-poll' %}"></script>
     {% endif %}
 
     {% block extra_js %}{% endblock %}

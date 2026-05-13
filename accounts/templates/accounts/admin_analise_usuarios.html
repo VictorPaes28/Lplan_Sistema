@@ -6,7 +6,11 @@
 
 {% block extra_css %}
 <style>
-    .admin-page { max-width: 1200px; }
+    .admin-page {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
 
     @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(14px); }

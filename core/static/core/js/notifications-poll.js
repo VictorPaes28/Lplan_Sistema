@@ -17,27 +17,19 @@
   /** IDs de notificação já exibidos como toast nesta sessão (evita repetir a cada F5). */
   var SESSION_BOOTSTRAP_SHOWN_IDS = 'lplan-nt-bootstrap-shown-ids';
 
-  function gestaoBellMode() {
-    return !!(document.querySelector && document.querySelector('a.notifications-link'));
-  }
-
   function defaultNotificationsListUrl() {
-    return gestaoBellMode() ? '/gestao/notificacoes/' : '/notifications/';
+    return '/notifications/';
   }
 
-  /** Badge do header GestControll (gestao.Notificacao) vs sino Core (notification unread). */
+  /** Badge do sino Core (notification unread). */
   function unreadCountForBell(data) {
-    var c = typeof data.unread_count === 'number' ? data.unread_count : 0;
-    var g = typeof data.gestao_unread === 'number' ? data.gestao_unread : 0;
-    return gestaoBellMode() ? g : c;
+    return typeof data.unread_count === 'number' ? data.unread_count : 0;
   }
 
   function bellLinkNodes() {
     var out = [];
-    var desktop = document.querySelectorAll('.notif-bell-link, a.notifications-link');
+    var desktop = document.querySelectorAll('.notif-bell-link');
     for (var i = 0; i < desktop.length; i++) out.push(desktop[i]);
-    var mobile = document.querySelectorAll('a.mobile-menu-item[href*="notificacoes"]');
-    for (var j = 0; j < mobile.length; j++) out.push(mobile[j]);
     return out;
   }
 
@@ -53,11 +45,7 @@
       if (count > 0) {
         if (!badge) {
           badge = document.createElement('span');
-          if (link.classList && link.classList.contains('notifications-link'))
-            badge.className = 'notification-badge';
-          else if (link.classList && link.classList.contains('mobile-menu-item'))
-            badge.className = 'mobile-menu-badge';
-          else badge.className = 'notif-count-badge';
+          badge.className = 'notif-count-badge';
           link.appendChild(badge);
         }
         badge.textContent = text;
@@ -100,19 +88,27 @@
     if (
       ty === 'rdo_pendente' ||
       ty === 'pedido_criado' ||
+      ty === 'pedido_atualizado' ||
       ty === 'restricao_criada' ||
       ty.indexOf('trackhub') === 0
     ) {
       return 'lplan-nt-toast-icon--blue';
     }
+    if (ty === 'pedido_reenviado') {
+      return 'lplan-nt-toast-icon--amber';
+    }
+    if (ty === 'pedido_exclusao_solicitada') {
+      return 'lplan-nt-toast-icon--amber';
+    }
     if (
       ty === 'rdo_aprovado' ||
       ty === 'pedido_aprovado' ||
+      ty === 'pedido_exclusao_aprovada' ||
       ty === 'trackhub_etapa_concluida'
     ) {
       return 'lplan-nt-toast-icon--green';
     }
-    if (ty === 'rdo_reprovado' || ty === 'pedido_reprovado') {
+    if (ty === 'rdo_reprovado' || ty === 'pedido_reprovado' || ty === 'pedido_exclusao_rejeitada') {
       return 'lplan-nt-toast-icon--red';
     }
     if (ty === 'restricao_prazo' || ty === 'trackhub_prazo') {
@@ -126,15 +122,28 @@
     if (
       ty === 'rdo_aprovado' ||
       ty === 'pedido_aprovado' ||
+      ty === 'pedido_exclusao_aprovada' ||
       ty === 'trackhub_etapa_concluida'
     ) {
       return 'fa-check';
     }
-    if (ty === 'rdo_reprovado' || ty === 'pedido_reprovado') {
+    if (ty === 'rdo_reprovado' || ty === 'pedido_reprovado' || ty === 'pedido_exclusao_rejeitada') {
       return 'fa-times';
+    }
+    if (ty === 'pedido_exclusao_solicitada') {
+      return 'fa-trash-alt';
     }
     if (ty === 'pedido_comentario') {
       return 'fa-comment';
+    }
+    if (ty === 'pedido_criado') {
+      return 'fa-file-alt';
+    }
+    if (ty === 'pedido_reenviado') {
+      return 'fa-redo-alt';
+    }
+    if (ty === 'pedido_atualizado') {
+      return 'fa-pen-to-square';
     }
     return 'fa-bell';
   }

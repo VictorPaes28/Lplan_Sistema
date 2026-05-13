@@ -6,6 +6,13 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 
+# Tipos Core ligados a pedidos ainda na fila de aprovação (marcar lidas ao aprovar/reprovar).
+CORE_TIPOS_PEDIDO_FILA_APROVACAO = (
+    'pedido_criado',
+    'pedido_reenviado',
+    'pedido_atualizado',
+)
+
 
 def criar_notificacao(usuario_ou_lista, tipo, titulo, mensagem, url='', event_key=''):
     """

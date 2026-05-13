@@ -99,7 +99,6 @@ TEMPLATES = [
                 'core.context_processors.sidebar_systems',
                 'core.context_processors.sidebar_counters',
                 'core.context_processors.static_assets_version',
-                'gestao_aprovacao.context_processors.notificacoes_count',
                 'gestao_aprovacao.context_processors.user_context',
                 'mapa_obras.context_processors.obra_context',
             ],

@@ -124,6 +124,10 @@ html[data-theme="dark"] #user-menu-chevron {
   color: #cbd5e1 !important;
 }
 
+html[data-theme="dark"] .top-bar-user-name {
+  color: #e2e8f0 !important;
+}
+
 html[data-theme="dark"] #user-menu-dropdown {
   background: #1e293b !important;
   border-color: #334155 !important;

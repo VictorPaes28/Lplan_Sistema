@@ -116,7 +116,8 @@ nav * {
     overflow: visible !important;
 }
 
-#user-menu-button span {
+/* Iniciais dentro do círculo do avatar (não afetar .top-bar-user-name) */
+#user-menu-button > div > span {
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: nowrap !important;

@@ -641,14 +641,6 @@ html, body {
                 <span class="font-medium">Novo Pedido</span>
             </a>
             {% endif %}
-            <a href="{% url 'gestao:list_notificacoes' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_notificacoes' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-bell w-5 mr-3"></i>
-                <span class="font-medium">Notificações</span>
-                {% if notificacoes_count and notificacoes_count > 0 %}
-                <span class="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{{ notificacoes_count }}</span>
-                {% endif %}
-            </a>
             {% if is_admin %}
             <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gerenciamento</p>
@@ -788,6 +780,7 @@ html, body {
                                     {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
                                 </span>
                             </div>
+                            <span class="top-bar-user-name" title="{{ user.get_full_name|default:user.username }}">{{ user.get_full_name|default:user.username }}</span>
                             <i class="fas fa-chevron-down text-gray-400 text-xs hidden md:block transition-transform duration-200" id="user-menu-chevron"></i>
                         </button>
                         

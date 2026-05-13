@@ -400,6 +400,18 @@
   background: #eff6ff;
   color: #2563eb;
 }
+.notif-icon.pedido-reenviado {
+  background: #fffbeb;
+  color: #d97706;
+}
+.notif-icon.pedido-atualizado {
+  background: #f0f9ff;
+  color: #0284c7;
+}
+.notif-icon.pedido-exclusao-sol {
+  background: #fffbeb;
+  color: #ca8a04;
+}
 
 .notif-body {
   flex: 1;
@@ -464,6 +476,18 @@
 .notif-badge.trackhub {
   background: #f0fdfa;
   color: #0d9488;
+}
+.notif-badge.pedido-reenviado {
+  background: #fffbeb;
+  color: #d97706;
+}
+.notif-badge.pedido-atualizado {
+  background: #f0f9ff;
+  color: #0284c7;
+}
+.notif-badge.pedido-exclusao-sol {
+  background: #fffbeb;
+  color: #b45309;
 }
 .notif-badge.rdo {
   background: #eff6ff;
@@ -657,8 +681,13 @@
           <select name="type" class="filter-select" id="notif-filter-type">
             <option value="" {% if not filter_type %}selected{% endif %}>Todos</option>
             <option value="pedido_criado" {% if filter_type == 'pedido_criado' %}selected{% endif %}>Novo Pedido para Aprovar</option>
+            <option value="pedido_reenviado" {% if filter_type == 'pedido_reenviado' %}selected{% endif %}>Pedido reenviado (após reprovação)</option>
+            <option value="pedido_atualizado" {% if filter_type == 'pedido_atualizado' %}selected{% endif %}>Pedido atualizado (pendente)</option>
             <option value="pedido_aprovado" {% if filter_type == 'pedido_aprovado' %}selected{% endif %}>Pedido Aprovado</option>
             <option value="pedido_reprovado" {% if filter_type == 'pedido_reprovado' %}selected{% endif %}>Pedido Reprovado</option>
+            <option value="pedido_exclusao_solicitada" {% if filter_type == 'pedido_exclusao_solicitada' %}selected{% endif %}>Exclusão de pedido solicitada</option>
+            <option value="pedido_exclusao_aprovada" {% if filter_type == 'pedido_exclusao_aprovada' %}selected{% endif %}>Exclusão de pedido aprovada</option>
+            <option value="pedido_exclusao_rejeitada" {% if filter_type == 'pedido_exclusao_rejeitada' %}selected{% endif %}>Exclusão de pedido rejeitada</option>
             <option value="rdo_pendente" {% if filter_type == 'rdo_pendente' %}selected{% endif %}>RDO Pendente</option>
             <option value="trackhub_etapa_concluida" {% if filter_type == 'trackhub_etapa_concluida' %}selected{% endif %}>TrackHub</option>
             <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Notificação do Sistema</option>
@@ -702,8 +731,13 @@
       <div class="notif-header">
         <div class="notif-header-title">
           {% if filter_type == 'pedido_criado' %}Novo Pedido para Aprovar
+          {% elif filter_type == 'pedido_reenviado' %}Pedido reenviado para aprovação
+          {% elif filter_type == 'pedido_atualizado' %}Pedido atualizado (pendente)
           {% elif filter_type == 'pedido_aprovado' %}Pedido Aprovado
           {% elif filter_type == 'pedido_reprovado' %}Pedido Reprovado
+          {% elif filter_type == 'pedido_exclusao_solicitada' %}Exclusão de pedido solicitada
+          {% elif filter_type == 'pedido_exclusao_aprovada' %}Exclusão de pedido aprovada
+          {% elif filter_type == 'pedido_exclusao_rejeitada' %}Exclusão de pedido rejeitada
           {% elif filter_type == 'pedido_comentario' %}Comentário em Pedido
           {% elif filter_type == 'rdo_pendente' %}RDO Pendente
           {% elif filter_type == 'rdo_aprovado' %}RDO Aprovado
@@ -729,8 +763,13 @@
       {% for notification in day.list %}
       {% with t=notification.notification_type %}
       <div class="notif-item{% if not notification.is_read %} unread{% endif %}">
-        <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">
+        <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">
           {% if t == 'pedido_criado' %}<i class="fas fa-file-alt" aria-hidden="true"></i>
+          {% elif t == 'pedido_reenviado' %}<i class="fas fa-redo-alt" aria-hidden="true"></i>
+          {% elif t == 'pedido_atualizado' %}<i class="fas fa-pen-to-square" aria-hidden="true"></i>
+          {% elif t == 'pedido_exclusao_solicitada' %}<i class="fas fa-trash-alt" aria-hidden="true"></i>
+          {% elif t == 'pedido_exclusao_aprovada' %}<i class="fas fa-check-double" aria-hidden="true"></i>
+          {% elif t == 'pedido_exclusao_rejeitada' %}<i class="fas fa-ban" aria-hidden="true"></i>
           {% elif t == 'pedido_comentario' %}<i class="fas fa-comment" aria-hidden="true"></i>
           {% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}<i class="fas fa-check" aria-hidden="true"></i>
           {% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}<i class="fas fa-times" aria-hidden="true"></i>
@@ -743,7 +782,7 @@
             <h3 class="notif-title">{{ notification.title }}</h3>
             <div class="notif-date">{{ notification.created_at|date:"d/m H:i" }}</div>
           </div>
-          <span class="notif-badge {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">{{ notification.get_notification_type_display }}</span>
+          <span class="notif-badge {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">{{ notification.get_notification_type_display }}</span>
           <div class="notif-msg">{{ notification.message }}</div>
           <div class="notif-actions">
             {% url 'notification-open' notification.pk as notif_open %}

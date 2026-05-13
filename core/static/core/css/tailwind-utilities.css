@@ -359,6 +359,7 @@
     .md\:hidden { display: none; }
     .md\:block { display: block; }
     .md\:inline { display: inline; }
+    .md\:inline-block { display: inline-block; }
     .md\:flex { display: flex; }
     .md\:inline-flex { display: inline-flex; }
     .md\:gap-2 { gap: 0.5rem; }

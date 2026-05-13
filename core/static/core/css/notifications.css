@@ -49,6 +49,21 @@
 .lplan-nt-toast[data-type='restricao_criada'] {
   border-left-color: #2563eb;
 }
+.lplan-nt-toast[data-type='pedido_reenviado'] {
+  border-left-color: #d97706;
+}
+.lplan-nt-toast[data-type='pedido_atualizado'] {
+  border-left-color: #0284c7;
+}
+.lplan-nt-toast[data-type='pedido_exclusao_solicitada'] {
+  border-left-color: #ca8a04;
+}
+.lplan-nt-toast[data-type='pedido_exclusao_aprovada'] {
+  border-left-color: #16a34a;
+}
+.lplan-nt-toast[data-type='pedido_exclusao_rejeitada'] {
+  border-left-color: #ef4444;
+}
 .lplan-nt-toast[data-type='rdo_aprovado'],
 .lplan-nt-toast[data-type='pedido_aprovado'],
 .lplan-nt-toast[data-type='trackhub_etapa_concluida'] {

@@ -7,7 +7,12 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
 <style>
-    .admin-page { max-width: 1200px; }
+    /* Largura fluida: usa todo o espaço horizontal do miolo (sidebar + padding do base.css). */
+    .admin-page {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
 
     /* ═══ Animations ═══ */
     @keyframes fadeInUp {
@@ -715,7 +720,7 @@
                 <i class="fas fa-question-circle" aria-hidden="true"></i> Ajuda — Quando algo der errado
             </a>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             <a href="/accounts/admin-central/painel-usuario/" class="central-action-card" style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #bfdbfe;">
                 <div class="central-action-icon" style="background:#dbeafe;color:#1d4ed8;">
                     <i class="fas fa-id-card" aria-hidden="true"></i>

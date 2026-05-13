@@ -176,6 +176,10 @@ body.bi-page-dark .main-content-wrapper {
   color: #cbd5e1 !important;
 }
 
+.main-content.main-content--bi-obra.bi-page-dark #user-menu-button .top-bar-user-name {
+  color: #e2e8f0 !important;
+}
+
 .main-content.main-content--bi-obra.bi-page-dark #user-menu-dropdown {
   background: #1e293b !important;
   border-color: #334155 !important;

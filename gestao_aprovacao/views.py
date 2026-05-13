@@ -46,6 +46,7 @@ from .utils import (
     usuario_pode_marcar_pedido_analisado,
     usuarios_escopo_pedido_para_notificar,
 )
+from core.notification_utils import CORE_TIPOS_PEDIDO_FILA_APROVACAO
 from core.notification_utils import criar_notificacao as core_criar_notificacao
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from .services.user_governance import (
@@ -2409,14 +2410,15 @@ def edit_workorder(request, pk):
                         else '—'
                     )
                     msg_core = (
+                        f'Ajustado após reprovação (versão {versao_reaprovacao_atual}). '
                         f'{workorder.nome_credor} · {workorder.get_tipo_solicitacao_display()} · {valor_txt}'
                     )
                     core_users = list(usuarios_notificar)
                     if core_users:
                         core_criar_notificacao(
                             core_users,
-                            'pedido_criado',
-                            f'Novo pedido para aprovar — {workorder.codigo}',
+                            'pedido_reenviado',
+                            f'Pedido reenviado para aprovação — {workorder.codigo}',
                             msg_core,
                             url=detail_url,
                             event_key=f'gestao:wo:{workorder.pk}',
@@ -2458,14 +2460,15 @@ def edit_workorder(request, pk):
                         else '—'
                     )
                     msg_core = (
+                        f'O solicitante alterou o pedido ainda pendente de aprovação. '
                         f'{workorder.nome_credor} · {workorder.get_tipo_solicitacao_display()} · {valor_txt}'
                     )
                     core_users = list(usuarios_notificar)
                     if core_users:
                         core_criar_notificacao(
                             core_users,
-                            'pedido_criado',
-                            f'Novo pedido para aprovar — {workorder.codigo}',
+                            'pedido_atualizado',
+                            f'Pedido atualizado — {workorder.codigo}',
                             msg_core,
                             url=detail_url,
                             event_key=f'gestao:wo:{workorder.pk}',
@@ -2586,7 +2589,9 @@ def approve_workorder(request, pk):
         try:
             from core.notification_utils import marcar_lidas_por_event_key
 
-            marcar_lidas_por_event_key(f'gestao:wo:{workorder.pk}', ['pedido_criado'])
+            marcar_lidas_por_event_key(
+                f'gestao:wo:{workorder.pk}', list(CORE_TIPOS_PEDIDO_FILA_APROVACAO)
+            )
         except Exception:
             pass
 
@@ -2797,7 +2802,9 @@ def reject_workorder(request, pk):
         try:
             from core.notification_utils import marcar_lidas_por_event_key
 
-            marcar_lidas_por_event_key(f'gestao:wo:{workorder.pk}', ['pedido_criado'])
+            marcar_lidas_por_event_key(
+                f'gestao:wo:{workorder.pk}', list(CORE_TIPOS_PEDIDO_FILA_APROVACAO)
+            )
         except Exception:
             pass
 
@@ -4461,14 +4468,28 @@ def solicitar_exclusao(request, pk):
         usuarios_notificar = _get_approvers_for_exclusion(workorder)
 
         for usuario in usuarios_notificar:
+            if usuario == user:
+                continue
             criar_notificacao(
                 usuario=usuario,
                 tipo='exclusao_solicitada',
                 titulo=f'Exclusão Solicitada: {workorder.codigo}',
                 mensagem=f'O solicitante {user.get_full_name() or user.username} solicitou a exclusão do pedido {workorder.codigo}. Motivo: {motivo}',
-                work_order=workorder
+                work_order=workorder,
             )
-        
+
+        detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
+        core_aprovadores = [u for u in usuarios_notificar if u != user]
+        if core_aprovadores:
+            core_criar_notificacao(
+                core_aprovadores,
+                'pedido_exclusao_solicitada',
+                f'Exclusão solicitada — {workorder.codigo}',
+                f'{user.get_full_name() or user.username} pediu a exclusão do pedido. Motivo: {motivo}',
+                url=detail_url,
+                event_key=f'gestao:wo:{workorder.pk}',
+            )
+
         messages.success(request, 'Solicitação de exclusão enviada. Aguardando aprovação do aprovador.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
@@ -4517,9 +4538,16 @@ def aprovar_exclusao(request, pk):
     
     if request.method == 'POST':
         # Salvar dados da solicitação antes de limpar
-        solicitante_nome = workorder.solicitado_exclusao_por.get_full_name() if workorder.solicitado_exclusao_por else "N/A"
+        solicitante_exclusao = workorder.solicitado_exclusao_por or workorder.criado_por
+        solicitante_nome = (
+            workorder.solicitado_exclusao_por.get_full_name()
+            if workorder.solicitado_exclusao_por
+            else 'N/A'
+        )
         motivo_texto = f' Motivo: {workorder.motivo_exclusao}' if workorder.motivo_exclusao else ''
-        
+        codigo_wo = workorder.codigo
+        detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
+
         # Registrar no histórico
         StatusHistory.objects.create(
             work_order=workorder,
@@ -4536,18 +4564,35 @@ def aprovar_exclusao(request, pk):
         workorder.solicitado_exclusao_em = None
         workorder.motivo_exclusao = None
         workorder.save()
+
+        try:
+            from core.notification_utils import marcar_lidas_por_event_key
+
+            marcar_lidas_por_event_key(
+                f'gestao:wo:{workorder.pk}', ['pedido_exclusao_solicitada']
+            )
+        except Exception:
+            pass
         
-        # Notificar o solicitante
-        if workorder.criado_por:
+        # Notificar quem pediu a exclusão (e o app Gestão interno)
+        if solicitante_exclusao:
             criar_notificacao(
-                usuario=workorder.criado_por,
+                usuario=solicitante_exclusao,
                 tipo='exclusao_aprovada',
-                titulo=f'Exclusão Aprovada: {workorder.codigo}',
-                mensagem=f'A exclusão do pedido {workorder.codigo} foi aprovada por {user.get_full_name() or user.username}.',
-                work_order=workorder
+                titulo=f'Exclusão Aprovada: {codigo_wo}',
+                mensagem=f'A exclusão do pedido {codigo_wo} foi aprovada por {user.get_full_name() or user.username}.',
+                work_order=workorder,
+            )
+            core_criar_notificacao(
+                solicitante_exclusao,
+                'pedido_exclusao_aprovada',
+                f'Exclusão aprovada — {codigo_wo}',
+                f'O aprovador {user.get_full_name() or user.username} aprovou a exclusão do pedido {codigo_wo}.',
+                url=detail_url,
+                event_key=f'gestao:wo:{workorder.pk}',
             )
         
-        messages.success(request, f'Exclusão do pedido {workorder.codigo} aprovada e efetivada.')
+        messages.success(request, f'Exclusão do pedido {codigo_wo} aprovada e efetivada.')
         return redirect('gestao:list_workorders')
     
     # GET - mostrar confirmação
@@ -4595,6 +4640,9 @@ def rejeitar_exclusao(request, pk):
     
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '')
+        solicitante_exclusao = workorder.solicitado_exclusao_por or workorder.criado_por
+        codigo_wo = workorder.codigo
+        detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
         
         # Remover solicitação de exclusão
         workorder.solicitado_exclusao = False
@@ -4602,22 +4650,44 @@ def rejeitar_exclusao(request, pk):
         workorder.solicitado_exclusao_em = None
         workorder.motivo_exclusao = None
         workorder.save()
+
+        try:
+            from core.notification_utils import marcar_lidas_por_event_key
+
+            marcar_lidas_por_event_key(
+                f'gestao:wo:{workorder.pk}', ['pedido_exclusao_solicitada']
+            )
+        except Exception:
+            pass
         
-        # Notificar o solicitante
-        if workorder.criado_por:
-            mensagem = f'A solicitação de exclusão do pedido {workorder.codigo} foi rejeitada por {user.get_full_name() or user.username}.'
+        # Notificar quem pediu a exclusão
+        if solicitante_exclusao:
+            mensagem = f'A solicitação de exclusão do pedido {codigo_wo} foi rejeitada por {user.get_full_name() or user.username}.'
             if motivo:
                 mensagem += f' Motivo: {motivo}'
             
             criar_notificacao(
-                usuario=workorder.criado_por,
+                usuario=solicitante_exclusao,
                 tipo='exclusao_rejeitada',
-                titulo=f'Exclusão Rejeitada: {workorder.codigo}',
+                titulo=f'Exclusão Rejeitada: {codigo_wo}',
                 mensagem=mensagem,
-                work_order=workorder
+                work_order=workorder,
+            )
+            msg_core = (
+                f'O aprovador {user.get_full_name() or user.username} rejeitou a exclusão do pedido {codigo_wo}.'
+            )
+            if motivo:
+                msg_core += f' Comentário: {motivo}'
+            core_criar_notificacao(
+                solicitante_exclusao,
+                'pedido_exclusao_rejeitada',
+                f'Exclusão não aprovada — {codigo_wo}',
+                msg_core,
+                url=detail_url,
+                event_key=f'gestao:wo:{workorder.pk}',
             )
         
-        messages.success(request, f'Solicitação de exclusão do pedido {workorder.codigo} rejeitada.')
+        messages.success(request, f'Solicitação de exclusão do pedido {codigo_wo} rejeitada.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # GET - mostrar formulário
