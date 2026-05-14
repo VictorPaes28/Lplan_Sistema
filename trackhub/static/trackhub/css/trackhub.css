@@ -248,8 +248,15 @@
 .th-card.th-card--encerrada .th-etapa-resp {
   color: #94a3b8;
 }
-.th-card.th-card--encerrada .th-prazo {
-  opacity: 0.9;
+/* Prazo em cards encerrados: sempre neutro (evita .soon/.vencida sobrescreverem a cor) */
+.th-card.th-card--encerrada .th-prazo,
+.th-card.th-card--encerrada .th-prazo.ok,
+.th-card.th-card--encerrada .th-prazo.soon,
+.th-card.th-card--encerrada .th-prazo.vencida,
+.th-card.th-card--encerrada .th-prazo.neutral {
+  color: #94a3b8 !important;
+  font-weight: 600;
+  opacity: 1;
 }
 .th-card.th-card--encerrada .th-btn-icon:not(:hover) {
   background: #f8fafc;

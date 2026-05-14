@@ -79,7 +79,7 @@
 {% if page_obj.object_list %}
 <div class="th-list">
   {% for p in page_obj %}
-  <div class="th-card{% if p.esta_vencida %} vencida{% endif %}{% if p.status == 'concluida' or p.status == 'cancelada' %} th-card--encerrada{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
+  <div class="th-card{% if p.esta_vencida %} vencida{% endif %}{% if p.encerrada_na_fila %} th-card--encerrada{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
     <div class="th-prio {{ p.prioridade }}"></div>
     <div class="th-main">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;">

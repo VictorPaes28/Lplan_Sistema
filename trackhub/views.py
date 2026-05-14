@@ -392,6 +392,8 @@ def _pendencia_prefetched_for_detail(user, pk):
 
 
 _PRIORIDADE_ORDER = {"urgente": 0, "alta": 1, "normal": 2, "baixa": 3}
+# Dentro das não encerradas: em andamento / aguardando sobem na fila antes de só "aberta".
+_STATUS_ATIVO_FILA = {"em_andamento": 0, "aguardando": 1, "aberta": 2}
 
 _MONTHS_PT = (
     "",
@@ -707,7 +709,7 @@ def _th_prazo_class(p, hoje=None):
     if not p.prazo:
         return ""
     # Encerradas: prazo só informativo (cinza), não alerta de atraso.
-    if p.status in ("concluida", "cancelada"):
+    if p.encerrada_na_fila:
         return "neutral"
     if p.esta_vencida:
         return "vencida"
@@ -716,15 +718,18 @@ def _th_prazo_class(p, hoje=None):
     return "ok"
 
 
-def _fila_encerrada(p):
-    """Concluídas e canceladas ficam sempre abaixo das demais na fila."""
-    return p.status in ("concluida", "cancelada")
-
-
 def _fila_sort_key(p):
+    enc = 1 if p.encerrada_na_fila else 0
+    ativo_ord = (
+        9
+        if enc
+        else _STATUS_ATIVO_FILA.get(p.status_normalizado, 3)
+    )
+    venc = 0 if (not enc and p.esta_vencida) else 1
     return (
-        1 if _fila_encerrada(p) else 0,
-        0 if p.esta_vencida else 1,
+        enc,
+        ativo_ord,
+        venc,
         _PRIORIDADE_ORDER.get(p.prioridade, 9),
         p.prazo or date.max,
         p.created_at,

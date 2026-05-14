@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 from mapa_obras.models import Obra
 
@@ -61,13 +62,21 @@ class Pendencia(models.Model):
         return f"{self.titulo} — {self.obra.nome}"
 
     @property
-    def esta_vencida(self):
-        from datetime import date
+    def status_normalizado(self) -> str:
+        return (self.status or "").strip().lower()
 
+    @property
+    def encerrada_na_fila(self) -> bool:
+        """Concluída ou cancelada (fila e estilo de prazo)."""
+        return self.status_normalizado in ("concluida", "cancelada")
+
+    @property
+    def esta_vencida(self):
+        hoje = timezone.localdate()
         return (
             self.prazo
-            and self.prazo < date.today()
-            and self.status not in ["concluida", "cancelada"]
+            and self.prazo < hoje
+            and not self.encerrada_na_fila
         )
 
     @property
