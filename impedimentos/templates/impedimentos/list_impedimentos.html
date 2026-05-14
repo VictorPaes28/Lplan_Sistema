@@ -68,7 +68,7 @@
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_calendario }}" class="imp-tab {% if active_view == 'calendario' %}is-active{% endif %}">Calendário</a>
         </nav>
         {% if tem_categorias %}
-        <button type="button" class="imp-btn imp-btn-primary" data-modal-open>
+        <button type="button" class="imp-btn imp-btn-primary" data-modal-open data-imp-nova-restricao-guard>
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
         {% else %}
@@ -76,8 +76,9 @@
             type="button"
             title="É necessário criar categorias antes de adicionar restrições"
             style="opacity: .5; cursor: not-allowed;"
-            onclick="alert('É necessário ter categorias para criar uma restrição.')"
-            class="imp-btn imp-btn-primary">
+            class="imp-btn imp-btn-primary imp-nova-restricao--blocked"
+            data-imp-nova-restricao-guard
+            aria-disabled="true">
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
         {% endif %}
@@ -226,9 +227,18 @@
                     {% endfor %}
                 </div>
                 <div class="imp-list-group-footer">
-                    <button type="button" class="imp-btn imp-btn-secondary imp-btn-sm" data-modal-open data-default-status="{{ col.id }}">
+                    {% if tem_categorias %}
+                    <button type="button" class="imp-btn imp-btn-secondary imp-btn-sm" data-modal-open data-default-status="{{ col.id }}" data-imp-nova-restricao-guard>
                         <i class="fas fa-plus"></i> Adicionar restrição
                     </button>
+                    {% else %}
+                    <button type="button" class="imp-btn imp-btn-secondary imp-btn-sm imp-nova-restricao--blocked" data-default-status="{{ col.id }}" data-imp-nova-restricao-guard
+                        style="opacity: .5; cursor: not-allowed;"
+                        title="É necessário criar categorias antes de adicionar restrições"
+                        aria-disabled="true">
+                        <i class="fas fa-plus"></i> Adicionar restrição
+                    </button>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -240,7 +250,7 @@
         <h3>Nenhuma restrição cadastrada</h3>
         <p>Crie a primeira restrição para começar o acompanhamento desta obra.</p>
         {% if tem_categorias %}
-        <button type="button" class="imp-btn imp-btn-primary" data-modal-open>
+        <button type="button" class="imp-btn imp-btn-primary" data-modal-open data-imp-nova-restricao-guard>
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
         {% else %}
@@ -248,8 +258,9 @@
             type="button"
             title="É necessário criar categorias antes de adicionar restrições"
             style="opacity: .5; cursor: not-allowed;"
-            onclick="alert('É necessário ter categorias para criar uma restrição.')"
-            class="imp-btn imp-btn-primary">
+            class="imp-btn imp-btn-primary imp-nova-restricao--blocked"
+            data-imp-nova-restricao-guard
+            aria-disabled="true">
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
         {% endif %}
@@ -328,9 +339,18 @@
                     {% endfor %}
                 </div>
                 <div class="imp-kanban-col-footer">
-                    <button type="button" class="imp-kanban-add-btn" data-modal-open data-default-status="{{ col.id }}">
+                    {% if tem_categorias %}
+                    <button type="button" class="imp-kanban-add-btn" data-modal-open data-default-status="{{ col.id }}" data-imp-nova-restricao-guard>
                         <i class="fas fa-plus" aria-hidden="true"></i> Adicionar restrição
                     </button>
+                    {% else %}
+                    <button type="button" class="imp-kanban-add-btn imp-nova-restricao--blocked" data-default-status="{{ col.id }}" data-imp-nova-restricao-guard
+                        style="opacity: .5; cursor: not-allowed;"
+                        title="É necessário criar categorias antes de adicionar restrições"
+                        aria-disabled="true">
+                        <i class="fas fa-plus" aria-hidden="true"></i> Adicionar restrição
+                    </button>
+                    {% endif %}
                 </div>
             </article>
             {% endfor %}
@@ -891,7 +911,6 @@
 <script>
 (function() {
     const modal = document.getElementById('novo-impedimento-modal');
-    const openButtons = document.querySelectorAll('[data-modal-open]');
     const closeButtons = document.querySelectorAll('[data-modal-close]');
     const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
     const kanbanBoard = document.querySelector('.imp-kanban-board');
@@ -1193,6 +1212,7 @@
                             if (opt) opt.remove();
                         }
                         rebuildCategoriasChips();
+                        syncNovaRestricaoGuardButtons();
                         let ids = getCatIdsFromLocation();
                         if (ids.includes(id)) {
                             ids = ids.filter((x) => x !== id);
@@ -1355,6 +1375,7 @@
                         bindCatToggleRow(b);
                     }
                     rebuildCategoriasChips();
+                    syncNovaRestricaoGuardButtons();
                     closeCatMiniModal();
                 })
                 .catch(() => {
@@ -1740,10 +1761,47 @@
         resetAttachmentState();
     }
 
-    openButtons.forEach((btn) => btn.addEventListener('click', function() {
-        const ds = btn.getAttribute('data-default-status');
+    function countObraCategorias() {
+        if (!pageRoot) return 0;
+        return pageRoot.querySelectorAll('.imp-cat-list .imp-cat-list__item[data-cat-item-id]').length;
+    }
+
+    function syncNovaRestricaoGuardButtons() {
+        if (!pageRoot) return;
+        const has = countObraCategorias() > 0;
+        const blockedTitle = 'É necessário criar categorias antes de adicionar restrições';
+        pageRoot.querySelectorAll('[data-imp-nova-restricao-guard]').forEach((btn) => {
+            if (has) {
+                btn.classList.remove('imp-nova-restricao--blocked');
+                btn.style.opacity = '';
+                btn.style.cursor = '';
+                btn.removeAttribute('title');
+                btn.removeAttribute('aria-disabled');
+                btn.setAttribute('data-modal-open', '');
+            } else {
+                btn.classList.add('imp-nova-restricao--blocked');
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                btn.setAttribute('title', blockedTitle);
+                btn.setAttribute('aria-disabled', 'true');
+                btn.removeAttribute('data-modal-open');
+            }
+        });
+    }
+
+    document.addEventListener('click', function(ev) {
+        const blocked = ev.target.closest('.imp-nova-restricao--blocked[data-imp-nova-restricao-guard]');
+        if (blocked && pageRoot && pageRoot.contains(blocked)) {
+            ev.preventDefault();
+            alert('É necessário ter categorias para criar uma restrição.');
+            return;
+        }
+        const opener = ev.target.closest('[data-modal-open]');
+        if (!opener || !pageRoot || !pageRoot.contains(opener)) return;
+        const ds = opener.getAttribute('data-default-status');
         openModal(ds);
-    }));
+    });
+    syncNovaRestricaoGuardButtons();
     closeButtons.forEach((btn) => btn.addEventListener('click', closeModal));
 
     modal.addEventListener('click', function(event) {

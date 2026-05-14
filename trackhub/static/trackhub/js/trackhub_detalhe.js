@@ -26,6 +26,9 @@
   function etapaAdicionarUrl(pk) { return urlPk(root.dataset.urlEtapaAdicionar, pk); }
   function pendenciaFichaUrl(pk) { return urlPk(root.dataset.urlPendenciaFicha, pk); }
   function etapaNotificarUrl(etapaPk) { return urlPk(root.dataset.urlEtapaNotificar, etapaPk); }
+  function etapasReordenarUrl(pk) { return urlPk(root.dataset.urlEtapasReordenar, pk); }
+
+  var dragEtapaId = null;
 
   function pendenciaFichaUrlComEtapaPendente(pk, etapas) {
     var base = pendenciaFichaUrl(pk);
@@ -308,6 +311,28 @@
       var isAtiva = !isConcl && idx === firstPendenteIdx;
       var item = document.createElement('div');
       item.className = 'th-etapa-item' + (isConcl ? ' concluida' : (isAtiva ? ' ativa' : ''));
+      item.setAttribute('data-etapa-id', String(e.id));
+      var podeReordenar = p.pode_editar && p.status !== 'concluida' && p.status !== 'cancelada';
+      if (podeReordenar) {
+        item.setAttribute('draggable', 'true');
+        item.setAttribute('title', 'Arraste para alterar a ordem das etapas');
+        item.addEventListener('dragstart', function (ev) {
+          if (ev.target.closest && ev.target.closest('button, a')) {
+            ev.preventDefault();
+            return;
+          }
+          dragEtapaId = String(e.id);
+          ev.dataTransfer.setData('text/plain', String(e.id));
+          ev.dataTransfer.effectAllowed = 'move';
+          item.classList.add('th-etapa-item--dragging');
+          document.addEventListener('dragover', onDocumentDragOverForEtapaReorder, true);
+        });
+        item.addEventListener('dragend', function () {
+          item.classList.remove('th-etapa-item--dragging');
+          dragEtapaId = null;
+          document.removeEventListener('dragover', onDocumentDragOverForEtapaReorder, true);
+        });
+      }
 
       var row = document.createElement('div');
       row.className = 'th-etapa-row';
@@ -649,6 +674,116 @@
     if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
     carregarAtividades(currentPk);
   }
+
+  function getDragAfterEtapa(clientY) {
+    if (!elEtapas) return null;
+    var draggable = [].slice.call(elEtapas.querySelectorAll('.th-etapa-item[draggable="true"]'));
+    var closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+    draggable.forEach(function (child) {
+      var box = child.getBoundingClientRect();
+      var offset = clientY - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        closest = { offset: offset, element: child };
+      }
+    });
+    return closest.element;
+  }
+
+  /** Scroll automático ao arrastar etapas (HTML5 DnD não rola sozinho perto das bordas). */
+  function onDocumentDragOverForEtapaReorder(ev) {
+    if (!dragEtapaId) return;
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    autoScrollDuringEtapaDrag(ev.clientY);
+  }
+
+  function autoScrollDuringEtapaDrag(clientY) {
+    var zone = 80;
+    var maxStep = 32;
+    var candidates = [
+      document.querySelector('.th-detalhe-col-left.th-modal-left'),
+      document.getElementById('th-detalhe-overlay'),
+    ];
+    candidates.forEach(function (el) {
+      if (!el) return;
+      var oy = getComputedStyle(el).overflowY;
+      if (oy !== 'auto' && oy !== 'scroll' && oy !== 'overlay') return;
+      if (el.scrollHeight <= el.clientHeight + 2) return;
+      var r = el.getBoundingClientRect();
+      if (clientY < r.top || clientY > r.bottom) return;
+      var delta = 0;
+      if (clientY < r.top + zone) {
+        delta = -Math.ceil(maxStep * Math.min(1, (r.top + zone - clientY) / zone));
+      } else if (clientY > r.bottom - zone) {
+        delta = Math.ceil(maxStep * Math.min(1, (clientY - (r.bottom - zone)) / zone));
+      }
+      if (delta !== 0) {
+        el.scrollTop = Math.max(
+          0,
+          Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + delta)
+        );
+      }
+    });
+  }
+
+  async function persistEtapasOrder(ordemIds) {
+    if (!currentPk) return;
+    var r = await fetch(etapasReordenarUrl(currentPk), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF,
+      },
+      body: JSON.stringify({ ordem_ids: ordemIds }),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.ok) {
+      alert((d && d.error) || 'Não foi possível reordenar as etapas.');
+      var res = await fetch(detailUrl(currentPk), { credentials: 'same-origin' });
+      var pack = await res.json().catch(function () { return {}; });
+      if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
+      return;
+    }
+    if (d.pendencia) applyPendenciaPayload(d.pendencia);
+    carregarAtividades(currentPk);
+    flashSaving();
+  }
+
+  function initEtapasDnDOnce() {
+    if (!elEtapas || elEtapas._thEtapasDndInit) return;
+    elEtapas._thEtapasDndInit = true;
+    elEtapas.addEventListener('dragover', function (ev) {
+      if (!dragEtapaId) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      autoScrollDuringEtapaDrag(ev.clientY);
+    });
+    elEtapas.addEventListener('drop', function (ev) {
+      ev.preventDefault();
+      var rawId = (ev.dataTransfer && ev.dataTransfer.getData('text/plain')) || dragEtapaId;
+      if (!rawId || !elEtapas) return;
+      var draggedEl = elEtapas.querySelector('.th-etapa-item[data-etapa-id="' + String(rawId) + '"]');
+      if (!draggedEl || draggedEl.getAttribute('draggable') !== 'true') return;
+      var afterEl = getDragAfterEtapa(ev.clientY);
+      if (afterEl === draggedEl) return;
+      var verMais = elEtapas.querySelector('.th-etapas-ver-historico');
+      if (afterEl == null) {
+        if (verMais) elEtapas.insertBefore(draggedEl, verMais);
+        else elEtapas.appendChild(draggedEl);
+      } else {
+        elEtapas.insertBefore(draggedEl, afterEl);
+      }
+      var ids = [].map.call(elEtapas.querySelectorAll('.th-etapa-item[draggable="true"]'), function (node) {
+        return parseInt(node.getAttribute('data-etapa-id'), 10);
+      });
+      var orig = (currentData && currentData.etapas) ? currentData.etapas.map(function (x) { return x.id; }) : [];
+      var changed = ids.length !== orig.length || ids.some(function (id, i) { return id !== orig[i]; });
+      if (!changed) return;
+      persistEtapasOrder(ids);
+    });
+  }
+  initEtapasDnDOnce();
 
   async function removerAnexo(anexoPk) {
     if (!confirm('Remover este arquivo?')) return;

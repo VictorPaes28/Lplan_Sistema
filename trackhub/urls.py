@@ -33,6 +33,11 @@ urlpatterns = [
         views.etapa_adicionar_view,
         name='etapa_adicionar',
     ),
+    path(
+        'pendencia/<int:pk>/etapas/reordenar/',
+        views.pendencia_etapas_reordenar_view,
+        name='pendencia_etapas_reordenar',
+    ),
     path('pendencia/<int:pk>/', views.pendencia_detalhe_view, name='pendencia_detalhe'),
     path('pendencia/<int:pk>/editar/', views.pendencia_editar_view, name='pendencia_editar'),
     path('pendencia/<int:pk>/concluir/', views.pendencia_concluir_view, name='pendencia_concluir'),

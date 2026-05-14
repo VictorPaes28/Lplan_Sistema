@@ -12,7 +12,8 @@
   data-url-pendencia-deletar="{% url 'trackhub:pendencia_deletar' pk=0 %}"
   data-url-pendencia-ficha="{% url 'trackhub:pendencia_detalhe' pk=0 %}"
   data-url-etapa-notificar="{% url 'trackhub:etapa_notificar' pk=0 %}"
-  data-url-etapa-adicionar="{% url 'trackhub:etapa_adicionar' pk=0 %}">
+  data-url-etapa-adicionar="{% url 'trackhub:etapa_adicionar' pk=0 %}"
+  data-url-etapas-reordenar="{% url 'trackhub:pendencia_etapas_reordenar' pk=0 %}">
 </div>
 
 <div id="th-detalhe-overlay" class="th-detalhe-overlay" hidden aria-hidden="true">
@@ -136,4 +137,4 @@
 {% include "trackhub/includes/modal_notificar.html" %}
 
 <script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=2"></script>
-<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=17"></script>
+<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=19"></script>

@@ -232,7 +232,7 @@ def _absolute_media_url(request, file_field):
 
 def _pendencia_detail_payload(pendencia, request):
     etapas_out = []
-    for e in pendencia.etapas.all():
+    for e in pendencia.etapas.order_by("ordem"):
         ass = getattr(e, "assinatura", None)
         tem_assinatura = bool(
             ass and getattr(ass, "signature_data", "").strip()
@@ -1490,6 +1490,57 @@ def comentario_criar_view(request, pk):
         )
     messages.success(request, "Comentário adicionado.")
     return redirect("trackhub:pendencia_detalhe", pk=pk)
+
+
+@login_required
+@require_trackhub
+@require_http_methods(["POST"])
+def pendencia_etapas_reordenar_view(request, pk):
+    pendencia = get_object_or_404(_pendencia_queryset_for_user(request.user), pk=pk)
+    if not _user_can_edit_pendencia(request.user, pendencia):
+        return _json_no_cache({"ok": False, "error": "Sem permissão para editar."}, status=403)
+    if pendencia.status in ("concluida", "cancelada"):
+        return _json_no_cache(
+            {"ok": False, "error": "Não é possível reordenar etapas neste estado."},
+            status=400,
+        )
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return _json_no_cache({"ok": False, "error": "JSON inválido."}, status=400)
+    raw_ids = payload.get("ordem_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return _json_no_cache(
+            {"ok": False, "error": "Informe ordem_ids (lista de IDs das etapas)."},
+            status=400,
+        )
+    ids = []
+    for x in raw_ids:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            return _json_no_cache({"ok": False, "error": "IDs de etapa inválidos."}, status=400)
+    existing = list(
+        pendencia.etapas.order_by("ordem").values_list("pk", flat=True)
+    )
+    if len(ids) != len(existing) or sorted(ids) != sorted(existing):
+        return _json_no_cache(
+            {"ok": False, "error": "A lista de etapas não corresponde a esta pendência."},
+            status=400,
+        )
+    with transaction.atomic():
+        for idx, etapa_id in enumerate(ids, start=1):
+            pendencia.etapas.filter(pk=etapa_id).update(ordem=idx)
+        _registrar_atividade_pendencia(
+            pendencia,
+            request.user,
+            "Reordenou as etapas da pendência.",
+            AtividadePendencia.TIPO_ETAPA,
+        )
+    pendencia.refresh_from_db()
+    return _json_no_cache(
+        {"ok": True, "pendencia": _pendencia_detail_payload(pendencia, request)}
+    )
 
 
 @login_required

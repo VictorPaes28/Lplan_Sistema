@@ -118,6 +118,8 @@
 }
 
 .select-project-card-btn {
+    /* Permite scroll vertical com o dedo mesmo quando o gesto começa no cartão (touch). */
+    touch-action: pan-y;
     cursor: pointer;
     width: 100%;
     height: 100%;
