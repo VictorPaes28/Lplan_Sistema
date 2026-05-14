@@ -477,24 +477,8 @@
       });
     }
 
-    var prForm = root.closest('form');
-    var prazoInp = prForm ? prForm.querySelector('input[name="prazo"]') : document.querySelector('input[name="prazo"]');
-    if (prazoInp) {
-      prazoInp.addEventListener('change', function () {
-        var r = getRegra();
-        if (r === 'weekly' || r === 'monthly' || r === 'yearly') {
-          var sub = syncFromPrazoSubset(r);
-          if (sub) {
-            var cur = getParametros();
-            setParametros(Object.assign(cur, sub));
-            syncWeekChipsFromPm(getParametros());
-            syncDomChipsFromPm(getParametros());
-            if (r === 'yearly') ensureAnoRowsFromPm(getParametros());
-            updateTriggerText();
-          }
-        }
-      });
-    }
+    /* Não sincronizar prazo → parâmetros de recorrência ao mudar a data:
+     * o prazo (entrega) é independente do dia da repetição (ex.: toda quinta, prazo na segunda). */
   }
 
   if (document.readyState === 'loading') {
