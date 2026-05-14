@@ -227,6 +227,7 @@ def static_assets_version(request):
             base / 'core' / 'static' / 'core' / 'css' / 'base.css',
             base / 'core' / 'static' / 'core' / 'css' / 'tailwind-utilities.css',
             base / 'core' / 'static' / 'core' / 'css' / 'mobile.css',
+            base / 'core' / 'static' / 'core' / 'css' / 'page-transitions.css',
         )
         newest = 0
         for path in candidates:

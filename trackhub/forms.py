@@ -1,3 +1,5 @@
+import json
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.forms import inlineformset_factory
@@ -9,6 +11,7 @@ from .models import (
     EtapaPendencia,
     NotificacaoPendencia,
     Pendencia,
+    PendenciaRecorrente,
 )
 
 User = get_user_model()
@@ -88,6 +91,58 @@ class NotificacaoEtapaForm(forms.Form):
     destinatario_nome = forms.CharField(max_length=200)
     destinatario_contato = forms.CharField(max_length=200)
     mensagem = forms.CharField(widget=forms.Textarea(attrs={"rows": 4}))
+
+
+class RecorrenciaPendenciaForm(forms.Form):
+    """Campos extras do formulário de criação (UI customizada + JSON de parâmetros)."""
+
+    recorrencia_regra = forms.ChoiceField(
+        choices=PendenciaRecorrente.REGRA_CHOICES,
+        initial=PendenciaRecorrente.REGRA_NONE,
+        required=True,
+        widget=forms.HiddenInput(),
+    )
+    recorrencia_parametros_json = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+        initial="{}",
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        regra = cleaned.get("recorrencia_regra") or PendenciaRecorrente.REGRA_NONE
+
+        raw = (cleaned.get("recorrencia_parametros_json") or "").strip() or "{}"
+        try:
+            pm = json.loads(raw)
+        except json.JSONDecodeError:
+            raise forms.ValidationError("Parâmetros de recorrência inválidos (JSON).")
+        if not isinstance(pm, dict):
+            pm = {}
+        cleaned["recorrencia_parametros"] = pm
+
+        if regra == PendenciaRecorrente.REGRA_NONE:
+            return cleaned
+
+        if regra == PendenciaRecorrente.REGRA_WEEKLY:
+            ds = pm.get("dias_semana")
+            if not isinstance(ds, list) or not ds:
+                raise forms.ValidationError("Selecione pelo menos um dia da semana.")
+        elif regra == PendenciaRecorrente.REGRA_MONTHLY:
+            dm = pm.get("dias_mes")
+            if not isinstance(dm, list) or not dm:
+                raise forms.ValidationError("Selecione pelo menos um dia do mês.")
+        elif regra == PendenciaRecorrente.REGRA_YEARLY:
+            da = pm.get("datas_ano")
+            if not isinstance(da, list) or not da:
+                raise forms.ValidationError("Adicione pelo menos uma data (mês e dia).")
+            for item in da:
+                if not isinstance(item, dict):
+                    raise forms.ValidationError("Datas anuais inválidas.")
+                if "m" not in item or "d" not in item:
+                    raise forms.ValidationError("Cada data anual precisa de mês e dia.")
+
+        return cleaned
 
 
 class ObraFilterForm(forms.Form):

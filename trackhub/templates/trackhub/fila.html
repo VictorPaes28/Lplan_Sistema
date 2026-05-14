@@ -79,10 +79,15 @@
 {% if page_obj.object_list %}
 <div class="th-list">
   {% for p in page_obj %}
-  <div class="th-card {% if p.esta_vencida %}vencida{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
+  <div class="th-card{% if p.esta_vencida %} vencida{% endif %}{% if p.status == 'concluida' or p.status == 'cancelada' %} th-card--encerrada{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
     <div class="th-prio {{ p.prioridade }}"></div>
     <div class="th-main">
-      <div class="th-titulo">{{ p.titulo }}</div>
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+        {% if p.recorrencia_serie_id %}
+        <span class="th-rec-indicator" title="Pendência recorrente" aria-label="Recorrente">↻</span>
+        {% endif %}
+        <div class="th-titulo">{{ p.titulo }}</div>
+      </div>
       <div class="th-meta">
         <span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span>
         {% if p.esta_vencida %}<span class="th-badge vencida">⚠ Vencida</span>{% endif %}
@@ -96,6 +101,9 @@
     </div>
     <div class="th-etapa">
       <div class="th-etapa-label">Etapa atual</div>
+      {% if p.th_etapas_total %}
+      <div class="th-etapa-progresso" style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;">{{ p.th_etapas_concluidas }}/{{ p.th_etapas_total }} etapas</div>
+      {% endif %}
       {% if p.etapa_atual %}
         <div class="th-etapa-nome">{{ p.etapa_atual.titulo }}</div>
         <div class="th-etapa-resp">{{ p.etapa_atual.responsavel_nome }}</div>

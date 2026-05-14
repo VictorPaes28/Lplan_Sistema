@@ -174,7 +174,8 @@
 
   function registerServiceWorker(swUrl) {
     if (!('serviceWorker' in navigator)) return Promise.resolve(null);
-    return navigator.serviceWorker.register(swUrl, { scope: '/' }).catch(function () {
+    // Scope só sob /diaries/ — evita o SW controlar TrackHub, reports, etc. (flash de HTML antigo).
+    return navigator.serviceWorker.register(swUrl, { scope: '/diaries/' }).catch(function () {
       return null;
     });
   }

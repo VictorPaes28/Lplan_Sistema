@@ -30,6 +30,7 @@ from .forms import (
     NotificacaoEtapaForm,
     ObraFilterForm,
     PendenciaForm,
+    RecorrenciaPendenciaForm,
     tipo_anexo_por_nome,
 )
 from .models import (
@@ -42,6 +43,12 @@ from .models import (
     EtapaPendencia,
     NotificacaoPendencia,
     Pendencia,
+    PendenciaRecorrente,
+)
+from .recurrence_jobs import (
+    etapas_snapshot_from_pendencia,
+    ref_date_para_etapas_snapshot,
+    sync_recorrencia_etapas_snapshot_if_linked,
 )
 
 _MAX_ANEXOS_ETAPA = 5
@@ -298,6 +305,15 @@ def _pendencia_detail_payload(pendencia, request):
     )
     usuarios_modal = responsaveis_obra[0]["pessoas"] if responsaveis_obra else []
 
+    rec_payload = None
+    serie = getattr(pendencia, "recorrencia_serie", None)
+    if serie is not None:
+        pe = serie.proxima_execucao
+        rec_payload = {
+            "proxima_execucao": pe.isoformat() if pe else "",
+            "proxima_execucao_display": pe.strftime("%d/%m/%Y") if pe else "",
+        }
+
     return {
         "id": pendencia.pk,
         "titulo": pendencia.titulo,
@@ -331,13 +347,14 @@ def _pendencia_detail_payload(pendencia, request):
         ],
         "tipo_choices": [{"value": c[0], "label": c[1]} for c in Pendencia.TIPO_CHOICES],
         "usuarios": usuarios_modal,
+        "recorrencia": rec_payload,
     }
 
 
 def _pendencia_prefetched_for_detail(user, pk):
     return get_object_or_404(
         _pendencia_queryset_for_user(user)
-        .select_related("obra", "criado_por")
+        .select_related("obra", "criado_por", "recorrencia_serie")
         .prefetch_related(
             Prefetch(
                 "etapas",
@@ -689,15 +706,24 @@ def _th_prazo_class(p, hoje=None):
     hoje = hoje or timezone.localdate()
     if not p.prazo:
         return ""
-    if p.esta_vencida or p.prazo < hoje:
+    # Encerradas: prazo só informativo (cinza), não alerta de atraso.
+    if p.status in ("concluida", "cancelada"):
+        return "neutral"
+    if p.esta_vencida:
         return "vencida"
     if p.prazo <= hoje + timedelta(days=7):
         return "soon"
     return "ok"
 
 
+def _fila_encerrada(p):
+    """Concluídas e canceladas ficam sempre abaixo das demais na fila."""
+    return p.status in ("concluida", "cancelada")
+
+
 def _fila_sort_key(p):
     return (
+        1 if _fila_encerrada(p) else 0,
         0 if p.esta_vencida else 1,
         _PRIORIDADE_ORDER.get(p.prioridade, 9),
         p.prazo or date.max,
@@ -747,6 +773,9 @@ def _fila_list_render(request, template_name, origem=None):
     items = list(qs)
     for p in items:
         p.th_prazo_class = _th_prazo_class(p, hoje)
+        etqs = list(p.etapas.all())
+        p.th_etapas_total = len(etqs)
+        p.th_etapas_concluidas = sum(1 for e in etqs if e.status == "concluida")
     items.sort(key=_fila_sort_key)
 
     paginator = Paginator(items, 20)
@@ -947,13 +976,19 @@ def calendario_view(request):
 @login_required
 @require_trackhub
 def pendencia_criar_view(request):
+    from .recurrence import legacy_scalar_fields_for_db, proxima_data_estrita_depois
+
     obras_qs = _obras_queryset_for_user(request.user)
     responsaveis_por_obra = _responsaveis_por_obra_payload(obras_qs)
+    hoje = timezone.localdate()
 
     if request.method == "POST":
         form = PendenciaForm(request.POST, request.FILES, obras_queryset=obras_qs)
+        rec_form = RecorrenciaPendenciaForm(request.POST)
         saved_pk = None
-        if form.is_valid():
+        form_ok = form.is_valid()
+        rec_ok = rec_form.is_valid()
+        if form_ok and rec_ok:
             with transaction.atomic():
                 p = form.save(commit=False)
                 p.criado_por = request.user
@@ -968,10 +1003,57 @@ def pendencia_criar_view(request):
                     recalcular_status_pendencia(p)
                     _notificar_criacao_pendencia(p, request.user)
                     saved_pk = p.pk
+
+                    rcd = rec_form.cleaned_data
+                    regra = rcd.get("recorrencia_regra") or PendenciaRecorrente.REGRA_NONE
+                    if regra != PendenciaRecorrente.REGRA_NONE:
+                        p.refresh_from_db()
+                        dc = timezone.localtime(p.created_at).date()
+                        po = (p.prazo - dc).days if p.prazo else None
+                        ref_snap = ref_date_para_etapas_snapshot(p, po)
+                        snap = etapas_snapshot_from_pendencia(p, ref_snap)
+                        pm = rcd.get("recorrencia_parametros") or {}
+                        prox = proxima_data_estrita_depois(
+                            hoje,
+                            regra,
+                            parametros=pm,
+                        )
+                        leg_wd, leg_dm, leg_m = legacy_scalar_fields_for_db(regra, pm)
+                        rec = PendenciaRecorrente.objects.create(
+                            obra=p.obra,
+                            criado_por=request.user,
+                            titulo=p.titulo,
+                            descricao=p.descricao or "",
+                            tipo=p.tipo,
+                            prioridade=p.prioridade,
+                            prazo_offset_dias=po,
+                            prazo_original=p.prazo,
+                            data_criacao_original=dc,
+                            regra=regra,
+                            dia_semana=leg_wd,
+                            dia_mes=leg_dm,
+                            mes=leg_m,
+                            parametros_json=pm,
+                            etapas_snapshot=snap,
+                            proxima_execucao=prox,
+                        )
+                        Pendencia.objects.filter(pk=p.pk).update(
+                            recorrencia_serie_id=rec.pk
+                        )
                 else:
                     transaction.set_rollback(True)
             if saved_pk:
-                messages.success(request, "Pendência criada.")
+                msg = "Pendência criada."
+                if (
+                    rec_form.cleaned_data.get("recorrencia_regra")
+                    and rec_form.cleaned_data["recorrencia_regra"] != PendenciaRecorrente.REGRA_NONE
+                ):
+                    msg += (
+                        " Recorrência ativa: novas cópias serão geradas automaticamente "
+                        "quando o agendamento do servidor executar o comando "
+                        "`processar_recorrencias_trackhub` (recomendado: diário, via cron ou tarefa agendada)."
+                    )
+                messages.success(request, msg)
                 return redirect("trackhub:pendencia_detalhe", pk=saved_pk)
             messages.error(request, "Corrija os erros nas etapas.")
             formset = EtapaFormSet(request.POST, request.FILES)
@@ -980,10 +1062,17 @@ def pendencia_criar_view(request):
     else:
         form = PendenciaForm(obras_queryset=obras_qs)
         formset = EtapaFormSet()
+        rec_form = RecorrenciaPendenciaForm(
+            initial={
+                "recorrencia_regra": PendenciaRecorrente.REGRA_NONE,
+                "recorrencia_parametros_json": "{}",
+            }
+        )
 
     ctx = {
         "form": form,
         "formset": formset,
+        "rec_form": rec_form,
         "form_title": "Nova pendência",
         "form_subtitle": "Cadastro",
         "responsaveis_por_obra": responsaveis_por_obra,
@@ -1009,7 +1098,7 @@ def pendencia_editar_view(request, pk):
 def pendencia_detalhe_view(request, pk):
     pendencia = get_object_or_404(
         _pendencia_queryset_for_user(request.user)
-        .select_related("obra", "criado_por")
+        .select_related("obra", "criado_por", "recorrencia_serie")
         .prefetch_related(
             Prefetch(
                 "etapas",
@@ -1537,6 +1626,7 @@ def pendencia_etapas_reordenar_view(request, pk):
             "Reordenou as etapas da pendência.",
             AtividadePendencia.TIPO_ETAPA,
         )
+    sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
     pendencia.refresh_from_db()
     return _json_no_cache(
         {"ok": True, "pendencia": _pendencia_detail_payload(pendencia, request)}
@@ -1676,6 +1766,7 @@ def pendencia_update_field(request, pk):
             _registrar_atividade_pendencia(
                 pendencia, actor, txt, AtividadePendencia.TIPO_PRAZO
             )
+        sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
 
     pendencia = _pendencia_prefetched_for_detail(request.user, pk)
     return _json_no_cache(
@@ -1872,6 +1963,8 @@ def etapa_adicionar_view(request, pk):
             f"Adicionou etapa: {titulo}",
             AtividadePendencia.TIPO_ETAPA,
         )
+
+    sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
 
     if _wants_json_response(request):
         return JsonResponse({"success": True})

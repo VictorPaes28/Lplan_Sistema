@@ -8,7 +8,7 @@ from django.http import HttpResponse
 
 
 def rdo_offline_service_worker(request):
-    """Serve o SW com escopo '/' (header Service-Worker-Allowed)."""
+    """Serve o SW; Service-Worker-Allowed / permite scope estreito /diaries/ no registo (rdo-offline.js)."""
     path = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'sw', 'rdo-offline-worker.js')
     with open(path, encoding='utf-8') as f:
         body = f.read()

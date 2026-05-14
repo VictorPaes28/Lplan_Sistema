@@ -9,12 +9,28 @@ from .models import (
     EtapaPendencia,
     NotificacaoPendencia,
     Pendencia,
+    PendenciaRecorrente,
 )
 
 
 class EtapaInline(admin.TabularInline):
     model = EtapaPendencia
     extra = 0
+
+
+@admin.register(PendenciaRecorrente)
+class PendenciaRecorrenteAdmin(admin.ModelAdmin):
+    list_display = [
+        "titulo",
+        "obra",
+        "regra",
+        "proxima_execucao",
+        "ativo",
+        "criado_por",
+    ]
+    list_filter = ["regra", "ativo", "tipo", "prioridade"]
+    search_fields = ["titulo", "descricao"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 @admin.register(Pendencia)

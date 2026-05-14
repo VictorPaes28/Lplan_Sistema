@@ -37,6 +37,14 @@ class Pendencia(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="aberta")
     prioridade = models.CharField(max_length=10, choices=PRIORIDADE_CHOICES, default="normal")
     prazo = models.DateField(null=True, blank=True)
+    # Série recorrente à qual esta pendência pertence (template de etapas em PendenciaRecorrente.etapas_snapshot).
+    recorrencia_serie = models.ForeignKey(
+        "PendenciaRecorrente",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pendencias_serie",
+    )
     origem = models.CharField(max_length=10, choices=ORIGEM_CHOICES, default="manual")
     criado_por = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="pendencias_criadas"
@@ -402,3 +410,71 @@ class NotificacaoPrazoTrackHub(models.Model):
 
     def __str__(self):
         return f"{self.alvo_tipo}:{self.alvo_id} → {self.usuario_id} ({self.janela_horas}h)"
+
+
+class PendenciaRecorrente(models.Model):
+    """Modelo de pendência recorrente (snapshot + próxima execução agendada)."""
+
+    REGRA_NONE = "none"
+    REGRA_DAILY = "daily"
+    REGRA_WEEKDAYS = "weekdays"
+    REGRA_WEEKLY = "weekly"
+    REGRA_MONTHLY = "monthly"
+    REGRA_YEARLY = "yearly"
+    REGRA_CHOICES = [
+        (REGRA_NONE, "Não se repete"),
+        (REGRA_DAILY, "Diariamente"),
+        (REGRA_WEEKDAYS, "Dias da semana"),
+        (REGRA_WEEKLY, "Semanal"),
+        (REGRA_MONTHLY, "Mensal"),
+        (REGRA_YEARLY, "Anual"),
+    ]
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="pendencias_recorrentes",
+    )
+    criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pendencias_recorrentes_criadas",
+    )
+    titulo = models.CharField(max_length=200)
+    descricao = models.TextField(blank=True)
+    tipo = models.CharField(max_length=20, choices=Pendencia.TIPO_CHOICES, default="outro")
+    prioridade = models.CharField(
+        max_length=10, choices=Pendencia.PRIORIDADE_CHOICES, default="normal"
+    )
+    # Dias a somar à data de cada execução para obter o prazo da pendência (null = sem prazo)
+    prazo_offset_dias = models.IntegerField(null=True, blank=True)
+    # Prazo e data de criação da pendência original (para prazo das ocorrências = dia_exec + (prazo_orig - data_cri_orig))
+    prazo_original = models.DateField(null=True, blank=True)
+    data_criacao_original = models.DateField(null=True, blank=True)
+
+    regra = models.CharField(max_length=20, choices=REGRA_CHOICES, default=REGRA_NONE)
+    dia_semana = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="0=segunda … 6=domingo (Python weekday)",
+    )
+    dia_mes = models.SmallIntegerField(null=True, blank=True)
+    mes = models.SmallIntegerField(null=True, blank=True)
+    # Múltiplos: dias_semana [0..6], dias_mes [1..31], datas_ano [{"m":5,"d":14}, ...]
+    parametros_json = models.JSONField(default=dict, blank=True)
+
+    etapas_snapshot = models.JSONField(default=list)
+    proxima_execucao = models.DateField()
+    ativo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["proxima_execucao"]
+        verbose_name = "Pendência recorrente"
+        verbose_name_plural = "Pendências recorrentes"
+
+    def __str__(self):
+        return f"{self.titulo} ({self.get_regra_display()}) — {self.obra_id}"

@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <style>
+  body { visibility: hidden; }
+</style>
     {% load static %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,12 +22,15 @@
     
     <!-- Custom CSS - Tailwind Utilities Replacement -->
     {% load core_tags %}
+    <link rel="preload" href="{% static 'core/css/tailwind-utilities.css' %}?v={{ lplan_static_version }}" as="style">
     <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}?v={{ lplan_static_version }}">
+    <link rel="preload" href="{% static 'core/css/base.css' %}?v={{ lplan_static_version }}" as="style">
     <link rel="stylesheet" href="{% static 'core/css/base.css' %}?v={{ lplan_static_version }}">
     <link rel="stylesheet" href="{% static 'core/css/alpine-fixes.css' %}?v={{ lplan_static_version }}">
     <link rel="stylesheet" href="{% static 'core/css/ux-improvements.css' %}?v={{ lplan_static_version }}">
     <link rel="stylesheet" href="{% static 'core/css/video-fixes.css' %}?v={{ lplan_static_version }}">
     <link rel="stylesheet" href="{% static 'core/css/filters.css' %}?v={{ lplan_static_version }}">
+    <link rel="preload" href="{% static 'core/css/mobile.css' %}?v={{ lplan_static_version }}" as="style">
     <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}?v={{ lplan_static_version }}">
     <link rel="stylesheet" href="{% static 'core/css/page-transitions.css' %}?v={{ lplan_static_version }}">
     
@@ -95,6 +101,26 @@
     {% endif %}
     
     {% block extra_css %}{% endblock %}
+    {# SW RDO: script no fim do head para não bloquear o parser antes dos <link rel="stylesheet"> (FOUC). #}
+    <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (reg) {
+          try {
+            var s = reg.scope || '';
+            if (s.indexOf('/diaries') === -1) {
+              reg.unregister();
+            }
+          } catch (e) {}
+        });
+      });
+    }
+    </script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.body.style.visibility = 'visible';
+  });
+</script>
 </head>
 <body class="bg-slate-50{% block body_extra_class %}{% endblock %}">
     <!-- Feedback visual em navegação (full page); ver page-transitions.css / .js -->

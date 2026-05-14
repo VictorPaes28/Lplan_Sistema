@@ -29,6 +29,11 @@
   function etapasReordenarUrl(pk) { return urlPk(root.dataset.urlEtapasReordenar, pk); }
 
   var dragEtapaId = null;
+  /** A fila/calendário são HTML estático; após mudanças no modal, recarrega ao fechar. */
+  var trackhubListPageNeedsReload = false;
+  function markTrackhubListStale() {
+    trackhubListPageNeedsReload = true;
+  }
 
   function pendenciaFichaUrlComEtapaPendente(pk, etapas) {
     var base = pendenciaFichaUrl(pk);
@@ -50,6 +55,7 @@
   var elMetaCreated = document.getElementById('th-det-meta-created');
   var elObraLine = document.getElementById('th-det-obra-line');
   var elTitulo = document.getElementById('th-det-titulo');
+  var elRecInfo = document.getElementById('th-det-recorrencia-info');
   var elDesc = document.getElementById('th-det-descricao');
   var elEtapas = document.getElementById('th-det-etapas-list');
   var elEtapasCounter = document.getElementById('th-det-etapas-counter');
@@ -111,8 +117,12 @@
     return colors[(idx + (nome || '').length) % colors.length];
   }
 
-  function prazoPillExtras(prazoIso, estaVencida) {
+  function prazoPillExtras(prazoIso, estaVencida, status) {
     var ex = [];
+    if (status === 'concluida' || status === 'cancelada') {
+      ex.push('neutral');
+      return ex;
+    }
     if (estaVencida) {
       ex.push('vencida');
       return ex;
@@ -220,6 +230,16 @@
     }
     if (elObraLine) elObraLine.textContent = p.obra_nome || '';
     if (elTitulo) elTitulo.textContent = p.titulo || '';
+    if (elRecInfo) {
+      var r = p.recorrencia;
+      if (r && r.proxima_execucao_display) {
+        elRecInfo.hidden = false;
+        elRecInfo.textContent = 'Pendência recorrente · próxima em ' + r.proxima_execucao_display;
+      } else {
+        elRecInfo.hidden = true;
+        elRecInfo.textContent = '';
+      }
+    }
     if (elDesc) {
       elDesc.textContent = p.descricao || '';
       if (!p.descricao) elDesc.classList.add('is-placeholder');
@@ -234,7 +254,7 @@
     rebuildPillClass(pillStatus, ['th-detalhe-pill', 'th-pill', 'th-pill--status', 'status-' + (p.status || 'aberta')]);
     rebuildPillClass(pillPrio, ['th-detalhe-pill', 'th-pill', 'th-pill--prioridade', 'prio-' + (p.prioridade || 'normal')]);
     rebuildPillClass(pillTipo, ['th-detalhe-pill', 'th-pill', 'th-pill--tipo', 'tipo-' + (p.tipo || 'outro')]);
-    rebuildPillClass(pillPrazo, ['th-detalhe-pill', 'th-pill', 'th-pill--prazo', 'prazo-pill'].concat(prazoPillExtras(p.prazo, p.esta_vencida)));
+    rebuildPillClass(pillPrazo, ['th-detalhe-pill', 'th-pill', 'th-pill--prazo', 'prazo-pill'].concat(prazoPillExtras(p.prazo, p.esta_vencida, p.status)));
 
     setEditable(elTitulo, pode);
     setEditable(elDesc, pode);
@@ -603,6 +623,7 @@
       alert((data && data.error) || 'Não foi possível salvar.');
       return;
     }
+    markTrackhubListStale();
     if (data.pendencia) applyPendenciaPayload(data.pendencia);
     carregarAtividades(currentPk);
     flashSaving();
@@ -669,6 +690,7 @@
       alert((d && d.error) || 'Não foi possível concluir a etapa.');
       return;
     }
+    markTrackhubListStale();
     var res = await fetch(detailUrl(currentPk), { credentials: 'same-origin' });
     var pack = await res.json().catch(function () { return {}; });
     if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
@@ -745,6 +767,7 @@
       if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
       return;
     }
+    markTrackhubListStale();
     if (d.pendencia) applyPendenciaPayload(d.pendencia);
     carregarAtividades(currentPk);
     flashSaving();
@@ -1138,6 +1161,7 @@
             alert((d && d.error) || 'Erro ao adicionar etapa.');
             return;
           }
+          markTrackhubListStale();
           form.remove();
           window.abrirDetalhe(pk);
         });
@@ -1184,6 +1208,8 @@
     closeDropdown();
     var ne = document.getElementById('th-form-nova-etapa');
     if (ne) ne.remove();
+    var needReload = trackhubListPageNeedsReload;
+    trackhubListPageNeedsReload = false;
     overlay.setAttribute('hidden', '');
     overlay.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
@@ -1194,6 +1220,9 @@
     commentPendingFiles = [];
     if (elCommentFileInput) elCommentFileInput.value = '';
     renderCommentPendingFiles();
+    if (needReload) {
+      window.location.reload();
+    }
   };
 
   if (btnClose) btnClose.addEventListener('click', window.fecharDetalhe);

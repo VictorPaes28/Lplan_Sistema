@@ -37,23 +37,33 @@ class ClearLegacyMessagesCookieMiddleware(MiddlewareMixin):
         return response
 
 
-class AuthenticatedHtmlNoCacheMiddleware(MiddlewareMixin):
+class NoCacheForAuthenticatedUsersMiddleware(MiddlewareMixin):
     """
-    Evita cache de documentos HTML para utilizadores autenticados (navegador/proxy),
-    reduzindo HTML desatualizado sem <link> a CSS novos. Não altera /static/ nem /media/.
+    Utilizadores autenticados: evita cache do documento HTML (flash de markup/layout antigo
+    antes do CSS/JS atual). Não altera /static/ nem /media/ (WhiteNoise + ficheiros hashed).
+
+    Deve ficar logo após AuthenticationMiddleware para `request.user` estar disponível.
     """
 
     def process_response(self, request, response):
         if request.path.startswith(("/static/", "/media/")):
             return response
-        content_type = response.get("Content-Type", "")
-        if not content_type.startswith("text/html"):
-            return response
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
             return response
-        response["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        content_type = response.get("Content-Type", "")
+        if not content_type.startswith("text/html"):
+            return response
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response["Pragma"] = "no-cache"
+        response["Expires"] = "0"
+        vary = response.get("Vary")
+        if vary:
+            parts = [p.strip() for p in vary.split(",") if p.strip()]
+            if "Cookie" not in parts:
+                response["Vary"] = vary + ", Cookie"
+        else:
+            response["Vary"] = "Cookie"
         return response
 
 

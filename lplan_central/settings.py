@@ -73,9 +73,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.csrf_middleware.CsrfViewMiddleware',  # Aceita origem quando host está em ALLOWED_HOSTS (cPanel)
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.NoCacheForAuthenticatedUsersMiddleware',  # HTML autenticado: no-store + Expires (evita flash de documento em cache)
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.middleware.ClearLegacyMessagesCookieMiddleware',  # Limpa cookie "messages" legado para evitar header/cookie grande
-    'core.middleware.AuthenticatedHtmlNoCacheMiddleware',  # HTML autenticado: no-store (evita cache de markup desatualizado)
     # 'core.middleware.SecurityHeadersMiddleware',  # Desativado
 ]
 
@@ -191,6 +191,8 @@ STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
     },
+    # Produção: CompressedManifestStaticFilesStorage (hashes nos nomes → cache agressivo em /static/ é seguro).
+    # DEBUG: StaticFilesStorage sem manifest (collectstatic opcional em dev).
     'staticfiles': {
         'BACKEND': (
             'whitenoise.storage.CompressedManifestStaticFilesStorage'

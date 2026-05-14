@@ -21,6 +21,12 @@
             <span class="th-badge {{ pendencia.status }}">{{ pendencia.get_status_display }}</span>
           </div>
           <h1 style="font-size:20px;font-weight:800;color:#1e293b;letter-spacing:-.3px;margin-bottom:6px;">{{ pendencia.titulo }}</h1>
+          {% if pendencia.recorrencia_serie %}
+          <div style="font-size:12px;font-weight:600;color:#2980db;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <span aria-hidden="true" style="font-size:14px;">↻</span>
+            Pendência recorrente · próxima em {{ pendencia.recorrencia_serie.proxima_execucao|date:"d/m/Y" }}
+          </div>
+          {% endif %}
           <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:#64748b;flex-wrap:wrap;">
             <span style="display:flex;align-items:center;gap:4px;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>

@@ -4,6 +4,33 @@
  */
 
 /* --------------------------------------------------------------------------
+   Barra de topo: sem opacity:0 no 1º frame (evita “piscar” sem cabeçalho ao
+   navegar ou Ctrl+F5; a classe .fade-in herdava keyframes com opacity 0).
+   -------------------------------------------------------------------------- */
+@keyframes lplan-topbar-enter {
+    from {
+        opacity: 1;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .top-bar-container.fade-in {
+        animation: lplan-topbar-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .top-bar-container.fade-in {
+        animation: none;
+    }
+}
+
+/* --------------------------------------------------------------------------
    Entrada da página (área principal + top bar dentro do wrapper)
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: no-preference) {
