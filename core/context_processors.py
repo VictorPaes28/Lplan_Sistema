@@ -211,6 +211,31 @@ def sidebar_counters(request):
         }
 
 
+def obra_inativa_sessao(request):
+    """
+    Indica se o projeto em selected_project_id está inativo (modo consulta no Diário e módulos que usam a mesma sessão).
+    """
+    if not request.user.is_authenticated:
+        return {'lplan_obra_sessao_inativa': False, 'lplan_obra_inativa_msg': ''}
+    pid = request.session.get('selected_project_id')
+    if not pid:
+        return {'lplan_obra_sessao_inativa': False, 'lplan_obra_inativa_msg': ''}
+    try:
+        from .models import Project
+        from .obras_readonly import OBRA_INATIVA_CONSULTA_MSG
+
+        row = Project.objects.filter(pk=pid).values_list('is_active', flat=True).first()
+        if row is None:
+            return {'lplan_obra_sessao_inativa': False, 'lplan_obra_inativa_msg': ''}
+        inactive = not bool(row)
+        return {
+            'lplan_obra_sessao_inativa': inactive,
+            'lplan_obra_inativa_msg': OBRA_INATIVA_CONSULTA_MSG if inactive else '',
+        }
+    except Exception:
+        return {'lplan_obra_sessao_inativa': False, 'lplan_obra_inativa_msg': ''}
+
+
 def static_assets_version(request):
     """
     Versão global para invalidar cache de estáticos quando necessário.

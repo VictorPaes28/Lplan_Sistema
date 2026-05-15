@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
 from accounts.groups import ADMINISTRADOR_GLOBAL_GROUP_NAMES, GRUPOS
+from core.obras_readonly import OBRA_INATIVA_CONSULTA_MSG, gestao_obra_requires_readonly
 from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission, AprovacaoEmailDestinatario
 
 
@@ -240,6 +241,8 @@ class WorkOrderForm(forms.ModelForm):
         is_creating = kwargs.pop('is_creating', False)
         admin_hide_system_fields = kwargs.pop('admin_hide_system_fields', False)
         super().__init__(*args, **kwargs)
+
+        self._is_creating = is_creating
         
         # Filtrar obras baseado no usuário e permissões
         if user:
@@ -307,6 +310,18 @@ class WorkOrderForm(forms.ModelForm):
         if self.instance.pk:
             if 'codigo' in self.fields:
                 self.fields['codigo'].widget.attrs['readonly'] = True
+            obra_atual_id = getattr(self.instance, 'obra_id', None)
+            if obra_atual_id:
+                base_obra_qs = self.fields['obra'].queryset
+                self.fields['obra'].queryset = (
+                    base_obra_qs | Obra.objects.filter(pk=obra_atual_id)
+                ).distinct().order_by('empresa', 'codigo')
+    
+    def clean_obra(self):
+        obra = self.cleaned_data.get('obra')
+        if obra and self._is_creating and gestao_obra_requires_readonly(obra):
+            raise forms.ValidationError(OBRA_INATIVA_CONSULTA_MSG)
+        return obra
     
     def clean_codigo(self):
         codigo = self.cleaned_data.get('codigo')

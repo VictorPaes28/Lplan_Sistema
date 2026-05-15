@@ -22,7 +22,7 @@ def obra_context(request):
     obra_id = request.session.get('obra_id')
     if obra_id:
         try:
-            obra = Obra.objects.get(id=obra_id, ativa=True)
+            obra = Obra.objects.get(id=obra_id)
             if _user_can_access_obra(request, obra):
                 obra_atual = obra
             else:

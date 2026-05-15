@@ -48,6 +48,11 @@ from .utils import (
 )
 from core.notification_utils import CORE_TIPOS_PEDIDO_FILA_APROVACAO
 from core.notification_utils import criar_notificacao as core_criar_notificacao
+from core.obras_readonly import (
+    OBRA_INATIVA_CONSULTA_MSG,
+    gestao_obra_requires_readonly,
+    redirect_if_gestao_obra_readonly,
+)
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from .services.user_governance import (
     TimelineOptions,
@@ -266,47 +271,44 @@ def _workorders_base_queryset_and_obras(user):
     """
     if is_admin(user):
         workorders = WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por').all()
-        obras_disponiveis = Obra.objects.filter(ativo=True)
+        obras_disponiveis = Obra.objects.all().order_by('-ativo', 'codigo')
     elif is_aprovador(user):
         obras_com_permissao = Obra.objects.filter(
             permissoes__usuario=user,
             permissoes__tipo_permissao='aprovador',
             permissoes__ativo=True,
-            ativo=True
         ).distinct()
         empresas_ids = [e for e in obras_com_permissao.values_list('empresa_id', flat=True).distinct() if e is not None]
-        obras_com_empresa = Obra.objects.filter(empresa_id__in=empresas_ids, ativo=True).distinct()
+        obras_com_empresa = Obra.objects.filter(empresa_id__in=empresas_ids).distinct()
         obras_sem_empresa = obras_com_permissao.filter(empresa_id__isnull=True)
         obras_aprovador = (obras_com_empresa | obras_sem_empresa).distinct()
         workorders = WorkOrder.objects.filter(obra__in=obras_aprovador).select_related('obra', 'obra__empresa', 'criado_por')
-        obras_disponiveis = obras_aprovador
+        obras_disponiveis = obras_aprovador.order_by('-ativo', 'codigo')
     elif is_responsavel_empresa(user):
         empresas_resp = Empresa.objects.filter(responsavel=user, ativo=True)
-        obras_disponiveis = Obra.objects.filter(empresa__in=empresas_resp, ativo=True).distinct()
+        obras_disponiveis = Obra.objects.filter(empresa__in=empresas_resp).distinct().order_by('-ativo', 'codigo')
         workorders = WorkOrder.objects.filter(obra__in=obras_disponiveis).select_related('obra', 'obra__empresa', 'criado_por')
     else:
         obras_solicitante = Obra.objects.filter(
             permissoes__usuario=user,
             permissoes__tipo_permissao='solicitante',
             permissoes__ativo=True,
-            ativo=True
         ).distinct()
         if obras_solicitante.exists():
             outros_solicitantes_ids = WorkOrderPermission.objects.filter(
                 obra__in=obras_solicitante,
                 tipo_permissao='solicitante',
-                ativo=True
+                ativo=True,
             ).values_list('usuario_id', flat=True).distinct()
             workorders = WorkOrder.objects.filter(obra__in=obras_solicitante).filter(
                 Q(criado_por=user) | Q(criado_por_id__in=outros_solicitantes_ids)
             ).select_related('obra', 'obra__empresa', 'criado_por')
-            obras_disponiveis = obras_solicitante
+            obras_disponiveis = obras_solicitante.order_by('-ativo', 'codigo')
         else:
             workorders = WorkOrder.objects.filter(criado_por=user).select_related('obra', 'obra__empresa', 'criado_por')
             obras_disponiveis = Obra.objects.filter(
                 id__in=workorders.values_list('obra_id', flat=True).distinct(),
-                ativo=True
-            )
+            ).order_by('-ativo', 'codigo')
     return workorders, obras_disponiveis
 
 
@@ -1107,11 +1109,22 @@ def create_workorder(request):
                 anexos_obrigatorios = True
         
         if form.is_valid() and not anexos_obrigatorios:
+            obra = form.cleaned_data.get('obra')
+            if obra and gestao_obra_requires_readonly(obra):
+                messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
+                context = {
+                    'form': form,
+                    'title': 'Criar Novo Pedido de Obra',
+                    'user_profile': get_user_profile(request.user),
+                    'is_solicitante': is_solicitante_only,
+                    'form_token': _generate_form_token(request, 'create_workorder'),
+                }
+                return render(request, 'obras/workorder_form.html', context)
+
             workorder = form.save(commit=False)
             workorder.criado_por = request.user
             
             # Verificar se o usuário tem acesso à obra selecionada
-            obra = form.cleaned_data.get('obra')
             if obra:
                 if is_solicitante_only:
                     # Se o usuário está no grupo "Solicitante" mas não tem WorkOrderPermission específica,
@@ -1467,6 +1480,17 @@ def detail_workorder(request, pk):
     
     # Verificar se pode comentar (solicitante, aprovador ou admin que tem acesso ao pedido)
     can_comment = tem_permissao
+
+    obra_consulta_apenas = gestao_obra_requires_readonly(workorder.obra)
+    if obra_consulta_apenas:
+        can_edit = False
+        can_approve = False
+        can_add_attachment = False
+        can_delete_attachment = False
+        can_solicitar_exclusao = False
+        can_aprovar_exclusao = False
+        can_comment = False
+
     can_create_workorder = (
         is_engenheiro(user)
         or WorkOrderPermission.objects.filter(
@@ -1496,6 +1520,7 @@ def detail_workorder(request, pk):
         'anexos_por_versao_ordenado': anexos_por_versao_ordenado,
         'comments': comments,
         'can_create_workorder': can_create_workorder,
+        'obra_consulta_apenas': obra_consulta_apenas,
     }
     return render(request, 'obras/detail_workorder.html', context)
 
@@ -1605,6 +1630,16 @@ def _workorder_ajax_permission_flags(workorder, user):
 
     can_comment = tem_permissao
 
+    obra_consulta_apenas = gestao_obra_requires_readonly(workorder.obra)
+    if obra_consulta_apenas:
+        can_edit = False
+        can_approve = False
+        can_add_attachment = False
+        can_delete_attachment = False
+        can_solicitar_exclusao = False
+        can_aprovar_exclusao = False
+        can_comment = False
+
     return {
         'tem_permissao': tem_permissao,
         'can_edit': can_edit,
@@ -1614,6 +1649,7 @@ def _workorder_ajax_permission_flags(workorder, user):
         'can_solicitar_exclusao': can_solicitar_exclusao,
         'can_aprovar_exclusao': can_aprovar_exclusao,
         'can_comment': can_comment,
+        'obra_consulta_apenas': obra_consulta_apenas,
     }
 
 
@@ -1822,6 +1858,8 @@ def workorder_detail_ajax(request, pk):
         'pode_adicionar_anexo': perm['can_add_attachment'],
         'exclusao_pendente': exclusao_pendente,
         'pode_aprovar_exclusao': perm['can_aprovar_exclusao'],
+        'obra_consulta_apenas': perm['obra_consulta_apenas'],
+        'obra_consulta_aviso': OBRA_INATIVA_CONSULTA_MSG if perm['obra_consulta_apenas'] else None,
         'comentarios': comentarios,
         'atividades': atividades,
         'historico_status': historico_status,
@@ -2220,6 +2258,10 @@ def edit_workorder(request, pk):
     if not workorder.pode_editar(user):
         messages.error(request, 'Você não tem permissão para editar este pedido ou ele não pode mais ser editado.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     # Verificar se é solicitante
     is_solicitante_group = is_engenheiro(user)  # Grupo "Solicitante"
@@ -2601,6 +2643,10 @@ def approve_workorder(request, pk):
         if not tem_permissao:
             flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     if request.method == 'POST':
         comentario = request.POST.get('comentario', '').strip()
@@ -2614,6 +2660,10 @@ def approve_workorder(request, pk):
             # Re-verificar status dentro da transação
             if not workorder.pode_aprovar(request.user):
                 flash_message(request, "error", "gestao.approval.race_conflict")
+                return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+            if gestao_obra_requires_readonly(workorder.obra):
+                messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
             
             status_anterior = workorder.status
@@ -2732,6 +2782,12 @@ def reject_workorder(request, pk):
                 return _reject_workorder_json_error('gestao.approval.no_scope')
             flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    if gestao_obra_requires_readonly(workorder.obra):
+        if want_json:
+            return JsonResponse({'ok': False, 'error': OBRA_INATIVA_CONSULTA_MSG}, status=403)
+        messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     if request.method == 'POST':
         comentario = request.POST.get('comentario', '').strip()
@@ -2789,6 +2845,12 @@ def reject_workorder(request, pk):
                 if want_json:
                     return _reject_workorder_json_error('gestao.approval.race_conflict')
                 flash_message(request, "error", "gestao.approval.race_conflict")
+                return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+            if gestao_obra_requires_readonly(workorder.obra):
+                if want_json:
+                    return JsonResponse({'ok': False, 'error': OBRA_INATIVA_CONSULTA_MSG}, status=403)
+                messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
             
             status_anterior = workorder.status
@@ -2963,6 +3025,10 @@ def upload_attachment(request, pk):
     if not (is_admin(user) or workorder.criado_por == user):
         messages.error(request, 'Você não tem permissão para anexar arquivos a este pedido.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     if request.method == 'POST':
         form = AttachmentForm(request.POST, request.FILES)
@@ -3035,6 +3101,10 @@ def delete_attachment(request, pk):
     if not can_delete:
         messages.error(request, 'Você não tem permissão para deletar este anexo.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     if request.method == 'POST':
         nome_arquivo = attachment.get_nome_display()
@@ -4550,6 +4620,10 @@ def solicitar_exclusao(request, pk):
     if workorder.solicitado_exclusao:
         messages.warning(request, 'A exclusão deste pedido já foi solicitada e está aguardando aprovação.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '').strip()
@@ -4641,6 +4715,10 @@ def aprovar_exclusao(request, pk):
         if not tem_permissao:
             flash_message(request, "error", "gestao.delete_approve.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     if request.method == 'POST':
         # Salvar dados da solicitação antes de limpar
@@ -4743,6 +4821,10 @@ def rejeitar_exclusao(request, pk):
         if not tem_permissao:
             flash_message(request, "error", "gestao.delete_reject.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    blocked = redirect_if_gestao_obra_readonly(request, workorder)
+    if blocked:
+        return blocked
     
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '')
@@ -5676,6 +5758,12 @@ def add_comment(request, pk):
                 status=403,
             )
         messages.error(request, 'Você não tem permissão para comentar neste pedido.')
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    if gestao_obra_requires_readonly(workorder.obra):
+        if want_json:
+            return JsonResponse({'ok': False, 'error': OBRA_INATIVA_CONSULTA_MSG}, status=403)
+        messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
         return redirect('gestao:detail_workorder', pk=workorder.pk)
 
     if request.method != 'POST':

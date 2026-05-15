@@ -32,6 +32,25 @@ import numpy as np
 import re
 import json
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from core.obras_readonly import (
+    OBRA_INATIVA_CONSULTA_MSG,
+    inactive_mapa_obra_write_json,
+    mapa_obra_requires_readonly,
+)
+
+
+def _mapa_eng_readonly_guard(request, obra=None):
+    """
+    Bloqueia escritas no mapa de engenharia quando a obra está inativa.
+    AJAX → JSON 403 com mensagem padrão; caso contrário → mensagem + redirect ao mapa.
+    """
+    o = obra if obra is not None else get_obra_da_sessao(request)
+    if not o or not mapa_obra_requires_readonly(o):
+        return None
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return inactive_mapa_obra_write_json(o)
+    messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
+    return redirect(reverse('engenharia:mapa') + (f'?obra={o.id}' if o.id else ''))
 
 
 def get_obra_da_sessao(request):
@@ -40,7 +59,7 @@ def get_obra_da_sessao(request):
     obra_id = request.session.get('obra_id')
     if obra_id:
         try:
-            obra = Obra.objects.get(id=obra_id, ativa=True)
+            obra = Obra.objects.get(id=obra_id)
             if _user_can_access_obra(request, obra):
                 return obra
         except Obra.DoesNotExist:
@@ -254,7 +273,7 @@ def mapa_engenharia(request):
     if obra_id:
         try:
             oid = int(obra_id)
-            obra = Obra.objects.get(id=oid, ativa=True)
+            obra = Obra.objects.get(id=oid)
             if _user_can_access_obra(request, obra):
                 request.session['obra_id'] = oid
                 request.session.modified = True  # Garantir que a sessão seja salva (ex.: em produção)
@@ -511,6 +530,9 @@ def mapa_engenharia(request):
         ,
         'categorias_opcoes': categorias_opcoes,
         'categorias_opcoes_values': categorias_opcoes_values,
+        'mapa_obra_somente_consulta': bool(
+            obra_selecionada and mapa_obra_requires_readonly(obra_selecionada)
+        ),
     }
     
     return render(request, 'suprimentos/mapa_engenharia.html', context)
@@ -935,6 +957,10 @@ def criar_item_mapa(request):
     obra_id = request.GET.get('obra') or request.POST.get('obra')
     
     if request.method == 'POST':
+        blocked = _mapa_eng_readonly_guard(request)
+        if blocked:
+            return blocked
+
         form = ItemMapaForm(request.POST, obra_id=obra_id)
         
         if form.is_valid():
@@ -991,6 +1017,10 @@ def criar_item_mapa(request):
 def criar_insumo(request):
     """Cria um novo insumo via formulário Django."""
     if request.method == 'POST':
+        blocked = _mapa_eng_readonly_guard(request)
+        if blocked:
+            return blocked
+
         form = InsumoForm(request.POST)
         if form.is_valid():
             insumo = form.save(commit=False)
@@ -1044,6 +1074,10 @@ def criar_levantamento_rapido(request):
     """
     if request.method != 'POST':
         return redirect('mapa:mapa')
+
+    blocked = _mapa_eng_readonly_guard(request)
+    if blocked:
+        return blocked
 
     obra_id = request.POST.get('obra') or request.session.get('obra_id')
     if not obra_id:
@@ -1159,6 +1193,10 @@ def importar_sienge_upload(request):
     ).select_related('obra', 'usuario').order_by('-created_at')[:40]
 
     if request.method == 'POST':
+        blocked = _mapa_eng_readonly_guard(request)
+        if blocked:
+            return blocked
+
         form = SiengeImportUploadForm(request.POST, request.FILES)
         if form.is_valid():
             arquivo = form.cleaned_data['arquivo']
@@ -1562,6 +1600,10 @@ def excluir_importacao_sienge(request, pk):
         messages.error(request, 'Só quem fez esta importação multi-obra pode desfazê-la.')
         return redirect('engenharia:importar_sienge')
 
+    blocked = _mapa_eng_readonly_guard(request, obra=imp.obra)
+    if blocked:
+        return blocked
+
     nome_arquivo = imp.nome_arquivo
     obra_para_historico = imp.obra
     n_rec = RecebimentoObra.objects.filter(importacao=imp).count()
@@ -1611,7 +1653,7 @@ def dashboard_2(request):
     obra_id = request.GET.get('obra')
     if obra_id:
         try:
-            obra = Obra.objects.get(id=int(obra_id), ativa=True)
+            obra = Obra.objects.get(id=int(obra_id))
             if _user_can_access_obra(request, obra):
                 request.session['obra_id'] = obra.id
         except (Obra.DoesNotExist, ValueError):

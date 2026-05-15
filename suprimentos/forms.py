@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal
 from .models import Insumo, ItemMapa, AlocacaoRecebimento
 from mapa_obras.models import Obra, LocalObra
+from core.obras_readonly import OBRA_INATIVA_CONSULTA_MSG, mapa_obra_requires_readonly
 
 
 class SiengeImportUploadForm(forms.Form):
@@ -165,13 +166,15 @@ class ItemMapaForm(forms.ModelForm):
         
         self._obra_id = obra_id  # Guardar para validação
         
-        # Filtrar obras ativas
-        self.fields['obra'].queryset = Obra.objects.filter(ativa=True).order_by('nome')
+        if self.instance.pk:
+            self.fields['obra'].queryset = Obra.objects.order_by('-ativa', 'nome')
+        else:
+            self.fields['obra'].queryset = Obra.objects.filter(ativa=True).order_by('nome')
         
         # Se obra_id foi passado, pré-selecionar e desabilitar mudança
         if obra_id:
             try:
-                obra_obj = Obra.objects.get(id=obra_id, ativa=True)
+                obra_obj = Obra.objects.get(id=obra_id)
                 self.fields['obra'].initial = obra_obj
                 # SEGREGAÇÃO: Filtrar locais APENAS da obra da sessão
                 self.fields['local_aplicacao'].queryset = LocalObra.objects.filter(
@@ -213,6 +216,9 @@ class ItemMapaForm(forms.ModelForm):
                     'local_aplicacao': f'Este local pertence a outra obra ({local_aplicacao.obra.nome}). '
                                        f'Selecione um local da obra {obra.nome}.'
                 })
+
+        if obra and mapa_obra_requires_readonly(obra):
+            raise ValidationError({'obra': OBRA_INATIVA_CONSULTA_MSG})
         
         # Verificar se já existe item com mesma obra + insumo + categoria + local
         # IMPORTANTE: Permite múltiplos itens com mesma obra+insumo+categoria desde que tenham locais diferentes

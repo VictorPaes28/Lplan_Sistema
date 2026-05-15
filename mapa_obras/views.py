@@ -23,9 +23,9 @@ def _get_obras_for_user(request):
     projects = _get_projects_for_user(request)
     codigos = list(projects.values_list('code', flat=True))
     return (
-        Obra.objects.filter(ativa=True, codigo_sienge__in=codigos)
+        Obra.objects.filter(codigo_sienge__in=codigos)
         .prefetch_related('locais')
-        .order_by('nome')
+        .order_by('-ativa', 'nome')
     )
 
 
@@ -34,7 +34,7 @@ def _user_can_access_obra(request, obra):
     from core.frontend_views import _get_projects_for_user
     projects = _get_projects_for_user(request)
     codigos = set(projects.values_list('code', flat=True))
-    return obra.ativa and obra.codigo_sienge in codigos
+    return obra.codigo_sienge in codigos
 
 
 @login_required
@@ -47,9 +47,9 @@ def listar_obras(request):
     obra_id = request.session.get('obra_id')
     if obra_id:
         try:
-            obj = Obra.objects.get(id=obra_id, ativa=True)
-            if _user_can_access_obra(request, obj):
-                obra_atual = obj
+            obra = Obra.objects.get(id=obra_id)
+            if _user_can_access_obra(request, obra):
+                obra_atual = obra
         except Obra.DoesNotExist:
             pass
     return render(request, 'mapa_obras/listar_obras.html', {
@@ -64,7 +64,7 @@ def selecionar_obra(request, obra_id):
     Seleciona uma obra e armazena na sessão.
     Só permite obras às quais o usuário está vinculado (mesma regra do Diário).
     """
-    obra = get_object_or_404(Obra, id=obra_id, ativa=True)
+    obra = get_object_or_404(Obra, id=obra_id)
     if not _user_can_access_obra(request, obra):
         flash_message(request, "error", "mapa.select.no_scope", {"obra": obra.nome})
         return redirect('mapa_obras:home')
@@ -122,7 +122,7 @@ def api_locais_por_obra(request, obra_id):
     API para carregar locais de uma obra específica (cascata de selects).
     Só retorna dados se o usuário tiver acesso à obra.
     """
-    obra = get_object_or_404(Obra, id=obra_id, ativa=True)
+    obra = get_object_or_404(Obra, id=obra_id)
     if not _user_can_access_obra(request, obra):
         msg = resolve_message("mapa.api.no_scope", {"obra": obra.nome})
         return JsonResponse(

@@ -264,10 +264,14 @@ a.select-project-create-btn .fas.fa-plus {
                         <i class="fas fa-calendar mr-1"></i>
                         <span>{{ project.start_date|date:"d/m/Y" }} - {{ project.end_date|date:"d/m/Y" }}</span>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap justify-end">
                         {% if project.is_active %}
                         <span class="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-xs">
                             <i class="fas fa-circle mr-1"></i>Ativa
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-slate-100 text-slate-600 rounded-full font-medium text-xs border border-slate-200">
+                            <i class="fas fa-ban mr-1" aria-hidden="true"></i>Inativa
                         </span>
                         {% endif %}
                     </div>
@@ -283,7 +287,7 @@ a.select-project-create-btn .fas.fa-plus {
         </div>
         <h3 class="text-xl font-semibold text-slate-900 mb-2">Nenhuma obra disponível</h3>
         {% if user.is_staff or user.is_superuser %}
-        <p class="text-gray-600 mb-6">Não há obras ativas cadastradas no sistema.</p>
+        <p class="text-gray-600 mb-6">Não há obras às quais você tenha vínculo (nem ativas nem inativas).</p>
         <a href="{% url 'project-new' %}" class="select-project-create-btn">
             <i class="fas fa-plus" aria-hidden="true"></i>
             Criar Nova Obra

@@ -42,6 +42,11 @@
             <i class="bi bi-geo-alt"></i> Gerenciar Locais
         </button>
     </div>
+    {% if mapa_obra_somente_consulta %}
+    <div class="alert alert-secondary border mb-2 py-2" role="alert">
+        <i class="bi bi-eye me-1"></i>{{ lplan_obra_inativa_msg }}
+    </div>
+    {% endif %}
     {% if user.is_staff or user.is_superuser %}
     <div class="alert alert-light border d-flex flex-wrap gap-3 py-2 mb-2">
         <span><strong>Confiabilidade:</strong> {{ confiabilidade.score }}%</span>
@@ -1123,6 +1128,11 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if mapa_obra_somente_consulta %}
+<script>var LPLAN_MAPA_SOMENTE_CONSULTA = true;</script>
+{% else %}
+<script>var LPLAN_MAPA_SOMENTE_CONSULTA = false;</script>
+{% endif %}
 <script>
     // Função auxiliar para normalizar número (aceita vírgula ou ponto)
     // ROBUSTA: Remove caracteres inválidos, trata múltiplas vírgulas/pontos, preserva precisão
@@ -1214,6 +1224,23 @@
     
     // Inicializar formulário de criar item
     document.addEventListener('DOMContentLoaded', function() {
+        if (typeof LPLAN_MAPA_SOMENTE_CONSULTA !== 'undefined' && LPLAN_MAPA_SOMENTE_CONSULTA) {
+            document.querySelectorAll('[data-update-url], input[data-field], select[data-field], textarea[data-field]').forEach(function (el) {
+                if (el.tagName === 'SELECT') {
+                    el.disabled = true;
+                } else {
+                    el.readOnly = true;
+                    el.disabled = true;
+                }
+            });
+            document.querySelectorAll('.btn-alocar').forEach(function (btn) { btn.style.display = 'none'; });
+            document.querySelectorAll('[data-action="delete-item"]').forEach(function (btn) { btn.style.display = 'none'; });
+            var bLoc = document.getElementById('btnGerenciarLocais');
+            if (bLoc) bLoc.style.display = 'none';
+            var nlc = document.querySelector('.novo-levantamento-card');
+            if (nlc) nlc.style.display = 'none';
+        }
+
         initCriarItem();
         
         // Inicializar tooltips do Bootstrap

@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
@@ -23,6 +24,21 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from collections import defaultdict
 import json
+from core.obras_readonly import (
+    OBRA_INATIVA_CONSULTA_MSG,
+    inactive_mapa_obra_write_json,
+    mapa_obra_requires_readonly,
+)
+
+
+def _mapa_eng_readonly_guard(request, obra=None):
+    o = obra if obra is not None else get_obra_da_sessao(request)
+    if not o or not mapa_obra_requires_readonly(o):
+        return None
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return inactive_mapa_obra_write_json(o)
+    messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
+    return redirect(reverse('engenharia:mapa') + (f'?obra={o.id}' if o.id else ''))
 
 
 def get_obra_da_sessao(request):
@@ -30,11 +46,11 @@ def get_obra_da_sessao(request):
     obra_id = request.session.get('obra_id')
     if obra_id:
         try:
-            return Obra.objects.get(id=obra_id, ativa=True)
+            return Obra.objects.get(id=obra_id)
         except Obra.DoesNotExist:
             pass
-    # Fallback: primeira obra ativa
-    obra = Obra.objects.filter(ativa=True).first()
+    # Fallback: primeira obra (ativas primeiro)
+    obra = Obra.objects.order_by('-ativa', 'id').first()
     if obra:
         request.session['obra_id'] = obra.id
     return obra
@@ -148,7 +164,7 @@ def _attach_recebimentos_obra_cache(itens_list, obra_id):
 @require_group('ENGENHARIA')
 def mapa_engenharia(request):
     """Mapa editável para Engenharia."""
-    obras = Obra.objects.filter(ativa=True).order_by('nome')
+    obras = Obra.objects.order_by('-ativa', 'nome')
     
     # PRIORIDADE: 1) GET param, 2) Sessão
     obra_id = request.GET.get('obra')
@@ -389,6 +405,9 @@ def mapa_engenharia(request):
         ,
         'categorias_opcoes': categorias_opcoes,
         'categorias_opcoes_values': categorias_opcoes_values,
+        'mapa_obra_somente_consulta': bool(
+            obra_selecionada and mapa_obra_requires_readonly(obra_selecionada)
+        ),
     }
     
     return render(request, 'suprimentos/mapa_engenharia.html', context)
@@ -816,6 +835,10 @@ def criar_item_mapa(request):
     obra_id = request.GET.get('obra') or request.POST.get('obra')
     
     if request.method == 'POST':
+        blocked = _mapa_eng_readonly_guard(request)
+        if blocked:
+            return blocked
+
         form = ItemMapaForm(request.POST, obra_id=obra_id)
         
         if form.is_valid():
@@ -924,6 +947,10 @@ def criar_levantamento_rapido(request):
     if request.method != 'POST':
         return redirect('mapa:mapa')
 
+    blocked = _mapa_eng_readonly_guard(request)
+    if blocked:
+        return blocked
+
     obra_id = request.POST.get('obra') or request.session.get('obra_id')
     if not obra_id:
         messages.error(request, 'Selecione uma obra antes de criar um levantamento.')
@@ -1020,7 +1047,7 @@ def importar_sienge_upload(request):
     import tempfile
     import os
 
-    obras = Obra.objects.filter(ativa=True).order_by('nome')
+    obras = Obra.objects.order_by('-ativa', 'nome')
     form = SiengeImportUploadForm()
     log_output = None
     obra_contexto = get_obra_da_sessao(request)
@@ -1029,6 +1056,10 @@ def importar_sienge_upload(request):
     ).select_related('usuario', 'obra').order_by('-data_hora')[:25]
 
     if request.method == 'POST':
+        blocked = _mapa_eng_readonly_guard(request)
+        if blocked:
+            return blocked
+
         form = SiengeImportUploadForm(request.POST, request.FILES)
         if form.is_valid():
             arquivo = form.cleaned_data['arquivo']
@@ -1345,7 +1376,7 @@ def dashboard_2(request):
     from collections import defaultdict
     from decimal import Decimal
     
-    obras = Obra.objects.filter(ativa=True).order_by('nome')
+    obras = Obra.objects.order_by('-ativa', 'nome')
     
     # PRIORIDADE: 1) GET param, 2) Sessão
     obra_id = request.GET.get('obra')

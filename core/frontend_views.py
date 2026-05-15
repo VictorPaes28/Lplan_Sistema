@@ -42,6 +42,7 @@ from django.core.paginator import Paginator
 import logging
 from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from accounts.models import UserSignupRequest
+from .obras_readonly import OBRA_INATIVA_CONSULTA_MSG, UNSAFE_HTTP_METHODS, response_for_inactive_project_write_attempt
 from accounts.signup_services import (
     create_signup_request,
     is_allowed_signup_email,
@@ -1082,11 +1083,11 @@ def _get_projects_for_user(request):
     """Obras que o usuário pode acessar no Diário: staff/superuser vê todas; donos só as que possuem; demais só as vinculadas."""
     from core.models import ProjectOwner
     if request.user.is_staff or request.user.is_superuser:
-        return Project.objects.filter(is_active=True).order_by('-created_at')
+        return Project.objects.order_by('-is_active', '-created_at')
     # Donos da obra: só veem as obras das quais são donos
     owner_project_ids = list(ProjectOwner.objects.filter(user=request.user).values_list('project_id', flat=True))
     if owner_project_ids:
-        return Project.objects.filter(pk__in=owner_project_ids, is_active=True).order_by('-created_at')
+        return Project.objects.filter(pk__in=owner_project_ids).order_by('-is_active', '-created_at')
     project_ids = list(ProjectMember.objects.filter(user=request.user).values_list('project_id', flat=True))
     # Se não tem vínculo no Diário mas tem obras no GestControll, sincronizar (lista única)
     if not project_ids:
@@ -1107,7 +1108,7 @@ def _get_projects_for_user(request):
         ).values_list('project_id', flat=True)
     )
     combined_ids = sorted(set(project_ids + approver_project_ids))
-    return Project.objects.filter(pk__in=combined_ids, is_active=True).order_by('-created_at')
+    return Project.objects.filter(pk__in=combined_ids).order_by('-is_active', '-created_at')
 
 
 def _get_support_projects_for_user(user):
@@ -1128,13 +1129,11 @@ def _get_support_projects_for_user(user):
         ProjectDiaryApprover.objects.filter(user=user, is_active=True).values_list('project_id', flat=True)
     )
     linked_ids = sorted(set(owner_project_ids + member_project_ids + approver_project_ids))
-    return Project.objects.filter(pk__in=linked_ids, is_active=True).order_by('-created_at')
+    return Project.objects.filter(pk__in=linked_ids).order_by('-is_active', '-created_at')
 
 
 def _user_can_access_project(user, project):
     """Verifica se o usuário pode acessar a obra (dono, vinculado ou staff/superuser)."""
-    if not project.is_active and not (user.is_staff or user.is_superuser):
-        return False
     if user.is_staff or user.is_superuser:
         return True
     from core.models import ProjectOwner
@@ -1175,7 +1174,7 @@ def select_project_view(request):
         project_id = request.POST.get('project_id')
         if project_id:
             try:
-                project = Project.objects.get(pk=project_id, is_active=True)
+                project = Project.objects.get(pk=project_id)
                 if not _user_can_access_project(request.user, project):
                     messages.error(request, 'Você não está vinculado a esta obra.')
                     response = render(request, 'core/select_project.html', {
@@ -1189,7 +1188,7 @@ def select_project_view(request):
                 return redirect('dashboard')
             except (Project.DoesNotExist, ValueError, TypeError):
                 response = render(request, 'core/select_project.html', {
-                    'error': 'Obra não encontrada ou inativa.',
+                    'error': 'Obra não encontrada.',
                     'projects': projects,
                     'selected_project_id': request.session.get('selected_project_id'),
                 })
@@ -1208,7 +1207,7 @@ def get_selected_project(request):
     project_id = request.session.get('selected_project_id')
     if project_id:
         try:
-            return Project.objects.get(pk=project_id, is_active=True)
+            return Project.objects.get(pk=project_id)
         except Project.DoesNotExist:
             # Limpa sessão se obra não existe mais
             for key in ('selected_project_id', 'selected_project_name', 'selected_project_code'):
@@ -1225,7 +1224,7 @@ def project_required(view_func):
         pid_raw = (request.GET.get('project') or request.GET.get('obra') or '').strip()
         if pid_raw.isdigit():
             try:
-                proj = Project.objects.get(pk=int(pid_raw), is_active=True)
+                proj = Project.objects.get(pk=int(pid_raw))
             except (Project.DoesNotExist, ValueError, TypeError):
                 proj = None
             if proj and _user_can_access_project(request.user, proj):
@@ -1238,6 +1237,13 @@ def project_required(view_func):
         project = get_selected_project(request)
         if not project:
             return redirect('select-project')
+        if (
+            request.method in UNSAFE_HTTP_METHODS
+            and not getattr(project, "is_active", True)
+        ):
+            blocked = response_for_inactive_project_write_attempt(request, project)
+            if blocked is not None:
+                return blocked
         if not _user_can_access_project(request.user, project):
             for key in ('selected_project_id', 'selected_project_name', 'selected_project_code'):
                 request.session.pop(key, None)
@@ -2408,6 +2414,9 @@ def diary_review_decision_view(request, pk):
     diary = get_object_or_404(ConstructionDiary.objects.select_related('project'), pk=pk)
     if not _user_can_access_project(request.user, diary.project):
         raise Http404()
+    if not diary.project.is_active:
+        messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
+        return redirect('diary-detail', pk=pk)
     if not _is_project_rdo_approver(request.user, diary.project):
         raise PermissionDenied("Você não tem permissão para decidir a aprovação deste RDO.")
     if diary.status != DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
@@ -3273,6 +3282,13 @@ def diary_form_view(request, pk=None):
     from .services import ProgressService
     
     project = get_selected_project(request)
+    # Obra inativa: formulário de criação/edição não fica disponível (apenas visualização pelo detalhe)
+    if project and not project.is_active:
+        if pk:
+            messages.warning(request, OBRA_INATIVA_CONSULTA_MSG)
+            return redirect('diary-detail', pk=pk)
+        messages.warning(request, OBRA_INATIVA_CONSULTA_MSG)
+        return redirect('report-list')
     
     if pk:
         # Otimiza queries com select_related e prefetch_related
@@ -6055,7 +6071,7 @@ def project_list_view(request):
 def project_toggle_active_view(request, pk):
     """
     Ativa/desativa obra (Project). Réplicas GestControll e Mapa seguem via sync_project_to_gestao_and_mapa.
-    Obras inativas somem das seleções operacionais; continuam listadas aqui no Painel.
+    Obra inativa permanece disponível para consulta e histórico; operações que alterem dados ficam bloqueadas.
     """
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from core.sync_obras import sync_project_to_gestao_and_mapa
@@ -6068,20 +6084,16 @@ def project_toggle_active_view(request, pk):
     project.save(update_fields=['is_active'])
     sync_project_to_gestao_and_mapa(project)
 
-    if not project.is_active and request.session.get('selected_project_id') == pk:
-        for key in ('selected_project_id', 'selected_project_name', 'selected_project_code'):
-            request.session.pop(key, None)
-
     if project.is_active:
         messages.success(
             request,
-            f'Obra "{project.name}" foi reativada e volta a aparecer nas seleções e módulos.',
+            f'Obra "{project.name}" foi reativada e volta a permitir operações nos módulos.',
         )
     else:
         messages.success(
             request,
-            f'Obra "{project.name}" foi desativada. Deixa de aparecer para usuários nas seleções de obra; '
-            f'dados e histórico permanecem. Continua visível aqui como inativa.',
+            f'Obra "{project.name}" foi desativada. Os dados permanecem acessíveis apenas para consulta '
+            f'nas obras onde você tem vínculo; novas edições ficam bloqueadas até reativar.',
         )
     return redirect('central_project_list')
 

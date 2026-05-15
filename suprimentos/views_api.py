@@ -16,6 +16,7 @@ from uuid import uuid4
 import json
 
 from .recebimento_match import descricao_item_compativel
+from core.obras_readonly import inactive_mapa_obra_write_json
 
 
 def _normalizar_numero_sc(valor):
@@ -374,6 +375,10 @@ def item_excluir(request, item_id):
         except (TypeError, ValueError):
             return JsonResponse({'success': False, 'error': 'Obra da sessão inválida. Recarregue a página e selecione a obra novamente.'}, status=403)
 
+    ir = inactive_mapa_obra_write_json(item.obra)
+    if ir:
+        return ir
+
     # Capturar contexto antes de deletar
     desc = item.descricao_override or (item.insumo.descricao if item.insumo else 'Item')
     local = item.local_aplicacao.nome if item.local_aplicacao else '-'
@@ -475,6 +480,10 @@ def item_atualizar_campo(request):
                 return JsonResponse({'success': False, 'error': 'Obra da sessão inválida. Troque de obra e tente novamente.'}, status=403)
             if obra_id_int != item.obra_id:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para editar itens desta obra.'}, status=403)
+
+        ir = inactive_mapa_obra_write_json(item.obra)
+        if ir:
+            return ir
         
         # Campos permitidos para edição
         campos_permitidos = [
@@ -929,6 +938,10 @@ def item_alocar(request, item_id):
     if not request.user.is_superuser:
         if not obra_sessao_id or int(obra_sessao_id) != item.obra_id:
             return json_error('Sem permissão para alocar itens desta obra.', 403)
+
+    ir = inactive_mapa_obra_write_json(item.obra)
+    if ir:
+        return ir
     
     if not item.local_aplicacao_id:
         return json_error(
@@ -1031,6 +1044,10 @@ def item_remover_alocacao(request, item_id):
     if not request.user.is_superuser:
         if not obra_sessao_id or int(obra_sessao_id) != item.obra_id:
             return JsonResponse({'success': False, 'error': 'Sem permissão para este item.'}, status=403)
+
+    ir = inactive_mapa_obra_write_json(item.obra)
+    if ir:
+        return ir
     
     try:
         data = json.loads(request.body)
@@ -1165,6 +1182,10 @@ def dashboard2_alocar(request):
         
         item = get_object_or_404(ItemMapa, id=item_id)
         quantidade = Decimal(str(quantidade_str))
+
+        ir = inactive_mapa_obra_write_json(item.obra)
+        if ir:
+            return ir
         
         if quantidade <= 0:
             return JsonResponse({
@@ -1464,6 +1485,10 @@ def criar_local_obra(request):
     if not _user_can_access_obra(request, obra):
         return JsonResponse({'success': False, 'error': 'Sem permissão para esta obra.'}, status=403)
 
+    ir = inactive_mapa_obra_write_json(obra)
+    if ir:
+        return ir
+
     if LocalObra.objects.filter(obra=obra, nome__iexact=nome, parent__isnull=True).exists():
         return JsonResponse({'success': False, 'error': 'Já existe um local com esse nome nesta obra.'}, status=409)
 
@@ -1493,6 +1518,10 @@ def excluir_local_obra(request, local_id):
 
     if not _user_can_access_obra(request, local.obra):
         return JsonResponse({'success': False, 'error': 'Sem permissão para esta obra.'}, status=403)
+
+    ir = inactive_mapa_obra_write_json(local.obra)
+    if ir:
+        return ir
 
     nome = local.nome
     try:

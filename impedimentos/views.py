@@ -17,6 +17,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from core.notification_utils import criar_notificacao as core_criar_notificacao
+from core.obras_readonly import OBRA_INATIVA_CONSULTA_MSG, inactive_project_json_response
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -186,7 +187,7 @@ def _absolute_file_url(request, file_field):
 
 def _get_projects_for_user(user):
     if user.is_staff or user.is_superuser:
-        return Project.objects.filter(is_active=True).order_by("-created_at")
+        return Project.objects.order_by("-is_active", "-created_at")
 
     owner_project_ids = list(
         ProjectOwner.objects.filter(user=user).values_list("project_id", flat=True)
@@ -201,7 +202,7 @@ def _get_projects_for_user(user):
     )
 
     linked_ids = sorted(set(owner_project_ids + member_project_ids + approver_project_ids))
-    return Project.objects.filter(pk__in=linked_ids, is_active=True).order_by("-created_at")
+    return Project.objects.filter(pk__in=linked_ids).order_by("-is_active", "-created_at")
 
 
 def _attachments_payload_by_impedimento(obra):
@@ -227,8 +228,6 @@ def _attachments_payload_by_impedimento(obra):
 
 
 def _user_can_access_project(user, project):
-    if not project.is_active and not (user.is_staff or user.is_superuser):
-        return False
     if user.is_staff or user.is_superuser:
         return True
     if ProjectOwner.objects.filter(user=user, project=project).exists():
@@ -577,7 +576,7 @@ def select_obra(request):
         project_id = request.POST.get("project_id")
         if project_id:
             try:
-                project = Project.objects.get(pk=project_id, is_active=True)
+                project = Project.objects.get(pk=project_id)
             except (Project.DoesNotExist, ValueError, TypeError):
                 response = render(
                     request,
@@ -585,7 +584,7 @@ def select_obra(request):
                     {
                         "projects": projects,
                         "selected_project_id": request.session.get("selected_project_id"),
-                        "error": "Obra não encontrada ou inativa.",
+                        "error": "Obra não encontrada.",
                     },
                 )
                 return _with_no_cache_headers(response)
@@ -622,7 +621,7 @@ def select_obra(request):
 @login_required
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 def list_impedimentos(request, obra_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         messages.error(request, "Você não está vinculado a esta obra.")
         return redirect("impedimentos:select_obra")
@@ -691,6 +690,14 @@ def list_impedimentos(request, obra_id):
     query_view = request.GET.get("view", "lista")
 
     if request.method == "POST":
+        if not project.is_active:
+            messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
+            cat_post = (request.POST.get("cat") or "").strip()
+            view_post = (request.POST.get("view") or query_view or "lista").strip()
+            red = f"{request.path}?view={view_post}"
+            if cat_post:
+                red += f"&cat={cat_post}"
+            return redirect(red)
         action = (request.POST.get("action") or "create").strip().lower()
 
         if action == "delete":
@@ -1111,9 +1118,12 @@ def list_impedimentos(request, obra_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def criar_categoria_ajax(request, obra_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse({"ok": False, "error": "Sem acesso a esta obra."}, status=403)
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
     obra = get_object_or_404(Obra, project=project)
     form = CategoriaImpedimentoForm(request.POST, obra=obra)
     if form.is_valid():
@@ -1131,9 +1141,12 @@ def criar_categoria_ajax(request, obra_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def remover_categoria_ajax(request, obra_id, categoria_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse({"ok": False, "erro": "Sem acesso."}, status=403)
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
     if not request.user.is_staff and not request.user.is_superuser:
         return JsonResponse(
             {
@@ -1162,9 +1175,12 @@ def remover_categoria_ajax(request, obra_id, categoria_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def atualizar_categoria_ajax(request, obra_id, categoria_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse({"ok": False, "error": "Sem acesso a esta obra."}, status=403)
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
     obra = get_object_or_404(Obra, project=project)
     categoria = get_object_or_404(CategoriaImpedimento, pk=categoria_id, obra=obra)
     form = CategoriaImpedimentoForm(request.POST, instance=categoria, obra=obra)
@@ -1182,7 +1198,7 @@ def export_impedimentos_pdf(request, obra_id):
     if not (request.user.is_staff or request.user.is_superuser):
         return HttpResponseForbidden("Apenas administradores podem exportar o PDF.")
 
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return HttpResponseForbidden("Sem acesso a esta obra.")
 
@@ -1225,11 +1241,14 @@ def export_impedimentos_pdf(request, obra_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def update_status_ajax(request, obra_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Você não tem acesso a esta obra."}, status=403
         )
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
 
     obra = get_object_or_404(Obra, project=project)
     impedimento_id = request.POST.get("impedimento_id")
@@ -1297,7 +1316,7 @@ def update_status_ajax(request, obra_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET", "POST"])
 def comentarios_impedimento_ajax(request, obra_id, impedimento_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Você não tem acesso a esta obra."}, status=403
@@ -1323,6 +1342,10 @@ def comentarios_impedimento_ajax(request, obra_id, impedimento_id):
             }
         )
 
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
+
     texto = (request.POST.get("texto") or "").strip()
     if not texto:
         return JsonResponse(
@@ -1342,7 +1365,7 @@ def comentarios_impedimento_ajax(request, obra_id, impedimento_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET"])
 def impedimento_detail_ajax(request, obra_id, impedimento_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
@@ -1408,7 +1431,7 @@ def impedimento_detail_ajax(request, obra_id, impedimento_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET"])
 def impedimento_atividades_ajax(request, obra_id, impedimento_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
@@ -1439,7 +1462,7 @@ def impedimento_atividades_ajax(request, obra_id, impedimento_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_http_methods(["GET"])
 def impedimento_subtarefas_ajax(request, obra_id, impedimento_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
@@ -1483,11 +1506,14 @@ def impedimento_subtarefas_ajax(request, obra_id, impedimento_id):
 @require_POST
 @transaction.atomic
 def impedimento_update_field(request, obra_id, impedimento_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
         )
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
     obra = get_object_or_404(Obra, project=project)
 
     try:
@@ -1755,11 +1781,14 @@ def impedimento_update_field(request, obra_id, impedimento_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def impedimento_arquivo_upload(request, obra_id, impedimento_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
         )
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
     obra = get_object_or_404(Obra, project=project)
     impedimento = Impedimento.objects.filter(pk=impedimento_id, obra=obra).first()
     if not impedimento:
@@ -1809,11 +1838,14 @@ def impedimento_arquivo_upload(request, obra_id, impedimento_id):
 @require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
 @require_POST
 def impedimento_arquivo_remover(request, obra_id, impedimento_id, arquivo_id):
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         return JsonResponse(
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
         )
+    blocked = inactive_project_json_response(project)
+    if blocked:
+        return blocked
     obra = get_object_or_404(Obra, project=project)
     impedimento = Impedimento.objects.filter(pk=impedimento_id, obra=obra).first()
     if not impedimento:
@@ -1920,7 +1952,7 @@ def list_status(request, obra_id):
             "Apenas administradores podem configurar os status."
         )
 
-    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    project = get_object_or_404(Project, pk=obra_id)
     if not _user_can_access_project(request.user, project):
         messages.error(request, "Você não está vinculado a esta obra.")
         return redirect("impedimentos:select_obra")
@@ -1932,6 +1964,13 @@ def list_status(request, obra_id):
     show_modal = False
 
     if request.method == "POST":
+        if not project.is_active:
+            xhr = _status_config_is_xhr(request)
+            msg = OBRA_INATIVA_CONSULTA_MSG
+            if xhr:
+                return JsonResponse({"ok": False, "message": msg})
+            messages.error(request, msg)
+            return redirect("impedimentos:list_status", obra_id=project.id)
         xhr = _status_config_is_xhr(request)
         action = (request.POST.get("action") or "").strip().lower()
 

@@ -300,6 +300,11 @@
             ftEd.classList.remove('gc-footer-btn--reenviar');
             ftEd.classList.add('gc-footer-btn--primary');
         }
+        var bIna = document.getElementById('gc-banner-obra-inativa');
+        if (bIna) {
+            bIna.style.display = 'none';
+            bIna.textContent = '';
+        }
         ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-aprov-link', 'gc-reprovado-cta'].forEach(
             function (id) {
                 var el = document.getElementById(id);
@@ -340,6 +345,17 @@
         if (cm) {
             cm.textContent = 'Criado por ' + (d.criado_por && d.criado_por.nome ? d.criado_por.nome : '—') +
                 (d.created_at ? ' em ' + d.created_at : '');
+        }
+
+        var banIna = document.getElementById('gc-banner-obra-inativa');
+        if (banIna) {
+            if (d.obra_consulta_aviso) {
+                banIna.textContent = d.obra_consulta_aviso;
+                banIna.style.display = 'block';
+            } else {
+                banIna.textContent = '';
+                banIna.style.display = 'none';
+            }
         }
 
         function setText(id, text) {
