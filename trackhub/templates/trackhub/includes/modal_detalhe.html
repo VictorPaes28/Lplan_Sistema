@@ -8,11 +8,14 @@
   data-url-anexo-upload="{% url 'trackhub:anexo_upload' pk=0 %}"
   data-url-anexo-deletar="{% url 'trackhub:anexo_deletar' pk=0 %}"
   data-url-etapa-concluir="{% url 'trackhub:etapa_concluir' pk=0 %}"
+  data-url-etapa-reabrir="{% url 'trackhub:etapa_reabrir' pk=0 %}"
   data-url-pendencia-concluir="{% url 'trackhub:pendencia_concluir' pk=0 %}"
   data-url-pendencia-deletar="{% url 'trackhub:pendencia_deletar' pk=0 %}"
   data-url-pendencia-ficha="{% url 'trackhub:pendencia_detalhe' pk=0 %}"
   data-url-etapa-notificar="{% url 'trackhub:etapa_notificar' pk=0 %}"
   data-url-etapa-adicionar="{% url 'trackhub:etapa_adicionar' pk=0 %}"
+  data-url-etapa-editar="{% url 'trackhub:etapa_editar' pk=0 %}"
+  data-url-etapa-deletar="{% url 'trackhub:etapa_deletar' pk=0 %}"
   data-url-etapas-reordenar="{% url 'trackhub:pendencia_etapas_reordenar' pk=0 %}">
 </div>
 
@@ -137,5 +140,5 @@
 
 {% include "trackhub/includes/modal_notificar.html" %}
 
-<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=2"></script>
-<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=22"></script>
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
+<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=30"></script>

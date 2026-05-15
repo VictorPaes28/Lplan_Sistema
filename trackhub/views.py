@@ -239,7 +239,7 @@ def _absolute_media_url(request, file_field):
 
 def _pendencia_detail_payload(pendencia, request):
     etapas_out = []
-    for e in pendencia.etapas.order_by("ordem"):
+    for numero, e in enumerate(pendencia.etapas.order_by("ordem"), start=1):
         ass = getattr(e, "assinatura", None)
         tem_assinatura = bool(
             ass and getattr(ass, "signature_data", "").strip()
@@ -250,9 +250,11 @@ def _pendencia_detail_payload(pendencia, request):
                 "id": e.pk,
                 "titulo": e.titulo,
                 "ordem": e.ordem,
+                "numero": numero,
                 "status": e.status,
                 "status_display": e.get_status_display(),
                 "responsavel_nome": e.responsavel_nome,
+                "responsavel_interno_id": e.responsavel_interno_id,
                 "prazo": e.prazo.isoformat() if e.prazo else "",
                 "requer_assinatura": e.requer_assinatura,
                 "tem_assinatura": tem_assinatura,
@@ -304,6 +306,7 @@ def _pendencia_detail_payload(pendencia, request):
         else []
     )
     usuarios_modal = responsaveis_obra[0]["pessoas"] if responsaveis_obra else []
+    usuarios_outros = _todos_usuarios_ativos_payload()
 
     rec_payload = None
     serie = getattr(pendencia, "recorrencia_serie", None)
@@ -347,6 +350,7 @@ def _pendencia_detail_payload(pendencia, request):
         ],
         "tipo_choices": [{"value": c[0], "label": c[1]} for c in Pendencia.TIPO_CHOICES],
         "usuarios": usuarios_modal,
+        "usuarios_outros": usuarios_outros,
         "recorrencia": rec_payload,
     }
 
@@ -392,8 +396,6 @@ def _pendencia_prefetched_for_detail(user, pk):
 
 
 _PRIORIDADE_ORDER = {"urgente": 0, "alta": 1, "normal": 2, "baixa": 3}
-# Dentro das não encerradas: em andamento / aguardando sobem na fila antes de só "aberta".
-_STATUS_ATIVO_FILA = {"em_andamento": 0, "aguardando": 1, "aberta": 2}
 
 _MONTHS_PT = (
     "",
@@ -476,6 +478,24 @@ def _usuarios_designados_por_projeto_ids(project_ids):
     return by_project
 
 
+def _usuario_responsavel_dict(usr):
+    nome = usr.get_full_name().strip() or usr.username
+    return {
+        "id": usr.pk,
+        "nome": nome,
+        "iniciais": _iniciais(nome),
+    }
+
+
+def _todos_usuarios_ativos_payload():
+    return [
+        _usuario_responsavel_dict(u)
+        for u in User.objects.filter(is_active=True).order_by(
+            "first_name", "last_name", "username"
+        )
+    ]
+
+
 def _responsaveis_por_obra_payload(obras_qs):
     obras = list(obras_qs.select_related("project"))
     project_ids = [o.project_id for o in obras if o.project_id]
@@ -503,14 +523,7 @@ def _responsaveis_por_obra_payload(obras_qs):
             usr = users.get(uid)
             if not usr:
                 continue
-            nome = usr.get_full_name().strip() or usr.username
-            pessoas.append(
-                {
-                    "id": usr.pk,
-                    "nome": nome,
-                    "iniciais": _iniciais(nome),
-                }
-            )
+            pessoas.append(_usuario_responsavel_dict(usr))
         codigo = getattr(obra, "codigo_sienge", None) or getattr(obra, "codigo", None)
         obra_nome = f"{codigo} - {obra.nome}" if codigo else str(obra.nome)
         out.append(
@@ -584,9 +597,11 @@ def _prev_next_month(year: int, month: int):
 
 
 def _nav_tab_context(user):
-    base = _pendencias_qs_for_user(user)
+    abertas = _pendencias_qs_for_user(user).exclude(
+        status__in=["concluida", "cancelada"]
+    )
     return {
-        "total_pendencias": base.count(),
+        "total_pendencias": abertas.count(),
     }
 
 
@@ -616,6 +631,133 @@ def _salvar_anexos_geral_pendencia(request, pendencia, user):
             tamanho=getattr(arquivo, "size", 0) or 0,
             enviado_por=user,
             )
+
+
+def _renumber_etapas_ordem(pendencia):
+    for idx, etapa_id in enumerate(
+        pendencia.etapas.order_by("ordem").values_list("pk", flat=True),
+        start=1,
+    ):
+        pendencia.etapas.filter(pk=etapa_id).update(ordem=idx)
+
+
+def _parse_etapa_form_post(request):
+    """Campos comuns ao criar/editar etapa. Retorna (data_dict, error_msg)."""
+    titulo = (request.POST.get("titulo") or "").strip()
+    if not titulo:
+        return None, "Informe o título da etapa."
+
+    responsavel = None
+    rid = (request.POST.get("responsavel_interno") or "").strip()
+    if rid:
+        try:
+            uid = int(rid)
+        except ValueError:
+            return None, "Responsável inválido."
+        responsavel = User.objects.filter(pk=uid, is_active=True).first()
+        if not responsavel:
+            return None, "Responsável não encontrado."
+
+    if not responsavel:
+        return None, "Informe o responsável interno da etapa."
+
+    prazo = None
+    prazo_raw = (request.POST.get("prazo") or "").strip()
+    if prazo_raw:
+        try:
+            prazo = date.fromisoformat(prazo_raw)
+        except ValueError:
+            return None, "Prazo inválido."
+
+    requer_assinatura = request.POST.get("requer_assinatura") in (
+        "1",
+        "on",
+        "true",
+        "True",
+    )
+    observacao = (request.POST.get("observacao") or "").strip()
+    return {
+        "titulo": titulo,
+        "responsavel": responsavel,
+        "prazo": prazo,
+        "requer_assinatura": requer_assinatura,
+        "observacao": observacao,
+    }, None
+
+
+def _fmt_data_trackhub(d):
+    return d.strftime("%d/%m/%Y") if d else ""
+
+
+def _fmt_prazo_etapa_log(d):
+    """Data curta no log de edição de etapa (ex.: 09/05 -> 10/05)."""
+    return d.strftime("%d/%m") if d else ""
+
+
+def _nome_usuario_trackhub(user):
+    if not user:
+        return "—"
+    return user.get_full_name() or user.username or "—"
+
+
+def _descricoes_edicao_etapa(etapa, parsed):
+    """
+    Uma mensagem de atividade por campo alterado.
+    Formato: Editou etapa: {nome} -> {detalhe do que mudou}
+    etapa: estado anterior (antes do save); parsed: valores novos do formulário.
+    """
+    ant_titulo = (etapa.titulo or "").strip() or "etapa"
+    ref = ant_titulo
+    msgs = []
+
+    novo_titulo = parsed["titulo"]
+    if novo_titulo != ant_titulo:
+        msgs.append(f"Editou etapa: {ant_titulo} -> título: {ant_titulo} -> {novo_titulo}")
+
+    ant_resp_id = etapa.responsavel_interno_id
+    novo_resp = parsed["responsavel"]
+    novo_resp_id = novo_resp.pk if novo_resp else None
+    if novo_resp_id != ant_resp_id:
+        ant_nome = _nome_usuario_trackhub(etapa.responsavel_interno)
+        novo_nome = _nome_usuario_trackhub(novo_resp)
+        msgs.append(
+            f"Editou etapa: {ref} -> Usuário responsável: {ant_nome} -> {novo_nome}"
+        )
+
+    ant_prazo = etapa.prazo
+    novo_prazo = parsed["prazo"]
+    if novo_prazo != ant_prazo:
+        if ant_prazo and novo_prazo:
+            msgs.append(
+                f"Editou etapa: {ref} -> prazo: {_fmt_prazo_etapa_log(ant_prazo)} "
+                f"-> {_fmt_prazo_etapa_log(novo_prazo)}"
+            )
+        elif not ant_prazo and novo_prazo:
+            msgs.append(
+                f"Editou etapa: {ref} -> prazo: {_fmt_prazo_etapa_log(novo_prazo)}"
+            )
+        elif ant_prazo and not novo_prazo:
+            msgs.append(
+                f"Editou etapa: {ref} -> removeu prazo (era {_fmt_prazo_etapa_log(ant_prazo)})"
+            )
+
+    if parsed["requer_assinatura"] != etapa.requer_assinatura:
+        if parsed["requer_assinatura"]:
+            msgs.append(f"Editou etapa: {ref} -> passou a exigir assinatura")
+        else:
+            msgs.append(f"Editou etapa: {ref} -> deixou de exigir assinatura")
+
+    ant_obs = (etapa.observacao or "").strip()
+    novo_obs = (parsed["observacao"] or "").strip()
+    if novo_obs != ant_obs:
+        if not ant_obs and novo_obs:
+            msgs.append(f"Editou etapa: {ref} -> adicionou observação")
+        elif ant_obs and not novo_obs:
+            msgs.append(f"Editou etapa: {ref} -> removeu observação")
+        else:
+            msgs.append(f"Editou etapa: {ref} -> alterou observação")
+
+    return msgs
 
 
 def _salvar_anexos_etapa_nova(request, etapa, user):
@@ -719,19 +861,23 @@ def _th_prazo_class(p, hoje=None):
 
 
 def _fila_sort_key(p):
+    """
+    Fila ativa: vencidas → urgentes (não vencidas) → demais por prazo e prioridade.
+    Encerradas (concluída/cancelada) por último, também por prazo.
+    """
     enc = 1 if p.encerrada_na_fila else 0
-    ativo_ord = (
-        9
-        if enc
-        else _STATUS_ATIVO_FILA.get(p.status_normalizado, 3)
+    if enc:
+        return (enc, 2, 2, p.prazo or date.max, _PRIORIDADE_ORDER.get(p.prioridade, 9), p.created_at)
+    vencida = 0 if p.esta_vencida else 1
+    urgente_abaixo_vencidas = (
+        0 if p.prioridade == "urgente" and not p.esta_vencida else 1
     )
-    venc = 0 if (not enc and p.esta_vencida) else 1
     return (
         enc,
-        ativo_ord,
-        venc,
-        _PRIORIDADE_ORDER.get(p.prioridade, 9),
+        vencida,
+        urgente_abaixo_vencidas,
         p.prazo or date.max,
+        _PRIORIDADE_ORDER.get(p.prioridade, 9),
         p.created_at,
     )
 
@@ -1048,17 +1194,7 @@ def pendencia_criar_view(request):
                 else:
                     transaction.set_rollback(True)
             if saved_pk:
-                msg = "Pendência criada."
-                if (
-                    rec_form.cleaned_data.get("recorrencia_regra")
-                    and rec_form.cleaned_data["recorrencia_regra"] != PendenciaRecorrente.REGRA_NONE
-                ):
-                    msg += (
-                        " Recorrência ativa: novas cópias serão geradas automaticamente "
-                        "quando o agendamento do servidor executar o comando "
-                        "`processar_recorrencias_trackhub` (recomendado: diário, via cron ou tarefa agendada)."
-                    )
-                messages.success(request, msg)
+                messages.success(request, "Pendência criada.")
                 return redirect("trackhub:pendencia_detalhe", pk=saved_pk)
             messages.error(request, "Corrija os erros nas etapas.")
             formset = EtapaFormSet(request.POST, request.FILES)
@@ -1081,6 +1217,7 @@ def pendencia_criar_view(request):
         "form_title": "Nova pendência",
         "form_subtitle": "Cadastro",
         "responsaveis_por_obra": responsaveis_por_obra,
+        "todos_usuarios": _todos_usuarios_ativos_payload(),
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/pendencia_form.html", ctx)
@@ -1172,6 +1309,7 @@ def pendencia_detalhe_view(request, pk):
         "etapas_pendentes_count": etapas_pendentes_count,
         "total_notificacoes": total_notificacoes,
         "ficha_resp_blocos": ficha_resp_blocos,
+        "todos_usuarios": _todos_usuarios_ativos_payload(),
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/pendencia_detalhe.html", ctx)
@@ -1329,7 +1467,39 @@ def pendencia_cancelar_view(request, pk):
         marcar_lidas_por_event_key(f"trackhub:pend:{p.pk}")
     except Exception:
         pass
+    _registrar_atividade_pendencia(
+        p,
+        request.user,
+        "Marcou a pendência como cancelada",
+        AtividadePendencia.TIPO_STATUS,
+    )
     messages.success(request, "Pendência cancelada.")
+    return redirect("trackhub:fila")
+
+
+@login_required
+@require_trackhub
+@require_POST
+def pendencia_reativar_view(request, pk):
+    p = get_object_or_404(_pendencia_queryset_for_user(request.user), pk=pk)
+    if not _user_can_edit_pendencia(request.user, p):
+        messages.error(request, "Você não pode reativar esta pendência.")
+        return redirect("trackhub:fila")
+    if p.status != "cancelada":
+        messages.warning(request, "Somente pendências canceladas podem ser reativadas.")
+        return redirect("trackhub:fila")
+    if p.etapas.exists():
+        recalcular_status_pendencia(p)
+    else:
+        p.status = "aberta"
+        p.save(update_fields=["status", "updated_at"])
+    _registrar_atividade_pendencia(
+        p,
+        request.user,
+        "Reativou a pendência",
+        AtividadePendencia.TIPO_STATUS,
+    )
+    messages.success(request, "Pendência reativada.")
     return redirect("trackhub:fila")
 
 
@@ -1483,6 +1653,68 @@ def etapa_concluir_view(request, pk):
         return _json_no_cache({"ok": True, "pendencia_id": e.pendencia_id})
     messages.success(request, "Etapa concluída.")
     return redirect("trackhub:pendencia_detalhe", pk=e.pendencia_id)
+
+
+@login_required
+@require_trackhub
+@require_POST
+def etapa_reabrir_view(request, pk):
+    etapa = get_object_or_404(
+        EtapaPendencia.objects.select_related("pendencia"),
+        pk=pk,
+    )
+    pendencia = etapa.pendencia
+    if not _pendencia_queryset_for_user(request.user).filter(pk=pendencia.pk).exists():
+        msg = "Acesso negado."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=403)
+        messages.error(request, msg)
+        return redirect("trackhub:fila")
+    if not _user_can_edit_pendencia(request.user, pendencia):
+        msg = "Sem permissão para editar esta pendência."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=403)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+    if pendencia.status == "cancelada":
+        msg = "Não é possível reabrir etapas de uma pendência cancelada."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=400)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+    if etapa.status != "concluida":
+        msg = "Só é possível reabrir etapas concluídas."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=400)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+
+    titulo_et = etapa.titulo
+    etapa.status = "pendente"
+    etapa.concluida_em = None
+    etapa.concluida_por = None
+    etapa.save(update_fields=["status", "concluida_em", "concluida_por"])
+
+    recalcular_status_pendencia(pendencia)
+    pendencia.refresh_from_db()
+
+    _registrar_atividade_pendencia(
+        pendencia,
+        request.user,
+        f'Reabriu a etapa "{titulo_et}"',
+        AtividadePendencia.TIPO_ETAPA,
+    )
+    sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+
+    if _wants_json_response(request):
+        return JsonResponse(
+            {
+                "success": True,
+                "pendencia": _pendencia_detail_payload(pendencia, request),
+            }
+        )
+    messages.success(request, "Etapa reaberta.")
+    return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
 
 
 @login_required
@@ -1891,60 +2123,12 @@ def etapa_adicionar_view(request, pk):
         messages.error(request, msg)
         return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
 
-    titulo = (request.POST.get("titulo") or "").strip()
-    if not titulo:
-        msg = "Informe o título da etapa."
+    parsed, err = _parse_etapa_form_post(request)
+    if err:
         if _wants_json_response(request):
-            return JsonResponse({"success": False, "error": msg}, status=400)
-        messages.error(request, msg)
+            return JsonResponse({"success": False, "error": err}, status=400)
+        messages.error(request, err)
         return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
-
-    responsavel = None
-    rid = (request.POST.get("responsavel_interno") or "").strip()
-    if rid:
-        try:
-            uid = int(rid)
-        except ValueError:
-            msg = "Responsável inválido."
-            if _wants_json_response(request):
-                return JsonResponse({"success": False, "error": msg}, status=400)
-            messages.error(request, msg)
-            return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
-        responsavel = User.objects.filter(pk=uid, is_active=True).first()
-        if not responsavel:
-            msg = "Responsável não encontrado."
-            if _wants_json_response(request):
-                return JsonResponse({"success": False, "error": msg}, status=400)
-            messages.error(request, msg)
-            return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
-
-    if not responsavel:
-        msg = "Informe o responsável interno da etapa."
-        if _wants_json_response(request):
-            return JsonResponse({"success": False, "error": msg}, status=400)
-        messages.error(request, msg)
-        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
-
-    prazo = None
-    prazo_raw = (request.POST.get("prazo") or "").strip()
-    if prazo_raw:
-        try:
-            prazo = date.fromisoformat(prazo_raw)
-        except ValueError:
-            msg = "Prazo inválido."
-            if _wants_json_response(request):
-                return JsonResponse({"success": False, "error": msg}, status=400)
-            messages.error(request, msg)
-            return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
-
-    requer_assinatura = request.POST.get("requer_assinatura") in (
-        "1",
-        "on",
-        "true",
-        "True",
-    )
-
-    observacao = (request.POST.get("observacao") or "").strip()
 
     max_ordem = pendencia.etapas.aggregate(m=Max("ordem"))["m"] or 0
     nova_ordem = max_ordem + 1
@@ -1952,12 +2136,12 @@ def etapa_adicionar_view(request, pk):
     with transaction.atomic():
         et = EtapaPendencia.objects.create(
             pendencia=pendencia,
-            titulo=titulo,
+            titulo=parsed["titulo"],
             ordem=nova_ordem,
-            responsavel_interno=responsavel,
-            prazo=prazo,
-            requer_assinatura=requer_assinatura,
-            observacao=observacao,
+            responsavel_interno=parsed["responsavel"],
+            prazo=parsed["prazo"],
+            requer_assinatura=parsed["requer_assinatura"],
+            observacao=parsed["observacao"],
         )
         _salvar_anexos_etapa_nova(request, et, request.user)
         _notificar_criacao_etapa(et, request.user)
@@ -1965,13 +2149,156 @@ def etapa_adicionar_view(request, pk):
         _registrar_atividade_pendencia(
             pendencia,
             request.user,
-            f"Adicionou etapa: {titulo}",
+            f'Adicionou etapa: "{parsed["titulo"]}"',
             AtividadePendencia.TIPO_ETAPA,
         )
 
     sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
 
     if _wants_json_response(request):
-        return JsonResponse({"success": True})
+        pendencia.refresh_from_db()
+        return JsonResponse(
+            {
+                "success": True,
+                "pendencia": _pendencia_detail_payload(pendencia, request),
+            }
+        )
     messages.success(request, "Etapa adicionada.")
+    return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+
+
+@login_required
+@require_trackhub
+@require_POST
+def etapa_editar_view(request, pk):
+    etapa = get_object_or_404(
+        EtapaPendencia.objects.select_related("pendencia"),
+        pk=pk,
+    )
+    pendencia = etapa.pendencia
+    if not _pendencia_queryset_for_user(request.user).filter(pk=pendencia.pk).exists():
+        msg = "Acesso negado."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=403)
+        messages.error(request, msg)
+        return redirect("trackhub:fila")
+    if not _user_can_edit_pendencia(request.user, pendencia):
+        msg = "Sem permissão para editar esta pendência."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=403)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+    if pendencia.status in ("concluida", "cancelada"):
+        msg = "Não é possível editar etapas neste estado da pendência."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=400)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+    if etapa.status == "concluida":
+        msg = "Não é possível editar uma etapa já concluída."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=400)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+
+    parsed, err = _parse_etapa_form_post(request)
+    if err:
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": err}, status=400)
+        messages.error(request, err)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+
+    descricoes_edicao = _descricoes_edicao_etapa(etapa, parsed)
+    with transaction.atomic():
+        etapa.titulo = parsed["titulo"]
+        etapa.responsavel_interno = parsed["responsavel"]
+        etapa.prazo = parsed["prazo"]
+        etapa.requer_assinatura = parsed["requer_assinatura"]
+        etapa.observacao = parsed["observacao"]
+        etapa.save(
+            update_fields=[
+                "titulo",
+                "responsavel_interno",
+                "prazo",
+                "requer_assinatura",
+                "observacao",
+            ]
+        )
+        for descricao in descricoes_edicao:
+            _registrar_atividade_pendencia(
+                pendencia,
+                request.user,
+                descricao,
+                AtividadePendencia.TIPO_ETAPA,
+            )
+    sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+    pendencia.refresh_from_db()
+
+    if _wants_json_response(request):
+        return JsonResponse(
+            {
+                "success": True,
+                "pendencia": _pendencia_detail_payload(pendencia, request),
+            }
+        )
+    messages.success(request, "Etapa atualizada.")
+    return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+
+
+@login_required
+@require_trackhub
+@require_POST
+def etapa_deletar_view(request, pk):
+    etapa = get_object_or_404(
+        EtapaPendencia.objects.select_related("pendencia"),
+        pk=pk,
+    )
+    pendencia = etapa.pendencia
+    if not _pendencia_queryset_for_user(request.user).filter(pk=pendencia.pk).exists():
+        msg = "Acesso negado."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=403)
+        messages.error(request, msg)
+        return redirect("trackhub:fila")
+    if not _user_can_edit_pendencia(request.user, pendencia):
+        msg = "Sem permissão para editar esta pendência."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=403)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+    if pendencia.status in ("concluida", "cancelada"):
+        msg = "Não é possível excluir etapas neste estado da pendência."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=400)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+    if etapa.status != "pendente":
+        msg = "Só é possível excluir etapas pendentes."
+        if _wants_json_response(request):
+            return JsonResponse({"success": False, "error": msg}, status=400)
+        messages.error(request, msg)
+        return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
+
+    titulo_et = etapa.titulo
+    with transaction.atomic():
+        etapa.delete()
+        _renumber_etapas_ordem(pendencia)
+        recalcular_status_pendencia(pendencia)
+        _registrar_atividade_pendencia(
+            pendencia,
+            request.user,
+            f'Excluiu etapa: "{titulo_et}"',
+            AtividadePendencia.TIPO_ETAPA,
+        )
+    sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+    pendencia.refresh_from_db()
+
+    if _wants_json_response(request):
+        return JsonResponse(
+            {
+                "success": True,
+                "pendencia": _pendencia_detail_payload(pendencia, request),
+            }
+        )
+    messages.success(request, "Etapa excluída.")
     return redirect("trackhub:pendencia_detalhe", pk=pendencia.pk)
