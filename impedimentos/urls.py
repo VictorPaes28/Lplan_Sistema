@@ -30,6 +30,11 @@ urlpatterns = [
         name="remover_categoria_ajax",
     ),
     path(
+        "<int:obra_id>/categorias/<int:categoria_id>/atualizar/",
+        views.atualizar_categoria_ajax,
+        name="atualizar_categoria_ajax",
+    ),
+    path(
         "<int:obra_id>/item/<int:impedimento_id>/",
         views.impedimento_detail_ajax,
         name="impedimento_detail_ajax",

@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=33">
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=54">
 {% endblock %}
 
 {% block content %}
@@ -29,6 +29,8 @@
     data-imp-lista-finalizado-id="{% if lista_finalizado_status_id %}{{ lista_finalizado_status_id }}{% endif %}"
     data-current-user-nome="{{ request.user.get_full_name|default:request.user.username|escape }}"
     data-obra-nome="{{ obra.nome|escape }}"
+    data-tem-categorias="{% if tem_categorias %}1{% else %}0{% endif %}"
+    data-imp-list-post-url="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}"
 >
     {{ attachments_by_impedimento_id|json_script:"imp-attachments-json" }}
     {{ responsaveis_choices|json_script:"imp-responsaveis-json" }}
@@ -44,13 +46,13 @@
     <header class="imp-header">
         <div>
             <h2 class="imp-title">{{ obra.sigla|default:project.code }} - {{ obra.nome }}</h2>
-            <p class="imp-subtitle">Acompanhe status, responsáveis e prazos das restrições da obra.</p>
+            <p class="imp-subtitle">{% if tem_categorias %}Acompanhe status, responsáveis e prazos. Use as categorias à esquerda para filtrar.{% else %}Comece criando <strong>categorias</strong> (agrupam por tema); só depois cadastre restrições nelas.{% endif %}</p>
         </div>
         <div class="imp-header-actions">
             {% if is_admin_export %}
-            <a href="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-btn imp-btn-secondary" title="Configurar status desta obra">
+            <button type="button" class="imp-btn imp-btn-secondary" id="imp-open-status-config" title="Configurar status desta obra" data-status-config-url="{% url 'impedimentos:list_status' obra_id=project.id %}">
                 <i class="fas fa-sliders-h"></i> Configurar status
-            </a>
+            </button>
             {% endif %}
             <a href="{% url 'impedimentos:select_obra' %}" class="imp-btn imp-btn-secondary">
                 <i class="fas fa-exchange-alt"></i> Trocar obra
@@ -72,6 +74,7 @@
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
         {% else %}
+        <div class="imp-header-no-cat-actions">
         <button
             type="button"
             title="É necessário criar categorias antes de adicionar restrições"
@@ -81,6 +84,10 @@
             aria-disabled="true">
             <i class="fas fa-plus"></i> Nova Restrição
         </button>
+        <button type="button" class="imp-btn imp-btn-secondary" data-imp-open-cat-mini>
+            <i class="fas fa-tags"></i> Nova categoria
+        </button>
+        </div>
         {% endif %}
     </section>
 
@@ -90,22 +97,28 @@
         <span class="imp-cat-mobile-toggle__inner">
             <i class="fas fa-tags" aria-hidden="true"></i>
             <span>Categorias</span>
-            {% if selected_cat_ids %}<span class="imp-cat-mobile-toggle__count">{{ selected_cat_ids|length }}</span>{% endif %}
+            {% if cat_param != 'all' and selected_cat_ids %}
+            <span class="imp-cat-mobile-toggle__count">{{ selected_cat_ids|length }}</span>
+            {% endif %}
             <i class="fas fa-chevron-down imp-cat-mobile-toggle__chev" aria-hidden="true"></i>
         </span>
     </button>
     <aside class="imp-cat-sidebar" id="imp-cat-sidebar" aria-label="Filtrar por categoria">
         <h3 class="imp-cat-sidebar__title">Categorias</h3>
-        <button type="button" class="imp-cat-row imp-cat-row--all {% if not selected_cat_ids %}is-selected{% endif %}" data-cat-clear>
+        {% if categorias_obra %}
+        <button type="button" class="imp-cat-row imp-cat-row--todas {% if cat_param == 'all' %}is-selected{% endif %}" data-cat-show-all>
             <span class="imp-cat-bullet imp-cat-bullet--neutral" aria-hidden="true"></span>
-            <span>Todas</span>
+            <span class="imp-cat-row__label">Todas</span>
         </button>
+        {% endif %}
         <ul class="imp-cat-list">
             {% for c in categorias_obra %}
             <li class="imp-cat-list__item" data-cat-item-id="{{ c.id }}">
                 <div class="imp-cat-row-wrap">
-                    <button type="button" class="imp-cat-row {% if c.id in selected_cat_ids %}is-selected{% endif %}" data-cat-toggle="{{ c.id }}">
+                    <button type="button" class="imp-cat-bullet-btn" data-cat-edit-bullet data-atualizar-url="{% url 'impedimentos:atualizar_categoria_ajax' obra_id=project.id categoria_id=c.id %}" data-cat-id="{{ c.id }}" data-cat-nome="{{ c.nome|escape }}" data-cat-cor="{{ c.cor|escape }}" title="Editar nome e cor" aria-label="Editar categoria {{ c.nome|escape }}">
                         <span class="imp-cat-bullet" style="background-color: {{ c.cor|escape }};" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="imp-cat-row {% if c.id in selected_cat_ids %}is-selected{% endif %}" data-cat-toggle="{{ c.id }}">
                         <span class="imp-cat-row__label">{{ c.nome }}</span>
                     </button>
                     {% if is_admin_export or user.is_staff %}
@@ -117,14 +130,17 @@
             </li>
             {% endfor %}
         </ul>
-        <button type="button" class="imp-btn imp-btn-secondary imp-cat-new-btn" id="imp-open-cat-mini-modal">
+        {% if not categorias_obra %}
+        <p class="imp-cat-sidebar__empty-hint">Sem categorias ainda. O próximo passo é criar a primeira — use o botão abaixo ou o destaque no topo da página.</p>
+        {% endif %}
+        <button type="button" class="imp-btn imp-btn-secondary imp-cat-new-btn" id="imp-open-cat-mini-modal" data-imp-open-cat-mini>
             <i class="fas fa-plus"></i> Nova categoria
         </button>
     </aside>
     </div>
     <div class="imp-content">
 
-    {% if active_view == "lista" and impedimentos %}
+    {% if active_view == "lista" and tem_categorias %}
     <section class="imp-list imp-list--grid" id="imp-lista-section">
         {% for col in kanban_columns %}
         <div class="imp-list-group" data-imp-list-group data-imp-group-status-id="{{ col.id }}">
@@ -156,6 +172,7 @@
                         data-imp-item-id="{{ item.id }}"
                         data-imp-status-id="{{ item.status_id }}"
                     >
+                        {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param %}
                         <div class="imp-list-line__grid">
                             <div class="imp-list-line__name imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="nome" role="button" tabindex="0">
                                 <div class="imp-list-line__name-inner">
@@ -170,14 +187,22 @@
                                     <span class="imp-list-subtask-count">{{ item.subtarefas_concluidas }}/{{ item.subtarefas_count }}</span>
                                     {% endif %}
                                     <div class="imp-title-with-cats">
-                                        <span class="imp-item-titulo-text">{{ item.titulo }}</span>
                                         {% if item.categorias %}
-                                        <div class="imp-list-cat-dots">
-                                            {% for cat in item.categorias %}
-                                            <span class="imp-list-cat-dot" style="background:{{ cat.cor }}" title="{{ cat.nome|escape }}"></span>
-                                            {% endfor %}
-                                        </div>
+                                            {% if cat_param == 'all' %}
+                                            <div class="imp-list-cat-badges" aria-label="Categorias">
+                                                {% for cat in item.categorias %}
+                                                <span class="imp-list-cat-badge" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
+                                                {% endfor %}
+                                            </div>
+                                            {% else %}
+                                            <div class="imp-list-cat-dots">
+                                                {% for cat in item.categorias %}
+                                                <span class="imp-list-cat-dot" style="background:{{ cat.cor }}" title="{{ cat.nome|escape }}"></span>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
                                         {% endif %}
+                                        <span class="imp-item-titulo-text">{{ item.titulo }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -224,6 +249,8 @@
                     </article>
                     <div class="imp-list-subtasks-host" data-imp-subtasks-host="{{ item.id }}" hidden></div>
                     </div>
+                    {% empty %}
+                    <p class="imp-list-status-empty">Nenhuma restrição neste status.</p>
                     {% endfor %}
                 </div>
                 <div class="imp-list-group-footer">
@@ -245,28 +272,28 @@
         {% endfor %}
     </section>
     {% elif active_view == "lista" %}
-    <section class="imp-empty">
-        <div class="imp-empty-icon"><i class="fas fa-list-check"></i></div>
-        <h3>Nenhuma restrição cadastrada</h3>
-        <p>Crie a primeira restrição para começar o acompanhamento desta obra.</p>
-        {% if tem_categorias %}
-        <button type="button" class="imp-btn imp-btn-primary" data-modal-open data-imp-nova-restricao-guard>
-            <i class="fas fa-plus"></i> Nova Restrição
-        </button>
-        {% else %}
-        <button
-            type="button"
-            title="É necessário criar categorias antes de adicionar restrições"
-            style="opacity: .5; cursor: not-allowed;"
-            class="imp-btn imp-btn-primary imp-nova-restricao--blocked"
-            data-imp-nova-restricao-guard
-            aria-disabled="true">
-            <i class="fas fa-plus"></i> Nova Restrição
-        </button>
-        {% endif %}
+    <section class="imp-empty imp-empty--onboarding" aria-labelledby="imp-empty-onboarding-title">
+        <div class="imp-empty-icon imp-empty-icon--accent"><i class="fas fa-tags" aria-hidden="true"></i></div>
+        <h3 id="imp-empty-onboarding-title">Primeiro: categorias</h3>
+        <p class="imp-empty__lead">Sem categorias não é possível cadastrar restrições — elas servem para organizar por tema ou tipo de pendência.</p>
+        <ol class="imp-empty-steps">
+            <li><strong>Crie uma categoria</strong> — botão principal acima ou «Nova categoria» na barra lateral.</li>
+            <li><strong>Depois</strong> — use «Nova restrição» e associe a uma ou mais categorias.</li>
+        </ol>
+        <div class="imp-empty-actions">
+            <button type="button" class="imp-btn imp-btn-primary" data-imp-open-cat-mini>
+                <i class="fas fa-plus"></i> Nova categoria
+            </button>
+        </div>
     </section>
     {% elif active_view == "quadro" %}
     <section class="imp-kanban-wrapper">
+        {% if not tem_categorias %}
+        <div class="imp-view-banner imp-view-banner--info" role="status">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+            <span><strong>Passo 1:</strong> crie uma categoria na barra lateral. Depois disso, os botões «Adicionar restrição» passam a abrir o cadastro normalmente.</span>
+        </div>
+        {% endif %}
         <div class="imp-kanban-board" data-update-url="{% url 'impedimentos:update_status_ajax' obra_id=project.id %}">
             {% for col in kanban_columns %}
             <article class="imp-kanban-column" data-status-id="{{ col.id }}">
@@ -278,7 +305,17 @@
                     {% for item in col.items %}
                     <div class="imp-kanban-stack">
                     <div class="imp-kanban-card{% if lista_finalizado_status_id and item.status_id == lista_finalizado_status_id %} imp-kanban-card--done{% endif %}" data-item-id="{{ item.id }}" draggable="true">
-                        <div class="imp-kcard-title" role="button" tabindex="0">{{ item.titulo }}</div>
+                        <div class="imp-kcard-head">
+                            <div class="imp-kcard-title" role="button" tabindex="0">{{ item.titulo }}</div>
+                            {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param %}
+                        </div>
+                        {% if cat_param == 'all' and item.categorias %}
+                        <div class="imp-kcard-cat-badges imp-list-cat-badges" aria-label="Categorias">
+                            {% for cat in item.categorias %}
+                            <span class="imp-list-cat-badge imp-list-cat-badge--compact" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                         <div class="imp-kcard-fields">
                             <div class="imp-kcard-field" data-imp-cell="prioridade" data-item-id="{{ item.id }}" data-imp-prio-value="{{ item.prioridade_value }}">
                                 <i class="fas fa-flag imp-kcard-field-icon" aria-hidden="true"></i>
@@ -298,7 +335,7 @@
                                 <span>{% if item.prazo %}{{ item.prazo|date:"d/m/Y" }}{% else %}—{% endif %}</span>
                             </div>
                             {% if item.categorias %}
-                            <div class="imp-kcard-field" data-imp-cell="categorias" data-item-id="{{ item.id }}">
+                            <div class="imp-kcard-field{% if cat_param == 'all' %} sr-only{% endif %}" data-imp-cell="categorias" data-item-id="{{ item.id }}"{% if cat_param == 'all' %} aria-hidden="true"{% endif %}>
                                 <i class="fas fa-tag imp-kcard-field-icon" aria-hidden="true"></i>
                                 <div class="imp-kcard-cats">
                                     {% for cat in item.categorias %}
@@ -358,6 +395,12 @@
     </section>
     {% elif active_view == "calendario" %}
     <section class="imp-calendar">
+        {% if not tem_categorias %}
+        <div class="imp-view-banner imp-view-banner--info" role="status">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+            <span><strong>Sem categorias:</strong> o calendário ficará vazio até existir ao menos uma categoria e restrições com prazo. Comece pela barra lateral.</span>
+        </div>
+        {% endif %}
         <header class="imp-calendar-nav">
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ cal_prev_q }}" class="imp-btn imp-btn-secondary">
                 <i class="fas fa-chevron-left"></i> Anterior
@@ -382,9 +425,10 @@
                 <div class="imp-calendar-day-number">{{ day.day }}</div>
                 <div class="imp-calendar-items">
                     {% for item in day.items %}
+                    <div class="imp-calendar-pill-row">
                     <button
                         type="button"
-                        class="imp-calendar-pill"
+                        class="imp-calendar-pill{% if cat_param == 'all' and item.categorias %} imp-calendar-pill--stacked{% endif %}"
                         {% if item.categorias %}
                         style="background-color: {{ item.categorias.0.cor }}1A; border-color: {{ item.categorias.0.cor }}66; color: {{ item.categorias.0.cor }};"
                         {% else %}
@@ -392,8 +436,13 @@
                         {% endif %}
                         data-calendar-detail-trigger
                     >
-                        {{ item.titulo }}
+                        {% if cat_param == 'all' and item.categorias %}
+                        <span class="imp-calendar-pill__cats">{% for cat in item.categorias %}<span class="imp-calendar-pill__cat">{{ cat.nome }}</span>{% if not forloop.last %}<span class="imp-calendar-pill__cat-sep"> · </span>{% endif %}{% endfor %}</span>
+                        {% endif %}
+                        <span class="imp-calendar-pill__titulo">{{ item.titulo }}</span>
                     </button>
+                    {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param menu_variant='calendar' %}
+                    </div>
                     <div class="imp-calendar-detail-data hidden" data-impedimento-id="{{ item.id }}">
                         <div data-detail-title>{{ item.titulo }}</div>
                         <div data-detail-status-name>{{ item.status_nome }}</div>
@@ -482,14 +531,22 @@
                     <tr data-imp-item-id="{{ item.id }}" data-imp-status-id="{{ item.status_id }}">
                         <td class="imp-table-cell-editable imp-table-cell--interactive" data-imp-cell="nome" role="button" tabindex="0">
                             <div class="imp-title-with-cats">
-                                <span class="imp-item-titulo-text">{{ item.titulo }}</span>
                                 {% if item.categorias %}
-                                <div class="imp-list-cat-dots">
-                                    {% for cat in item.categorias %}
-                                    <span class="imp-list-cat-dot" style="background:{{ cat.cor }}" title="{{ cat.nome|escape }}"></span>
-                                    {% endfor %}
-                                </div>
+                                    {% if cat_param == 'all' %}
+                                    <div class="imp-list-cat-badges" aria-label="Categorias">
+                                        {% for cat in item.categorias %}
+                                        <span class="imp-list-cat-badge" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <div class="imp-list-cat-dots">
+                                        {% for cat in item.categorias %}
+                                        <span class="imp-list-cat-dot" style="background:{{ cat.cor }}" title="{{ cat.nome|escape }}"></span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
                                 {% endif %}
+                                <span class="imp-item-titulo-text">{{ item.titulo }}</span>
                             </div>
                         </td>
                         <td class="imp-table-cell-editable imp-table-cell--interactive" data-imp-cell="status">
@@ -522,24 +579,23 @@
                                 <span class="imp-list-comments-count">{{ item.comentarios_count }}</span>
                             </span>
                         </td>
-                        <td>
-                            <div class="imp-table-actions">
-                                <button type="button" class="imp-btn imp-btn-secondary imp-btn-xs" data-table-detail="{{ item.id }}">
-                                    Ver
-                                </button>
-                                <form method="post" class="imp-inline-form" onsubmit="return confirm('Tem certeza que deseja excluir esta restrição?');">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="impedimento_id" value="{{ item.id }}">
-                                    {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
-                                    <button type="submit" class="imp-btn imp-btn-danger imp-btn-xs">Excluir</button>
-                                </form>
-                            </div>
+                        <td class="imp-table-actions-cell">
+                            {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="imp-table-empty">Nenhuma restrição encontrada com os filtros atuais.</td>
+                        <td colspan="8" class="imp-table-empty">
+                            {% if tem_categorias %}
+                                {% if cat_param != 'all' and obra_tem_restricoes_raiz %}
+                                Nenhuma restrição nesta categoria com os filtros atuais. Experimente <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?view=tabela&cat=all{% if table_filters.q %}&q={{ table_filters.q|urlencode }}{% endif %}">ver todas</a> ou limpar filtros.
+                                {% else %}
+                                Nenhuma restrição encontrada com os filtros atuais.
+                                {% endif %}
+                            {% else %}
+                            Cadastre primeiro uma <strong>categoria</strong> na barra lateral; em seguida use «Nova categoria» / «Nova restrição» conforme o passo.
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -627,13 +683,7 @@
             <div id="imp-remover-arquivo-post"></div>
 
             <div class="imp-impeditivo-modal__body">
-                <div class="imp-impeditivo-field imp-impeditivo-field--title">
-                    {{ form.titulo }}
-                    <div class="imp-impeditivo-modal__title-rule" aria-hidden="true"></div>
-                    {% for error in form.titulo.errors %}<p class="imp-impeditivo-field__error">{{ error }}</p>{% endfor %}
-                </div>
-
-                <div class="imp-impeditivo-field">
+                <div class="imp-impeditivo-field imp-impeditivo-field--priority">
                     <span class="imp-impeditivo-field__label">Prioridade</span>
                     <div class="imp-field-visually-hidden">{{ form.prioridade }}</div>
                     <div class="imp-priority-pills" id="imp-priority-pills" role="radiogroup" aria-label="Prioridade">
@@ -643,6 +693,13 @@
                         <button type="button" class="imp-prio-pill imp-prio-pill--critica" data-value="CRITICA" role="radio" aria-checked="false">Crítica</button>
                     </div>
                     {% for error in form.prioridade.errors %}<p class="imp-impeditivo-field__error">{{ error }}</p>{% endfor %}
+                </div>
+
+                <div class="imp-impeditivo-field imp-impeditivo-field--title">
+                    <label class="imp-impeditivo-field__label" for="{{ form.titulo.id_for_label }}">Nome da restrição</label>
+                    {{ form.titulo }}
+                    <div class="imp-impeditivo-modal__title-rule" aria-hidden="true"></div>
+                    {% for error in form.titulo.errors %}<p class="imp-impeditivo-field__error">{{ error }}</p>{% endfor %}
                 </div>
 
                 <div class="imp-impeditivo-field">
@@ -655,7 +712,27 @@
                     <span class="imp-impeditivo-field__label" id="imp-responsaveis-label">Responsáveis</span>
                     <div class="imp-responsaveis-wrap imp-responsaveis-wrap--modal">
                         {{ form.responsaveis }}
-                        <div class="imp-responsaveis-chips imp-responsaveis-chips--modal" id="imp-responsaveis-chips" role="group" aria-labelledby="imp-responsaveis-label"></div>
+                        <div class="imp-resp-modal-ui" role="group" aria-labelledby="imp-responsaveis-label">
+                            <div class="imp-resp-modal-selected-block">
+                                <span class="imp-resp-modal-selected-heading">Selecionados</span>
+                                <div id="imp-resp-modal-selected" class="imp-resp-modal-selected"></div>
+                            </div>
+                            <div class="imp-resp-modal-picker" id="imp-resp-modal-picker">
+                                <label class="sr-only" for="imp-resp-modal-search">Buscar membros da obra</label>
+                                <div class="imp-resp-modal-search-wrap">
+                                    <i class="fas fa-search imp-resp-modal-search-icon" aria-hidden="true"></i>
+                                    <input type="search" id="imp-resp-modal-search" class="imp-resp-modal-search" placeholder="Buscar na equipe da obra…" autocomplete="off" />
+                                </div>
+                                <div class="imp-resp-modal-picker-toolbar">
+                                    <span class="imp-resp-modal-picker-toolbar__hint" id="imp-resp-modal-list-hint">Toque em um nome para marcar</span>
+                                    <button type="button" id="imp-resp-modal-expand-btn" class="imp-resp-modal-expand-btn" aria-expanded="false" aria-controls="imp-resp-modal-list" aria-describedby="imp-resp-modal-list-hint">
+                                        <span class="imp-resp-modal-expand-btn__label">Expandir lista</span>
+                                        <i class="fas fa-chevron-down imp-resp-modal-expand-btn__icon" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                                <ul id="imp-resp-modal-list" class="imp-resp-modal-list" role="listbox" aria-multiselectable="true" aria-label="Membros disponíveis nesta obra"></ul>
+                            </div>
+                        </div>
                     </div>
                     {% for error in form.responsaveis.errors %}<p class="imp-impeditivo-field__error">{{ error }}</p>{% endfor %}
                 </div>
@@ -663,9 +740,10 @@
                 <div class="imp-impeditivo-field">
                     <span class="imp-impeditivo-field__label" id="imp-categorias-label">Categorias</span>
                     <p class="imp-categorias-empty-hint" id="imp-categorias-empty-hint" {% if categorias_obra %}hidden{% endif %}>Cadastre pelo menos uma categoria para classificar restrições.</p>
+                    <p class="imp-categorias-modal-hint" id="imp-categorias-modal-hint" {% if not categorias_obra %}hidden{% endif %}>Clique nas categorias para marcar ou desmarcar. É obrigatório pelo menos uma.</p>
                     <div class="imp-categorias-wrap">
                         {{ form.categorias }}
-                        <div class="imp-categorias-chips" id="imp-categorias-chips" role="group" aria-labelledby="imp-categorias-label"></div>
+                        <div class="imp-categorias-chips imp-categorias-chips--modal" id="imp-categorias-chips" role="group" aria-labelledby="imp-categorias-label" {% if categorias_obra %}aria-describedby="imp-categorias-modal-hint"{% endif %}></div>
                     </div>
                     {% for error in form.categorias.errors %}<p class="imp-impeditivo-field__error">{{ error }}</p>{% endfor %}
                 </div>
@@ -720,6 +798,26 @@
             </div>
         </form>
     </div>
+</div>
+
+<div id="imp-cat-edit-popover" class="imp-cat-edit-popover" hidden role="dialog" aria-modal="true" aria-labelledby="imp-cat-edit-popover-title">
+    <h4 id="imp-cat-edit-popover-title" class="imp-cat-edit-popover__title">Editar categoria</h4>
+    <form id="imp-cat-edit-form" class="imp-cat-edit-popover__form">
+        <input type="hidden" id="imp-cat-edit-url" value="">
+        <div class="imp-cat-edit-popover__field">
+            <label for="imp-cat-edit-nome">Nome</label>
+            <input type="text" id="imp-cat-edit-nome" name="nome" maxlength="100" required class="imp-cat-mini-input" autocomplete="off">
+        </div>
+        <p class="imp-cat-mini-error imp-cat-edit-popover__error" id="imp-cat-edit-error" hidden></p>
+        <div class="imp-cat-edit-popover__actions">
+            <button type="button" class="imp-btn imp-btn-secondary imp-btn-xs" id="imp-cat-edit-cancel">Fechar</button>
+            <button type="submit" class="imp-btn imp-btn-primary imp-btn-xs" id="imp-cat-edit-save">Salvar</button>
+        </div>
+        <div class="imp-cat-edit-popover__field imp-cat-edit-popover__field--cor">
+            <label for="imp-cat-edit-cor">Cor</label>
+            <input type="color" id="imp-cat-edit-cor" name="cor" value="#6B7280" class="imp-cat-mini-color imp-cat-edit-popover__color-input">
+        </div>
+    </form>
 </div>
 
 <!-- MODAL DETALHE -->
@@ -908,6 +1006,48 @@
     </div>
 </div>
 
+{% if is_admin_export %}
+<div class="imp-modal-overlay imp-status-config-shell" id="imp-status-config-shell" aria-hidden="true">
+    <div class="imp-modal imp-status-config-modal-panel" role="dialog" aria-modal="true" aria-labelledby="imp-status-config-panel-title">
+        <div class="imp-modal-header imp-status-config-panel-head">
+            <div class="imp-status-config-panel-head-text">
+                <h3 id="imp-status-config-panel-title">Configurar status</h3>
+                <p class="imp-status-config-help">Ordem e cores aparecem na lista, no quadro e nos filtros desta obra.</p>
+            </div>
+            <div class="imp-status-config-panel-actions">
+                <a href="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-btn imp-btn-secondary imp-btn-sm" title="Abrir em página própria">Página cheia</a>
+                <button type="button" class="imp-modal-close" id="imp-status-config-shell-close" aria-label="Fechar painel">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <div id="imp-status-config-inline-msg" class="imp-status-config-banner imp-status-config-banner--error" hidden></div>
+        <section class="imp-toolbar imp-status-config-toolbar imp-status-config-toolbar-inner">
+            <button type="button" class="imp-btn imp-btn-primary" data-status-modal-open data-mode="create">
+                <i class="fas fa-plus"></i> Novo status
+            </button>
+        </section>
+        <div class="imp-status-config-table-area" id="imp-status-config-table-host">
+            {% include 'impedimentos/_status_config_table.html' with status_rows=status_config_list project=project obra=obra use_status_xhr=True %}
+        </div>
+    </div>
+</div>
+
+<div class="imp-modal-overlay imp-status-config-form-overlay" id="imp-status-config-form-overlay" aria-hidden="true">
+    <div class="imp-modal imp-status-config-form-modal" role="dialog" aria-modal="true" aria-labelledby="imp-status-overlay-modal-title">
+        <div class="imp-modal-header">
+            <h3 id="imp-status-overlay-modal-title">Novo status</h3>
+            <button type="button" class="imp-modal-close" data-status-modal-close aria-label="Fechar">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div id="imp-status-config-form-host">
+            {% include 'impedimentos/_status_config_modal_form.html' with form=status_config_form project=project obra=obra use_status_xhr=True %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
 (function() {
     const modal = document.getElementById('novo-impedimento-modal');
@@ -938,14 +1078,28 @@
     const catMiniCor = document.getElementById('imp-cat-mini-cor');
     const catMiniError = document.getElementById('imp-cat-mini-error');
     const catMiniCancel = document.getElementById('imp-cat-mini-cancel');
-    const catMiniOpenBtn = document.getElementById('imp-open-cat-mini-modal');
+    const catMiniOpenTriggers = document.querySelectorAll('[data-imp-open-cat-mini]');
+    const catEditPopover = document.getElementById('imp-cat-edit-popover');
+    const catEditForm = document.getElementById('imp-cat-edit-form');
+    const catEditUrl = document.getElementById('imp-cat-edit-url');
+    const catEditNome = document.getElementById('imp-cat-edit-nome');
+    const catEditCor = document.getElementById('imp-cat-edit-cor');
+    const catEditError = document.getElementById('imp-cat-edit-error');
+    const catEditCancel = document.getElementById('imp-cat-edit-cancel');
+    let catEditAnchorBtn = null;
+    let catEditSnapshot = null;
+    let catEditColorPickerGuard = false;
     const categoriasEmptyHint = document.getElementById('imp-categorias-empty-hint');
     const catListUl = catSidebar ? catSidebar.querySelector('.imp-cat-list') : null;
     const arquivosNovosInput = document.getElementById('imp-arquivos-novos');
     const previewArquivosNovas = document.getElementById('imp-preview-arquivos-novas');
     const existingArquivosEl = document.getElementById('imp-existing-arquivos');
     const removerArquivoPost = document.getElementById('imp-remover-arquivo-post');
-    const responsaveisChipsEl = document.getElementById('imp-responsaveis-chips');
+    const responsaveisModalSelectedEl = document.getElementById('imp-resp-modal-selected');
+    const responsaveisModalListEl = document.getElementById('imp-resp-modal-list');
+    const responsaveisModalSearchEl = document.getElementById('imp-resp-modal-search');
+    const responsaveisModalPickerEl = document.getElementById('imp-resp-modal-picker');
+    const responsaveisModalExpandBtn = document.getElementById('imp-resp-modal-expand-btn');
     const modalTitle = document.getElementById('novo-impedimento-title');
     const priorityPillsEl = document.getElementById('imp-priority-pills');
     const fileDropEl = document.getElementById('imp-file-drop');
@@ -991,6 +1145,7 @@
                         responsaveisMetaById[String(row.id)] = {
                             nome: row.nome || '',
                             iniciais: row.iniciais || '',
+                            cor: row.cor || '#64748b',
                         };
                     }
                 });
@@ -1057,34 +1212,126 @@
         if (arquivosNovosInput) arquivosNovosInput.value = '';
     }
 
-    function rebuildResponsaveisChips() {
-        if (!responsaveisChipsEl || !responsaveisInput) return;
-        responsaveisChipsEl.innerHTML = '';
-        Array.from(responsaveisInput.options).forEach((opt) => {
+    function normalizeRespSearch(s) {
+        return String(s || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function renderResponsaveisSelectedCards() {
+        if (!responsaveisModalSelectedEl || !responsaveisInput) return;
+        responsaveisModalSelectedEl.innerHTML = '';
+        const selected = Array.from(responsaveisInput.options).filter(function(o) {
+            return o.value && o.selected;
+        });
+        if (!selected.length) {
+            const p = document.createElement('p');
+            p.className = 'imp-resp-modal-selected-empty';
+            p.textContent = 'Ninguém selecionado — escolha na lista abaixo.';
+            responsaveisModalSelectedEl.appendChild(p);
+            return;
+        }
+        selected.forEach(function(opt) {
             const uid = opt.value;
-            if (!uid) return;
             const meta = responsaveisMetaById[uid] || {
                 nome: opt.textContent.trim(),
                 iniciais: (opt.textContent || '?').trim().slice(0, 2).toUpperCase(),
+                cor: '#64748b',
             };
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'imp-chip';
-            btn.dataset.userId = uid;
-            btn.setAttribute('aria-pressed', opt.selected ? 'true' : 'false');
-            btn.title = meta.nome || opt.textContent;
+            const card = document.createElement('div');
+            card.className = 'imp-resp-selected-card';
+            card.dataset.userId = uid;
+
             const av = document.createElement('div');
-            av.className = 'imp-chip-avatar';
+            av.className = 'imp-resp-selected-card__avatar';
             av.setAttribute('aria-hidden', 'true');
-            av.textContent = meta.iniciais || uid;
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'imp-chip-name';
-            nameSpan.textContent = meta.nome || opt.textContent;
-            btn.appendChild(av);
-            btn.appendChild(nameSpan);
-            if (opt.selected) btn.classList.add('selected');
-            responsaveisChipsEl.appendChild(btn);
+            av.textContent = meta.iniciais || '?';
+            av.style.background = meta.cor || '#64748b';
+
+            const body = document.createElement('div');
+            body.className = 'imp-resp-selected-card__body';
+            const nm = document.createElement('span');
+            nm.className = 'imp-resp-selected-card__name';
+            nm.textContent = meta.nome || opt.textContent;
+            const hint = document.createElement('span');
+            hint.className = 'imp-resp-selected-card__hint';
+            hint.textContent = 'Responsável';
+            body.appendChild(nm);
+            body.appendChild(hint);
+
+            const rm = document.createElement('button');
+            rm.type = 'button';
+            rm.className = 'imp-resp-selected-card__remove';
+            const nmSafe = (meta.nome || '').replace(/"/g, '');
+            rm.setAttribute('aria-label', 'Remover ' + nmSafe);
+            rm.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+
+            card.appendChild(av);
+            card.appendChild(body);
+            card.appendChild(rm);
+            responsaveisModalSelectedEl.appendChild(card);
         });
+    }
+
+    function renderResponsaveisPickerList() {
+        if (!responsaveisModalListEl || !responsaveisInput) return;
+        const qRaw = responsaveisModalSearchEl ? responsaveisModalSearchEl.value : '';
+        const q = normalizeRespSearch(qRaw);
+        responsaveisModalListEl.innerHTML = '';
+        let any = false;
+        Array.from(responsaveisInput.options).forEach(function(opt) {
+            if (!opt.value) return;
+            const meta = responsaveisMetaById[opt.value] || {
+                nome: opt.textContent.trim(),
+                iniciais: (opt.textContent || '?').trim().slice(0, 2).toUpperCase(),
+                cor: '#64748b',
+            };
+            const nomeNorm = normalizeRespSearch(meta.nome || opt.textContent);
+            if (q && nomeNorm.indexOf(q) === -1) return;
+            any = true;
+
+            const li = document.createElement('li');
+            li.className = 'imp-resp-modal-row' + (opt.selected ? ' is-selected' : '');
+            li.setAttribute('role', 'option');
+            li.setAttribute('aria-selected', opt.selected ? 'true' : 'false');
+            li.dataset.userId = opt.value;
+            li.tabIndex = 0;
+
+            const check = document.createElement('span');
+            check.className = 'imp-resp-modal-row__check';
+            check.setAttribute('aria-hidden', 'true');
+            if (opt.selected) check.innerHTML = '<i class="fas fa-check"></i>';
+
+            const av = document.createElement('div');
+            av.className = 'imp-resp-modal-row__avatar';
+            av.setAttribute('aria-hidden', 'true');
+            av.textContent = meta.iniciais || '?';
+            av.style.background = meta.cor || '#64748b';
+
+            const nm = document.createElement('span');
+            nm.className = 'imp-resp-modal-row__name';
+            nm.textContent = meta.nome || opt.textContent;
+
+            li.appendChild(check);
+            li.appendChild(av);
+            li.appendChild(nm);
+            responsaveisModalListEl.appendChild(li);
+        });
+        if (!any) {
+            const li = document.createElement('li');
+            li.className = 'imp-resp-modal-row imp-resp-modal-row--empty';
+            li.setAttribute('role', 'presentation');
+            li.textContent = qRaw.trim()
+                ? 'Nenhum resultado para esta busca.'
+                : 'Nenhum membro disponível nesta obra.';
+            responsaveisModalListEl.appendChild(li);
+        }
+    }
+
+    function rebuildResponsaveisModalUI() {
+        renderResponsaveisSelectedCards();
+        renderResponsaveisPickerList();
     }
 
     function toggleResponsavelChip(userId) {
@@ -1092,14 +1339,51 @@
         const opt = Array.from(responsaveisInput.options).find((o) => o.value === userId);
         if (!opt) return;
         opt.selected = !opt.selected;
-        rebuildResponsaveisChips();
+        rebuildResponsaveisModalUI();
     }
 
-    if (responsaveisChipsEl) {
-        responsaveisChipsEl.addEventListener('click', function(ev) {
-            const t = ev.target.closest('.imp-chip');
-            if (!t || !t.dataset.userId) return;
-            toggleResponsavelChip(t.dataset.userId);
+    if (responsaveisModalListEl) {
+        responsaveisModalListEl.addEventListener('click', function(ev) {
+            const row = ev.target.closest('.imp-resp-modal-row');
+            if (!row || !row.dataset.userId || row.classList.contains('imp-resp-modal-row--empty')) return;
+            toggleResponsavelChip(row.dataset.userId);
+        });
+        responsaveisModalListEl.addEventListener('keydown', function(ev) {
+            if (ev.key !== 'Enter' && ev.key !== ' ') return;
+            const row = ev.target.closest('.imp-resp-modal-row');
+            if (!row || !row.dataset.userId || row.classList.contains('imp-resp-modal-row--empty')) return;
+            ev.preventDefault();
+            toggleResponsavelChip(row.dataset.userId);
+        });
+    }
+
+    if (responsaveisModalSelectedEl) {
+        responsaveisModalSelectedEl.addEventListener('click', function(ev) {
+            const rm = ev.target.closest('.imp-resp-selected-card__remove');
+            if (!rm) return;
+            const card = rm.closest('.imp-resp-selected-card');
+            if (card && card.dataset.userId) toggleResponsavelChip(card.dataset.userId);
+        });
+    }
+
+    if (responsaveisModalSearchEl) {
+        responsaveisModalSearchEl.addEventListener('input', function() {
+            renderResponsaveisPickerList();
+        });
+    }
+
+    function setResponsaveisModalListExpanded(expanded) {
+        if (!responsaveisModalPickerEl || !responsaveisModalExpandBtn) return;
+        responsaveisModalPickerEl.classList.toggle('is-list-expanded', !!expanded);
+        responsaveisModalExpandBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        const lab = responsaveisModalExpandBtn.querySelector('.imp-resp-modal-expand-btn__label');
+        if (lab) lab.textContent = expanded ? 'Recolher lista' : 'Expandir lista';
+    }
+
+    if (responsaveisModalExpandBtn && responsaveisModalPickerEl) {
+        responsaveisModalExpandBtn.addEventListener('click', function() {
+            const next = !responsaveisModalPickerEl.classList.contains('is-list-expanded');
+            setResponsaveisModalListExpanded(next);
         });
     }
 
@@ -1107,6 +1391,13 @@
         if (!categoriasEmptyHint) return;
         const n = categoriasInput ? categoriasInput.querySelectorAll('option[value]').length : 0;
         categoriasEmptyHint.hidden = n > 0;
+        var mh = document.getElementById('imp-categorias-modal-hint');
+        var chips = document.getElementById('imp-categorias-chips');
+        if (mh) mh.hidden = n === 0;
+        if (chips && mh) {
+            if (n > 0) chips.setAttribute('aria-describedby', 'imp-categorias-modal-hint');
+            else chips.removeAttribute('aria-describedby');
+        }
     }
 
     function rebuildCategoriasChips() {
@@ -1166,18 +1457,220 @@
     function getCatIdsFromLocation() {
         const u = new URL(window.location.href);
         const raw = (u.searchParams.get('cat') || '').trim();
-        if (!raw) return [];
-        return raw.split(',').map((s) => s.trim()).filter((x) => x && /^\d+$/.test(x));
+        if (!raw || raw.toLowerCase() === 'all') return [];
+        const parts = raw.split(',').map((s) => s.trim()).filter((x) => x && /^\d+$/.test(x));
+        return parts.length ? [parts[0]] : [];
+    }
+
+    function applyCategoriaUiPatch(catId, nome, cor) {
+        const idStr = String(catId);
+        categoriasMetaById[idStr] = { nome: nome || '', cor: cor || '#6B7280' };
+        if (categoriasInput) {
+            const opt = categoriasInput.querySelector('option[value="' + idStr + '"]');
+            if (opt) opt.textContent = nome;
+        }
+        rebuildCategoriasChips();
+        try {
+            window.dispatchEvent(new CustomEvent('imp-categoria-atualizada', {
+                detail: { id: catId, nome: nome, cor: cor },
+            }));
+        } catch (e) { /* ignore */ }
+        if (!catSidebar) return;
+        const li = catSidebar.querySelector('.imp-cat-list__item[data-cat-item-id="' + idStr + '"]');
+        if (!li) return;
+        const bullet = li.querySelector('.imp-cat-bullet-btn .imp-cat-bullet');
+        if (bullet) bullet.style.backgroundColor = cor;
+        const label = li.querySelector('[data-cat-toggle] .imp-cat-row__label');
+        if (label) label.textContent = nome;
+        const bulBtn = li.querySelector('[data-cat-edit-bullet]');
+        if (bulBtn) {
+            bulBtn.dataset.catNome = nome;
+            bulBtn.dataset.catCor = cor;
+            bulBtn.setAttribute('aria-label', 'Editar categoria ' + nome);
+            bulBtn.setAttribute('title', 'Editar nome e cor');
+        }
+        const rm = li.querySelector('[data-cat-remove]');
+        if (rm) rm.dataset.catNome = nome;
+    }
+
+    function normalizeCatEditCor(hex) {
+        let c = (hex || '').trim();
+        if (!/^#[0-9A-Fa-f]{6}$/.test(c)) return '#6B7280';
+        return c.toUpperCase();
+    }
+
+    function actuallyCloseCatEditPopover() {
+        if (!catEditPopover) return;
+        catEditPopover.hidden = true;
+        catEditAnchorBtn = null;
+        catEditSnapshot = null;
+        document.removeEventListener('click', catEditOutsideClick, true);
+        if (catEditError) {
+            catEditError.hidden = true;
+            catEditError.textContent = '';
+        }
+    }
+
+    function persistCatEditIfNeeded() {
+        if (!catEditSnapshot || !csrfInput) return Promise.resolve(true);
+        const url = catEditSnapshot.url;
+        const nome = (catEditNome && catEditNome.value || '').trim();
+        const corInput = (catEditCor && catEditCor.value) || '#6B7280';
+        const corNorm = normalizeCatEditCor(corInput);
+        if (!nome) {
+            if (catEditError) {
+                catEditError.textContent = 'Informe o nome da categoria.';
+                catEditError.hidden = false;
+            }
+            return Promise.resolve(false);
+        }
+        const snapNome = (catEditSnapshot.nome || '').trim();
+        const snapCor = normalizeCatEditCor(catEditSnapshot.cor);
+        if (nome === snapNome && corNorm === snapCor) {
+            return Promise.resolve(true);
+        }
+        if (catEditError) {
+            catEditError.hidden = true;
+            catEditError.textContent = '';
+        }
+        const fd = new URLSearchParams();
+        fd.set('nome', nome);
+        fd.set('cor', corInput);
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfInput.value || '',
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            },
+            body: fd.toString(),
+            credentials: 'same-origin',
+        })
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                if (!result.ok || !result.data.ok) {
+                    const msg = (result.data && result.data.error) || 'Não foi possível salvar.';
+                    if (catEditError) {
+                        catEditError.textContent = msg;
+                        catEditError.hidden = false;
+                    }
+                    return false;
+                }
+                const id = result.data.id;
+                const newNome = result.data.nome || nome;
+                const newCor = result.data.cor || corNorm;
+                applyCategoriaUiPatch(id, newNome, newCor);
+                catEditSnapshot.nome = newNome;
+                catEditSnapshot.cor = normalizeCatEditCor(newCor);
+                if (catEditNome) catEditNome.value = newNome;
+                if (catEditCor) catEditCor.value = normalizeCatEditCor(newCor);
+                return true;
+            })
+            .catch(function() {
+                if (catEditError) {
+                    catEditError.textContent = 'Erro de rede ao salvar.';
+                    catEditError.hidden = false;
+                }
+                return false;
+            });
+    }
+
+    let catEditCloseBusy = false;
+
+    function closeCatEditPopover() {
+        if (!catEditPopover || catEditPopover.hidden) return;
+        if (catEditCloseBusy) return;
+        catEditCloseBusy = true;
+        persistCatEditIfNeeded().then(function(ok) {
+            catEditCloseBusy = false;
+            if (!ok) return;
+            actuallyCloseCatEditPopover();
+        });
+    }
+
+    function catEditOutsideClick(ev) {
+        if (!catEditPopover || catEditPopover.hidden) return;
+        if (catEditColorPickerGuard) return;
+        if (catEditCor && document.activeElement === catEditCor) return;
+        const t = ev.target;
+        if (catEditPopover.contains(t)) return;
+        if (catEditAnchorBtn && catEditAnchorBtn.contains(t)) return;
+        closeCatEditPopover();
+    }
+
+    function positionCatEditPopover() {
+        if (!catEditPopover || !catEditAnchorBtn || catEditPopover.hidden) return;
+        const r = catEditAnchorBtn.getBoundingClientRect();
+        const pw = catEditPopover.offsetWidth || 260;
+        const ph = catEditPopover.offsetHeight || 140;
+        let left = r.left;
+        let top = r.bottom + 6;
+        const pad = 8;
+        if (left + pw > window.innerWidth - pad) {
+            left = Math.max(pad, window.innerWidth - pw - pad);
+        }
+        if (left < pad) left = pad;
+        if (top + ph > window.innerHeight - pad) {
+            top = Math.max(pad, r.top - ph - 6);
+        }
+        catEditPopover.style.left = left + 'px';
+        catEditPopover.style.top = top + 'px';
+    }
+
+    function mountCatEditSession(anchorBtn) {
+        const url = (anchorBtn.getAttribute('data-atualizar-url') || '').trim();
+        const nome = (anchorBtn.dataset.catNome || '').trim();
+        let cor = (anchorBtn.dataset.catCor || '#6B7280').trim();
+        if (!url) return;
+        catEditAnchorBtn = anchorBtn;
+        if (catEditUrl) catEditUrl.value = url;
+        if (catEditNome) catEditNome.value = nome;
+        if (catEditCor) {
+            if (!/^#[0-9A-Fa-f]{6}$/.test(cor)) cor = '#6B7280';
+            catEditCor.value = cor;
+        }
+        catEditSnapshot = { url: url, nome: nome, cor: normalizeCatEditCor(cor) };
+        if (catEditError) {
+            catEditError.hidden = true;
+            catEditError.textContent = '';
+        }
+        catEditPopover.hidden = false;
+        requestAnimationFrame(function() {
+            positionCatEditPopover();
+            if (catEditNome) catEditNome.focus();
+        });
+        setTimeout(function() {
+            document.addEventListener('click', catEditOutsideClick, true);
+        }, 0);
+    }
+
+    function openCatEditPopover(anchorBtn) {
+        if (!catEditPopover || !anchorBtn || !csrfInput) return;
+        const url = (anchorBtn.getAttribute('data-atualizar-url') || '').trim();
+        if (!url) return;
+        if (!catEditPopover.hidden && catEditSnapshot) {
+            persistCatEditIfNeeded().then(function(ok) {
+                if (!ok) return;
+                actuallyCloseCatEditPopover();
+                mountCatEditSession(anchorBtn);
+            });
+            return;
+        }
+        mountCatEditSession(anchorBtn);
+    }
+
+    function bindCatEditBullet(btn) {
+        btn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openCatEditPopover(btn);
+        });
     }
 
     function bindCatToggleRow(btn) {
         btn.addEventListener('click', function() {
             const id = (btn.getAttribute('data-cat-toggle') || '').trim();
             if (!id) return;
-            let ids = getCatIdsFromLocation();
-            if (ids.includes(id)) ids = ids.filter((x) => x !== id);
-            else ids.push(id);
-            navigateWithCatParam(ids.length ? ids.join(',') : '');
+            navigateWithCatParam(id);
             if (catShell) catShell.classList.remove('is-open');
             if (catMobileToggle) catMobileToggle.setAttribute('aria-expanded', 'false');
         });
@@ -1215,8 +1708,7 @@
                         syncNovaRestricaoGuardButtons();
                         let ids = getCatIdsFromLocation();
                         if (ids.includes(id)) {
-                            ids = ids.filter((x) => x !== id);
-                            navigateWithCatParam(ids.length ? ids.join(',') : '');
+                            navigateWithCatParam('');
                         }
                         return;
                     }
@@ -1232,14 +1724,15 @@
 
     function bindCatFilters() {
         if (catSidebar) {
-            catSidebar.querySelectorAll('[data-cat-clear]').forEach((btn) => {
+            catSidebar.querySelectorAll('[data-cat-show-all]').forEach((btn) => {
                 btn.addEventListener('click', function() {
-                    navigateWithCatParam('');
+                    navigateWithCatParam('all');
                     if (catShell) catShell.classList.remove('is-open');
                     if (catMobileToggle) catMobileToggle.setAttribute('aria-expanded', 'false');
                 });
             });
             catSidebar.querySelectorAll('[data-cat-toggle]').forEach(bindCatToggleRow);
+            catSidebar.querySelectorAll('[data-cat-edit-bullet]').forEach(bindCatEditBullet);
             catSidebar.querySelectorAll('[data-cat-remove]').forEach(bindCatRemove);
         }
         if (catMobileToggle && catShell) {
@@ -1281,7 +1774,11 @@
         catMiniModal.setAttribute('aria-hidden', 'true');
     }
 
-    if (catMiniOpenBtn) catMiniOpenBtn.addEventListener('click', openCatMiniModal);
+    if (catMiniOpenTriggers.length) {
+        catMiniOpenTriggers.forEach(function(btn) {
+            btn.addEventListener('click', openCatMiniModal);
+        });
+    }
     if (catMiniCancel) catMiniCancel.addEventListener('click', closeCatMiniModal);
     if (catMiniModal) {
         catMiniModal.addEventListener('click', function(ev) {
@@ -1377,6 +1874,7 @@
                     rebuildCategoriasChips();
                     syncNovaRestricaoGuardButtons();
                     closeCatMiniModal();
+                    navigateWithCatParam(id);
                 })
                 .catch(() => {
                     if (catMiniError) {
@@ -1384,6 +1882,30 @@
                         catMiniError.hidden = false;
                     }
                 });
+        });
+    }
+
+    if (catEditForm && csrfInput) {
+        catEditForm.addEventListener('submit', function(ev) {
+            ev.preventDefault();
+            closeCatEditPopover();
+        });
+    }
+    if (catEditCancel) catEditCancel.addEventListener('click', closeCatEditPopover);
+
+    if (catEditCor) {
+        catEditCor.addEventListener('pointerdown', function() {
+            catEditColorPickerGuard = true;
+        });
+        catEditCor.addEventListener('change', function() {
+            setTimeout(function() {
+                catEditColorPickerGuard = false;
+            }, 450);
+        });
+        catEditCor.addEventListener('blur', function() {
+            setTimeout(function() {
+                catEditColorPickerGuard = false;
+            }, 350);
         });
     }
 
@@ -1740,9 +2262,25 @@
                 if (!opt.value) return;
                 opt.selected = idSet.has(String(opt.value));
             });
+        } else if (categoriasInput) {
+            const locIds = getCatIdsFromLocation();
+            if (locIds.length === 1) {
+                const cid = String(locIds[0]);
+                const hasOpt = Array.from(categoriasInput.options).some(function(o) {
+                    return String(o.value) === cid;
+                });
+                if (hasOpt) {
+                    Array.from(categoriasInput.options).forEach(function(opt) {
+                        if (!opt.value) return;
+                        opt.selected = String(opt.value) === cid;
+                    });
+                }
+            }
         }
+        if (responsaveisModalSearchEl) responsaveisModalSearchEl.value = '';
+        setResponsaveisModalListExpanded(false);
         syncPriorityPills();
-        rebuildResponsaveisChips();
+        rebuildResponsaveisModalUI();
         rebuildCategoriasChips();
     }
 
@@ -1809,6 +2347,12 @@
     });
 
     document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && catEditPopover && !catEditPopover.hidden) {
+            closeCatEditPopover();
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
         if (event.key === 'Escape' && catMiniModal && catMiniModal.classList.contains('is-open')) {
             closeCatMiniModal();
             return;
@@ -1858,6 +2402,10 @@
 
         kanbanBoard.querySelectorAll('.imp-kanban-card').forEach((card) => {
             card.addEventListener('dragstart', function(e) {
+                if (e.target && e.target.closest && e.target.closest('[data-imp-item-menu]')) {
+                    e.preventDefault();
+                    return;
+                }
                 draggedCard = card;
                 originContainer = card.parentElement;
                 card.classList.add('is-dragging');
@@ -2022,9 +2570,44 @@
         });
     }
 
-    const tableEditButtons = document.querySelectorAll('[data-action-edit]');
-    tableEditButtons.forEach((btn) => {
-        btn.addEventListener('click', function() {
+    function closeAllImpItemMenus() {
+        document.querySelectorAll('[data-imp-item-menu].is-open').forEach(function(w) {
+            w.classList.remove('is-open');
+            const t = w.querySelector('[data-imp-item-menu-trigger]');
+            const p = w.querySelector('[data-imp-item-menu-panel]');
+            if (t) t.setAttribute('aria-expanded', 'false');
+            if (p) p.hidden = true;
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        const trig = e.target.closest('[data-imp-item-menu-trigger]');
+        if (trig && document.body.contains(trig)) {
+            e.preventDefault();
+            e.stopPropagation();
+            const wrap = trig.closest('[data-imp-item-menu]');
+            if (!wrap) return;
+            const panel = wrap.querySelector('[data-imp-item-menu-panel]');
+            const opening = !wrap.classList.contains('is-open');
+            document.querySelectorAll('[data-imp-item-menu].is-open').forEach(function(w) {
+                if (w !== wrap) {
+                    w.classList.remove('is-open');
+                    const t = w.querySelector('[data-imp-item-menu-trigger]');
+                    const p = w.querySelector('[data-imp-item-menu-panel]');
+                    if (t) t.setAttribute('aria-expanded', 'false');
+                    if (p) p.hidden = true;
+                }
+            });
+            wrap.classList.toggle('is-open', opening);
+            trig.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            if (panel) panel.hidden = !opening;
+            return;
+        }
+
+        const btn = e.target.closest('[data-action-edit]');
+        if (btn && modal && document.body.contains(btn)) {
+            e.preventDefault();
+            closeAllImpItemMenus();
             resetAttachmentState();
             modal.classList.add('is-open');
             modal.setAttribute('aria-hidden', 'false');
@@ -2056,9 +2639,21 @@
             if (preserveCatInput && pageRoot) preserveCatInput.value = pageRoot.dataset.catParam || '';
             populateExistingAttachments(btn.dataset.itemId || '');
             syncPriorityPills();
-            rebuildResponsaveisChips();
+            if (responsaveisModalSearchEl) responsaveisModalSearchEl.value = '';
+            setResponsaveisModalListExpanded(false);
+            rebuildResponsaveisModalUI();
             rebuildCategoriasChips();
-        });
+            return;
+        }
+
+        if (!e.target.closest('[data-imp-item-menu]')) {
+            closeAllImpItemMenus();
+        }
+    });
+
+    document.addEventListener('keydown', function(ev) {
+        if (ev.key !== 'Escape') return;
+        closeAllImpItemMenus();
     });
 
     const initialEl = document.getElementById('imp-modal-initial');
@@ -2080,7 +2675,7 @@
     if (descricaoInput) descricaoInput.classList.add('imp-impeditivo-modal__textarea');
     if (prazoInput) prazoInput.classList.add('imp-impeditivo-modal__date-input');
     syncPriorityPills();
-    rebuildResponsaveisChips();
+    rebuildResponsaveisModalUI();
     rebuildCategoriasChips();
 
     (function initImpListPrazoUrgencia() {
@@ -2156,6 +2751,16 @@
     const prioChoices = parseJsonScript('imp-prio-choices-json') || [];
     const respChoices = parseJsonScript('imp-responsaveis-json') || [];
     const catChoices = parseJsonScript('imp-categorias-json') || [];
+    window.addEventListener('imp-categoria-atualizada', function(ev) {
+        const d = ev.detail || {};
+        const idStr = String(d.id);
+        catChoices.forEach(function(c) {
+            if (String(c.id) === idStr) {
+                c.nome = d.nome;
+                c.cor = d.cor;
+            }
+        });
+    });
 
     const overlay = document.getElementById('imp-detail-overlay');
     const detailModal = document.getElementById('imp-detail-modal');
@@ -2247,6 +2852,62 @@
             .replace(/"/g, '&quot;');
     }
 
+    function impRestricaoMenuHtml(item, variant) {
+        variant = variant || '';
+        const catParam = String(pageRoot.dataset.catParam || '');
+        const postUrl = esc(pageRoot.dataset.impListPostUrl || '');
+        const catHidden = catParam
+            ? '<input type="hidden" name="cat" value="' + esc(catParam) + '">'
+            : '';
+        const cats = (item.categorias_ids || []).join(',');
+        const rids = (item.responsaveis_ids || []).join(',');
+        const prIso = (item.prazo_iso && String(item.prazo_iso))
+            || (item.prazo && typeof item.prazo === 'string' ? item.prazo.split('T')[0] : '')
+            || '';
+        const wrapCls = 'imp-item-menu' + (variant ? ' imp-item-menu--' + esc(variant) : '');
+        return ''
+            + '<div class="' + wrapCls + '" data-imp-item-menu>'
+            + '<button type="button" class="imp-item-menu__trigger" data-imp-item-menu-trigger draggable="false" aria-expanded="false" aria-haspopup="menu" aria-label="Menu da restrição">'
+            + '<i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>'
+            + '<div class="imp-item-menu__panel" data-imp-item-menu-panel hidden role="menu">'
+            + '<button type="button" role="menuitem" class="imp-item-menu__option" data-action-edit'
+            + ' data-item-id="' + esc(item.id) + '"'
+            + ' data-item-titulo="' + esc(item.titulo || '') + '"'
+            + ' data-item-descricao="' + esc(item.descricao || '') + '"'
+            + ' data-item-prioridade-value="' + esc(item.prioridade_value || '') + '"'
+            + ' data-item-prazo="' + esc(prIso) + '"'
+            + ' data-item-responsaveis-ids="' + esc(rids) + '"'
+            + ' data-item-categorias-ids="' + esc(cats) + '">'
+            + '<i class="fas fa-pen" aria-hidden="true"></i> Editar</button>'
+            + '<form method="post" action="' + postUrl + '" class="imp-item-menu__delete-form" onsubmit="return confirm(\'Tem certeza que deseja excluir esta restrição?\');">'
+            + '<input type="hidden" name="csrfmiddlewaretoken" value="' + esc(CSRF) + '">'
+            + '<input type="hidden" name="action" value="delete">'
+            + '<input type="hidden" name="impedimento_id" value="' + esc(item.id) + '">'
+            + catHidden
+            + '<button type="submit" role="menuitem" class="imp-item-menu__option imp-item-menu__option--danger">'
+            + '<i class="fas fa-trash-alt" aria-hidden="true"></i> Excluir</button>'
+            + '</form></div></div>';
+    }
+
+    function syncRestricaoMenuFromRow(scopeEl, row) {
+        if (!scopeEl || !row) return;
+        const editBtn = scopeEl.querySelector('[data-action-edit]');
+        if (editBtn) {
+            editBtn.dataset.itemId = String(row.id);
+            editBtn.dataset.itemTitulo = row.titulo || '';
+            editBtn.dataset.itemDescricao = row.descricao || '';
+            editBtn.dataset.itemPrioridadeValue = row.prioridade_value || '';
+            const pIso = (row.prazo_iso && String(row.prazo_iso))
+                || (row.prazo && typeof row.prazo === 'string' ? row.prazo.split('T')[0] : '')
+                || '';
+            editBtn.dataset.itemPrazo = pIso;
+            editBtn.dataset.itemResponsaveisIds = (row.responsaveis_ids || []).join(',');
+            editBtn.dataset.itemCategoriasIds = (row.categorias_ids || []).join(',');
+        }
+        const delInp = scopeEl.querySelector('.imp-item-menu__delete-form input[name="impedimento_id"]');
+        if (delInp) delInp.value = String(row.id);
+    }
+
     function formatPrazoLabel(item) {
         if (!item || !item.prazo) return '—';
         const iso = typeof item.prazo === 'string' ? item.prazo : '';
@@ -2266,6 +2927,10 @@
         return base + 'item/' + parentPk + '/subtarefas/';
     }
 
+    function catLabelsModeAll() {
+        return String(pageRoot.dataset.catParam || '') === 'all';
+    }
+
     function formatListCatDotsHtml(cats) {
         if (!cats || !cats.length) return '';
         let h = '<div class="imp-list-cat-dots">';
@@ -2277,9 +2942,29 @@
         return h;
     }
 
+    function formatListCatBadgesHtml(cats, compact) {
+        if (!cats || !cats.length) return '';
+        const cls = compact ? 'imp-list-cat-badge imp-list-cat-badge--compact' : 'imp-list-cat-badge';
+        const wrapCls = compact ? 'imp-kcard-cat-badges imp-list-cat-badges' : 'imp-list-cat-badges';
+        let h = '<div class="' + wrapCls + '" aria-label="Categorias">';
+        cats.forEach(function(c) {
+            const cor = esc(c.cor || '#64748b');
+            h += '<span class="' + cls + '" style="border-color:' + cor + ';background-color:' + cor + '14;">'
+                + esc(c.nome || '') + '</span>';
+        });
+        h += '</div>';
+        return h;
+    }
+
+    function formatListCatMarksHtml(cats) {
+        if (!cats || !cats.length) return '';
+        if (catLabelsModeAll()) return formatListCatBadgesHtml(cats, false);
+        return formatListCatDotsHtml(cats);
+    }
+
     function formatTableNomeCellInner(row) {
-        return '<div class="imp-title-with-cats"><span class="imp-item-titulo-text">'
-            + esc(row.titulo || '') + '</span>' + formatListCatDotsHtml(row.categorias) + '</div>';
+        return '<div class="imp-title-with-cats">' + formatListCatMarksHtml(row.categorias)
+            + '<span class="imp-item-titulo-text">' + esc(row.titulo || '') + '</span></div>';
     }
 
     function renderListaArticleFromItem(item) {
@@ -2310,11 +2995,13 @@
             : '<span class="imp-empty-text">—</span>';
         return ''
             + '<article class="imp-list-line' + doneClass + rowExtra + '" data-imp-item-id="' + id + '" data-imp-status-id="' + stId + '">'
+            + impRestricaoMenuHtml(item)
             + '<div class="imp-list-line__grid">'
             + '<div class="imp-list-line__name imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="nome" role="button" tabindex="0">'
             + '<div class="imp-list-line__name-inner">' + toggleHtml + cntHtml
-            + '<div class="imp-title-with-cats"><span class="imp-item-titulo-text">' + esc(item.titulo) + '</span>'
-            + formatListCatDotsHtml(item.categorias) + '</div></div></div>'
+            + '<div class="imp-title-with-cats">' + formatListCatMarksHtml(item.categorias)
+            + '<span class="imp-item-titulo-text">' + esc(item.titulo) + '</span>'
+            + '</div></div></div>'
             + '<div class="imp-list-line__status imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="status">'
             + '<span class="imp-list-status-badge" style="background:' + esc(item.status_cor) + '20; color:' + esc(item.status_cor) + '; border: 1px solid ' + esc(item.status_cor) + '40;">' + esc(item.status_nome) + '</span></div>'
             + '<div class="imp-list-line__prio imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="prioridade" data-imp-prio-value="' + esc(item.prioridade_value) + '">'
@@ -2417,7 +3104,10 @@
         }
         return ''
             + '<div class="imp-kcard-sub' + indent + '" data-item-id="' + String(s.id) + '" role="button" tabindex="0">'
+            + '<div class="imp-kcard-sub-head">'
             + '<div class="imp-kcard-sub-title">' + esc(s.titulo || '') + '</div>'
+            + impRestricaoMenuHtml(s, 'kanban_sub')
+            + '</div>'
             + '<div class="imp-kcard-sub-fields">'
             + '<div class="imp-kcard-sub-field">'
             + '<i class="fas fa-flag imp-kcard-sub-icon" aria-hidden="true"></i>'
@@ -2687,8 +3377,11 @@
         if (titleWithCats) {
             const oldDots = titleWithCats.querySelector('.imp-list-cat-dots');
             if (oldDots) oldDots.remove();
-            const dotsHtml = formatListCatDotsHtml(row.categorias);
-            if (dotsHtml) titleWithCats.insertAdjacentHTML('beforeend', dotsHtml);
+            const oldBadges = titleWithCats.querySelector('.imp-list-cat-badges');
+            if (oldBadges) oldBadges.remove();
+            const marksHtml = formatListCatMarksHtml(row.categorias);
+            if (marksHtml && tit) tit.insertAdjacentHTML('beforebegin', marksHtml);
+            else if (marksHtml) titleWithCats.insertAdjacentHTML('afterbegin', marksHtml);
         }
         const stBadge = article.querySelector('.imp-list-status-badge');
         if (stBadge && row.status_cor) {
@@ -2745,6 +3438,7 @@
         if (listaFinalizadoId) {
             article.classList.toggle('imp-list-line--done', row.status_id === listaFinalizadoId);
         }
+        syncRestricaoMenuFromRow(article, row);
     }
 
     function formatTableRespNamesHtml(row) {
@@ -2810,6 +3504,7 @@
         }
         const cc = tr.querySelector('[data-imp-cell="comentarios"] .imp-list-comments-count');
         if (cc) cc.textContent = String(row.comentarios_count != null ? row.comentarios_count : 0);
+        syncRestricaoMenuFromRow(tr, row);
     }
 
     function formatRespPlainText(resp) {
@@ -2824,6 +3519,18 @@
         if (!card || !row) return;
         const tit = card.querySelector('.imp-kcard-title');
         if (tit) tit.textContent = row.titulo || '';
+        const cats = row.categorias || [];
+        let badgesWrap = card.querySelector('.imp-kcard-cat-badges');
+        if (catLabelsModeAll() && cats.length) {
+            const bh = formatListCatBadgesHtml(cats, true);
+            if (badgesWrap) {
+                badgesWrap.outerHTML = bh;
+            } else if (tit && tit.parentNode) {
+                tit.insertAdjacentHTML('afterend', bh);
+            }
+        } else if (badgesWrap) {
+            badgesWrap.remove();
+        }
         const prioEl = card.querySelector('[data-imp-cell="prioridade"]');
         if (prioEl) {
             prioEl.dataset.impPrioValue = row.prioridade_value || '';
@@ -2867,7 +3574,6 @@
         }
         const fields = card.querySelector('.imp-kcard-fields');
         let catEl = card.querySelector('[data-imp-cell="categorias"]');
-        const cats = row.categorias || [];
         if (cats.length) {
             const inner = cats.map(function(c) {
                 return '<span class="imp-kcard-cat"><span class="imp-kcard-cat-dot" style="background:'
@@ -2876,11 +3582,15 @@
             if (catEl) {
                 const wrap = catEl.querySelector('.imp-kcard-cats');
                 if (wrap) wrap.innerHTML = inner;
+                catEl.classList.toggle('sr-only', catLabelsModeAll());
+                if (catLabelsModeAll()) catEl.setAttribute('aria-hidden', 'true');
+                else catEl.removeAttribute('aria-hidden');
             } else if (fields) {
                 catEl = document.createElement('div');
-                catEl.className = 'imp-kcard-field';
+                catEl.className = 'imp-kcard-field' + (catLabelsModeAll() ? ' sr-only' : '');
                 catEl.setAttribute('data-imp-cell', 'categorias');
                 catEl.setAttribute('data-item-id', String(row.id));
+                if (catLabelsModeAll()) catEl.setAttribute('aria-hidden', 'true');
                 catEl.innerHTML = '<i class="fas fa-tag imp-kcard-field-icon" aria-hidden="true"></i><div class="imp-kcard-cats">'
                     + inner + '</div>';
                 fields.appendChild(catEl);
@@ -2907,6 +3617,7 @@
         if (listaFinalizadoId != null) {
             card.classList.toggle('imp-kanban-card--done', row.status_id === listaFinalizadoId);
         }
+        syncRestricaoMenuFromRow(card, row);
     }
 
     function syncRowToViews(row, itemId) {
@@ -3521,6 +4232,7 @@
         kanbanBoardEl.addEventListener('click', function(ev) {
             const board = kanbanBoardEl;
             if (!board.contains(ev.target)) return;
+            if (ev.target.closest('[data-imp-item-menu]')) return;
             const subToggle = ev.target.closest('[data-imp-kanban-subtask-toggle]');
             if (subToggle && board.contains(subToggle)) {
                 ev.preventDefault();
@@ -3609,6 +4321,7 @@
     }
 
     if (listaSection) listaSection.addEventListener('click', function(ev) {
+        if (ev.target.closest('[data-imp-item-menu]')) return;
         const subT = ev.target.closest('[data-imp-subtask-toggle]');
         if (subT && listaSection.contains(subT)) {
             ev.preventDefault();
@@ -3678,18 +4391,7 @@
     });
 
     if (tabelaSection) tabelaSection.addEventListener('click', function(ev) {
-        const detailBtn = ev.target.closest('[data-table-detail]');
-        if (detailBtn && tabelaSection.contains(detailBtn)) {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const raw = detailBtn.getAttribute('data-table-detail');
-            const itemId = raw ? parseInt(raw, 10) : 0;
-            if (itemId) {
-                closeCommentsModal();
-                openDetailModal(itemId, false);
-            }
-            return;
-        }
+        if (ev.target.closest('[data-imp-item-menu]')) return;
         const el = clickTargetElement(ev);
         if (!el) return;
         if (el.closest('.imp-list-popover') || el.closest('.imp-resp-popover')) return;
@@ -4323,6 +5025,197 @@
         window.history.replaceState({}, '', u.pathname + u.search + u.hash);
         openDetailModal(pid, false);
     })();
+})();
+</script>
+<script>
+(function() {
+    var shell = document.getElementById('imp-status-config-shell');
+    var formOverlay = document.getElementById('imp-status-config-form-overlay');
+    var formHost = document.getElementById('imp-status-config-form-host');
+    var openBtn = document.getElementById('imp-open-status-config');
+    var shellClose = document.getElementById('imp-status-config-shell-close');
+    var inlineMsg = document.getElementById('imp-status-config-inline-msg');
+    var overlayTitle = document.getElementById('imp-status-overlay-modal-title');
+    var statusNextOrdem = {{ status_config_next_ordem|default:1 }};
+    if (!shell || !formOverlay || !openBtn || !formHost) return;
+
+    function postUrl() {
+        return openBtn.getAttribute('data-status-config-url') || '';
+    }
+
+    function csrfToken() {
+        var inp = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        return inp ? inp.value : '';
+    }
+
+    function statusForm() {
+        return document.getElementById('imp-status-config-form');
+    }
+
+    function syncPreview() {
+        var f = statusForm();
+        var cor = f ? f.querySelector('input[name="cor"]') : null;
+        var preview = document.getElementById('imp-status-cor-preview');
+        if (!cor || !preview) return;
+        preview.style.backgroundColor = (cor.value || '#3B82F6').trim();
+    }
+
+    function showInline(text, kind) {
+        if (!inlineMsg) return;
+        inlineMsg.textContent = text || '';
+        inlineMsg.hidden = !text;
+        inlineMsg.classList.remove('imp-status-config-banner--error', 'imp-status-config-banner--success');
+        if (!text) return;
+        inlineMsg.classList.add(kind === 'ok' ? 'imp-status-config-banner--success' : 'imp-status-config-banner--error');
+    }
+
+    function openShell() {
+        shell.classList.add('is-open');
+        shell.setAttribute('aria-hidden', 'false');
+        showInline('', '');
+    }
+
+    function closeShell() {
+        shell.classList.remove('is-open');
+        shell.setAttribute('aria-hidden', 'true');
+        closeFormModal();
+        showInline('', '');
+    }
+
+    function openFormModal() {
+        formOverlay.classList.add('is-open');
+        formOverlay.setAttribute('aria-hidden', 'false');
+        syncPreview();
+        var nome = statusForm() && statusForm().querySelector('input[name="nome"]');
+        if (nome) nome.focus();
+    }
+
+    function closeFormModal() {
+        formOverlay.classList.remove('is-open');
+        formOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function resetCreate() {
+        var f = statusForm();
+        if (f) f.reset();
+        var ai = document.getElementById('imp-status-form-action');
+        var si = document.getElementById('imp-status-form-status-id');
+        if (ai) ai.value = 'create';
+        if (si) si.value = '';
+        if (overlayTitle) overlayTitle.textContent = 'Novo status';
+        var ordem = f && f.querySelector('input[name="ordem"]');
+        var cor = f && f.querySelector('input[name="cor"]');
+        var idef = f && f.querySelector('input[name="is_default"]');
+        if (ordem) ordem.value = String(statusNextOrdem);
+        if (idef) idef.checked = false;
+        if (cor && !cor.value) cor.value = '#3B82F6';
+        syncPreview();
+    }
+
+    openBtn.addEventListener('click', openShell);
+    if (shellClose) shellClose.addEventListener('click', closeShell);
+
+    shell.addEventListener('click', function(e) {
+        if (e.target === shell) closeShell();
+    });
+
+    formOverlay.addEventListener('click', function(e) {
+        if (e.target === formOverlay) closeFormModal();
+        else if (e.target.closest('[data-status-modal-close]')) closeFormModal();
+    });
+
+    shell.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-status-modal-open]');
+        if (!btn) return;
+        var mode = btn.getAttribute('data-mode') || 'create';
+        if (mode === 'create') {
+            resetCreate();
+            openFormModal();
+            return;
+        }
+        var ai = document.getElementById('imp-status-form-action');
+        var si = document.getElementById('imp-status-form-status-id');
+        if (ai) ai.value = 'update';
+        if (si) si.value = btn.getAttribute('data-status-id') || '';
+        if (overlayTitle) overlayTitle.textContent = 'Editar status';
+        var f = statusForm();
+        var nome = f && f.querySelector('input[name="nome"]');
+        var cor = f && f.querySelector('input[name="cor"]');
+        var ordem = f && f.querySelector('input[name="ordem"]');
+        var idef = f && f.querySelector('input[name="is_default"]');
+        if (nome) nome.value = btn.getAttribute('data-nome') || '';
+        if (cor) cor.value = btn.getAttribute('data-cor') || '#3B82F6';
+        if (ordem) ordem.value = btn.getAttribute('data-ordem') || '1';
+        if (idef) idef.checked = btn.getAttribute('data-is-default') === '1';
+        syncPreview();
+        openFormModal();
+    });
+
+    formHost.addEventListener('input', function(e) {
+        if (e.target && e.target.name === 'cor') syncPreview();
+    });
+    formHost.addEventListener('change', function(e) {
+        if (e.target && e.target.name === 'cor') syncPreview();
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        if (formOverlay.classList.contains('is-open')) {
+            closeFormModal();
+            e.preventDefault();
+            return;
+        }
+        if (shell.classList.contains('is-open')) {
+            closeShell();
+            e.preventDefault();
+        }
+    });
+
+    document.addEventListener('submit', function(ev) {
+        var formEl = ev.target;
+        if (!(formEl instanceof HTMLFormElement)) return;
+        var xh = formEl.querySelector('input[name="_xhr"]');
+        if (!xh || xh.value !== '1') return;
+        ev.preventDefault();
+
+        var url = postUrl();
+        if (!url) return;
+
+        var fd = new FormData(formEl);
+        fetch(formEl.action || url, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-CSRFToken': csrfToken() },
+            credentials: 'same-origin',
+        }).then(function(r) {
+            return r.text().then(function(text) {
+                try {
+                    return { data: JSON.parse(text) };
+                } catch (err) {
+                    return { data: null };
+                }
+            });
+        }).catch(function() {
+            return { data: null };
+        }).then(function(res) {
+            if (!res.data) {
+                showInline('Erro de rede ou servidor indisponível.', 'err');
+                return;
+            }
+            var data = res.data;
+            if (!data.ok) {
+                if (data.modal_html && formEl.id === 'imp-status-config-form') {
+                    formHost.innerHTML = data.modal_html;
+                    syncPreview();
+                    openFormModal();
+                    return;
+                }
+                showInline(data.message || 'Não foi possível concluir.', 'err');
+                return;
+            }
+            if (data.reload) window.location.reload();
+        });
+    });
 })();
 </script>
 {% endblock %}

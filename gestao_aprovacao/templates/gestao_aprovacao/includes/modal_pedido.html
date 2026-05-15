@@ -92,7 +92,7 @@
                             <p>Este pedido está aguardando sua aprovação.</p>
                             <div class="gc-aprov-actions">
                                 <a id="gc-aprov-link" href="#" class="gc-btn-aprovar">Aprovar</a>
-                                <a id="gc-reprovar-link" href="#" class="gc-btn-reprovar">Reprovar</a>
+                                <button type="button" id="gc-reprovar-btn" class="gc-btn-reprovar">Reprovar</button>
                             </div>
                             <button type="button" class="gc-ver-mais-toggle" id="gc-ver-mais-btn" onclick="toggleVerMaisAprovacao()">Ver mais sobre o fluxo de aprovação</button>
                             <div id="gc-ver-mais-body" class="gc-ver-mais-body"></div>
@@ -142,6 +142,38 @@
             </div>
             <div class="gc-footer-right">
                 <a id="gc-ft-exclusao" href="#" class="gc-footer-btn gc-footer-btn--danger" style="display:none;">Solicitar exclusão</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="gc-reprovar-overlay" class="gc-reprovar-overlay" aria-hidden="true">
+        <div class="gc-reprovar-panel" role="dialog" aria-modal="true" aria-labelledby="gc-reprovar-title">
+            <div class="gc-reprovar-panel-head">
+                <h2 id="gc-reprovar-title" class="gc-reprovar-title">Reprovar pedido</h2>
+                <button type="button" class="gc-reprovar-close" id="gc-reprovar-close" aria-label="Fechar">✕</button>
+            </div>
+            <p class="gc-reprovar-intro">Selecione ao menos uma tag de erro, cadastre novas tags ou informe um comentário explicando o motivo.</p>
+            <div class="gc-reprovar-field">
+                <span class="gc-reprovar-label">Tags de controle</span>
+                <div id="gc-reprovar-tags" class="gc-reprovar-tags"></div>
+            </div>
+            <div class="gc-reprovar-field">
+                <label class="gc-reprovar-label" for="gc-reprovar-nova-input">Novas tags</label>
+                <div class="gc-reprovar-tag-adder">
+                    <input type="text" id="gc-reprovar-nova-input" class="gc-reprovar-input" placeholder="Digite e pressione Enter ou +">
+                    <button type="button" id="gc-reprovar-nova-add" class="gc-reprovar-add-btn" aria-label="Adicionar tag">+</button>
+                </div>
+                <div id="gc-reprovar-nova-lista" class="gc-reprovar-nova-lista"></div>
+                <input type="hidden" id="gc-reprovar-novas-hidden" value="">
+            </div>
+            <div class="gc-reprovar-field">
+                <label class="gc-reprovar-label" for="gc-reprovar-comentario">Comentário <span class="gc-reprovar-optional">(opcional, complemento das tags)</span></label>
+                <textarea id="gc-reprovar-comentario" class="gc-reprovar-textarea" rows="4" placeholder="Observações complementares…"></textarea>
+            </div>
+            <p id="gc-reprovar-error" class="gc-reprovar-error" style="display:none;" role="alert"></p>
+            <div class="gc-reprovar-actions">
+                <button type="button" class="gc-reprovar-cancel" id="gc-reprovar-cancel">Cancelar</button>
+                <button type="button" class="gc-reprovar-submit" id="gc-reprovar-submit">Confirmar reprovação</button>
             </div>
         </div>
     </div>

@@ -2,48 +2,11 @@
 Utilitários para verificação de permissões e perfis de usuário.
 """
 from functools import wraps
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.shortcuts import redirect
 from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from .models import Notificacao, AprovacaoEmailDestinatario, Empresa
-
-# Coluna "Analisado" (lista de pedidos): fallback quando o banco não está acessível; senão AprovacaoEmailDestinatario + superuser.
-_EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT = frozenset({
-    "luiz.henrique@lplan.com.br",
-    "luizdomingos@lplan.com.br",
-})
-
-
-def _frozenset_emails_marcar_pedido_analisado():
-    s = set(_EMAILS_MARCAR_PEDIDO_ANALISADO_DEFAULT)
-    for e in getattr(settings, "EMAIL_DEPARTAMENTOS_APROVACAO", None) or []:
-        e = (e or "").strip().lower()
-        if e:
-            s.add(e)
-    return frozenset(s)
-
-
-_EMAILS_MARCAR_PEDIDO_ANALISADO = _frozenset_emails_marcar_pedido_analisado()
-
-
-def usuario_pode_marcar_pedido_analisado(user):
-    """
-    Quem pode usar o checkbox "Analisado" na lista de pedidos (GestControll).
-    Alinhado aos e-mails cadastrados como destinatários de pedido aprovado (tela de destinatários).
-    """
-    if getattr(user, "is_superuser", False):
-        return True
-    email = (getattr(user, "email", None) or "").strip().lower()
-    if not email:
-        return False
-    try:
-        if AprovacaoEmailDestinatario.objects.filter(ativo=True, email__iexact=email).exists():
-            return True
-    except Exception:
-        pass
-    return email in _EMAILS_MARCAR_PEDIDO_ANALISADO
 
 
 def get_user_profile(user):
@@ -101,6 +64,25 @@ def is_admin(user):
         usuario_tem_administracao_global_na_plataforma(user) or
         user.is_superuser
     )
+
+
+def usuario_pode_marcar_pedido_analisado(user):
+    """
+    Checkbox "Analisado" na lista de pedidos: apenas administradores da plataforma
+    ou usuário cujo e-mail está cadastrado e ativo em
+    /gestao/emails/destinatarios-aprovacao/ (modelo AprovacaoEmailDestinatario).
+    """
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if is_admin(user):
+        return True
+    email = (getattr(user, "email", None) or "").strip().lower()
+    if not email:
+        return False
+    try:
+        return AprovacaoEmailDestinatario.objects.filter(ativo=True, email__iexact=email).exists()
+    except Exception:
+        return False
 
 
 def usuarios_escopo_pedido_para_notificar(workorder):
@@ -197,4 +179,20 @@ def criar_notificacao(usuario, tipo, titulo, mensagem, work_order=None):
         mensagem=mensagem,
         work_order=work_order
     )
+
+
+def texto_comentario_thread_reprovacao(tags_nomes: list[str], complemento: str) -> str:
+    """
+    Texto objetivo para registrar reprovação na thread de comentários do pedido,
+    alinhado ao que já aparece no histórico de status (tags + observações).
+    """
+    tags = [str(t).strip() for t in (tags_nomes or []) if t and str(t).strip()]
+    comp = (complemento or '').strip()
+    lines = ['[Reprovação]', '']
+    if tags:
+        lines.append('Tags de controle: ' + ', '.join(tags))
+    if comp:
+        label = 'Complemento' if tags else 'Observações'
+        lines.append(f'{label}: {comp}')
+    return '\n'.join(lines).strip()
 

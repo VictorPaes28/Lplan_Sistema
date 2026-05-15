@@ -13,6 +13,7 @@ from django.db.models import Count, IntegerField, Q, Value
 from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 
 from core.notification_utils import criar_notificacao as core_criar_notificacao
@@ -243,9 +244,10 @@ def _with_no_cache_headers(response):
     return response
 
 
-def _parse_cat_ids(get_params, obra):
-    raw = (get_params.get("cat") or "").strip()
-    if not raw:
+def _parse_cat_raw(raw: str, obra) -> list[int]:
+    """Interpreta o parâmetro cat da URL (ids ou «all» = sem filtro por categoria)."""
+    raw = (raw or "").strip()
+    if not raw or raw.lower() == "all":
         return []
     id_list = []
     for part in raw.split(","):
@@ -260,6 +262,11 @@ def _parse_cat_ids(get_params, obra):
         )
     )
     return [pk for pk in id_list if pk in valid]
+
+
+def _parse_cat_ids(get_params, obra):
+    raw = (get_params.get("cat") or "").strip()
+    return _parse_cat_raw(raw, obra)
 
 
 def _filter_impedimentos_by_cat_ids(qs, cat_ids):
@@ -626,8 +633,51 @@ def list_impedimentos(request, obra_id):
     request.session.modified = True
 
     obra = get_object_or_404(Obra, project=project)
-    cat_ids = _parse_cat_ids(request.GET, obra)
-    cat_param = ",".join(str(i) for i in cat_ids) if cat_ids else ""
+
+    categorias_obra = list(
+        CategoriaImpedimento.objects.filter(obra=obra).order_by("nome", "pk")
+    )
+
+    raw_cat = (request.GET.get("cat") or "").strip()
+    if request.method == "POST":
+        raw_cat = raw_cat or (request.POST.get("_preserve_cat") or "").strip()
+
+    if request.method == "GET" and categorias_obra and not raw_cat:
+        q = request.GET.copy()
+        q["cat"] = str(categorias_obra[0].pk)
+        return redirect(f"{request.path}?{q.urlencode()}")
+
+    if raw_cat.lower() == "all":
+        cat_ids = []
+        cat_param = "all"
+    else:
+        cat_ids = _parse_cat_raw(raw_cat, obra)
+        if categorias_obra and raw_cat and not cat_ids:
+            if request.method == "GET":
+                q = request.GET.copy()
+                q["cat"] = str(categorias_obra[0].pk)
+                return redirect(f"{request.path}?{q.urlencode()}")
+            cat_ids = [categorias_obra[0].pk]
+        elif categorias_obra and not raw_cat and request.method == "POST":
+            cat_ids = [categorias_obra[0].pk]
+        cat_param = ",".join(str(i) for i in cat_ids) if cat_ids else ""
+
+    # Filtro da sidebar: uma categoria por vez (URLs antigas ?cat=1,2)
+    if raw_cat.lower() != "all" and len(cat_ids) > 1:
+        cat_ids = cat_ids[:1]
+        cat_param = str(cat_ids[0])
+    if (
+        request.method == "GET"
+        and categorias_obra
+        and raw_cat
+        and raw_cat.lower() != "all"
+        and "," in raw_cat
+        and cat_ids
+    ):
+        q = request.GET.copy()
+        q["cat"] = str(cat_ids[0])
+        return redirect(f"{request.path}?{q.urlencode()}")
+
     status_list = list(StatusImpedimento.objects.filter(obra=obra).order_by("ordem", "nome"))
     view_mode = request.GET.get("view", "lista").lower()
     if view_mode not in {"lista", "quadro", "calendario", "tabela"}:
@@ -876,12 +926,14 @@ def list_impedimentos(request, obra_id):
             [parte[0] for parte in nome.split()[:2] if parte]
         ).upper() or nome[:2].upper()
         responsaveis_choices.append(
-            {"id": pm.user_id, "nome": nome, "iniciais": iniciais}
+            {
+                "id": pm.user_id,
+                "nome": nome,
+                "iniciais": iniciais,
+                "cor": _avatar_color_for_nome(nome),
+            }
         )
 
-    categorias_obra = list(
-        CategoriaImpedimento.objects.filter(obra=obra).order_by("nome")
-    )
     categorias_choices = [
         {"id": c.pk, "nome": c.nome, "cor": c.cor} for c in categorias_obra
     ]
@@ -978,6 +1030,30 @@ def list_impedimentos(request, obra_id):
         ultimo_status_obra.id if ultimo_status_obra else None
     )
 
+    status_config_list = []
+    status_config_form = None
+    status_config_next_ordem = 1
+    if request.user.is_staff or request.user.is_superuser:
+        status_config_list = list(
+            StatusImpedimento.objects.filter(obra=obra).order_by("ordem", "nome")
+        )
+        status_config_next_ordem = len(status_config_list) + 1
+        status_config_form = StatusImpedimentoForm(
+            obra=obra,
+            initial={"ordem": status_config_next_ordem},
+        )
+
+    obra_tem_restricoes_raiz = Impedimento.objects.filter(
+        obra=obra, parent__isnull=True
+    ).exists()
+    selected_categoria_nome = None
+    if len(cat_ids) == 1:
+        cid = cat_ids[0]
+        for c in categorias_obra:
+            if c.pk == cid:
+                selected_categoria_nome = c.nome
+                break
+
     context = {
         "title": "Restrições",
         "obra": obra,
@@ -1018,9 +1094,14 @@ def list_impedimentos(request, obra_id):
         "cal_next_q": cal_next_q,
         "comentarios_count_by_id": comentarios_count_by_id,
         "lista_finalizado_status_id": lista_finalizado_status_id,
+        "obra_tem_restricoes_raiz": obra_tem_restricoes_raiz,
+        "selected_categoria_nome": selected_categoria_nome,
         "status_list_json": [
             {"id": s.id, "nome": s.nome, "cor": s.cor} for s in status_list
         ],
+        "status_config_list": status_config_list,
+        "status_config_form": status_config_form,
+        "status_config_next_ordem": status_config_next_ordem,
     }
     response = render(request, "impedimentos/list_impedimentos.html", context)
     return _with_no_cache_headers(response)
@@ -1075,6 +1156,24 @@ def remover_categoria_ajax(request, obra_id, categoria_id):
         )
     categoria.delete()
     return JsonResponse({"ok": True})
+
+
+@login_required
+@require_group(GRUPOS.GESTAO_IMPEDIMENTOS)
+@require_POST
+def atualizar_categoria_ajax(request, obra_id, categoria_id):
+    project = get_object_or_404(Project, pk=obra_id, is_active=True)
+    if not _user_can_access_project(request.user, project):
+        return JsonResponse({"ok": False, "error": "Sem acesso a esta obra."}, status=403)
+    obra = get_object_or_404(Obra, project=project)
+    categoria = get_object_or_404(CategoriaImpedimento, pk=categoria_id, obra=obra)
+    form = CategoriaImpedimentoForm(request.POST, instance=categoria, obra=obra)
+    if form.is_valid():
+        obj = form.save()
+        return JsonResponse({"ok": True, "id": obj.pk, "nome": obj.nome, "cor": obj.cor})
+    errs = form.errors.get("__all__") or next(iter(form.errors.values()), None)
+    msg = errs[0] if errs else "Dados inválidos."
+    return JsonResponse({"ok": False, "error": str(msg)}, status=400)
 
 
 @login_required
@@ -1797,6 +1896,23 @@ def _reorder_status_adjacent(obra, status_id, direction):
     return True
 
 
+def _status_config_is_xhr(request):
+    return request.POST.get("_xhr") == "1"
+
+
+def _status_config_modal_fragment(request, *, form, obra, project, use_xhr):
+    return render_to_string(
+        "impedimentos/_status_config_modal_form.html",
+        {
+            "form": form,
+            "obra": obra,
+            "project": project,
+            "use_status_xhr": use_xhr,
+        },
+        request=request,
+    )
+
+
 @login_required
 def list_status(request, obra_id):
     if not (request.user.is_staff or request.user.is_superuser):
@@ -1816,6 +1932,7 @@ def list_status(request, obra_id):
     show_modal = False
 
     if request.method == "POST":
+        xhr = _status_config_is_xhr(request)
         action = (request.POST.get("action") or "").strip().lower()
 
         if action == "delete":
@@ -1823,26 +1940,42 @@ def list_status(request, obra_id):
             try:
                 st = StatusImpedimento.objects.get(pk=sid, obra=obra)
             except (StatusImpedimento.DoesNotExist, ValueError, TypeError):
-                messages.error(request, "Status não encontrado.")
+                msg = "Status não encontrado."
+                if xhr:
+                    return JsonResponse({"ok": False, "message": msg})
+                messages.error(request, msg)
             else:
                 if Impedimento.objects.filter(status=st).exists():
-                    messages.error(
-                        request,
-                        "Não é possível excluir: existem restrições vinculadas a este status.",
+                    msg = (
+                        "Não é possível excluir: existem restrições vinculadas a este status."
                     )
+                    if xhr:
+                        return JsonResponse({"ok": False, "message": msg})
+                    messages.error(request, msg)
                 else:
                     st.delete()
                     _ensure_one_default_status(obra)
-                    messages.success(request, "Status excluído.")
+                    msg_ok = "Status excluído."
+                    if xhr:
+                        return JsonResponse({"ok": True, "reload": True, "message": msg_ok})
+                    messages.success(request, msg_ok)
             return redirect("impedimentos:list_status", obra_id=project.id)
 
         if action == "reorder":
             direction = (request.POST.get("direction") or "").strip().lower()
             sid = request.POST.get("status_id")
-            if direction in {"up", "down"} and _reorder_status_adjacent(obra, sid, direction):
-                messages.success(request, "Ordem atualizada.")
+            if direction in {"up", "down"} and _reorder_status_adjacent(
+                obra, sid, direction
+            ):
+                msg_ok = "Ordem atualizada."
+                if xhr:
+                    return JsonResponse({"ok": True, "reload": True, "message": msg_ok})
+                messages.success(request, msg_ok)
             else:
-                messages.error(request, "Não foi possível alterar a ordem.")
+                msg = "Não foi possível alterar a ordem."
+                if xhr:
+                    return JsonResponse({"ok": False, "message": msg})
+                messages.error(request, msg)
             return redirect("impedimentos:list_status", obra_id=project.id)
 
         if action == "update":
@@ -1852,7 +1985,10 @@ def list_status(request, obra_id):
             except (StatusImpedimento.DoesNotExist, ValueError, TypeError):
                 instance = None
             if not instance:
-                messages.error(request, "Status não encontrado para edição.")
+                msg = "Status não encontrado para edição."
+                if xhr:
+                    return JsonResponse({"ok": False, "message": msg})
+                messages.error(request, msg)
                 return redirect("impedimentos:list_status", obra_id=project.id)
             form = StatusImpedimentoForm(request.POST, obra=obra, instance=instance)
             if form.is_valid():
@@ -1864,9 +2000,17 @@ def list_status(request, obra_id):
                         is_default=False
                     )
                 _ensure_one_default_status(obra)
-                messages.success(request, "Status atualizado.")
+                msg_ok = "Status atualizado."
+                if xhr:
+                    return JsonResponse({"ok": True, "reload": True, "message": msg_ok})
+                messages.success(request, msg_ok)
                 return redirect("impedimentos:list_status", obra_id=project.id)
             show_modal = True
+            if xhr:
+                modal_html = _status_config_modal_fragment(
+                    request, form=form, obra=obra, project=project, use_xhr=True
+                )
+                return JsonResponse({"ok": False, "modal_html": modal_html})
         elif action == "create":
             form = StatusImpedimentoForm(request.POST, obra=obra)
             if form.is_valid():
@@ -1878,11 +2022,22 @@ def list_status(request, obra_id):
                         is_default=False
                     )
                 _ensure_one_default_status(obra)
-                messages.success(request, "Status criado.")
+                msg_ok = "Status criado."
+                if xhr:
+                    return JsonResponse({"ok": True, "reload": True, "message": msg_ok})
+                messages.success(request, msg_ok)
                 return redirect("impedimentos:list_status", obra_id=project.id)
             show_modal = True
+            if xhr:
+                modal_html = _status_config_modal_fragment(
+                    request, form=form, obra=obra, project=project, use_xhr=True
+                )
+                return JsonResponse({"ok": False, "modal_html": modal_html})
         else:
-            messages.error(request, "Ação inválida.")
+            msg = "Ação inválida."
+            if xhr:
+                return JsonResponse({"ok": False, "message": msg})
+            messages.error(request, msg)
             return redirect("impedimentos:list_status", obra_id=project.id)
     else:
         form = StatusImpedimentoForm(

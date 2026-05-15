@@ -45,6 +45,7 @@ from .utils import (
     admin_required,
     usuario_pode_marcar_pedido_analisado,
     usuarios_escopo_pedido_para_notificar,
+    texto_comentario_thread_reprovacao,
 )
 from core.notification_utils import CORE_TIPOS_PEDIDO_FILA_APROVACAO
 from core.notification_utils import criar_notificacao as core_criar_notificacao
@@ -76,7 +77,7 @@ from accounts.signup_services import (
     is_allowed_signup_email,
     notify_signup_request_created,
 )
-from core.user_messages import flash_message
+from core.user_messages import flash_message, resolve_message
 
 
 # --- Proteção contra duplo envio (double-submit) via token de idempotência ---
@@ -1783,6 +1784,21 @@ def workorder_detail_ajax(request, pk):
             'comentar': reverse('gestao:add_comment', args=[workorder.pk]),
             'upload_anexo': reverse('gestao:upload_attachment', args=[workorder.pk]),
         },
+        'tags_erro_reprovacao': (
+            [
+                {
+                    'id': t.id,
+                    'nome': t.nome,
+                    'descricao': (t.descricao or '').strip(),
+                }
+                for t in TagErro.objects.filter(
+                    tipo_solicitacao=workorder.tipo_solicitacao,
+                    ativo=True,
+                ).order_by('ordem', 'nome')
+            ]
+            if perm['can_approve']
+            else []
+        ),
     }
     resp = JsonResponse(payload)
     resp['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -2607,6 +2623,21 @@ def approve_workorder(request, pk):
     return render(request, 'obras/approval_form.html', context)
 
 
+def _request_accepts_json_response(request):
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return True
+    accept = (request.headers.get('Accept') or '').lower()
+    return 'application/json' in accept
+
+
+def _reject_workorder_json_error(code, context=None, status=400):
+    msg = resolve_message(code, context=context)
+    text = msg['text']
+    if msg['next_steps']:
+        text = f"{text} Próximo passo: {msg['next_steps'][0]}"
+    return JsonResponse({'ok': False, 'error': text, 'code': code}, status=status)
+
+
 @login_required
 @gestor_required
 def reject_workorder(request, pk):
@@ -2614,10 +2645,13 @@ def reject_workorder(request, pk):
     Reprova um pedido de obra.
     Apenas gestores e admins podem reprovar.
     """
+    want_json = _request_accepts_json_response(request)
     workorder = get_object_or_404(WorkOrder, pk=pk)
     
     # Verificar se pode reprovar (status pendente E gestor da obra)
     if not workorder.pode_aprovar(request.user):
+        if want_json:
+            return _reject_workorder_json_error('gestao.reject.not_allowed_now')
         flash_message(request, "error", "gestao.reject.not_allowed_now")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
@@ -2635,6 +2669,8 @@ def reject_workorder(request, pk):
             ).values_list('id', flat=True).distinct()
             tem_permissao = workorder.obra.empresa_id in empresas_ids
         if not tem_permissao:
+            if want_json:
+                return _reject_workorder_json_error('gestao.approval.no_scope')
             flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     
@@ -2665,9 +2701,10 @@ def reject_workorder(request, pk):
         
         # Validar: pelo menos uma tag OU comentário deve ser fornecido
         if not tags_selecionadas and not novas_tags_nomes and not comentario:
+            if want_json:
+                return _reject_workorder_json_error('gestao.reject.tags_or_comment_required')
             flash_message(request, "error", "gestao.reject.tags_or_comment_required")
             # Buscar tags disponíveis para este tipo de solicitação
-            from .models import TagErro
             tags_disponiveis = TagErro.objects.filter(
                 tipo_solicitacao=workorder.tipo_solicitacao,
                 ativo=True
@@ -2690,6 +2727,8 @@ def reject_workorder(request, pk):
             
             # Re-verificar status dentro da transação
             if not workorder.pode_aprovar(request.user):
+                if want_json:
+                    return _reject_workorder_json_error('gestao.approval.race_conflict')
                 flash_message(request, "error", "gestao.approval.race_conflict")
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
             
@@ -2777,6 +2816,13 @@ def reject_workorder(request, pk):
                 alterado_por=request.user,
                 observacao=observacao
             )
+
+        tags_thread = list(approval.tags_erro.order_by('nome').values_list('nome', flat=True))
+        Comment.objects.create(
+            work_order=workorder,
+            autor=request.user,
+            texto=texto_comentario_thread_reprovacao(tags_thread, comentario),
+        )
         
         # Enviar e-mail FORA da transação
         enviar_email_reprovacao(workorder, request.user, comentario)
@@ -2809,6 +2855,14 @@ def reject_workorder(request, pk):
             pass
 
         messages.success(request, f'Pedido "{workorder.codigo}" reprovado.')
+        if want_json:
+            return JsonResponse(
+                {
+                    'ok': True,
+                    'message': f'Pedido "{workorder.codigo}" reprovado.',
+                    'codigo': workorder.codigo,
+                }
+            )
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # GET - mostrar formulário de confirmação
@@ -6493,7 +6547,8 @@ def reenviar_email(request, log_id):
 def marcar_pedido_analisado(request, pk):
     """
     View para marcar/desmarcar pedido como analisado via AJAX.
-    Apenas e-mails em usuario_pode_marcar_pedido_analisado (utils) ou superuser.
+    Permissão: administradores da plataforma ou e-mail cadastrado e ativo em
+    destinatários de aprovação (/gestao/emails/destinatarios-aprovacao/).
     """
     if not usuario_pode_marcar_pedido_analisado(request.user):
         return JsonResponse({

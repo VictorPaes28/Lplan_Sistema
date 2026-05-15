@@ -46,7 +46,7 @@ def user_context(request):
             is_admin(user)
         )
         context['pode_criar_pedido'] = pode_criar_pedido
-        # Lista de pedidos: checkbox "Analisado" (Luizes + EMAIL_DEPARTAMENTOS_APROVACAO)
+        # Lista de pedidos: checkbox "Analisado" (admins + e-mails ativos em destinatários de aprovação)
         context['pode_marcar_analisado'] = usuario_pode_marcar_pedido_analisado(user)
     else:
         context['user_profile'] = None

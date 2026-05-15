@@ -80,6 +80,6 @@ urlpatterns = [
     path('emails/logs/<int:log_id>/reenviar/', views.reenviar_email, name='reenviar_email'),
     path('emails/destinatarios-aprovacao/', views.manage_aprovacao_destinatarios, name='manage_aprovacao_destinatarios'),
     
-    # Marcar pedido como analisado (apenas para os Luizes)
+    # Marcar pedido como analisado (destinatários de e-mail de aprovação + admins)
     path('pedidos/<int:pk>/marcar-analisado/', views.marcar_pedido_analisado, name='marcar_pedido_analisado'),
 ]

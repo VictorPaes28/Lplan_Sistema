@@ -377,32 +377,16 @@
                         {% if pode_marcar_analisado %}
                         <td class="text-center gc-no-modal" data-label="Analisado" style="padding: 0.75rem 0.5rem;">
                             {% if workorder.status == 'aprovado' %}
-                            <label class="checkbox-analisado" for="analisado_{{ workorder.pk }}" style="
-                                display: inline-flex;
-                                align-items: center;
-                                justify-content: center;
-                                cursor: pointer;
-                                padding: 4px 6px;
-                                border-radius: 4px;
-                                transition: all 0.2s ease;
-                                user-select: none;
-                                {% if workorder.marcado_para_deletar %}
-                                background-color: #fee2e2;
-                                border: 1px solid #dc3545;
-                                {% else %}
-                                background-color: #f8f9fa;
-                                border: 1px solid #dee2e6;
-                                {% endif %}
-                            ">
+                            <label class="checkbox-analisado{% if workorder.marcado_para_deletar %} checkbox-analisado--marcado{% endif %}" for="analisado_{{ workorder.pk }}">
                                 <input 
                                     type="checkbox" 
+                                    class="checkbox-analisado-input"
                                     id="analisado_{{ workorder.pk }}" 
                                     name="analisado" 
                                     value="{{ workorder.pk }}"
                                     data-url="{% url 'gestao:marcar_pedido_analisado' workorder.pk %}"
                                     {% if workorder.marcado_para_deletar %}checked{% endif %}
                                     onchange="marcarPedidoAnalisado(this, {{ workorder.pk }})"
-                                    style="cursor: pointer; accent-color: #dc3545; margin: 0;"
                                 />
                             </label>
                             {% else %}
@@ -560,11 +544,16 @@
                     </span>
                 {% endif %}
                 
-                <div class="pagination-jump">
+                <div class="pagination-jump"
+                     id="gestao-pagination-jump"
+                     data-num-pages="{{ page_obj.paginator.num_pages }}"
+                     data-current-page="{{ page_obj.number }}"
+                     data-has-next="{% if page_obj.has_next %}1{% else %}0{% endif %}"
+                     data-next-page="{% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}0{% endif %}">
                     <label for="jump-to-page" class="pagination-jump-label">Ir para:</label>
-                    <input type="number" id="jump-to-page" class="pagination-jump-input" min="1" max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}" placeholder="{{ page_obj.number }}">
-                    <button type="button" class="pagination-jump-btn" onclick="jumpToPage()" title="Ir para página">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <input type="number" id="jump-to-page" class="pagination-jump-input" inputmode="numeric" min="1" max="{{ page_obj.paginator.num_pages }}" value="{{ page_obj.number }}" placeholder="{{ page_obj.number }}" autocomplete="off">
+                    <button type="button" class="pagination-jump-btn" id="gestao-pagination-jump-btn" title="Se o campo mostra a página atual: vai para a próxima. Senão: vai para o número digitado." aria-label="Próxima página ou ir para o número informado">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                             <polyline points="12 5 19 12 12 19"></polyline>
                         </svg>
@@ -618,24 +607,68 @@ function toggleFilters() {
     }
 }
 
-// Paginação "Ir para:" — disponível para todos (onclick no botão da seta)
-function jumpToPage() {
-    const input = document.getElementById('jump-to-page');
-    if (!input) return;
-    const page = parseInt(input.value, 10);
-    const maxPages = parseInt(input.getAttribute('max'), 10);
-    if (isNaN(page) || page < 1 || page > maxPages) {
-        alert('Por favor, insira um número de página válido entre 1 e ' + maxPages);
-        input.value = '{{ page_obj.number }}';
-        return;
-    }
-    const url = new URL(window.location.href);
-    url.searchParams.set('page', page);
-    window.location.href = url.toString();
-}
-
-// Ordenação clicável
+// Ordenação clicável + paginação "Ir para:"
 document.addEventListener('DOMContentLoaded', function() {
+    function jumpWorkordersToPage() {
+        var input = document.getElementById('jump-to-page');
+        var wrap = document.getElementById('gestao-pagination-jump');
+        if (!input || !wrap) return;
+
+        var maxPages = parseInt(String(input.max || wrap.getAttribute('data-num-pages') || ''), 10);
+        if (!Number.isFinite(maxPages) || maxPages < 1) maxPages = 1;
+
+        var metaCur = parseInt(String(wrap.getAttribute('data-current-page') || ''), 10);
+        if (!Number.isFinite(metaCur) || metaCur < 1) metaCur = 1;
+
+        var typedRaw = String(input.value || '').trim();
+        var typed = typedRaw === '' ? NaN : parseInt(typedRaw, 10);
+
+        var hasNext = wrap.getAttribute('data-has-next') === '1';
+        var nextPg = parseInt(String(wrap.getAttribute('data-next-page') || '0'), 10);
+
+        var target;
+        if (Number.isFinite(typed) && typed === metaCur && hasNext && Number.isFinite(nextPg) && nextPg > metaCur) {
+            target = nextPg;
+        } else if (!Number.isFinite(typed) || typed < 1 || typed > maxPages) {
+            alert('Informe uma página entre 1 e ' + maxPages + '.');
+            input.value = String(metaCur);
+            input.focus();
+            return;
+        } else {
+            target = typed;
+        }
+
+        var u = new URL(window.location.href);
+        var urlPgRaw = u.searchParams.get('page');
+        var urlPg = urlPgRaw ? parseInt(urlPgRaw, 10) : 1;
+        if (!Number.isFinite(urlPg) || urlPg < 1) urlPg = 1;
+
+        if (target === urlPg) {
+            return;
+        }
+
+        u.searchParams.set('page', String(target));
+        window.location.href = u.href;
+    }
+
+    var jumpBtn = document.getElementById('gestao-pagination-jump-btn');
+    if (jumpBtn) {
+        jumpBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            jumpWorkordersToPage();
+        });
+    }
+
+    var jumpInput = document.getElementById('jump-to-page');
+    if (jumpInput) {
+        jumpInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                jumpWorkordersToPage();
+            }
+        });
+    }
+
     var exportPdfBtn = document.getElementById('export-list-pdf-btn');
     function _gestaoListPdfQueryString() {
         var form = document.getElementById('filters-form');
@@ -733,16 +766,6 @@ document.addEventListener('DOMContentLoaded', function() {
             indicator.style.opacity = '1';
         }
     });
-
-    const jumpInput = document.getElementById('jump-to-page');
-    if (jumpInput) {
-        jumpInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                jumpToPage();
-            }
-        });
-    }
 
     document.querySelectorAll('tr.gc-pedido-row').forEach(function(row) {
         row.style.cursor = 'pointer';
@@ -855,13 +878,7 @@ function marcarPedidoAnalisado(checkbox, pedidoId) {
         if (data && data.success) {
             var m = (data.marcado !== undefined && data.marcado !== null) ? !!data.marcado : marcado;
             checkbox.checked = m;
-            if (m) {
-                label.style.backgroundColor = '#fee2e2';
-                label.style.borderColor = '#dc3545';
-            } else {
-                label.style.backgroundColor = '#f8f9fa';
-                label.style.borderColor = '#dee2e6';
-            }
+            label.classList.toggle('checkbox-analisado--marcado', m);
         } else {
             checkbox.checked = originalState;
             alert((data && data.error) ? data.error : 'Não foi possível atualizar.');

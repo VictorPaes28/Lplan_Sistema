@@ -1080,9 +1080,11 @@
     align-items: center;
     justify-content: center;
     min-width: 44px;
-    height: 40px;
+    min-height: 44px;
+    box-sizing: border-box;
     cursor: pointer;
     white-space: nowrap;
+    touch-action: manipulation;
 }
 
 .pagination-btn:hover {
@@ -1093,20 +1095,26 @@
     box-shadow: 0 2px 4px rgba(52, 152, 219, 0.15);
 }
 
-.pagination-btn:focus {
+.pagination-btn:focus-visible {
     outline: none;
     border-color: #3498db;
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
 }
 
+.pagination-btn:focus:not(:focus-visible) {
+    outline: none;
+}
+
 .pagination-btn-icon {
-    min-width: 40px;
+    min-width: 44px;
     padding: 0.625rem;
 }
 
 .pagination-btn-icon svg {
     width: 16px;
     height: 16px;
+    stroke: currentColor;
+    pointer-events: none;
 }
 
 .pagination-btn-disabled {
@@ -1138,6 +1146,8 @@
     justify-content: center;
     transition: all 0.2s ease;
     cursor: pointer;
+    box-sizing: border-box;
+    touch-action: manipulation;
 }
 
 .pagination-number:hover {
@@ -1147,7 +1157,7 @@
     transform: translateY(-1px);
 }
 
-.pagination-number:focus {
+.pagination-number:focus-visible {
     outline: none;
     border-color: #3498db;
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
@@ -1181,6 +1191,7 @@
     margin-left: 1rem;
     padding-left: 1rem;
     border-left: 2px solid #e9ecef;
+    flex-shrink: 0;
 }
 
 .pagination-jump-label {
@@ -1191,17 +1202,19 @@
 }
 
 .pagination-jump-input {
-    width: 60px;
+    width: 3.75rem;
     height: 40px;
-    padding: 0.5rem;
+    padding: 0.35rem;
     border: 2px solid #e9ecef;
     border-radius: 8px;
     font-size: 0.875rem;
     font-weight: 600;
     text-align: center;
     color: #495057;
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
     outline: none;
+    box-sizing: border-box;
+    background: white;
 }
 
 .pagination-jump-input:focus {
@@ -1212,6 +1225,7 @@
 .pagination-jump-btn {
     width: 40px;
     height: 40px;
+    min-width: 40px;
     padding: 0;
     background: #3498db;
     border: 2px solid #3498db;
@@ -1223,6 +1237,8 @@
     cursor: pointer;
     transition: all 0.2s ease;
     outline: none;
+    flex-shrink: 0;
+    touch-action: manipulation;
 }
 
 .pagination-jump-btn:hover {
@@ -1232,40 +1248,63 @@
     box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
 }
 
-    .pagination-jump-btn svg {
-        width: 14px;
-        height: 14px;
-    }
-
-/* Checkbox Analisado - Compacto (z-index evita ::before do layout mobile bloquear toque) */
-.checkbox-analisado {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer;
-    padding: 4px 6px !important;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    user-select: none;
-    min-width: 32px;
-    min-height: 44px;
-    height: auto;
-    position: relative;
-    z-index: 2;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: rgba(52, 152, 219, 0.2);
+.pagination-jump-btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.35);
 }
 
-.checkbox-analisado input[type="checkbox"] {
-    width: 20px !important;
-    height: 20px !important;
-    margin: 0 !important;
+.pagination-jump-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    pointer-events: none;
+}
+
+/* Checkbox "Analisado" — discreto, alinhado ao restante da tabela */
+.checkbox-analisado {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    margin: 0;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
     cursor: pointer;
-    accent-color: #dc3545;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    vertical-align: middle;
+    position: relative;
+    z-index: 2;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.checkbox-analisado:hover {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+
+.checkbox-analisado:focus-within {
+    border-color: #cbd5e1;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.25);
+}
+
+.checkbox-analisado--marcado {
+    border-color: #e2e8f0;
+    background: #f1f5f9;
+}
+
+.checkbox-analisado-input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    accent-color: #64748b;
     flex-shrink: 0;
     position: relative;
     z-index: 3;
-    pointer-events: auto;
 }
 
 /* Badges genéricos */

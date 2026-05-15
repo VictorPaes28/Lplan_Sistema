@@ -18,13 +18,171 @@
         return overlay;
     }
 
+    window._gcModalRejectData = null;
+    window._gcListaPedidosAlterada = false;
+
+    function getReprovarOverlayEl() {
+        return document.getElementById('gc-reprovar-overlay');
+    }
+
+    function hideReprovarInlineError() {
+        var el = document.getElementById('gc-reprovar-error');
+        if (el) {
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+    }
+
+    function showReprovarInlineError(msg) {
+        var el = document.getElementById('gc-reprovar-error');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.style.display = msg ? 'block' : 'none';
+    }
+
+    var gcReprovarNovasTags = [];
+
+    function gcReprovarNovasSyncHidden() {
+        var h = document.getElementById('gc-reprovar-novas-hidden');
+        if (h) h.value = gcReprovarNovasTags.join(', ');
+    }
+
+    function gcReprovarNovasRender() {
+        var list = document.getElementById('gc-reprovar-nova-lista');
+        if (!list) return;
+        list.innerHTML = '';
+        if (!gcReprovarNovasTags.length) {
+            list.innerHTML = '<span class="gc-reprovar-tags-empty">Nenhuma nova tag.</span>';
+            gcReprovarNovasSyncHidden();
+            return;
+        }
+        gcReprovarNovasTags.forEach(function (tag) {
+            var chip = document.createElement('span');
+            chip.className = 'gc-reprovar-chip';
+            chip.appendChild(document.createTextNode(tag));
+            var rm = document.createElement('button');
+            rm.type = 'button';
+            rm.className = 'gc-reprovar-chip-remove';
+            rm.setAttribute('aria-label', 'Remover tag');
+            rm.textContent = '\u00d7';
+            rm.addEventListener('click', function () {
+                gcReprovarNovasTags = gcReprovarNovasTags.filter(function (x) {
+                    return x.toLowerCase() !== tag.toLowerCase();
+                });
+                gcReprovarNovasRender();
+            });
+            chip.appendChild(rm);
+            list.appendChild(chip);
+        });
+        gcReprovarNovasSyncHidden();
+    }
+
+    function gcReprovarNovasReset() {
+        gcReprovarNovasTags = [];
+        var inp = document.getElementById('gc-reprovar-nova-input');
+        if (inp) inp.value = '';
+        gcReprovarNovasSyncHidden();
+        gcReprovarNovasRender();
+    }
+
+    function gcReprovarNovasAdd(raw) {
+        var value = (raw || '').trim().replace(/\s+/g, ' ');
+        if (!value) return;
+        var exists = gcReprovarNovasTags.some(function (t) {
+            return t.toLowerCase() === value.toLowerCase();
+        });
+        if (exists) return;
+        gcReprovarNovasTags.push(value);
+        gcReprovarNovasRender();
+    }
+
+    function resetReprovarFormUi() {
+        hideReprovarInlineError();
+        var wrap = document.getElementById('gc-reprovar-tags');
+        if (wrap) wrap.innerHTML = '';
+        var ta = document.getElementById('gc-reprovar-comentario');
+        if (ta) ta.value = '';
+        gcReprovarNovasReset();
+        var sub = document.getElementById('gc-reprovar-submit');
+        if (sub) sub.disabled = false;
+    }
+
+    function renderReprovarTags(tags) {
+        var wrap = document.getElementById('gc-reprovar-tags');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        if (!tags || !tags.length) {
+            wrap.innerHTML = '<p class="gc-reprovar-tags-empty">Não há tags cadastradas para este tipo. Use novas tags ou o comentário.</p>';
+            return;
+        }
+        tags.forEach(function (t) {
+            var lab = document.createElement('label');
+            lab.className = 'gc-reprovar-tag-option';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = String(t.id);
+            var txt = document.createElement('div');
+            txt.className = 'gc-reprovar-tag-text';
+            var nm = document.createElement('span');
+            nm.className = 'gc-reprovar-tag-name';
+            nm.textContent = t.nome || '';
+            txt.appendChild(nm);
+            if (t.descricao) {
+                var d = document.createElement('span');
+                d.className = 'gc-reprovar-tag-desc';
+                d.textContent = t.descricao;
+                txt.appendChild(d);
+            }
+            lab.appendChild(cb);
+            lab.appendChild(txt);
+            wrap.appendChild(lab);
+        });
+    }
+
+    window.fecharReprovarSheet = function () {
+        var ov = getReprovarOverlayEl();
+        if (ov) {
+            ov.classList.remove('is-open');
+            ov.setAttribute('aria-hidden', 'true');
+        }
+        resetReprovarFormUi();
+    };
+
+    window.abrirReprovarSheet = function () {
+        var data = window._gcModalRejectData;
+        if (!data || !data.reprovarUrl) {
+            alert('Não foi possível abrir a reprovação. Feche e abra o pedido novamente.');
+            return;
+        }
+        hideReprovarInlineError();
+        resetReprovarFormUi();
+        renderReprovarTags(data.tags);
+        var ov = getReprovarOverlayEl();
+        if (ov) {
+            ov.classList.add('is-open');
+            ov.setAttribute('aria-hidden', 'false');
+        }
+        var inp = document.getElementById('gc-reprovar-nova-input');
+        if (inp) inp.focus();
+    };
+
     window.fecharModalPedido = function () {
+        var reloadLista =
+            !!window._gcListaPedidosAlterada && !!document.querySelector('tr.gc-pedido-row');
+        window._gcListaPedidosAlterada = false;
+
+        window.fecharReprovarSheet();
         var overlay = document.getElementById('gc-overlay');
         if (overlay) overlay.style.display = 'none';
         document.body.style.overflow = '';
         document.documentElement.style.overflow = '';
         window._gcModalCurrentPk = null;
         window._gcModalUrls = null;
+        window._gcModalRejectData = null;
+
+        if (reloadLista) {
+            window.location.reload();
+        }
     };
 
     function escapeHtml(s) {
@@ -32,6 +190,23 @@
         var d = document.createElement('div');
         d.textContent = s;
         return d.innerHTML;
+    }
+
+    /** Classes de status na lista (list_workorders — badge na coluna Status). */
+    var GC_STATUS_ROW_CLASSES = ['rascunho', 'pendente', 'aprovado', 'reprovado', 'reaprovacao', 'cancelado'];
+
+    /** Mantém a lista de pedidos alinhada ao JSON do modal (evita precisar dar F5 após reprovar). */
+    function syncGestaoListaPedidoRowFromModal(d) {
+        if (!d || d.pk == null) return;
+        var row = document.querySelector('tr.gc-pedido-row[data-pk="' + String(d.pk) + '"]');
+        if (!row) return;
+        var badge = row.querySelector('.status-col .status-badge');
+        if (!badge) return;
+        GC_STATUS_ROW_CLASSES.forEach(function (s) {
+            badge.classList.remove(s);
+        });
+        if (d.status) badge.classList.add(d.status);
+        badge.textContent = d.status_display || '';
     }
 
     var GC_DOC_SVG = '<svg class="gc-anexo-doc-svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
@@ -46,6 +221,8 @@
 
     /** Limpa o modal antes do fetch para não mostrar dados do pedido anterior (cores/status). */
     window.modalPedidoResetParaCarregar = function () {
+        window.fecharReprovarSheet();
+        window._gcModalRejectData = null;
         var bc = document.getElementById('gc-breadcrumb');
         if (bc) bc.innerHTML =
             '<span style="color:#94a3b8;">Carregando…</span>';
@@ -101,7 +278,7 @@
             ftEd.classList.remove('gc-footer-btn--reenviar');
             ftEd.classList.add('gc-footer-btn--primary');
         }
-        ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-aprov-link', 'gc-reprovar-link', 'gc-reprovado-cta'].forEach(
+        ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-aprov-link', 'gc-reprovado-cta'].forEach(
             function (id) {
                 var el = document.getElementById(id);
                 if (el) el.href = '#';
@@ -165,11 +342,14 @@
 
         var secAprov = document.getElementById('gc-sec-aprovacao');
         if (secAprov) secAprov.style.display = d.pode_aprovar ? 'block' : 'none';
+        window._gcModalRejectData = null;
         var aprovL = document.getElementById('gc-aprov-link');
-        var reprovL = document.getElementById('gc-reprovar-link');
-        if (d.urls) {
-            if (aprovL) aprovL.href = d.urls.aprovar || '#';
-            if (reprovL) reprovL.href = d.urls.reprovar || '#';
+        if (d.urls && aprovL) aprovL.href = d.urls.aprovar || '#';
+        if (d.pode_aprovar && d.urls && d.urls.reprovar) {
+            window._gcModalRejectData = {
+                reprovarUrl: d.urls.reprovar,
+                tags: d.tags_erro_reprovacao || [],
+            };
         }
 
         var secExc = document.getElementById('gc-sec-exclusao');
@@ -313,6 +493,8 @@
             ftExc.style.display = showExc ? 'inline-flex' : 'none';
             setHref('gc-ft-exclusao', u.solicitar_exclusao);
         }
+
+        syncGestaoListaPedidoRowFromModal(d);
     };
 
     window.enviarComentarioModal = function () {
@@ -343,6 +525,64 @@
         }).catch(function () {
             alert('Erro de rede ao enviar comentário.');
         });
+    };
+
+    window.enviarReprovarModal = function () {
+        var pk = window._gcModalCurrentPk;
+        var data = window._gcModalRejectData;
+        if (!pk || !data || !data.reprovarUrl) return;
+        hideReprovarInlineError();
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', getCsrfToken());
+        var com = document.getElementById('gc-reprovar-comentario');
+        fd.append('comentario', com ? com.value.trim() : '');
+        var hidden = document.getElementById('gc-reprovar-novas-hidden');
+        fd.append('novas_tags', hidden ? hidden.value.trim() : '');
+        var wrap = document.getElementById('gc-reprovar-tags');
+        if (wrap) {
+            wrap.querySelectorAll('input[type="checkbox"]:checked').forEach(function (cb) {
+                fd.append('tags_erro', cb.value);
+            });
+        }
+        var sub = document.getElementById('gc-reprovar-submit');
+        if (sub) sub.disabled = true;
+        fetch(data.reprovarUrl, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            redirect: 'manual',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+        })
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    try {
+                        return { body: JSON.parse(text), isJson: true };
+                    } catch (err) {
+                        return { isJson: false };
+                    }
+                });
+            })
+            .then(function (res) {
+                if (sub) sub.disabled = false;
+                if (!res.isJson || !res.body) {
+                    showReprovarInlineError('Não foi possível concluir a reprovação. Atualize a página e tente novamente.');
+                    return;
+                }
+                if (res.body.ok) {
+                    window.fecharReprovarSheet();
+                    window._gcListaPedidosAlterada = true;
+                    window.abrirModalPedido(pk);
+                    return;
+                }
+                showReprovarInlineError(res.body.error || 'Não foi possível reprovar.');
+            })
+            .catch(function () {
+                if (sub) sub.disabled = false;
+                showReprovarInlineError('Erro de rede. Verifique sua conexão e tente novamente.');
+            });
     };
 
     window.abrirModalPedido = async function (pk) {
@@ -388,6 +628,49 @@
     };
 
     document.addEventListener('DOMContentLoaded', function () {
+        gcReprovarNovasRender();
+
+        var reprovarBtn = document.getElementById('gc-reprovar-btn');
+        if (reprovarBtn) {
+            reprovarBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.abrirReprovarSheet();
+            });
+        }
+
+        var rov = getReprovarOverlayEl();
+        if (rov) {
+            rov.addEventListener('click', function (e) {
+                if (e.target === rov) window.fecharReprovarSheet();
+            });
+        }
+
+        var rc = document.getElementById('gc-reprovar-close');
+        if (rc) rc.addEventListener('click', function () { window.fecharReprovarSheet(); });
+
+        var rcan = document.getElementById('gc-reprovar-cancel');
+        if (rcan) rcan.addEventListener('click', function () { window.fecharReprovarSheet(); });
+
+        var rsub = document.getElementById('gc-reprovar-submit');
+        if (rsub) rsub.addEventListener('click', function () { window.enviarReprovarModal(); });
+
+        var rnovaIn = document.getElementById('gc-reprovar-nova-input');
+        var rnovaAdd = document.getElementById('gc-reprovar-nova-add');
+        if (rnovaAdd && rnovaIn) {
+            rnovaAdd.addEventListener('click', function () {
+                gcReprovarNovasAdd(rnovaIn.value);
+                rnovaIn.value = '';
+                rnovaIn.focus();
+            });
+            rnovaIn.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    gcReprovarNovasAdd(rnovaIn.value);
+                    rnovaIn.value = '';
+                }
+            });
+        }
+
         var overlay = garantirOverlayNoBody();
         if (overlay) {
             overlay.addEventListener('click', function (e) {
@@ -395,7 +678,14 @@
             });
         }
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') window.fecharModalPedido();
+            if (e.key !== 'Escape') return;
+            var ro = getReprovarOverlayEl();
+            if (ro && ro.classList.contains('is-open')) {
+                window.fecharReprovarSheet();
+                e.preventDefault();
+                return;
+            }
+            window.fecharModalPedido();
         });
     });
 })();

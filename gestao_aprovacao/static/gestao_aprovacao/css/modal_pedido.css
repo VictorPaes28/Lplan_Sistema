@@ -779,3 +779,277 @@ a.gc-btn-reprovar:hover,
     opacity: 0.45;
     pointer-events: none;
 }
+
+/* Segunda camada: reprovação sobre o modal (mantém o usuário no mesmo fluxo).
+   Filho absolute referencia o #gc-overlay (fixed). */
+
+.gc-reprovar-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+    background: rgba(15, 23, 42, 0.48);
+    backdrop-filter: blur(2px);
+}
+
+.gc-reprovar-overlay.is-open {
+    display: flex;
+}
+
+.gc-reprovar-panel {
+    width: 100%;
+    max-width: 520px;
+    max-height: min(85vh, 640px);
+    overflow: auto;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    padding: 1.15rem 1.25rem 1.25rem;
+    color: #0f172a;
+}
+
+.gc-reprovar-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.gc-reprovar-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #be123c;
+}
+
+.gc-reprovar-close {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: #f1f5f9;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #64748b;
+    font-family: inherit;
+}
+
+.gc-reprovar-close:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.gc-reprovar-intro {
+    margin: 0 0 1rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.gc-reprovar-field {
+    margin-bottom: 1rem;
+}
+
+.gc-reprovar-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.4rem;
+}
+
+.gc-reprovar-optional {
+    font-weight: 500;
+    color: #64748b;
+}
+
+.gc-reprovar-tags {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0.35rem 0;
+}
+
+.gc-reprovar-tags-empty {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.gc-reprovar-tag-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.gc-reprovar-tag-option:hover {
+    border-color: #fecdd3;
+    background: #fff1f2;
+}
+
+.gc-reprovar-tag-option input {
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+}
+
+.gc-reprovar-tag-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.gc-reprovar-tag-name {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.gc-reprovar-tag-desc {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.gc-reprovar-tag-adder {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.gc-reprovar-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.45rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.82rem;
+}
+
+.gc-reprovar-add-btn {
+    width: 40px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #475569;
+    font-family: inherit;
+}
+
+.gc-reprovar-add-btn:hover {
+    background: #f1f5f9;
+}
+
+.gc-reprovar-nova-lista {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+    min-height: 1.5rem;
+}
+
+.gc-reprovar-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.45rem;
+    background: #fef3c7;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #92400e;
+}
+
+.gc-reprovar-chip-remove {
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0 0.15rem;
+    font-size: 1rem;
+    line-height: 1;
+    color: #b45309;
+}
+
+.gc-reprovar-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.82rem;
+    resize: vertical;
+    min-height: 88px;
+}
+
+.gc-reprovar-error {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.gc-reprovar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.gc-reprovar-cancel {
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-reprovar-cancel:hover {
+    background: #f8fafc;
+}
+
+.gc-reprovar-submit {
+    border: none;
+    background: #dc2626;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-reprovar-submit:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
+.gc-reprovar-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
