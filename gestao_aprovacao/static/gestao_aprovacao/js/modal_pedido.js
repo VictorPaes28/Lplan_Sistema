@@ -192,6 +192,25 @@
         return d.innerHTML;
     }
 
+    function switchGcPedidoSideTab(which) {
+        var comments = which === 'comments';
+        var btnC = document.getElementById('gc-tab-btn-comments');
+        var btnA = document.getElementById('gc-tab-btn-activities');
+        var panelC = document.getElementById('gc-tab-panel-comments');
+        var panelA = document.getElementById('gc-tab-panel-activities');
+        if (btnC && btnA) {
+            btnC.classList.toggle('active', comments);
+            btnA.classList.toggle('active', !comments);
+            btnC.setAttribute('aria-selected', comments ? 'true' : 'false');
+            btnA.setAttribute('aria-selected', comments ? 'false' : 'true');
+        }
+        if (panelC && panelA) {
+            panelC.classList.toggle('gc-side-tab-panel--hidden', !comments);
+            panelA.classList.toggle('gc-side-tab-panel--hidden', comments);
+        }
+    }
+    window.switchGcPedidoSideTab = switchGcPedidoSideTab;
+
     /** Classes de status na lista (list_workorders — badge na coluna Status). */
     var GC_STATUS_ROW_CLASSES = ['rascunho', 'pendente', 'aprovado', 'reprovado', 'reaprovacao', 'cancelado'];
 
@@ -257,8 +276,11 @@
         dash('gc-ctl-solicitante');
         dash('gc-ctl-email');
         dash('gc-ctl-envio');
+        var act = document.getElementById('gc-activities-list');
+        if (act) act.innerHTML = '';
         var hist = document.getElementById('gc-historico-list');
         if (hist) hist.innerHTML = '';
+        switchGcPedidoSideTab('comments');
         var cl = document.getElementById('gc-comments-list');
         if (cl) cl.innerHTML = '';
         var anex = document.getElementById('gc-anexos-grid');
@@ -390,20 +412,24 @@
             }
         }
 
-        var hist = document.getElementById('gc-historico-list');
-        if (hist) {
-            if (d.historico_status && d.historico_status.length) {
-                hist.innerHTML = d.historico_status.map(function (h) {
-                    var cls = h.status || '';
-                    return '<div class="gc-hist-item">' +
-                        '<div class="gc-hist-dot ' + escapeHtml(cls) + '"></div>' +
-                        '<div><div class="gc-hist-status">' + escapeHtml(h.status_display) + '</div>' +
-                        '<div class="gc-hist-meta">' + escapeHtml(h.por) +
-                        (h.obs ? ' · ' + escapeHtml(h.obs) : '') +
-                        ' · ' + escapeHtml(h.data || '') + '</div></div></div>';
+        var al = document.getElementById('gc-activities-list');
+        if (al) {
+            if (d.atividades && d.atividades.length) {
+                al.innerHTML = d.atividades.map(function (a) {
+                    var dotCls = (a.status_dot || '').trim();
+                    var det = (a.detalhes || '').trim();
+                    var tit = (a.titulo || '').trim();
+                    var showDet = det && det !== tit;
+                    return '<div class="gc-act-item">' +
+                        '<div class="gc-act-dot ' + escapeHtml(dotCls) + '"></div>' +
+                        '<div><div class="gc-act-title">' + escapeHtml(tit || 'Atividade') + '</div>' +
+                        '<div class="gc-act-meta">' + escapeHtml(a.por || '—') +
+                        ' · ' + escapeHtml(a.data || '') + '</div>' +
+                        (showDet ? '<div class="gc-act-details">' + escapeHtml(det) + '</div>' : '') +
+                        '</div></div>';
                 }).join('');
             } else {
-                hist.innerHTML = '<p style="color:#94a3b8;font-size:0.85rem;">Sem registros de mudança de status.</p>';
+                al.innerHTML = '<p class="gc-side-empty">Nenhuma atividade registrada.</p>';
             }
         }
 
@@ -436,6 +462,25 @@
             }
         }
 
+        var hist = document.getElementById('gc-historico-list');
+        if (hist) {
+            if (d.historico_status && d.historico_status.length) {
+                hist.innerHTML = d.historico_status.map(function (h) {
+                    var cls = h.status || '';
+                    var obs = (h.obs || '').trim();
+                    return '<div class="gc-hist-item">' +
+                        '<div class="gc-hist-dot ' + escapeHtml(cls) + '"></div>' +
+                        '<div><div class="gc-hist-status">' + escapeHtml(h.status_display) + '</div>' +
+                        '<div class="gc-hist-meta">' + escapeHtml(h.por) +
+                        ' · ' + escapeHtml(h.data || '') + '</div>' +
+                        (obs ? '<div class="gc-hist-obs">' + escapeHtml(obs) + '</div>' : '') +
+                        '</div></div>';
+                }).join('');
+            } else {
+                hist.innerHTML = '<p style="color:#94a3b8;font-size:0.85rem;">Sem registros de mudança de status.</p>';
+            }
+        }
+
         var cl = document.getElementById('gc-comments-list');
         if (cl) {
             if (d.comentarios && d.comentarios.length) {
@@ -448,7 +493,7 @@
                         '<div class="gc-comment-text">' + escapeHtml(c.texto) + '</div></div></div>';
                 }).join('');
             } else {
-                cl.innerHTML = '<p style="color:#94a3b8;font-size:0.85rem;">Nenhum comentário ainda.</p>';
+                cl.innerHTML = '<p class="gc-side-empty">Nenhum comentário ainda.</p>';
             }
         }
 
@@ -514,17 +559,34 @@
             method: 'POST',
             body: fd,
             credentials: 'same-origin',
-            redirect: 'manual',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        }).then(function (r) {
-            if (r.status === 302 || r.status === 303) {
-                return window.abrirModalPedido(pk);
-            }
-            if (r.ok) return window.abrirModalPedido(pk);
-            alert('Não foi possível enviar o comentário.');
-        }).catch(function () {
-            alert('Erro de rede ao enviar comentário.');
-        });
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+        })
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    try {
+                        return { body: JSON.parse(text), parsed: true, httpOk: r.ok };
+                    } catch (err) {
+                        return { body: null, parsed: false, httpOk: r.ok, status: r.status };
+                    }
+                });
+            })
+            .then(function (res) {
+                if (res.body && res.body.ok) {
+                    switchGcPedidoSideTab('comments');
+                    return window.abrirModalPedido(pk);
+                }
+                var msg =
+                    res.body && res.body.error
+                        ? res.body.error
+                        : 'Não foi possível enviar o comentário.';
+                alert(msg);
+            })
+            .catch(function () {
+                alert('Erro de rede ao enviar comentário.');
+            });
     };
 
     window.enviarReprovarModal = function () {
@@ -677,6 +739,20 @@
                 if (e.target === overlay) window.fecharModalPedido();
             });
         }
+
+        var tabComments = document.getElementById('gc-tab-btn-comments');
+        var tabActivities = document.getElementById('gc-tab-btn-activities');
+        if (tabComments) {
+            tabComments.addEventListener('click', function () {
+                switchGcPedidoSideTab('comments');
+            });
+        }
+        if (tabActivities) {
+            tabActivities.addEventListener('click', function () {
+                switchGcPedidoSideTab('activities');
+            });
+        }
+
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape') return;
             var ro = getReprovarOverlayEl();

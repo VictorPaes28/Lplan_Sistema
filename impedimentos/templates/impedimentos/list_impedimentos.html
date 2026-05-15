@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=54">
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=64">
 {% endblock %}
 
 {% block content %}
@@ -163,6 +163,7 @@
                     <span class="imp-list-colhead__people">Responsáveis</span>
                     <span class="imp-list-colhead__due">Prazo</span>
                     <span class="imp-list-colhead__comments">Comentários</span>
+                    <span class="imp-list-colhead__actions" aria-hidden="true"></span>
                 </div>
                 <div class="imp-list-group-body">
                     {% for item in col.items %}
@@ -172,7 +173,6 @@
                         data-imp-item-id="{{ item.id }}"
                         data-imp-status-id="{{ item.status_id }}"
                     >
-                        {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param %}
                         <div class="imp-list-line__grid">
                             <div class="imp-list-line__name imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="nome" role="button" tabindex="0">
                                 <div class="imp-list-line__name-inner">
@@ -244,6 +244,9 @@
                             <div class="imp-list-line__comments imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="comentarios" role="button" tabindex="0">
                                 <i class="fas fa-comment" aria-hidden="true"></i>
                                 <span class="imp-list-comments-count">{{ item.comentarios_count }}</span>
+                            </div>
+                            <div class="imp-list-line__actions">
+                                {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param %}
                             </div>
                         </div>
                     </article>
@@ -826,37 +829,47 @@
 
         <!-- HEADER -->
         <div class="imp-detail-head">
-            <div class="imp-detail-breadcrumb" id="imp-detail-breadcrumb"></div>
+            <button type="button" class="imp-detail-head-back" id="imp-detail-head-back" hidden aria-label="Voltar à lista de restrições">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span class="imp-detail-head-back-label">Voltar</span>
+            </button>
+            <div class="imp-detail-breadcrumb-wrap">
+                <nav class="imp-detail-breadcrumb" id="imp-detail-breadcrumb" aria-label="Navegação da restrição"></nav>
+            </div>
             <button type="button" class="imp-detail-close" id="imp-detail-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
         </div>
 
-        <!-- META BAR -->
+        <!-- META BAR (rótulo + valor em linha, separadores como na UX original) -->
         <div class="imp-detail-metabar" id="imp-detail-metabar">
             <div class="imp-detail-metapill" id="imp-detail-meta-status" data-imp-cell="status">
                 <span class="imp-detail-metapill-label">Status</span>
-                <span class="imp-detail-meta-dot" id="imp-detail-meta-status-dot"></span>
-                <span id="imp-detail-status-nome"></span>
+                <span class="imp-detail-metapill-val">
+                    <span class="imp-detail-meta-dot" id="imp-detail-meta-status-dot"></span>
+                    <span id="imp-detail-status-nome"></span>
+                </span>
             </div>
-            <div class="imp-detail-metasep"></div>
+            <div class="imp-detail-metasep" aria-hidden="true"></div>
             <div class="imp-detail-metapill" id="imp-detail-meta-prioridade" data-imp-cell="prioridade">
                 <span class="imp-detail-metapill-label">Prioridade</span>
-                <span class="imp-priority-badge" id="imp-detail-prio-badge"></span>
+                <span class="imp-detail-metapill-val"><span class="imp-priority-badge" id="imp-detail-prio-badge"></span></span>
             </div>
-            <div class="imp-detail-metasep"></div>
+            <div class="imp-detail-metasep" aria-hidden="true"></div>
             <div class="imp-detail-metapill" id="imp-detail-meta-responsaveis" data-imp-cell="responsaveis">
                 <span class="imp-detail-metapill-label">Resp.</span>
-                <span id="imp-detail-resp-nomes"></span>
+                <span class="imp-detail-metapill-val"><span id="imp-detail-resp-nomes"></span></span>
             </div>
-            <div class="imp-detail-metasep"></div>
+            <div class="imp-detail-metasep" aria-hidden="true"></div>
             <div class="imp-detail-metapill" id="imp-detail-meta-prazo" data-imp-cell="prazo">
                 <span class="imp-detail-metapill-label">Prazo</span>
-                <i class="fas fa-calendar-alt imp-detail-metapill-icon"></i>
-                <span id="imp-detail-prazo-val" data-imp-list-prazo=""></span>
+                <span class="imp-detail-metapill-val">
+                    <i class="fas fa-calendar-alt imp-detail-metapill-icon"></i>
+                    <span id="imp-detail-prazo-val" data-imp-list-prazo=""></span>
+                </span>
             </div>
-            <div class="imp-detail-metasep"></div>
+            <div class="imp-detail-metasep" aria-hidden="true"></div>
             <div class="imp-detail-metapill" id="imp-detail-meta-categorias" data-imp-cell="categorias">
                 <span class="imp-detail-metapill-label">Cat.</span>
-                <span id="imp-detail-cats-val"></span>
+                <span class="imp-detail-metapill-val"><span id="imp-detail-cats-val"></span></span>
             </div>
         </div>
 
@@ -866,15 +879,22 @@
             <!-- COL LEFT -->
             <div class="imp-detail-col-left">
 
-                <div class="imp-detail-section">
+                <div class="imp-detail-section imp-detail-section--titulo">
                     <div class="imp-detail-section-label">Título</div>
-                    <div id="imp-detail-titulo-block">
+                    <div class="imp-detail-context imp-detail-context--compact" id="imp-detail-context" hidden>
+                        <span class="imp-detail-context-badge">Subtarefa</span>
+                        <span class="imp-detail-context-parent-line">
+                            <span class="imp-detail-context-parent-label">Subtarefa de:</span>
+                            <button type="button" class="imp-detail-context-parent-link" id="imp-detail-context-parent-link" hidden></button>
+                        </span>
+                    </div>
+                    <div id="imp-detail-titulo-block" class="imp-detail-titulo-block">
                         <div class="imp-detail-titulo" id="imp-detail-titulo" data-imp-cell="titulo" tabindex="0"></div>
                         <input type="text" class="imp-detail-titulo-input" id="imp-detail-titulo-input" hidden autocomplete="off" />
                     </div>
                 </div>
 
-                <div class="imp-detail-section">
+                <div class="imp-detail-section imp-detail-section--desc">
                     <div class="imp-detail-section-label">Descrição</div>
                     <div id="imp-detail-desc-block">
                         <div class="imp-detail-desc" id="imp-detail-desc" data-imp-cell="descricao" tabindex="0"></div>
@@ -882,9 +902,9 @@
                     </div>
                 </div>
 
-                <div class="imp-detail-section">
+                <div class="imp-detail-section imp-detail-section--detalhes">
                     <div class="imp-detail-section-label">Detalhes</div>
-                    <div class="imp-detail-fields">
+                    <div class="imp-detail-fields imp-detail-fields--panel">
                         <div class="imp-detail-field-row">
                             <div class="imp-detail-field-key">Status</div>
                             <div class="imp-detail-field-val" data-imp-cell="status" id="imp-detail-field-status">
@@ -907,7 +927,7 @@
                         <div class="imp-detail-field-row">
                             <div class="imp-detail-field-key">Prazo</div>
                             <div class="imp-detail-field-val" data-imp-cell="prazo" id="imp-detail-field-prazo">
-                                <i class="fas fa-calendar-alt" style="color:#94a3b8;font-size:12px"></i>
+                                <i class="fas fa-calendar-alt imp-detail-field-prazo-icon" aria-hidden="true"></i>
                                 <span id="imp-detail-field-prazo-val" data-imp-list-prazo=""></span>
                             </div>
                         </div>
@@ -922,7 +942,7 @@
                     </div>
                 </div>
 
-                <div class="imp-detail-section">
+                <div class="imp-detail-section imp-detail-section--arquivos">
                     <div class="imp-detail-section-label">Arquivos</div>
                     <div class="imp-detail-files-list" id="imp-detail-files-list"></div>
                     <input type="file" id="imp-detail-file-input" class="sr-only" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.jpg,.jpeg,.png,.webp" aria-hidden="true" />
@@ -931,21 +951,21 @@
                     </button>
                 </div>
 
-                <div class="imp-detail-section" id="imp-detail-subtarefas-section">
+                <div class="imp-detail-section imp-detail-section--subtarefas" id="imp-detail-subtarefas-section">
                     <div class="imp-detail-subtarefas-header">
                         <div class="imp-detail-section-label">Subtarefas</div>
-                        <span class="imp-detail-subtarefas-count" id="imp-detail-subtarefas-count"></span>
+                        <span class="imp-detail-subtarefas-count" id="imp-detail-subtarefas-count" title=""></span>
                     </div>
                     <div class="imp-detail-subtarefas-list" id="imp-detail-subtarefas-list"></div>
+                    <button type="button" class="imp-detail-btn-add-subtask" id="imp-detail-btn-subtask">
+                        <i class="fas fa-plus" aria-hidden="true"></i> Adicionar subtarefa
+                    </button>
                 </div>
 
-                <div class="imp-detail-section">
-                    <div class="imp-detail-bottom-actions">
-                        <button type="button" class="imp-detail-btn-subtask" id="imp-detail-btn-subtask">
-                            <i class="fas fa-project-diagram"></i> Adicionar subtarefa
-                        </button>
+                <div class="imp-detail-section imp-detail-section--delete-only">
+                    <div class="imp-detail-footer-delete">
                         <button type="button" class="imp-detail-btn-delete" id="imp-detail-btn-delete">
-                            <i class="fas fa-trash"></i> Excluir
+                            <i class="fas fa-trash" aria-hidden="true"></i> Excluir
                         </button>
                     </div>
                 </div>
@@ -966,7 +986,7 @@
                         <div class="imp-detail-composer">
                             <div class="imp-detail-composer-avatar" id="imp-detail-composer-av"></div>
                             <div class="imp-detail-composer-right">
-                                <textarea class="imp-detail-composer-textarea" id="imp-detail-comment-text" placeholder="Adicione um comentário..." rows="2"></textarea>
+                                <textarea class="imp-detail-composer-textarea" id="imp-detail-comment-text" placeholder="Adicione um comentário..." rows="3"></textarea>
                                 <div class="imp-detail-composer-actions">
                                     <button type="submit" class="imp-detail-btn-comment" id="imp-detail-comment-submit" disabled>Comentar</button>
                                 </div>
@@ -2781,6 +2801,8 @@
     const composerAvatar = document.getElementById('imp-detail-composer-av');
     const detailClose = document.getElementById('imp-detail-close');
     const detailDeleteBtn = document.getElementById('imp-detail-btn-delete');
+    const detailHeadBackBtn = document.getElementById('imp-detail-head-back');
+    const detailParentLinkBtn = document.getElementById('imp-detail-context-parent-link');
     const tabBtnComments = document.getElementById('imp-detail-tab-btn-comments');
     const tabBtnActivities = document.getElementById('imp-detail-tab-btn-activities');
     const tabPanelComments = document.getElementById('imp-detail-tab-comments');
@@ -2790,6 +2812,8 @@
     let currentItemSnapshot = null;
     let openDropdownLayer = null;
     let openPopoverLayer = null;
+    let subtarefaActionsMenuEl = null;
+    let subtarefaActionsMenuDocHandler = null;
 
     function itemApiUrl(id) {
         return base + 'item/' + id + '/';
@@ -2995,7 +3019,6 @@
             : '<span class="imp-empty-text">—</span>';
         return ''
             + '<article class="imp-list-line' + doneClass + rowExtra + '" data-imp-item-id="' + id + '" data-imp-status-id="' + stId + '">'
-            + impRestricaoMenuHtml(item)
             + '<div class="imp-list-line__grid">'
             + '<div class="imp-list-line__name imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="nome" role="button" tabindex="0">'
             + '<div class="imp-list-line__name-inner">' + toggleHtml + cntHtml
@@ -3015,7 +3038,37 @@
             + '<div class="imp-list-line__comments imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="comentarios" role="button" tabindex="0">'
             + '<i class="fas fa-comment" aria-hidden="true"></i> '
             + '<span class="imp-list-comments-count">' + String(item.comentarios_count != null ? item.comentarios_count : 0) + '</span>'
-            + '</div></div></article>';
+            + '</div>'
+            + '<div class="imp-list-line__actions">' + impRestricaoMenuHtml(item) + '</div>'
+            + '</div></article>';
+    }
+
+    function categoriasIdsFromParentListArticle(parentId) {
+        if (!listaSection || parentId == null || parentId === '') return [];
+        const sid = String(parentId);
+        const art = listaSection.querySelector('article.imp-list-line[data-imp-item-id="' + sid + '"]');
+        if (!art) return [];
+        const edit = art.querySelector('[data-action-edit]');
+        const raw = edit && edit.dataset.itemCategoriasIds;
+        if (!raw || !String(raw).trim()) return [];
+        return String(raw).split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+    }
+
+    function renderListaSubtasksAddRow(parentId, depth) {
+        const noCats = pageRoot && pageRoot.dataset.temCategorias === '0';
+        const d = depth === 2 ? 2 : depth === 3 ? 3 : 1;
+        const depthCls = ' imp-list-subtasks-add-row--depth-' + d;
+        return ''
+            + '<div class="imp-list-subtasks-add-row' + depthCls + '">'
+            + '<button type="button" class="imp-list-subtasks-add-btn'
+            + (noCats ? ' imp-nova-restricao--blocked' : '')
+            + '" data-imp-add-subtarefa-from-list data-parent-id="' + parentId + '"'
+            + (noCats ? ' aria-disabled="true" title="É necessário criar categorias antes de adicionar restrições."' : '')
+            + (noCats ? ' style="opacity:0.45;cursor:not-allowed"' : '')
+            + '>'
+            + '+ Adicionar subtarefa'
+            + '</button>'
+            + '</div>';
     }
 
     function renderStackFromItem(item) {
@@ -3047,7 +3100,16 @@
                 const rows = (x.d.subtarefas || []).map(function(st) {
                     return renderStackFromItem(st);
                 }).join('');
-                host.innerHTML = rows;
+                const parentArticle = btn.closest('article.imp-list-line');
+                let addDepth = 1;
+                if (parentArticle) {
+                    if (parentArticle.classList.contains('imp-list-subtask-row--level-2')) {
+                        addDepth = 3;
+                    } else if (parentArticle.classList.contains('imp-list-subtask-row')) {
+                        addDepth = 2;
+                    }
+                }
+                host.innerHTML = rows + renderListaSubtasksAddRow(id, addDepth);
                 host.hidden = false;
                 btn.classList.add('open');
                 btn.setAttribute('aria-expanded', 'true');
@@ -3170,26 +3232,46 @@
                 if (!subs.length) {
                     detailSubtarefasList.innerHTML = '';
                     detailSubtarefasCount.textContent = '';
+                    detailSubtarefasCount.title = '';
                     return;
                 }
                 const n = subs.length;
-                detailSubtarefasCount.textContent = String(n) + ' subtarefa' + (n > 1 ? 's' : '');
+                detailSubtarefasCount.textContent = String(n);
+                detailSubtarefasCount.title = (n === 1 ? '1 subtarefa' : String(n) + ' subtarefas');
                 let html = '';
                 subs.forEach(function(s) {
                     const respTxt = formatRespPlain(s.responsaveis);
                     const prioCls = esc(s.prioridade_badge_class || '');
-                    html += '<div class="imp-detail-subtarefa-row" data-subtarefa-id="' + String(s.id) + '">';
-                    html += '<span class="imp-detail-subtarefa-titulo" role="button" tabindex="0" data-subtarefa-id="'
-                        + String(s.id) + '">' + esc(s.titulo || '') + '</span>';
+                    const stCor = esc(s.status_cor || '#64748b');
+                    const stNome = esc(s.status_nome || '');
+                    const titEsc = esc(s.titulo || '');
+                    const sid = String(s.id);
+                    const ariaAbrir = esc('Abrir subtarefa: ' + (s.titulo || ''));
+                    html += '<div class="imp-detail-subtarefa-row" data-subtarefa-id="' + sid + '">';
+                    html += '<button type="button" class="imp-detail-subtarefa-open" aria-label="' + ariaAbrir + '">';
+                    html += '<span class="imp-detail-subtarefa-dot" style="background:' + stCor + '" aria-hidden="true"></span>';
+                    html += '<div class="imp-detail-subtarefa-body">';
+                    html += '<span class="imp-detail-subtarefa-titulo">' + titEsc + '</span>';
+                    html += '<div class="imp-detail-subtarefa-meta">';
+                    html += '<span class="imp-detail-subtarefa-status" style="background:' + stCor
+                        + '18;color:' + stCor + ';border:1px solid ' + stCor + '44">' + stNome + '</span>';
                     html += '<span class="imp-detail-subtarefa-resp">' + esc(respTxt) + '</span>';
                     html += '<span class="imp-priority-badge ' + prioCls + '">' + esc(s.prioridade || '') + '</span>';
+                    html += '</div></div>';
+                    html += '<span class="imp-detail-subtarefa-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>';
+                    html += '</button>';
+                    html += '<button type="button" class="imp-detail-subtarefa-menu-btn" data-subtarefa-menu="' + sid
+                        + '" aria-haspopup="true" aria-expanded="false" aria-label="Ações da subtarefa"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>';
                     html += '</div>';
                 });
                 detailSubtarefasList.innerHTML = html;
             })
             .catch(function() {
                 if (detailSubtarefasList) detailSubtarefasList.innerHTML = '';
-                if (detailSubtarefasCount) detailSubtarefasCount.textContent = '';
+                if (detailSubtarefasCount) {
+                    detailSubtarefasCount.textContent = '';
+                    detailSubtarefasCount.title = '';
+                }
             });
     }
 
@@ -3203,17 +3285,74 @@
         }).join('');
     }
 
+    function detailParentIdNumeric(item) {
+        if (!item || item.parent_id == null || item.parent_id === '') return 0;
+        const n = parseInt(item.parent_id, 10);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    function applyDetailSubtaskShell(item) {
+        const modal = document.getElementById('imp-detail-modal');
+        const ctx = document.getElementById('imp-detail-context');
+        const parentLink = document.getElementById('imp-detail-context-parent-link');
+        const headBack = document.getElementById('imp-detail-head-back');
+        const subSec = document.getElementById('imp-detail-subtarefas-section');
+        const pid = detailParentIdNumeric(item);
+        const isSub = pid > 0;
+        if (modal) modal.classList.toggle('imp-detail-modal--subtask', isSub);
+        if (ctx) ctx.hidden = !isSub;
+
+        const ptitRaw = item && item.parent_titulo != null ? String(item.parent_titulo).trim() : '';
+        const ancs = (item && item.breadcrumb_ancestors) || [];
+        const lastAnc = ancs.length ? ancs[ancs.length - 1] : null;
+        const ptitFromBc = lastAnc && lastAnc.titulo != null ? String(lastAnc.titulo).trim() : '';
+        const ptit = ptitRaw || ptitFromBc;
+        if (parentLink) {
+            if (isSub && pid) {
+                const label = ptit || 'Restrição pai';
+                parentLink.hidden = false;
+                parentLink.textContent = label;
+                parentLink.dataset.impParentId = String(pid);
+                parentLink.title = ptit ? ptit : 'Abrir restrição pai';
+            } else {
+                parentLink.hidden = true;
+                parentLink.textContent = '';
+                parentLink.removeAttribute('data-imp-parent-id');
+                parentLink.removeAttribute('title');
+            }
+        }
+
+        if (headBack) {
+            headBack.hidden = !isSub;
+        }
+
+        if (subSec) {
+            const st = parseInt(item.subtarefas_count, 10) || 0;
+            subSec.hidden = isSub && st === 0;
+        }
+    }
+
+    function syncDetailTitleTooltips(titulo) {
+        const t = (titulo != null ? String(titulo) : '').trim();
+        if (titleDisplay) titleDisplay.title = t;
+        const bc = document.getElementById('imp-detail-breadcrumb-titulo');
+        if (bc) bc.title = t;
+    }
+
     function renderDetailBreadcrumb(item) {
         const el = document.getElementById('imp-detail-breadcrumb');
         if (!el || !item) return;
         const obraNome = esc((pageRoot.dataset.obraNome || '').trim());
         const tit = esc(item.titulo || '');
+        const titFull = (item.titulo || '').trim();
         const ancs = item.breadcrumb_ancestors || [];
+        const titClass = 'imp-detail-breadcrumb-titulo imp-detail-breadcrumb-titulo--current';
         if (!ancs.length) {
             el.innerHTML = ''
                 + '<span class="imp-detail-breadcrumb-obra">' + obraNome + '</span>'
                 + '<span class="imp-detail-breadcrumb-sep">›</span>'
-                + '<span class="imp-detail-breadcrumb-titulo" id="imp-detail-breadcrumb-titulo">' + tit + '</span>';
+                + '<span class="' + titClass + '" id="imp-detail-breadcrumb-titulo">' + tit + '</span>';
+            syncDetailTitleTooltips(titFull);
             return;
         }
         let h = '<span class="imp-detail-breadcrumb-obra">' + obraNome + '</span>';
@@ -3223,8 +3362,9 @@
                 + esc(a.titulo || '') + '</button>';
         });
         h += '<span class="imp-detail-breadcrumb-sep">›</span>'
-            + '<span class="imp-detail-breadcrumb-titulo" id="imp-detail-breadcrumb-titulo">' + tit + '</span>';
+            + '<span class="' + titClass + '" id="imp-detail-breadcrumb-titulo">' + tit + '</span>';
         el.innerHTML = h;
+        syncDetailTitleTooltips(titFull);
     }
 
     function renderDetailPanel(item) {
@@ -3286,6 +3426,7 @@
 
         const cem = document.getElementById('imp-detail-field-criadoem');
         if (cem) cem.textContent = item.criado_em_label || '—';
+        applyDetailSubtaskShell(item);
     }
 
     function renderActivityHtml(act) {
@@ -4322,6 +4463,22 @@
 
     if (listaSection) listaSection.addEventListener('click', function(ev) {
         if (ev.target.closest('[data-imp-item-menu]')) return;
+        const addSub = ev.target.closest('[data-imp-add-subtarefa-from-list]');
+        if (addSub && listaSection.contains(addSub)) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (addSub.classList.contains('imp-nova-restricao--blocked')) {
+                alert('É necessário ter categorias para criar uma restrição.');
+                return;
+            }
+            const pid = parseInt(addSub.getAttribute('data-parent-id'), 10);
+            if (!pid) return;
+            const catIds = categoriasIdsFromParentListArticle(pid);
+            document.dispatchEvent(new CustomEvent('imp-open-subtarefa-modal', {
+                detail: { parentId: pid, categoriasIds: catIds },
+            }));
+            return;
+        }
         const subT = ev.target.closest('[data-imp-subtask-toggle]');
         if (subT && listaSection.contains(subT)) {
             ev.preventDefault();
@@ -4461,6 +4618,110 @@
         return data.item;
     }
 
+    function closeSubtarefaActionsMenu() {
+        if (subtarefaActionsMenuEl) {
+            subtarefaActionsMenuEl.remove();
+            subtarefaActionsMenuEl = null;
+        }
+        if (subtarefaActionsMenuDocHandler) {
+            document.removeEventListener('click', subtarefaActionsMenuDocHandler, true);
+            document.removeEventListener('keydown', subtarefaActionsMenuDocHandler, true);
+            subtarefaActionsMenuDocHandler = null;
+        }
+    }
+
+    function submitDeleteImpedimento(impedimentoId) {
+        const id = parseInt(impedimentoId, 10);
+        if (!id) return;
+        if (!confirm('Tem certeza que deseja excluir esta restrição? Esta ação não pode ser desfeita.')) return;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.pathname;
+        const csrfIn = document.createElement('input');
+        csrfIn.type = 'hidden';
+        csrfIn.name = 'csrfmiddlewaretoken';
+        csrfIn.value = CSRF;
+        const actionIn = document.createElement('input');
+        actionIn.type = 'hidden';
+        actionIn.name = 'action';
+        actionIn.value = 'delete';
+        const idIn = document.createElement('input');
+        idIn.type = 'hidden';
+        idIn.name = 'impedimento_id';
+        idIn.value = String(id);
+        form.appendChild(csrfIn);
+        form.appendChild(actionIn);
+        form.appendChild(idIn);
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    function openSubtarefaActionsMenu(anchorBtn, subId) {
+        closeSubtarefaActionsMenu();
+        const sid = parseInt(subId, 10);
+        if (!sid || !anchorBtn) return;
+
+        const div = document.createElement('div');
+        div.className = 'imp-detail-subtarefa-menu-dropdown';
+        div.setAttribute('role', 'menu');
+        div.innerHTML = ''
+            + '<button type="button" role="menuitem" data-act="open"><i class="fas fa-arrow-right" aria-hidden="true"></i> Abrir detalhes</button>'
+            + '<button type="button" role="menuitem" data-act="edit"><i class="fas fa-pen" aria-hidden="true"></i> Editar</button>'
+            + '<button type="button" role="menuitem" class="imp-detail-subtarefa-menu-del" data-act="delete"><i class="fas fa-trash-alt" aria-hidden="true"></i> Excluir</button>';
+
+        document.body.appendChild(div);
+        subtarefaActionsMenuEl = div;
+
+        const rect = anchorBtn.getBoundingClientRect();
+        const w = div.offsetWidth;
+        let left = rect.right - w;
+        if (left < 8) left = 8;
+        if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+        let top = rect.bottom + 4;
+        const h = div.offsetHeight;
+        if (top + h > window.innerHeight - 8) top = Math.max(8, rect.top - h - 4);
+        div.style.left = left + 'px';
+        div.style.top = top + 'px';
+
+        anchorBtn.setAttribute('aria-expanded', 'true');
+
+        subtarefaActionsMenuDocHandler = function(ev) {
+            if (ev.type === 'keydown') {
+                if (ev.key === 'Escape') {
+                    closeSubtarefaActionsMenu();
+                    anchorBtn.setAttribute('aria-expanded', 'false');
+                    anchorBtn.focus();
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                return;
+            }
+            const t = ev.target;
+            if (div.contains(t)) return;
+            if (anchorBtn.contains(t)) return;
+            closeSubtarefaActionsMenu();
+            anchorBtn.setAttribute('aria-expanded', 'false');
+        };
+
+        setTimeout(function() {
+            document.addEventListener('click', subtarefaActionsMenuDocHandler, true);
+            document.addEventListener('keydown', subtarefaActionsMenuDocHandler, true);
+        }, 0);
+
+        div.addEventListener('click', function(ev) {
+            const b = ev.target.closest('button[data-act]');
+            if (!b || !div.contains(b)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const act = b.getAttribute('data-act');
+            closeSubtarefaActionsMenu();
+            anchorBtn.setAttribute('aria-expanded', 'false');
+            if (act === 'open') openDetailModal(sid, false);
+            else if (act === 'edit') openDetailModal(sid, false, { focusTitulo: true });
+            else if (act === 'delete') submitDeleteImpedimento(sid);
+        });
+    }
+
     function attrEscUrl(u) {
         return String(u == null ? '' : u).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     }
@@ -4573,6 +4834,7 @@
             descDisplay.textContent = item.descricao || '';
             descDisplay.classList.remove('placeholder');
         }
+        syncDetailTitleTooltips(item.titulo || '');
     }
 
     function switchDetailTab(which) {
@@ -4598,7 +4860,11 @@
         });
     });
 
-    async function openDetailModal(itemId, scrollComments) {
+    async function openDetailModal(itemId, scrollComments, opts) {
+        opts = opts || {};
+        closeSubtarefaActionsMenu();
+        const hbInit = document.getElementById('imp-detail-head-back');
+        if (hbInit) hbInit.hidden = true;
         currentItemId = itemId;
         overlay.removeAttribute('hidden');
         overlay.setAttribute('aria-hidden', 'false');
@@ -4612,7 +4878,10 @@
         if (commentsListEl) commentsListEl.innerHTML = '';
         if (filesListEl) filesListEl.innerHTML = '';
         if (detailSubtarefasList) detailSubtarefasList.innerHTML = '';
-        if (detailSubtarefasCount) detailSubtarefasCount.textContent = '';
+        if (detailSubtarefasCount) {
+            detailSubtarefasCount.textContent = '';
+            detailSubtarefasCount.title = '';
+        }
         switchDetailTab('comments');
         try {
             const item = await fetchDetail(itemId);
@@ -4625,6 +4894,11 @@
             loadSubtarefasIntoDetail(itemId);
             syncComposerAvatar();
             syncCommentSubmitState();
+            if (opts.focusTitulo) {
+                requestAnimationFrame(function() {
+                    if (titleDisplay) titleDisplay.click();
+                });
+            }
             if (scrollComments) {
                 switchDetailTab('comments');
                 if (commentText) {
@@ -4643,6 +4917,7 @@
     }
 
     function closeDetailModal() {
+        closeSubtarefaActionsMenu();
         if (openPopoverLayer && openPopoverLayer.dataset.impPopoverKind === 'responsaveis') {
             finalizeResponsaveisPopover().catch(function() {});
         } else if (openPopoverLayer) {
@@ -4663,7 +4938,44 @@
         currentItemId = null;
         currentItemSnapshot = null;
         if (detailSubtarefasList) detailSubtarefasList.innerHTML = '';
-        if (detailSubtarefasCount) detailSubtarefasCount.textContent = '';
+        if (detailSubtarefasCount) {
+            detailSubtarefasCount.textContent = '';
+            detailSubtarefasCount.title = '';
+        }
+        const dm = document.getElementById('imp-detail-modal');
+        if (dm) dm.classList.remove('imp-detail-modal--subtask');
+        const hb = document.getElementById('imp-detail-head-back');
+        if (hb) {
+            hb.hidden = true;
+            hb.removeAttribute('data-imp-back-root-id');
+        }
+        const ctx = document.getElementById('imp-detail-context');
+        if (ctx) ctx.hidden = true;
+        const pl = document.getElementById('imp-detail-context-parent-link');
+        if (pl) {
+            pl.hidden = true;
+            pl.textContent = '';
+            pl.removeAttribute('data-imp-parent-id');
+            pl.removeAttribute('title');
+        }
+        const subSec = document.getElementById('imp-detail-subtarefas-section');
+        if (subSec) subSec.hidden = false;
+    }
+
+    if (detailHeadBackBtn) {
+        detailHeadBackBtn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            closeDetailModal();
+        });
+    }
+
+    if (detailParentLinkBtn) {
+        detailParentLinkBtn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            const raw = detailParentLinkBtn.getAttribute('data-imp-parent-id');
+            const id = raw ? parseInt(raw, 10) : 0;
+            if (id) openDetailModal(id, false);
+        });
     }
 
     detailClose.addEventListener('click', closeDetailModal);
@@ -4685,19 +4997,36 @@
 
     if (detailSubtarefasList) {
         detailSubtarefasList.addEventListener('click', function(ev) {
-            const tit = ev.target.closest('.imp-detail-subtarefa-titulo');
-            if (!tit || !detailSubtarefasList.contains(tit)) return;
+            const menuBtn = ev.target.closest('.imp-detail-subtarefa-menu-btn');
+            if (menuBtn && detailSubtarefasList.contains(menuBtn)) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const sid = menuBtn.getAttribute('data-subtarefa-menu');
+                if (sid) openSubtarefaActionsMenu(menuBtn, sid);
+                return;
+            }
+            const openBtn = ev.target.closest('.imp-detail-subtarefa-open');
+            if (!openBtn || !detailSubtarefasList.contains(openBtn)) return;
             ev.preventDefault();
-            const sid = tit.getAttribute('data-subtarefa-id');
+            const row = openBtn.closest('.imp-detail-subtarefa-row');
+            const sid = row ? row.getAttribute('data-subtarefa-id') : null;
             if (!sid) return;
             openDetailModal(parseInt(sid, 10), false);
         });
         detailSubtarefasList.addEventListener('keydown', function(ev) {
             if (ev.key !== 'Enter' && ev.key !== ' ') return;
-            const tit = ev.target.closest('.imp-detail-subtarefa-titulo');
-            if (!tit || !detailSubtarefasList.contains(tit)) return;
+            const menuBtn = ev.target.closest('.imp-detail-subtarefa-menu-btn');
+            if (menuBtn && detailSubtarefasList.contains(menuBtn)) {
+                ev.preventDefault();
+                const sid = menuBtn.getAttribute('data-subtarefa-menu');
+                if (sid) openSubtarefaActionsMenu(menuBtn, sid);
+                return;
+            }
+            const openBtn = ev.target.closest('.imp-detail-subtarefa-open');
+            if (!openBtn || !detailSubtarefasList.contains(openBtn)) return;
             ev.preventDefault();
-            const sid = tit.getAttribute('data-subtarefa-id');
+            const row = openBtn.closest('.imp-detail-subtarefa-row');
+            const sid = row ? row.getAttribute('data-subtarefa-id') : null;
             if (!sid) return;
             openDetailModal(parseInt(sid, 10), false);
         });
@@ -4707,27 +5036,7 @@
         detailDeleteBtn.addEventListener('click', function() {
             const itemId = currentItemId;
             if (!itemId) return;
-            if (!confirm('Tem certeza que deseja excluir esta restrição? Esta ação não pode ser desfeita.')) return;
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = window.location.pathname;
-            const csrfIn = document.createElement('input');
-            csrfIn.type = 'hidden';
-            csrfIn.name = 'csrfmiddlewaretoken';
-            csrfIn.value = CSRF;
-            const actionIn = document.createElement('input');
-            actionIn.type = 'hidden';
-            actionIn.name = 'action';
-            actionIn.value = 'delete';
-            const idIn = document.createElement('input');
-            idIn.type = 'hidden';
-            idIn.name = 'impedimento_id';
-            idIn.value = String(itemId);
-            form.appendChild(csrfIn);
-            form.appendChild(actionIn);
-            form.appendChild(idIn);
-            document.body.appendChild(form);
-            form.submit();
+            submitDeleteImpedimento(itemId);
         });
     }
 
@@ -4750,7 +5059,10 @@
             titleDisplay.hidden = false;
             titleDisplay.classList.remove('is-editing');
             const bc = document.getElementById('imp-detail-breadcrumb-titulo');
-            if (bc) bc.textContent = data.row.titulo || '';
+            if (bc) {
+                bc.textContent = data.row.titulo || '';
+                syncDetailTitleTooltips(data.row.titulo || '');
+            }
             syncRowToViews(data.row, currentItemId);
         }).catch(function(e) {
             flash(document.getElementById('imp-detail-titulo-block'), false);
@@ -4794,6 +5106,7 @@
 
     if (detailModal) {
         detailModal.addEventListener('click', function(ev) {
+            closeSubtarefaActionsMenu();
             const pill = ev.target.closest('[data-imp-cell]');
             if (!pill || !detailModal.contains(pill) || !currentItemId) return;
             const field = pill.dataset.impCell;
@@ -4965,6 +5278,11 @@
 
     document.addEventListener('keydown', function(ev) {
         if (ev.key !== 'Escape') return;
+        if (subtarefaActionsMenuEl) {
+            closeSubtarefaActionsMenu();
+            ev.preventDefault();
+            return;
+        }
         if (cmOverlay && !cmOverlay.hasAttribute('hidden')) {
             closeCommentsModal();
             return;

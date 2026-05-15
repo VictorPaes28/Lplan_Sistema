@@ -8,8 +8,8 @@ from typing import Optional
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group
+from django.db.models import Count
 from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -518,12 +518,19 @@ def _flow_pk_for_project_category(project, category) -> Optional[int]:
     return fdef.pk if fdef else None
 
 
+BACKLOG_LIST_PAGE_SIZE = 250
+
+
 @require_workflow_configure
 def config_backlog_list(request):
     """Fila administrativa: pendências que precisam de fluxo/alçadas antes de virar processo."""
     status = (request.GET.get('status') or 'pending').strip().lower()
     if status not in ('pending', 'dismissed', 'resolved', 'all'):
         status = 'pending'
+
+    backlog_counts_qs = ApprovalConfigBacklog.objects.values('status').annotate(n=Count('id'))
+    backlog_counts_by_status = {row['status']: row['n'] for row in backlog_counts_qs}
+    backlog_grand_total = sum(backlog_counts_by_status.values())
 
     qs = ApprovalConfigBacklog.objects.select_related(
         'project', 'category', 'linked_process', 'resolved_by'
@@ -549,7 +556,8 @@ def config_backlog_list(request):
             | Q(project__code__icontains=q)
         )
 
-    items = list(qs.order_by('-updated_at')[:250])
+    backlog_filtered_total = qs.count()
+    items = list(qs.order_by('-updated_at')[:BACKLOG_LIST_PAGE_SIZE])
     for row in items:
         row.flow_edit_pk = _flow_pk_for_project_category(row.project, row.category)
 
@@ -573,6 +581,10 @@ def config_backlog_list(request):
                 ),
                 'page_title': 'Pendências de configuração',
                 'page_subtitle': 'Itens recebidos sem fluxo ativo na obra/categoria — fila para o administrador',
+                'backlog_filtered_total': backlog_filtered_total,
+                'backlog_display_limit': BACKLOG_LIST_PAGE_SIZE,
+                'backlog_counts_by_status': backlog_counts_by_status,
+                'backlog_grand_total': backlog_grand_total,
             },
         ),
     )

@@ -9,13 +9,16 @@ from workflow_aprovacao.models import (
     ApprovalConfigBacklog,
     ApprovalConfigBacklogStatus,
     ApprovalFlowDefinition,
+    ApprovalHistoryEntry,
     ApprovalProcess,
     ApprovalStep,
     ApprovalStepParticipant,
+    HistoryAction,
     ParticipantRole,
     ProcessCategory,
     ProcessStatus,
     SubjectKind,
+    SyncStatus,
 )
 from workflow_aprovacao.services.sienge_measurement_sync import (
     build_sienge_project_lookup,
@@ -131,6 +134,38 @@ class SiengeMeasurementSyncTests(TestCase):
         stats = sync_sienge_measurements_to_central(client=client, category_code='medicao', max_rows=10)
         self.assertEqual(stats['skipped_duplicate'], 1)
         self.assertEqual(stats['created'], 0)
+
+    def test_sienge_authorizes_later_closes_awaiting_process(self):
+        row_pending = {
+            'documentId': 'CT',
+            'contractNumber': '45',
+            'buildingId': 143,
+            'measurementNumber': 11,
+            'authorized': False,
+        }
+        client_pending = _FakeSiengeClient(measurements=[row_pending])
+        sync_sienge_measurements_to_central(client=client_pending, category_code='medicao', max_rows=10)
+        ext = measurement_external_id(row_pending)
+        proc = ApprovalProcess.objects.get(external_id=ext, external_system='sienge')
+        self.assertEqual(proc.status, ProcessStatus.AWAITING_STEP)
+
+        row_ok = dict(row_pending)
+        row_ok['authorized'] = True
+        client_ok = _FakeSiengeClient(measurements=[row_ok])
+        stats = sync_sienge_measurements_to_central(client=client_ok, category_code='medicao', max_rows=10)
+        self.assertEqual(stats['reconcile_closed'], 1)
+        self.assertEqual(stats['skipped_duplicate'], 1)
+        proc.refresh_from_db()
+        self.assertEqual(proc.status, ProcessStatus.APPROVED)
+        self.assertIsNone(proc.current_step_id)
+        self.assertEqual(proc.sync_status, SyncStatus.SYNCED)
+        last = (
+            ApprovalHistoryEntry.objects.filter(process=proc, action=HistoryAction.SYNC_EVENT)
+            .order_by('-created_at')
+            .first()
+        )
+        self.assertIsNotNone(last)
+        self.assertEqual(last.payload.get('reason'), 'sienge_already_authorized')
 
     def test_skips_when_authorized_in_sienge(self):
         row = {
@@ -257,6 +292,27 @@ class SiengeContractSyncTests(TestCase):
         ext = contract_external_id(row)
         proc = ApprovalProcess.objects.get(external_id=ext, external_system='sienge')
         self.assertEqual(proc.category_id, self.cat.id)
+
+    def test_contract_authorized_later_reconciles(self):
+        row_pending = {
+            'documentId': 'CT',
+            'contractNumber': '99',
+            'isAuthorized': False,
+            'status': 'A',
+            'companyName': 'Empresa',
+        }
+        sync_sienge_contracts_to_central(client=_FakeSiengeClient(contracts=[row_pending]), max_rows=10)
+        ext = contract_external_id(row_pending)
+        proc = ApprovalProcess.objects.get(external_id=ext, external_system='sienge')
+        self.assertEqual(proc.status, ProcessStatus.AWAITING_STEP)
+
+        row_ok = dict(row_pending)
+        row_ok['isAuthorized'] = True
+        stats = sync_sienge_contracts_to_central(client=_FakeSiengeClient(contracts=[row_ok]), max_rows=10)
+        self.assertEqual(stats['reconcile_closed'], 1)
+        proc.refresh_from_db()
+        self.assertEqual(proc.status, ProcessStatus.APPROVED)
+        self.assertEqual(proc.sync_status, SyncStatus.SYNCED)
 
     def test_contract_summary_has_no_raw_api_keys(self):
         self.project.contract_number = '91'

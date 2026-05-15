@@ -30,7 +30,7 @@
                     <div id="gc-sec-reprovado" class="gc-section" style="display:none;" role="region" aria-label="Pedido reprovado">
                         <div class="gc-banner-reprovado">
                             <p class="gc-banner-reprovado-title">Pedido reprovado — é preciso reenviar</p>
-                            <p class="gc-banner-reprovado-text">Revise os dados e o histórico acima (motivo da reprovação). Depois use o botão laranja para abrir o formulário: ao salvar, o pedido volta para a fila de <strong>reaprovação</strong>.</p>
+                            <p class="gc-banner-reprovado-text">Revise os dados e o motivo da reprovação na aba <strong>Atividades</strong> ou no <strong>histórico de mudanças de status</strong> ao final deste painel (à esquerda). Depois use o botão laranja para abrir o formulário: ao salvar, o pedido volta para a fila de <strong>reaprovação</strong>.</p>
                             <a id="gc-reprovado-cta" href="#" class="gc-btn-reenviar-modal">Reenviar para Reavaliação</a>
                         </div>
                     </div>
@@ -117,19 +117,28 @@
                         <div id="gc-anexos-grid" class="gc-anexos-grid"></div>
                     </div>
 
-                    <div class="gc-section">
+                    <div class="gc-section gc-section--historico-status">
                         <h3 class="gc-section-title">Histórico de mudanças de status</h3>
+                        <p class="gc-historico-lead">Mostra cada alteração de status e o registro detalhado (incluindo tags e complemento em caso de reprovação).</p>
                         <div id="gc-historico-list"></div>
                     </div>
                 </div>
             </div>
 
             <div class="gc-modal-col-right">
-                <div class="gc-comments-header">Comentários</div>
-                <div id="gc-comments-list" class="gc-comments-list"></div>
-                <div id="gc-comment-form" class="gc-comment-form">
-                    <textarea id="gc-comment-text" placeholder="Novo comentário…" rows="2"></textarea>
-                    <button type="button" onclick="enviarComentarioModal()">Enviar</button>
+                <div class="gc-side-tabs" role="tablist" aria-label="Comentários e atividades">
+                    <button type="button" class="gc-side-tab active" id="gc-tab-btn-comments" role="tab" aria-selected="true" aria-controls="gc-tab-panel-comments">Comentários</button>
+                    <button type="button" class="gc-side-tab" id="gc-tab-btn-activities" role="tab" aria-selected="false" aria-controls="gc-tab-panel-activities">Atividades</button>
+                </div>
+                <div id="gc-tab-panel-comments" class="gc-side-tab-panel" role="tabpanel" aria-labelledby="gc-tab-btn-comments">
+                    <div id="gc-comments-list" class="gc-comments-list"></div>
+                    <div id="gc-comment-form" class="gc-comment-form">
+                        <textarea id="gc-comment-text" placeholder="Novo comentário…" rows="2"></textarea>
+                        <button type="button" onclick="enviarComentarioModal()">Enviar</button>
+                    </div>
+                </div>
+                <div id="gc-tab-panel-activities" class="gc-side-tab-panel gc-side-tab-panel--hidden" role="tabpanel" aria-labelledby="gc-tab-btn-activities">
+                    <div id="gc-activities-list" class="gc-activities-list"></div>
                 </div>
             </div>
         </div>

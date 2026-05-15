@@ -186,6 +186,126 @@
     background: #fafafa;
 }
 
+.gc-side-tabs {
+    display: flex;
+    flex-shrink: 0;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.gc-side-tab {
+    flex: 1;
+    padding: 0.65rem 0.5rem;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    cursor: pointer;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    font-family: inherit;
+    transition: color 0.12s, border-color 0.12s;
+}
+
+.gc-side-tab:hover:not(.active) {
+    color: #64748b;
+}
+
+.gc-side-tab.active {
+    color: #7c3aed;
+    border-bottom-color: #a855f7;
+}
+
+.gc-side-tab-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.gc-side-tab-panel--hidden {
+    display: none;
+}
+
+.gc-activities-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.65rem 1rem;
+    min-height: 120px;
+}
+
+.gc-act-item {
+    display: grid;
+    grid-template-columns: 10px 1fr;
+    gap: 0.55rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.8rem;
+}
+
+.gc-act-item:last-child {
+    border-bottom: none;
+}
+
+.gc-act-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 0.35rem;
+    flex-shrink: 0;
+}
+
+.gc-act-dot.pendente,
+.gc-act-dot.reaprovacao {
+    background: #eab308;
+}
+
+.gc-act-dot.aprovado {
+    background: #22c55e;
+}
+
+.gc-act-dot.reprovado {
+    background: #ef4444;
+}
+
+.gc-act-dot.rascunho,
+.gc-act-dot.cancelado {
+    background: #94a3b8;
+}
+
+.gc-act-title {
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.25;
+}
+
+.gc-act-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+}
+
+.gc-act-details {
+    font-size: 0.76rem;
+    color: #475569;
+    margin-top: 0.35rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.gc-side-empty {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 1.25rem 0.75rem;
+    margin: 0;
+}
+
 .gc-section {
     margin-bottom: 1.25rem;
 }
@@ -197,6 +317,17 @@
     letter-spacing: 0.06em;
     color: #64748b;
     margin: 0 0 0.65rem;
+}
+
+.gc-historico-lead {
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.4;
+    margin: -0.35rem 0 0.65rem;
+}
+
+.gc-section--historico-status #gc-historico-list {
+    padding-top: 0;
 }
 
 .gc-info-grid {
@@ -541,22 +672,20 @@ a.gc-btn-reprovar:hover,
     margin-top: 0.15rem;
 }
 
-.gc-comments-header {
-    flex-shrink: 0;
-    padding: 0.85rem 1rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #64748b;
-    border-bottom: 1px solid #e2e8f0;
+.gc-hist-obs {
+    font-size: 0.78rem;
+    color: #334155;
+    margin-top: 0.4rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .gc-comments-list {
-    flex: 1;
+    flex: 1 1 0%;
     overflow-y: auto;
     padding: 0.65rem 1rem;
-    min-height: 120px;
+    min-height: 0;
 }
 
 .gc-comment-item {

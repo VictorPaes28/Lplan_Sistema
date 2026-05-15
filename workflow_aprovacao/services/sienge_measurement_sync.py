@@ -22,6 +22,10 @@ Resolução de obra (chaves já existentes no Lplan):
     os códigos que batem com o cadastro (ex. 224, 260).
 
 Não cria obras; só associa a ``Project`` já existente.
+
+Reconciliação: se já existe ``ApprovalProcess`` Sienge em ``awaiting_step`` e o Sienge passa a
+devolver o contrato/medición como autorizado, o sync encerra o processo como ``approved`` e marca
+``sync_status=synced`` sem criar entrada na outbox (evita reenviar decisão ao Sienge).
 """
 from __future__ import annotations
 
@@ -41,6 +45,7 @@ from workflow_aprovacao.models import (
 from workflow_aprovacao.services.backlog import upsert_inbound_backlog
 from workflow_aprovacao.services.engine import ApprovalEngine
 from workflow_aprovacao.services.sienge_display import humanize_sienge_field_value
+from workflow_aprovacao.services.sienge_inbound_reconcile import reconcile_existing_sienge_process_row
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import AbstractUser
@@ -342,9 +347,50 @@ def _empty_stats() -> Dict[str, int]:
         'skipped_not_pending': 0,
         'skipped_no_project': 0,
         'skipped_duplicate': 0,
+        'reconcile_closed': 0,
+        'reconcile_would_close': 0,
+        'reconcile_snapshot_updated': 0,
         'errors_no_flow': 0,
         'errors_other': 0,
     }
+
+
+def _reconcile_or_count_duplicate_sienge(
+    *,
+    external_id: str,
+    entity_type: str,
+    row: Dict[str, Any],
+    sienge_authorization_done: bool,
+    dry_run: bool,
+    stats: Dict[str, int],
+) -> bool:
+    """
+    Se já existe processo Sienge com ``external_id``, tenta reconciliação e incrementa
+    ``skipped_duplicate``. Retorna True se existe processo (caller deve seguir para próxima linha).
+    """
+    proc = ApprovalProcess.objects.filter(
+        external_system='sienge',
+        external_id=external_id,
+        external_entity_type=entity_type,
+    ).first()
+    if proc is None:
+        return False
+
+    outcome = reconcile_existing_sienge_process_row(
+        process=proc,
+        source_row=row,
+        sienge_authorization_done=sienge_authorization_done,
+        dry_run=dry_run,
+    )
+    if outcome == 'closed':
+        stats['reconcile_closed'] += 1
+    elif outcome == 'dry_run_close':
+        stats['reconcile_would_close'] += 1
+    elif outcome == 'snapshot_updated':
+        stats['reconcile_snapshot_updated'] += 1
+
+    stats['skipped_duplicate'] += 1
+    return True
 
 
 def _try_create(
@@ -431,9 +477,6 @@ def sync_sienge_contracts_to_central(
 
     for row in api.iter_supply_contracts_all(page_size=25, max_rows=cap):
         stats['examined'] += 1
-        if not any_status and not contract_pending_sienge_authorization(row):
-            stats['skipped_not_pending'] += 1
-            continue
         ext_id = contract_external_id(row)
         if len(ext_id) <= 2:
             stats['skipped_not_pending'] += 1
@@ -442,6 +485,23 @@ def sync_sienge_contracts_to_central(
         project = resolve_project_for_sienge_row(row, lookup, client=api)
         if not project:
             stats['skipped_no_project'] += 1
+            continue
+
+        sienge_pending = any_status or contract_pending_sienge_authorization(row)
+        auth_done = not contract_pending_sienge_authorization(row)
+
+        if _reconcile_or_count_duplicate_sienge(
+            external_id=ext_id,
+            entity_type='sienge_supply_contract',
+            row=row,
+            sienge_authorization_done=auth_done,
+            dry_run=dry_run,
+            stats=stats,
+        ):
+            continue
+
+        if not sienge_pending:
+            stats['skipped_not_pending'] += 1
             continue
 
         doc = str(row.get('documentId', '') or '').strip()
@@ -504,11 +564,6 @@ def sync_sienge_measurements_to_central(
 
     for row in api.iter_supply_contract_measurements(page_size=25, max_rows=cap):
         stats['examined'] += 1
-        pending = any_status or measurement_pending_sienge_authorization(row)
-        if not pending:
-            stats['skipped_not_pending'] += 1
-            continue
-
         ext_id = measurement_external_id(row)
         if len(ext_id) <= 2:
             stats['skipped_not_pending'] += 1
@@ -517,6 +572,23 @@ def sync_sienge_measurements_to_central(
         project = resolve_project_for_sienge_row(row, lookup, client=api)
         if not project:
             stats['skipped_no_project'] += 1
+            continue
+
+        sienge_pending = any_status or measurement_pending_sienge_authorization(row)
+        auth_done = not measurement_pending_sienge_authorization(row)
+
+        if _reconcile_or_count_duplicate_sienge(
+            external_id=ext_id,
+            entity_type='sienge_supply_contract_measurement',
+            row=row,
+            sienge_authorization_done=auth_done,
+            dry_run=dry_run,
+            stats=stats,
+        ):
+            continue
+
+        if not sienge_pending:
+            stats['skipped_not_pending'] += 1
             continue
 
         doc = str(row.get('documentId', '') or '').strip()

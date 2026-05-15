@@ -50,6 +50,21 @@
         <button type="submit">Filtrar</button>
     </form>
 
+    <div class="wf-backlog-totals" style="margin:0 0 1rem 0;padding:0.65rem 0.85rem;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:0.875rem;line-height:1.45;color:#334155;">
+        <strong>{{ backlog_filtered_total }}</strong>
+        {% if backlog_filtered_total == 1 %}registo{% else %}registos{% endif %} neste filtro
+        {% if backlog_filtered_total > backlog_display_limit %}
+        <span class="wf-text-muted"> — a mostrar os {{ backlog_items|length }} mais recentes (limite {{ backlog_display_limit }})</span>
+        {% endif %}
+        <span class="wf-text-muted" style="display:block;margin-top:0.35rem;font-size:0.8125rem;">
+            Totais globais na fila de importação:
+            aguardando <strong>{{ backlog_counts_by_status.pending|default:0 }}</strong>,
+            dispensados <strong>{{ backlog_counts_by_status.dismissed|default:0 }}</strong>,
+            resolvidos <strong>{{ backlog_counts_by_status.resolved|default:0 }}</strong>
+            — <strong>{{ backlog_grand_total }}</strong> no total
+        </span>
+    </div>
+
     {% if not backlog_items %}
     <div class="wf-empty wf-empty--inline">
         <p class="wf-empty__title">Nenhum registo neste filtro</p>

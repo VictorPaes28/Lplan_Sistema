@@ -45,7 +45,6 @@ from .utils import (
     admin_required,
     usuario_pode_marcar_pedido_analisado,
     usuarios_escopo_pedido_para_notificar,
-    texto_comentario_thread_reprovacao,
 )
 from core.notification_utils import CORE_TIPOS_PEDIDO_FILA_APROVACAO
 from core.notification_utils import criar_notificacao as core_criar_notificacao
@@ -1459,8 +1458,12 @@ def detail_workorder(request, pk):
                 ).values_list('id', flat=True).distinct()
                 can_aprovar_exclusao = workorder.obra.empresa_id in empresas_ids
     
-    # Buscar comentários do pedido
-    comments = Comment.objects.filter(work_order=workorder).select_related('autor').order_by('created_at')
+    # Buscar apenas comentários manuais (registros automáticos ficam no histórico de status)
+    comments = (
+        Comment.objects.filter(work_order=workorder, origem=Comment.Origem.USUARIO)
+        .select_related('autor')
+        .order_by('created_at')
+    )
     
     # Verificar se pode comentar (solicitante, aprovador ou admin que tem acesso ao pedido)
     can_comment = tem_permissao
@@ -1651,6 +1654,55 @@ def _attachment_eh_imagem(arquivo_name):
     return ext in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp')
 
 
+def _titulo_atividade_status(h, status_labels):
+    """Título curto para timeline de atividades (baseado em StatusHistory)."""
+    obs_raw = (h.observacao or '').strip()
+    obs_low = obs_raw.lower()
+    if not h.status_anterior:
+        if 'pedido criado' in obs_low:
+            return 'Pedido criado'
+        return status_labels.get(h.status_novo, h.status_novo)
+    if h.status_anterior == h.status_novo:
+        if 'editado' in obs_low:
+            return 'Pedido editado'
+        if 'alterações' in obs_low or 'alteracoes' in obs_low:
+            return 'Pedido atualizado'
+        return 'Atualização'
+    sn = h.status_novo
+    if sn == 'reprovado':
+        return 'Pedido reprovado'
+    if sn == 'aprovado':
+        return 'Pedido aprovado'
+    if sn == 'pendente' and h.status_anterior == 'rascunho':
+        return 'Pedido enviado para análise'
+    if sn == 'reaprovacao':
+        return 'Reenvio para reaprovação'
+    sa = status_labels.get(h.status_anterior, h.status_anterior)
+    sn_disp = status_labels.get(sn, sn)
+    return f'{sa} → {sn_disp}'
+
+
+def _workorder_atividades_ajax(workorder, status_labels):
+    items = []
+    qs = StatusHistory.objects.filter(work_order=workorder).select_related('alterado_por').order_by('created_at')
+    for h in qs:
+        por_nome = (
+            (h.alterado_por.get_full_name() or h.alterado_por.username)
+            if h.alterado_por
+            else '—'
+        )
+        items.append({
+            'tipo': 'historico',
+            'titulo': _titulo_atividade_status(h, status_labels),
+            'por': por_nome,
+            'iniciais': _user_iniciais_ajax(h.alterado_por),
+            'data': _fmt_dt_ajax(h.created_at),
+            'detalhes': (h.observacao or '').strip(),
+            'status_dot': h.status_novo or '',
+        })
+    return items
+
+
 @login_required
 def workorder_detail_ajax(request, pk):
     """JSON para o modal de detalhe do pedido na listagem (GestControll)."""
@@ -1682,7 +1734,11 @@ def workorder_detail_ajax(request, pk):
             'data': _fmt_dt_ajax(workorder.solicitado_exclusao_em),
         }
 
-    comments_qs = Comment.objects.filter(work_order=workorder).select_related('autor').order_by('created_at')
+    comments_qs = (
+        Comment.objects.filter(work_order=workorder, origem=Comment.Origem.USUARIO)
+        .select_related('autor')
+        .order_by('created_at')
+    )
     comentarios = []
     for c in comments_qs:
         comentarios.append({
@@ -1691,6 +1747,8 @@ def workorder_detail_ajax(request, pk):
             'texto': c.texto,
             'data': _fmt_dt_ajax(c.created_at),
         })
+
+    atividades = _workorder_atividades_ajax(workorder, status_labels)
 
     historico_status = []
     for h in StatusHistory.objects.filter(work_order=workorder).order_by('created_at'):
@@ -1765,6 +1823,7 @@ def workorder_detail_ajax(request, pk):
         'exclusao_pendente': exclusao_pendente,
         'pode_aprovar_exclusao': perm['can_aprovar_exclusao'],
         'comentarios': comentarios,
+        'atividades': atividades,
         'historico_status': historico_status,
         'aprovacoes_fluxo': aprovacoes_fluxo,
         'anexos': anexos,
@@ -2817,13 +2876,6 @@ def reject_workorder(request, pk):
                 observacao=observacao
             )
 
-        tags_thread = list(approval.tags_erro.order_by('nome').values_list('nome', flat=True))
-        Comment.objects.create(
-            work_order=workorder,
-            autor=request.user,
-            texto=texto_comentario_thread_reprovacao(tags_thread, comentario),
-        )
-        
         # Enviar e-mail FORA da transação
         enviar_email_reprovacao(workorder, request.user, comentario)
         
@@ -5585,7 +5637,8 @@ def add_comment(request, pk):
     """
     workorder = get_object_or_404(WorkOrder, pk=pk)
     user = request.user
-    
+    want_json = _request_accepts_json_response(request)
+
     # Verificar permissão de visualização (mesma lógica do detail_workorder)
     tem_permissao = False
     if is_admin(user):
@@ -5617,65 +5670,84 @@ def add_comment(request, pk):
                 tem_permissao = True
     
     if not tem_permissao:
+        if want_json:
+            return JsonResponse(
+                {'ok': False, 'error': 'Você não tem permissão para comentar neste pedido.'},
+                status=403,
+            )
         messages.error(request, 'Você não tem permissão para comentar neste pedido.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
-    
-    if request.method == 'POST':
-        texto = request.POST.get('texto', '').strip()
-        
-        if not texto:
-            messages.error(request, 'O comentário não pode estar vazio.')
-            return redirect('gestao:detail_workorder', pk=workorder.pk)
-        
-        # Criar comentário
-        comment = Comment.objects.create(
-            work_order=workorder,
-            autor=user,
-            texto=texto
-        )
-        
-        # Criar notificações para os outros usuários envolvidos
-        usuarios_notificar = set()
-        
-        # Notificar o criador do pedido (se não for quem comentou)
+
+    if request.method != 'POST':
+        if want_json:
+            return JsonResponse({'ok': False, 'error': 'Método não permitido.'}, status=405)
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    texto = request.POST.get('texto', '').strip()
+
+    if not texto:
+        if want_json:
+            return JsonResponse({'ok': False, 'error': 'O comentário não pode estar vazio.'}, status=400)
+        messages.error(request, 'O comentário não pode estar vazio.')
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    comment = Comment.objects.create(
+        work_order=workorder,
+        autor=user,
+        texto=texto,
+        origem=Comment.Origem.USUARIO,
+    )
+
+    # Criar notificações para os outros usuários envolvidos
+    usuarios_notificar = set()
+
+    # Notificar o criador do pedido (se não for quem comentou)
+    if workorder.criado_por and workorder.criado_por != user:
+        usuarios_notificar.add(workorder.criado_por)
+
+    # Notificar aprovadores da obra (se não for quem comentou)
+    if is_aprovador(user) or is_admin(user):
+        # Se quem comentou é aprovador/admin, notificar o solicitante
         if workorder.criado_por and workorder.criado_por != user:
             usuarios_notificar.add(workorder.criado_por)
-        
-        # Notificar aprovadores da obra (se não for quem comentou)
-        if is_aprovador(user) or is_admin(user):
-            # Se quem comentou é aprovador/admin, notificar o solicitante
-            if workorder.criado_por and workorder.criado_por != user:
-                usuarios_notificar.add(workorder.criado_por)
-        else:
-            # Solicitante comentou: notificar intervenientes operacionais (escopo empresa/obra)
-            for u in usuarios_escopo_pedido_para_notificar(workorder):
-                if u != user and u.is_active:
-                    usuarios_notificar.add(u)
-        
-        # Criar notificações
-        autor_nome = user.get_full_name() or user.username
-        for usuario_notificar in usuarios_notificar:
-            criar_notificacao(
-                usuario=usuario_notificar,
-                tipo='comentario_adicionado',
-                titulo=f'Novo Comentário: {workorder.codigo}',
-                mensagem=f'{autor_nome} comentou no pedido {workorder.codigo}: {texto[:100]}{"..." if len(texto) > 100 else ""}',
-                work_order=workorder
-            )
-        if usuarios_notificar:
-            core_criar_notificacao(
-                list(usuarios_notificar),
-                'pedido_comentario',
-                f'Comentário em pedido {workorder.codigo}',
-                f'{autor_nome}: {texto[:100]}{"..." if len(texto) > 100 else ""}',
-                url=reverse('gestao:detail_workorder', args=[workorder.pk]),
-                event_key=f'gestao:wo:{workorder.pk}',
-            )
-        
-        messages.success(request, 'Comentário adicionado com sucesso!')
-        return redirect('gestao:detail_workorder', pk=workorder.pk)
-    
-    # GET - redirecionar para detalhes
+    else:
+        # Solicitante comentou: notificar intervenientes operacionais (escopo empresa/obra)
+        for u in usuarios_escopo_pedido_para_notificar(workorder):
+            if u != user and u.is_active:
+                usuarios_notificar.add(u)
+
+    # Criar notificações
+    autor_nome = user.get_full_name() or user.username
+    for usuario_notificar in usuarios_notificar:
+        criar_notificacao(
+            usuario=usuario_notificar,
+            tipo='comentario_adicionado',
+            titulo=f'Novo Comentário: {workorder.codigo}',
+            mensagem=f'{autor_nome} comentou no pedido {workorder.codigo}: {texto[:100]}{"..." if len(texto) > 100 else ""}',
+            work_order=workorder,
+        )
+    if usuarios_notificar:
+        core_criar_notificacao(
+            list(usuarios_notificar),
+            'pedido_comentario',
+            f'Comentário em pedido {workorder.codigo}',
+            f'{autor_nome}: {texto[:100]}{"..." if len(texto) > 100 else ""}',
+            url=reverse('gestao:detail_workorder', args=[workorder.pk]),
+            event_key=f'gestao:wo:{workorder.pk}',
+        )
+
+    if want_json:
+        return JsonResponse({
+            'ok': True,
+            'comment': {
+                'autor': autor_nome,
+                'iniciais': _user_iniciais_ajax(user),
+                'texto': texto,
+                'data': _fmt_dt_ajax(comment.created_at),
+            },
+        })
+
+    messages.success(request, 'Comentário adicionado com sucesso!')
     return redirect('gestao:detail_workorder', pk=workorder.pk)
 
 

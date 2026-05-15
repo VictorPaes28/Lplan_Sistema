@@ -921,7 +921,11 @@ class Comment(models.Model):
     Model para comentários em pedidos de obra.
     Permite comunicação entre solicitantes e aprovadores durante a análise.
     """
-    
+
+    class Origem(models.TextChoices):
+        USUARIO = 'usuario', 'Usuário'
+        SISTEMA = 'sistema', 'Sistema'
+
     work_order = models.ForeignKey(
         WorkOrder,
         on_delete=models.CASCADE,
@@ -944,7 +948,16 @@ class Comment(models.Model):
         verbose_name='Comentário',
         help_text='Texto do comentário'
     )
-    
+
+    origem = models.CharField(
+        max_length=16,
+        choices=Origem.choices,
+        default=Origem.USUARIO,
+        db_index=True,
+        verbose_name='Origem',
+        help_text='Comentário manual do usuário ou registro automático do sistema.',
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Data/Hora do Comentário'

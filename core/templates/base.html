@@ -346,16 +346,6 @@
                 <i class="fas fa-project-diagram w-5 mr-3"></i>
                 <span class="font-medium">Selecionar Obra</span>
             </a>
-            <a href="{% url 'impedimentos:home' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'home' or request.resolver_match.url_name == 'list_impedimentos' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-list-check w-5 mr-3"></i>
-                <span class="font-medium">Itens</span>
-            </a>
-            <a href="{% url 'impedimentos:legacy_list_status_redirect' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'list_status' or request.resolver_match.url_name == 'legacy_list_status_redirect' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-columns w-5 mr-3"></i>
-                <span class="font-medium">Status</span>
-            </a>
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
             <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de módulos acima já cobre os links -->
 
