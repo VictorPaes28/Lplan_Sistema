@@ -21,140 +21,314 @@
 {% block content %}
 <div class="dashboard-container">
     {% if user.is_authenticated %}
-        <div class="dashboard-layout">
-            <!-- Coluna Esquerda: Últimas Atualizações -->
-            <div class="dashboard-left">
-                <!-- Últimas Atualizações Card -->
-                <div class="updates-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Últimas atualizações</h2>
+        <div class="dashboard-layout{% if dashboard_modo_pessoal %} dashboard-layout--personal{% endif %}">
+            {% if dashboard_modo_pessoal %}
+            <section class="gc-dash-overview updates-card" aria-labelledby="gc-dash-kpis-heading">
+                <div class="card-header gc-dash-overview-head">
+                    <div>
+                        <h2 id="gc-dash-kpis-heading" class="card-title gc-dash-overview-title">
+                            {% if dash_escopo_admin %}Visão geral da operação{% else %}Meu acompanhamento{% endif %}
+                        </h2>
+                        <p class="gc-dash-overview-note">
+                            {% if dash_escopo_admin %}
+                            Pedidos no alcance administrativo — indicadores do mês <strong>{{ dash_period_note }}</strong>
+                            {% else %}
+                            Pedidos que você criou — indicadores do mês <strong>{{ dash_period_note }}</strong>
+                            {% endif %}
+                        </p>
                     </div>
-                    <div class="updates-list">
-                        {% if ultimas_atualizacoes %}
-                            {% for workorder in ultimas_atualizacoes %}
-                                <div class="update-item">
-                                    <div class="update-icon">
-                                        {% if workorder.status == 'aprovado' %}
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                            </svg>
-                                        {% elif workorder.status == 'reprovado' %}
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <circle cx="12" cy="12" r="10"></circle>
-                                                <line x1="15" y1="9" x2="9" y2="15"></line>
-                                                <line x1="9" y1="9" x2="15" y2="15"></line>
-                                            </svg>
-                                        {% elif workorder.status == 'pendente' %}
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <circle cx="12" cy="12" r="10"></circle>
-                                                <polyline points="12 6 12 12 16 14"></polyline>
-                                            </svg>
-                                        {% elif workorder.status == 'reaprovacao' %}
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                <polyline points="7 10 12 15 17 10"></polyline>
-                                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                                            </svg>
-                                        {% else %}
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <circle cx="12" cy="12" r="10"></circle>
-                                                <line x1="12" y1="8" x2="12" y2="12"></line>
-                                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                                            </svg>
-                                        {% endif %}
-                                    </div>
-                                    <div class="update-content">
-                                        <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="update-link-simple">
-                                            <div class="update-main-info">
-                                                <div class="update-code-line">
-                                                    <span class="update-code">{{ workorder.codigo }}</span>
-                                                </div>
-                                                <div class="update-obra-line">
-                                                    <span class="update-obra-simple">{{ workorder.obra.nome|default:"Obra não especificada" }}</span>
-                                                </div>
-                                            </div>
-                                        </a>
-                                        <div class="update-footer">
-                                            <span class="update-status-badge-simple status-{{ workorder.status }}">
-                                                {{ workorder.get_status_display }}
-                                            </span>
-                                            <span class="update-time-simple">{{ workorder.updated_at|date:"d/m H:i" }}</span>
+                </div>
+                <div class="gc-kpi-strip" role="list">
+                    <article class="gc-kpi-mini" role="listitem">
+                        <span class="gc-kpi-mini__label">Criados no mês</span>
+                        <span class="gc-kpi-mini__value" title="{% if dash_escopo_admin %}Pedidos criados no período no alcance administrativo{% else %}Pedidos seus criados no mês corrente{% endif %}">{{ dash_kpis.criados_mes }}</span>
+                    </article>
+                    <article class="gc-kpi-mini" role="listitem">
+                        <span class="gc-kpi-mini__label">Aprovados no mês</span>
+                        <span class="gc-kpi-mini__value" title="{% if dash_escopo_admin %}Pedidos aprovados no período no alcance{% else %}Pedidos seus aprovados neste mês{% endif %}">{{ dash_kpis.aprovados_mes }}</span>
+                    </article>
+                    <article class="gc-kpi-mini" role="listitem">
+                        <span class="gc-kpi-mini__label">Reprovados no mês</span>
+                        <span class="gc-kpi-mini__value" title="Pedidos distintos com registro de reprovação no período — {% if dash_escopo_admin %}alcance administrativo{% else %}seus pedidos{% endif %}">{{ dash_kpis.reprovados_pedidos_distintos_mes }}</span>
+                    </article>
+                    <article class="gc-kpi-mini" role="listitem">
+                        <span class="gc-kpi-mini__label">Aguardando aprovação</span>
+                        <span class="gc-kpi-mini__value" title="{% if dash_escopo_admin %}Todos os pedidos pendentes ou em reaprovação no alcance administrativo{% else %}Seus pedidos pendentes ou em reaprovação (fila da equipe de aprovação){% endif %}">{{ dash_kpis.pedidos_aguardando_aprovadores }}</span>
+                    </article>
+                    <article class="gc-kpi-mini" role="listitem">
+                        <span class="gc-kpi-mini__label">{% if dash_escopo_admin %}Rasc./reprov./reaprov.{% else %}Com sua intervenção{% endif %}</span>
+                        <span class="gc-kpi-mini__value" title="{% if dash_escopo_admin %}Pedidos em rascunho, reprovados ou em reaprovação no alcance{% else %}Rascunho, reprovado ou em reaprovação onde você costuma agir como solicitante{% endif %}">{{ dash_kpis.precisa_agir_como_solicitante }}</span>
+                    </article>
+                    {% if dash_kpis.tem_fila_aprovador %}
+                    <article class="gc-kpi-mini gc-kpi-mini--accent" role="listitem">
+                        <span class="gc-kpi-mini__label">Aguardando sua análise</span>
+                        <span class="gc-kpi-mini__value">{{ dash_kpis.aguardando_sua_analise }}</span>
+                    </article>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Coluna Esquerda -->
+            <div class="dashboard-left">
+                <div class="updates-card{% if dashboard_modo_pessoal %} updates-card--compact{% endif %}">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">{% if dash_escopo_admin %}Atividade recente{% else %}Últimas atualizações{% endif %}</h2>
+                        </div>
+                    </div>
+                    <div class="updates-list{% if dashboard_modo_pessoal %} updates-list--compact updates-list--feed-dense{% endif %}">
+                        {% if dashboard_modo_pessoal %}
+                            {% if dash_feed %}
+                                {% for entry in dash_feed %}
+                                    {% if entry.mostrar_sep_recentes %}
+                                    <p class="gc-feed-zone-label"><span>Demais atualizações</span></p>
+                                    {% endif %}
+                                    <a href="{{ entry.detail_url }}"
+                                       class="update-item gc-feed-item gc-dash-open-modal-pedido update-item--compact update-item--feed-dense{% if entry.prioridade %} update-item--priority{% endif %}"
+                                       data-gc-modal-pk="{{ entry.pk }}"
+                                       aria-label="Abrir pedido {{ entry.codigo }} em pré-visualização">
+                                        <div class="update-icon">
+                                            {% if entry.status == 'aprovado' %}
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                                </svg>
+                                            {% elif entry.status == 'reprovado' %}
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                                </svg>
+                                            {% elif entry.status == 'pendente' %}
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                                </svg>
+                                            {% elif entry.status == 'reaprovacao' %}
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                </svg>
+                                            {% else %}
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                                </svg>
+                                            {% endif %}
                                         </div>
-                                    </div>
+                                        <div class="update-content">
+                                            {% if entry.prioridade %}
+                                            <span class="gc-feed-priority-pill" aria-hidden="true">
+                                                {% if dash_escopo_admin %}Prioridade{% else %}Precisa da sua atenção{% endif %}
+                                            </span>
+                                            {% endif %}
+                                            <span class="update-link-simple update-link-simple--static">
+                                                <span class="update-main-info">
+                                                    <span class="update-code-line">
+                                                        <span class="update-code">{{ entry.codigo }}</span>
+                                                    </span>
+                                                    <span class="update-obra-line">
+                                                        <span class="update-obra-simple">{{ entry.obra_nome|default:"Obra não especificada" }}</span>
+                                                    </span>
+                                                    {% if entry.prioridade and entry.prioridade_hint %}
+                                                    <span class="gc-feed-priority-hint">{{ entry.prioridade_hint }}</span>
+                                                    {% endif %}
+                                                </span>
+                                            </span>
+                                            <div class="update-footer">
+                                                <span class="update-status-badge-simple status-{{ entry.status }}">
+                                                    {{ entry.status_display }}
+                                                </span>
+                                                <span class="update-time-simple">{{ entry.updated_at|date:"d/m H:i" }}</span>
+                                            </div>
+                                        </div>
+                                    </a>
+                                {% endfor %}
+                            {% else %}
+                                <div class="update-empty update-empty--feed-dense">
+                                    {% if dash_escopo_admin %}
+                                    <p>Nenhuma atualização prioritária ou recente no alcance administrativo.</p>
+                                    {% else %}
+                                    <p>Nenhuma atualização recente no seu alcance.</p>
+                                    {% endif %}
                                 </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="update-empty">
-                                <p>Nenhuma atualização recente encontrada.</p>
-                            </div>
+                            {% endif %}
+                            <p class="gc-feed-see-all"><a href="{{ dash_quick_links.lista_todos }}">Ver todos os pedidos</a></p>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Coluna Direita: Ações Rápidas + Informações do Usuário -->
+            <!-- Coluna Direita: Ações Rápidas + Informações / tags -->
             <div class="dashboard-right">
-                <!-- Ações Rápidas Card -->
-                <div class="actions-card">
+                <div class="actions-card {% if dashboard_modo_pessoal or pode_ver_desempenho %}actions-card--compact{% endif %}">
                     <div class="card-header">
-                        <h2 class="card-title">Ações Rápidas</h2>
+                        <h2 class="card-title">Ações rápidas</h2>
                     </div>
-                    <div class="actions-grid">
-                        {% if pode_criar_pedido %}
-                        <a href="{% url 'gestao:create_workorder' %}" class="action-btn action-btn-primary">
-                            <div class="action-icon">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                            </div>
-                            <span class="action-text">Criar Novo Pedido</span>
-                        </a>
+                    {% if dashboard_modo_pessoal or pode_ver_desempenho %}
+                    <div class="gc-actions-panel" aria-label="Ações rápidas">
+                        {% if dashboard_modo_pessoal %}
+                        <div class="gc-actions-flow" role="group" aria-label="Pedidos e listagens">
+                            {% if pode_criar_pedido %}
+                            <a href="{% url 'gestao:create_workorder' %}" class="gc-actions-btn gc-actions-btn--primary gc-open-create-modal">
+                                <span class="gc-actions-btn__icon" aria-hidden="true">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                </span>
+                                Criar pedido
+                            </a>
+                            {% endif %}
+                            <a href="{{ dash_quick_links.lista_todos }}" class="gc-actions-btn gc-actions-btn--secondary" title="Abrir a lista completa de pedidos">
+                                Todos os pedidos
+                            </a>
+                            <a href="{{ dash_quick_links.pendentes }}" class="gc-actions-btn gc-actions-btn--secondary" title="{% if dash_escopo_admin %}Pendentes e reaprovações em todo o alcance administrativo{% else %}Status pendente ou reaprovação entre os seus pedidos{% endif %}">
+                                {% if dash_escopo_admin %}Pendentes{% else %}Meus pendentes{% endif %}
+                            </a>
+                            <a href="{{ dash_quick_links.reprovados }}" class="gc-actions-btn gc-actions-btn--secondary" title="{% if dash_escopo_admin %}Todos os reprovados no alcance{% else %}Pedidos seus com status reprovado{% endif %}">
+                                {% if dash_escopo_admin %}Reprovados{% else %}Meus reprovados{% endif %}
+                            </a>
+                            <a href="{{ dash_quick_links.rascunhos }}" class="gc-actions-btn gc-actions-btn--secondary" title="{% if dash_escopo_admin %}Rascunhos no alcance administrativo{% else %}Rascunhos dos seus pedidos{% endif %}">
+                                {% if dash_escopo_admin %}Rascunhos{% else %}Meus rascunhos{% endif %}
+                            </a>
+                        </div>
+                        {% if is_admin or pode_ver_desempenho %}
+                        <div class="gc-actions-flow gc-actions-flow--toolbar" role="group" aria-label="Configurações e análise">
+                            {% if is_admin %}
+                            <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="gc-actions-btn gc-actions-btn--secondary" title="E-mails que recebem cópia do PDF ao aprovar um pedido">
+                                PDF ao aprovar
+                            </a>
+                            {% endif %}
+                            {% if pode_ver_desempenho %}
+                            <a href="{% url 'gestao:desempenho_equipe' %}" class="gc-actions-btn gc-actions-btn--secondary gc-actions-btn--with-icon" title="Ver desempenho completo: gráficos e tempo médio de resposta da equipe">
+                                <span class="gc-actions-btn__icon" aria-hidden="true">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12l4-4 4 8 5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </span>
+                                Desempenho da equipe
+                            </a>
+                            {% endif %}
+                        </div>
                         {% endif %}
-                        <a href="{% url 'gestao:list_workorders' %}" class="action-btn">
-                            <div class="action-icon">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="8" y1="6" x2="21" y2="6"></line>
-                                    <line x1="8" y1="12" x2="21" y2="12"></line>
-                                    <line x1="8" y1="18" x2="21" y2="18"></line>
-                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                                </svg>
-                            </div>
-                            <span class="action-text">Ver Todos os Pedidos</span>
-                        </a>
-                        {% if is_admin %}
-                        <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="action-btn" title="E-mails que recebem cópia ao aprovar pedido">
-                            <div class="action-icon">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                    <polyline points="10 9 9 9 8 9"></polyline>
-                                </svg>
-                            </div>
-                            <span class="action-text">PDF ao aprovar pedido — quem recebe</span>
-                        </a>
+                        {% endif %}
+                        {% if not dashboard_modo_pessoal and pode_ver_desempenho %}
+                        <div class="gc-actions-flow" role="group" aria-label="Análise">
+                            <a href="{% url 'gestao:desempenho_equipe' %}" class="gc-actions-btn gc-actions-btn--secondary gc-actions-btn--with-icon" title="Ver desempenho completo: gráficos e tempo médio de resposta da equipe">
+                                <span class="gc-actions-btn__icon" aria-hidden="true">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12l4-4 4 8 5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </span>
+                                Desempenho da equipe
+                            </a>
+                        </div>
                         {% endif %}
                     </div>
+                    {% endif %}
                 </div>
-                {% if pode_ver_desempenho %}
-                <!-- Desempenho da equipe – mesmo box/card da coluna direita -->
-                <div class="performance-card actions-card">
+                {% if dashboard_modo_pessoal %}
+                {% if dash_aprovador_fila_atraso %}
+                <section class="updates-card gc-aprovador-atraso-card" aria-labelledby="gc-aprov-atraso-heading">
                     <div class="card-header">
-                        <h2 class="card-title">Desempenho da equipe – tempo médio de resposta</h2>
+                        <div>
+                            <h2 id="gc-aprov-atraso-heading" class="card-title">Há bastante tempo na fila</h2>
+                            <p class="gc-card-subtitle gc-aprovador-atraso-card__intro">
+                                Lembrete · pedidos no <strong>papel de aprovador(a)</strong> há mais de
+                                <strong>{{ dash_aprovador_fila_atraso.dias_limite }} dias</strong> desde o envio
+                                (usa a data de envio; sem envio, a data de criação).
+                                {% if dash_escopo_admin %}
+                                <span class="gc-tags-card__stat">Alcance administrativo.</span>
+                                {% endif %}
+                            </p>
+                        </div>
                     </div>
-                    <div class="performance-content">
-                        <p class="performance-desc">Visualize o desempenho da equipe com gráficos detalhados e análises de tempo médio de resposta.</p>
-                        <a href="{% url 'gestao:desempenho_equipe' %}" class="btn btn-primary-cta">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:0.375rem;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><polyline points="23 11 17 11 21 15 17 19"></polyline></svg>
-                            Ver Desempenho Completo
-                        </a>
+                    {% if dash_aprovador_fila_atraso.pedidos %}
+                    <ul class="gc-atraso-fila-list" role="list">
+                        {% for item in dash_aprovador_fila_atraso.pedidos %}
+                        <li role="listitem">
+                            <a href="{{ item.detail_url }}" class="gc-atraso-fila-row gc-dash-open-modal-pedido"
+                               data-gc-modal-pk="{{ item.pk }}"
+                               aria-label="Abrir pedido {{ item.codigo }} em pré-visualização">
+                                <span class="gc-atraso-fila-row__body">
+                                    <span class="gc-atraso-fila-row__line1">
+                                        <span class="gc-atraso-fila-row__code">{{ item.codigo }}</span>
+                                        <span class="gc-atraso-fila-row__badge" title="Sem decisão há {{ item.dias_na_fila }} dia(s), desde envio ou criação">
+                                            há {{ item.dias_na_fila }} dia{% if item.dias_na_fila != 1 %}s{% endif %}
+                                        </span>
+                                    </span>
+                                    <span class="gc-atraso-fila-row__obra">{{ item.obra_nome|default:"Obra não especificada" }}</span>
+                                    <span class="gc-atraso-fila-row__status">{{ item.status_display }}</span>
+                                </span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="gc-empty-state gc-empty-state--muted gc-aprovador-atraso-card__none">
+                        Nenhum pedido no seu alcance está parado há mais de {{ dash_aprovador_fila_atraso.dias_limite }} dias na fila de aprovação.
+                        Quando isso ocorrer, ele aparecerá aqui para você não esquecer.
+                    </p>
+                    {% endif %}
+                    <p class="gc-tags-card__foot">
+                        <a href="{{ dash_aprovador_fila_atraso.link_pendentes }}" class="gc-tags-card__link">Ver fila de pendentes / reaprovação</a>
+                    </p>
+                </section>
+                {% else %}
+                <section class="updates-card gc-tags-card" aria-labelledby="gc-dash-tags-heading">
+                    <div class="card-header">
+                        <div>
+                            <h2 id="gc-dash-tags-heading" class="card-title">Motivos de reprovação</h2>
+                            <p class="gc-card-subtitle gc-tags-card__intro">
+                                Top {{ dash_tags_meta.ranking_mostrar_top }} motivos · Tags do aprovador ·
+                                {% if dash_escopo_admin %}
+                                <strong>todos os pedidos ao alcance</strong>
+                                {% else %}
+                                <strong>seus pedidos</strong>
+                                {% endif %}
+                                · 12&nbsp;meses.
+                                {% if dash_tags_meta.reprovacoes_total %}
+                                <span class="gc-tags-card__stat">
+                                    {% if dash_tags_meta.reprovacoes_total == 1 %}
+                                        1 reprovação{% if dash_tags_meta.reprovacoes_com_tag == dash_tags_meta.reprovacoes_total %} — com tag{% elif dash_tags_meta.reprovacoes_com_tag %} — {{ dash_tags_meta.reprovacoes_com_tag }}/1 com tag{% else %} — sem tag{% endif %}.
+                                    {% else %}
+                                        {{ dash_tags_meta.reprovacoes_total }} reprovações{% if dash_tags_meta.reprovacoes_com_tag == dash_tags_meta.reprovacoes_total %} — todas com tag{% elif dash_tags_meta.reprovacoes_com_tag %} — {{ dash_tags_meta.reprovacoes_com_tag }} com tag{% else %} — sem tags{% endif %}.
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                            </p>
+                        </div>
                     </div>
-                </div>
+                    {% if dash_tags_reprovacao %}
+                    <ol class="gc-tags-list" aria-label="Ranking de tags nas reprovações">
+                        {% for tg in dash_tags_reprovacao %}
+                        <li class="gc-tags-list__item gc-tags-list__item--ranked">
+                            <div class="gc-tags-list__row">
+                                <span class="gc-tags-list__nome" title="{{ tg.nome }}">{{ tg.nome }}</span>
+                                <span class="gc-tags-list__count" aria-label="{{ tg.count }} ocorrências">{{ tg.count }}</span>
+                            </div>
+                            <div class="gc-tags-list__track" role="presentation" aria-hidden="true">
+                                <div class="gc-tags-list__bar" style="width: {{ tg.bar_pct }}%;"></div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                    {% if dash_tags_meta.ranking_truncado %}
+                    <p class="gc-tags-card__truncate-note">Há outras tags no período — o detalhe está nos pedidos reprovados.</p>
+                    {% endif %}
+                    {% elif dash_tags_meta.reprovacoes_total %}
+                    <p class="gc-empty-state gc-empty-state--muted gc-tags-card__explain">
+                        Reprovações no período, mas <strong>sem tag</strong> de motivo.
+                    </p>
+                    {% else %}
+                    <p class="gc-empty-state gc-empty-state--muted">
+                        {% if dash_escopo_admin %}Sem reprovações no período (12&nbsp;meses) no alcance administrativo.{% else %}Sem reprovações nos seus pedidos (12&nbsp;meses).{% endif %}
+                    </p>
+                    {% endif %}
+                    {% if dash_tags_meta.reprovacoes_total or dash_tags_reprovacao %}
+                    <p class="gc-tags-card__foot">
+                        <a href="{{ dash_quick_links.reprovados }}" class="gc-tags-card__link">{% if dash_escopo_admin %}Ver todos os reprovados{% else %}Ver seus reprovados{% endif %}</a>
+                    </p>
+                    {% endif %}
+                </section>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -207,6 +381,46 @@
         </div>
     {% endif %}
 </div>
+
+{% if user.is_authenticated %}
+{% include "gestao_aprovacao/includes/modal_pedido.html" %}
+<script>
+(function () {
+    document.addEventListener('DOMContentLoaded', function () {
+        var dash = document.querySelector('.dashboard-container');
+        if (!dash || dash.dataset.gcDashModalBound) return;
+        dash.dataset.gcDashModalBound = '1';
+        dash.addEventListener(
+            'click',
+            function (ev) {
+                var el = ev.target.closest('a.gc-dash-open-modal-pedido[data-gc-modal-pk]');
+                if (!el || !dash.contains(el)) return;
+                var raw = (el.getAttribute('data-gc-modal-pk') || '').trim();
+                if (!raw) return;
+                var pk = parseInt(raw, 10);
+                if (!Number.isFinite(pk) || pk < 1) return;
+                if (
+                    ev.metaKey ||
+                    ev.ctrlKey ||
+                    ev.shiftKey ||
+                    ev.altKey ||
+                    (typeof ev.button === 'number' && ev.button !== 0)
+                )
+                    return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (typeof window.abrirModalPedido === 'function') {
+                    window.abrirModalPedido(pk);
+                    return;
+                }
+                window.location.href = el.getAttribute('href') || '#';
+            },
+            true
+        );
+    });
+})();
+</script>
+{% endif %}
 
 <script>
 // Menu Mobile

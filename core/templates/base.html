@@ -578,7 +578,12 @@
         </main>
     </div>
 
-    {% block page_modals %}{% endblock %}
+            {% block page_modals %}{% endblock %}
+
+            {# GestControll — modal de novo pedido (lista/home usam este base.html, não gestao_aprovacao/base.) #}
+            {% if user.is_authenticated and pode_criar_pedido %}
+                {% include "gestao_aprovacao/includes/modal_criar_pedido.html" %}
+            {% endif %}
 
     {% url 'assistente_lplan:home' as assistente_home_url %}
     {% if user.is_authenticated and '/assistente/' not in request.path and assistente_home_url %}

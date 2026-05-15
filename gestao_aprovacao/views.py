@@ -53,6 +53,11 @@ from core.obras_readonly import (
     gestao_obra_requires_readonly,
     redirect_if_gestao_obra_readonly,
 )
+from gestao_aprovacao.services.home_dashboard import (
+    build_admin_dashboard_context,
+    build_personal_dashboard_context,
+    queryset_workorders_home_scope,
+)
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from .services.user_governance import (
     TimelineOptions,
@@ -180,84 +185,49 @@ def _get_approvers_for_exclusion(workorder):
 def home(request):
     """View da home - mostra informações do sistema."""
     pode_criar_pedido = False
-    ultimas_atualizacoes = []
-    
-    if request.user.is_authenticated:
-        user = request.user
-        user_profile = get_user_profile(user)
-        
-        # Usuário pode criar se:
-        # 1. Está no grupo "Solicitante" OU
-        # 2. Tem WorkOrderPermission de solicitante OU
-        # 3. É admin
-        pode_criar_pedido = (
-            is_engenheiro(user) or  # Grupo "Solicitante"
-            WorkOrderPermission.objects.filter(
-                usuario=user,
-                tipo_permissao='solicitante',
-                ativo=True
-            ).exists() or
-            is_admin(user)
-        )
-        
-        # Buscar últimas atualizações de pedidos relevantes para o usuário
-        if is_admin(user):
-            # Admins veem todos os pedidos
-            workorders = WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por').all()
-        elif is_aprovador(user):
-            # Aprovadores veem pedidos das empresas onde têm permissão + obras sem empresa onde têm permissão
-            obras_ids = WorkOrderPermission.objects.filter(
-                usuario=user,
-                tipo_permissao='aprovador',
-                ativo=True
-            ).values_list('obra_id', flat=True).distinct()
-            empresas_ids = [e for e in Obra.objects.filter(id__in=obras_ids).values_list('empresa_id', flat=True).distinct() if e is not None]
-            obras_sem_empresa_ids = list(Obra.objects.filter(id__in=obras_ids, empresa_id__isnull=True).values_list('id', flat=True))
-            workorders = WorkOrder.objects.filter(
-                Q(obra__empresa_id__in=empresas_ids) | Q(obra_id__in=obras_sem_empresa_ids)
-            ).select_related('obra', 'obra__empresa', 'criado_por')
-        elif is_responsavel_empresa(user):
-            # Responsável por empresa: vê pedidos das obras das empresas que gerencia
-            empresas_resp = Empresa.objects.filter(responsavel=user, ativo=True)
-            workorders = WorkOrder.objects.filter(
-                obra__empresa__in=empresas_resp
-            ).select_related('obra', 'obra__empresa', 'criado_por')
-        elif is_engenheiro(user):
-            # Solicitantes: só obras em que foram vinculados (WorkOrderPermission)
-            obras_ids = WorkOrderPermission.objects.filter(
-                usuario=user,
-                tipo_permissao='solicitante',
-                ativo=True
-            ).values_list('obra_id', flat=True).distinct()
-            if obras_ids:
-                workorders = WorkOrder.objects.filter(
-                    Q(criado_por=user) | Q(obra_id__in=obras_ids)
-                ).select_related('obra', 'obra__empresa', 'criado_por').distinct()
-            else:
-                workorders = WorkOrder.objects.filter(criado_por=user).select_related('obra', 'obra__empresa', 'criado_por')
-        else:
-            workorders = WorkOrder.objects.filter(criado_por=user).select_related('obra', 'obra__empresa', 'criado_por')
-        
-        # Buscar os 5 pedidos mais recentemente atualizados (apenas dos últimos 7 dias)
-        # Isso evita mostrar atualizações muito antigas que não são mais relevantes
-        agora = timezone.now()
-        data_limite = agora - timedelta(days=7)
-        
-        ultimas_atualizacoes = workorders.filter(
-            updated_at__gte=data_limite
-        ).order_by('-updated_at')[:5]
-    
+    dashboard_modo_pessoal = True
+
+    user = request.user
+
+    user_profile = get_user_profile(user)
+
+    # Usuário pode criar se:
+    # 1. Está no grupo "Solicitante" OU
+    # 2. Tem WorkOrderPermission de solicitante OU
+    # 3. É admin
+    pode_criar_pedido = (
+        is_engenheiro(user) or  # Grupo "Solicitante"
+        WorkOrderPermission.objects.filter(
+            usuario=user,
+            tipo_permissao='solicitante',
+            ativo=True
+        ).exists() or
+        is_admin(user)
+    )
+
+    workorders = queryset_workorders_home_scope(user)
+
+    admin_user = is_admin(user)
+
+    dash_ctx = (
+        build_admin_dashboard_context(user, workorders)
+        if admin_user
+        else build_personal_dashboard_context(user, workorders)
+    )
+
     context = {
         'title': 'GestControll',
         'user': request.user,
-        'user_profile': get_user_profile(request.user) if request.user.is_authenticated else None,
+        'user_profile': user_profile,
         'pode_criar_pedido': pode_criar_pedido,
-        'ultimas_atualizacoes': ultimas_atualizacoes,
-        'is_admin': is_admin(request.user) if request.user.is_authenticated else False,
-        'is_responsavel_empresa': is_responsavel_empresa(request.user) if request.user.is_authenticated else False,
-        'pode_ver_desempenho': (is_admin(request.user) or is_responsavel_empresa(request.user)) if request.user.is_authenticated else False,
-        'pode_ver_auditoria': user_can_view_audit_events(request.user) if request.user.is_authenticated else False,
+        'ultimas_atualizacoes': [],
+        'is_admin': admin_user,
+        'is_responsavel_empresa': is_responsavel_empresa(user),
+        'pode_ver_desempenho': is_admin(user) or is_responsavel_empresa(user),
+        'pode_ver_auditoria': user_can_view_audit_events(request.user),
+        'dashboard_modo_pessoal': dashboard_modo_pessoal,
     }
+    context.update(dash_ctx)
     return render(request, 'obras/home.html', context)
 
 
@@ -1045,6 +1015,40 @@ def export_list_workorders_excel(request):
     return response
 
 
+def _create_workorder_modal_embed(request):
+    """Formulário de criação em overlay: GET ?embed=modal e POST com _embed=modal."""
+    if request.method == 'POST':
+        return request.POST.get('_embed') == 'modal'
+    return request.GET.get('embed') == 'modal'
+
+
+def _xhr_modal_embed_request(request):
+    if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        return False
+    return _create_workorder_modal_embed(request)
+
+
+def _render_create_workorder_form(request, form, is_solicitante_only, modal_embed):
+    context = {
+        'form': form,
+        'title': 'Criar Novo Pedido de Obra',
+        'user_profile': get_user_profile(request.user),
+        'is_solicitante': is_solicitante_only,
+        'form_token': _generate_form_token(request, 'create_workorder'),
+        'modal_mode': modal_embed,
+        'modal_cancel_label': 'Cancelar',
+    }
+    tmpl = (
+        'obras/workorder_form_modal_fragment.html'
+        if modal_embed
+        else 'obras/workorder_form.html'
+    )
+    response = _no_cache_form_response(render(request, tmpl, context))
+    if modal_embed and request.method == 'POST':
+        response.status_code = 422
+    return response
+
+
 @login_required
 def create_workorder(request):
     """
@@ -1070,13 +1074,16 @@ def create_workorder(request):
     pode_criar = is_solicitante_group or tem_permissao_solicitante or is_admin(request.user)
     
     if not pode_criar:
+        if _xhr_modal_embed_request(request):
+            return JsonResponse({'ok': False, 'error': 'not_allowed'}, status=403)
         flash_message(request, "error", "gestao.create.not_allowed")
         return redirect('gestao:list_workorders')
-    
+
     # is_solicitante_only: é solicitante (grupo ou permissão) mas NÃO é admin ou aprovador
     is_solicitante_only = (is_solicitante_group or tem_permissao_solicitante) and not (is_aprovador(request.user) or is_admin(request.user))
     # Admin criando pedido: não exibir código/status (gerados na view como para o solicitante).
     admin_hide_system_fields = is_admin(request.user) and not is_solicitante_only
+    modal_embed = _create_workorder_modal_embed(request)
 
     if request.method == 'POST':
         posted_token = request.POST.get('_form_token', '')
@@ -1085,6 +1092,11 @@ def create_workorder(request):
                 request,
                 'O pedido já foi enviado. Verifique a lista de pedidos antes de tentar novamente.'
             )
+            if modal_embed:
+                return JsonResponse(
+                    {'ok': False, 'error': 'duplicate_submission', 'reload': True},
+                    status=409,
+                )
             return redirect('gestao:list_workorders')
 
         form = WorkOrderForm(
@@ -1112,14 +1124,7 @@ def create_workorder(request):
             obra = form.cleaned_data.get('obra')
             if obra and gestao_obra_requires_readonly(obra):
                 messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
-                context = {
-                    'form': form,
-                    'title': 'Criar Novo Pedido de Obra',
-                    'user_profile': get_user_profile(request.user),
-                    'is_solicitante': is_solicitante_only,
-                    'form_token': _generate_form_token(request, 'create_workorder'),
-                }
-                return render(request, 'obras/workorder_form.html', context)
+                return _render_create_workorder_form(request, form, is_solicitante_only, modal_embed)
 
             workorder = form.save(commit=False)
             workorder.criado_por = request.user
@@ -1145,13 +1150,7 @@ def create_workorder(request):
                                 "gestao.create.permission_obra",
                                 {"obra": obra.nome},
                             )
-                            context = {
-                                'form': form,
-                                'title': 'Criar Novo Pedido de Obra',
-                                'user_profile': get_user_profile(request.user),
-                                'is_solicitante': is_solicitante_only,
-                            }
-                            return render(request, 'obras/workorder_form.html', context)
+                            return _render_create_workorder_form(request, form, is_solicitante_only, modal_embed)
                     # Se está no grupo "Solicitante" mas não tem WorkOrderPermission específica,
                     # permitir criar em qualquer obra (não precisa validar)
             
@@ -1274,8 +1273,11 @@ def create_workorder(request):
                         event_key=f'gestao:wo:{workorder.pk}',
                     )
             
-            messages.success(request, f'Pedido de obra "{workorder.codigo}" criado com sucesso!')
+            msg_ok = f'Pedido de obra "{workorder.codigo}" criado com sucesso!'
+            messages.success(request, msg_ok)
             _mark_post_success_redirect(request, '_prevent_back_create_workorder')
+            if modal_embed:
+                return JsonResponse({'ok': True, 'pk': workorder.pk, 'message': msg_ok})
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     else:
         # Evitar que Voltar do navegador retorne ao formulário já submetido
@@ -1288,15 +1290,7 @@ def create_workorder(request):
             admin_hide_system_fields=admin_hide_system_fields,
         )
     
-    context = {
-        'form': form,
-        'title': 'Criar Novo Pedido de Obra',
-        'user_profile': get_user_profile(request.user),
-        'is_solicitante': is_solicitante_only,
-        'form_token': _generate_form_token(request, 'create_workorder'),
-    }
-    response = render(request, 'obras/workorder_form.html', context)
-    return _no_cache_form_response(response)
+    return _render_create_workorder_form(request, form, is_solicitante_only, modal_embed)
 
 
 @login_required
@@ -1984,7 +1978,7 @@ def exportar_snapshot_workorder_pdf(request, pk):
 
     # Paleta igual aos badges da UI (list_workorders.css)
     status_palette = {
-        'criacao': {'bg': colors.HexColor('#e0e7ff'), 'fg': colors.HexColor('#3730a3')},      # rascunho
+        'criacao': {'bg': colors.HexColor('#e3f2fd'), 'fg': colors.HexColor('#1565c0')},      # rascunho (igual badge tipo/azul lista)
         'envio': {'bg': colors.HexColor('#fef3c7'), 'fg': colors.HexColor('#92400e')},        # pendente
         'reenviado': {'bg': colors.HexColor('#fed7aa'), 'fg': colors.HexColor('#9a3412')},    # reaprovacao
         'reprovado': {'bg': colors.HexColor('#fee2e2'), 'fg': colors.HexColor('#991b1b')},

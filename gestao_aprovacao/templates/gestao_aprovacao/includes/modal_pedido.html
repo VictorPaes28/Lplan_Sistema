@@ -194,6 +194,38 @@
     window.GC_WORKORDER_JSON_URL = function (pk) {
         return "{% url 'gestao:workorder_detail_ajax' 987654321 %}".replace('987654321', String(pk));
     };
+    window.GC_WORKORDER_DETAIL_PAGE_URL = function (pk) {
+        return "{% url 'gestao:detail_workorder' 987654321 %}".replace('987654321', String(pk));
+    };
+    /** Código / Ver na lista (e outras âncoras): força modal; fallback = página de detalhe. */
+    window.gcGestaoAbrirModalPedido = function (ev, pk, fallbackUrl) {
+        if (
+            ev &&
+            (ev.metaKey ||
+                ev.ctrlKey ||
+                ev.shiftKey ||
+                ev.altKey ||
+                (typeof ev.button === 'number' && ev.button !== 0))
+        ) {
+            return true;
+        }
+        if (ev) {
+            if (ev.preventDefault) ev.preventDefault();
+            if (ev.stopPropagation) ev.stopPropagation();
+        }
+        var n = parseInt(String(pk === undefined || pk === null ? '' : pk).trim(), 10);
+        var href = fallbackUrl || '';
+        if (!Number.isFinite(n) || n < 1) {
+            if (href) window.location.href = href;
+            return false;
+        }
+        if (typeof window.abrirModalPedido === 'function') {
+            window.abrirModalPedido(n);
+            return false;
+        }
+        if (href) window.location.href = href;
+        return false;
+    };
 </script>
 {% if debug %}{% now "U" as lplan_modal_pedido_js_cb %}{% endif %}
 <script src="{% static 'gestao_aprovacao/js/modal_pedido.js' %}{% if debug %}?cb={{ lplan_modal_pedido_js_cb }}{% endif %}"></script>

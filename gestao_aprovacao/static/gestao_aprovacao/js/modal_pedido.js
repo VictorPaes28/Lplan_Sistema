@@ -666,7 +666,12 @@
     window.abrirModalPedido = async function (pk) {
         var overlay = garantirOverlayNoBody();
         var modal = document.getElementById('gc-modal');
-        if (!overlay || !window.GC_WORKORDER_JSON_URL) return;
+        if (!overlay || !window.GC_WORKORDER_JSON_URL) {
+            if (typeof window.GC_WORKORDER_DETAIL_PAGE_URL === 'function') {
+                window.location.href = window.GC_WORKORDER_DETAIL_PAGE_URL(pk);
+            }
+            return;
+        }
         overlay.scrollTop = 0;
         overlay.style.display = 'flex';
         document.body.style.overflow = 'hidden';

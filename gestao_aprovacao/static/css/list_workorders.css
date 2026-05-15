@@ -84,7 +84,15 @@
 
 .filters-card {
     margin-bottom: 0;
-    padding: 1.35rem 1.35rem 1.5rem;
+    padding: 1rem 1.15rem 1.1rem;
+}
+
+/* Agrupa card de filtros + linha de resumo com espaçamento interno menor que o gap global */
+.list-pedidos-filters-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
 }
 
 .filters-card.card:hover {
@@ -240,32 +248,35 @@
 .filters-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.25rem;
-    padding-bottom: 1rem;
+    align-items: flex-start;
+    gap: 0.75rem 1rem;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.55rem;
     border-bottom: 1px solid #e8ecf1;
 }
 
 .filters-title {
-    font-size: 1.0625rem;
+    font-size: 1rem;
     font-weight: 700;
     color: #0f172a;
     margin: 0;
     letter-spacing: -0.02em;
+    line-height: 1.25;
 }
 
 .filters-title-group {
     display: flex;
     flex-direction: column;
-    gap: 0.12rem;
+    gap: 0.08rem;
+    min-width: 0;
 }
 
 .filters-title-sub {
     margin: 0;
-    font-size: 0.82rem;
-    color: #64748b;
+    font-size: 0.72rem;
+    color: #94a3b8;
     font-weight: 500;
+    line-height: 1.35;
 }
 
 /* Abre painel de filtros + exportação PDF (CTA principal) */
@@ -273,8 +284,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1.1rem;
+    gap: 0.45rem;
+    padding: 0.44rem 0.95rem;
     background: #fff;
     color: #334155;
     border: 1px solid #cbd5e1;
@@ -329,21 +340,22 @@
     gap: 0;
 }
 
-/* Linha: busca + ações alinhadas */
+/* Linha: busca + ações (sem caixa interna — o card já delimita a área) */
 .filter-search-toolbar {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.875rem 1rem;
-    padding: 0.8rem 0.85rem;
-    border: 1px solid #e5eaf0;
-    border-radius: 10px;
-    background: #fbfdff;
+    align-items: center;
+    gap: 0.5rem 0.65rem;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
 }
 
 .filter-group--search {
     flex: 1 1 220px;
     min-width: 0;
+    gap: 0;
 }
 
 .filter-actions-main {
@@ -362,20 +374,44 @@
     flex: 1 1 100%;
 }
 
+.filters-card.is-advanced-open .filter-search-toolbar {
+    align-items: stretch;
+}
+
+.filters-card.is-advanced-open .filter-input--search {
+    width: 100%;
+}
+
 .filter-btn--apply {
-    min-width: 6.5rem;
+    min-width: 5.65rem;
     font-weight: 600;
-    padding: 0.65rem 1.1rem;
+    padding: 0.5rem 0.95rem;
     border-radius: 9px;
+    font-size: 0.875rem;
     background: #334155;
     border: 1px solid #334155;
     color: #fff;
+    min-height: 2.5rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .filter-btn--apply:hover {
     background: #1e293b;
     border-color: #1e293b;
     filter: none;
+}
+
+.filter-actions-main .filter-btn--ghost.btn-secondary {
+    min-height: 2.5rem;
+    box-sizing: border-box;
+    padding: 0.5rem 0.95rem;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .filter-btn--ghost.btn-secondary {
@@ -391,31 +427,27 @@
     color: #1e293b;
 }
 
-.filter-label--primary {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: #334155;
-    text-transform: none;
-    letter-spacing: 0;
-    margin-bottom: 0.4rem;
-}
-
 .filter-input--search {
-    min-height: 2.75rem;
-    border-radius: 10px;
+    min-height: 2.5rem;
+    border-radius: 9px;
     border-width: 1px;
     border-color: #cbd5e1;
-    padding: 0.65rem 0.85rem;
-    font-size: 0.9375rem;
+    padding: 0.45rem 0.72rem;
+    font-size: 0.875rem;
 }
 
 .advanced-filters {
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 0.85rem;
-    padding-top: 1rem;
-    margin-top: 1.25rem;
+    padding-top: 0.72rem;
+    margin-top: 0.62rem;
     border-top: 1px solid #e8ecf1;
+}
+
+/* Painel recolhido por defeito; [hidden] perdia para display:flex do bloco anterior. */
+.advanced-filters.is-visible {
+    display: flex !important;
 }
 
 .filter-section {
@@ -657,52 +689,26 @@
     align-items: end;
 }
 
-/* Contador de Resultados */
-.results-count {
-    margin-bottom: 1rem;
-    padding: 1rem 1.5rem;
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    border: 1px solid #e9ecef;
-    display: flex;
-    align-items: center;
+/* Resumo da listagem (linha única, sem card pesado) */
+.results-count-line {
+    margin: 0;
+    padding: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #64748b;
+    font-weight: 500;
 }
 
-.results-stats {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    width: 100%;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    color: #6c757d;
+.results-count-line__accent {
+    color: #1e293b;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
-.stat-value {
-    font-size: 1.125rem;
-    color: #2c3e50;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.stat-divider {
-    width: 1px;
-    height: 32px;
-    background: linear-gradient(to bottom, transparent, #dee2e6, transparent);
-    flex-shrink: 0;
+.results-count-line__sep {
+    display: inline-block;
+    padding: 0 0.38rem;
+    color: #cbd5e1;
+    font-weight: 400;
 }
 
 .filter-btn {
@@ -723,6 +729,14 @@
 /* Listagem de pedidos (desktop): modo compacto para evitar corte lateral */
 .workorders-table--pedidos {
     table-layout: fixed;
+}
+
+.workorders-table--pedidos tbody tr.gc-pedido-row {
+    cursor: pointer;
+}
+
+.workorders-table--pedidos tbody tr.gc-pedido-row:hover {
+    background-color: #f1f5f9;
 }
 
 .workorders-table--pedidos th,
@@ -1015,9 +1029,9 @@
 }
 
 .status-badge.rascunho {
-    background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
-    color: #3730a3;
-    border: 1px solid rgba(55, 48, 163, 0.12);
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #1565c0;
+    border: 1px solid #bbdefb;
 }
 
 .status-badge.reaprovacao {
@@ -1655,12 +1669,9 @@
         padding-left: 0.5rem;
     }
 
-    .results-stats {
-        gap: 1rem;
-    }
-
-    .stat-divider {
-        height: 24px;
+    .results-count-line {
+        font-size: 0.78rem;
+        line-height: 1.5;
     }
 }
 
@@ -1689,7 +1700,7 @@
     }
 
     .filters-card {
-        padding: 1.25rem;
+        padding: 0.95rem 1rem 1rem;
     }
 
     .workorders-table tbody tr,

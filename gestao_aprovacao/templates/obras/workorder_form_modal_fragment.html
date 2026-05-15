@@ -1,0 +1,14 @@
+{% if messages %}
+<div class="wc-modal-alerts" role="status">
+    {% for message in messages %}
+    <p class="wc-modal-alert wc-modal-alert--{{ message.tags|default:'info' }}">{{ message }}</p>
+    {% endfor %}
+</div>
+{% endif %}
+{# Resposta AJAX GET ou POST inválido — corpo dentro do overlay #}
+<div class="wc-modal-fragment">
+    <div class="card wc-modal-card">
+        <h2 class="form-title wc-modal-form-title">{{ title }}</h2>
+        {% include "obras/includes/workorder_form_inner.html" %}
+    </div>
+</div>

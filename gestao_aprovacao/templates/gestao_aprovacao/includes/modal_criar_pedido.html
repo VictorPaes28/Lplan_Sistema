@@ -1,0 +1,21 @@
+{% load static %}
+{# Quando {% if pode_criar_pedido %} no contexto — incluído no base ou nas telas GestControll. #}
+<link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
+<link rel="stylesheet" href="{% static 'gestao_aprovacao/css/modal_criar_pedido.css' %}">
+
+<script>
+window.LPLAN_CREATE_WORKORDER_URL = "{% url 'gestao:create_workorder' %}";
+</script>
+<div id="wc-create-overlay" class="wc-create-overlay-root" aria-hidden="true">
+    <div class="wc-create-dialog" role="dialog" aria-modal="true" aria-labelledby="wc-create-heading">
+        <header class="wc-create-head">
+            <h2 id="wc-create-heading" class="wc-create-head-title">Novo pedido</h2>
+            <button type="button" class="wc-create-close" id="wc-create-close-btn" aria-label="Fechar">✕</button>
+        </header>
+        <p id="wc-create-busy" role="status">Enviando…</p>
+        <div id="wc-create-scroll"></div>
+    </div>
+</div>
+
+<script src="{% static 'gestao_aprovacao/js/workorder_form_init.js' %}"></script>
+<script src="{% static 'gestao_aprovacao/js/modal_criar_pedido.js' %}"></script>

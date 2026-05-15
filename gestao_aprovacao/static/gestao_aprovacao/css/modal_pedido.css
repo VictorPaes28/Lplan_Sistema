@@ -64,7 +64,7 @@
 }
 
 .gc-breadcrumb .gc-bc-sep {
-    color: #a855f7;
+    color: #3498db;
     margin: 0 0.35rem;
 }
 
@@ -73,7 +73,7 @@
     margin-top: 0.25rem;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #a855f7;
+    color: #3498db;
     text-decoration: none;
 }
 
@@ -215,8 +215,8 @@
 }
 
 .gc-side-tab.active {
-    color: #7c3aed;
-    border-bottom-color: #a855f7;
+    color: #2980b9;
+    border-bottom-color: #3498db;
 }
 
 .gc-side-tab-panel {
@@ -386,8 +386,8 @@
 }
 
 .gc-banner-aprov {
-    border-left: 3px solid #a855f7;
-    background: #faf5ff;
+    border-left: 3px solid #3498db;
+    background: #eff6ff;
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 0.75rem;
@@ -396,7 +396,7 @@
 .gc-banner-aprov p {
     margin: 0 0 0.75rem;
     font-size: 0.88rem;
-    color: #6b21a8;
+    color: #1565c0;
     font-weight: 500;
 }
 
@@ -456,7 +456,7 @@ a.gc-btn-reprovar:hover,
 .gc-ver-mais-toggle {
     background: none;
     border: none;
-    color: #a855f7;
+    color: #3498db;
     font-weight: 600;
     font-size: 0.8rem;
     cursor: pointer;
@@ -470,7 +470,7 @@ a.gc-btn-reprovar:hover,
     padding: 0.65rem;
     background: #fff;
     border-radius: 8px;
-    border: 1px solid #e9d5ff;
+    border: 1px solid #bfdbfe;
     font-size: 0.8rem;
 }
 
@@ -544,7 +544,7 @@ a.gc-btn-reprovar:hover,
     width: 92px;
     min-height: 92px;
     box-sizing: border-box;
-    border: 1px solid #c4b5fd;
+    border: 1px solid #93c5fd;
     border-radius: 10px;
     background: #fff;
     display: flex;
@@ -558,21 +558,21 @@ a.gc-btn-reprovar:hover,
 }
 
 .gc-anexo-tile:hover {
-    background: #faf5ff;
+    background: #eff6ff;
 }
 
 .gc-anexo-tile--add {
     border-style: dashed;
-    border-color: #a78bfa;
-    color: #7c3aed;
+    border-color: #60a5fa;
+    color: #2980b9;
     justify-content: center;
     padding-top: 14px;
     padding-bottom: 12px;
 }
 
 .gc-anexo-tile--add:hover {
-    background: #f5f3ff;
-    color: #6d28d9;
+    background: #dbeafe;
+    color: #1d4ed8;
 }
 
 .gc-anexo-tile-inner {
@@ -611,14 +611,14 @@ a.gc-btn-reprovar:hover,
     font-size: 1.65rem;
     font-weight: 300;
     line-height: 1;
-    color: #7c3aed;
+    color: #2980b9;
 }
 
 .gc-anexo-add-label {
     font-size: 0.72rem;
     font-weight: 600;
     margin-top: 6px;
-    color: #7c3aed;
+    color: #2980b9;
 }
 
 .gc-anexos-empty {
@@ -698,7 +698,7 @@ a.gc-btn-reprovar:hover,
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: linear-gradient(135deg, #a855f7, #7c3aed);
+    background: linear-gradient(135deg, #3498db, #2980b9);
     color: #fff;
     font-size: 0.7rem;
     font-weight: 700;
@@ -756,7 +756,7 @@ a.gc-btn-reprovar:hover,
 }
 
 .gc-comment-form button {
-    background: #a855f7;
+    background: #3498db;
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -811,8 +811,8 @@ a.gc-btn-reprovar:hover,
 }
 
 .gc-footer-btn--primary {
-    border-color: #c4b5fd;
-    color: #6b21a8;
+    border-color: #93c5fd;
+    color: #1565c0;
 }
 
 .gc-footer-btn--danger {
@@ -890,7 +890,7 @@ a.gc-btn-reprovar:hover,
 .gc-aprovacao-fields textarea {
     width: 100%;
     margin-top: 0.5rem;
-    border: 1px solid #e9d5ff;
+    border: 1px solid #bfdbfe;
     border-radius: 8px;
     padding: 0.5rem;
     font-family: inherit;
