@@ -11,6 +11,7 @@
     {% csrf_token %}
     {{ formset.management_form }}
     {{ responsaveis_por_obra|json_script:"th-responsaveis-por-obra" }}
+    {{ todos_usuarios|json_script:"th-todos-usuarios" }}
 
     <!-- Dados da pendência -->
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:12px;">
@@ -28,7 +29,7 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
         <div>
-          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Obra <span style="color:#ef4444;">*</span></label>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Local <span style="color:#ef4444;">*</span></label>
           {{ form.obra }}
           {% if form.obra.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.obra.errors.0 }}</div>{% endif %}
         </div>
@@ -70,13 +71,9 @@
         {{ rec_form.recorrencia_parametros_json }}
           <div class="th-recorrencia-label-row">
             <label class="th-recorrencia-label" for="th-rec-trigger">Repetir</label>
-            <span class="th-recorrencia-hint" title="Novas pendências serão criadas automaticamente conforme a regra (é necessário agendar o comando processar_recorrencias_trackhub no servidor).">ⓘ</span>
           </div>
           <div class="th-recorrencia-wrap">
             <button type="button" class="th-recorrencia-trigger" id="th-rec-trigger" aria-expanded="false" aria-haspopup="listbox">
-              <span class="th-recorrencia-trigger-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
-              </span>
               <span class="th-recorrencia-trigger-text" id="th-rec-trigger-text">Não se repete</span>
               <span class="th-recorrencia-chevron" aria-hidden="true">▾</span>
             </button>
@@ -316,7 +313,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=2"></script>
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
 <script src="{% static 'trackhub/js/trackhub_recorrencia_form.js' %}?v=7"></script>
 <script>
 document.querySelectorAll('input[type=text], input[type=email], input[type=date], textarea, select').forEach(function(el) {
@@ -349,6 +346,21 @@ function thParseResponsaveisPorObra() {
   if (!el) return [];
   try { return JSON.parse(el.textContent || '[]'); } catch (e) { return []; }
 }
+
+function thParseTodosUsuarios() {
+  var el = document.getElementById('th-todos-usuarios');
+  if (!el) return [];
+  try { return JSON.parse(el.textContent || '[]'); } catch (e) { return []; }
+}
+
+function thGetObraSelecionadaNome() {
+  var obraSel = document.querySelector('select[name="obra"]');
+  if (!obraSel || !obraSel.value) return '';
+  var opt = obraSel.options[obraSel.selectedIndex];
+  return opt ? (opt.textContent || '').trim() : '';
+}
+
+var thRespPickerOpts = { getOutrosFn: thParseTodosUsuarios, getObraNomeFn: thGetObraSelecionadaNome };
 
 function thRefreshResponsaveisEtapas() {
   document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
@@ -412,7 +424,7 @@ function adicionarEtapa() {
   });
   var novoSelResp = novo.querySelector('select[name$="-responsavel_interno"]');
   if (novoSelResp && window.ThRespPicker) {
-    window.ThRespPicker.attach(novoSelResp, thParseResponsaveisPorObra, thGetObraSelecionadaId, {});
+    window.ThRespPicker.attach(novoSelResp, thParseResponsaveisPorObra, thGetObraSelecionadaId, thRespPickerOpts);
   }
   atualizarNumerosEtapa();
 }
@@ -620,7 +632,7 @@ document.addEventListener('input', function(e) {
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
     if (window.ThRespPicker) {
-      window.ThRespPicker.attach(sel, thParseResponsaveisPorObra, thGetObraSelecionadaId, {});
+      window.ThRespPicker.attach(sel, thParseResponsaveisPorObra, thGetObraSelecionadaId, thRespPickerOpts);
     }
   });
   var obraSel = document.querySelector('select[name="obra"]');

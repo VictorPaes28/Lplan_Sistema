@@ -33,8 +33,57 @@
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
+  function getScrollParents(el) {
+    var list = [];
+    var node = el && el.parentElement;
+    while (node) {
+      var st = global.getComputedStyle(node);
+      var oy = st.overflowY;
+      var ox = st.overflowX;
+      if (/(auto|scroll|overlay)/.test(oy + ' ' + ox)) {
+        list.push(node);
+      }
+      node = node.parentElement;
+    }
+    list.push(global);
+    return list;
+  }
+
+  function unbindPopoverScroll(pop) {
+    if (!pop || !pop._thScrollHandler) return;
+    (pop._thScrollTargets || []).forEach(function (target) {
+      target.removeEventListener('scroll', pop._thScrollHandler, true);
+    });
+    pop._thScrollHandler = null;
+    pop._thScrollTargets = null;
+  }
+
+  /** Fecha ao rolar qualquer área que não seja o próprio popover (evita “fantasma” fixo na tela). */
+  function bindCloseOnScroll(pop, trigger, wrap) {
+    unbindPopoverScroll(pop);
+    var onScroll = function (e) {
+      if (!activePop || activePop !== pop) return;
+      var el = e.target;
+      if (el === pop || (el && el.nodeType === 1 && pop.contains(el))) return;
+      var body = pop.querySelector('.imp-resp-popover-body');
+      if (body && (el === body || (el.contains && body.contains(el)))) return;
+      if (wrap && el && el.contains && el.contains(wrap)) return;
+      closePopover();
+    };
+    pop._thScrollHandler = onScroll;
+    pop._thScrollTargets = getScrollParents(trigger);
+    pop._thScrollTargets.forEach(function (target) {
+      target.addEventListener('scroll', onScroll, true);
+    });
+  }
+
   function closePopover() {
     if (activePop) {
+      unbindPopoverScroll(activePop);
+      if (activePop._thWrap) {
+        activePop._thWrap.classList.remove('th-resp-picker-wrap--open');
+        activePop._thWrap = null;
+      }
       activePop.remove();
       activePop = null;
     }
@@ -46,7 +95,24 @@
     }
   }
 
-  function buildSections(data, obraId) {
+  function dedupeOutros(obraPessoas, outros) {
+    if (!outros || !outros.length) return [];
+    var seen = {};
+    (obraPessoas || []).forEach(function (p) {
+      seen[String(p.id)] = true;
+    });
+    return outros.filter(function (p) {
+      return !seen[String(p.id)];
+    });
+  }
+
+  function obraSectionLabel(nome) {
+    var label = nome || 'Obra';
+    if (!/^1\s*[-–—]\s*/i.test(label)) label = '1 - ' + label;
+    return label;
+  }
+
+  function buildSections(data, obraId, outros, obraNomeFallback) {
     data = data || [];
     var sections = [];
     if (obraId === '__single__') {
@@ -59,14 +125,22 @@
       return sections;
     }
     if (obraId) {
+      var obraBlock = null;
       for (var i = 0; i < data.length; i += 1) {
         if (String(data[i].obra_id) === String(obraId)) {
-          sections.push({
-            label: data[i].obra_nome || 'Obra',
-            pessoas: data[i].pessoas || [],
-          });
+          obraBlock = data[i];
           break;
         }
+      }
+      var pessoasObra = obraBlock ? (obraBlock.pessoas || []) : [];
+      var obraNome = (obraBlock && obraBlock.obra_nome) || obraNomeFallback || 'Obra';
+      sections.push({
+        label: obraSectionLabel(obraNome),
+        pessoas: pessoasObra,
+      });
+      var outrosFiltrados = dedupeOutros(pessoasObra, outros);
+      if (outrosFiltrados.length) {
+        sections.push({ label: '2 - Outros', pessoas: outrosFiltrados });
       }
       return sections;
     }
@@ -81,7 +155,40 @@
     return sections;
   }
 
-  function syncSelectOptions(selectEl, data, obraId) {
+  function appendSectionPopoverHtml(parts, sec) {
+    parts.push('<div class="th-resp-section">');
+    parts.push('<div class="imp-resp-section-label">' + escapeHtml(sec.label) + '</div>');
+    var pessoas = sec.pessoas || [];
+    if (pessoas.length) {
+      pessoas.forEach(function (u) {
+        var bg = avatarColor(u.nome);
+        var ini = escapeHtml(userIniciais(u));
+        var nome = escapeHtml(u.nome || '');
+        var id = String(u.id);
+        parts.push(
+          '<div class="imp-resp-user-row" data-user-id="' +
+            escapeHtml(id) +
+            '">' +
+            '<div class="imp-resp-avatar" style="background:' +
+            bg +
+            '">' +
+            ini +
+            '</div>' +
+            '<span class="imp-resp-user-nome">' +
+            nome +
+            '</span>' +
+            '</div>'
+        );
+      });
+    } else {
+      parts.push(
+        '<p class="th-resp-section-empty">Nenhum usuário designado nesta obra.</p>'
+      );
+    }
+    parts.push('</div>');
+  }
+
+  function syncSelectOptions(selectEl, data, obraId, outros, obraNomeFallback) {
     if (!selectEl) return;
     var current = (selectEl.value || '').trim();
     selectEl.innerHTML = '';
@@ -90,7 +197,7 @@
     placeholder.textContent = 'Selecione...';
     selectEl.appendChild(placeholder);
 
-    var sections = buildSections(data, obraId);
+    var sections = buildSections(data, obraId, outros, obraNomeFallback);
     var seen = {};
     sections.forEach(function (sec) {
       (sec.pessoas || []).forEach(function (p) {
@@ -103,10 +210,20 @@
         selectEl.appendChild(opt);
       });
     });
+    var preserveId = (selectEl.dataset.thRespPreserveId || '').trim();
+    var preserveNome = (selectEl.dataset.thRespPreserveNome || '').trim();
+    if (preserveId && !seen[preserveId]) {
+      var extra = document.createElement('option');
+      extra.value = preserveId;
+      extra.textContent = preserveNome || ('Usuário ' + preserveId);
+      selectEl.appendChild(extra);
+      seen[preserveId] = true;
+    }
     var hasCurrent = Array.from(selectEl.options).some(function (o) {
       return o.value === current;
     });
     if (hasCurrent) selectEl.value = current;
+    else if (preserveId && seen[preserveId]) selectEl.value = preserveId;
   }
 
   function updateTrigger(trigger, selectEl) {
@@ -130,10 +247,12 @@
     }
   }
 
-  function openPopover(trigger, selectEl, getDataFn, getObraIdFn, zIndex) {
+  function openPopover(trigger, selectEl, getDataFn, getObraIdFn, getOutrosFn, zIndex) {
     var data = getDataFn() || [];
     var obraId = getObraIdFn ? getObraIdFn() : '';
-    var sections = buildSections(data, obraId);
+    var outros = getOutrosFn ? getOutrosFn() : null;
+    var obraNomeFallback = selectEl._thRespGetObraNome ? selectEl._thRespGetObraNome() : '';
+    var sections = buildSections(data, obraId, outros, obraNomeFallback);
 
     var parts = [];
     parts.push('<div class="imp-resp-popover-search">');
@@ -144,52 +263,33 @@
     parts.push('</div><div class="imp-resp-popover-body">');
 
     sections.forEach(function (sec) {
-      if (!(sec.pessoas && sec.pessoas.length)) return;
-      parts.push('<div class="th-resp-section">');
-      parts.push('<div class="imp-resp-section-label">' + escapeHtml(sec.label) + '</div>');
-      sec.pessoas.forEach(function (u) {
-        var bg = avatarColor(u.nome);
-        var ini = escapeHtml(userIniciais(u));
-        var nome = escapeHtml(u.nome || '');
-        var id = String(u.id);
-        parts.push(
-          '<div class="imp-resp-user-row" data-user-id="' +
-            escapeHtml(id) +
-            '">' +
-            '<div class="imp-resp-avatar" style="background:' +
-            bg +
-            '">' +
-            ini +
-            '</div>' +
-            '<span class="imp-resp-user-nome">' +
-            nome +
-            '</span>' +
-            '</div>'
-        );
-      });
-      parts.push('</div>');
+      appendSectionPopoverHtml(parts, sec);
     });
 
     parts.push('</div>');
 
     var pop = document.createElement('div');
-    pop.className = 'imp-resp-popover th-resp-popover-trackhub';
+    var wrap = trigger.closest('.th-resp-picker-wrap');
+    pop.className = 'imp-resp-popover th-resp-popover-trackhub th-resp-popover--anchored';
     pop.innerHTML = parts.join('');
-    pop.style.position = 'fixed';
-    pop.style.zIndex = String(zIndex != null ? zIndex : Z_FORM);
     pop._thTrigger = trigger;
+    pop.style.zIndex = String(zIndex != null ? zIndex : Z_FORM);
 
-    var rect = trigger.getBoundingClientRect();
-    var top = rect.bottom + 4;
-    var left = rect.left;
-    var vw = global.innerWidth || 800;
-    var w = 280;
-    if (left + w > vw - 8) left = Math.max(8, vw - w - 8);
-    pop.style.top = top + 'px';
-    pop.style.left = left + 'px';
+    if (wrap) {
+      pop._thWrap = wrap;
+      wrap.classList.add('th-resp-picker-wrap--open');
+      wrap.appendChild(pop);
+    } else {
+      document.body.appendChild(pop);
+      pop.classList.remove('th-resp-popover--anchored');
+      pop.style.position = 'fixed';
+      var rect = trigger.getBoundingClientRect();
+      pop.style.top = rect.bottom + 4 + 'px';
+      pop.style.left = rect.left + 'px';
+    }
 
-    document.body.appendChild(pop);
     activePop = pop;
+    bindCloseOnScroll(pop, trigger, wrap);
 
     var searchInput = pop.querySelector('.imp-resp-search-input');
     if (searchInput) {
@@ -208,6 +308,7 @@
         var q = (this.value || '').toLowerCase();
         pop.querySelectorAll('.th-resp-section').forEach(function (sec) {
           var any = false;
+          var emptyEl = sec.querySelector('.th-resp-section-empty');
           sec.querySelectorAll('.imp-resp-user-row').forEach(function (row) {
             var nomeEl = row.querySelector('.imp-resp-user-nome');
             var t = nomeEl ? nomeEl.textContent.toLowerCase() : '';
@@ -215,6 +316,14 @@
             row.style.display = show ? '' : 'none';
             if (show) any = true;
           });
+          if (emptyEl) {
+            if (!q) {
+              emptyEl.style.display = '';
+              any = true;
+            } else {
+              emptyEl.style.display = 'none';
+            }
+          }
           sec.style.display = any ? '' : 'none';
         });
       });
@@ -257,9 +366,14 @@
     opts = opts || {};
     var zIndex = opts.zIndex != null ? opts.zIndex : Z_FORM;
 
+    var getOutrosFn = opts.getOutrosFn || null;
+    var getObraNomeFn = opts.getObraNomeFn || null;
+
     if (selectEl.dataset.thRespPickerAttached === '1') {
       selectEl._thRespGetData = getDataFn;
       selectEl._thRespGetObraId = getObraIdFn;
+      selectEl._thRespGetOutros = getOutrosFn;
+      selectEl._thRespGetObraNome = getObraNomeFn;
       if (selectEl._thRespRefresh) selectEl._thRespRefresh();
       return;
     }
@@ -267,6 +381,8 @@
     selectEl.dataset.thRespPickerAttached = '1';
     selectEl._thRespGetData = getDataFn;
     selectEl._thRespGetObraId = getObraIdFn;
+    selectEl._thRespGetOutros = getOutrosFn;
+    selectEl._thRespGetObraNome = getObraNomeFn;
 
     var wrap = document.createElement('div');
     wrap.className = 'th-resp-picker-wrap';
@@ -292,7 +408,9 @@
     selectEl._thRespRefresh = function () {
       var d = selectEl._thRespGetData ? selectEl._thRespGetData() : [];
       var oid = selectEl._thRespGetObraId ? selectEl._thRespGetObraId() : '';
-      syncSelectOptions(selectEl, d, oid);
+      var outros = selectEl._thRespGetOutros ? selectEl._thRespGetOutros() : null;
+      var obraNomeFallback = selectEl._thRespGetObraNome ? selectEl._thRespGetObraNome() : '';
+      syncSelectOptions(selectEl, d, oid, outros, obraNomeFallback);
       updateTrigger(trigger, selectEl);
     };
 
@@ -311,6 +429,7 @@
           return selectEl._thRespGetData ? selectEl._thRespGetData() : [];
         },
         selectEl._thRespGetObraId,
+        selectEl._thRespGetOutros,
         zIndex
       );
     });
@@ -327,10 +446,16 @@
     attach(
       selectEl,
       function () {
+        var obraUsers = global.thUsuarios || [];
+        var outros = global.thUsuariosOutros || [];
         return [
           {
-            obra_nome: global.thDetalheObraNome || 'Obra',
-            pessoas: global.thUsuarios || [],
+            obra_nome: obraSectionLabel(global.thDetalheObraNome || 'Obra'),
+            pessoas: obraUsers,
+          },
+          {
+            obra_nome: '2 - Outros',
+            pessoas: dedupeOutros(obraUsers, outros),
           },
         ];
       },

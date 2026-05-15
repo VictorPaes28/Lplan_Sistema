@@ -6,6 +6,7 @@
 
 {% block trackhub_content %}
 {{ ficha_resp_blocos|json_script:"th-ficha-resp-blocos" }}
+{{ todos_usuarios|json_script:"th-todos-usuarios" }}
 <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
 
   <!-- COLUNA PRINCIPAL -->
@@ -91,7 +92,15 @@
     </div>
 
     <!-- Etapas -->
-    <div class="th-panel" style="margin-bottom:0;">
+    <div id="th-ficha-etapas-root" class="th-panel" style="margin-bottom:0;"
+      data-pendencia-pk="{{ pendencia.pk }}"
+      data-csrf="{{ csrf_token }}"
+      data-pode-editar="{% if pode_editar %}1{% else %}0{% endif %}"
+      data-pendencia-status="{{ pendencia.status }}"
+      data-url-reordenar="{% url 'trackhub:pendencia_etapas_reordenar' pendencia.pk %}"
+      data-url-editar="{% url 'trackhub:etapa_editar' pk=0 %}"
+      data-url-deletar="{% url 'trackhub:etapa_deletar' pk=0 %}"
+      data-url-reabrir="{% url 'trackhub:etapa_reabrir' pk=0 %}">
       <div class="th-panel-title" style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <span>Etapas</span>
         <span style="font-size:11px;color:#94a3b8;font-weight:500;text-transform:none;letter-spacing:0;">
@@ -112,20 +121,53 @@
         </div>
         {% endwith %}
 
+        {% if pode_editar and pendencia.status != 'concluida' and pendencia.status != 'cancelada' and etapas %}
+        <p class="th-ficha-etapas-dnd-hint">Arraste as etapas para alterar a ordem.</p>
+        {% endif %}
+
+        <div id="th-ficha-etapas-list">
         {% for etapa in etapas %}
-        <div id="etapa-{{ etapa.pk }}" style="scroll-margin-top: 16px;border:1px solid {% if etapa.status == 'concluida' %}#c8ebd6{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#b8d4eb{% else %}#e2e8f0{% endif %};border-radius:10px;padding:14px 16px;margin-bottom:8px;background:{% if etapa.status == 'concluida' %}#ecf8f0{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#ebf6fd{% else %}#fff{% endif %};">
+        <div id="etapa-{{ etapa.pk }}" class="th-ficha-etapa-item" data-etapa-id="{{ etapa.pk }}"
+          data-etapa-status="{{ etapa.status }}"
+          data-etapa-titulo="{{ etapa.titulo|escape }}"
+          data-etapa-responsavel="{{ etapa.responsavel_interno_id|default:'' }}"
+          data-etapa-responsavel-nome="{{ etapa.responsavel_nome|escape }}"
+          data-etapa-prazo="{% if etapa.prazo %}{{ etapa.prazo|date:'Y-m-d' }}{% endif %}"
+          data-etapa-observacao="{{ etapa.observacao|default:''|escape }}"
+          data-etapa-requer-assinatura="{% if etapa.requer_assinatura %}1{% else %}0{% endif %}"
+          style="scroll-margin-top: 16px;border:1px solid {% if etapa.status == 'concluida' %}#c8ebd6{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#b8d4eb{% else %}#e2e8f0{% endif %};border-radius:10px;padding:14px 16px;margin-bottom:8px;background:{% if etapa.status == 'concluida' %}#ecf8f0{% elif pendencia.etapa_atual and pendencia.etapa_atual.pk == etapa.pk %}#ebf6fd{% else %}#fff{% endif %};">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
             <div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;background:{% if etapa.status == 'concluida' %}#27ae60{% else %}#e2e8f0{% endif %};color:{% if etapa.status == 'concluida' %}#fff{% else %}#64748b{% endif %};">
               {% if etapa.status == 'concluida' %}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               {% else %}
-                {{ etapa.ordem }}
+                <span class="th-ficha-etapa-num">{{ forloop.counter }}</span>
               {% endif %}
             </div>
             <div style="font-size:13.5px;font-weight:600;color:#1e293b;flex:1;">{{ etapa.titulo }}</div>
-            <span class="th-badge {% if etapa.status == 'concluida' %}concluida{% else %}em_andamento{% endif %}">
+            <span class="th-badge {% if etapa.status == 'concluida' %}concluida{% else %}em_andamento{% endif %}" style="flex-shrink:0;">
               {{ etapa.get_status_display }}
             </span>
+            {% if pode_editar and pendencia.status != 'cancelada' %}
+            {% if pendencia.status != 'concluida' or etapa.status == 'concluida' %}
+            <div class="th-etapa-menu-wrap" style="flex-shrink:0;">
+              <button type="button" class="th-etapa-menu-btn" aria-label="Opções da etapa" aria-haspopup="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              </button>
+              <div class="th-etapa-menu-dropdown" role="menu">
+                {% if pendencia.status != 'concluida' %}
+                <button type="button" class="th-etapa-menu-item" role="menuitem" onclick="thFichaEditarEtapa({{ etapa.pk }})">Editar etapa</button>
+                {% endif %}
+                {% if etapa.status == 'pendente' and pendencia.status != 'concluida' %}
+                <button type="button" class="th-etapa-menu-item th-etapa-menu-item--danger" role="menuitem" onclick="thFichaExcluirEtapa({{ etapa.pk }}, '{{ etapa.titulo|escapejs }}')">Excluir etapa</button>
+                {% endif %}
+                {% if etapa.status == 'concluida' %}
+                <button type="button" class="th-etapa-menu-item" role="menuitem" onclick="thFichaReabrirEtapa({{ etapa.pk }}, '{{ etapa.titulo|escapejs }}')">Reabrir etapa</button>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+            {% endif %}
           </div>
 
           <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:#64748b;flex-wrap:wrap;">
@@ -214,6 +256,20 @@
           </div>
           {% endif %}
 
+          {% if etapa.status == 'concluida' and pode_editar and pendencia.status != 'cancelada' %}
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;">
+            <button type="button" onclick="abrirModalNotif({{ etapa.pk }}, '{{ etapa.titulo|escapejs }}', '{{ etapa.responsavel_nome|escapejs }}', '{{ etapa.responsavel_whatsapp|escapejs }}', '{{ etapa.responsavel_email|escapejs }}')"
+              style="display:inline-flex;align-items:center;gap:5px;padding:8px 12px;border-radius:8px;background:#ebf6fd;color:#3498db;border:1px solid #b8d4eb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+              Notificar
+            </button>
+            <button type="button" class="btn-etapa-reabrir" onclick="thFichaReabrirEtapa({{ etapa.pk }}, '{{ etapa.titulo|escapejs }}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              Reabrir etapa
+            </button>
+          </div>
+          {% endif %}
+
           {% if etapa.status == 'pendente' and pode_editar %}
           <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;">
             {% if not etapa.requer_assinatura or request.user.id == etapa.responsavel_interno_id %}
@@ -235,6 +291,7 @@
           {% endif %}
         </div>
         {% endfor %}
+        </div>
 
       {% else %}
         <div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px;">
@@ -243,6 +300,7 @@
       {% endif %}
 
       {% if pode_editar and pendencia.status != 'cancelada' %}
+      <div id="th-ficha-editar-etapa-host"></div>
       <div class="th-ficha-nova-etapa-wrap" style="margin-top:16px;">
         <button type="button" id="th-ficha-btn-abrir-nova-etapa" class="th-ficha-add-etapa-btn" onclick="thFichaAbrirNovaEtapa()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -497,7 +555,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=2"></script>
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
+<script src="{% static 'trackhub/js/trackhub_ficha_etapas.js' %}?v=2"></script>
 <script>
 var UPLOAD_URL = "{% url 'trackhub:anexo_upload' pendencia.pk %}";
 var CSRF_TOKEN = "{{ csrf_token }}";
@@ -610,6 +669,18 @@ function thPreviewComentarioFiles(input) {
 }
 
 document.querySelectorAll('form[action*="comentar"]').forEach(function(f) {
+  var ta = f.querySelector('textarea[name="texto"]');
+  if (ta) {
+    ta.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault();
+      if (typeof f.requestSubmit === 'function') f.requestSubmit();
+      else {
+        var btn = f.querySelector('button[type="submit"]');
+        if (btn) btn.click();
+      }
+    });
+  }
   f.addEventListener("submit", function() {
     var inp = document.getElementById("th-input-comentario");
     if (inp && inp._thAcc && inp._thAcc.length) thRedrawComentarioChips(inp);
@@ -753,15 +824,40 @@ function usarUltimaAssinatura(etapaPk) {
   img.src = data;
 }
 
+function thParseTodosUsuarios() {
+  var el = document.getElementById('th-todos-usuarios');
+  if (!el) return [];
+  try { return JSON.parse(el.textContent || '[]'); } catch (e) { return []; }
+}
+
+function thFichaObraId() {
+  var el = document.getElementById('th-ficha-resp-blocos');
+  if (!el) return '';
+  try {
+    var blocos = JSON.parse(el.textContent || '[]');
+    return blocos.length ? String(blocos[0].obra_id) : '';
+  } catch (e) { return ''; }
+}
+
+function thFichaRespData() {
+  var el = document.getElementById('th-ficha-resp-blocos');
+  if (!el) return [];
+  try { return JSON.parse(el.textContent || '[]'); } catch (e) { return []; }
+}
+
+function thFichaObraNome() {
+  var blocos = thFichaRespData();
+  return blocos.length ? (blocos[0].obra_nome || '') : '';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var fichaSel = document.querySelector('#th-ficha-nova-etapa-form select[name="responsavel_interno"]');
   if (fichaSel && window.ThRespPicker) {
-    function thFichaRespData() {
-      var el = document.getElementById('th-ficha-resp-blocos');
-      if (!el) return [];
-      try { return JSON.parse(el.textContent || '[]'); } catch (e) { return []; }
-    }
-    window.ThRespPicker.attach(fichaSel, thFichaRespData, function () { return '__single__'; }, { zIndex: 1600 });
+    window.ThRespPicker.attach(fichaSel, thFichaRespData, thFichaObraId, {
+      zIndex: 1600,
+      getOutrosFn: thParseTodosUsuarios,
+      getObraNomeFn: thFichaObraNome,
+    });
   }
   document.querySelectorAll('canvas[id^="canvas-etapa-"]').forEach(function(canvas) {
     var etapaPk = canvas.id.replace('canvas-etapa-', '');
@@ -858,6 +954,7 @@ if (modalRoot) {
 }
 
 function thFichaAbrirNovaEtapa() {
+  if (typeof thFichaFecharEditarEtapa === 'function') thFichaFecharEditarEtapa();
   var btn = document.getElementById('th-ficha-btn-abrir-nova-etapa');
   var panel = document.getElementById('th-ficha-nova-etapa-panel');
   if (!panel) return;

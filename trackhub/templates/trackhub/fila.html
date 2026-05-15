@@ -45,7 +45,7 @@
 <div class="th-toolbar">
   <form method="GET" class="th-toolbar-left">
     <select name="obra" class="th-filter-select" onchange="this.form.submit()">
-      <option value="">Todas as obras</option>
+      <option value="">Todos os locais</option>
       {% for o in obras %}<option value="{{ o.id }}" {% if filtros.obra == o.id|stringformat:"s" %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
     </select>
     <select name="tipo" class="th-filter-select" onchange="this.form.submit()">
@@ -65,8 +65,10 @@
     </select>
     <select name="status" class="th-filter-select" onchange="this.form.submit()">
       <option value="">Todos os status</option>
-      <option value="aberta" {% if filtros.status == 'aberta' %}selected{% endif %}>Aberta</option>
+      <option value="aberta" {% if filtros.status == 'aberta' %}selected{% endif %}>Aberto</option>
       <option value="em_andamento" {% if filtros.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+      <option value="cancelada" {% if filtros.status == 'cancelada' %}selected{% endif %}>Cancelado</option>
+      <option value="concluida" {% if filtros.status == 'concluida' %}selected{% endif %}>Concluída</option>
     </select>
   </form>
   <a href="{% url 'trackhub:pendencia_criar' %}" class="th-btn-primary">
@@ -79,7 +81,7 @@
 {% if page_obj.object_list %}
 <div class="th-list">
   {% for p in page_obj %}
-  <div class="th-card{% if p.esta_vencida %} vencida{% endif %}{% if p.encerrada_na_fila %} th-card--encerrada{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
+  <div class="th-card{% if p.esta_vencida %} vencida{% endif %}{% if p.encerrada_na_fila %} th-card--encerrada{% endif %}{% if p.status == 'cancelada' %} th-card--cancelada{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
     <div class="th-prio {{ p.prioridade }}"></div>
     <div class="th-main">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;">
@@ -99,40 +101,75 @@
         </span>
       </div>
     </div>
-    <div class="th-etapa">
-      <div class="th-etapa-label">Etapa atual</div>
-      {% if p.th_etapas_total %}
-      <div class="th-etapa-progresso" style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;">{{ p.th_etapas_concluidas }}/{{ p.th_etapas_total }} etapas</div>
-      {% endif %}
-      {% if p.etapa_atual %}
-        <div class="th-etapa-nome">{{ p.etapa_atual.titulo }}</div>
-        <div class="th-etapa-resp">{{ p.etapa_atual.responsavel_nome }}</div>
-      {% else %}
-        <div class="th-etapa-nome" style="color:#94a3b8">Sem etapas</div>
-      {% endif %}
-    </div>
-    {% if p.prazo %}
-    <div class="th-prazo {{ p.th_prazo_class }}">
-      {{ p.prazo|date:"d/m/Y" }}
-    </div>
-    {% endif %}
-    <div class="th-actions" onclick="event.stopPropagation();">
-      {% if p.pk in pode_editar_trackhub_pks %}
-      <form method="POST" action="{% url 'trackhub:pendencia_deletar' p.pk %}" style="display:inline;margin:0;padding:0;line-height:0;" onclick="event.stopPropagation();" onsubmit="return confirm('Excluir esta pendência e todos os dados associados?');">
-        {% csrf_token %}
-        <button type="submit" class="th-btn-icon th-btn-icon-danger" title="Excluir" onclick="event.stopPropagation();">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-        </button>
-      </form>
-      {% endif %}
-      {% if p.status != 'concluida' %}
-      <form method="POST" action="{% url 'trackhub:pendencia_concluir' p.pk %}" style="display:inline" onclick="event.stopPropagation();">
-        {% csrf_token %}
-        <button type="submit" class="th-btn-icon" title="Concluir" onclick="event.stopPropagation();">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </button>
-      </form>
-      {% endif %}
+    <div class="th-card-rail">
+      <div class="th-etapa">
+        <div class="th-etapa-head">
+          <span class="th-etapa-label">Etapa atual</span>
+          {% if p.th_etapas_total %}
+          <span class="th-etapa-progresso">{{ p.th_etapas_concluidas }}/{{ p.th_etapas_total }}</span>
+          {% else %}
+          <span class="th-etapa-progresso th-etapa-progresso--empty" aria-hidden="true">&nbsp;</span>
+          {% endif %}
+        </div>
+        {% if p.etapa_atual %}
+          <div class="th-etapa-nome">{{ p.etapa_atual.titulo }}</div>
+          <div class="th-etapa-resp">{{ p.etapa_atual.responsavel_nome }}</div>
+        {% else %}
+          <div class="th-etapa-nome th-etapa-nome--muted">Sem etapas</div>
+          <div class="th-etapa-resp th-etapa-resp--empty" aria-hidden="true">&nbsp;</div>
+        {% endif %}
+      </div>
+      <div class="th-prazo-slot">
+        {% if p.prazo %}
+        <span class="th-prazo {{ p.th_prazo_class }}">{{ p.prazo|date:"d/m/Y" }}</span>
+        {% else %}
+        <span class="th-prazo th-prazo-empty">—</span>
+        {% endif %}
+      </div>
+      <div class="th-actions" onclick="event.stopPropagation();">
+        <div class="th-actions-slot">
+          {% if p.pk in pode_editar_trackhub_pks %}
+          <form id="th-fila-del-{{ p.pk }}" method="POST" action="{% url 'trackhub:pendencia_deletar' p.pk %}" class="th-fila-del-form" hidden>
+            {% csrf_token %}
+          </form>
+          <form id="th-fila-cancel-{{ p.pk }}" method="POST" action="{% url 'trackhub:pendencia_cancelar' p.pk %}" class="th-fila-cancel-form" hidden>
+            {% csrf_token %}
+          </form>
+          <form id="th-fila-reativar-{{ p.pk }}" method="POST" action="{% url 'trackhub:pendencia_reativar' p.pk %}" class="th-fila-reativar-form" hidden>
+            {% csrf_token %}
+          </form>
+          <div class="th-etapa-menu-wrap th-card-menu-wrap">
+            <button type="button" class="th-etapa-menu-btn" title="Opções" aria-label="Opções da pendência" aria-haspopup="true"
+              onclick="event.stopPropagation(); thFilaToggleCardMenu(this);">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+            </button>
+            <div class="th-etapa-menu-dropdown" role="menu">
+              <button type="button" class="th-etapa-menu-item" role="menuitem"
+                onclick="event.stopPropagation(); thFilaEditarPendencia({{ p.pk }});">Editar</button>
+              {% if p.status == 'cancelada' %}
+              <button type="button" class="th-etapa-menu-item th-etapa-menu-item--success" role="menuitem"
+                onclick="event.stopPropagation(); thFilaReativarPendencia({{ p.pk }});">Reativar</button>
+              {% elif p.status != 'concluida' %}
+              <button type="button" class="th-etapa-menu-item th-etapa-menu-item--muted" role="menuitem"
+                onclick="event.stopPropagation(); thFilaCancelarPendencia({{ p.pk }});">Cancelar</button>
+              {% endif %}
+              <button type="button" class="th-etapa-menu-item th-etapa-menu-item--danger" role="menuitem"
+                onclick="event.stopPropagation(); thFilaExcluirPendencia({{ p.pk }});">Excluir</button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="th-actions-slot">
+          {% if p.status != 'concluida' and p.status != 'cancelada' %}
+          <form method="POST" action="{% url 'trackhub:pendencia_concluir' p.pk %}" class="th-fila-concluir-form" onclick="event.stopPropagation();">
+            {% csrf_token %}
+            <button type="submit" class="th-btn-icon" title="Concluir pendência" onclick="event.stopPropagation();">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
   {% endfor %}

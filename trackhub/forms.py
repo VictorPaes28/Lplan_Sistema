@@ -30,6 +30,7 @@ class PendenciaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if obras_queryset is not None:
             self.fields["obra"].queryset = obras_queryset
+        self.fields["obra"].label = "Local"
         self.fields["obra"].widget.attrs.setdefault("class", "th-filter-select")
 
 

@@ -12,14 +12,30 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
   </div>
-  <form method="GET">
-    <input type="hidden" name="year" value="{{ year }}">
-    <input type="hidden" name="month" value="{{ month }}">
-    <select name="obra" class="th-filter-select" onchange="this.form.submit()">
-      <option value="">Todas as obras</option>
-      {% for o in obras %}<option value="{{ o.id }}" {% if filtros.obra == o.id|stringformat:"s" %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
-    </select>
-  </form>
+  <div class="th-cal-header-right">
+    <div class="th-cal-legend" aria-label="Legenda do calendário">
+      <span class="th-cal-legend-item">
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--aberta" aria-hidden="true"></span>
+        Em aberto
+      </span>
+      <span class="th-cal-legend-item">
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--concluida" aria-hidden="true"></span>
+        Concluída
+      </span>
+      <span class="th-cal-legend-item">
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--cancelada" aria-hidden="true"></span>
+        Cancelada
+      </span>
+    </div>
+    <form method="GET">
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <select name="obra" class="th-filter-select" onchange="this.form.submit()">
+        <option value="">Todos os locais</option>
+        {% for o in obras %}<option value="{{ o.id }}" {% if filtros.obra == o.id|stringformat:"s" %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
+      </select>
+    </form>
+  </div>
 </div>
 
 <div class="th-cal-grid">
@@ -38,8 +54,15 @@
     <div class="th-cal-cell {% if not day.current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
       <div class="th-cal-cell-num">{{ day.date.day }}</div>
       {% for p in day.pendencias %}
-      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}" class="th-cal-event {{ p.prioridade }}" title="{{ p.titulo }}">
-        {{ p.titulo|truncatechars:20 }}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}"
+        class="th-cal-event {{ p.prioridade }}{% if p.status == 'concluida' %} th-cal-event--concluida{% elif p.status == 'cancelada' %} th-cal-event--cancelada{% endif %}"
+        title="{{ p.get_status_display }} — {{ p.titulo }}">
+        {% if p.status == 'concluida' %}
+        <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        {% elif p.status == 'cancelada' %}
+        <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        {% endif %}
+        <span class="th-cal-event-text">{{ p.titulo|truncatechars:20 }}</span>
       </a>
       {% endfor %}
     </div>

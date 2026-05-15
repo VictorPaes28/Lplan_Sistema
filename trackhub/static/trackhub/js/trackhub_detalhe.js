@@ -21,9 +21,12 @@
   function anexoUploadUrl(pk) { return urlPk(root.dataset.urlAnexoUpload, pk); }
   function anexoDeletarUrl(anexoPk) { return urlPk(root.dataset.urlAnexoDeletar, anexoPk); }
   function etapaConcluirUrl(etapaPk) { return urlPk(root.dataset.urlEtapaConcluir, etapaPk); }
+  function etapaReabrirUrl(etapaPk) { return urlPk(root.dataset.urlEtapaReabrir, etapaPk); }
   function pendenciaConcluirUrl(pk) { return urlPk(root.dataset.urlPendenciaConcluir, pk); }
   function pendenciaDeletarUrl(pk) { return urlPk(root.dataset.urlPendenciaDeletar, pk); }
   function etapaAdicionarUrl(pk) { return urlPk(root.dataset.urlEtapaAdicionar, pk); }
+  function etapaEditarUrl(etapaPk) { return urlPk(root.dataset.urlEtapaEditar, etapaPk); }
+  function etapaDeletarUrl(etapaPk) { return urlPk(root.dataset.urlEtapaDeletar, etapaPk); }
   function pendenciaFichaUrl(pk) { return urlPk(root.dataset.urlPendenciaFicha, pk); }
   function etapaNotificarUrl(etapaPk) { return urlPk(root.dataset.urlEtapaNotificar, etapaPk); }
   function etapasReordenarUrl(pk) { return urlPk(root.dataset.urlEtapasReordenar, pk); }
@@ -194,6 +197,8 @@
 
   document.addEventListener('click', function () {
     closeDropdown();
+    closeEtapaMenus();
+    closeFilaCardMenus();
   });
 
   function preencherActionsFooter(pk) {
@@ -201,6 +206,84 @@
     var concForm = document.getElementById('th-form-concluir');
     if (delForm) delForm.action = pendenciaDeletarUrl(pk);
     if (concForm) concForm.action = pendenciaConcluirUrl(pk);
+  }
+
+  function closeEtapaMenus() {
+    document.querySelectorAll('.th-etapa-menu-wrap.is-open').forEach(function (w) {
+      w.classList.remove('is-open');
+    });
+  }
+
+  function closeFilaCardMenus() {
+    document.querySelectorAll('.th-card-menu-wrap.is-open').forEach(function (w) {
+      w.classList.remove('is-open');
+    });
+    document.querySelectorAll('.th-card.th-card--menu-open').forEach(function (c) {
+      c.classList.remove('th-card--menu-open');
+    });
+  }
+
+  function buildEtapaMenuBtn(e, p) {
+    var wrap = document.createElement('div');
+    wrap.className = 'th-etapa-menu-wrap';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'th-etapa-menu-btn';
+    btn.setAttribute('aria-label', 'Opções da etapa');
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
+    var menu = document.createElement('div');
+    menu.className = 'th-etapa-menu-dropdown';
+    menu.setAttribute('role', 'menu');
+
+    var btnEdit = document.createElement('button');
+    btnEdit.type = 'button';
+    btnEdit.className = 'th-etapa-menu-item';
+    btnEdit.textContent = 'Editar etapa';
+    btnEdit.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      closeEtapaMenus();
+      window.abrirFormEditarEtapa(e.id);
+    });
+    if (e.status !== 'concluida') {
+      menu.appendChild(btnEdit);
+    }
+
+    if (e.status === 'pendente') {
+      var btnDel = document.createElement('button');
+      btnDel.type = 'button';
+      btnDel.className = 'th-etapa-menu-item th-etapa-menu-item--danger';
+      btnDel.textContent = 'Excluir etapa';
+      btnDel.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        closeEtapaMenus();
+        window.excluirEtapaAjax(e.id, e.titulo);
+      });
+      menu.appendChild(btnDel);
+    }
+
+    if (e.status === 'concluida' && p.pode_editar && p.status !== 'cancelada') {
+      var btnReab = document.createElement('button');
+      btnReab.type = 'button';
+      btnReab.className = 'th-etapa-menu-item';
+      btnReab.textContent = 'Reabrir etapa';
+      btnReab.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        closeEtapaMenus();
+        window.reabrirEtapaAjax(e.id, e.titulo);
+      });
+      menu.appendChild(btnReab);
+    }
+
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var open = wrap.classList.contains('is-open');
+      closeEtapaMenus();
+      if (!open) wrap.classList.add('is-open');
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    return wrap;
   }
 
   function appendEtapasVerMaisLink(pk, etapas) {
@@ -272,6 +355,7 @@
 
     window.thDetalheAtual = p.id;
     window.thUsuarios = p.usuarios || [];
+    window.thUsuariosOutros = p.usuarios_outros || [];
     window.thDetalheObraNome = p.obra_nome || '';
     window.etapasPendentesCount = typeof p.etapas_pendentes_count === 'number'
       ? p.etapas_pendentes_count
@@ -293,8 +377,16 @@
     }
   }
 
+  function removerFormulariosEtapaModal() {
+    var ed = document.getElementById('th-form-editar-etapa');
+    if (ed) ed.remove();
+    var ne = document.getElementById('th-form-nova-etapa');
+    if (ne) ne.remove();
+  }
+
   function renderEtapas(p) {
     if (!elEtapas) return;
+    removerFormulariosEtapaModal();
     elEtapas.innerHTML = '';
     var etapas = p.etapas || [];
     var total = etapas.length;
@@ -361,8 +453,8 @@
       if (isConcl) {
         circle.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
       } else {
-        var ordemNum = parseInt(e.ordem, 10);
-        circle.textContent = String(!isNaN(ordemNum) && ordemNum > 0 ? ordemNum : (idx + 1));
+        var num = typeof e.numero === 'number' ? e.numero : (idx + 1);
+        circle.textContent = String(num);
       }
       var tit = document.createElement('div');
       tit.className = 'th-etapa-titulo';
@@ -373,6 +465,11 @@
       row.appendChild(circle);
       row.appendChild(tit);
       row.appendChild(badge);
+      if (p.pode_editar && p.status !== 'cancelada' && (p.status !== 'concluida' || e.status === 'concluida')) {
+        var menuWrap = buildEtapaMenuBtn(e, p);
+        menuWrap.style.flexShrink = '0';
+        row.appendChild(menuWrap);
+      }
       item.appendChild(row);
 
       var meta = document.createElement('div');
@@ -447,6 +544,16 @@
           });
           actions.appendChild(btnC);
         }
+      } else if (e.status === 'concluida' && p.pode_editar && p.status !== 'cancelada') {
+        var btnR = document.createElement('button');
+        btnR.type = 'button';
+        btnR.className = 'btn-etapa-reabrir';
+        btnR.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg> Reabrir etapa';
+        btnR.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          window.reabrirEtapaAjax(e.id, e.titulo);
+        });
+        actions.appendChild(btnR);
       }
       item.appendChild(actions);
       elEtapas.appendChild(item);
@@ -696,6 +803,37 @@
     if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
     carregarAtividades(currentPk);
   }
+
+  async function reabrirEtapaAjax(etapaPk, titulo) {
+    if (!confirm('Reabrir a etapa "' + (titulo || '') + '"? Ela voltará ao status pendente.')) return;
+    var fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    var r = await fetch(etapaReabrirUrl(etapaPk), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+      },
+      body: fd,
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.success) {
+      alert((d && d.error) || 'Não foi possível reabrir a etapa.');
+      return;
+    }
+    markTrackhubListStale();
+    if (d.pendencia) {
+      applyPendenciaPayload(d.pendencia);
+    } else if (currentPk) {
+      var res = await fetch(detailUrl(currentPk), { credentials: 'same-origin' });
+      var pack = await res.json().catch(function () { return {}; });
+      if (res.ok && pack.ok && pack.pendencia) applyPendenciaPayload(pack.pendencia);
+    }
+    carregarAtividades(currentPk);
+  }
+
+  window.reabrirEtapaAjax = reabrirEtapaAjax;
 
   function getDragAfterEtapa(clientY) {
     if (!elEtapas) return null;
@@ -984,6 +1122,11 @@
     elCommentText.addEventListener('input', function () {
       elCommentSend.disabled = !((elCommentText.value || '').trim() || commentPendingFiles.length);
     });
+    elCommentText.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault();
+      if (!elCommentSend.disabled) enviarComentario();
+    });
     elCommentSend.addEventListener('click', enviarComentario);
   }
 
@@ -1017,6 +1160,7 @@
 
   window.abrirFormNovaEtapa = function () {
     if (!currentData || !currentData.pode_editar) return;
+    removerFormulariosEtapaModal();
     var formExistente = document.getElementById('th-form-nova-etapa');
     if (formExistente) {
       formExistente.scrollIntoView({ behavior: 'smooth' });
@@ -1171,7 +1315,151 @@
       });
   };
 
+  function findEtapaInCurrent(etapaId) {
+    if (!currentData || !currentData.etapas) return null;
+    var id = parseInt(etapaId, 10);
+    for (var i = 0; i < currentData.etapas.length; i++) {
+      if (currentData.etapas[i].id === id) return currentData.etapas[i];
+    }
+    return null;
+  }
+
+  function findResponsavelIdByNome(nome) {
+    if (!currentData || !nome) return '';
+    var n = String(nome).trim().toLowerCase();
+    var list = (currentData.usuarios || []).concat(currentData.usuarios_outros || []);
+    for (var i = 0; i < list.length; i++) {
+      var u = list[i];
+      if ((u.nome || '').trim().toLowerCase() === n) return String(u.id);
+    }
+    return '';
+  }
+
+  window.abrirFormEditarEtapa = function (etapaId) {
+    if (!currentData || !currentData.pode_editar) return;
+    var etapa = findEtapaInCurrent(etapaId);
+    if (!etapa) return;
+    if (etapa.status === 'concluida') {
+      alert('Não é possível editar uma etapa já concluída.');
+      return;
+    }
+    var existente = document.getElementById('th-form-editar-etapa');
+    if (existente) existente.remove();
+    var nova = document.getElementById('th-form-nova-etapa');
+    if (nova) nova.remove();
+
+    if (!elEtapas) return;
+
+    var rid = etapa.responsavel_interno_id
+      ? String(etapa.responsavel_interno_id)
+      : findResponsavelIdByNome(etapa.responsavel_nome);
+    var html = ''
+      + '<div id="th-form-editar-etapa" data-etapa-id="' + String(etapa.id) + '" style="position:relative;border:2px dashed #b8d4eb;border-radius:10px;padding:14px 14px 16px;margin-top:12px;background:#ebf6fd;">'
+      + '  <button type="button" onclick="document.getElementById(\'th-form-editar-etapa\').remove()" aria-label="Fechar" title="Fechar"'
+      + '    style="position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;font-family:inherit;">'
+      + '    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      + '  </button>'
+      + '  <div style="font-size:11px;font-weight:700;color:#2980b9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-right:40px;">Editar etapa</div>'
+      + '  <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Título <span style="color:#ef4444">*</span></label>'
+      + '  <input type="text" name="titulo" value="' + esc(etapa.titulo || '') + '" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;"></div>'
+      + '  <div class="th-modal-nova-etapa-grid"><div><label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Usuário responsável <span style="color:#ef4444">*</span></label>'
+      + '  <select name="responsavel_interno" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;"><option value="">Selecione...</option></select></div>'
+      + '  <div><label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Prazo da etapa</label>'
+      + '  <input type="date" name="prazo" value="' + esc(etapa.prazo || '') + '" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;"></div></div>'
+      + '  <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">Observação</label>'
+      + '  <textarea name="observacao" rows="3" style="width:100%;box-sizing:border-box;min-height:72px;resize:vertical;padding:8px 10px;border-radius:7px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;">' + esc(etapa.observacao || '') + '</textarea></div>'
+      + '  <label class="th-assinatura-toggle th-modal-etapa-ass-wrap" style="margin-bottom:12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px;">'
+      + '  <input type="checkbox" name="requer_assinatura" value="1"' + (etapa.requer_assinatura ? ' checked' : '') + ' style="cursor:pointer;margin-top:3px;">'
+      + '  <span style="font-size:12px;font-weight:600;color:#374151;">Esta etapa requer assinatura</span></label>'
+      + '  <button type="button" onclick="salvarEditarEtapa()" style="padding:8px 16px;border-radius:8px;background:#3498db;color:#fff;border:none;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Salvar alterações</button>'
+      + '</div>';
+    elEtapas.insertAdjacentHTML('beforeend', html);
+
+    var sel = document.querySelector('#th-form-editar-etapa select[name="responsavel_interno"]');
+    if (sel) {
+      if (rid) {
+        sel.dataset.thRespPreserveId = rid;
+        sel.dataset.thRespPreserveNome = etapa.responsavel_nome || '';
+      } else {
+        delete sel.dataset.thRespPreserveId;
+        delete sel.dataset.thRespPreserveNome;
+      }
+      if (window.ThRespPicker) window.ThRespPicker.attachModalNovaEtapa(sel);
+      if (rid) sel.value = rid;
+      if (sel._thRespRefresh) sel._thRespRefresh();
+    }
+
+    var panel = document.getElementById('th-form-editar-etapa');
+    if (panel) {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var t = panel.querySelector('input[name="titulo"]');
+      if (t) t.focus();
+    }
+  };
+
+  window.salvarEditarEtapa = function () {
+    var form = document.getElementById('th-form-editar-etapa');
+    if (!form) return;
+    var etapaId = form.getAttribute('data-etapa-id');
+    if (!etapaId) return;
+    var titulo = (form.querySelector('input[name="titulo"]').value || '').trim();
+    if (!titulo) { alert('Informe o título da etapa.'); return; }
+    var rid = (form.querySelector('select[name="responsavel_interno"]').value || '').trim();
+    if (!rid) { alert('Informe o responsável interno da etapa.'); return; }
+    var data = new FormData();
+    data.append('titulo', titulo);
+    data.append('responsavel_interno', rid);
+    data.append('prazo', (form.querySelector('input[name="prazo"]').value || ''));
+    data.append('observacao', (form.querySelector('textarea[name="observacao"]').value || ''));
+    data.append('requer_assinatura', form.querySelector('input[name="requer_assinatura"]').checked ? '1' : '');
+    data.append('csrfmiddlewaretoken', CSRF);
+    fetch(etapaEditarUrl(etapaId), {
+      method: 'POST',
+      body: data,
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
+      .then(function (x) {
+        if (!x.r.ok || !x.d.success) {
+          alert((x.d && x.d.error) || 'Erro ao salvar etapa.');
+          return;
+        }
+        markTrackhubListStale();
+        form.remove();
+        if (x.d.pendencia) applyPendenciaPayload(x.d.pendencia);
+        else if (currentPk) window.abrirDetalhe(currentPk);
+      })
+      .catch(function () { alert('Erro ao salvar etapa.'); });
+  };
+
+  window.excluirEtapaAjax = function (etapaId, titulo) {
+    if (!confirm('Excluir a etapa "' + (titulo || '') + '"? Esta ação não pode ser desfeita.')) return;
+    var data = new FormData();
+    data.append('csrfmiddlewaretoken', CSRF);
+    fetch(etapaDeletarUrl(etapaId), {
+      method: 'POST',
+      body: data,
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
+      .then(function (x) {
+        if (!x.r.ok || !x.d.success) {
+          alert((x.d && x.d.error) || 'Erro ao excluir etapa.');
+          return;
+        }
+        markTrackhubListStale();
+        var ed = document.getElementById('th-form-editar-etapa');
+        if (ed) ed.remove();
+        if (x.d.pendencia) applyPendenciaPayload(x.d.pendencia);
+        else if (currentPk) window.abrirDetalhe(currentPk);
+      })
+      .catch(function () { alert('Erro ao excluir etapa.'); });
+  };
+
   window.abrirDetalhe = async function (pk) {
+    removerFormulariosEtapaModal();
     currentPk = pk;
     overlay.removeAttribute('hidden');
     overlay.setAttribute('aria-hidden', 'false');
@@ -1206,8 +1494,7 @@
 
   window.fecharDetalhe = function () {
     closeDropdown();
-    var ne = document.getElementById('th-form-nova-etapa');
-    if (ne) ne.remove();
+    removerFormulariosEtapaModal();
     var needReload = trackhubListPageNeedsReload;
     trackhubListPageNeedsReload = false;
     overlay.setAttribute('hidden', '');
@@ -1217,6 +1504,7 @@
     currentData = null;
     window.thDetalheObraNome = '';
     window.thUsuarios = [];
+    window.thUsuariosOutros = [];
     commentPendingFiles = [];
     if (elCommentFileInput) elCommentFileInput.value = '';
     renderCommentPendingFiles();
@@ -1314,4 +1602,53 @@
       if (e.target === modalN) window.fecharModal();
     });
   }
+
+  window.thFilaToggleCardMenu = function (btn) {
+    var wrap = btn.closest('.th-card-menu-wrap');
+    if (!wrap) return;
+    var card = btn.closest('.th-card');
+    var open = wrap.classList.contains('is-open');
+    closeFilaCardMenus();
+    closeEtapaMenus();
+    if (!open) {
+      wrap.classList.add('is-open');
+      if (card) card.classList.add('th-card--menu-open');
+    }
+  };
+
+  var filaListEl = document.querySelector('.th-list');
+  if (filaListEl) {
+    filaListEl.addEventListener('mouseenter', function (e) {
+      var card = e.target.closest('.th-card');
+      if (!card) return;
+      if (card.classList.contains('th-card--menu-open')) return;
+      if (document.querySelector('.th-card-menu-wrap.is-open')) closeFilaCardMenus();
+    }, true);
+  }
+
+  window.thFilaEditarPendencia = function (pk) {
+    closeFilaCardMenus();
+    if (typeof window.abrirDetalhe === 'function') window.abrirDetalhe(pk);
+  };
+
+  window.thFilaExcluirPendencia = function (pk) {
+    closeFilaCardMenus();
+    if (!confirm('Excluir esta pendência e todos os dados associados?')) return;
+    var f = document.getElementById('th-fila-del-' + pk);
+    if (f) f.submit();
+  };
+
+  window.thFilaCancelarPendencia = function (pk) {
+    closeFilaCardMenus();
+    if (!confirm('Cancelar esta pendência? Ela ficará arquivada na fila, sem contar como pendente ativa.')) return;
+    var f = document.getElementById('th-fila-cancel-' + pk);
+    if (f) f.submit();
+  };
+
+  window.thFilaReativarPendencia = function (pk) {
+    closeFilaCardMenus();
+    if (!confirm('Reativar esta pendência? Ela voltará a contar como pendente na fila.')) return;
+    var f = document.getElementById('th-fila-reativar-' + pk);
+    if (f) f.submit();
+  };
 })();

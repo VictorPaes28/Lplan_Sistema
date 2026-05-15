@@ -192,11 +192,11 @@
 .th-btn-primary svg { width: 14px; height: 14px; }
 
 /* PENDÊNCIA CARD */
-.th-list { display: flex; flex-direction: column; gap: 8px; width: 100% !important; box-sizing: border-box !important; overflow: visible; }
+.th-list { display: flex; flex-direction: column; gap: 6px; width: 100% !important; box-sizing: border-box !important; overflow: visible; }
 .th-card {
   background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 12px; padding: 16px 18px;
-  display: flex; align-items: center; gap: 14px;
+  border-radius: 10px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
   cursor: pointer; transition: all .2s;
   text-decoration: none; color: inherit;
   animation: thFadeUp .25s both;
@@ -208,12 +208,14 @@
 @keyframes thFadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
 .th-main { flex: 1; min-width: 0; }
-.th-titulo { font-size: 13.5px; font-weight: 600; color: var(--th-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.th-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
-.th-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--th-text-muted); }
+.th-titulo { font-size: 13px; font-weight: 600; color: var(--th-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+.th-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.th-meta-item { display: flex; align-items: center; gap: 3px; font-size: 10.5px; color: var(--th-text-muted); }
 .th-meta-item svg { width: 11px; height: 11px; }
 
 .th-card:hover { border-color: var(--th-accent); box-shadow: 0 2px 12px rgba(52, 152, 219, 0.08); z-index: 3; }
+.th-card.th-card--menu-open { z-index: 250; }
+.th-card.th-card--menu-open:hover { z-index: 250; }
 .th-card.vencida { border-left: 3px solid var(--th-danger); }
 
 /* Concluídas / canceladas — leitura secundária na fila */
@@ -273,6 +275,23 @@
   opacity: 1;
 }
 
+/* Canceladas — mais apagadas que concluídas */
+.th-card.th-card--cancelada {
+  opacity: 0.88;
+  background: #f8fafc;
+}
+.th-card.th-card--cancelada .th-titulo {
+  color: #94a3b8;
+  text-decoration: line-through;
+  text-decoration-color: #cbd5e1;
+}
+.th-card.th-card--cancelada .th-prio {
+  opacity: 0.4;
+}
+.th-card.th-card--cancelada .th-badge {
+  opacity: 0.75;
+}
+
 /* PRIORIDADE — só urgente/alta com cores semânticas fortes */
 .th-prio { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .th-prio.urgente { background: var(--th-danger); box-shadow: none; }
@@ -281,7 +300,7 @@
 .th-prio.baixa   { background: #94a3b8; }
 
 /* BADGES */
-.th-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.th-badge { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; line-height: 1.35; }
 .th-badge.urgente   { background: var(--th-danger-soft); color: var(--th-danger); }
 .th-badge.alta      { background: var(--th-warning-soft); color: var(--th-warning); }
 .th-badge.normal    { background: var(--th-surface-accent); color: var(--th-accent-hover); }
@@ -318,30 +337,97 @@
 .th-badge.manual      { background: #f8fafc; color: #64748b; }
 .th-badge.sienge { background: var(--th-muted-bg); color: var(--th-success); border: 1px solid var(--th-border); }
 
+/* COLUNAS FIXAS — etapa, prazo e ações alinhadas na fila */
+.th-card-rail {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+  margin-left: auto;
+}
+
 /* ETAPA ATUAL */
-.th-etapa { min-width: 160px; max-width: 200px; background: #f8fafc; border-radius: 8px; padding: 8px 12px; flex-shrink: 0; }
-.th-etapa-label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
-.th-etapa-nome  { font-size: 12px; font-weight: 600; color: #374151; }
-.th-etapa-resp  { font-size: 11px; color: #64748b; margin-top: 2px; }
+.th-etapa {
+  width: 168px;
+  min-width: 168px;
+  max-width: 168px;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 5px 10px;
+  flex-shrink: 0;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+.th-etapa-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  margin-bottom: 2px;
+}
+.th-etapa-label { font-size: 8.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
+.th-etapa-progresso { font-size: 10px; font-weight: 600; color: #64748b; white-space: nowrap; min-width: 24px; text-align: right; }
+.th-etapa-progresso--empty { visibility: hidden; }
+.th-etapa-nome  { font-size: 11.5px; font-weight: 600; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-etapa-nome--muted { color: #94a3b8; font-weight: 600; }
+.th-etapa-resp  { font-size: 10px; color: #64748b; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 14px; }
+.th-etapa-resp--empty { visibility: hidden; }
 
 /* PRAZO */
-.th-prazo { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.th-prazo-slot {
+  width: 76px;
+  min-width: 76px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.th-prazo-slot:has(.th-prazo-empty) {
+  justify-content: center;
+}
+.th-prazo { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.th-prazo-empty { color: #cbd5e1; font-weight: 500; text-align: center; }
 .th-prazo.ok      { color: var(--th-success); }
 .th-prazo.soon    { color: var(--th-warning); }
 .th-prazo.vencida { color: var(--th-danger); }
 .th-prazo.neutral { color: #64748b; font-weight: 600; }
 
 /* AÇÕES */
-.th-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; position: relative; z-index: 2; }
+.th-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  width: 64px;
+  min-width: 64px;
+  justify-content: flex-end;
+}
+.th-actions-slot {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.th-fila-concluir-form,
+.th-fila-del-form { margin: 0; padding: 0; line-height: 0; }
+.th-card-menu-wrap { z-index: 10; }
+.th-card.th-card--menu-open .th-card-menu-wrap { z-index: 260; }
+.th-card.th-card--menu-open .th-etapa-menu-dropdown { z-index: 270; }
+.th-card.th-card--encerrada .th-card-menu-wrap .th-etapa-menu-btn:not(:hover) {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
 .th-btn-icon {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 28px; height: 28px; border-radius: 7px;
   border: 1px solid #e2e8f0; background: #fff;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all .2s; color: #64748b;
   text-decoration: none;
 }
 .th-btn-icon:hover { border-color: var(--th-accent); color: var(--th-accent); background: var(--th-surface-accent); }
-.th-btn-icon svg { width: 14px; height: 14px; }
+.th-btn-icon svg { width: 13px; height: 13px; }
 
 .th-btn-icon-danger { border-color: #fecaca; color: #b91c1c; background: #fff; }
 .th-btn-icon-danger:hover { border-color: #ef4444; color: #b91c1c; background: #fef2f2; }
@@ -357,6 +443,13 @@
 
 /* CALENDÁRIO */
 .th-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+.th-cal-header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.th-cal-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.th-cal-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #64748b; }
+.th-cal-legend-swatch { width: 14px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+.th-cal-legend-swatch--aberta { background: var(--th-warning-soft); border: 1px solid #fde68a; }
+.th-cal-legend-swatch--concluida { background: var(--th-success-soft); border: 1px solid #c8ebd6; }
+.th-cal-legend-swatch--cancelada { background: #f1f5f9; border: 1px solid #e2e8f0; }
 .th-cal-nav { display: flex; align-items: center; gap: 8px; }
 .th-cal-btn {
   width: 32px; height: 32px; border-radius: 8px;
@@ -379,12 +472,40 @@
 .th-cal-cell-num { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
 .th-cal-cell.today .th-cal-cell-num { width: 22px; height: 22px; background: var(--th-accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; }
 .th-cal-cell.other-month .th-cal-cell-num { color: #cbd5e1; }
-.th-cal-event { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .15s; text-decoration: none; display: block; }
-.th-cal-event:hover { opacity: .8; }
+.th-cal-event {
+  font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px;
+  cursor: pointer; transition: opacity .15s; text-decoration: none;
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+  border: 1px solid transparent;
+}
+.th-cal-event:hover { opacity: .85; }
+.th-cal-event-text {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.th-cal-event-icon { width: 10px; height: 10px; flex-shrink: 0; opacity: .9; }
 .th-cal-event.urgente { background: var(--th-danger-soft); color: var(--th-danger); }
 .th-cal-event.alta    { background: var(--th-warning-soft); color: var(--th-warning); }
 .th-cal-event.normal  { background: var(--th-surface-accent); color: var(--th-accent-hover); }
 .th-cal-event.baixa   { background: var(--th-muted-bg); color: var(--th-text-muted); }
+.th-cal-event.th-cal-event--concluida {
+  background: var(--th-success-soft) !important;
+  color: var(--th-success) !important;
+  border-color: #c8ebd6;
+}
+.th-cal-event.th-cal-event--concluida .th-cal-event-text {
+  text-decoration: line-through;
+  text-decoration-color: rgba(39, 174, 96, 0.5);
+}
+.th-cal-event.th-cal-event--cancelada {
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0;
+  opacity: .92;
+}
+.th-cal-event.th-cal-event--cancelada .th-cal-event-text {
+  text-decoration: line-through;
+  text-decoration-color: #cbd5e1;
+}
 
 /* POR OBRA COLUNAS */
 .th-obra-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -900,6 +1021,12 @@
   font-weight: 600; cursor: pointer; font-family: inherit;
 }
 .btn-etapa-notif svg { width: 11px; height: 11px; }
+.btn-etapa-reabrir {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 7px;
+  background: #fffbeb; color: #b45309; border: 1px solid #fde68a; font-size: 11.5px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.btn-etapa-reabrir svg { width: 12px; height: 12px; flex-shrink: 0; }
 
 .th-anexos-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .th-anexo-thumb {
@@ -1212,6 +1339,17 @@
   position: relative;
   width: 100%;
 }
+.th-resp-picker-wrap--open {
+  z-index: 30;
+}
+.th-resp-popover--anchored {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 280px;
+  max-width: min(280px, calc(100vw - 24px));
+  box-sizing: border-box;
+}
 .th-resp-picker-select {
   position: absolute !important;
   width: 1px !important;
@@ -1393,6 +1531,14 @@
 
 .th-resp-popover-trackhub .imp-resp-user-nome {
   color: var(--th-text-strong);
+}
+
+.th-resp-popover-trackhub .th-resp-section-empty {
+  margin: 0;
+  padding: 8px 12px 10px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
 }
 
 /* Formulário nova pendência — campo Repetir */
@@ -1659,5 +1805,332 @@
   color: #2980db;
   margin-bottom: 8px;
   line-height: 1.35;
+}
+
+.th-etapa-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.th-etapa-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+}
+.th-etapa-menu-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #374151;
+}
+.th-etapa-menu-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 148px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 50;
+}
+.th-etapa-menu-wrap.is-open .th-etapa-menu-dropdown {
+  display: block;
+}
+.th-etapa-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.th-etapa-menu-item:hover {
+  background: #f1f5f9;
+}
+.th-etapa-menu-item--danger {
+  color: #b91c1c;
+}
+.th-etapa-menu-item--danger:hover {
+  background: #fef2f2;
+}
+.th-etapa-menu-item--muted {
+  color: #64748b;
+}
+.th-etapa-menu-item--muted:hover {
+  background: #f8fafc;
+  color: #475569;
+}
+.th-etapa-menu-item--success {
+  color: var(--th-success);
+}
+.th-etapa-menu-item--success:hover {
+  background: var(--th-success-soft);
+  color: #1e7a45;
+}
+
+.th-ficha-etapa-item[draggable="true"] {
+  cursor: grab;
+}
+.th-ficha-etapa-item.th-etapa-item--dragging {
+  opacity: 0.65;
+  cursor: grabbing !important;
+}
+.th-ficha-etapas-dnd-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+/* Modal detalhe — layout compacto (mais conteúdo visível sem alterar o tamanho do modal) */
+.th-detalhe-modal .th-modal-topbar {
+  padding: 8px 16px;
+}
+.th-detalhe-modal .th-modal-close {
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+.th-detalhe-modal .th-modal-breadcrumb {
+  font-size: 11px;
+}
+.th-detalhe-modal .th-modal-pills {
+  padding: 6px 16px;
+  gap: 6px;
+}
+.th-detalhe-modal .th-modal-meta-created {
+  font-size: 10px;
+}
+.th-detalhe-modal .th-detalhe-pill {
+  padding: 3px 8px;
+  font-size: 11px;
+  gap: 4px;
+}
+.th-detalhe-modal .th-detalhe-pill .th-pill-ico {
+  width: 10px;
+  height: 10px;
+}
+.th-detalhe-modal .th-detalhe-body.th-modal-body {
+  grid-template-columns: 1fr 288px;
+}
+.th-detalhe-modal .th-detalhe-col-left.th-modal-left {
+  padding: 12px 16px;
+}
+.th-detalhe-modal .th-det-titulo {
+  font-size: 18px;
+  font-weight: 800;
+  min-height: 24px;
+  margin-bottom: 2px;
+  line-height: 1.25;
+}
+.th-detalhe-modal .th-det-recorrencia-info {
+  font-size: 11px;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.th-detalhe-modal .th-det-obra-row {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.th-detalhe-modal .th-section-label {
+  font-size: 9.5px;
+  letter-spacing: 0.55px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.th-detalhe-modal .th-etapas-section-head {
+  margin-top: 10px;
+}
+.th-detalhe-modal .th-etapas-counter {
+  font-size: 10px;
+}
+.th-detalhe-modal .th-det-descricao.th-detalhe-editable {
+  font-size: 12.5px;
+  line-height: 1.45;
+  min-height: 32px;
+  padding: 4px 6px;
+}
+.th-detalhe-modal .th-progress-bar {
+  height: 3px;
+  margin-bottom: 3px;
+}
+.th-detalhe-modal .th-progress-text {
+  font-size: 10.5px;
+  margin-bottom: 8px;
+}
+.th-detalhe-modal .th-etapa-item {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+}
+.th-detalhe-modal .th-etapa-row {
+  gap: 8px;
+}
+.th-detalhe-modal .th-etapa-circle {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+}
+.th-detalhe-modal .th-etapa-titulo {
+  font-size: 12.5px;
+}
+.th-detalhe-modal .th-etapa-badge {
+  font-size: 9.5px;
+  padding: 1px 6px;
+}
+.th-detalhe-modal .th-etapa-meta {
+  margin-top: 4px;
+  gap: 8px;
+  font-size: 10.5px;
+}
+.th-detalhe-modal .th-etapa-meta-item svg {
+  width: 10px;
+  height: 10px;
+}
+.th-detalhe-modal .th-etapa-req-sig {
+  font-size: 9px;
+  padding: 1px 6px;
+}
+.th-detalhe-modal .th-etapa-actions {
+  margin-top: 6px;
+  padding-top: 6px;
+  gap: 6px;
+}
+.th-detalhe-modal .th-assinatura-box {
+  margin-top: 6px;
+  padding: 8px 10px;
+}
+.th-detalhe-modal .th-assinatura-title {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.th-detalhe-modal .th-assinatura-hint {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.th-detalhe-modal .btn-etapa-concluir,
+.th-detalhe-modal .btn-etapa-reabrir {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+.th-detalhe-modal .btn-etapa-notif {
+  padding: 5px 8px;
+  font-size: 10.5px;
+}
+.th-detalhe-modal .th-etapa-menu-btn {
+  width: 26px;
+  height: 26px;
+}
+.th-detalhe-modal .th-etapas-ver-historico {
+  margin-top: 8px;
+  padding-top: 6px;
+}
+.th-detalhe-modal .th-link-ver-historico {
+  font-size: 11px;
+}
+.th-detalhe-modal .th-anexo-thumb,
+.th-detalhe-modal .th-anexo-add {
+  width: 60px;
+  height: 60px;
+}
+.th-detalhe-modal .th-detalhe-tab.th-right-tab {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.th-detalhe-modal .th-comments-list,
+.th-detalhe-modal .th-activities-list {
+  padding: 8px 10px;
+}
+.th-detalhe-modal .th-comment {
+  margin-bottom: 10px;
+}
+.th-detalhe-modal .th-comment-avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 8px;
+}
+.th-detalhe-modal .th-comment-author {
+  font-size: 11.5px;
+}
+.th-detalhe-modal .th-comment-date {
+  font-size: 9.5px;
+}
+.th-detalhe-modal .th-comment-text {
+  font-size: 12px;
+  line-height: 1.4;
+  padding-left: 28px;
+}
+.th-detalhe-modal .th-comment-files {
+  padding-left: 28px;
+  gap: 6px;
+}
+.th-detalhe-modal .th-comment-input.th-detalhe-composer {
+  padding: 8px 10px;
+}
+.th-detalhe-modal .th-comment-textarea {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.th-detalhe-modal .th-comment-footer {
+  margin-top: 4px;
+}
+.th-detalhe-modal .th-comment-attach {
+  padding: 3px 8px;
+  font-size: 10.5px;
+}
+.th-detalhe-modal .btn-send {
+  padding: 6px 12px;
+  font-size: 11.5px;
+}
+.th-detalhe-modal .th-activity {
+  margin-bottom: 8px;
+}
+.th-detalhe-modal .th-activity-desc {
+  font-size: 11.5px;
+}
+.th-detalhe-modal .th-activity-meta {
+  font-size: 10px;
+}
+.th-detalhe-modal .th-modal-footer-full {
+  padding: 8px 16px;
+  gap: 12px;
+}
+.th-detalhe-modal .btn-nova-etapa--text {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.th-detalhe-modal .btn-excluir,
+.th-detalhe-modal .btn-concluir {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+.th-detalhe-modal .btn-excluir svg,
+.th-detalhe-modal .btn-concluir svg {
+  width: 12px;
+  height: 12px;
+}
+.th-detalhe-modal .th-detalhe-muted {
+  font-size: 12px;
+}
+.th-detalhe-modal #th-form-nova-etapa,
+.th-detalhe-modal #th-form-editar-etapa {
+  padding: 10px 10px 12px !important;
+  margin-top: 8px !important;
+  border-radius: 8px !important;
 }
 
