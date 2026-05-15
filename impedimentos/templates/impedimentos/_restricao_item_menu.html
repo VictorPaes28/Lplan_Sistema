@@ -1,0 +1,28 @@
+{# item, cat_param, menu_variant (opcional: calendar | kanban_sub) #}
+<div class="imp-item-menu{% if menu_variant %} imp-item-menu--{{ menu_variant }}{% endif %}" data-imp-item-menu>
+    <button type="button" class="imp-item-menu__trigger" data-imp-item-menu-trigger draggable="false" aria-expanded="false" aria-haspopup="menu" aria-label="Menu da restrição">
+        <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+    </button>
+    <div class="imp-item-menu__panel" data-imp-item-menu-panel hidden role="menu">
+        <button type="button" role="menuitem" class="imp-item-menu__option" data-action-edit
+            data-item-id="{{ item.id }}"
+            data-item-titulo="{{ item.titulo|default:''|escape }}"
+            data-item-descricao="{{ item.descricao|default:''|escape }}"
+            data-item-prioridade-value="{{ item.prioridade_value|default:''|escape }}"
+            data-item-prazo="{{ item.prazo_iso|default:''|escape }}"
+            data-item-responsaveis-ids="{{ item.responsaveis_ids_csv|default:''|escape }}"
+            data-item-categorias-ids="{{ item.categorias_ids|join:',' }}"
+        >
+            <i class="fas fa-pen" aria-hidden="true"></i> Editar
+        </button>
+        <form method="post" action="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}" class="imp-item-menu__delete-form" onsubmit="return confirm('Tem certeza que deseja excluir esta restrição?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="impedimento_id" value="{{ item.id }}">
+            {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
+            <button type="submit" role="menuitem" class="imp-item-menu__option imp-item-menu__option--danger">
+                <i class="fas fa-trash-alt" aria-hidden="true"></i> Excluir
+            </button>
+        </form>
+    </div>
+</div>

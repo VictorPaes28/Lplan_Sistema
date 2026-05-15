@@ -1,0 +1,86 @@
+{# status_rows, project, obra, use_status_xhr #}
+<div class="imp-table-wrap imp-status-table-scroll">
+    <table class="imp-table imp-status-config-table">
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Ordem</th>
+                <th>Padrão</th>
+                <th>Mover</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for st in status_rows %}
+            <tr>
+                <td>
+                    <div class="imp-status-config-namecell">
+                        <span class="imp-status-swatch" style="background-color: {{ st.cor }};" title="{{ st.cor }}" aria-hidden="true"></span>
+                        <span class="imp-status-config-nome">{{ st.nome }}</span>
+                    </div>
+                </td>
+                <td class="tabular-nums">{{ st.ordem }}</td>
+                <td>
+                    {% if st.is_default %}
+                    <span class="imp-status-default-badge">Padrão</span>
+                    {% else %}
+                    <span class="imp-empty-text">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="imp-status-reorder">
+                        <form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-inline-form imp-status-action-form">
+                            {% csrf_token %}
+                            {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
+                            <input type="hidden" name="action" value="reorder">
+                            <input type="hidden" name="status_id" value="{{ st.id }}">
+                            <input type="hidden" name="direction" value="up">
+                            <button type="submit" class="imp-btn imp-btn-secondary imp-btn-xs" {% if forloop.first %}disabled title="Já é o primeiro"{% endif %} aria-label="Subir">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-inline-form imp-status-action-form">
+                            {% csrf_token %}
+                            {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
+                            <input type="hidden" name="action" value="reorder">
+                            <input type="hidden" name="status_id" value="{{ st.id }}">
+                            <input type="hidden" name="direction" value="down">
+                            <button type="submit" class="imp-btn imp-btn-secondary imp-btn-xs" {% if forloop.last %}disabled title="Já é o último"{% endif %} aria-label="Descer">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+                <td>
+                    <div class="imp-table-actions">
+                        <button
+                            type="button"
+                            class="imp-btn imp-btn-secondary imp-btn-xs"
+                            data-status-modal-open
+                            data-mode="edit"
+                            data-status-id="{{ st.id }}"
+                            data-nome="{{ st.nome }}"
+                            data-cor="{{ st.cor }}"
+                            data-ordem="{{ st.ordem }}"
+                            data-is-default="{% if st.is_default %}1{% else %}0{% endif %}"
+                        >
+                            Editar
+                        </button>
+                        <form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-inline-form imp-status-action-form" data-status-delete-form onsubmit="return confirm('Excluir este status? Esta ação não pode ser desfeita.');">
+                            {% csrf_token %}
+                            {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="status_id" value="{{ st.id }}">
+                            <button type="submit" class="imp-btn imp-btn-danger imp-btn-xs">Excluir</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="imp-table-empty">Nenhum status cadastrado. Use «Novo status» para criar o primeiro.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
