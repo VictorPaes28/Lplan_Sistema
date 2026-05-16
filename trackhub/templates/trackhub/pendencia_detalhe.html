@@ -734,6 +734,10 @@ function initCanvas(etapaPk) {
   function startDraw(event) {
     if (activePointerId !== null && activePointerId !== event.pointerId) return;
     event.preventDefault();
+    var currentRect = canvas.getBoundingClientRect();
+    if (Math.abs(currentRect.width - canvas.width / (window.devicePixelRatio || 1)) > 1) {
+      resizeCanvas();
+    }
     activePointerId = event.pointerId;
     isDrawing = true;
     var p = getPoint(event);
