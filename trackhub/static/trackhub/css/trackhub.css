@@ -126,6 +126,17 @@
   margin-right: auto;
   box-sizing: border-box;
 }
+.th-form-page select,
+.th-form-page input[type="text"],
+.th-form-page input[type="date"],
+.th-form-page textarea {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.th-form-page .th-filter-select {
+  max-width: none !important;
+  width: 100% !important;
+}
 
 /* STATS — ícones discretos, sem arco-íris por KPI */
 .th-stats-row {
