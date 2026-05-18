@@ -41,7 +41,9 @@
      * wrapper inteiro pode interferir no cálculo de altura em alguns navegadores.
      */
     .main-content-wrapper:not(.lplan-select-system-shell) {
-        animation: lplan-main-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        /* forwards removido: com ele, Chromium mantém .main-content-wrapper como containing block
+           para position:fixed mesmo com transform:none no keyframe final, quebrando modais fixos. */
+        animation: lplan-main-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     @keyframes lplan-main-enter {
