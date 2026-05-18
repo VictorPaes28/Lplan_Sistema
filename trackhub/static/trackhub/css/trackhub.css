@@ -173,13 +173,16 @@
   margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
 }
 .th-toolbar-left { display: flex !important; align-items: center; gap: 10px; flex-wrap: wrap; width: auto !important; }
-.th-filter-select {
+.th-filter-select:not(textarea) {
   width: auto !important;
   max-width: 200px;
-  padding: 7px 24px 7px 12px; border-radius: 8px;
+  padding: 7px 12px; border-radius: 8px;
   border: 1px solid #e2e8f0; background: #fff; color: #374151;
   font-size: 12.5px; font-family: inherit; font-weight: 500;
   cursor: pointer; transition: border-color .2s;
+}
+.th-filter-select:focus { outline: none; border-color: var(--th-accent); }
+.th-toolbar-left .th-filter-select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
@@ -187,8 +190,8 @@
   background-repeat: no-repeat;
   background-position: right 6px center;
   background-size: 13px 13px;
+  padding-right: 24px;
 }
-.th-filter-select:focus { outline: none; border-color: var(--th-accent); }
 .th-btn-primary {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 16px; border-radius: 8px;
