@@ -234,7 +234,7 @@
             </a>
             {% if pode_criar_pedido %}
             <a href="{% url 'gestao:create_workorder' %}" 
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'create_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 gc-open-create-modal {% if request.resolver_match.url_name == 'create_workorder' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-plus-circle w-5 mr-3"></i>
                 <span class="font-medium">Novo Pedido</span>
             </a>
