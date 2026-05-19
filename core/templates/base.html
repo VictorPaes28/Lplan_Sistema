@@ -461,32 +461,7 @@
                 {% endif %}
             </div>
             
-            <!-- Sistema de Mensagens (Toast Notifications) -->
-            {% if messages %}
-            <div id="messages-container" style="position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;pointer-events:none;">
-                {% for message in messages %}
-                <div class="toast-msg toast-{{ message.tags }}" style="pointer-events:auto;">
-                    <div class="toast-icon">
-                        {% if message.tags == 'success' %}
-                            <i class="fas fa-check-circle"></i>
-                        {% elif message.tags == 'error' %}
-                            <i class="fas fa-exclamation-circle"></i>
-                        {% elif message.tags == 'warning' %}
-                            <i class="fas fa-exclamation-triangle"></i>
-                        {% else %}
-                            <i class="fas fa-info-circle"></i>
-                        {% endif %}
-                    </div>
-                    <div class="toast-body">
-                        <p>{{ message }}</p>
-                    </div>
-                    <button type="button" class="toast-close" onclick="this.closest('.toast-msg').remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                    <div class="toast-timer"></div>
-                </div>
-                {% endfor %}
-            </div>
+            <!-- Toast CSS — sempre carregado para permitir toasts via JS -->
             <style>
             .toast-msg {
                 display: flex;
@@ -522,7 +497,6 @@
                 animation: timerShrink 5s linear forwards;
             }
             @keyframes timerShrink { from { width: 100%; } to { width: 0%; } }
-            /* Colors per type */
             .toast-success { border-color: #10b981; }
             .toast-success .toast-icon { color: #10b981; }
             .toast-success .toast-timer { background: #10b981; }
@@ -537,8 +511,34 @@
             .toast-info .toast-timer { background: #3b82f6; }
             .top-bar-container { z-index: 20 !important; }
             </style>
+
+            <!-- Sistema de Mensagens (Toast Notifications) -->
+            {% if messages %}
+            <div id="messages-container" style="position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;pointer-events:none;">
+                {% for message in messages %}
+                <div class="toast-msg toast-{{ message.tags }}" style="pointer-events:auto;">
+                    <div class="toast-icon">
+                        {% if message.tags == 'success' %}
+                            <i class="fas fa-check-circle"></i>
+                        {% elif message.tags == 'error' %}
+                            <i class="fas fa-exclamation-circle"></i>
+                        {% elif message.tags == 'warning' %}
+                            <i class="fas fa-exclamation-triangle"></i>
+                        {% else %}
+                            <i class="fas fa-info-circle"></i>
+                        {% endif %}
+                    </div>
+                    <div class="toast-body">
+                        <p>{{ message }}</p>
+                    </div>
+                    <button type="button" class="toast-close" onclick="this.closest('.toast-msg').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="toast-timer"></div>
+                </div>
+                {% endfor %}
+            </div>
             <script>
-            // Auto-dismiss toasts after 5s with smooth exit
             setTimeout(function() {
                 document.querySelectorAll('.toast-msg').forEach(function(t, i) {
                     setTimeout(function() {

@@ -258,8 +258,20 @@ def _pendencia_detail_payload(pendencia, request):
                 "prazo": e.prazo.isoformat() if e.prazo else "",
                 "requer_assinatura": e.requer_assinatura,
                 "tem_assinatura": tem_assinatura,
+                "signature_data": getattr(ass, "signature_data", "") if ass else "",
                 "observacao": e.observacao or "",
                 "anexos_count": len(arquivos_etapa),
+                "anexos": [
+                    {
+                        "id": a.pk,
+                        "nome": a.nome_original,
+                        "url": _absolute_media_url(request, a.arquivo),
+                        "tipo": a.tipo,
+                        "eh_imagem": a.eh_imagem,
+                    }
+                    for a in arquivos_etapa
+                    if a.arquivo
+                ],
                 "precisa_ficha_para_concluir": e.status == "pendente"
                 and e.requer_assinatura
                 and not tem_assinatura,
@@ -1195,7 +1207,7 @@ def pendencia_criar_view(request):
                     transaction.set_rollback(True)
             if saved_pk:
                 messages.success(request, "Pendência criada.")
-                return redirect("trackhub:pendencia_detalhe", pk=saved_pk)
+                return redirect(reverse("trackhub:fila") + f"?abrir={saved_pk}")
             messages.error(request, "Corrija os erros nas etapas.")
             formset = EtapaFormSet(request.POST, request.FILES)
         else:
@@ -1544,7 +1556,7 @@ def pendencia_deletar_view(request, pk):
 @require_POST
 def etapa_concluir_view(request, pk):
     e = get_object_or_404(
-        EtapaPendencia.objects.select_related("pendencia", "pendencia__obra"),
+        EtapaPendencia.objects.select_related("pendencia", "pendencia__obra", "assinatura"),
         pk=pk,
     )
     if not _pendencia_queryset_for_user(request.user).filter(pk=e.pendencia_id).exists():
@@ -1577,21 +1589,23 @@ def etapa_concluir_view(request, pk):
         signature_data = (
             request.POST.get(f"signature_etapa_{e.pk}") or ""
         ).strip()
-        if not signature_data:
-            msg = "Esta etapa requer assinatura para ser concluída"
-            if _wants_json_response(request):
-                return _json_no_cache({"ok": False, "error": msg}, status=400)
-            messages.error(request, msg)
-            return redirect("trackhub:pendencia_detalhe", pk=e.pendencia_id)
-
-        AssinaturaEtapa.objects.update_or_create(
-            etapa=e,
-            defaults={
-                "signature_data": signature_data,
-                "assinado_por": request.user,
-                "assinado_em": timezone.now(),
-            },
-        )
+        if signature_data:
+            AssinaturaEtapa.objects.update_or_create(
+                etapa=e,
+                defaults={
+                    "signature_data": signature_data,
+                    "assinado_por": request.user,
+                    "assinado_em": timezone.now(),
+                },
+            )
+        else:
+            ass = getattr(e, "assinatura", None)
+            if not (ass and getattr(ass, "signature_data", "").strip()):
+                msg = "Esta etapa requer assinatura para ser concluída"
+                if _wants_json_response(request):
+                    return _json_no_cache({"ok": False, "error": msg}, status=400)
+                messages.error(request, msg)
+                return redirect("trackhub:pendencia_detalhe", pk=e.pendencia_id)
 
     titulo_etapa = e.titulo
     e.status = "concluida"

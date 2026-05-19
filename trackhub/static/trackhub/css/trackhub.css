@@ -1023,6 +1023,45 @@
   background: var(--th-surface-accent); color: var(--th-accent-hover);
   border: 1px solid var(--th-accent-border);
 }
+.th-etapa-sig-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px;
+}
+.th-etapa-sig-badge.assinado {
+  background: var(--th-success-soft); color: var(--th-success);
+  border: 1px solid #c8ebd6;
+}
+.th-etapa-sig-badge.pendente {
+  background: var(--th-surface-accent); color: var(--th-accent-hover);
+  border: 1px solid var(--th-accent-border);
+}
+.th-etapa-obs {
+  background: #f8fafc; border-left: 2px solid #e2e8f0;
+  border-radius: 0 6px 6px 0; padding: 6px 10px; margin-top: 6px;
+}
+.th-etapa-obs-label {
+  font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;
+  letter-spacing: .4px; margin-bottom: 3px;
+}
+.th-etapa-obs-text {
+  font-size: 11px; color: #475569; white-space: pre-wrap; word-break: break-word;
+}
+.th-etapa-anexos {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+}
+.th-etapa-anexo-item {
+  display: inline-flex; align-items: center; text-decoration: none; border-radius: 6px; overflow: hidden;
+  border: 1px solid #e2e8f0; transition: border-color .15s;
+}
+.th-etapa-anexo-item:hover { border-color: var(--th-accent-border); }
+.th-etapa-anexo-item.imagem img {
+  width: 52px; height: 52px; object-fit: cover; display: block;
+}
+.th-etapa-anexo-item.arquivo {
+  gap: 5px; padding: 5px 9px; background: #f8fafc; max-width: 180px;
+  color: #475569; font-size: 11px;
+}
+.th-etapa-anexo-item.arquivo svg { flex-shrink: 0; color: #94a3b8; }
+.th-etapa-anexo-item.arquivo span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .th-etapa-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; }
 
 .th-assinatura-box { margin-top: 10px; padding: 12px; background: var(--th-surface-accent); border: 1px solid var(--th-accent-border); border-radius: 8px; }
@@ -1031,6 +1070,23 @@
 }
 .th-assinatura-title svg { width: 13px; height: 13px; }
 .th-assinatura-hint { font-size: 12px; color: #64748b; margin: 0 0 8px; line-height: 1.4; }
+.th-sig-btns { display: flex; gap: 6px; margin-bottom: 8px; }
+.th-sig-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 7px; border: 1px solid #e2e8f0;
+  background: #fff; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.th-sig-btn:hover { border-color: #b8d4eb; background: #f0f7ff; }
+.th-sig-btn svg { flex-shrink: 0; }
+.th-sig-canvas {
+  border: 2px dashed #b8d4eb; border-radius: 8px; width: 100%;
+  touch-action: none; cursor: crosshair; display: block; background: #fff;
+}
+.th-sig-hint { font-size: 10px; color: #94a3b8; margin-top: 5px; }
+.th-assinatura-img {
+  display: block; max-height: 60px; max-width: 100%;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+}
 
 .btn-etapa-concluir {
   display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 7px;
@@ -2028,6 +2084,21 @@
 .th-detalhe-modal .th-etapa-req-sig {
   font-size: 9px;
   padding: 1px 6px;
+}
+.th-detalhe-modal .th-etapa-sig-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+}
+.th-detalhe-modal .th-etapa-obs {
+  padding: 5px 8px;
+  margin-top: 5px;
+}
+.th-detalhe-modal .th-etapa-obs-text {
+  font-size: 10.5px;
+}
+.th-detalhe-modal .th-etapa-anexo-item.imagem img {
+  width: 44px;
+  height: 44px;
 }
 .th-detalhe-modal .th-etapa-actions {
   margin-top: 6px;

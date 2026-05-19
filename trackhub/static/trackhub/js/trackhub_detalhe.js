@@ -8,6 +8,10 @@
   if (!root) return;
 
   var CSRF = root.dataset.csrf || '';
+  var CURRENT_USER_ID = root.dataset.currentUserId || '';
+  var thModalSigStates = {};
+  var thModalSigKey = 'lplan_trackhub_last_signature_u' + CURRENT_USER_ID;
+  var thDiarySigKey = 'lplan_diary_last_signature_inspection_v1_u' + CURRENT_USER_ID;
 
   function urlPk(tpl, pk) {
     if (!tpl) return '';
@@ -38,18 +42,6 @@
     trackhubListPageNeedsReload = true;
   }
 
-  function pendenciaFichaUrlComEtapaPendente(pk, etapas) {
-    var base = pendenciaFichaUrl(pk);
-    if (!etapas || !etapas.length) return base;
-    var firstPend = null;
-    for (var i = 0; i < etapas.length; i++) {
-      if (etapas[i].status === 'pendente') {
-        firstPend = etapas[i];
-        break;
-      }
-    }
-    return firstPend ? (base + '#etapa-' + firstPend.id) : base;
-  }
 
   var overlay = document.getElementById('th-detalhe-overlay');
   var btnClose = document.getElementById('th-detalhe-close');
@@ -286,21 +278,6 @@
     return wrap;
   }
 
-  function appendEtapasVerMaisLink(pk, etapas) {
-    if (!elEtapas || !pk) return;
-    var wrap = document.createElement('div');
-    wrap.className = 'th-etapas-ver-historico';
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'th-link-ver-historico';
-    btn.textContent = 'Ver mais';
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      window.location.href = pendenciaFichaUrlComEtapaPendente(pk, etapas);
-    });
-    wrap.appendChild(btn);
-    elEtapas.appendChild(wrap);
-  }
 
   function applyPendenciaPayload(p) {
     currentData = p;
@@ -377,6 +354,100 @@
     }
   }
 
+  function thModalInitCanvas(epk) {
+    var canvas = document.getElementById('th-modal-canvas-' + epk);
+    if (!canvas || canvas.dataset.init === '1') return;
+    var ctx = canvas.getContext('2d');
+    var isDrawing = false;
+    var lastX = 0;
+    var lastY = 0;
+    var activePointerId = null;
+    var state = thModalSigStates[epk] || {};
+    thModalSigStates[epk] = state;
+    function resizeCanvas() {
+      var rect = canvas.getBoundingClientRect();
+      if (!rect.width) return;
+      var dpr = window.devicePixelRatio || 1;
+      var preserved = '';
+      if (state.hasInk) { try { preserved = canvas.toDataURL('image/png'); } catch (ex) {} }
+      canvas.width = rect.width * dpr;
+      canvas.height = 120 * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (preserved) {
+        var img = new Image();
+        img.onload = function() { try { ctx.drawImage(img, 0, 0, rect.width, 120); } catch (ex) {} };
+        img.src = preserved;
+      }
+    }
+    function getPoint(ev) { var r = canvas.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
+    function startDraw(ev) {
+      if (activePointerId !== null && activePointerId !== ev.pointerId) return;
+      ev.preventDefault();
+      activePointerId = ev.pointerId; isDrawing = true;
+      var pt = getPoint(ev); lastX = pt.x; lastY = pt.y;
+    }
+    function drawMove(ev) {
+      if (!isDrawing || (activePointerId !== null && ev.pointerId !== activePointerId)) return;
+      ev.preventDefault();
+      var pt = getPoint(ev);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+      state.hasInk = true; lastX = pt.x; lastY = pt.y;
+    }
+    function endDraw(ev) {
+      if (activePointerId !== null && ev && ev.pointerId !== activePointerId) return;
+      isDrawing = false; activePointerId = null;
+    }
+    resizeCanvas();
+    canvas.__thSigResize = resizeCanvas;
+    window.addEventListener('resize', resizeCanvas);
+    canvas.addEventListener('pointerdown', startDraw, { passive: false });
+    canvas.addEventListener('pointermove', drawMove, { passive: false });
+    canvas.addEventListener('pointerup', endDraw, { passive: false });
+    canvas.addEventListener('pointercancel', endDraw, { passive: false });
+    canvas.addEventListener('pointerleave', endDraw, { passive: false });
+    canvas.dataset.init = '1';
+  }
+
+  function thModalLimparCanvas(epk) {
+    var canvas = document.getElementById('th-modal-canvas-' + epk);
+    if (!canvas) return;
+    var state = thModalSigStates[epk] || {};
+    state.hasInk = false;
+    thModalSigStates[epk] = state;
+    if (typeof canvas.__thSigResize === 'function') { canvas.__thSigResize(); }
+    else { var ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  }
+
+  function thModalUsarUltimaSig(epk) {
+    var data = localStorage.getItem(thModalSigKey) || localStorage.getItem(thDiarySigKey);
+    if (!data) { alert('Nenhuma assinatura salva encontrada.'); return; }
+    var canvas = document.getElementById('th-modal-canvas-' + epk);
+    if (!canvas) return;
+    thModalInitCanvas(epk);
+    var ctx = canvas.getContext('2d');
+    var img = new Image();
+    img.onload = function() {
+      var r = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, r.width || canvas.width, 120);
+      var state = thModalSigStates[epk] || {};
+      state.hasInk = true;
+      thModalSigStates[epk] = state;
+    };
+    img.src = data;
+  }
+
+  function thModalGetSigData(epk) {
+    var state = thModalSigStates[epk] || {};
+    if (!state.hasInk) return '';
+    var canvas = document.getElementById('th-modal-canvas-' + epk);
+    if (!canvas) return '';
+    var data = canvas.toDataURL('image/png');
+    if (data && CURRENT_USER_ID) { localStorage.setItem(thModalSigKey, data); }
+    return data;
+  }
+
   function removerFormulariosEtapaModal() {
     var ed = document.getElementById('th-form-editar-etapa');
     if (ed) ed.remove();
@@ -411,7 +482,6 @@
     }
     if (!etapas.length) {
       elEtapas.innerHTML = '<p class="th-detalhe-muted">Sem etapas.</p>';
-      appendEtapasVerMaisLink(p.id, p.etapas);
       return;
     }
     var firstPendenteIdx = -1;
@@ -485,23 +555,118 @@
         spanP.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Prazo: ' + esc(formatPrazo(e.prazo));
         meta.appendChild(spanP);
       }
-      if (e.requer_assinatura && !isConcl) {
-        var sigL = document.createElement('span');
-        sigL.className = 'th-etapa-req-sig';
-        sigL.textContent = '✍ Requer assinatura';
-        meta.appendChild(sigL);
-      }
       item.appendChild(meta);
 
-      if (e.requer_assinatura && e.status === 'pendente') {
+      if (e.requer_assinatura) {
         var box = document.createElement('div');
         box.className = 'th-assinatura-box';
-        if (e.precisa_ficha_para_concluir) {
-          box.innerHTML = '<div class="th-assinatura-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg> Assinatura necessária</div><p class="th-assinatura-hint">Registre a assinatura na ficha da pendência para concluir esta etapa.</p>';
-        } else if (e.tem_assinatura) {
-          box.innerHTML = '<div class="th-assinatura-title">Assinatura registrada</div><p class="th-assinatura-hint">Assinatura já consta no sistema para esta etapa.</p>';
+        if (e.status === 'pendente' && e.pode_assinar) {
+          var boxTitleC = document.createElement('div');
+          boxTitleC.className = 'th-assinatura-title';
+          boxTitleC.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg> Assinatura Manual';
+          var btnsRow = document.createElement('div');
+          btnsRow.className = 'th-sig-btns';
+          var btnLast = document.createElement('button');
+          btnLast.type = 'button';
+          btnLast.className = 'th-sig-btn';
+          btnLast.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg> Usar última assinatura';
+          (function(epk) { btnLast.addEventListener('click', function(ev) { ev.stopPropagation(); thModalUsarUltimaSig(epk); }); })(e.id);
+          var btnClr = document.createElement('button');
+          btnClr.type = 'button';
+          btnClr.className = 'th-sig-btn';
+          btnClr.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg> Limpar';
+          (function(epk) { btnClr.addEventListener('click', function(ev) { ev.stopPropagation(); thModalLimparCanvas(epk); }); })(e.id);
+          btnsRow.appendChild(btnLast);
+          btnsRow.appendChild(btnClr);
+          var sigCanvas = document.createElement('canvas');
+          sigCanvas.id = 'th-modal-canvas-' + e.id;
+          sigCanvas.height = 120;
+          sigCanvas.className = 'th-sig-canvas';
+          var sigHint = document.createElement('div');
+          sigHint.className = 'th-sig-hint';
+          sigHint.textContent = 'Desenhe sua assinatura acima ou use "Usar última" para reutilizar.';
+          box.appendChild(boxTitleC);
+          box.appendChild(btnsRow);
+          box.appendChild(sigCanvas);
+          box.appendChild(sigHint);
+          item.appendChild(box);
+          (function(epk, existingSig) {
+            setTimeout(function() {
+              thModalInitCanvas(epk);
+              if (existingSig) {
+                var cv = document.getElementById('th-modal-canvas-' + epk);
+                if (cv) {
+                  var cx = cv.getContext('2d');
+                  var im = new Image();
+                  im.onload = function() {
+                    var r = cv.getBoundingClientRect();
+                    cx.clearRect(0, 0, cv.width, cv.height);
+                    cx.drawImage(im, 0, 0, r.width || cv.width, 120);
+                    var st = thModalSigStates[epk] || {};
+                    st.hasInk = true;
+                    thModalSigStates[epk] = st;
+                  };
+                  im.src = existingSig;
+                }
+              }
+            }, 0);
+          })(e.id, e.tem_assinatura ? e.signature_data : '');
+        } else if (e.status === 'pendente' && !e.pode_assinar && !e.tem_assinatura) {
+          box.innerHTML = '<div class="th-assinatura-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 12.6a2 2 0 113 3L8 21l-4 1 1-4 5.4-5.4z"/></svg> Assinatura necessária</div><p class="th-assinatura-hint">Aguardando assinatura do responsável.</p>';
+          item.appendChild(box);
+        } else if (e.tem_assinatura && e.signature_data) {
+          var boxTitleR = document.createElement('div');
+          boxTitleR.className = 'th-assinatura-title';
+          boxTitleR.textContent = 'Assinatura registrada';
+          var sigImg = document.createElement('img');
+          sigImg.src = e.signature_data;
+          sigImg.alt = 'Assinatura';
+          sigImg.className = 'th-assinatura-img';
+          box.appendChild(boxTitleR);
+          box.appendChild(sigImg);
+          item.appendChild(box);
         }
-        if (box.childNodes.length) item.appendChild(box);
+      }
+
+      if (e.observacao) {
+        var obs = document.createElement('div');
+        obs.className = 'th-etapa-obs';
+        var obsLabel = document.createElement('div');
+        obsLabel.className = 'th-etapa-obs-label';
+        obsLabel.textContent = 'Observações:';
+        var obsText = document.createElement('div');
+        obsText.className = 'th-etapa-obs-text';
+        obsText.textContent = e.observacao;
+        obs.appendChild(obsLabel);
+        obs.appendChild(obsText);
+        item.appendChild(obs);
+      }
+
+      if (e.anexos && e.anexos.length) {
+        var anexosEtapa = document.createElement('div');
+        anexosEtapa.className = 'th-etapa-anexos';
+        e.anexos.forEach(function(an) {
+          var aLink = document.createElement('a');
+          aLink.href = an.url;
+          aLink.target = '_blank';
+          aLink.rel = 'noopener';
+          aLink.title = an.nome;
+          aLink.className = 'th-etapa-anexo-item' + (an.eh_imagem ? ' imagem' : ' arquivo');
+          if (an.eh_imagem) {
+            var img = document.createElement('img');
+            img.src = an.url;
+            img.alt = an.nome;
+            img.loading = 'lazy';
+            aLink.appendChild(img);
+          } else {
+            aLink.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+            var nameSpan = document.createElement('span');
+            nameSpan.textContent = an.nome;
+            aLink.appendChild(nameSpan);
+          }
+          anexosEtapa.appendChild(aLink);
+        });
+        item.appendChild(anexosEtapa);
       }
 
       var actions = document.createElement('div');
@@ -518,21 +683,25 @@
       actions.appendChild(btnN);
 
       if (e.status === 'pendente') {
-        if (e.precisa_ficha_para_concluir) {
-          if (e.pode_assinar) {
-            var aF = document.createElement('a');
-            aF.href = pendenciaFichaUrl(p.id) + '#etapa-' + e.id;
-            aF.target = '_blank';
-            aF.rel = 'noopener';
-            aF.className = 'btn-etapa-concluir btn-etapa-ficha';
-            aF.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Assinar na ficha';
-            actions.appendChild(aF);
-          } else {
-            var wait = document.createElement('span');
-            wait.style.cssText = 'display:inline-flex;align-items:center;padding:7px 10px;border-radius:8px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-size:11px;font-weight:600;font-family:inherit;';
-            wait.textContent = 'Aguardando assinatura do responsável';
-            actions.appendChild(wait);
-          }
+        if (e.requer_assinatura && e.pode_assinar) {
+          var btnCSign = document.createElement('button');
+          btnCSign.type = 'button';
+          btnCSign.className = 'btn-etapa-concluir';
+          btnCSign.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Concluir etapa';
+          (function(epk) {
+            btnCSign.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+              var sigData = thModalGetSigData(epk);
+              if (!sigData) { alert('Assine antes de concluir.'); return; }
+              concluirEtapaAjax(epk, sigData);
+            });
+          })(e.id);
+          actions.appendChild(btnCSign);
+        } else if (e.requer_assinatura && !e.pode_assinar) {
+          var wait = document.createElement('span');
+          wait.style.cssText = 'display:inline-flex;align-items:center;padding:7px 10px;border-radius:8px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-size:11px;font-weight:600;font-family:inherit;';
+          wait.textContent = 'Aguardando assinatura do responsável';
+          actions.appendChild(wait);
         } else {
           var btnC = document.createElement('button');
           btnC.type = 'button';
@@ -558,7 +727,6 @@
       item.appendChild(actions);
       elEtapas.appendChild(item);
     });
-    appendEtapasVerMaisLink(p.id, p.etapas);
   }
 
   function renderAnexos(p) {
@@ -780,9 +948,10 @@
     carregarAtividades(currentPk);
   }
 
-  async function concluirEtapaAjax(etapaPk) {
+  async function concluirEtapaAjax(etapaPk, signatureData) {
     var fd = new FormData();
     fd.append('csrfmiddlewaretoken', CSRF);
+    if (signatureData) { fd.append('signature_etapa_' + etapaPk, signatureData); }
     var r = await fetch(etapaConcluirUrl(etapaPk), {
       method: 'POST',
       credentials: 'same-origin',
@@ -1651,4 +1820,59 @@
     var f = document.getElementById('th-fila-reativar-' + pk);
     if (f) f.submit();
   };
+
+  function showFilaErroToast(msg) {
+    var container = document.getElementById('messages-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'messages-container';
+      container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;pointer-events:none;';
+      document.body.appendChild(container);
+    }
+    var toast = document.createElement('div');
+    toast.className = 'toast-msg toast-error';
+    toast.style.pointerEvents = 'auto';
+    toast.innerHTML =
+      '<div class="toast-icon"><i class="fas fa-exclamation-circle"></i></div>' +
+      '<div class="toast-body"><p>' + esc(msg || 'Não foi possível concluir a pendência.') + '</p></div>' +
+      '<button type="button" class="toast-close" onclick="this.closest(\'.toast-msg\').remove()"><i class="fas fa-times"></i></button>' +
+      '<div class="toast-timer"></div>';
+    container.appendChild(toast);
+    setTimeout(function () {
+      toast.classList.add('toast-exit');
+      setTimeout(function () { toast.remove(); }, 300);
+    }, 5000);
+  }
+
+  document.addEventListener('submit', function (ev) {
+    var form = ev.target.closest('.th-fila-concluir-form');
+    if (!form) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var pk = form.dataset.pk;
+    var csrfInput = form.querySelector('[name=csrfmiddlewaretoken]');
+    var csrf = csrfInput ? csrfInput.value : (CSRF || '');
+    var fd = new FormData();
+    fd.append('csrfmiddlewaretoken', csrf);
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin',
+      body: fd,
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          window.location.reload();
+        } else {
+          showFilaErroToast(d.error);
+          if (pk && typeof window.abrirDetalhe === 'function') {
+            window.abrirDetalhe(parseInt(pk, 10));
+          }
+        }
+      })
+      .catch(function () {
+        showFilaErroToast('Erro ao concluir pendência. Tente novamente.');
+      });
+  });
 })();

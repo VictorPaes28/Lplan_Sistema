@@ -16,7 +16,8 @@
   data-url-etapa-adicionar="{% url 'trackhub:etapa_adicionar' pk=0 %}"
   data-url-etapa-editar="{% url 'trackhub:etapa_editar' pk=0 %}"
   data-url-etapa-deletar="{% url 'trackhub:etapa_deletar' pk=0 %}"
-  data-url-etapas-reordenar="{% url 'trackhub:pendencia_etapas_reordenar' pk=0 %}">
+  data-url-etapas-reordenar="{% url 'trackhub:pendencia_etapas_reordenar' pk=0 %}"
+  data-current-user-id="{{ request.user.pk }}">
 </div>
 
 <div id="th-detalhe-overlay" class="th-detalhe-overlay" hidden aria-hidden="true">
