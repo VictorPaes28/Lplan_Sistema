@@ -11,12 +11,11 @@
   /** Polling REST leve (~3×/min) — não depende só do reload para atualizar badge/toasts Core. */
   var POLL_MS = 20000;
   var FIRST_POLL_MS = 4000;
-  /** Máximo de toasts visíveis em pilha (bootstrap + poll). */
-  var MAX_STACK = 8;
+  /** Máximo de toasts visíveis em pilha (apenas notificações novas após abrir). */
+  var MAX_STACK = 4;
   var TOAST_MS = 6000;
-  /** IDs de notificação já exibidos como toast nesta sessão (evita repetir a cada F5). */
-  var SESSION_BOOTSTRAP_SHOWN_IDS = 'lplan-nt-bootstrap-shown-ids';
-
+  /** IDs já conhecidos no carregamento — não repetir toast ao reabrir o sistema. */
+  var BOOTSTRAP_SHOWN_IDS_KEY = 'lplan-nt-bootstrap-shown-ids';
   function defaultNotificationsListUrl() {
     return '/notifications/';
   }
@@ -228,10 +227,19 @@
     }
   }
 
+  function storageGet(key) {
+    try {
+      return window.localStorage || window.sessionStorage;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function parseBootstrapShownMap() {
     try {
-      if (!window.sessionStorage) return {};
-      var raw = sessionStorage.getItem(SESSION_BOOTSTRAP_SHOWN_IDS);
+      var store = storageGet();
+      if (!store) return {};
+      var raw = store.getItem(BOOTSTRAP_SHOWN_IDS_KEY);
       if (!raw) return {};
       var arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return {};
@@ -246,36 +254,24 @@
   function rememberBootstrapShownIds(ids) {
     if (!ids || !ids.length) return;
     try {
-      if (!window.sessionStorage) return;
+      var store = storageGet();
+      if (!store) return;
       var m = parseBootstrapShownMap();
       for (var i = 0; i < ids.length; i++) {
         var id = ids[i];
         if (id != null) m[String(id)] = true;
       }
       var out = [];
-      for (var k in m) out.push(parseInt(k, 10));
-      sessionStorage.setItem(SESSION_BOOTSTRAP_SHOWN_IDS, JSON.stringify(out));
-    } catch (e) {}
-  }
-
-  function showUnreadReminder(count) {
-    if (!count || count <= 0) return;
-    var key = 'lplan-nt-unread-reminder-shown';
-    try {
-      if (window.sessionStorage && sessionStorage.getItem(key) === '1') return;
-    } catch (e) {}
-    showToast({
-      title: 'Você tem notificações pendentes',
-      message:
-        count +
-        ' notificação(ões) não lida(s). Clique em Ver para abrir o centro.',
-      type: 'system',
-      diary_url: null,
-      related_url: '',
-      list_url: defaultNotificationsListUrl(),
-    });
-    try {
-      if (window.sessionStorage) sessionStorage.setItem(key, '1');
+      for (var k in m) {
+        if (Object.prototype.hasOwnProperty.call(m, k)) out.push(parseInt(k, 10));
+      }
+      out = out.filter(function (n) {
+        return !isNaN(n);
+      });
+      if (out.length > 500) {
+        out = out.slice(-500);
+      }
+      store.setItem(BOOTSTRAP_SHOWN_IDS_KEY, JSON.stringify(out));
     } catch (e) {}
   }
 
@@ -296,27 +292,11 @@
         var bellUnread = unreadCountForBell(data);
         updateBellBadge(bellUnread);
         var items = data.items || [];
-        var shownMap = parseBootstrapShownMap();
-        var fresh = [];
+        var allIds = [];
         for (var j = 0; j < items.length; j++) {
-          var row = items[j];
-          var rid = row && row.id != null ? String(row.id) : '';
-          if (rid && !shownMap[rid]) fresh.push(row);
+          if (items[j] && items[j].id != null) allIds.push(items[j].id);
         }
-        if (fresh.length > 0) {
-          var newIds = [];
-          for (var k = 0; k < fresh.length; k++) {
-            (function (idx) {
-              window.setTimeout(function () {
-                showToast(fresh[idx]);
-              }, idx * 320);
-            })(k);
-            if (fresh[k].id != null) newIds.push(fresh[k].id);
-          }
-          rememberBootstrapShownIds(newIds);
-        } else if (items.length === 0 && bellUnread > 0) {
-          showUnreadReminder(bellUnread);
-        }
+        rememberBootstrapShownIds(allIds);
         started = true;
       })
       .catch(function () {
