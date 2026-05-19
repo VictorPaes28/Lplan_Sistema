@@ -44,6 +44,7 @@ from .models import (
     NotificacaoPendencia,
     Pendencia,
     PendenciaRecorrente,
+    TipoCustom,
 )
 from .recurrence_jobs import (
     etapas_snapshot_from_pendencia,
@@ -553,7 +554,13 @@ def _pendencias_qs_for_user(user):
     obras = _obras_queryset_for_user(user)
     qs = Pendencia.objects.filter(obra__in=obras)
     if roles["admin"] or roles["aprovador"]:
-        return qs
+        return (
+            Pendencia.objects.filter(
+                Q(obra__in=obras)
+                | Q(etapas__responsavel_interno=user)
+            )
+            .distinct()
+        )
     if roles["solicitante"]:
         return (
             Pendencia.objects.filter(
@@ -1138,6 +1145,17 @@ def calendario_view(request):
 
 @login_required
 @require_trackhub
+@require_POST
+def tipo_custom_criar_view(request):
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        return JsonResponse({"success": False, "error": "Nome é obrigatório."}, status=400)
+    obj, _ = TipoCustom.objects.get_or_create(nome=nome, defaults={"criado_por": request.user})
+    return JsonResponse({"success": True, "nome": obj.nome})
+
+
+@login_required
+@require_trackhub
 def pendencia_criar_view(request):
     from .recurrence import legacy_scalar_fields_for_db, proxima_data_estrita_depois
 
@@ -1163,6 +1181,10 @@ def pendencia_criar_view(request):
                     fs.save()
                     _salvar_anexos_geral_pendencia(request, p, request.user)
                     _salvar_anexos_etapas_form(request, fs, request.user)
+                    prazo_max_etapa = p.etapas.filter(prazo__isnull=False).aggregate(m=Max("prazo"))["m"]
+                    if prazo_max_etapa and (p.prazo is None or prazo_max_etapa > p.prazo):
+                        p.prazo = prazo_max_etapa
+                        p.save(update_fields=["prazo"])
                     recalcular_status_pendencia(p)
                     _notificar_criacao_pendencia(p, request.user)
                     saved_pk = p.pk
@@ -1230,6 +1252,8 @@ def pendencia_criar_view(request):
         "form_subtitle": "Cadastro",
         "responsaveis_por_obra": responsaveis_por_obra,
         "todos_usuarios": _todos_usuarios_ativos_payload(),
+        "tipos_custom": TipoCustom.objects.all(),
+        "tipo_selecionado": request.POST.get("tipo", "") if request.method == "POST" else "",
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/pendencia_form.html", ctx)
@@ -2159,6 +2183,15 @@ def etapa_adicionar_view(request, pk):
         )
         _salvar_anexos_etapa_nova(request, et, request.user)
         _notificar_criacao_etapa(et, request.user)
+        if et.prazo and (pendencia.prazo is None or et.prazo > pendencia.prazo):
+            prazo_anterior = pendencia.prazo
+            pendencia.prazo = et.prazo
+            pendencia.save(update_fields=["prazo"])
+            if prazo_anterior is None:
+                msg_prazo = f'Prazo definido automaticamente para {et.prazo.strftime("%d/%m/%Y")} pela etapa "{et.titulo}"'
+            else:
+                msg_prazo = f'Prazo atualizado automaticamente de {prazo_anterior.strftime("%d/%m/%Y")} → {et.prazo.strftime("%d/%m/%Y")} pela etapa "{et.titulo}"'
+            _registrar_atividade_pendencia(pendencia, request.user, msg_prazo, AtividadePendencia.TIPO_PRAZO)
         recalcular_status_pendencia(pendencia)
         _registrar_atividade_pendencia(
             pendencia,
@@ -2238,6 +2271,15 @@ def etapa_editar_view(request, pk):
                 "observacao",
             ]
         )
+        if etapa.prazo and (pendencia.prazo is None or etapa.prazo > pendencia.prazo):
+            prazo_anterior = pendencia.prazo
+            pendencia.prazo = etapa.prazo
+            pendencia.save(update_fields=["prazo"])
+            if prazo_anterior is None:
+                msg_prazo = f'Prazo definido automaticamente para {etapa.prazo.strftime("%d/%m/%Y")} pela etapa "{etapa.titulo}"'
+            else:
+                msg_prazo = f'Prazo atualizado automaticamente de {prazo_anterior.strftime("%d/%m/%Y")} → {etapa.prazo.strftime("%d/%m/%Y")} pela etapa "{etapa.titulo}"'
+            _registrar_atividade_pendencia(pendencia, request.user, msg_prazo, AtividadePendencia.TIPO_PRAZO)
         for descricao in descricoes_edicao:
             _registrar_atividade_pendencia(
                 pendencia,

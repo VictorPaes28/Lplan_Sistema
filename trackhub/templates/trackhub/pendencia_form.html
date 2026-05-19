@@ -35,7 +35,27 @@
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Tipo <span style="color:#ef4444;">*</span></label>
-          {{ form.tipo }}
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="id_tipo" name="tipo" required style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:13px;font-family:inherit;color:#1e293b;box-sizing:border-box;cursor:pointer;">
+              <option value="" disabled {% if not tipo_selecionado %}selected{% endif %}>Selecione...</option>
+              <option value="financeiro"  {% if tipo_selecionado == 'financeiro'  %}selected{% endif %}>Financeiro</option>
+              <option value="operacional" {% if tipo_selecionado == 'operacional' %}selected{% endif %}>Operacional</option>
+              <option value="documento"   {% if tipo_selecionado == 'documento'   %}selected{% endif %}>Documento</option>
+              <option value="tarefa"      {% if tipo_selecionado == 'tarefa'      %}selected{% endif %}>Tarefa</option>
+              {% for tc in tipos_custom %}
+              <option value="{{ tc.nome }}" {% if tipo_selecionado == tc.nome %}selected{% endif %}>* {{ tc.nome }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" onclick="thAbrirPersonalizarTipo()" style="padding:9px 14px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#374151;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Personalizar</button>
+          </div>
+          <div id="tipo-custom-row" style="display:none;margin-top:8px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="tipo-custom-input" maxlength="100" placeholder="Nome do tipo..." style="flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box;">
+              <button type="button" onclick="thSalvarTipoCustom()" style="padding:9px 14px;border-radius:8px;border:none;background:#3498db;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Salvar</button>
+              <button type="button" onclick="thCancelarTipoCustom()" style="padding:9px 14px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#374151;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Cancelar</button>
+            </div>
+            <div id="tipo-custom-err" style="font-size:11px;color:#ef4444;margin-top:3px;display:none;"></div>
+          </div>
           {% if form.tipo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.tipo.errors.0 }}</div>{% endif %}
         </div>
       </div>
@@ -159,18 +179,21 @@
         <div class="etapa-form-bloco" style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;background:#fafafa;position:relative;">
           {% if ef.DELETE %}<div style="display:none;">{{ ef.DELETE }}</div>{% endif %}
 
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
             <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#3498db;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ forloop.counter }}</div>
-            {{ ef.titulo }}
+            <span class="th-etapa-num-text" style="font-size:13px;font-weight:600;color:#374151;flex:1;">Etapa {{ forloop.counter }}</span>
             <button type="button" onclick="removerEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <div style="margin-bottom:14px;">
-            {% if ef.titulo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ ef.titulo.errors.0 }}</div>{% endif %}
-          </div>
 
           <div style="display:none;">{{ ef.ordem }}</div>
+
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Título</label>
+            {{ ef.titulo }}
+            {% if ef.titulo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ ef.titulo.errors.0 }}</div>{% endif %}
+          </div>
 
           <div class="bloco-responsavel-etapa" style="margin-bottom:12px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -218,15 +241,19 @@
 
       <template id="etapa-template">
         <div class="etapa-form-bloco" style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;background:#fafafa;position:relative;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
             <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#3498db;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">N</div>
-            <input type="text" name="{{ formset.prefix }}-__prefix__-titulo" class="th-filter-select th-etapa-titulo-inline" style="border:none;background:transparent;font-size:14px;font-weight:700;color:#1e293b;flex:1;padding:0;" placeholder="Título da etapa...">
+            <span class="th-etapa-num-text" style="font-size:13px;font-weight:600;color:#374151;flex:1;">Etapa N</span>
             <button type="button" onclick="removerEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
           <input type="hidden" name="{{ formset.prefix }}-__prefix__-ordem" value="0">
           <input type="hidden" name="{{ formset.prefix }}-__prefix__-id" value="">
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Título</label>
+            <input type="text" name="{{ formset.prefix }}-__prefix__-titulo" class="th-filter-select th-etapa-titulo-inline" style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;width:100%;padding:8px 12px;" placeholder="Título da etapa...">
+          </div>
           <div class="bloco-responsavel-etapa" style="margin-bottom:12px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               <div>
@@ -274,13 +301,11 @@
         c.querySelectorAll('input[name$="-titulo"]').forEach(function(inp){
           if (!inp.getAttribute('placeholder')) inp.setAttribute('placeholder','Título da etapa...');
           inp.classList.add('th-etapa-titulo-inline');
-          inp.style.border = 'none';
-          inp.style.background = 'transparent';
-          inp.style.fontSize = '14px';
-          inp.style.fontWeight = '700';
-          inp.style.color = '#1e293b';
+          inp.style.border = '1px solid #e2e8f0';
+          inp.style.borderRadius = '8px';
+          inp.style.background = '#fff';
           inp.style.flex = '1';
-          inp.style.padding = '0';
+          inp.style.padding = '9px 12px';
         });
         c.querySelectorAll('.etapa-observacao-wrap textarea').forEach(function(t){
           t.rows = 4;
@@ -329,6 +354,11 @@ document.querySelectorAll('input[type=text], input[type=email], input[type=date]
   el.style.fontFamily = "inherit";
   el.style.color = '#1e293b';
   el.style.boxSizing = 'border-box';
+  if (el.classList.contains('th-etapa-titulo-inline')) {
+    el.style.cursor = 'text';
+  } else if (el.tagName === 'SELECT' || el.type === 'date') {
+    el.style.cursor = 'pointer';
+  }
   if (!el.classList.contains('th-etapa-titulo-inline')) {
     el.addEventListener('focus', function() { this.style.borderColor = '#3498db'; this.style.outline = 'none'; });
     el.addEventListener('blur', function() { this.style.borderColor = '#e2e8f0'; });
@@ -406,14 +436,16 @@ function adicionarEtapa() {
       el.style.borderRadius = '8px';
       el.style.border = '1px solid #e2e8f0';
       el.style.fontSize = '13px';
+      if (el.tagName === 'SELECT' || el.type === 'date') {
+        el.style.cursor = 'pointer';
+      }
     } else {
-      el.style.border = 'none';
-      el.style.background = 'transparent';
-      el.style.fontSize = '14px';
-      el.style.fontWeight = '700';
-      el.style.color = '#1e293b';
+      el.style.border = '1px solid #e2e8f0';
+      el.style.borderRadius = '8px';
+      el.style.background = '#fff';
       el.style.flex = '1';
-      el.style.padding = '0';
+      el.style.padding = '9px 12px';
+      el.style.cursor = 'text';
     }
     el.style.fontFamily = "inherit";
     el.style.boxSizing = 'border-box';
@@ -435,6 +467,8 @@ function atualizarNumerosEtapa() {
     if (bloco.style.display === 'none') return;
     var nl = bloco.querySelector('.etapa-num-label');
     if (nl) nl.textContent = n;
+    var nt = bloco.querySelector('.th-etapa-num-text');
+    if (nt) nt.textContent = 'Etapa ' + n;
     n++;
   });
 }
@@ -702,6 +736,63 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
   }
+});
+
+function thAbrirPersonalizarTipo() {
+  document.getElementById('tipo-custom-row').style.display = 'block';
+  document.getElementById('tipo-custom-input').focus();
+}
+
+function thCancelarTipoCustom() {
+  document.getElementById('tipo-custom-row').style.display = 'none';
+  document.getElementById('tipo-custom-input').value = '';
+  var errEl = document.getElementById('tipo-custom-err');
+  errEl.textContent = '';
+  errEl.style.display = 'none';
+}
+
+function thSalvarTipoCustom() {
+  var nome = document.getElementById('tipo-custom-input').value.trim();
+  var errEl = document.getElementById('tipo-custom-err');
+  errEl.style.display = 'none';
+  if (!nome) {
+    errEl.textContent = 'Informe um nome para o tipo.';
+    errEl.style.display = 'block';
+    return;
+  }
+  var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  fetch("{% url 'trackhub:tipo_custom_criar' %}", {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'nome=' + encodeURIComponent(nome)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      var sel = document.getElementById('id_tipo');
+      var exists = Array.from(sel.options).some(function(o) { return o.value === data.nome; });
+      if (!exists) {
+        var opt = document.createElement('option');
+        opt.value = data.nome;
+        opt.textContent = '* ' + data.nome;
+        sel.appendChild(opt);
+      }
+      sel.value = data.nome;
+      thCancelarTipoCustom();
+    } else {
+      errEl.textContent = data.error || 'Erro ao salvar tipo.';
+      errEl.style.display = 'block';
+    }
+  })
+  .catch(function() {
+    errEl.textContent = 'Erro de conexão. Tente novamente.';
+    errEl.style.display = 'block';
+  });
+}
+
+document.getElementById('tipo-custom-input') && document.getElementById('tipo-custom-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); thSalvarTipoCustom(); }
+  if (e.key === 'Escape') { thCancelarTipoCustom(); }
 });
 </script>
 {% endblock %}

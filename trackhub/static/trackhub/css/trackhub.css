@@ -193,6 +193,7 @@
   cursor: pointer; transition: border-color .2s;
 }
 .th-filter-select:focus { outline: none; border-color: var(--th-accent); }
+.th-filter-select.th-etapa-titulo-inline { cursor: text; }
 .th-toolbar-left .th-filter-select {
   -webkit-appearance: none;
   -moz-appearance: none;

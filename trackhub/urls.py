@@ -12,6 +12,7 @@ urlpatterns = [
     path('por-responsavel/', views.por_responsavel_view, name='por_responsavel'),
     path('calendario/', views.calendario_view, name='calendario'),
     path('pendencia/nova/', views.pendencia_criar_view, name='pendencia_criar'),
+    path('tipo-custom/criar/', views.tipo_custom_criar_view, name='tipo_custom_criar'),
     path('pendencia/<int:pk>/json/', views.pendencia_detail_ajax, name='pendencia_detail_ajax'),
     path(
         'pendencia/<int:pk>/update-field/',

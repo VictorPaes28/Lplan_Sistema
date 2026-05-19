@@ -12,12 +12,15 @@ from .models import (
     NotificacaoPendencia,
     Pendencia,
     PendenciaRecorrente,
+    TipoCustom,
 )
 
 User = get_user_model()
 
 
 class PendenciaForm(forms.ModelForm):
+    tipo = forms.CharField(max_length=100, required=True)
+
     class Meta:
         model = Pendencia
         fields = ["obra", "titulo", "descricao", "tipo", "prioridade", "prazo"]
@@ -32,6 +35,22 @@ class PendenciaForm(forms.ModelForm):
             self.fields["obra"].queryset = obras_queryset
         self.fields["obra"].label = "Local"
         self.fields["obra"].widget.attrs.setdefault("class", "th-filter-select")
+
+    def _get_validation_exclusions(self):
+        # Exclude 'tipo' from model-level field validation so Django's choices
+        # constraint doesn't reject custom type values.
+        exclude = super()._get_validation_exclusions()
+        exclude.add("tipo")
+        return exclude
+
+    def clean_tipo(self):
+        valor = self.cleaned_data.get("tipo", "").strip()
+        if not valor:
+            raise forms.ValidationError("Selecione um tipo.")
+        tipos_padrao = {v for v, _ in Pendencia.TIPO_CHOICES}
+        if valor not in tipos_padrao and not TipoCustom.objects.filter(nome=valor).exists():
+            raise forms.ValidationError("Tipo inválido.")
+        return valor
 
 
 class EtapaForm(forms.ModelForm):
