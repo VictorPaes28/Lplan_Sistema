@@ -4,10 +4,11 @@ from django.db import migrations
 def ensure_utf8mb4(apps, schema_editor):
     if schema_editor.connection.vendor != "mysql":
         return
-    schema_editor.execute(
-        "ALTER TABLE trackhub_tipocustom "
-        "CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-    )
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            "ALTER TABLE trackhub_tipocustom "
+            "CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )
 
 
 class Migration(migrations.Migration):
@@ -17,5 +18,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(ensure_utf8mb4, migrations.RunPython.noop),
+        migrations.RunPython(ensure_utf8mb4, migrations.RunPython.noop, atomic=False),
     ]
