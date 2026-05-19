@@ -28,8 +28,8 @@ class Migration(migrations.Migration):
                 ('last_error', models.TextField(blank=True)),
             ],
             options={
-                'verbose_name': 'Sync Sienge → Central (estado)',
-                'verbose_name_plural': 'Sync Sienge → Central (estado)',
+                'verbose_name': 'Sync Sienge para Central (estado)',
+                'verbose_name_plural': 'Sync Sienge para Central (estado)',
             },
         ),
         migrations.RunPython(_seed_sienge_sync_state, migrations.RunPython.noop),

@@ -55,8 +55,8 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'verbose_name': 'Envio GestControll → Central',
-                'verbose_name_plural': 'Envios GestControll → Central',
+                'verbose_name': 'Envio GestControll para Central',
+                'verbose_name_plural': 'Envios GestControll para Central',
                 'ordering': ['-sent_at'],
             },
         ),

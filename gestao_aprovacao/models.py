@@ -1401,10 +1401,10 @@ class GestaoCentralDispatch(models.Model):
     )
 
     class Meta:
-        verbose_name = 'Envio GestControll → Central'
-        verbose_name_plural = 'Envios GestControll → Central'
+        verbose_name = 'Envio GestControll para Central'
+        verbose_name_plural = 'Envios GestControll para Central'
         ordering = ['-sent_at']
 
     def __str__(self):
-        return f'{self.work_order.codigo} → Central #{self.approval_process_id}'
+        return f'{self.work_order.codigo} para Central #{self.approval_process_id}'
 
