@@ -40,6 +40,7 @@ class _Grupos:
     RESPONSAVEL_EMPRESA = 'Responsavel Empresa'
     APROVADOR = 'Aprovador'
     SOLICITANTE = 'Solicitante'
+    ENVIAR_PARA_CENTRAL_APROVACOES = 'Enviar para Central de Aprovações'
     # Django auth.Group nomeado para o app de impeditivos (tela própria de Restrições).
     GESTAO_IMPEDIMENTOS = 'Gestão de Impeditivos'
 
@@ -77,7 +78,13 @@ class _Grupos:
     @property
     def GESTAO_TODOS(self):
         """Todos os grupos do módulo Gestão de Aprovação."""
-        return [self.ADMINISTRADOR, self.RESPONSAVEL_EMPRESA, self.APROVADOR, self.SOLICITANTE]
+        return [
+            self.ADMINISTRADOR,
+            self.RESPONSAVEL_EMPRESA,
+            self.APROVADOR,
+            self.SOLICITANTE,
+            self.ENVIAR_PARA_CENTRAL_APROVACOES,
+        ]
 
     @property
     def TODOS(self):
@@ -85,6 +92,7 @@ class _Grupos:
         return [
             self.ADMINISTRADOR, self.RESPONSAVEL_EMPRESA,
             self.APROVADOR, self.SOLICITANTE,
+            self.ENVIAR_PARA_CENTRAL_APROVACOES,
             self.GESTAO_IMPEDIMENTOS,
             self.TRACKHUB,
             self.TRACKHUB_ADMIN,
@@ -135,6 +143,7 @@ GRUPO_LABEL_ATRIBUICAO_UI = {
     GRUPOS.ADMINISTRADOR: 'Administrador do sistema',
     GRUPOS.APROVADOR: 'Aprovador GestControll',
     GRUPOS.SOLICITANTE: 'Solicitante GestControll',
+    GRUPOS.ENVIAR_PARA_CENTRAL_APROVACOES: 'Enviar pedidos aprovados à Central de Aprovações',
     GRUPOS.GESTAO_IMPEDIMENTOS: 'Acesso a Restrições (Gestão de Impeditivos)',
     GRUPOS.TRACKHUB: 'TrackHub — perfil único (legado)',
     GRUPOS.TRACKHUB_ADMIN: 'TrackHub — administrador',
@@ -186,6 +195,7 @@ GROUP_UI_SECTIONS = [
                 'names': [
                     GRUPOS.APROVADOR,
                     GRUPOS.SOLICITANTE,
+                    GRUPOS.ENVIAR_PARA_CENTRAL_APROVACOES,
                 ],
             },
         ],

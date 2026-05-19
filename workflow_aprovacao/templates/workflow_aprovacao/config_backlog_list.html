@@ -5,15 +5,9 @@
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block page_subtitle %}{{ page_subtitle }}{% endblock %}
 
-{% block content %}
+{% block wf_content %}
 <div class="wf-root">
     {% include 'workflow_aprovacao/_messages.html' %}
-
-    <p class="wf-text-muted" style="margin:0 0 1rem 0; font-size:0.875rem; max-width:52rem;">
-        Quando o Sienge (ou outra origem) envia um item com obra e categoria identificadas, mas <strong>não existe fluxo ativo</strong>
-        para esse par, o registo entra aqui. Configure o fluxo em <a href="{% url 'workflow_aprovacao:config_flow_list' %}">Fluxos</a> e use
-        <strong>Tentar criar processo</strong> para disparar o processo sem esperar o próximo sync.
-    </p>
 
     <form method="get" class="wf-backlog-toolbar" action="">
         <label>
@@ -56,19 +50,11 @@
         {% if backlog_filtered_total > backlog_display_limit %}
         <span class="wf-text-muted"> — a mostrar os {{ backlog_items|length }} mais recentes (limite {{ backlog_display_limit }})</span>
         {% endif %}
-        <span class="wf-text-muted" style="display:block;margin-top:0.35rem;font-size:0.8125rem;">
-            Totais globais na fila de importação:
-            aguardando <strong>{{ backlog_counts_by_status.pending|default:0 }}</strong>,
-            dispensados <strong>{{ backlog_counts_by_status.dismissed|default:0 }}</strong>,
-            resolvidos <strong>{{ backlog_counts_by_status.resolved|default:0 }}</strong>
-            — <strong>{{ backlog_grand_total }}</strong> no total
-        </span>
     </div>
 
     {% if not backlog_items %}
     <div class="wf-empty wf-empty--inline">
         <p class="wf-empty__title">Nenhum registo neste filtro</p>
-        <p class="wf-empty__text">Quando o sync encontrar pendência no Sienge e a obra estiver mapeada sem fluxo, aparecerá aqui.</p>
     </div>
     {% endif %}
 

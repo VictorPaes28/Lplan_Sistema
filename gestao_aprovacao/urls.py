@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import views_central_dispatch
 
 app_name = 'gestao'
 
@@ -27,6 +28,11 @@ urlpatterns = [
     # Aprovação
     path('pedidos/<int:pk>/aprovar/', views.approve_workorder, name='approve_workorder'),
     path('pedidos/<int:pk>/reprovar/', views.reject_workorder, name='reject_workorder'),
+    path(
+        'pedidos/<int:pk>/enviar-central/',
+        views_central_dispatch.send_workorder_to_central,
+        name='send_workorder_to_central',
+    ),
     
     # Anexos
     path('pedidos/<int:pk>/anexos/upload/', views.upload_attachment, name='upload_attachment'),

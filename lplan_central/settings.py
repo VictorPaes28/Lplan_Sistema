@@ -411,7 +411,15 @@ SIENGE_CENTRAL_SYNC_MAX_ROWS = int(os.environ.get('SIENGE_CENTRAL_SYNC_MAX_ROWS'
 SIENGE_CENTRAL_PERIODIC_SYNC_MAX_ROWS = int(
     os.environ.get('SIENGE_CENTRAL_PERIODIC_SYNC_MAX_ROWS', '20000') or '20000'
 )
-# Gatilho web (sem Celery): ao entrar na Central, tenta sync se passou a janela.
+# Gatilho web (legado): sync Sienge ao abrir páginas da Central — desligado; origem = GestControll.
+SIENGE_CENTRAL_WEB_SYNC_ON_PAGE_OPEN = os.environ.get(
+    'SIENGE_CENTRAL_WEB_SYNC_ON_PAGE_OPEN', 'False'
+).lower() in ('true', '1', 'yes')
+# Botão «Importar do Sienge» na Central (legado; só para administradores da Central).
+SIENGE_CENTRAL_MANUAL_SYNC_ENABLED = os.environ.get(
+    'SIENGE_CENTRAL_MANUAL_SYNC_ENABLED', 'False'
+).lower() in ('true', '1', 'yes')
+# Janela de cooldown quando o gatilho web acima estiver ligado.
 SIENGE_CENTRAL_WEB_SYNC_COOLDOWN_HOURS = int(
     os.environ.get('SIENGE_CENTRAL_WEB_SYNC_COOLDOWN_HOURS', '2') or '2'
 )

@@ -26,6 +26,11 @@
             <span class="status-badge-large {{ workorder.status }}">
                 {{ workorder.get_status_display }}
             </span>
+            {% if central_dispatch %}
+            <span class="status-badge-large" style="margin-left:.5rem;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;">
+                Na Central
+            </span>
+            {% endif %}
         </div>
     </div>
     
@@ -60,7 +65,33 @@
                 Solicitar Exclusão
             </a>
         {% endif %}
+        {% if can_send_to_central %}
+        <a href="{% url 'gestao:send_workorder_to_central' workorder.pk %}" class="btn btn-primary" title="Enviar para tramitação na Central de Aprovações">
+            Enviar para Central de Aprovações
+        </a>
+        {% elif central_dispatch %}
+        {% if central_process_url %}
+        <a href="{{ central_process_url }}" class="btn btn-secondary">Ver processo na Central</a>
+        {% else %}
+        <span class="btn btn-secondary" style="opacity:.85;cursor:default;" title="Processo #{{ central_dispatch.approval_process_id }} na Central">
+            Enviado à Central (#{{ central_dispatch.approval_process_id }})
+        </span>
+        {% endif %}
+        {% endif %}
     </div>
+
+    {% if central_dispatch %}
+    <div class="detail-section" style="margin-bottom:1.25rem;background:#eff6ff;border-color:#bfdbfe;">
+        <p style="margin:0;color:#1e3a8a;font-size:.92rem;">
+            Este pedido foi encaminhado à Central de Aprovações
+            em {{ central_dispatch.sent_at|date:"d/m/Y H:i" }}
+            por {{ central_dispatch.sent_by.get_full_name|default:central_dispatch.sent_by.username }}.
+            {% if central_process_url %}
+            <a href="{{ central_process_url }}">Abrir processo #{{ central_dispatch.approval_process_id }}</a>
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
 
     {% if workorder.solicitado_exclusao %}
     {% if workorder.status == 'pendente' or workorder.status == 'reprovado' %}

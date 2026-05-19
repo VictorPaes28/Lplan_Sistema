@@ -19,6 +19,10 @@ from django.views.decorators.http import require_POST
 from workflow_aprovacao.access import (
     user_can_act_on_workflow_processes,
     user_can_configure_workflow,
+    user_can_see_central_monitoring_queue,
+    user_can_view_process,
+    user_is_approver_on_current_step,
+    user_is_external_workflow_profile,
     user_should_use_minimal_workflow_shell,
 )
 from workflow_aprovacao.decorators import (
@@ -37,9 +41,8 @@ from workflow_aprovacao.models import (
     ApprovalProcess,
     ProcessCategory,
     ProcessStatus,
-    SiengeCentralSyncState,
 )
-from workflow_aprovacao.querysets import processes_inbox_snapshot, processes_pending_for_user
+from workflow_aprovacao.querysets import processes_pending_for_user
 from workflow_aprovacao.services.backlog import dismiss_backlog, reopen_backlog, try_start_from_backlog
 from workflow_aprovacao.services.engine import ApprovalEngine
 from workflow_aprovacao.services.flow_config import (
@@ -82,35 +85,32 @@ def _workflow_select_options():
 
 
 def _workflow_context(request, extra=None):
+    pending_nav_count = 0
+    if request.user.is_authenticated:
+        pending_nav_count = processes_pending_for_user(request.user).count()
     ctx = {
         'workflow_show_config_nav': user_can_configure_workflow(request.user),
         'workflow_can_act': user_can_act_on_workflow_processes(request.user),
         'workflow_minimal_shell': user_should_use_minimal_workflow_shell(request.user),
+        'workflow_pending_count': pending_nav_count,
     }
-    if user_can_configure_workflow(request.user):
-        ctx['workflow_backlog_pending_count'] = ApprovalConfigBacklog.objects.filter(
-            status=ApprovalConfigBacklogStatus.PENDING
-        ).count()
     if extra:
         ctx.update(extra)
     return ctx
 
 
 def render_workflow_dashboard(request):
-    """Painel inicial da Central — contadores, atalhos e estado do sync."""
-    pending_qs = processes_pending_for_user(request.user)
-    sync_state = SiengeCentralSyncState.objects.filter(pk=1).first()
+    """Painel inicial da Central — indicadores da fila e atalhos."""
+    from workflow_aprovacao.services.dashboard import dashboard_context_for_user
+
     return render(
         request,
         'workflow_aprovacao/dashboard.html',
         _workflow_context(
             request,
             {
-                'pending_count': pending_qs.count(),
+                **dashboard_context_for_user(request.user),
                 'page_title': 'Central de Aprovações',
-                'page_subtitle': 'Resumo',
-                'sienge_beat_enabled': getattr(settings, 'SIENGE_CENTRAL_BEAT_ENABLED', False),
-                'sienge_sync_state': sync_state,
             },
         ),
     )
@@ -119,35 +119,73 @@ def render_workflow_dashboard(request):
 @require_workflow_module_access
 def home(request):
     """
-    Entrada em ``/aprovacoes/`` — mesma página que ``/painel/`` (visão geral),
-    antes de navegar para a fila de pendências ou configurações.
+    Entrada em ``/aprovacoes/`` — perfil externo vai direto à fila (Minhas pendências).
     """
+    if user_should_use_minimal_workflow_shell(request.user) or user_is_external_workflow_profile(
+        request.user
+    ):
+        return redirect('workflow_aprovacao:pending')
     return render_workflow_dashboard(request)
 
 
 @require_workflow_module_access
 def pending_list(request):
-    pending, recent = processes_inbox_snapshot(request.user, limit=30)
-    pending_count = pending.count()
-    ctx = {
-        'pending': pending,
-        'recent': recent,
-        'pending_count': pending_count,
-        'page_title': 'Central de Aprovações',
-        'page_subtitle': 'Sua fila de aprovação e últimas movimentações',
+    from workflow_aprovacao.services.inbox import (
+        INBOX_DISPLAY_LIMIT,
+        TAB_AGUARDANDO,
+        TAB_APROVADO,
+        TAB_PENDENTE,
+        TAB_REPROVADO,
+        available_inbox_tabs,
+        fetch_inbox_page,
+        inbox_filter_options,
+    )
+
+    tab = (request.GET.get('aba') or '').strip()
+    q = (request.GET.get('q') or '').strip()[:200]
+    origin = (request.GET.get('origem') or '').strip()
+    project_id = None
+    category_id = None
+    if request.GET.get('project', '').strip().isdigit():
+        project_id = int(request.GET['project'])
+    if request.GET.get('category', '').strip().isdigit():
+        category_id = int(request.GET['category'])
+
+    processes, filtered_total, tab = fetch_inbox_page(
+        request.user,
+        tab=tab,
+        project_id=project_id,
+        category_id=category_id,
+        q=q,
+        origin=origin,
+    )
+    filters = inbox_filter_options(request.user)
+    show_monitoring = user_can_see_central_monitoring_queue(request.user)
+
+    tab_titles = {
+        TAB_PENDENTE: 'Minhas pendências',
+        TAB_APROVADO: 'Aprovados',
+        TAB_REPROVADO: 'Reprovados',
+        TAB_AGUARDANDO: 'Aguardando na Central',
     }
-    if pending_count == 0 and user_can_configure_workflow(request.user):
-        ctx['workflow_fila_empty_stats'] = {
-            'awaiting_total': ApprovalProcess.objects.filter(
-                status=ProcessStatus.AWAITING_STEP
-            ).count(),
-            'sienge_inbound_total': ApprovalProcess.objects.filter(
-                external_entity_type__in=(
-                    'sienge_supply_contract',
-                    'sienge_supply_contract_measurement',
-                )
-            ).count(),
-        }
+    ctx = {
+        'inbox_tab': tab,
+        'inbox_tabs': available_inbox_tabs(request.user),
+        'inbox_processes': processes,
+        'inbox_filtered_total': filtered_total,
+        'inbox_display_limit': INBOX_DISPLAY_LIMIT,
+        'inbox_show_assigned_column': tab == TAB_AGUARDANDO,
+        'inbox_show_step_column': tab in (TAB_PENDENTE, TAB_AGUARDANDO),
+        'filter_q': q,
+        'filter_origin': origin,
+        'filter_project_id': project_id,
+        'filter_category_id': category_id,
+        'projects_for_filter': filters['projects'],
+        'categories_for_filter': filters['categories'],
+        'page_title': 'Central de Aprovações',
+        'page_subtitle': tab_titles.get(tab, 'Fila'),
+        'workflow_show_monitoring_queue': show_monitoring,
+    }
     return render(
         request,
         'workflow_aprovacao/pending_list.html',
@@ -157,18 +195,52 @@ def pending_list(request):
 
 @require_workflow_module_access
 def process_detail(request, pk):
+    from django.db.models import Prefetch
+
+    from workflow_aprovacao.models import ApprovalStepParticipant
+    from workflow_aprovacao.services.step_display import build_current_step_display
+
     process = get_object_or_404(
         ApprovalProcess.objects.select_related(
             'project', 'category', 'current_step', 'flow_definition', 'initiated_by'
+        ).prefetch_related(
+            'gestao_dispatch__work_order__obra',
+            Prefetch(
+                'current_step__participants',
+                queryset=ApprovalStepParticipant.objects.select_related(
+                    'user', 'django_group'
+                ).order_by('role', 'pk'),
+            ),
         ),
         pk=pk,
     )
-    can_act = ApprovalEngine.user_can_act_on_current_step(process, request.user)
+    current_step_display = build_current_step_display(process, viewer=request.user)
+    if not user_can_view_process(request.user, process):
+        return HttpResponseForbidden('Sem permissão para visualizar este processo.')
+    can_act = (
+        user_can_act_on_workflow_processes(request.user)
+        and user_is_approver_on_current_step(request.user, process)
+    )
     history = process.history_entries.select_related('actor', 'step').order_by('created_at')
 
-    if request.method == 'POST' and can_act:
+    if request.method == 'POST':
+        from django.db import transaction
+
+        from workflow_aprovacao.services.step_access import user_can_decide_on_process
+
         if not user_can_act_on_workflow_processes(request.user):
             return HttpResponseForbidden('Sem permissão para decidir neste processo.')
+        with transaction.atomic():
+            process = (
+                ApprovalProcess.objects.select_for_update()
+                .select_related('current_step', 'flow_definition', 'project', 'category')
+                .get(pk=process.pk)
+            )
+            if not user_can_decide_on_process(request.user, process):
+                return HttpResponseForbidden(
+                    'Sem permissão para decidir nesta alçada. '
+                    'Só pode aprovar ou reprovar se for participante da etapa atual do processo.'
+                )
         form = DecisionForm(request.POST)
         action = request.POST.get('action')
         if form.is_valid() and action in ('approve', 'reject'):
@@ -182,6 +254,7 @@ def process_detail(request, pk):
                 action=action,
                 comment=comment,
                 signer_name=signer_name,
+                signature_data=form.cleaned_data.get('signature_data') or '',
             )
             try:
                 if action == 'approve':
@@ -211,7 +284,7 @@ def process_detail(request, pk):
         form = DecisionForm(
             initial={
                 'signer_name': (request.user.get_full_name() or '').strip() or request.user.username,
-            }
+            },
         )
 
     sienge_attachments: list[dict] = []
@@ -220,6 +293,30 @@ def process_detail(request, pk):
         'sienge_supply_contract',
         'sienge_supply_contract_measurement',
     )
+    gestao_dispatch = getattr(process, 'gestao_dispatch', None)
+    gestao_is_origin = process.external_entity_type == 'gestao_workorder' or gestao_dispatch is not None
+    gestao_snapshot = {}
+    gestao_workorder = None
+    gestao_detail_url = None
+    gestao_attachments: list[dict] = []
+    if gestao_is_origin:
+        if gestao_dispatch:
+            gestao_snapshot = gestao_dispatch.snapshot_payload or {}
+            gestao_workorder = gestao_dispatch.work_order
+        elif isinstance(process.external_payload, dict):
+            gestao_snapshot = process.external_payload
+        from workflow_aprovacao.services.gestao_display import gestao_snapshot_attachments_for_ui
+
+        gestao_attachments = gestao_snapshot_attachments_for_ui(
+            gestao_snapshot.get('anexos') if isinstance(gestao_snapshot, dict) else None
+        )
+        if gestao_workorder:
+            from accounts.groups import GRUPOS
+
+            if request.user.is_superuser or request.user.groups.filter(
+                name__in=GRUPOS.GESTAO_TODOS
+            ).exists():
+                gestao_detail_url = reverse('gestao:detail_workorder', kwargs={'pk': gestao_workorder.pk})
     if sienge_is_inbound:
         sienge_display_rows = sienge_payload_display_rows(
             process.external_payload or {},
@@ -265,6 +362,18 @@ def process_detail(request, pk):
                 'sienge_is_inbound': sienge_is_inbound,
                 'sienge_resumo_exibicao': sienge_resumo_exibicao,
                 'latest_outbox': latest_outbox,
+                'gestao_is_origin': gestao_is_origin,
+                'gestao_dispatch': gestao_dispatch,
+                'gestao_snapshot': gestao_snapshot,
+                'gestao_workorder': gestao_workorder,
+                'gestao_detail_url': gestao_detail_url,
+                'gestao_attachments': gestao_attachments,
+                'current_step_display': current_step_display,
+                'view_only_not_approver': (
+                    process.status == ProcessStatus.AWAITING_STEP
+                    and not can_act
+                    and user_can_view_process(request.user, process)
+                ),
             },
         ),
     )
@@ -278,6 +387,8 @@ def sienge_process_attachment_download(request, pk):
     Query: ``attachment_id`` (inteiro Sienge). Se omitido, tenta o primeiro anexo listado.
     """
     process = get_object_or_404(ApprovalProcess.objects.select_related('project'), pk=pk)
+    if not user_can_view_process(request.user, process):
+        return HttpResponseForbidden('Sem permissão para visualizar este processo.')
     if process.external_entity_type not in (
         'sienge_supply_contract',
         'sienge_supply_contract_measurement',
@@ -333,9 +444,11 @@ def sienge_process_attachment_download(request, pk):
 @require_workflow_module_access
 def process_signature_receipt_pdf(request, pk):
     process = get_object_or_404(
-        ApprovalProcess.objects.select_related('project', 'category'),
+        ApprovalProcess.objects.select_related('project', 'category', 'initiated_by'),
         pk=pk,
     )
+    if not user_can_view_process(request.user, process):
+        return HttpResponseForbidden('Sem permissão para visualizar este processo.')
     event = latest_final_signature_event(process)
     if not event:
         raise Http404('Sem evento final de assinatura neste processo.')
@@ -371,7 +484,7 @@ def config_flow_list(request):
                 'flows': flows,
                 'new_flow_form': form,
                 'page_title': 'Configuração de fluxos',
-                'page_subtitle': 'Obra, categoria, alçadas e aprovadores',
+                'page_subtitle': 'Fluxos',
             },
         ),
     )
@@ -429,6 +542,14 @@ def dashboard(request):
 @require_workflow_module_access
 @require_POST
 def force_sync(request):
+    if not getattr(settings, 'SIENGE_CENTRAL_MANUAL_SYNC_ENABLED', False):
+        messages.info(
+            request,
+            'A importação do Sienge está desligada. Os processos passam a nascer no GestControll.',
+        )
+        return redirect('workflow_aprovacao:pending')
+    if not user_can_configure_workflow(request.user):
+        return HttpResponseForbidden('Sem permissão para importar do Sienge.')
     result = trigger_sienge_sync_if_due(initiated_by=request.user, force=True)
     status = result.get('status')
     if status == 'ok':
@@ -473,7 +594,7 @@ def outbox_list(request):
                 'entries': entries,
                 'filter_status': status,
                 'page_title': 'Retorno para Sienge',
-                'page_subtitle': 'Fila de saída com revisão manual',
+                'page_subtitle': 'Retorno Sienge',
                 'outbox_shadow_mode': getattr(settings, 'SIENGE_OUTBOUND_SHADOW_MODE', True),
                 'outbox_enabled': getattr(settings, 'SIENGE_OUTBOUND_ENABLED', False),
             },
@@ -580,7 +701,7 @@ def config_backlog_list(request):
                     'sort_order', 'name'
                 ),
                 'page_title': 'Pendências de configuração',
-                'page_subtitle': 'Itens recebidos sem fluxo ativo na obra/categoria — fila para o administrador',
+                'page_subtitle': 'Sem fluxo configurado',
                 'backlog_filtered_total': backlog_filtered_total,
                 'backlog_display_limit': BACKLOG_LIST_PAGE_SIZE,
                 'backlog_counts_by_status': backlog_counts_by_status,

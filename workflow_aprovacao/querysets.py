@@ -4,10 +4,21 @@ from django.db.models import Exists, OuterRef, Q
 from workflow_aprovacao.models import (
     ApprovalHistoryEntry,
     ApprovalProcess,
-    ParticipantRole,
     ProcessStatus,
-    SubjectKind,
 )
+from workflow_aprovacao.services.step_access import pending_processes_filter_q
+
+GESTAO_ENTITY_TYPES = ('gestao_workorder',)
+
+
+def processes_list_base_qs():
+    return ApprovalProcess.objects.select_related(
+        'project', 'category', 'current_step', 'flow_definition', 'initiated_by'
+    ).order_by('-updated_at', '-pk')
+
+
+def processes_awaiting_base_qs():
+    return processes_list_base_qs().filter(status=ProcessStatus.AWAITING_STEP)
 
 
 def processes_pending_for_user(user):
@@ -18,38 +29,19 @@ def processes_pending_for_user(user):
     if not user or not user.is_authenticated:
         return ApprovalProcess.objects.none()
 
-    group_ids = list(user.groups.values_list('pk', flat=True))
-    role_ok = (ParticipantRole.APPROVER, ParticipantRole.OWNER)
+    return processes_awaiting_base_qs().filter(pending_processes_filter_q(user))
 
-    user_q = Q(
-        current_step__participants__subject_kind=SubjectKind.USER,
-        current_step__participants__user=user,
-        current_step__participants__role__in=role_ok,
-    )
-    group_q = Q()
-    if group_ids:
-        group_q = Q(
-            current_step__participants__subject_kind=SubjectKind.DJANGO_GROUP,
-            current_step__participants__django_group_id__in=group_ids,
-            current_step__participants__role__in=role_ok,
-        )
 
-    return (
-        ApprovalProcess.objects.filter(status=ProcessStatus.AWAITING_STEP)
-        .filter(user_q | group_q)
-        .select_related('project', 'category', 'current_step', 'flow_definition')
-        .distinct()
-        .order_by('-created_at')
-    )
+def processes_awaiting_in_central():
+    """Todos os processos aguardando alguma alçada (visão de monitoramento)."""
+    return processes_awaiting_base_qs()
 
 
 def processes_inbox_snapshot(user, limit: int = 100):
-    """Pendentes + últimos concluídos/reprovados envolvendo o usuário (visão resumida)."""
+    """Pendentes pessoais + últimos concluídos/reprovados envolvendo o usuário."""
     pending = processes_pending_for_user(user)
     if not user or not user.is_authenticated:
         return pending, ApprovalProcess.objects.none()
-    # Evita montar lista gigante ``pk__in`` com todos os processos já tocados no histórico
-    # (para utilizadores antigos isto pode ser dezenas de milhares de IDs → consulta pesada).
     acted = ApprovalHistoryEntry.objects.filter(
         process_id=OuterRef('pk'),
         actor_id=user.pk,
@@ -61,3 +53,15 @@ def processes_inbox_snapshot(user, limit: int = 100):
         .order_by('-updated_at')[:limit]
     )
     return pending, recent
+
+
+def annotate_pending_assigned_to_user(qs, user):
+    """Anota cada processo com flag se o usuário deve decidir na alçada atual."""
+    if not user or not user.is_authenticated:
+        return list(qs), set()
+    my_ids = set(processes_pending_for_user(user).values_list('pk', flat=True))
+    rows = []
+    for p in qs:
+        p.assigned_to_me = p.pk in my_ids
+        rows.append(p)
+    return rows, my_ids

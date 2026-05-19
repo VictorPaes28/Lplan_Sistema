@@ -1365,3 +1365,46 @@ class AprovacaoEmailDestinatario(models.Model):
             self.email = self.email.strip().lower()
         super().save(*args, **kwargs)
 
+
+class GestaoCentralDispatch(models.Model):
+    """
+    Vínculo 1:1 entre pedido aprovado no GestControll e processo na Central.
+    """
+
+    work_order = models.OneToOneField(
+        WorkOrder,
+        on_delete=models.PROTECT,
+        related_name='central_dispatch',
+        verbose_name='Pedido de obra',
+    )
+    approval_process = models.OneToOneField(
+        'workflow_aprovacao.ApprovalProcess',
+        on_delete=models.PROTECT,
+        related_name='gestao_dispatch',
+        verbose_name='Processo na Central',
+    )
+    sent_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='gestao_central_dispatches_sent',
+        verbose_name='Enviado por',
+    )
+    sent_at = models.DateTimeField(auto_now_add=True, verbose_name='Enviado em')
+    send_comment = models.TextField(
+        blank=True,
+        verbose_name='Observação do envio',
+    )
+    snapshot_payload = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Dados do pedido e referências de anexos no momento do envio.',
+    )
+
+    class Meta:
+        verbose_name = 'Envio GestControll → Central'
+        verbose_name_plural = 'Envios GestControll → Central'
+        ordering = ['-sent_at']
+
+    def __str__(self):
+        return f'{self.work_order.codigo} → Central #{self.approval_process_id}'
+

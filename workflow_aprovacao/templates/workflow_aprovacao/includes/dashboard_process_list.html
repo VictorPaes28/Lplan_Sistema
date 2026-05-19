@@ -1,0 +1,30 @@
+{% load workflow_sienge %}
+<ul class="wf-dash-list">
+    {% for p in dash_processes %}
+    <li>
+        <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}" class="wf-dash-list__row">
+            <span class="wf-dash-list__id">#{{ p.pk }}</span>
+            <span class="wf-dash-list__body">
+                <span class="wf-dash-list__title">{{ p.project.code }} · {{ p.category.name }}</span>
+                <span class="wf-dash-list__meta">
+                    {% if p.current_step %}{{ p.current_step.sequence }}. {{ p.current_step.name }} · {% endif %}
+                    {% if p.title %}{{ p.title|truncatechars:56 }}{% elif p.summary %}{{ p|resumo_sienge_legivel|truncatechars:56 }}{% else %}Sem referência{% endif %}
+                </span>
+            </span>
+            <span class="wf-dash-list__aside">
+                {% if p.status == 'awaiting_step' %}
+                <span class="wf-pill wf-pill--warn">{{ p.get_status_display }}</span>
+                {% elif p.status == 'approved' %}
+                <span class="wf-pill wf-pill--ok">{{ p.get_status_display }}</span>
+                {% elif p.status == 'rejected' %}
+                <span class="wf-pill wf-pill--no">{{ p.get_status_display }}</span>
+                {% else %}
+                <span class="wf-pill wf-pill--muted">{{ p.get_status_display }}</span>
+                {% endif %}
+                <span class="wf-dash-list__date">{{ p.updated_at|date:"d/m H:i" }}</span>
+            </span>
+            <i class="fas fa-chevron-right wf-dash-list__chev" aria-hidden="true"></i>
+        </a>
+    </li>
+    {% endfor %}
+</ul>

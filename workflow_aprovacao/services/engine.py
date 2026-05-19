@@ -55,29 +55,9 @@ class ApprovalEngine:
 
     @classmethod
     def user_can_act_on_current_step(cls, process: ApprovalProcess, user: User) -> bool:
-        if not user or not user.is_authenticated:
-            return False
-        if user.is_superuser:
-            return process.status == ProcessStatus.AWAITING_STEP
-        if process.status != ProcessStatus.AWAITING_STEP:
-            return False
-        step = process.current_step
-        if not step:
-            return False
-        if step.approval_policy != ApprovalPolicy.SINGLE_ANY:
-            return False
-        roles = (ParticipantRole.APPROVER, ParticipantRole.OWNER)
-        qs = ApprovalStepParticipant.objects.filter(step=step, role__in=roles)
-        for p in qs:
-            if p.subject_kind == SubjectKind.USER and p.user_id == user.id:
-                return True
-            if (
-                p.subject_kind == SubjectKind.DJANGO_GROUP
-                and p.django_group_id
-                and user.groups.filter(pk=p.django_group_id).exists()
-            ):
-                return True
-        return False
+        from workflow_aprovacao.services.step_access import user_can_decide_on_process
+
+        return user_can_decide_on_process(user, process)
 
     @classmethod
     @transaction.atomic

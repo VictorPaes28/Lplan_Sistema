@@ -276,35 +276,11 @@
             <div class="sidebar-nav-section-title mt-3 mb-2 px-4">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Configuração</p>
             </div>
-            <a href="{% url 'workflow_aprovacao:config_backlog_list' %}"
-               class="sidebar-link flex items-center justify-between px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'config_backlog_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <span class="flex items-center">
-                    <i class="fas fa-clipboard-list w-5 mr-3"></i>
-                    <span class="font-medium">Pendências</span>
-                </span>
-                {% if workflow_backlog_pending_count and workflow_backlog_pending_count > 0 %}
-                <span class="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{{ workflow_backlog_pending_count }}</span>
-                {% endif %}
-            </a>
             <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'config_flow_list' or request.resolver_match.url_name == 'flow_edit' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-sitemap w-5 mr-3"></i>
                 <span class="font-medium">Fluxos</span>
             </a>
-            <a href="{% url 'workflow_aprovacao:outbox_list' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'outbox_list' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-paper-plane w-5 mr-3"></i>
-                <span class="font-medium">Retorno Sienge</span>
-            </a>
-            <form method="post" action="{% url 'workflow_aprovacao:force_sync' %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit"
-                        class="sidebar-link w-full text-left flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
-                    <i class="fas fa-sync-alt w-5 mr-3"></i>
-                    <span class="font-medium">Atualizar agora</span>
-                </button>
-            </form>
             {% endif %}
 
             {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}

@@ -73,6 +73,14 @@ GRUPOS_CONFIG = {
             }
         }
     },
+    'Enviar para Central de Aprovações': {
+        'sistema': 'Gestao de Aprovacao',
+        'descricao': (
+            'Pode enviar pedidos ja aprovados no GestControll para a Central de Aprovacoes. '
+            'Nao concede acesso de configuracao, fila ou aprovacao na Central.'
+        ),
+        'permissions': {},
+    },
 
     # =====================================================
     # RESTRIÇÕES / IMPEDITIVOS

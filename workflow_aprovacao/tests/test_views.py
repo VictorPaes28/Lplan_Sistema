@@ -49,10 +49,11 @@ class WorkflowViewsSmokeTests(TestCase):
         r = self.client.get(reverse('workflow_aprovacao:pending'))
         self.assertEqual(r.status_code, 302)
 
-    def test_home_200_when_logged_in(self):
+    def test_home_redirects_aprovador_to_fila(self):
         self.client.login(username='wfview', password='secret')
         r = self.client.get(reverse('workflow_aprovacao:home'))
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn('/fila/', r.url)
 
     def test_config_forbidden_for_aprovador_only(self):
         self.client.login(username='wfview', password='secret')

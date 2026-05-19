@@ -1300,7 +1300,10 @@ def detail_workorder(request, pk):
     Solicitantes só veem os próprios pedidos.
     Gestores e admins veem todos.
     """
-    workorder = get_object_or_404(WorkOrder, pk=pk)
+    workorder = get_object_or_404(
+        WorkOrder.objects.select_related('central_dispatch__approval_process'),
+        pk=pk,
+    )
     user = request.user
     user_profile = get_user_profile(user)
     
@@ -1494,6 +1497,21 @@ def detail_workorder(request, pk):
         ).exists()
         or is_admin(user)
     )
+
+    from gestao_aprovacao.gestao_central_access import (
+        user_can_send_workorder_to_central,
+        workorder_can_offer_central_dispatch,
+    )
+    from gestao_aprovacao.services.central_dispatch import (
+        central_process_url_for_user,
+        workorder_dispatch_block_reason,
+    )
+
+    central_dispatch = getattr(workorder, 'central_dispatch', None)
+    can_send_to_central = workorder_can_offer_central_dispatch(workorder, user)
+    central_process_url = None
+    if central_dispatch:
+        central_process_url = central_process_url_for_user(user, central_dispatch.approval_process_id)
     
     context = {
         'workorder': workorder,
@@ -1515,6 +1533,11 @@ def detail_workorder(request, pk):
         'comments': comments,
         'can_create_workorder': can_create_workorder,
         'obra_consulta_apenas': obra_consulta_apenas,
+        'can_send_to_central': can_send_to_central,
+        'user_can_send_to_central': user_can_send_workorder_to_central(user),
+        'central_dispatch': central_dispatch,
+        'central_process_url': central_process_url,
+        'central_dispatch_block_reason': workorder_dispatch_block_reason(workorder),
     }
     return render(request, 'obras/detail_workorder.html', context)
 
@@ -1737,7 +1760,9 @@ def _workorder_atividades_ajax(workorder, status_labels):
 def workorder_detail_ajax(request, pk):
     """JSON para o modal de detalhe do pedido na listagem (GestControll)."""
     workorder = get_object_or_404(
-        WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por', 'solicitado_exclusao_por'),
+        WorkOrder.objects.select_related(
+            'obra', 'obra__empresa', 'criado_por', 'solicitado_exclusao_por', 'central_dispatch__approval_process'
+        ),
         pk=pk,
     )
     user = request.user
@@ -1820,6 +1845,15 @@ def workorder_detail_ajax(request, pk):
     if workorder.tipo_solicitacao == 'medicao' and workorder.valor_medicao is not None:
         valor_med_fmt = _fmt_brl_ajax(workorder.valor_medicao)
 
+    from gestao_aprovacao.gestao_central_access import workorder_can_offer_central_dispatch
+    from gestao_aprovacao.services.central_dispatch import central_process_url_for_user
+
+    central_dispatch = getattr(workorder, 'central_dispatch', None)
+    can_send_central = workorder_can_offer_central_dispatch(workorder, user) if perm['tem_permissao'] else False
+    central_url = None
+    if central_dispatch:
+        central_url = central_process_url_for_user(user, central_dispatch.approval_process_id)
+
     payload = {
         'pk': workorder.pk,
         'codigo': workorder.codigo,
@@ -1862,6 +1896,9 @@ def workorder_detail_ajax(request, pk):
         'url_detalhe_completo': request.build_absolute_uri(
             reverse('gestao:detail_workorder', args=[workorder.pk])
         ),
+        'can_send_to_central': can_send_central,
+        'central_dispatch_id': central_dispatch.approval_process_id if central_dispatch else None,
+        'central_process_url': central_url,
         'urls': {
             'detalhe': reverse('gestao:detail_workorder', args=[workorder.pk]),
             'exportar_pdf': reverse('gestao:exportar_snapshot_workorder_pdf', args=[workorder.pk]),
@@ -1874,6 +1911,7 @@ def workorder_detail_ajax(request, pk):
             'reprovar': reverse('gestao:reject_workorder', args=[workorder.pk]),
             'comentar': reverse('gestao:add_comment', args=[workorder.pk]),
             'upload_anexo': reverse('gestao:upload_attachment', args=[workorder.pk]),
+            'enviar_central': reverse('gestao:send_workorder_to_central', args=[workorder.pk]),
         },
         'tags_erro_reprovacao': (
             [

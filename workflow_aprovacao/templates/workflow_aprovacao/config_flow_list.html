@@ -3,16 +3,15 @@
 {% block back_url %}{% url 'workflow_aprovacao:home' %}{% endblock %}
 
 {% block page_title %}{{ page_title }}{% endblock %}
-{% block page_subtitle %}Obra, categoria e aprovadores por alçada{% endblock %}
+{% block page_subtitle %}Fluxos por obra e categoria{% endblock %}
 
-{% block content %}
+{% block wf_content %}
 <div class="wf-root">
     {% include 'workflow_aprovacao/_messages.html' %}
 
     <section class="wf-panel" style="margin-bottom:1.75rem;">
         <div class="wf-panel__head">
             <h2 class="wf-panel__title">Novo fluxo</h2>
-            <p class="wf-panel__meta">Escolha obra e categoria e clique em «Criar e configurar». Na página seguinte você define <strong>quantas alçadas</strong> existem e <strong>quem aprova</strong> em cada uma.</p>
         </div>
         <div class="wf-panel__body">
             <form method="post" class="wf-form-grid">
@@ -81,7 +80,7 @@
             {% else %}
             <div class="wf-empty wf-empty--inline">
                 <p class="wf-empty__title">Nenhum fluxo</p>
-                <p class="wf-empty__text">Use o formulário acima para criar a primeira combinação obra + categoria.</p>
+                <p class="wf-empty__text">Crie obra + categoria acima.</p>
             </div>
             {% endif %}
         </div>

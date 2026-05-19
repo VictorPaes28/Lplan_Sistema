@@ -5,7 +5,7 @@
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block page_subtitle %}{{ page_subtitle }}{% endblock %}
 
-{% block content %}
+{% block wf_content %}
 <div class="wf-root">
     {% include 'workflow_aprovacao/_messages.html' %}
 
@@ -21,12 +21,6 @@
                 </select>
                 <button type="submit" class="wf-btn-table">Aplicar</button>
             </form>
-            <p class="wf-help" style="margin:0.7rem 0 0;">
-                Modo atual:
-                {% if outbox_shadow_mode %}<strong>shadow (simulado)</strong>{% else %}<strong>real</strong>{% endif %}
-                · Envio real habilitado:
-                {% if outbox_enabled %}<strong>sim</strong>{% else %}<strong>não</strong>{% endif %}
-            </p>
         </div>
     </section>
 

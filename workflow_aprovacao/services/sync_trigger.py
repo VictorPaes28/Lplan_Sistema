@@ -98,10 +98,20 @@ def trigger_sienge_sync_if_due(*, initiated_by=None, force: bool = False) -> dic
         cache.delete(_SYNC_LOCK_KEY)
 
 
+def _web_sync_on_page_open_enabled() -> bool:
+    """Ingestão Sienge ao navegar na Central (desligada: processos nascem do GestControll)."""
+    return bool(getattr(settings, 'SIENGE_CENTRAL_WEB_SYNC_ON_PAGE_OPEN', False))
+
+
 def maybe_trigger_sienge_sync_on_page_open(request) -> None:
     """
     Gatilho silencioso para páginas GET da Central.
+
+    Desligado por defeito (``SIENGE_CENTRAL_WEB_SYNC_ON_PAGE_OPEN=False``).
+    Só executa se a flag estiver explicitamente ativa no ambiente.
     """
+    if not _web_sync_on_page_open_enabled():
+        return
     if request.method not in ('GET', 'HEAD'):
         return
     trigger_sienge_sync_if_due(initiated_by=request.user, force=False)

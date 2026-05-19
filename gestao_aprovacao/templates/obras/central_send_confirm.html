@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Enviar à Central — {{ workorder.codigo }}{% endblock %}
+{% block page_title %}Enviar à Central de Aprovações{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/detail_workorder.css' %}">
+<style>
+.central-send-card { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem 1.5rem; }
+.central-send-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .75rem 1rem; margin: 1rem 0; }
+.central-send-grid dt { font-size: .75rem; color: #64748b; margin: 0 0 .15rem; }
+.central-send-grid dd { margin: 0; font-weight: 600; color: #0f172a; }
+.central-send-anexos { margin: .75rem 0 0; padding-left: 1.1rem; font-size: .9rem; }
+.central-send-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.25rem; }
+.central-send-note { width: 100%; min-height: 4rem; border: 1px solid #cbd5e1; border-radius: 8px; padding: .5rem .65rem; font-family: inherit; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="central-send-card">
+    <p style="margin:0 0 .5rem;color:#475569;font-size:.95rem;">
+        Confirme o envio deste pedido <strong>já aprovado</strong> para tramitação na Central.
+        O tipo e a obra serão usados para localizar o fluxo configurado — não é necessário escolher categoria.
+    </p>
+
+    <dl class="central-send-grid">
+        <div><dt>Pedido</dt><dd>{{ workorder.codigo }}</dd></div>
+        <div><dt>Obra</dt><dd>{{ workorder.obra.codigo }} — {{ workorder.obra.nome }}</dd></div>
+        <div><dt>Tipo de solicitação</dt><dd>{{ workorder.get_tipo_solicitacao_display }}</dd></div>
+        <div><dt>Credor</dt><dd>{{ workorder.nome_credor }}</dd></div>
+        <div><dt>Solicitante</dt><dd>{{ snapshot_preview.solicitante|default:"—" }}</dd></div>
+        {% if snapshot_preview.valor_medicao %}
+        <div><dt>Valor medição</dt><dd>{{ snapshot_preview.valor_medicao }}</dd></div>
+        {% elif snapshot_preview.valor_estimado %}
+        <div><dt>Valor estimado</dt><dd>{{ snapshot_preview.valor_estimado }}</dd></div>
+        {% endif %}
+    </dl>
+
+    {% if attachments %}
+    <div>
+        <strong style="font-size:.85rem;color:#334155;">Documentos anexos (referência no envio)</strong>
+        <ul class="central-send-anexos">
+            {% for att in attachments %}
+            <li>{{ att.get_nome_display }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if block_reason and not central_dispatch %}
+    <p style="margin-top:1rem;padding:.75rem;background:#fef3c7;border-radius:8px;color:#92400e;">{{ block_reason }}</p>
+    {% else %}
+    <form method="post" action="">
+        {% csrf_token %}
+        <label for="send_comment" style="display:block;font-size:.85rem;font-weight:600;margin:.75rem 0 .35rem;">Observação do envio (opcional)</label>
+        <textarea id="send_comment" name="send_comment" class="central-send-note" maxlength="2000" placeholder="Informação adicional para os aprovadores da Central"></textarea>
+        <div class="central-send-actions">
+            <button type="submit" class="btn btn-primary">Confirmar envio à Central</button>
+            <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

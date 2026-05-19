@@ -4,3 +4,10 @@
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
 <link rel="stylesheet" href="{% static 'core/css/workflow-central.css' %}">
 {% endblock %}
+
+{% block content %}
+<div class="wf-page-shell">
+    {% include 'workflow_aprovacao/_subnav.html' %}
+    {% block wf_content %}{% endblock %}
+</div>
+{% endblock %}

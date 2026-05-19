@@ -3,7 +3,7 @@ from django.utils.safestring import mark_safe
 from .models import (
     Empresa, Obra, WorkOrder, Approval, Attachment, StatusHistory, WorkOrderPermission,
     UserEmpresa, UserProfile, Notificacao, Comment, Lembrete, TagErro, EmailLog,
-    AprovacaoEmailDestinatario,
+    AprovacaoEmailDestinatario, GestaoCentralDispatch,
 )
 
 
@@ -906,4 +906,13 @@ class AprovacaoEmailDestinatarioAdmin(admin.ModelAdmin):
     search_fields = ['email', 'nome']
     filter_horizontal = ['obras']
     ordering = ['ordem', 'email']
+
+
+@admin.register(GestaoCentralDispatch)
+class GestaoCentralDispatchAdmin(admin.ModelAdmin):
+    list_display = ['work_order', 'approval_process', 'sent_by', 'sent_at']
+    list_filter = ['sent_at']
+    search_fields = ['work_order__codigo', 'approval_process__id']
+    raw_id_fields = ['work_order', 'approval_process', 'sent_by']
+    readonly_fields = ['sent_at', 'snapshot_payload']
 
