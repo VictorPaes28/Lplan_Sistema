@@ -75,6 +75,9 @@
   var valPrio = document.getElementById('th-det-pill-prioridade-val');
   var valTipo = document.getElementById('th-det-pill-tipo-val');
   var valPrazo = document.getElementById('th-det-pill-prazo-val');
+  var pillResponsavel = document.getElementById('th-det-pill-responsavel');
+  var valResponsavel = document.getElementById('th-det-pill-responsavel-val');
+  var selResponsavel = document.getElementById('th-det-responsavel-select');
 
   var panelComments = document.getElementById('th-det-panel-comments');
   var panelActivities = document.getElementById('th-det-panel-activities');
@@ -308,6 +311,7 @@
     if (valStatus) valStatus.textContent = p.status_display || '';
     if (valPrio) valPrio.textContent = p.prioridade_display || '';
     if (valTipo) valTipo.textContent = p.tipo_display || '';
+    if (valResponsavel) valResponsavel.textContent = p.responsavel_nome || (p.responsavel_interno_id ? '' : '—');
     if (valPrazo) valPrazo.textContent = formatPrazo(p.prazo);
 
     var pode = p.pode_editar;
@@ -318,7 +322,7 @@
 
     setEditable(elTitulo, pode);
     setEditable(elDesc, pode);
-    [pillStatus, pillPrio, pillTipo, pillPrazo].forEach(function (pill) {
+    [pillStatus, pillPrio, pillTipo, pillResponsavel, pillPrazo].forEach(function (pill) {
       if (pill) {
         pill.disabled = !pode;
         pill.classList.toggle('is-disabled', !pode);
@@ -337,6 +341,21 @@
     window.etapasPendentesCount = typeof p.etapas_pendentes_count === 'number'
       ? p.etapas_pendentes_count
       : 0;
+
+    // preparar select de responsável (picker) no modal
+    if (selResponsavel) {
+      // sincronizar valor preservado
+      selResponsavel.value = p.responsavel_interno_id ? String(p.responsavel_interno_id) : '';
+      // garantir attach do ThRespPicker quando necessário
+      try {
+        ThRespPicker.attachModalNovaEtapa(selResponsavel);
+      } catch (e) {}
+      // salvar quando usuário escolher no picker
+      selResponsavel.onchange = function () {
+        var vid = selResponsavel.value || null;
+        salvarCampo('responsavel_interno', vid);
+      };
+    }
 
     preencherActionsFooter(p.id);
 
@@ -899,6 +918,10 @@
       return;
     }
     markTrackhubListStale();
+    if (data.perdeu_acesso) {
+      if (typeof window.fecharDetalhe === 'function') window.fecharDetalhe();
+      return;
+    }
     if (data.pendencia) applyPendenciaPayload(data.pendencia);
     carregarAtividades(currentPk);
     flashSaving();
@@ -1242,6 +1265,17 @@
       }, 50);
     });
   }
+
+    if (pillResponsavel && selResponsavel) {
+      pillResponsavel.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!currentData || !currentData.pode_editar) return;
+        try {
+          ThRespPicker.attachModalNovaEtapa(selResponsavel);
+          ThRespPicker.open(selResponsavel, { zIndex: 12600, anchor: pillResponsavel, trigger: pillResponsavel });
+        } catch (err) {}
+      });
+    }
 
   if (elCommentAttach && elCommentFileInput) {
     elCommentAttach.addEventListener('click', function () { elCommentFileInput.click(); });

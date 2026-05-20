@@ -86,10 +86,16 @@
       </div>
 
       <div style="margin-top:4px;padding-top:18px;border-top:1px solid #f1f5f9;">
-        <div class="th-recorrencia" id="th-rec-root">
-        {{ rec_form.recorrencia_regra }}
-        {{ rec_form.recorrencia_parametros_json }}
-          <div class="th-recorrencia-label-row">
+        <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:14px;align-items:start;">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Responsável da pendência</label>
+            {{ form.responsavel_interno }}
+            {% if form.responsavel_interno.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.responsavel_interno.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="th-recorrencia" id="th-rec-root">
+          {{ rec_form.recorrencia_regra }}
+          {{ rec_form.recorrencia_parametros_json }}
+            <div class="th-recorrencia-label-row">
             <label class="th-recorrencia-label" for="th-rec-trigger">Repetir</label>
           </div>
           <div class="th-recorrencia-wrap">
@@ -393,7 +399,7 @@ function thGetObraSelecionadaNome() {
 var thRespPickerOpts = { getOutrosFn: thParseTodosUsuarios, getObraNomeFn: thGetObraSelecionadaNome };
 
 function thRefreshResponsaveisEtapas() {
-  document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+  document.querySelectorAll('select[name$="-responsavel_interno"], select[name="responsavel_interno"]').forEach(function (sel) {
     if (sel._thRespRefresh) sel._thRespRefresh();
   });
 }
@@ -664,7 +670,7 @@ document.addEventListener('input', function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+  document.querySelectorAll('select[name$="-responsavel_interno"], select[name="responsavel_interno"]').forEach(function (sel) {
     if (window.ThRespPicker) {
       window.ThRespPicker.attach(sel, thParseResponsaveisPorObra, thGetObraSelecionadaId, thRespPickerOpts);
     }

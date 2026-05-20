@@ -20,10 +20,24 @@ User = get_user_model()
 
 class PendenciaForm(forms.ModelForm):
     tipo = forms.CharField(max_length=100, required=True)
+    responsavel_interno = forms.ModelChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by("first_name"),
+        required=False,
+        empty_label="Selecione...",
+        label="Responsável da pendência",
+    )
 
     class Meta:
         model = Pendencia
-        fields = ["obra", "titulo", "descricao", "tipo", "prioridade", "prazo"]
+        fields = [
+            "obra",
+            "titulo",
+            "descricao",
+            "tipo",
+            "prioridade",
+            "prazo",
+            "responsavel_interno",
+        ]
         widgets = {
             "prazo": forms.DateInput(attrs={"type": "date"}),
             "descricao": forms.Textarea(attrs={"rows": 3}),
@@ -35,6 +49,7 @@ class PendenciaForm(forms.ModelForm):
             self.fields["obra"].queryset = obras_queryset
         self.fields["obra"].label = "Local"
         self.fields["obra"].widget.attrs.setdefault("class", "th-filter-select")
+        self.fields["responsavel_interno"].widget.attrs.setdefault("class", "th-filter-select")
 
     def _get_validation_exclusions(self):
         # Exclude 'tipo' from model-level field validation so Django's choices
