@@ -1,19 +1,62 @@
 (function () {
-    var urlTpl = typeof window.LPLAN_CREATE_WORKORDER_URL === 'string' ? window.LPLAN_CREATE_WORKORDER_URL : '';
+    function getCreateUrlTpl() {
+        return typeof window.LPLAN_CREATE_WORKORDER_URL === 'string' ? window.LPLAN_CREATE_WORKORDER_URL.trim() : '';
+    }
+
+    function resolveCreateWorkorderUrl(hrefHint) {
+        var parsed = null;
+        if (hrefHint) {
+            try {
+                parsed = new URL(hrefHint, window.location.origin);
+            } catch (_) {
+                parsed = null;
+            }
+        }
+        if (!parsed || !/\/pedidos\/criar\/?$/i.test(parsed.pathname.replace(/\/$/, '') + '/')) {
+            try {
+                parsed = new URL(getCreateUrlTpl() || '/gestao/pedidos/criar/', window.location.origin);
+            } catch (_) {
+                parsed = new URL('/gestao/pedidos/criar/', window.location.origin);
+            }
+        }
+        if (!/\/pedidos\/criar\/?$/i.test(parsed.pathname.replace(/\/$/, '') + '/')) {
+            parsed = new URL('/gestao/pedidos/criar/', window.location.origin);
+        }
+        return parsed;
+    }
 
     function getOverlay() {
-        return document.getElementById('wc-create-overlay');
+        var el = document.getElementById('wc-create-overlay');
+        if (el && el.parentNode !== document.body) {
+            document.body.appendChild(el);
+        }
+        return el;
+    }
+
+    function isCreateModalOpen() {
+        var el = getOverlay();
+        return !!(el && el.classList.contains('is-open'));
     }
 
     function getScroll() {
         return document.getElementById('wc-create-scroll');
     }
 
-    function buildCreateUrl(embedQuery) {
-        if (!urlTpl) return '';
-        var q = embedQuery !== false ? 'embed=modal&v=' + String(Date.now()) : '';
-        if (!q) return urlTpl.split('?')[0];
-        return urlTpl.indexOf('?') >= 0 ? urlTpl.split('?')[0] + '&' + q : urlTpl.split('?')[0] + '?' + q;
+    function buildCreateUrl(embedQuery, hrefHint) {
+        var parsed = resolveCreateWorkorderUrl(hrefHint);
+        if (embedQuery !== false) {
+            parsed.searchParams.set('embed', 'modal');
+            parsed.searchParams.set('v', String(Date.now()));
+        } else {
+            parsed.searchParams.delete('embed');
+            parsed.searchParams.delete('v');
+        }
+        return parsed.toString();
+    }
+
+    function isModalFormHtml(html) {
+        if (!html || typeof html !== 'string') return false;
+        return html.indexOf('workorder-create-form') !== -1 || html.indexOf('wc-modal-fragment') !== -1;
     }
 
     function getCsrfToken() {
@@ -56,6 +99,9 @@
     function mountFragment(html) {
         var scroll = getScroll();
         if (!scroll) return;
+        if (!isModalFormHtml(html)) {
+            throw new Error('Não foi possível carregar o formulário de novo pedido.');
+        }
         scroll.innerHTML = html;
         var root = scroll.querySelector('.wc-modal-fragment') || scroll;
         if (typeof window.LplanWorkorderFormInit === 'function') {
@@ -151,15 +197,30 @@
             });
     }
 
-    function loadModalForm() {
-        var fetchUrl = buildCreateUrl(true);
+    function loadModalForm(hrefHint) {
+        var fetchUrl = buildCreateUrl(true, hrefHint);
         if (!fetchUrl) return;
         setBusy(true);
         fetch(fetchUrl, {
             credentials: 'same-origin',
+            redirect: 'manual',
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
             .then(function (r) {
+                if (r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)) {
+                    throw new Error('Sessão redirecionou para outra página. Recarregue a lista e tente de novo.');
+                }
+                if (r.redirected) {
+                    var finalPath = '';
+                    try {
+                        finalPath = new URL(r.url, window.location.origin).pathname;
+                    } catch (_) {
+                        finalPath = '';
+                    }
+                    if (finalPath.indexOf('/pedidos/criar') === -1) {
+                        throw new Error('Não foi possível abrir o formulário de novo pedido.');
+                    }
+                }
                 if (!r.ok) {
                     var ct = (r.headers.get('Content-Type') || '').toLowerCase();
                     if (ct.indexOf('application/json') !== -1) {
@@ -193,6 +254,7 @@
     }
 
     function onDocClick(ev) {
+        if (isCreateModalOpen()) return;
         var a = ev.target.closest('.gc-open-create-modal,[data-open-create-modal]');
         if (!a || !(a.matches('a'))) return;
         if (shouldDeferToBrowser(ev)) return;
@@ -200,19 +262,18 @@
         if (!href || href === '#') {
             ev.preventDefault();
             openOverlay();
-            loadModalForm();
+            loadModalForm(href);
             return;
         }
         try {
             var u = new URL(href, window.location.origin);
+            var createPath = resolveCreateWorkorderUrl(href).pathname.replace(/\/$/, '');
             var pathOk =
-                urlTpl && urlTpl.trim()
-                    ? u.pathname.replace(/\/$/, '') === new URL(urlTpl, window.location.origin).pathname.replace(/\/$/, '')
-                    : u.pathname.indexOf('/pedidos/criar') !== -1;
+                u.pathname.replace(/\/$/, '') === createPath && u.pathname.indexOf('/pedidos/criar') !== -1;
             if (pathOk && !u.searchParams.get('no_modal')) {
                 ev.preventDefault();
                 openOverlay();
-                loadModalForm();
+                loadModalForm(href);
             }
         } catch (_) {
             /* ignore */
@@ -228,12 +289,30 @@
                 /* empty */
             }
         },
-        true
+        false
     );
+
+    window.gcGestaoAbrirModalCriarPedido = function (ev) {
+        if (ev) {
+            if (ev.preventDefault) ev.preventDefault();
+            if (ev.stopPropagation) ev.stopPropagation();
+        }
+        openOverlay();
+        loadModalForm(ev && ev.currentTarget ? ev.currentTarget.getAttribute('href') : '');
+        return false;
+    };
 
     document.addEventListener('DOMContentLoaded', function () {
         var overlay = getOverlay();
         if (!overlay) return;
+
+        var dialog = overlay.querySelector('.wc-create-dialog');
+        if (dialog) {
+            dialog.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        }
+
         var closeBtn = document.getElementById('wc-create-close-btn');
         if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
         overlay.addEventListener('click', function (e) {
@@ -241,7 +320,8 @@
         });
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape') return;
-            if (!overlay.classList.contains('is-open')) return;
+            if (!isCreateModalOpen()) return;
+            e.stopPropagation();
             closeOverlay();
         });
     });

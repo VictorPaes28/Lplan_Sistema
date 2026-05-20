@@ -144,3 +144,14 @@
 body.wc-create-modal-open {
     overflow: hidden;
 }
+
+/* Lista e demais telas: cliques não passam para links/linhas atrás do overlay */
+body.wc-create-modal-open .main-content-wrapper,
+body.wc-create-modal-open .main-content,
+body.wc-create-modal-open #sidebar {
+    pointer-events: none;
+}
+
+body.wc-create-modal-open #wc-create-overlay {
+    pointer-events: auto;
+}

@@ -776,12 +776,16 @@
 
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape') return;
+            var criar = document.getElementById('wc-create-overlay');
+            if (criar && criar.classList.contains('is-open')) return;
             var ro = getReprovarOverlayEl();
             if (ro && ro.classList.contains('is-open')) {
                 window.fecharReprovarSheet();
                 e.preventDefault();
                 return;
             }
+            var ov = document.getElementById('gc-overlay');
+            if (!ov || ov.style.display === 'none') return;
             window.fecharModalPedido();
         });
     });

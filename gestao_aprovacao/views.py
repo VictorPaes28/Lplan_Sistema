@@ -1280,10 +1280,13 @@ def create_workorder(request):
                 return JsonResponse({'ok': True, 'pk': workorder.pk, 'message': msg_ok})
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     else:
-        # Evitar que Voltar do navegador retorne ao formulário já submetido
-        r = _redirect_if_back_after_post(request, '_prevent_back_create_workorder', 'gestao:list_workorders')
-        if r:
-            return r
+        # Evitar que Voltar do navegador retorne ao formulário já submetido.
+        # Não redirecionar no carregamento AJAX do modal (?embed=modal), senão o fetch
+        # segue o 302 e injeta a listagem inteira dentro do overlay.
+        if not modal_embed:
+            r = _redirect_if_back_after_post(request, '_prevent_back_create_workorder', 'gestao:list_workorders')
+            if r:
+                return r
         form = WorkOrderForm(
             user=request.user,
             is_creating=True,

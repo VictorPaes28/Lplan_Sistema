@@ -34,7 +34,7 @@ class Pendencia(models.Model):
     obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name="pendencias")
     titulo = models.CharField(max_length=200)
     descricao = models.TextField(blank=True)
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default="outro")
+    tipo = models.CharField(max_length=100, choices=TIPO_CHOICES, default="outro")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="aberta")
     prioridade = models.CharField(max_length=10, choices=PRIORIDADE_CHOICES, default="normal")
     prazo = models.DateField(null=True, blank=True)
@@ -487,3 +487,19 @@ class PendenciaRecorrente(models.Model):
 
     def __str__(self):
         return f"{self.titulo} ({self.get_regra_display()}) — {self.obra_id}"
+
+
+class TipoCustom(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    criado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="tipos_custom_criados"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Tipo customizado"
+        verbose_name_plural = "Tipos customizados"
+
+    def __str__(self):
+        return self.nome
