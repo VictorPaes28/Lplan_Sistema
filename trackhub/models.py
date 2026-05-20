@@ -37,7 +37,8 @@ class Pendencia(models.Model):
     tipo = models.CharField(max_length=100, choices=TIPO_CHOICES, default="outro")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="aberta")
     prioridade = models.CharField(max_length=10, choices=PRIORIDADE_CHOICES, default="normal")
-    prazo = models.DateField(null=True, blank=True)
+    data_inicio = models.DateField(null=True, blank=True)
+    prazo = models.DateField(null=True, blank=True, verbose_name="Data fim")
     # Série recorrente à qual esta pendência pertence (template de etapas em PendenciaRecorrente.etapas_snapshot).
     recorrencia_serie = models.ForeignKey(
         "PendenciaRecorrente",
@@ -76,6 +77,14 @@ class Pendencia(models.Model):
     def encerrada_na_fila(self) -> bool:
         """Concluída ou cancelada (fila e estilo de prazo)."""
         return self.status_normalizado in ("concluida", "cancelada")
+
+    @property
+    def data_inicio_efetiva(self):
+        if self.data_inicio:
+            return self.data_inicio
+        if self.created_at:
+            return timezone.localtime(self.created_at).date()
+        return timezone.localdate()
 
     @property
     def esta_vencida(self):
@@ -495,6 +504,7 @@ class PendenciaRecorrente(models.Model):
     prazo_offset_dias = models.IntegerField(null=True, blank=True)
     # Prazo e data de criação da pendência original (para prazo das ocorrências = dia_exec + (prazo_orig - data_cri_orig))
     prazo_original = models.DateField(null=True, blank=True)
+    data_inicio_original = models.DateField(null=True, blank=True)
     data_criacao_original = models.DateField(null=True, blank=True)
 
     regra = models.CharField(max_length=20, choices=REGRA_CHOICES, default=REGRA_NONE)

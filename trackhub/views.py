@@ -31,7 +31,9 @@ from .forms import (
     ObraFilterForm,
     PendenciaForm,
     RecorrenciaPendenciaForm,
+    inicio_efetiva_pendencia_para_validacao,
     tipo_anexo_por_nome,
+    validar_data_fim_pendencia,
 )
 from .models import (
     AnexoComentario,
@@ -73,7 +75,16 @@ _MESES_ABREV = (
 )
 
 ALLOWED_PENDENCIA_UPDATE_FIELDS = frozenset(
-    {"titulo", "descricao", "status", "prioridade", "tipo", "prazo", "responsavel_interno"}
+    {
+        "titulo",
+        "descricao",
+        "status",
+        "prioridade",
+        "tipo",
+        "data_inicio",
+        "prazo",
+        "responsavel_interno",
+    }
 )
 
 
@@ -342,6 +353,8 @@ def _pendencia_detail_payload(pendencia, request):
         "tipo_display": pendencia.get_tipo_display(),
         "origem": pendencia.origem,
         "origem_display": pendencia.get_origem_display(),
+        "data_inicio": pendencia.data_inicio.isoformat() if pendencia.data_inicio else "",
+        "data_inicio_efetiva": pendencia.data_inicio_efetiva.isoformat(),
         "prazo": pendencia.prazo.isoformat() if pendencia.prazo else "",
         "responsavel_interno_id": pendencia.responsavel_interno_id,
         "responsavel_nome": pendencia.responsavel_nome,
@@ -1093,6 +1106,130 @@ def por_responsavel_view(request):
     return render(request, "trackhub/por_responsavel.html", ctx)
 
 
+def _pendencia_intervalo_calendario(pendencia):
+    """Intervalo [início, fim] da pendência no calendário (fim = data fim ou mesmo dia)."""
+    inicio = pendencia.data_inicio_efetiva
+    fim = pendencia.prazo or inicio
+    if fim < inicio:
+        fim = inicio
+    return inicio, fim
+
+
+def _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim):
+    """Pendências que intersectam o mês visível (data início → data fim)."""
+    out = []
+    for p in qs:
+        di, df = _pendencia_intervalo_calendario(p)
+        if di <= mes_fim and df >= mes_inicio:
+            out.append((p, di, df))
+    out.sort(key=lambda x: (x[1], x[2], x[0].titulo or ""))
+    return out
+
+
+CALENDARIO_MAX_LINHAS_DIA = 4
+CALENDARIO_VISIVEIS_ANTES_MAIS = 3
+_CALENDARIO_WEEKDAY_SHORT = ("Dom.", "Seg.", "Ter.", "Qua.", "Qui.", "Sex.", "Sáb.")
+
+
+def _assign_calendario_lanes(events):
+    """Aloca faixas (tracks) por data de início e colunas ocupadas na semana."""
+
+    def _lane_sort_key(ev):
+        p = ev["pendencia"]
+        di, _ = _pendencia_intervalo_calendario(p)
+        return (di, -ev["span"], p.pk)
+
+    ordenados = sorted(events, key=_lane_sort_key)
+    lane_cols = []
+    max_lane = 0
+    for ev in ordenados:
+        cols = set(range(ev["col_start"], ev["col_start"] + ev["span"]))
+        lane = None
+        for idx, occupied in enumerate(lane_cols):
+            if not cols & occupied:
+                lane = idx
+                occupied.update(cols)
+                break
+        if lane is None:
+            lane = len(lane_cols)
+            lane_cols.append(set(cols))
+        ev["lane"] = lane
+        max_lane = max(max_lane, lane)
+    return ordenados, max_lane + 1
+
+
+def _calendario_metadados_por_dia(week_events, week_start):
+    """Por coluna do dia: faixas visíveis, '+N mais' e lista completa para o popover."""
+    metas = []
+    for col in range(7):
+        day_date = week_start + timedelta(days=col)
+        touching = [
+            e
+            for e in week_events
+            if e["col_start"] <= col < e["col_start"] + e["span"]
+        ]
+        touching.sort(key=lambda e: (e["lane"], e["pendencia"].pk))
+        total = len(touching)
+        max_lane = max((e["lane"] for e in touching), default=-1)
+        visible_count = sum(
+            1 for e in touching if e["lane"] < CALENDARIO_VISIVEIS_ANTES_MAIS
+        )
+        overflow = (
+            max_lane >= CALENDARIO_VISIVEIS_ANTES_MAIS
+            or total > CALENDARIO_MAX_LINHAS_DIA
+        )
+        if overflow:
+            visible_lanes = set(range(CALENDARIO_VISIVEIS_ANTES_MAIS))
+            more_count = total - visible_count
+        else:
+            visible_lanes = {e["lane"] for e in touching}
+            more_count = 0
+        pendencias = []
+        seen = set()
+        for e in touching:
+            p = e["pendencia"]
+            if p.pk in seen:
+                continue
+            seen.add(p.pk)
+            di, df = _pendencia_intervalo_calendario(p)
+            pendencias.append(
+                {
+                    "id": p.pk,
+                    "titulo": p.titulo or "",
+                    "prioridade": p.prioridade,
+                    "status": p.status,
+                    "continues_before": di < day_date,
+                    "continues_after": df > day_date,
+                }
+            )
+        metas.append(
+            {
+                "visible_lanes": visible_lanes,
+                "more_count": more_count,
+                "pendencias": pendencias,
+                "weekday_short": _CALENDARIO_WEEKDAY_SHORT[col],
+                "day_num": day_date.day,
+            }
+        )
+    return metas
+
+
+def _calendario_aplicar_visibilidade_semana(week_events, day_metas):
+    for ev in week_events:
+        ev["show_title"] = True
+        ev["hidden"] = False
+        for col in range(ev["col_start"], ev["col_start"] + ev["span"]):
+            if ev["lane"] not in day_metas[col]["visible_lanes"]:
+                ev["hidden"] = True
+                break
+    visiveis = [e for e in week_events if not e["hidden"]]
+    max_lane = max((e["lane"] for e in visiveis), default=-1)
+    linhas_eventos = max_lane + 1 if visiveis else 0
+    tem_mais = any(m["more_count"] > 0 for m in day_metas)
+    linhas_totais = linhas_eventos + (1 if tem_mais else 0)
+    return linhas_totais, linhas_eventos + 1 if tem_mais else 0, tem_mais
+
+
 @login_required
 @require_trackhub
 def calendario_view(request):
@@ -1112,42 +1249,82 @@ def calendario_view(request):
     prev_year, prev_month, next_year, next_month = _prev_next_month(year, month)
 
     _, last_day = calendar.monthrange(year, month)
-    inicio = date(year, month, 1)
-    fim = date(year, month, last_day)
+    mes_inicio = date(year, month, 1)
+    mes_fim = date(year, month, last_day)
 
     obras_qs = _obras_queryset_for_user(request.user)
     obra_id = request.GET.get("obra")
     qs = (
-        Pendencia.objects.filter(
-            obra__in=obras_qs,
-            prazo__gte=inicio,
-            prazo__lte=fim,
-        )
+        _pendencias_qs_for_user(request.user)
         .select_related("obra")
-        .order_by("prazo", "titulo")
+        .order_by("titulo")
     )
     if obra_id and str(obra_id).isdigit():
         qs = qs.filter(obra_id=int(obra_id))
 
-    by_day = defaultdict(list)
-    for p in qs:
-        if p.prazo:
-            by_day[p.prazo].append(p)
+    pendencias_mes = _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim)
 
     cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
     calendar_weeks = []
-    for week in cal.monthdatescalendar(year, month):
-        row = []
-        for d in week:
-            row.append(
+    calendar_day_data = {}
+    for week_dates in cal.monthdatescalendar(year, month):
+        week_start = week_dates[0]
+        week_end = week_dates[6]
+        days = []
+        for d in week_dates:
+            days.append(
                 {
                     "date": d,
                     "current_month": d.month == month,
                     "is_today": d == today,
-                    "pendencias": by_day.get(d, []),
                 }
             )
-        calendar_weeks.append(row)
+        week_events = []
+        for p, di, df in pendencias_mes:
+            seg_start = max(di, week_start)
+            seg_end = min(df, week_end)
+            if seg_start > seg_end:
+                continue
+            col_start = (seg_start - week_start).days
+            span = (seg_end - seg_start).days + 1
+            week_events.append(
+                {
+                    "pendencia": p,
+                    "col_start": col_start,
+                    "span": span,
+                    "lane": 0,
+                    "continues_before": di < week_start,
+                    "continues_after": df > week_end,
+                    "show_title": True,
+                    "hidden": False,
+                }
+            )
+        week_events, _ = _assign_calendario_lanes(week_events)
+        day_metas = _calendario_metadados_por_dia(week_events, week_start)
+        _lane_count, more_row, has_more_row = _calendario_aplicar_visibilidade_semana(
+            week_events, day_metas
+        )
+        lane_count = CALENDARIO_MAX_LINHAS_DIA
+        if has_more_row:
+            more_row = CALENDARIO_MAX_LINHAS_DIA
+        for idx, d in enumerate(days):
+            meta = day_metas[idx]
+            d["more_count"] = meta["more_count"]
+            iso = d["date"].isoformat()
+            calendar_day_data[iso] = {
+                "weekday": meta["weekday_short"],
+                "day": meta["day_num"],
+                "pendencias": meta["pendencias"],
+            }
+        calendar_weeks.append(
+            {
+                "days": days,
+                "events": week_events,
+                "lane_count": lane_count,
+                "more_row": more_row,
+                "has_more_row": has_more_row,
+            }
+        )
 
     month_label = f"{_MONTHS_PT[month]} {year}"
 
@@ -1155,6 +1332,10 @@ def calendario_view(request):
 
     ctx = {
         "calendar_weeks": calendar_weeks,
+        "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+        "pendencia_detalhe_url_pattern": reverse(
+            "trackhub:pendencia_detalhe", kwargs={"pk": 0}
+        ).replace("/0/", "/{id}/"),
         "prev_year": prev_year,
         "prev_month": prev_month,
         "next_year": next_year,
@@ -1220,6 +1401,7 @@ def pendencia_criar_view(request):
                     if regra != PendenciaRecorrente.REGRA_NONE:
                         p.refresh_from_db()
                         dc = timezone.localtime(p.created_at).date()
+                        di = p.data_inicio_efetiva
                         po = (p.prazo - dc).days if p.prazo else None
                         ref_snap = ref_date_para_etapas_snapshot(p, po)
                         snap = etapas_snapshot_from_pendencia(p, ref_snap)
@@ -1239,6 +1421,7 @@ def pendencia_criar_view(request):
                             prioridade=p.prioridade,
                             prazo_offset_dias=po,
                             prazo_original=p.prazo,
+                            data_inicio_original=di,
                             data_criacao_original=dc,
                             regra=regra,
                             dia_semana=leg_wd,
@@ -2040,20 +2223,76 @@ def pendencia_update_field(request, pk):
             f'Alterou tipo de "{tipo_labels.get(old, old)}" → "{tipo_labels.get(v, v)}"',
             AtividadePendencia.TIPO_TIPO,
         )
-    elif field == "prazo":
-        old_prazo = pendencia.prazo
+    elif field == "data_inicio":
+        old_di = pendencia.data_inicio
+        new_di = None
         if value is None or value == "":
-            pendencia.prazo = None
+            new_di = None
         else:
             if not isinstance(value, str):
-                return _json_no_cache({"ok": False, "error": "Prazo inválido."}, status=400)
+                return _json_no_cache(
+                    {"ok": False, "error": "Data início inválida."}, status=400
+                )
             try:
-                pendencia.prazo = date.fromisoformat(value.strip())
+                new_di = date.fromisoformat(value.strip())
             except ValueError:
                 return _json_no_cache(
                     {"ok": False, "error": "Use a data no formato YYYY-MM-DD."},
                     status=400,
                 )
+        if new_di is None:
+            if pendencia.created_at:
+                inicio_val = timezone.localtime(pendencia.created_at).date()
+            else:
+                inicio_val = timezone.localdate()
+        else:
+            inicio_val = new_di
+        err = validar_data_fim_pendencia(pendencia.prazo, inicio_val)
+        if err:
+            return _json_no_cache({"ok": False, "error": err}, status=400)
+        pendencia.data_inicio = new_di
+        pendencia.save(update_fields=["data_inicio", "updated_at"])
+
+        def _fmt_di(d):
+            return d.strftime("%d/%m/%Y") if d else ""
+
+        ant = _fmt_di(old_di) if old_di else _fmt_di(pendencia.data_inicio_efetiva)
+        novo = _fmt_di(pendencia.data_inicio) if pendencia.data_inicio else _fmt_di(
+            pendencia.data_inicio_efetiva
+        )
+        if old_di != pendencia.data_inicio:
+            if pendencia.data_inicio:
+                txt = f"Alterou data início de {ant} → {novo}"
+            else:
+                txt = f"Removeu data início definida (efetiva: {novo})"
+            _registrar_atividade_pendencia(
+                pendencia, actor, txt, AtividadePendencia.TIPO_PRAZO
+            )
+        sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+
+    elif field == "prazo":
+        old_prazo = pendencia.prazo
+        new_prazo = None
+        if value is None or value == "":
+            new_prazo = None
+        else:
+            if not isinstance(value, str):
+                return _json_no_cache(
+                    {"ok": False, "error": "Data fim inválida."}, status=400
+                )
+            try:
+                new_prazo = date.fromisoformat(value.strip())
+            except ValueError:
+                return _json_no_cache(
+                    {"ok": False, "error": "Use a data no formato YYYY-MM-DD."},
+                    status=400,
+                )
+        err = validar_data_fim_pendencia(
+            new_prazo, pendencia.data_inicio, pendencia=pendencia
+        )
+        if err:
+            return _json_no_cache({"ok": False, "error": err}, status=400)
+        pendencia.prazo = new_prazo
         pendencia.save(update_fields=["prazo", "updated_at"])
         novo_p = pendencia.prazo
 
@@ -2061,11 +2300,11 @@ def pendencia_update_field(request, pk):
             return d.strftime("%d/%m/%Y") if d else ""
 
         if old_prazo and novo_p:
-            txt = f"Alterou prazo de {_fmt(old_prazo)} → {_fmt(novo_p)}"
+            txt = f"Alterou data fim de {_fmt(old_prazo)} → {_fmt(novo_p)}"
         elif not old_prazo and novo_p:
-            txt = f"Definiu prazo para {_fmt(novo_p)}"
+            txt = f"Definiu data fim para {_fmt(novo_p)}"
         elif old_prazo and not novo_p:
-            txt = "Removeu o prazo"
+            txt = "Removeu a data fim"
         else:
             txt = None
         if txt:

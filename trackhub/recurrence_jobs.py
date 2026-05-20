@@ -23,8 +23,12 @@ def dias_intervalo_prazo_versus_criacao_serie(rec: PendenciaRecorrente) -> int |
 def ref_date_para_etapas_snapshot(pendencia, prazo_offset_dias_serie):
     """
     Data de referência para calcular prazo_offset_dias de cada etapa no snapshot.
-    Usa o mesmo deslocamento da pendência principal na série (`prazo_offset_dias_serie`).
+    Preferência: data início efetiva da pendência; fallback legado via prazo da série.
     """
+    try:
+        return pendencia.data_inicio_efetiva
+    except AttributeError:
+        pass
     if pendencia.prazo is not None and prazo_offset_dias_serie is not None:
         try:
             return pendencia.prazo - timedelta(days=int(prazo_offset_dias_serie))
@@ -72,7 +76,19 @@ def sync_recorrencia_etapas_snapshot_if_linked(pendencia_id: int) -> None:
     ref = ref_date_para_etapas_snapshot(p, dias_intervalo_prazo_versus_criacao_serie(rec))
     snap = etapas_snapshot_from_pendencia(p, ref)
     rec.etapas_snapshot = snap
-    rec.save(update_fields=["etapas_snapshot", "updated_at"])
+    rec.prazo_original = p.prazo
+    rec.data_inicio_original = p.data_inicio_efetiva
+    if p.created_at:
+        rec.data_criacao_original = timezone.localtime(p.created_at).date()
+    rec.save(
+        update_fields=[
+            "etapas_snapshot",
+            "prazo_original",
+            "data_inicio_original",
+            "data_criacao_original",
+            "updated_at",
+        ]
+    )
 
 
 @transaction.atomic
@@ -98,12 +114,17 @@ def criar_ocorrencia_e_avancar(rec: PendenciaRecorrente, dia_execucao, notificar
     elif rec.prazo_offset_dias is not None:
         prazo = data_ocorrencia + timedelta(days=int(rec.prazo_offset_dias))
 
+    data_inicio = data_ocorrencia
+    if rec.data_inicio_original and rec.data_criacao_original:
+        data_inicio = data_ocorrencia + (rec.data_inicio_original - rec.data_criacao_original)
+
     p = Pendencia.objects.create(
         obra_id=rec.obra_id,
         titulo=rec.titulo,
         descricao=rec.descricao or "",
         tipo=rec.tipo,
         prioridade=rec.prioridade,
+        data_inicio=data_inicio,
         prazo=prazo,
         criado_por=rec.criado_por,
         origem="manual",

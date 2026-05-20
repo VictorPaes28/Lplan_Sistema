@@ -41,6 +41,7 @@ class PendenciaAdmin(admin.ModelAdmin):
         "tipo",
         "status",
         "prioridade",
+        "data_inicio",
         "prazo",
         "criado_por",
         "created_at",
