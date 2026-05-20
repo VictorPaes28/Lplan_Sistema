@@ -73,7 +73,7 @@ _MESES_ABREV = (
 )
 
 ALLOWED_PENDENCIA_UPDATE_FIELDS = frozenset(
-    {"titulo", "descricao", "status", "prioridade", "tipo", "prazo"}
+    {"titulo", "descricao", "status", "prioridade", "tipo", "prazo", "responsavel_interno"}
 )
 
 
@@ -343,6 +343,10 @@ def _pendencia_detail_payload(pendencia, request):
         "origem": pendencia.origem,
         "origem_display": pendencia.get_origem_display(),
         "prazo": pendencia.prazo.isoformat() if pendencia.prazo else "",
+        "responsavel_interno_id": pendencia.responsavel_interno_id,
+        "responsavel_nome": pendencia.responsavel_nome,
+        "responsavel_email": pendencia.responsavel_email,
+        "responsavel_whatsapp": pendencia.responsavel_whatsapp,
         "obra_id": pendencia.obra_id,
         "obra_nome": pendencia.obra.nome,
         "created_at": _format_trackhub_datetime(pendencia.created_at),
@@ -368,10 +372,11 @@ def _pendencia_detail_payload(pendencia, request):
     }
 
 
-def _pendencia_prefetched_for_detail(user, pk):
-    return get_object_or_404(
-        _pendencia_queryset_for_user(user)
-        .select_related("obra", "criado_por", "recorrencia_serie")
+def _pendencia_detail_prefetch_queryset():
+    return (
+        Pendencia.objects.select_related(
+            "obra", "criado_por", "recorrencia_serie", "responsavel_interno"
+        )
         .prefetch_related(
             Prefetch(
                 "etapas",
@@ -403,9 +408,26 @@ def _pendencia_prefetched_for_detail(user, pk):
                 "anexos",
                 queryset=AnexoPendencia.objects.order_by("created_at"),
             ),
+        )
+    )
+
+
+def _pendencia_prefetched_for_detail(user, pk):
+    return get_object_or_404(
+        _pendencia_detail_prefetch_queryset().filter(
+            pk__in=_pendencia_queryset_for_user(user).values("pk")
         ),
         pk=pk,
     )
+
+
+def _pendencia_prefetched_by_pk(pk):
+    """
+    Recarrega pendência após edição sem filtro de visibilidade do usuário.
+    Necessário quando a alteração remove o vínculo que dava acesso (ex.: trocar
+    responsável interno da pendência), alinhado ao fluxo de edição de etapa.
+    """
+    return get_object_or_404(_pendencia_detail_prefetch_queryset(), pk=pk)
 
 
 _PRIORIDADE_ORDER = {"urgente": 0, "alta": 1, "normal": 2, "baixa": 3}
@@ -558,6 +580,7 @@ def _pendencias_qs_for_user(user):
             Pendencia.objects.filter(
                 Q(obra__in=obras)
                 | Q(etapas__responsavel_interno=user)
+                | Q(responsavel_interno=user)
             )
             .distinct()
         )
@@ -567,6 +590,7 @@ def _pendencias_qs_for_user(user):
                 Q(pk__in=qs.values("pk"))
                 | Q(criado_por=user)
                 | Q(etapas__responsavel_interno=user)
+                | Q(responsavel_interno=user)
             )
             .distinct()
         )
@@ -578,6 +602,8 @@ def _pendencia_queryset_for_user(user):
 
 
 def _user_can_edit_pendencia(user, pendencia):
+    if pendencia.responsavel_interno_id == user.id:
+        return True
     roles = _trackhub_roles(user)
     if roles["admin"] or roles["aprovador"]:
         return True
@@ -1276,7 +1302,12 @@ def pendencia_editar_view(request, pk):
 def pendencia_detalhe_view(request, pk):
     pendencia = get_object_or_404(
         _pendencia_queryset_for_user(request.user)
-        .select_related("obra", "criado_por", "recorrencia_serie")
+        .select_related(
+            "obra",
+            "criado_por",
+            "recorrencia_serie",
+            "responsavel_interno",
+        )
         .prefetch_related(
             Prefetch(
                 "etapas",
@@ -2043,12 +2074,45 @@ def pendencia_update_field(request, pk):
             )
         sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
 
-    pendencia = _pendencia_prefetched_for_detail(request.user, pk)
+    elif field == "responsavel_interno":
+        # Accept null/empty to clear, or numeric user id to set as internal responsible
+        old_user = pendencia.responsavel_interno
+        if value is None or value == "":
+            pendencia.responsavel_interno = None
+            pendencia.save(update_fields=["responsavel_interno", "updated_at"])
+            _registrar_atividade_pendencia(
+                pendencia,
+                actor,
+                f"Removeu responsável interno ({_user_display_name(old_user)})",
+                AtividadePendencia.TIPO_GERAL,
+            )
+        else:
+            try:
+                uid = int(value)
+            except (TypeError, ValueError):
+                return _json_no_cache({"ok": False, "error": "Responsável inválido."}, status=400)
+            try:
+                u = User.objects.get(pk=uid)
+            except User.DoesNotExist:
+                return _json_no_cache({"ok": False, "error": "Usuário não encontrado."}, status=404)
+            pendencia.responsavel_interno = u
+            pendencia.save(update_fields=["responsavel_interno", "updated_at"])
+            _registrar_atividade_pendencia(
+                pendencia,
+                actor,
+                f'Alterou responsável interno de "{_user_display_name(old_user)}" → "{_user_display_name(u)}"',
+                AtividadePendencia.TIPO_GERAL,
+            )
+
+    pendencia = _pendencia_prefetched_by_pk(pk)
+    payload = _pendencia_detail_payload(pendencia, request)
+    perdeu_acesso = not _pendencia_queryset_for_user(request.user).filter(pk=pk).exists()
     return _json_no_cache(
         {
             "ok": True,
             "field": field,
-            "pendencia": _pendencia_detail_payload(pendencia, request),
+            "pendencia": payload,
+            "perdeu_acesso": perdeu_acesso,
         }
     )
 

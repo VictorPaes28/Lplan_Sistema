@@ -920,6 +920,13 @@
   border: 1px solid var(--th-border);
 }
 
+/* Make responsible pill visually match tipo pills */
+.th-pill--responsavel {
+  background: var(--th-muted-bg);
+  color: var(--th-text-muted);
+  border: 1px solid var(--th-border);
+}
+
 .th-pill--prazo.prazo-pill { background: #f8fafc; color: #374151; border-color: #e2e8f0; }
 .th-pill--prazo.prazo-pill.soon { color: var(--th-warning); background: var(--th-warning-soft); border-color: #e9d89c; }
 .th-pill--prazo.prazo-pill.vencida { color: #b32424; background: var(--th-danger-soft); border-color: #f0caca; }
@@ -1832,10 +1839,24 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: nowrap;
 }
 .th-rec-ano-row .th-rec-ano-m {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 110px;
+  min-width: 110px;
+  max-width: 140px;
+  width: auto;
+}
+.th-rec-ano-row .th-rec-ano-d {
+  flex: 0 0 46px;
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 0;
+  height: 36px;
+  border-radius: 8px;
 }
 .th-rec-ano-remove {
   flex-shrink: 0;

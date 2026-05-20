@@ -492,6 +492,17 @@
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.get_tipo_display }}</div>
         </div>
         <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
+          <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Responsável</div>
+          <div class="th-ficha-info-val" style="color:#64748b;display:flex;align-items:center;gap:6px;font-weight:500;line-height:1.4;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {% if pendencia.responsavel_interno %}
+            <a href="mailto:{{ pendencia.responsavel_email }}" style="color:#64748b;text-decoration:none;">{{ pendencia.responsavel_nome }}</a>
+            {% else %}
+            —
+            {% endif %}
+          </div>
+        </div>
+        <div class="th-ficha-info-row" style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;font-size:13px;font-family:inherit;">
           <div class="th-ficha-info-label" style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.35px;min-width:92px;flex-shrink:0;">Prioridade</div>
           <div class="th-ficha-info-val" style="color:#374151;font-weight:500;line-height:1.4;">{{ pendencia.get_prioridade_display }}</div>
         </div>

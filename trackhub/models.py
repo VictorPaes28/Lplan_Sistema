@@ -50,6 +50,13 @@ class Pendencia(models.Model):
     criado_por = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="pendencias_criadas"
     )
+    responsavel_interno = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pendencias_responsavel",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -82,6 +89,33 @@ class Pendencia(models.Model):
     @property
     def etapa_atual(self):
         return self.etapas.filter(status="pendente").order_by("ordem").first()
+
+    @property
+    def responsavel_nome(self):
+        if self.responsavel_interno:
+            return (
+                self.responsavel_interno.get_full_name()
+                or self.responsavel_interno.username
+            )
+        return "—"
+
+    @property
+    def responsavel_email(self):
+        if self.responsavel_interno:
+            return (self.responsavel_interno.email or "").strip()
+        return ""
+
+    @property
+    def responsavel_whatsapp(self):
+        u = self.responsavel_interno
+        if not u:
+            return ""
+        from gestao_aprovacao.models import UserProfile
+
+        tel = UserProfile.objects.filter(usuario_id=u.pk).values_list(
+            "telefone", flat=True
+        ).first()
+        return (tel or "").strip()
 
 
 class AtividadePendencia(models.Model):
