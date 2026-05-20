@@ -1,4 +1,5 @@
 {% extends "trackhub/base_trackhub.html" %}
+{% load static %}
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block trackhub_content %}
 
@@ -13,18 +14,22 @@
     </a>
   </div>
   <div class="th-cal-header-right">
-    <div class="th-cal-legend" aria-label="Legenda do calendário">
+    <div class="th-cal-legend" aria-label="Legenda de prioridades">
       <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--aberta" aria-hidden="true"></span>
-        Em aberto
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--urgente" aria-hidden="true"></span>
+        Urgente
       </span>
       <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--concluida" aria-hidden="true"></span>
-        Concluída
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--alta" aria-hidden="true"></span>
+        Alta
       </span>
       <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--cancelada" aria-hidden="true"></span>
-        Cancelada
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--normal" aria-hidden="true"></span>
+        Normal
+      </span>
+      <span class="th-cal-legend-item">
+        <span class="th-cal-legend-swatch th-cal-legend-swatch--baixa" aria-hidden="true"></span>
+        Baixa
       </span>
     </div>
     <form method="GET">
@@ -50,25 +55,52 @@
   </div>
   {% for week in calendar_weeks %}
   <div class="th-cal-week">
-    {% for day in week %}
-    <div class="th-cal-cell {% if not day.current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
+    {% for day in week.days %}
+    <div class="th-cal-day-col {% if not day.current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}" style="grid-column: {{ forloop.counter }}; grid-row: 1 / -1;">
       <div class="th-cal-cell-num">{{ day.date.day }}</div>
-      {% for p in day.pendencias %}
+    </div>
+    {% endfor %}
+    <div class="th-cal-week-events">
+      {% for ev in week.events %}
+      {% if not ev.hidden %}
+      {% with p=ev.pendencia %}
       <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}"
-        class="th-cal-event {{ p.prioridade }}{% if p.status == 'concluida' %} th-cal-event--concluida{% elif p.status == 'cancelada' %} th-cal-event--cancelada{% endif %}"
-        title="{{ p.get_status_display }} — {{ p.titulo }}">
+        class="th-cal-event th-cal-event-span {{ p.prioridade }}{% if p.status == 'concluida' %} th-cal-event--concluida{% elif p.status == 'cancelada' %} th-cal-event--cancelada{% endif %}{% if ev.continues_before %} th-cal-event-span--cont-left{% endif %}{% if ev.continues_after %} th-cal-event-span--cont-right{% endif %}"
+        style="grid-column: {{ ev.col_start|add:1 }} / span {{ ev.span }}; grid-row: {{ ev.lane|add:1 }};"
+        title="{{ p.get_prioridade_display }} — {{ p.titulo }} ({{ p.data_inicio_efetiva|date:'d/m/Y' }}{% if p.prazo %} → {{ p.prazo|date:'d/m/Y' }}{% endif %})">
         {% if p.status == 'concluida' %}
         <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
         {% elif p.status == 'cancelada' %}
         <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         {% endif %}
-        <span class="th-cal-event-text">{{ p.titulo|truncatechars:20 }}</span>
+        <span class="th-cal-event-text">{{ p.titulo|truncatechars:28 }}</span>
       </a>
+      {% endwith %}
+      {% endif %}
       {% endfor %}
+      {% if week.has_more_row %}
+      {% for day in week.days %}
+      {% if day.more_count %}
+      <button type="button" class="th-cal-more"
+        style="grid-column: {{ forloop.counter }}; grid-row: {{ week.more_row }};"
+        data-day-iso="{{ day.date|date:'Y-m-d' }}"
+        aria-label="Ver todas as pendências do dia {{ day.date|date:'d/m/Y' }}">
+        Mais {{ day.more_count }}
+      </button>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
     </div>
-    {% endfor %}
   </div>
   {% endfor %}
 </div>
 
+{% include "trackhub/includes/modal_cal_dia.html" %}
+<script type="application/json" id="th-cal-day-data" data-url-pattern="{{ pendencia_detalhe_url_pattern }}">{{ calendar_day_data_json|safe }}</script>
+
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'trackhub/js/trackhub_calendario.js' %}?v=2"></script>
 {% endblock %}

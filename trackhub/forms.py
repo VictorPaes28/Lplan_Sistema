@@ -3,6 +3,7 @@ import json
 from django import forms
 from django.contrib.auth import get_user_model
 from django.forms import inlineformset_factory
+from django.utils import timezone
 
 from mapa_obras.models import Obra
 
@@ -16,6 +17,26 @@ from .models import (
 )
 
 User = get_user_model()
+
+MSG_DATA_FIM_ANTES_INICIO = "A data fim não pode ser anterior à data início."
+
+
+def inicio_efetiva_pendencia_para_validacao(data_inicio, pendencia=None):
+    """Data início usada na validação (campo ou dia da criação / hoje no cadastro)."""
+    if data_inicio:
+        return data_inicio
+    if pendencia and pendencia.pk:
+        return pendencia.data_inicio_efetiva
+    return timezone.localdate()
+
+
+def validar_data_fim_pendencia(data_fim, data_inicio=None, pendencia=None):
+    if not data_fim:
+        return None
+    inicio = inicio_efetiva_pendencia_para_validacao(data_inicio, pendencia)
+    if data_fim < inicio:
+        return MSG_DATA_FIM_ANTES_INICIO
+    return None
 
 
 class PendenciaForm(forms.ModelForm):
@@ -35,12 +56,18 @@ class PendenciaForm(forms.ModelForm):
             "descricao",
             "tipo",
             "prioridade",
+            "data_inicio",
             "prazo",
             "responsavel_interno",
         ]
         widgets = {
+            "data_inicio": forms.DateInput(attrs={"type": "date"}),
             "prazo": forms.DateInput(attrs={"type": "date"}),
             "descricao": forms.Textarea(attrs={"rows": 3}),
+        }
+        labels = {
+            "data_inicio": "Data início",
+            "prazo": "Data fim",
         }
 
     def __init__(self, *args, obras_queryset=None, **kwargs):
@@ -57,6 +84,17 @@ class PendenciaForm(forms.ModelForm):
         exclude = super()._get_validation_exclusions()
         exclude.add("tipo")
         return exclude
+
+    def clean(self):
+        cleaned_data = super().clean()
+        err = validar_data_fim_pendencia(
+            cleaned_data.get("prazo"),
+            cleaned_data.get("data_inicio"),
+            pendencia=self.instance if self.instance.pk else None,
+        )
+        if err:
+            self.add_error("prazo", err)
+        return cleaned_data
 
     def clean_tipo(self):
         valor = self.cleaned_data.get("tipo", "").strip()
