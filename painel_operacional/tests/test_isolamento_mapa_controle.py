@@ -553,3 +553,100 @@ class MapaControleIsolamentoRegressaoTests(TestCase):
         self.assertIsNone(cells[1].get("pct"))
         totais = {str(t.get("atividade") or ""): t.get("pct") for t in matrix.get("totais", [])}
         self.assertIsNone(totais.get("ATV2"))
+
+    def test_template_manual_preset_guarda_import_meta(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa Manual Meta")
+        section = self._primeira_matriz_section(self._detalhe(ambiente_id).get("versao", {}).get("layout") or {})
+        meta = (section.get("data") or {}).get("importMeta") or {}
+        self.assertEqual(meta.get("strategy"), "manual_template")
+        self.assertEqual(meta.get("axis_cols_interpreted"), [0, 1, 2])
+        self.assertEqual(meta.get("axis_headers_interpreted"), ["BLOCO", "PAVIMENTO", "APTO"])
+        self.assertTrue(meta.get("activity_cols_interpreted"))
+
+    def test_links_da_matriz_preservam_ambiente_id(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa Nav")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV1"],
+            ["HAB", "B1", "2P", "101", "50%"],
+            ["HAB", "B1", "2P", "102", "100%"],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "pivot_registros",
+            "axis_cols_interpreted": [0, 1, 2, 3],
+            "axis_headers_interpreted": ["SETOR", "BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [4],
+            "activity_headers_interpreted": ["ATV1"],
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_nav")
+
+        resp = self._abrir_mapa_dedicado(ambiente_id, setor="HAB", bloco="B1")
+        html = resp.content.decode("utf-8")
+        self.assertIn(f"ambiente_id={ambiente_id}", html)
+        self.assertIn("row-link", html)
+        import re
+
+        row_hrefs = re.findall(r'class="cell-link row-link"[^>]*href="([^"]+)"', html)
+        self.assertTrue(row_hrefs, "Links de linha da matriz devem existir no HTML.")
+        self.assertTrue(
+            any(f"ambiente_id={ambiente_id}" in href for href in row_hrefs),
+            "Cada link de linha deve preservar ambiente_id na query.",
+        )
+
+    def test_mapa_manual_permite_drill_hierarquia(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa Hierarquia")
+        resp = self._abrir_mapa_dedicado(ambiente_id)
+        matrix = resp.context["matrix"]
+        self.assertEqual(matrix.get("mode"), "bloco")
+        self.assertTrue(matrix.get("allow_row_drill"))
+
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "ATV1"],
+            ["Bloco A", "Térreo", "101", "50%"],
+            ["Bloco A", "Térreo", "102", "100%"],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "manual_template",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3],
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_hierarquia")
+
+        resp_bloco = self._abrir_mapa_dedicado(ambiente_id, bloco="Bloco A")
+        self.assertEqual(resp_bloco.context["matrix"].get("mode"), "pavimento")
+        self.assertTrue(resp_bloco.context["matrix"].get("allow_row_drill"))
+
+        resp_apto = self._abrir_mapa_dedicado(ambiente_id, bloco="Bloco A", pavimento="Térreo")
+        self.assertEqual(resp_apto.context["matrix"].get("mode"), "apto")
+
+    def test_salvar_layout_persiste_edicao_de_celula(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa Persist")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "Atividade 1", "Atividade 2", "Total"],
+            ["Bloco A", "Térreo", "101", "10%", "0%", ""],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "manual_template",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3, 4],
+            "row_axis_key": "bloco",
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_base")
+        section["data"]["rows"][1][3] = "75%"
+        self._salvar_layout(ambiente_id, layout, source="teste_editado")
+
+        rows = self._primeira_matriz_rows(self._detalhe(ambiente_id).get("versao", {}).get("layout") or {})
+        self.assertEqual(rows[1][3], "75%")

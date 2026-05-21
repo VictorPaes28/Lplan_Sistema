@@ -438,7 +438,54 @@
       updateTrigger(trigger, selectEl);
     });
 
+    // expose trigger reference for external open helpers
+    try { selectEl._thRespTrigger = trigger; } catch (err) {}
     selectEl._thRespRefresh();
+  }
+
+  function open(selectEl, opts) {
+    opts = opts || {};
+    if (!selectEl || !selectEl.dataset.thRespPickerAttached) return;
+    if (selectEl._thRespRefresh) {
+      try { selectEl._thRespRefresh(); } catch (err) {}
+    }
+    var trigger = opts.trigger || selectEl._thRespTrigger;
+    if (!trigger && selectEl.parentNode && selectEl.parentNode.querySelector) {
+      trigger = selectEl.parentNode.querySelector('.th-resp-picker-trigger');
+    }
+    if (!trigger) trigger = document.querySelector('.th-resp-picker-trigger');
+    if (!trigger) return;
+    if (opts.anchor && opts.trigger) {
+      // open directly from the provided anchor element; don't show the hidden trigger.
+      openPopover(
+        trigger,
+        selectEl,
+        function () {
+          return selectEl._thRespGetData ? selectEl._thRespGetData() : [];
+        },
+        selectEl._thRespGetObraId,
+        selectEl._thRespGetOutros,
+        opts && opts.zIndex != null ? opts.zIndex : Z_FORM
+      );
+      return;
+    }
+    if (trigger.parentNode !== document.body) {
+      document.body.appendChild(trigger);
+    }
+    try {
+      trigger.click();
+    } catch (err) {
+      openPopover(
+        trigger,
+        selectEl,
+        function () {
+          return selectEl._thRespGetData ? selectEl._thRespGetData() : [];
+        },
+        selectEl._thRespGetObraId,
+        selectEl._thRespGetOutros,
+        opts && opts.zIndex != null ? opts.zIndex : Z_FORM
+      );
+    }
   }
 
   function attachModalNovaEtapa(selectEl) {
@@ -469,6 +516,7 @@
   global.ThRespPicker = {
     syncSelectOptions: syncSelectOptions,
     attach: attach,
+    open: open,
     attachModalNovaEtapa: attachModalNovaEtapa,
     close: closePopover,
   };

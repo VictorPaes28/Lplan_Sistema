@@ -19,6 +19,29 @@ from suprimentos.models import ImportacaoMapaServico, ItemMapaServico
 from suprimentos.services.mapa_controle_viewmodel import AmbienteProvider, LegacyObraProvider
 from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
 
+_PLACEHOLDER_ROW_KEYS = frozenset(
+    {
+        "sem valor",
+        "sem bloco",
+        "sem pav.",
+        "sem pavimento",
+        "sem apto",
+        "sem setor",
+    }
+)
+
+
+def _matrix_row_drillable(row_key: str) -> bool:
+    key = str(row_key or "").strip()
+    if not key:
+        return False
+    low = key.lower()
+    if low in _PLACEHOLDER_ROW_KEYS:
+        return False
+    if low.startswith("linha "):
+        return False
+    return True
+
 
 def _resolve_obra_for_request(request):
     obras = _get_obras_for_user(request)
@@ -98,8 +121,87 @@ def _extract_first_matrix_rows_from_layout(layout: dict) -> tuple[list[list], di
             else:
                 out.append([str(row or "")])
         import_meta = data.get("importMeta") if isinstance(data.get("importMeta"), dict) else {}
-        return out, import_meta
+        return _upgrade_manual_flat_layout(out, import_meta)
     return [], {}
+
+
+def _upgrade_manual_flat_layout(rows: list[list], meta: dict) -> tuple[list[list], dict]:
+    """
+    Mapas manuais antigos tinham só uma coluna de eixo (Bloco/local).
+    Promove para BLOCO → PAVIMENTO → APTO para permitir drill-down intuitivo.
+    """
+    if not rows or not isinstance(meta, dict):
+        return rows, meta
+    if meta.get("strategy") != "manual_template":
+        return rows, meta
+    axis_cols = meta.get("axis_cols_interpreted") if isinstance(meta.get("axis_cols_interpreted"), list) else []
+    if len(axis_cols) > 1:
+        return rows, meta
+
+    header = rows[0] if isinstance(rows[0], list) else []
+    activity_headers: list[str] = []
+    for idx in range(1, len(header)):
+        label = str(header[idx] or "").strip()
+        if _is_total_header_label(label):
+            continue
+        activity_headers.append(label or f"Atividade {len(activity_headers) + 1}")
+
+    new_header = ["BLOCO", "PAVIMENTO", "APTO"] + activity_headers + ["Total"]
+    new_rows: list[list] = [new_header]
+    for old in rows[1:]:
+        if not isinstance(old, list):
+            continue
+        bloco_label = str(old[0] if len(old) else "").strip()
+        activities: list[str] = []
+        total_cell = ""
+        for idx in range(1, len(old)):
+            if idx < len(header) and _is_total_header_label(str(header[idx] or "")):
+                total_cell = str(old[idx] or "")
+                continue
+            activities.append(str(old[idx] if idx < len(old) else ""))
+        while len(activities) < len(activity_headers):
+            activities.append("")
+        new_rows.append([bloco_label, "", ""] + activities[: len(activity_headers)] + [total_cell])
+
+    act_cols = list(range(3, 3 + len(activity_headers)))
+    new_meta = {
+        **meta,
+        "axis_cols_interpreted": [0, 1, 2],
+        "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+        "activity_cols_interpreted": act_cols,
+        "row_axis_key": "bloco",
+    }
+    return new_rows, new_meta
+
+
+def _normalize_ambiente_layout(layout: dict) -> dict:
+    """Aplica upgrades de schema no layout (ex.: manual 1 coluna → hierarquia BLOCO/PAV/APTO)."""
+    if not isinstance(layout, dict):
+        return layout
+    sections = layout.get("sections")
+    if not isinstance(sections, list):
+        return layout
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        if str(section.get("kind") or "").strip() not in {"matrix_table", "table"}:
+            continue
+        data = section.get("data") if isinstance(section.get("data"), dict) else {}
+        rows = data.get("rows")
+        if not isinstance(rows, list) or not rows:
+            continue
+        meta = data.get("importMeta") if isinstance(data.get("importMeta"), dict) else {}
+        normalized_rows, normalized_meta = _upgrade_manual_flat_layout(
+            [
+                [str(cell or "") for cell in row] if isinstance(row, list) else [str(row or "")]
+                for row in rows
+            ],
+            meta,
+        )
+        section.setdefault("data", {})
+        section["data"]["rows"] = normalized_rows
+        section["data"]["importMeta"] = normalized_meta
+    return layout
 
 
 def _parse_matrix_pct(value):
@@ -253,7 +355,15 @@ def _build_matrix_payload_from_rows(rows: list[list[str]], matrix_meta: dict | N
         if total is None and row_values:
             avg = sum(row_values) / len(row_values)
             total = int(round(avg)) if abs(avg - round(avg)) < 0.01 else round(avg, 1)
-        matrix_rows.append({"row_key": row_label, "row_label": row_label, "cells": cells, "total": total})
+        matrix_rows.append(
+            {
+                "row_key": row_label,
+                "row_label": row_label,
+                "row_drillable": _matrix_row_drillable(row_label),
+                "cells": cells,
+                "total": total,
+            }
+        )
 
     totais = []
     for col_idx, atividade in enumerate(atividade_labels):
@@ -866,6 +976,7 @@ def mapa_controle(request):
     obras, obra = _resolve_obra_for_request(request)
     embed_mode = (request.GET.get("embed") or "").strip() == "1"
     ambiente_param = (request.GET.get("ambiente_id") or "").strip()
+    ambiente_id_ctx = None
     grid_pct_clicado = _parse_grid_pct_clicado(request)
     selected = {
         "setor": (request.GET.get("setor") or "").strip(),
@@ -885,6 +996,7 @@ def mapa_controle(request):
         except (TypeError, ValueError):
             ambiente_id = None
         if ambiente_id:
+            ambiente_id_ctx = ambiente_id
             provider = AmbienteProvider(
                 extract_first_matrix_rows_from_layout=_extract_first_matrix_rows_from_layout,
                 build_matrix_payload_from_rows=_build_matrix_payload_from_rows,
@@ -968,6 +1080,7 @@ def mapa_controle(request):
             "is_area_comum": view_ctx["is_area_comum"],
             "embed_mode": embed_mode,
             "layer_nav": view_ctx["layer_nav"],
+            "ambiente_id": ambiente_id_ctx,
         },
     )
 

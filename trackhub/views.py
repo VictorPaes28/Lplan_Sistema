@@ -31,7 +31,9 @@ from .forms import (
     ObraFilterForm,
     PendenciaForm,
     RecorrenciaPendenciaForm,
+    inicio_efetiva_pendencia_para_validacao,
     tipo_anexo_por_nome,
+    validar_data_fim_pendencia,
 )
 from .models import (
     AnexoComentario,
@@ -73,7 +75,16 @@ _MESES_ABREV = (
 )
 
 ALLOWED_PENDENCIA_UPDATE_FIELDS = frozenset(
-    {"titulo", "descricao", "status", "prioridade", "tipo", "prazo"}
+    {
+        "titulo",
+        "descricao",
+        "status",
+        "prioridade",
+        "tipo",
+        "data_inicio",
+        "prazo",
+        "responsavel_interno",
+    }
 )
 
 
@@ -342,7 +353,13 @@ def _pendencia_detail_payload(pendencia, request):
         "tipo_display": pendencia.get_tipo_display(),
         "origem": pendencia.origem,
         "origem_display": pendencia.get_origem_display(),
+        "data_inicio": pendencia.data_inicio.isoformat() if pendencia.data_inicio else "",
+        "data_inicio_efetiva": pendencia.data_inicio_efetiva.isoformat(),
         "prazo": pendencia.prazo.isoformat() if pendencia.prazo else "",
+        "responsavel_interno_id": pendencia.responsavel_interno_id,
+        "responsavel_nome": pendencia.responsavel_nome,
+        "responsavel_email": pendencia.responsavel_email,
+        "responsavel_whatsapp": pendencia.responsavel_whatsapp,
         "obra_id": pendencia.obra_id,
         "obra_nome": pendencia.obra.nome,
         "created_at": _format_trackhub_datetime(pendencia.created_at),
@@ -368,10 +385,11 @@ def _pendencia_detail_payload(pendencia, request):
     }
 
 
-def _pendencia_prefetched_for_detail(user, pk):
-    return get_object_or_404(
-        _pendencia_queryset_for_user(user)
-        .select_related("obra", "criado_por", "recorrencia_serie")
+def _pendencia_detail_prefetch_queryset():
+    return (
+        Pendencia.objects.select_related(
+            "obra", "criado_por", "recorrencia_serie", "responsavel_interno"
+        )
         .prefetch_related(
             Prefetch(
                 "etapas",
@@ -403,9 +421,26 @@ def _pendencia_prefetched_for_detail(user, pk):
                 "anexos",
                 queryset=AnexoPendencia.objects.order_by("created_at"),
             ),
+        )
+    )
+
+
+def _pendencia_prefetched_for_detail(user, pk):
+    return get_object_or_404(
+        _pendencia_detail_prefetch_queryset().filter(
+            pk__in=_pendencia_queryset_for_user(user).values("pk")
         ),
         pk=pk,
     )
+
+
+def _pendencia_prefetched_by_pk(pk):
+    """
+    Recarrega pendência após edição sem filtro de visibilidade do usuário.
+    Necessário quando a alteração remove o vínculo que dava acesso (ex.: trocar
+    responsável interno da pendência), alinhado ao fluxo de edição de etapa.
+    """
+    return get_object_or_404(_pendencia_detail_prefetch_queryset(), pk=pk)
 
 
 _PRIORIDADE_ORDER = {"urgente": 0, "alta": 1, "normal": 2, "baixa": 3}
@@ -558,6 +593,7 @@ def _pendencias_qs_for_user(user):
             Pendencia.objects.filter(
                 Q(obra__in=obras)
                 | Q(etapas__responsavel_interno=user)
+                | Q(responsavel_interno=user)
             )
             .distinct()
         )
@@ -567,6 +603,7 @@ def _pendencias_qs_for_user(user):
                 Q(pk__in=qs.values("pk"))
                 | Q(criado_por=user)
                 | Q(etapas__responsavel_interno=user)
+                | Q(responsavel_interno=user)
             )
             .distinct()
         )
@@ -578,6 +615,8 @@ def _pendencia_queryset_for_user(user):
 
 
 def _user_can_edit_pendencia(user, pendencia):
+    if pendencia.responsavel_interno_id == user.id:
+        return True
     roles = _trackhub_roles(user)
     if roles["admin"] or roles["aprovador"]:
         return True
@@ -844,7 +883,7 @@ def _fila_stats_for_user(user):
     etapas_pendentes = EtapaPendencia.objects.filter(
         pendencia__in=pendencias_base,
         status="pendente",
-    ).count()
+    ).exclude(pendencia__status="cancelada").count()
     return {
         "urgentes_vencidas": pendencias_base.filter(
             Q(prioridade="urgente") | Q(prazo__lt=hoje)
@@ -929,6 +968,8 @@ def _fila_list_render(request, template_name, origem=None):
     tipo = (request.GET.get("tipo") or "").strip()
     prioridade = (request.GET.get("prioridade") or "").strip()
     status = (request.GET.get("status") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+    responsavel_id = (request.GET.get("responsavel") or "").strip()
 
     if obra_id and str(obra_id).isdigit():
         qs = qs.filter(obra_id=int(obra_id))
@@ -937,7 +978,17 @@ def _fila_list_render(request, template_name, origem=None):
     if prioridade:
         qs = qs.filter(prioridade=prioridade)
     if status:
-        qs = qs.filter(status=status)
+        if status == 'em_aberto':
+            qs = qs.filter(status__in=['aberta', 'em_andamento'])
+        elif status == 'vencida':
+            hoje = timezone.localdate()
+            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=hoje)
+        else:
+            qs = qs.filter(status=status)
+    if q:
+        qs = qs.filter(titulo__icontains=q)
+    if responsavel_id and str(responsavel_id).isdigit():
+        qs = qs.filter(responsavel_interno_id=int(responsavel_id))
 
     hoje = timezone.localdate()
     items = list(qs)
@@ -952,20 +1003,51 @@ def _fila_list_render(request, template_name, origem=None):
     page_obj = paginator.get_page(request.GET.get("page"))
     pode_editar_trackhub_pks = _pks_pode_editar_trackhub(request.user, page_obj.object_list)
 
+    resp_nome = ""
+    resp_iniciais = ""
+    if responsavel_id and str(responsavel_id).isdigit():
+        _usr = User.objects.filter(pk=int(responsavel_id), is_active=True).first()
+        if _usr:
+            resp_nome = _usr.get_full_name().strip() or _usr.username
+            resp_iniciais = _iniciais(resp_nome)
+
     filtros = {
         "obra": obra_id or "",
         "tipo": tipo,
         "prioridade": prioridade,
         "status": status,
+        "q": q,
+        "responsavel": responsavel_id,
+        "responsavel_nome": resp_nome,
+        "responsavel_iniciais": resp_iniciais,
     }
+
+    roles = _trackhub_roles(request.user)
+    if roles["admin"]:
+        responsaveis_payload = _todos_usuarios_ativos_payload()
+    else:
+        obra_payloads = _responsaveis_por_obra_payload(obras_qs)
+        seen: set = set()
+        responsaveis_payload = []
+        for op in obra_payloads:
+            for p in op["pessoas"]:
+                if p["id"] not in seen:
+                    seen.add(p["id"])
+                    responsaveis_payload.append(p)
+        responsaveis_payload.sort(key=lambda p: (p.get("nome") or "").lower())
+
+    tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
+    tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
     ctx = {
         "obras": obras_qs,
         "page_obj": page_obj,
         "filtros": filtros,
+        "tipos": tipos,
         "stats": _fila_stats_for_user(request.user),
         "pagination_qs": _pagination_qs(request),
         "pode_editar_trackhub_pks": pode_editar_trackhub_pks,
+        "responsaveis_json": json.dumps(responsaveis_payload, ensure_ascii=False),
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, template_name, ctx)
@@ -1067,6 +1149,130 @@ def por_responsavel_view(request):
     return render(request, "trackhub/por_responsavel.html", ctx)
 
 
+def _pendencia_intervalo_calendario(pendencia):
+    """Intervalo [início, fim] da pendência no calendário (fim = data fim ou mesmo dia)."""
+    inicio = pendencia.data_inicio_efetiva
+    fim = pendencia.prazo or inicio
+    if fim < inicio:
+        fim = inicio
+    return inicio, fim
+
+
+def _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim):
+    """Pendências que intersectam o mês visível (data início → data fim)."""
+    out = []
+    for p in qs:
+        di, df = _pendencia_intervalo_calendario(p)
+        if di <= mes_fim and df >= mes_inicio:
+            out.append((p, di, df))
+    out.sort(key=lambda x: (x[1], x[2], x[0].titulo or ""))
+    return out
+
+
+CALENDARIO_MAX_LINHAS_DIA = 4
+CALENDARIO_VISIVEIS_ANTES_MAIS = 3
+_CALENDARIO_WEEKDAY_SHORT = ("Dom.", "Seg.", "Ter.", "Qua.", "Qui.", "Sex.", "Sáb.")
+
+
+def _assign_calendario_lanes(events):
+    """Aloca faixas (tracks) por data de início e colunas ocupadas na semana."""
+
+    def _lane_sort_key(ev):
+        p = ev["pendencia"]
+        di, _ = _pendencia_intervalo_calendario(p)
+        return (di, -ev["span"], p.pk)
+
+    ordenados = sorted(events, key=_lane_sort_key)
+    lane_cols = []
+    max_lane = 0
+    for ev in ordenados:
+        cols = set(range(ev["col_start"], ev["col_start"] + ev["span"]))
+        lane = None
+        for idx, occupied in enumerate(lane_cols):
+            if not cols & occupied:
+                lane = idx
+                occupied.update(cols)
+                break
+        if lane is None:
+            lane = len(lane_cols)
+            lane_cols.append(set(cols))
+        ev["lane"] = lane
+        max_lane = max(max_lane, lane)
+    return ordenados, max_lane + 1
+
+
+def _calendario_metadados_por_dia(week_events, week_start):
+    """Por coluna do dia: faixas visíveis, '+N mais' e lista completa para o popover."""
+    metas = []
+    for col in range(7):
+        day_date = week_start + timedelta(days=col)
+        touching = [
+            e
+            for e in week_events
+            if e["col_start"] <= col < e["col_start"] + e["span"]
+        ]
+        touching.sort(key=lambda e: (e["lane"], e["pendencia"].pk))
+        total = len(touching)
+        max_lane = max((e["lane"] for e in touching), default=-1)
+        visible_count = sum(
+            1 for e in touching if e["lane"] < CALENDARIO_VISIVEIS_ANTES_MAIS
+        )
+        overflow = (
+            max_lane >= CALENDARIO_VISIVEIS_ANTES_MAIS
+            or total > CALENDARIO_MAX_LINHAS_DIA
+        )
+        if overflow:
+            visible_lanes = set(range(CALENDARIO_VISIVEIS_ANTES_MAIS))
+            more_count = total - visible_count
+        else:
+            visible_lanes = {e["lane"] for e in touching}
+            more_count = 0
+        pendencias = []
+        seen = set()
+        for e in touching:
+            p = e["pendencia"]
+            if p.pk in seen:
+                continue
+            seen.add(p.pk)
+            di, df = _pendencia_intervalo_calendario(p)
+            pendencias.append(
+                {
+                    "id": p.pk,
+                    "titulo": p.titulo or "",
+                    "prioridade": p.prioridade,
+                    "status": p.status,
+                    "continues_before": di < day_date,
+                    "continues_after": df > day_date,
+                }
+            )
+        metas.append(
+            {
+                "visible_lanes": visible_lanes,
+                "more_count": more_count,
+                "pendencias": pendencias,
+                "weekday_short": _CALENDARIO_WEEKDAY_SHORT[col],
+                "day_num": day_date.day,
+            }
+        )
+    return metas
+
+
+def _calendario_aplicar_visibilidade_semana(week_events, day_metas):
+    for ev in week_events:
+        ev["show_title"] = True
+        ev["hidden"] = False
+        for col in range(ev["col_start"], ev["col_start"] + ev["span"]):
+            if ev["lane"] not in day_metas[col]["visible_lanes"]:
+                ev["hidden"] = True
+                break
+    visiveis = [e for e in week_events if not e["hidden"]]
+    max_lane = max((e["lane"] for e in visiveis), default=-1)
+    linhas_eventos = max_lane + 1 if visiveis else 0
+    tem_mais = any(m["more_count"] > 0 for m in day_metas)
+    linhas_totais = linhas_eventos + (1 if tem_mais else 0)
+    return linhas_totais, linhas_eventos + 1 if tem_mais else 0, tem_mais
+
+
 @login_required
 @require_trackhub
 def calendario_view(request):
@@ -1086,49 +1292,180 @@ def calendario_view(request):
     prev_year, prev_month, next_year, next_month = _prev_next_month(year, month)
 
     _, last_day = calendar.monthrange(year, month)
-    inicio = date(year, month, 1)
-    fim = date(year, month, last_day)
+    mes_inicio = date(year, month, 1)
+    mes_fim = date(year, month, last_day)
 
     obras_qs = _obras_queryset_for_user(request.user)
-    obra_id = request.GET.get("obra")
+    obra_id = request.GET.get("obra", "")
+    tipo_val = request.GET.get("tipo", "")
+    status_val = request.GET.get("status", "")
+    responsavel_id = request.GET.get("responsavel", "")
+    prioridade_raw = request.GET.get("prioridade", "")
+    _valid_prioridades = {"urgente", "alta", "normal", "baixa"}
+    prioridade_vals = [
+        v.strip() for v in prioridade_raw.split(",")
+        if v.strip() in _valid_prioridades
+    ] if prioridade_raw else []
     qs = (
-        Pendencia.objects.filter(
-            obra__in=obras_qs,
-            prazo__gte=inicio,
-            prazo__lte=fim,
-        )
+        _pendencias_qs_for_user(request.user)
         .select_related("obra")
-        .order_by("prazo", "titulo")
+        .order_by("titulo")
     )
     if obra_id and str(obra_id).isdigit():
         qs = qs.filter(obra_id=int(obra_id))
+    if tipo_val:
+        qs = qs.filter(tipo=tipo_val)
+    if status_val:
+        if status_val == 'em_aberto':
+            qs = qs.filter(status__in=['aberta', 'em_andamento'])
+        elif status_val == 'vencida':
+            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=today)
+        elif status_val == 'concluida':
+            qs = qs.filter(status='concluida')
+        elif status_val == 'cancelada':
+            qs = qs.filter(status='cancelada')
+    if responsavel_id and str(responsavel_id).isdigit():
+        qs = qs.filter(responsavel_interno_id=int(responsavel_id))
+    if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
+        qs = qs.filter(prioridade__in=prioridade_vals)
 
-    by_day = defaultdict(list)
-    for p in qs:
-        if p.prazo:
-            by_day[p.prazo].append(p)
+    if status_val == 'vencida':
+        pendencias_mes = []
+        for p in qs:
+            di, df = _pendencia_intervalo_calendario(p)
+            df_efetivo = max(df, today)
+            if di <= mes_fim and df_efetivo >= mes_inicio:
+                pendencias_mes.append((p, di, df_efetivo))
+        pendencias_mes.sort(key=lambda x: (x[1], x[2], x[0].titulo or ""))
+    else:
+        pendencias_mes = _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim)
 
     cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
     calendar_weeks = []
-    for week in cal.monthdatescalendar(year, month):
-        row = []
-        for d in week:
-            row.append(
+    calendar_day_data = {}
+    for week_dates in cal.monthdatescalendar(year, month):
+        week_start = week_dates[0]
+        week_end = week_dates[6]
+        days = []
+        for d in week_dates:
+            days.append(
                 {
                     "date": d,
                     "current_month": d.month == month,
                     "is_today": d == today,
-                    "pendencias": by_day.get(d, []),
                 }
             )
-        calendar_weeks.append(row)
+        week_events = []
+        for p, di, df in pendencias_mes:
+            seg_start = max(di, week_start)
+            seg_end = min(df, week_end)
+            if seg_start > seg_end:
+                continue
+            col_start = (seg_start - week_start).days
+            span = (seg_end - seg_start).days + 1
+            week_events.append(
+                {
+                    "pendencia": p,
+                    "col_start": col_start,
+                    "span": span,
+                    "lane": 0,
+                    "continues_before": di < week_start,
+                    "continues_after": df > week_end,
+                    "show_title": True,
+                    "hidden": False,
+                }
+            )
+        week_events, _ = _assign_calendario_lanes(week_events)
+        day_metas = _calendario_metadados_por_dia(week_events, week_start)
+        _lane_count, more_row, has_more_row = _calendario_aplicar_visibilidade_semana(
+            week_events, day_metas
+        )
+        lane_count = CALENDARIO_MAX_LINHAS_DIA
+        if has_more_row:
+            more_row = CALENDARIO_MAX_LINHAS_DIA
+        for idx, d in enumerate(days):
+            meta = day_metas[idx]
+            d["more_count"] = meta["more_count"]
+            iso = d["date"].isoformat()
+            calendar_day_data[iso] = {
+                "weekday": meta["weekday_short"],
+                "day": meta["day_num"],
+                "pendencias": meta["pendencias"],
+            }
+        calendar_weeks.append(
+            {
+                "days": days,
+                "events": week_events,
+                "lane_count": lane_count,
+                "more_row": more_row,
+                "has_more_row": has_more_row,
+            }
+        )
 
     month_label = f"{_MONTHS_PT[month]} {year}"
 
-    filtros = {"obra": obra_id or ""}
+    tipo_labels = dict(Pendencia.TIPO_CHOICES)
+    status_labels = dict(Pendencia.STATUS_CHOICES)
+    prioridade_label_map = dict(Pendencia.PRIORIDADE_CHOICES)
+    _order_prio = ["urgente", "alta", "normal", "baixa"]
+    if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
+        prioridade_label = ", ".join(
+            prioridade_label_map[v] for v in _order_prio if v in set(prioridade_vals)
+        )
+    else:
+        prioridade_label = ""
+
+    obra_nome = ""
+    if obra_id and str(obra_id).isdigit():
+        obra_nome = obras_qs.filter(pk=int(obra_id)).values_list("nome", flat=True).first() or ""
+
+    resp_nome = ""
+    resp_iniciais = ""
+    if responsavel_id and str(responsavel_id).isdigit():
+        usr = User.objects.filter(pk=int(responsavel_id), is_active=True).first()
+        if usr:
+            resp_nome = usr.get_full_name().strip() or usr.username
+            resp_iniciais = _iniciais(resp_nome)
+
+    filtros = {
+        "obra": obra_id,
+        "obra_nome": obra_nome,
+        "tipo": tipo_val,
+        "tipo_label": tipo_labels.get(tipo_val, tipo_val) if tipo_val else "",
+        "status": status_val,
+        "status_label": {"em_aberto": "Em aberto", "vencida": "Vencida", "concluida": "Concluída", "cancelada": "Cancelada"}.get(status_val, ""),
+        "responsavel": responsavel_id,
+        "responsavel_nome": resp_nome,
+        "responsavel_iniciais": resp_iniciais,
+        "prioridade": prioridade_raw,
+        "prioridade_vals": prioridade_vals,
+        "prioridade_label": prioridade_label,
+    }
+
+    roles = _trackhub_roles(request.user)
+    if roles["admin"]:
+        responsaveis_payload = _todos_usuarios_ativos_payload()
+    else:
+        obra_payloads = _responsaveis_por_obra_payload(obras_qs)
+        seen: set = set()
+        responsaveis_payload = []
+        for op in obra_payloads:
+            for p in op["pessoas"]:
+                if p["id"] not in seen:
+                    seen.add(p["id"])
+                    responsaveis_payload.append(p)
+        responsaveis_payload.sort(key=lambda p: (p.get("nome") or "").lower())
+
+    tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
+    tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
     ctx = {
         "calendar_weeks": calendar_weeks,
+        "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+        "responsaveis_json": json.dumps(responsaveis_payload, ensure_ascii=False),
+        "pendencia_detalhe_url_pattern": reverse(
+            "trackhub:pendencia_detalhe", kwargs={"pk": 0}
+        ).replace("/0/", "/{id}/"),
         "prev_year": prev_year,
         "prev_month": prev_month,
         "next_year": next_year,
@@ -1138,6 +1475,7 @@ def calendario_view(request):
         "month": month,
         "obras": obras_qs,
         "filtros": filtros,
+        "tipos": tipos,
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/calendario.html", ctx)
@@ -1194,6 +1532,7 @@ def pendencia_criar_view(request):
                     if regra != PendenciaRecorrente.REGRA_NONE:
                         p.refresh_from_db()
                         dc = timezone.localtime(p.created_at).date()
+                        di = p.data_inicio_efetiva
                         po = (p.prazo - dc).days if p.prazo else None
                         ref_snap = ref_date_para_etapas_snapshot(p, po)
                         snap = etapas_snapshot_from_pendencia(p, ref_snap)
@@ -1213,6 +1552,7 @@ def pendencia_criar_view(request):
                             prioridade=p.prioridade,
                             prazo_offset_dias=po,
                             prazo_original=p.prazo,
+                            data_inicio_original=di,
                             data_criacao_original=dc,
                             regra=regra,
                             dia_semana=leg_wd,
@@ -1276,7 +1616,12 @@ def pendencia_editar_view(request, pk):
 def pendencia_detalhe_view(request, pk):
     pendencia = get_object_or_404(
         _pendencia_queryset_for_user(request.user)
-        .select_related("obra", "criado_por", "recorrencia_serie")
+        .select_related(
+            "obra",
+            "criado_por",
+            "recorrencia_serie",
+            "responsavel_interno",
+        )
         .prefetch_related(
             Prefetch(
                 "etapas",
@@ -2009,20 +2354,76 @@ def pendencia_update_field(request, pk):
             f'Alterou tipo de "{tipo_labels.get(old, old)}" → "{tipo_labels.get(v, v)}"',
             AtividadePendencia.TIPO_TIPO,
         )
-    elif field == "prazo":
-        old_prazo = pendencia.prazo
+    elif field == "data_inicio":
+        old_di = pendencia.data_inicio
+        new_di = None
         if value is None or value == "":
-            pendencia.prazo = None
+            new_di = None
         else:
             if not isinstance(value, str):
-                return _json_no_cache({"ok": False, "error": "Prazo inválido."}, status=400)
+                return _json_no_cache(
+                    {"ok": False, "error": "Data início inválida."}, status=400
+                )
             try:
-                pendencia.prazo = date.fromisoformat(value.strip())
+                new_di = date.fromisoformat(value.strip())
             except ValueError:
                 return _json_no_cache(
                     {"ok": False, "error": "Use a data no formato YYYY-MM-DD."},
                     status=400,
                 )
+        if new_di is None:
+            if pendencia.created_at:
+                inicio_val = timezone.localtime(pendencia.created_at).date()
+            else:
+                inicio_val = timezone.localdate()
+        else:
+            inicio_val = new_di
+        err = validar_data_fim_pendencia(pendencia.prazo, inicio_val)
+        if err:
+            return _json_no_cache({"ok": False, "error": err}, status=400)
+        pendencia.data_inicio = new_di
+        pendencia.save(update_fields=["data_inicio", "updated_at"])
+
+        def _fmt_di(d):
+            return d.strftime("%d/%m/%Y") if d else ""
+
+        ant = _fmt_di(old_di) if old_di else _fmt_di(pendencia.data_inicio_efetiva)
+        novo = _fmt_di(pendencia.data_inicio) if pendencia.data_inicio else _fmt_di(
+            pendencia.data_inicio_efetiva
+        )
+        if old_di != pendencia.data_inicio:
+            if pendencia.data_inicio:
+                txt = f"Alterou data início de {ant} → {novo}"
+            else:
+                txt = f"Removeu data início definida (efetiva: {novo})"
+            _registrar_atividade_pendencia(
+                pendencia, actor, txt, AtividadePendencia.TIPO_PRAZO
+            )
+        sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+
+    elif field == "prazo":
+        old_prazo = pendencia.prazo
+        new_prazo = None
+        if value is None or value == "":
+            new_prazo = None
+        else:
+            if not isinstance(value, str):
+                return _json_no_cache(
+                    {"ok": False, "error": "Data fim inválida."}, status=400
+                )
+            try:
+                new_prazo = date.fromisoformat(value.strip())
+            except ValueError:
+                return _json_no_cache(
+                    {"ok": False, "error": "Use a data no formato YYYY-MM-DD."},
+                    status=400,
+                )
+        err = validar_data_fim_pendencia(
+            new_prazo, pendencia.data_inicio, pendencia=pendencia
+        )
+        if err:
+            return _json_no_cache({"ok": False, "error": err}, status=400)
+        pendencia.prazo = new_prazo
         pendencia.save(update_fields=["prazo", "updated_at"])
         novo_p = pendencia.prazo
 
@@ -2030,11 +2431,11 @@ def pendencia_update_field(request, pk):
             return d.strftime("%d/%m/%Y") if d else ""
 
         if old_prazo and novo_p:
-            txt = f"Alterou prazo de {_fmt(old_prazo)} → {_fmt(novo_p)}"
+            txt = f"Alterou data fim de {_fmt(old_prazo)} → {_fmt(novo_p)}"
         elif not old_prazo and novo_p:
-            txt = f"Definiu prazo para {_fmt(novo_p)}"
+            txt = f"Definiu data fim para {_fmt(novo_p)}"
         elif old_prazo and not novo_p:
-            txt = "Removeu o prazo"
+            txt = "Removeu a data fim"
         else:
             txt = None
         if txt:
@@ -2043,12 +2444,45 @@ def pendencia_update_field(request, pk):
             )
         sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
 
-    pendencia = _pendencia_prefetched_for_detail(request.user, pk)
+    elif field == "responsavel_interno":
+        # Accept null/empty to clear, or numeric user id to set as internal responsible
+        old_user = pendencia.responsavel_interno
+        if value is None or value == "":
+            pendencia.responsavel_interno = None
+            pendencia.save(update_fields=["responsavel_interno", "updated_at"])
+            _registrar_atividade_pendencia(
+                pendencia,
+                actor,
+                f"Removeu responsável interno ({_user_display_name(old_user)})",
+                AtividadePendencia.TIPO_GERAL,
+            )
+        else:
+            try:
+                uid = int(value)
+            except (TypeError, ValueError):
+                return _json_no_cache({"ok": False, "error": "Responsável inválido."}, status=400)
+            try:
+                u = User.objects.get(pk=uid)
+            except User.DoesNotExist:
+                return _json_no_cache({"ok": False, "error": "Usuário não encontrado."}, status=404)
+            pendencia.responsavel_interno = u
+            pendencia.save(update_fields=["responsavel_interno", "updated_at"])
+            _registrar_atividade_pendencia(
+                pendencia,
+                actor,
+                f'Alterou responsável interno de "{_user_display_name(old_user)}" → "{_user_display_name(u)}"',
+                AtividadePendencia.TIPO_GERAL,
+            )
+
+    pendencia = _pendencia_prefetched_by_pk(pk)
+    payload = _pendencia_detail_payload(pendencia, request)
+    perdeu_acesso = not _pendencia_queryset_for_user(request.user).filter(pk=pk).exists()
     return _json_no_cache(
         {
             "ok": True,
             "field": field,
-            "pendencia": _pendencia_detail_payload(pendencia, request),
+            "pendencia": payload,
+            "perdeu_acesso": perdeu_acesso,
         }
     )
 

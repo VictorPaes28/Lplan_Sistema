@@ -71,25 +71,39 @@
         {{ form.descricao }}
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <div>
           <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prioridade <span style="color:#ef4444;">*</span></label>
           {{ form.prioridade }}
           {% if form.prioridade.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.prioridade.errors.0 }}</div>{% endif %}
         </div>
         <div>
-          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prazo</label>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Responsável da pendência</label>
+          {{ form.responsavel_interno }}
+          {% if form.responsavel_interno.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.responsavel_interno.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Data início</label>
+          {{ form.data_inicio }}
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Em branco: usa o dia da criação</div>
+          {% if form.data_inicio.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.data_inicio.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Data fim</label>
           {{ form.prazo }}
-          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Deixe em branco se não houver prazo definido</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Deixe em branco se não houver data fim</div>
           {% if form.prazo.errors %}<div style="font-size:11px;color:#ef4444;margin-top:3px;">{{ form.prazo.errors.0 }}</div>{% endif %}
         </div>
       </div>
 
       <div style="margin-top:4px;padding-top:18px;border-top:1px solid #f1f5f9;">
         <div class="th-recorrencia" id="th-rec-root">
-        {{ rec_form.recorrencia_regra }}
-        {{ rec_form.recorrencia_parametros_json }}
-          <div class="th-recorrencia-label-row">
+          {{ rec_form.recorrencia_regra }}
+          {{ rec_form.recorrencia_parametros_json }}
+            <div class="th-recorrencia-label-row">
             <label class="th-recorrencia-label" for="th-rec-trigger">Repetir</label>
           </div>
           <div class="th-recorrencia-wrap">
@@ -341,6 +355,37 @@
 <script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
 <script src="{% static 'trackhub/js/trackhub_recorrencia_form.js' %}?v=7"></script>
 <script>
+(function () {
+  var MSG = 'A data fim não pode ser anterior à data início.';
+  var form = document.querySelector('form[method="POST"][enctype="multipart/form-data"]');
+  if (!form) return;
+  var inpInicio = form.querySelector('input[name="data_inicio"]');
+  var inpFim = form.querySelector('input[name="prazo"]');
+  function hojeIso() {
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function syncMinFim() {
+    if (!inpFim) return;
+    var ini = (inpInicio && inpInicio.value) ? inpInicio.value : hojeIso();
+    inpFim.min = ini;
+  }
+  if (inpInicio) {
+    inpInicio.addEventListener('change', syncMinFim);
+    inpInicio.addEventListener('input', syncMinFim);
+  }
+  syncMinFim();
+  form.addEventListener('submit', function (e) {
+    if (!inpFim || !inpFim.value) return;
+    var ini = (inpInicio && inpInicio.value) ? inpInicio.value : hojeIso();
+    if (inpFim.value < ini) {
+      e.preventDefault();
+      alert(MSG);
+    }
+  });
+})();
+
 document.querySelectorAll('input[type=text], input[type=email], input[type=date], textarea, select').forEach(function(el) {
   if (el.name && el.name.indexOf('responsavel_interno') !== -1) return;
   if (!el.style.width) el.style.width = '100%';
@@ -393,7 +438,7 @@ function thGetObraSelecionadaNome() {
 var thRespPickerOpts = { getOutrosFn: thParseTodosUsuarios, getObraNomeFn: thGetObraSelecionadaNome };
 
 function thRefreshResponsaveisEtapas() {
-  document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+  document.querySelectorAll('select[name$="-responsavel_interno"], select[name="responsavel_interno"]').forEach(function (sel) {
     if (sel._thRespRefresh) sel._thRespRefresh();
   });
 }
@@ -664,7 +709,7 @@ document.addEventListener('input', function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+  document.querySelectorAll('select[name$="-responsavel_interno"], select[name="responsavel_interno"]').forEach(function (sel) {
     if (window.ThRespPicker) {
       window.ThRespPicker.attach(sel, thParseResponsaveisPorObra, thGetObraSelecionadaId, thRespPickerOpts);
     }

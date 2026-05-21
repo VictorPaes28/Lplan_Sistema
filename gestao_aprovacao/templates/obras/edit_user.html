@@ -85,14 +85,19 @@
                 <label class="form-label">Projetos / obras (vínculo do usuário)</label>
                 <div class="form-help">
                     Lista usada pelo <strong>Diário de Obra</strong> e pelo <strong>GestControll (pedidos)</strong> quando a obra/projeto aplicam esse modelo.
-                    Outros módulos também podem respeitar o mesmo vínculo conforme configurado para o projeto ou para a empresa.
+                    Obras <strong>inativas</strong> podem ser vinculadas para <strong>consulta</strong> (histórico e pedidos existentes; sem criar novos pedidos).
                 </div>
                 {% if projects %}
                     <div style="max-height: 220px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
                         {% for project in projects %}
                         <div class="form-check">
                             <input type="checkbox" id="project_{{ project.id }}" name="projects" value="{{ project.id }}" class="form-check-input" {% if project.id in user_project_ids %}checked{% endif %}>
-                            <label for="project_{{ project.id }}" class="form-check-label">{{ project.code }} – {{ project.name }}</label>
+                            <label for="project_{{ project.id }}" class="form-check-label">
+                                {{ project.code }} – {{ project.name }}
+                                {% if not project.is_active %}
+                                <span style="font-size:0.75rem;color:#64748b;font-weight:600;">(inativa — consulta)</span>
+                                {% endif %}
+                            </label>
                         </div>
                         {% endfor %}
                     </div>

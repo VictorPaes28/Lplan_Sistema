@@ -263,19 +263,20 @@
     inp.min = 1;
     inp.max = 31;
     inp.value = String(dInit != null ? dInit : 1);
-    inp.style.width = '72px';
     var rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'th-rec-ano-remove';
     rm.setAttribute('aria-label', 'Remover data');
     rm.textContent = '\u00d7';
-    rm.addEventListener('click', function () {
+    rm.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
       var rows = document.querySelectorAll('#th-rec-ano-rows .th-rec-ano-row');
       if (rows.length <= 1) return;
       wrap.remove();
     });
-    wrap.appendChild(sel);
     wrap.appendChild(inp);
+    wrap.appendChild(sel);
     wrap.appendChild(rm);
     return wrap;
   }

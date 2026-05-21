@@ -22,6 +22,7 @@ from accounts.decorators import login_required, require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
 from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
+from suprimentos.views_controle import _normalize_ambiente_layout
 
 from .models import (
     AmbienteCelula,
@@ -88,19 +89,17 @@ def _parse_json_body(request):
 def _mapa_controle_rows_canonico(colunas: int = 20, linhas: int = 20):
     """
     Estrutura oficial canônica (vazia) do Mapa de Controle.
-    Não consulta dados operacionais da obra e não herda conteúdo de importações anteriores.
+    Hierarquia BLOCO → PAVIMENTO → APTO (como planilha / import Excel), depois atividades.
     """
     colunas = max(5, int(colunas))
     linhas = max(1, int(linhas))
-    header = ["Bloco / local"]
+    header = ["BLOCO", "PAVIMENTO", "APTO"]
     for i in range(colunas):
         header.append(f"Atividade {i + 1}")
     header.append("Total")
     rows = [header]
-    for r in range(linhas):
-        eixo = f"Bloco {chr(65 + r)}" if r < 2 else f"Eixo {r - 1}"
-        row = [eixo] + [""] * colunas + [""]
-        rows.append(row)
+    for _ in range(linhas):
+        rows.append(["", "", ""] + [""] * colunas + [""])
     return rows
 
 
@@ -120,6 +119,15 @@ def _preset_layout(tipo: str, obra: Obra | None = None):
     if tipo == AmbienteTipo.MAPA_CONTROLE:
         rows = _mapa_controle_rows_canonico(20, 20)
         weights = _mapa_controle_weights(rows, totals_row_auto=True)
+        header = rows[0] if rows else []
+        activity_cols = list(range(3, max(3, len(header) - 1)))
+        import_meta = {
+            "strategy": "manual_template",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": activity_cols,
+            "row_axis_key": "bloco",
+        }
         # Um único bloco matriz; o utilizador adiciona KPI / detalhe pela barra se precisar.
         return {
             "title": "Mapa de Controle",
@@ -143,6 +151,7 @@ def _preset_layout(tipo: str, obra: Obra | None = None):
                         "rows": rows,
                         "colWeights": weights["colWeights"],
                         "rowWeights": weights["rowWeights"],
+                        "importMeta": import_meta,
                     },
                 },
             ],
@@ -1278,6 +1287,8 @@ def editar_mapa_controle(request, ambiente_id: int):
             "mapa_atual_url": mapa_url,
             "mapa_view_url": reverse("engenharia:ferramenta_editor_ambiente", args=[ambiente.id]),
             "ambiente_id": ambiente.id,
+            "api_detalhe_url": reverse("suprimentos:po_api_detalhe_ambiente", args=[ambiente.id]),
+            "api_salvar_rascunho_url": reverse("suprimentos:po_api_salvar_rascunho", args=[ambiente.id]),
         },
     )
 
@@ -1310,6 +1321,8 @@ def api_detalhe_ambiente(request, ambiente_id: int):
         return JsonResponse({"success": False, "error": "Ambiente não pertence à obra ativa."}, status=403)
 
     draft = ambiente.versoes.filter(estado=VersaoEstado.DRAFT).order_by("-numero").first()
+    if draft and isinstance(draft.layout, dict):
+        draft.layout = _normalize_ambiente_layout(draft.layout)
     elementos = (
         AmbienteElemento.objects.filter(ambiente=ambiente, ativo=True)
         .order_by("z_index", "id")
@@ -1515,7 +1528,7 @@ def api_salvar_rascunho(request, ambiente_id: int):
         layout = payload.get("layout")
         metadados = payload.get("metadados")
         if isinstance(layout, dict):
-            draft.layout = layout
+            draft.layout = _normalize_ambiente_layout(layout)
         if isinstance(metadados, dict):
             draft.metadados = metadados
         draft.save(update_fields=["layout", "metadados", "updated_at"])

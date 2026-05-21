@@ -1,4 +1,5 @@
 {% extends "trackhub/base_trackhub.html" %}
+{% load static %}
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block trackhub_content %}
 <!-- Stats -->
@@ -43,39 +44,100 @@
 
 <!-- Toolbar -->
 <div class="th-toolbar">
-  <form method="GET" class="th-toolbar-left">
-    <select name="obra" class="th-filter-select" onchange="this.form.submit()">
-      <option value="">Todos os locais</option>
-      {% for o in obras %}<option value="{{ o.id }}" {% if filtros.obra == o.id|stringformat:"s" %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
-    </select>
-    <select name="tipo" class="th-filter-select" onchange="this.form.submit()">
-      <option value="">Todos os tipos</option>
-      <option value="financeiro" {% if filtros.tipo == 'financeiro' %}selected{% endif %}>Financeiro</option>
-      <option value="operacional" {% if filtros.tipo == 'operacional' %}selected{% endif %}>Operacional</option>
-      <option value="documento" {% if filtros.tipo == 'documento' %}selected{% endif %}>Documento</option>
-      <option value="tarefa" {% if filtros.tipo == 'tarefa' %}selected{% endif %}>Tarefa</option>
-      <option value="outro" {% if filtros.tipo == 'outro' %}selected{% endif %}>Outro</option>
-    </select>
-    <select name="prioridade" class="th-filter-select" onchange="this.form.submit()">
-      <option value="">Todas as prioridades</option>
-      <option value="urgente" {% if filtros.prioridade == 'urgente' %}selected{% endif %}>Urgente</option>
-      <option value="alta" {% if filtros.prioridade == 'alta' %}selected{% endif %}>Alta</option>
-      <option value="normal" {% if filtros.prioridade == 'normal' %}selected{% endif %}>Normal</option>
-      <option value="baixa" {% if filtros.prioridade == 'baixa' %}selected{% endif %}>Baixa</option>
-    </select>
-    <select name="status" class="th-filter-select" onchange="this.form.submit()">
-      <option value="">Todos os status</option>
-      <option value="aberta" {% if filtros.status == 'aberta' %}selected{% endif %}>Aberto</option>
-      <option value="em_andamento" {% if filtros.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
-      <option value="cancelada" {% if filtros.status == 'cancelada' %}selected{% endif %}>Cancelado</option>
-      <option value="concluida" {% if filtros.status == 'concluida' %}selected{% endif %}>Concluída</option>
-    </select>
-  </form>
-  <a href="{% url 'trackhub:pendencia_criar' %}" class="th-btn-primary">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    Nova Pendência
-  </a>
+  <div class="th-cal-filters" id="th-fila-cf-filters">
+
+    {# Local #}
+    <div class="th-cf-wrap" data-filter="obra" data-current="{{ filtros.obra }}">
+      <button type="button" class="th-cf-btn{% if filtros.obra %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+        <span class="th-cf-label">{% if filtros.obra %}{% for o in obras %}{% if filtros.obra == o.id|stringformat:"s" %}{{ o.nome }}{% endif %}{% endfor %}{% else %}Local{% endif %}</span>
+        <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="th-cf-panel" hidden role="listbox">
+        <ul class="th-cf-list">
+          <li class="th-cf-item{% if not filtros.obra %} th-cf-item--selected{% endif %}" data-value="" role="option">Todos os locais</li>
+          {% for o in obras %}<li class="th-cf-item{% if filtros.obra == o.id|stringformat:'s' %} th-cf-item--selected{% endif %}" data-value="{{ o.id }}" role="option">{{ o.nome }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    {# Tipo #}
+    <div class="th-cf-wrap" data-filter="tipo" data-current="{{ filtros.tipo }}">
+      <button type="button" class="th-cf-btn{% if filtros.tipo %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+        <span class="th-cf-label">{% if filtros.tipo %}{{ filtros.tipo }}{% else %}Tipo{% endif %}</span>
+        <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="th-cf-panel" hidden role="listbox">
+        <ul class="th-cf-list">
+          <li class="th-cf-item{% if not filtros.tipo %} th-cf-item--selected{% endif %}" data-value="" role="option">Todos os tipos</li>
+          {% for t_val, t_label in tipos %}<li class="th-cf-item{% if filtros.tipo == t_val %} th-cf-item--selected{% endif %}" data-value="{{ t_val }}" role="option">{{ t_label }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    {# Prioridade #}
+    <div class="th-cf-wrap" data-filter="prioridade" data-current="{{ filtros.prioridade }}">
+      <button type="button" class="th-cf-btn{% if filtros.prioridade %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+        <span class="th-cf-label">{% if filtros.prioridade %}{{ filtros.prioridade|capfirst }}{% else %}Prioridade{% endif %}</span>
+        <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="th-cf-panel" hidden role="listbox">
+        <ul class="th-cf-list">
+          <li class="th-cf-item{% if not filtros.prioridade %} th-cf-item--selected{% endif %}" data-value="" role="option">Todas as prioridades</li>
+          <li class="th-cf-item{% if filtros.prioridade == 'urgente' %} th-cf-item--selected{% endif %}" data-value="urgente" role="option"><span class="th-cf-dot th-cf-dot--urgente"></span>Urgente</li>
+          <li class="th-cf-item{% if filtros.prioridade == 'alta' %} th-cf-item--selected{% endif %}" data-value="alta" role="option"><span class="th-cf-dot th-cf-dot--alta"></span>Alta</li>
+          <li class="th-cf-item{% if filtros.prioridade == 'normal' %} th-cf-item--selected{% endif %}" data-value="normal" role="option"><span class="th-cf-dot th-cf-dot--normal"></span>Normal</li>
+          <li class="th-cf-item{% if filtros.prioridade == 'baixa' %} th-cf-item--selected{% endif %}" data-value="baixa" role="option"><span class="th-cf-dot th-cf-dot--baixa"></span>Baixa</li>
+        </ul>
+      </div>
+    </div>
+
+    {# Status #}
+    <div class="th-cf-wrap" data-filter="status" data-current="{{ filtros.status }}">
+      <button type="button" class="th-cf-btn{% if filtros.status %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+        <span class="th-cf-label">{% if filtros.status %}{% if filtros.status == 'em_aberto' %}Em aberto{% elif filtros.status == 'vencida' %}Vencida{% elif filtros.status == 'cancelada' %}Cancelada{% elif filtros.status == 'concluida' %}Concluída{% else %}{{ filtros.status }}{% endif %}{% else %}Status{% endif %}</span>
+        <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="th-cf-panel" hidden role="listbox">
+        <ul class="th-cf-list">
+          <li class="th-cf-item{% if not filtros.status %} th-cf-item--selected{% endif %}" data-value="" role="option">Todos os status</li>
+          <li class="th-cf-item{% if filtros.status == 'em_aberto' %} th-cf-item--selected{% endif %}" data-value="em_aberto" role="option">Em aberto</li>
+          <li class="th-cf-item{% if filtros.status == 'vencida' %} th-cf-item--selected{% endif %}" data-value="vencida" role="option">Vencida</li>
+          <li class="th-cf-item{% if filtros.status == 'cancelada' %} th-cf-item--selected{% endif %}" data-value="cancelada" role="option">Cancelada</li>
+          <li class="th-cf-item{% if filtros.status == 'concluida' %} th-cf-item--selected{% endif %}" data-value="concluida" role="option">Concluída</li>
+        </ul>
+      </div>
+    </div>
+
+    {# Responsável #}
+    <div class="th-cf-wrap" data-filter="responsavel" data-current="{{ filtros.responsavel }}">
+      <button type="button" class="th-cf-btn{% if filtros.responsavel %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+        {% if filtros.responsavel_iniciais %}<span class="th-cf-avatar" data-nome="{{ filtros.responsavel_nome }}">{{ filtros.responsavel_iniciais }}</span>{% endif %}
+        <span class="th-cf-label">{% if filtros.responsavel_nome %}{{ filtros.responsavel_nome }}{% else %}Responsável{% endif %}</span>
+        <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="th-cf-panel" hidden role="listbox">
+        <input type="text" class="th-cf-search" placeholder="Buscar responsável…" autocomplete="off">
+        <ul class="th-cf-list" id="th-fila-resp-list"></ul>
+      </div>
+    </div>
+
+    {% if filtros.obra or filtros.tipo or filtros.status or filtros.responsavel or filtros.prioridade or filtros.q %}
+    <a href="?" class="th-cf-clear">Limpar filtros</a>
+    {% endif %}
+
+  </div>
+  <div class="th-toolbar-right">
+    <div class="th-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="th-fila-search" class="th-search-input" placeholder="Buscar pendência..." value="{{ filtros.q }}" autocomplete="off">
+    </div>
+    <a href="{% url 'trackhub:pendencia_criar' %}" class="th-btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nova Pendência
+    </a>
+  </div>
 </div>
+<script type="application/json" id="th-fila-resp-data">{{ responsaveis_json|safe }}</script>
 
 <!-- Lista -->
 {% if page_obj.object_list %}
@@ -208,5 +270,24 @@
   window.abrirDetalhe(pk);
 })();
 </script>
+
+<script>
+(function() {
+  var inp = document.getElementById('th-fila-search');
+  if (!inp) return;
+  var timer;
+  inp.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      var params = new URLSearchParams(window.location.search);
+      params.delete('page');
+      var val = inp.value.trim();
+      if (val) params.set('q', val); else params.delete('q');
+      window.location.href = '?' + params.toString();
+    }, 400);
+  });
+})();
+</script>
+<script src="{% static 'trackhub/js/trackhub_fila.js' %}?v=1"></script>
 
 {% endblock %}

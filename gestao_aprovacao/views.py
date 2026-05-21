@@ -45,6 +45,8 @@ from .utils import (
     admin_required,
     usuario_pode_marcar_pedido_analisado,
     usuarios_escopo_pedido_para_notificar,
+    projects_disponiveis_para_vinculo_usuario,
+    obra_gestao_do_projeto,
 )
 from core.notification_utils import CORE_TIPOS_PEDIDO_FILA_APROVACAO
 from core.notification_utils import criar_notificacao as core_criar_notificacao
@@ -3763,11 +3765,10 @@ def create_user(request):
             for pid in project_ids:
                 try:
                     project_id = int(pid)
-                    project = Project.objects.filter(pk=project_id, is_active=True).first()
-                    if not project:
+                    if not Project.objects.filter(pk=project_id).exists():
                         continue
                     ProjectMember.objects.get_or_create(user=user, project_id=project_id)
-                    obra = Obra.objects.filter(project_id=project_id, ativo=True).first()
+                    obra = obra_gestao_do_projeto(project_id)
                     if obra:
                         if 'Solicitante' in grupos_selecionados:
                             WorkOrderPermission.objects.get_or_create(
@@ -3851,8 +3852,8 @@ def create_user(request):
     
     grupos_secoes = grupos_secoes_para_atribuicao()
 
-    # Lista única de obras do sistema = core.Project (mesma lista do Diário de Obra)
-    projects = Project.objects.filter(is_active=True).order_by('name')
+    # Lista única de obras do sistema = core.Project (ativas e inativas)
+    projects = projects_disponiveis_para_vinculo_usuario()
     context = {
         'grupos_secoes': grupos_secoes,
         'empresas': empresas_disponiveis,
@@ -3932,7 +3933,7 @@ def edit_user(request, pk):
         for pid in project_ids:
             try:
                 project_id = int(pid)
-                if Project.objects.filter(pk=project_id, is_active=True).exists():
+                if Project.objects.filter(pk=project_id).exists():
                     ProjectMember.objects.get_or_create(user=user, project_id=project_id)
             except (ValueError, TypeError):
                 pass
@@ -3945,7 +3946,7 @@ def edit_user(request, pk):
         for pid in project_ids:
             try:
                 project_id = int(pid)
-                obra = Obra.objects.filter(project_id=project_id, ativo=True).first()
+                obra = obra_gestao_do_projeto(project_id)
                 if not obra:
                     continue
                 if 'Solicitante' in grupos_selecionados:
@@ -4008,7 +4009,7 @@ def edit_user(request, pk):
     
     grupos_secoes = grupos_secoes_para_atribuicao()
 
-    projects = Project.objects.filter(is_active=True).order_by('name')
+    projects = projects_disponiveis_para_vinculo_usuario()
     user_project_ids = list(ProjectMember.objects.filter(user=user).values_list('project_id', flat=True))
     # Sincronizar Diário: se o usuário tem obras no GestControll mas não tem ProjectMember, criar a partir das Obras vinculadas
     if not user_project_ids:

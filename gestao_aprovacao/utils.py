@@ -66,6 +66,22 @@ def is_admin(user):
     )
 
 
+def projects_disponiveis_para_vinculo_usuario():
+    """Projetos listados ao vincular usuário (ativos e inativos; inativos = consulta nos módulos)."""
+    from core.models import Project
+
+    return Project.objects.order_by('-is_active', 'name')
+
+
+def obra_gestao_do_projeto(project_id):
+    """Obra GestControll ligada ao projeto, inclusive inativa."""
+    from .models import Obra
+
+    if not project_id:
+        return None
+    return Obra.objects.filter(project_id=project_id).order_by('-ativo').first()
+
+
 def usuario_pode_marcar_pedido_analisado(user):
     """
     Checkbox "Analisado" na lista de pedidos: apenas administradores da plataforma

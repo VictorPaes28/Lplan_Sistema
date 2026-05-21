@@ -44,6 +44,7 @@
 
 
   var overlay = document.getElementById('th-detalhe-overlay');
+  var elModal = document.getElementById('th-detalhe-modal');
   var btnClose = document.getElementById('th-detalhe-close');
   var elBreadcrumbObra = document.getElementById('th-det-breadcrumb-obra');
   var elBreadcrumbTipo = document.getElementById('th-det-breadcrumb-tipo');
@@ -70,11 +71,16 @@
   var pillStatus = document.getElementById('th-det-pill-status');
   var pillPrio = document.getElementById('th-det-pill-prioridade');
   var pillTipo = document.getElementById('th-det-pill-tipo');
+  var pillDataInicio = document.getElementById('th-det-pill-data-inicio');
   var pillPrazo = document.getElementById('th-det-pill-prazo');
   var valStatus = document.getElementById('th-det-pill-status-val');
   var valPrio = document.getElementById('th-det-pill-prioridade-val');
   var valTipo = document.getElementById('th-det-pill-tipo-val');
+  var valDataInicio = document.getElementById('th-det-pill-data-inicio-val');
   var valPrazo = document.getElementById('th-det-pill-prazo-val');
+  var pillResponsavel = document.getElementById('th-det-pill-responsavel');
+  var valResponsavel = document.getElementById('th-det-pill-responsavel-val');
+  var selResponsavel = document.getElementById('th-det-responsavel-select');
 
   var panelComments = document.getElementById('th-det-panel-comments');
   var panelActivities = document.getElementById('th-det-panel-activities');
@@ -308,17 +314,21 @@
     if (valStatus) valStatus.textContent = p.status_display || '';
     if (valPrio) valPrio.textContent = p.prioridade_display || '';
     if (valTipo) valTipo.textContent = p.tipo_display || '';
+    if (valResponsavel) valResponsavel.textContent = p.responsavel_nome || (p.responsavel_interno_id ? '' : '—');
+    var diIso = p.data_inicio_efetiva || p.data_inicio || '';
+    if (valDataInicio) valDataInicio.textContent = formatPrazo(diIso);
     if (valPrazo) valPrazo.textContent = formatPrazo(p.prazo);
 
     var pode = p.pode_editar;
     rebuildPillClass(pillStatus, ['th-detalhe-pill', 'th-pill', 'th-pill--status', 'status-' + (p.status || 'aberta')]);
     rebuildPillClass(pillPrio, ['th-detalhe-pill', 'th-pill', 'th-pill--prioridade', 'prio-' + (p.prioridade || 'normal')]);
     rebuildPillClass(pillTipo, ['th-detalhe-pill', 'th-pill', 'th-pill--tipo', 'tipo-' + (p.tipo || 'outro')]);
+    rebuildPillClass(pillDataInicio, ['th-detalhe-pill', 'th-pill', 'th-pill--data-inicio']);
     rebuildPillClass(pillPrazo, ['th-detalhe-pill', 'th-pill', 'th-pill--prazo', 'prazo-pill'].concat(prazoPillExtras(p.prazo, p.esta_vencida, p.status)));
 
     setEditable(elTitulo, pode);
     setEditable(elDesc, pode);
-    [pillStatus, pillPrio, pillTipo, pillPrazo].forEach(function (pill) {
+    [pillStatus, pillPrio, pillTipo, pillResponsavel, pillDataInicio, pillPrazo].forEach(function (pill) {
       if (pill) {
         pill.disabled = !pode;
         pill.classList.toggle('is-disabled', !pode);
@@ -337,6 +347,21 @@
     window.etapasPendentesCount = typeof p.etapas_pendentes_count === 'number'
       ? p.etapas_pendentes_count
       : 0;
+
+    // preparar select de responsável (picker) no modal
+    if (selResponsavel) {
+      // sincronizar valor preservado
+      selResponsavel.value = p.responsavel_interno_id ? String(p.responsavel_interno_id) : '';
+      // garantir attach do ThRespPicker quando necessário
+      try {
+        ThRespPicker.attachModalNovaEtapa(selResponsavel);
+      } catch (e) {}
+      // salvar quando usuário escolher no picker
+      selResponsavel.onchange = function () {
+        var vid = selResponsavel.value || null;
+        salvarCampo('responsavel_interno', vid);
+      };
+    }
 
     preencherActionsFooter(p.id);
 
@@ -834,6 +859,94 @@
     });
   }
 
+  function commentPastedFileName(file) {
+    var name = (file && file.name) ? String(file.name).trim() : '';
+    if (name && name !== 'image.png' && name !== 'blob' && name !== 'untitled') return name;
+    var d = new Date();
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    return 'Captura de tela ' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+      + ' ' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '.png';
+  }
+
+  function normalizeCommentPendingFile(file) {
+    if (!file) return null;
+    var nome = commentPastedFileName(file);
+    if (file.name === nome) return file;
+    try {
+      return new File([file], nome, { type: file.type || 'image/png', lastModified: file.lastModified });
+    } catch (err) {
+      return file;
+    }
+  }
+
+  function updateCommentSendState() {
+    if (!elCommentSend) return;
+    elCommentSend.disabled = !((elCommentText && (elCommentText.value || '').trim()) || commentPendingFiles.length);
+  }
+
+  function addCommentPendingFiles(files) {
+    var list = Array.isArray(files) ? files : Array.from(files || []);
+    if (!list.length) return false;
+    list.forEach(function (f) {
+      var norm = normalizeCommentPendingFile(f);
+      if (norm) commentPendingFiles.push(norm);
+    });
+    renderCommentPendingFiles();
+    updateCommentSendState();
+    return true;
+  }
+
+  function clipboardPasteHasFiles(cd) {
+    if (!cd || !cd.items) return false;
+    for (var i = 0; i < cd.items.length; i += 1) {
+      if (cd.items[i].kind === 'file') return true;
+    }
+    return false;
+  }
+
+  function isCommentsTabActive() {
+    return !!(panelComments && !panelComments.hidden);
+  }
+
+  function pasteTargetBlocksCommentCapture(target) {
+    if (!target || !target.closest) return false;
+    if (target.closest('input[type="file"]')) return true;
+    if (target.closest('#th-form-nova-etapa, #th-form-editar-etapa')) {
+      var tag = (target.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return true;
+    }
+    return false;
+  }
+
+  function shouldCaptureCommentPaste(e) {
+    if (!currentPk || !isCommentsTabActive()) return false;
+    if (!clipboardPasteHasFiles(e.clipboardData)) return false;
+    if (pasteTargetBlocksCommentCapture(e.target)) return false;
+    return true;
+  }
+
+  function focusModalForPaste() {
+    if (!elModal || !overlay || overlay.hasAttribute('hidden')) return;
+    try {
+      elModal.focus({ preventScroll: true });
+    } catch (err) { /* ignore */ }
+  }
+
+  function onCommentPaste(e) {
+    if (!shouldCaptureCommentPaste(e)) return;
+    var cd = e.clipboardData;
+    var picked = [];
+    for (var i = 0; i < cd.items.length; i += 1) {
+      var item = cd.items[i];
+      if (item.kind !== 'file') continue;
+      var file = item.getAsFile();
+      if (file) picked.push(file);
+    }
+    if (!picked.length) return;
+    e.preventDefault();
+    addCommentPendingFiles(picked);
+  }
+
   function renderCommentPendingFiles() {
     if (!elCommentFilesChips) return;
     elCommentFilesChips.innerHTML = '';
@@ -854,9 +967,7 @@
       rm.addEventListener('click', function () {
         commentPendingFiles.splice(idx, 1);
         renderCommentPendingFiles();
-        if (elCommentSend) {
-          elCommentSend.disabled = !((elCommentText && (elCommentText.value || '').trim()) || commentPendingFiles.length);
-        }
+        updateCommentSendState();
       });
       chip.appendChild(rm);
       elCommentFilesChips.appendChild(chip);
@@ -882,8 +993,30 @@
     });
   }
 
+  var MSG_DATA_FIM_ANTES_INICIO = 'A data fim não pode ser anterior à data início.';
+
+  function validarDatasPendenciaModal(field, value) {
+    if (!currentData) return true;
+    var fimIso = field === 'prazo'
+      ? (value ? String(value).split('T')[0] : '')
+      : ((currentData.prazo || '').split('T')[0] || '');
+    if (!fimIso) return true;
+    var inicioIso;
+    if (field === 'data_inicio') {
+      inicioIso = value ? String(value).split('T')[0] : ((currentData.data_inicio_efetiva || '').split('T')[0] || '');
+    } else {
+      inicioIso = currentData.data_inicio
+        ? String(currentData.data_inicio).split('T')[0]
+        : ((currentData.data_inicio_efetiva || '').split('T')[0] || '');
+    }
+    if (!inicioIso || fimIso >= inicioIso) return true;
+    alert(MSG_DATA_FIM_ANTES_INICIO);
+    return false;
+  }
+
   async function salvarCampo(field, value) {
     if (!currentPk) return;
+    if ((field === 'data_inicio' || field === 'prazo') && !validarDatasPendenciaModal(field, value)) return;
     var r = await fetch(updateUrl(currentPk), {
       method: 'POST',
       credentials: 'same-origin',
@@ -899,6 +1032,10 @@
       return;
     }
     markTrackhubListStale();
+    if (data.perdeu_acesso) {
+      if (typeof window.fecharDetalhe === 'function') window.fecharDetalhe();
+      return;
+    }
     if (data.pendencia) applyPendenciaPayload(data.pendencia);
     carregarAtividades(currentPk);
     flashSaving();
@@ -1202,19 +1339,21 @@
   bindPill(pillPrio, 'prioridade', function () { return currentData.prioridade_choices || []; }, function () { return currentData.prioridade; });
   bindPill(pillTipo, 'tipo', function () { return currentData.tipo_choices || []; }, function () { return currentData.tipo; });
 
-  if (pillPrazo) {
-    pillPrazo.addEventListener('click', function (e) {
+  function bindDatePill(pill, field, getIsoValue) {
+    if (!pill) return;
+    pill.addEventListener('click', function (e) {
       e.stopPropagation();
       if (!currentData || !currentData.pode_editar) return;
-      var old = document.getElementById('th-prazo-picker-native');
+      var pickerId = 'th-date-picker-native-' + field;
+      var old = document.getElementById(pickerId);
       if (old) old.remove();
-      var rect = pillPrazo.getBoundingClientRect();
+      var rect = pill.getBoundingClientRect();
       var inp = document.createElement('input');
       inp.type = 'date';
-      inp.id = 'th-prazo-picker-native';
+      inp.id = pickerId;
       inp.setAttribute('aria-hidden', 'true');
       inp.tabIndex = -1;
-      inp.value = (currentData.prazo || '').split('T')[0] || '';
+      inp.value = (getIsoValue() || '').split('T')[0] || '';
       inp.style.position = 'fixed';
       inp.style.left = Math.max(8, rect.left) + 'px';
       inp.style.top = Math.max(8, rect.bottom + 6) + 'px';
@@ -1227,7 +1366,7 @@
       inp.style.zIndex = '12000';
       document.body.appendChild(inp);
       inp.addEventListener('change', function () {
-        salvarCampo('prazo', inp.value || null);
+        salvarCampo(field, inp.value || null);
         inp.remove();
       });
       inp.addEventListener('blur', function () { setTimeout(function () { if (inp.parentNode) inp.remove(); }, 200); });
@@ -1243,21 +1382,32 @@
     });
   }
 
+  bindDatePill(pillDataInicio, 'data_inicio', function () {
+    return currentData && (currentData.data_inicio || currentData.data_inicio_efetiva || '');
+  });
+  bindDatePill(pillPrazo, 'prazo', function () {
+    return currentData && (currentData.prazo || '');
+  });
+
+    if (pillResponsavel && selResponsavel) {
+      pillResponsavel.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!currentData || !currentData.pode_editar) return;
+        try {
+          ThRespPicker.attachModalNovaEtapa(selResponsavel);
+          ThRespPicker.open(selResponsavel, { zIndex: 12600, anchor: pillResponsavel, trigger: pillResponsavel });
+        } catch (err) {}
+      });
+    }
+
   if (elCommentAttach && elCommentFileInput) {
     elCommentAttach.addEventListener('click', function () { elCommentFileInput.click(); });
   }
 
   if (elCommentFileInput) {
     elCommentFileInput.addEventListener('change', function () {
-      var files = Array.from(elCommentFileInput.files || []);
-      if (files.length) {
-        files.forEach(function (f) { commentPendingFiles.push(f); });
-        elCommentFileInput.value = '';
-      }
-      renderCommentPendingFiles();
-      if (elCommentSend) {
-        elCommentSend.disabled = !((elCommentText && (elCommentText.value || '').trim()) || commentPendingFiles.length);
-      }
+      addCommentPendingFiles(elCommentFileInput.files);
+      elCommentFileInput.value = '';
     });
   }
 
@@ -1287,10 +1437,20 @@
     });
   }
 
-  if (elCommentText && elCommentSend) {
-    elCommentText.addEventListener('input', function () {
-      elCommentSend.disabled = !((elCommentText.value || '').trim() || commentPendingFiles.length);
+  if (elModal) {
+    if (!elModal.hasAttribute('tabindex')) elModal.setAttribute('tabindex', '-1');
+    elModal.addEventListener('mousedown', function (e) {
+      if (!currentPk || !overlay || overlay.hasAttribute('hidden')) return;
+      var t = e.target;
+      if (!t || !t.closest) return;
+      if (t.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+      focusModalForPaste();
     });
+    elModal.addEventListener('paste', onCommentPaste);
+  }
+
+  if (elCommentText && elCommentSend) {
+    elCommentText.addEventListener('input', updateCommentSendState);
     elCommentText.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' || e.shiftKey) return;
       e.preventDefault();
@@ -1633,6 +1793,7 @@
     overlay.removeAttribute('hidden');
     overlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
+    focusModalForPaste();
     if (elBreadcrumbObra) elBreadcrumbObra.textContent = '';
     if (elBreadcrumbTipo) elBreadcrumbTipo.textContent = '';
     if (elMetaCreated) elMetaCreated.textContent = '';
