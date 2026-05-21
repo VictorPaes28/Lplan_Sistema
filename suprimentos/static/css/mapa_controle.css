@@ -1219,6 +1219,21 @@
 
 .matrix-table .row-link {
     text-align: left;
+    cursor: pointer;
+}
+
+.mapa-controle-drill-hint {
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.mapa-controle-crumb {
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mapa-controle-crumb:hover {
+    text-decoration: underline;
 }
 
 .matrix-table .total-col {

@@ -1,9 +1,12 @@
+from datetime import date
+
 from django.contrib.auth.models import Group, User
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from accounts.groups import GRUPOS
-from gestao_aprovacao.models import Empresa, UserEmpresa
+from core.models import Project, ProjectMember
+from gestao_aprovacao.models import Empresa, Obra, UserEmpresa, WorkOrderPermission
 
 
 class UserGovernanceAccessTests(TestCase):
@@ -113,6 +116,75 @@ class AuditTimelineTests(TestCase):
         opts = TimelineOptions(period_days=30, module="admin", obra_id=None, max_merged=50, per_source_cap=20)
         evs = build_timeline_events(new_user, opts)
         self.assertTrue(any(e.get("kind") == "user_signup_approved" for e in evs))
+
+
+class EditUserInactiveProjectLinkTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.admin_user = User.objects.create_user(
+            username="edit_ina_admin",
+            password="pass12345",
+            email="edit_ina_admin@test.com",
+        )
+        g, _ = Group.objects.get_or_create(name=GRUPOS.ADMINISTRADOR)
+        self.admin_user.groups.add(g)
+
+        self.target = User.objects.create_user(
+            username="edit_ina_target",
+            password="pass12345",
+            email="edit_ina_target@test.com",
+        )
+        g_sol, _ = Group.objects.get_or_create(name=GRUPOS.SOLICITANTE)
+        self.target.groups.add(g_sol)
+
+        self.project = Project.objects.create(
+            code="INA-01",
+            name="Obra Inativa Teste",
+            start_date=date(2024, 1, 1),
+            end_date=date(2025, 12, 31),
+            is_active=False,
+        )
+        self.obra = Obra.objects.create(
+            codigo="INA-01",
+            nome="Obra Inativa Teste",
+            ativo=False,
+            project=self.project,
+        )
+
+    def test_edit_user_form_lists_inactive_project(self):
+        self.client.force_login(self.admin_user)
+        url = reverse("gestao:edit_user", kwargs={"pk": self.target.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "INA-01")
+        self.assertContains(response, "inativa")
+
+    def test_edit_user_can_link_inactive_project(self):
+        self.client.force_login(self.admin_user)
+        url = reverse("gestao:edit_user", kwargs={"pk": self.target.pk})
+        response = self.client.post(
+            url,
+            {
+                "email": self.target.email,
+                "first_name": "",
+                "last_name": "",
+                "telefone": "",
+                "grupos": [GRUPOS.SOLICITANTE],
+                "projects": [str(self.project.id)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            ProjectMember.objects.filter(user=self.target, project=self.project).exists()
+        )
+        self.assertTrue(
+            WorkOrderPermission.objects.filter(
+                usuario=self.target,
+                obra=self.obra,
+                tipo_permissao="solicitante",
+                ativo=True,
+            ).exists()
+        )
 
 
 class UserGovernanceServiceTests(TestCase):

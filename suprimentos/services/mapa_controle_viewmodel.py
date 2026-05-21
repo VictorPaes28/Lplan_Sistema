@@ -64,6 +64,13 @@ def _fmt_pct(value):
     return f"{round(num, 1)}%"
 
 
+def _is_total_header_label(value: str) -> bool:
+    token = _norm_token(value)
+    if not token:
+        return False
+    return token == "TOTAL" or token == "TOTAL GERAL" or token.startswith("TOTAL")
+
+
 def _extract_axis_map_from_meta(matrix_meta: dict) -> dict:
     meta = matrix_meta if isinstance(matrix_meta, dict) else {}
     cols = meta.get("axis_cols_interpreted") if isinstance(meta.get("axis_cols_interpreted"), list) else []
@@ -91,12 +98,6 @@ def _extract_axis_map_from_meta(matrix_meta: dict) -> dict:
         elif ("APTO" in token or "UNIDADE" in token or "LOCAL" in token) and "apto" not in axis_map:
             axis_map["apto"] = col
             used.add(col)
-    leftovers = [col for col, _ in pairs if col not in used]
-    for key in keys:
-        if key in axis_map:
-            continue
-        if leftovers:
-            axis_map[key] = leftovers.pop(0)
     return axis_map
 
 
@@ -146,10 +147,28 @@ class AmbienteProvider:
 
         activity_cols = matrix_meta.get("activity_cols_interpreted") if isinstance(matrix_meta.get("activity_cols_interpreted"), list) else []
         activity_cols = [c for c in activity_cols if isinstance(c, int)]
+        if not axis_map and header:
+            first_label = str(header[0] or "").strip()
+            if first_label:
+                token = _norm_token(first_label)
+                if "SETOR" in token or "REGIAO" in token:
+                    axis_map["setor"] = 0
+                elif "BLOCO" in token or "LOCAL" in token or "TORRE" in token:
+                    axis_map["bloco"] = 0
+                else:
+                    axis_map["bloco"] = 0
+                axis_cols = sorted(set(axis_map.values()))
         if not activity_cols and header:
-            activity_cols = [idx for idx in range(len(header)) if idx not in axis_cols]
+            activity_cols = [
+                idx
+                for idx in range(len(header))
+                if idx not in axis_cols and not _is_total_header_label(header[idx])
+            ]
 
-        quick_find = str(selected.get("quick_find") or "").strip()
+        is_manual_flat = len(axis_cols) <= 1
+        filter_selected = dict(selected)
+
+        quick_find = str(filter_selected.get("quick_find") or "").strip()
         if quick_find and not str(selected.get("apto") or "").strip():
             q = quick_find.lower()
             for row in body_rows:
@@ -164,9 +183,10 @@ class AmbienteProvider:
                         selected[key] = str(row[idx] or "").strip()
                 break
 
-        def _row_matches_axes(row_vals: list) -> bool:
+        def _row_matches_axes(row_vals: list, sel: dict | None = None) -> bool:
+            scope = sel if isinstance(sel, dict) else filter_selected
             for key in ("setor", "bloco", "pavimento", "apto"):
-                wanted = str(selected.get(key) or "").strip()
+                wanted = str(scope.get(key) or "").strip()
                 if not wanted:
                     continue
                 idx = axis_map.get(key)
@@ -177,8 +197,8 @@ class AmbienteProvider:
                     return False
             return True
 
-        search_filter = str(selected.get("search") or "").strip().lower()
-        status_filter = str(selected.get("status") or "").strip()
+        search_filter = str(filter_selected.get("search") or "").strip().lower()
+        status_filter = str(filter_selected.get("status") or "").strip()
         filtered_body = []
         for row in body_rows:
             if not isinstance(row, list):
@@ -318,19 +338,21 @@ class AmbienteProvider:
 
         # No dedicado por ambiente, a grade acompanha a profundidade do recorte:
         # bloco selecionado -> grade por pavimento; pavimento selecionado -> grade por apto.
-        # Isso evita cenários inconsistentes quando a navegação mistura chips e links da matriz.
-        if str(selected.get("apto") or "").strip():
+        if is_manual_flat:
+            row_mode_requested = "bloco"
+        elif str(filter_selected.get("apto") or "").strip():
             row_mode_requested = "apto"
-        elif str(selected.get("pavimento") or "").strip():
+        elif str(filter_selected.get("pavimento") or "").strip():
             row_mode_requested = "apto"
-        elif str(selected.get("bloco") or "").strip():
+        elif str(filter_selected.get("bloco") or "").strip():
             row_mode_requested = "pavimento"
         else:
             row_mode_requested = "bloco"
-        if row_mode_requested == "apto" and not str(selected.get("pavimento") or "").strip():
-            row_mode_requested = "pavimento" if str(selected.get("bloco") or "").strip() else "bloco"
-        if row_mode_requested == "pavimento" and not str(selected.get("bloco") or "").strip():
-            row_mode_requested = "bloco"
+        if not is_manual_flat:
+            if row_mode_requested == "apto" and not str(filter_selected.get("pavimento") or "").strip():
+                row_mode_requested = "pavimento" if str(filter_selected.get("bloco") or "").strip() else "bloco"
+            if row_mode_requested == "pavimento" and not str(filter_selected.get("bloco") or "").strip():
+                row_mode_requested = "bloco"
 
         row_axis_key = "bloco" if row_mode_requested == "bloco" else ("pavimento" if row_mode_requested == "pavimento" else "apto")
         row_axis_col = axis_map.get(row_axis_key)
@@ -374,12 +396,16 @@ class AmbienteProvider:
                     continue
                 activity_value_buckets[label].append(float(pct))
 
-        if row_mode_requested in {"bloco", "pavimento"} and isinstance(row_axis_col, int):
+        if (
+            not is_manual_flat
+            and row_mode_requested in {"bloco", "pavimento"}
+            and isinstance(row_axis_col, int)
+        ):
             grouped = {}
             for row in processed_rows:
                 key = str(row[row_axis_col] if row_axis_col < len(row) else "").strip()
                 if not key:
-                    key = "Sem valor"
+                    continue
                 if key not in grouped:
                     grouped[key] = {col_idx: [] for col_idx, _ in activity_labels}
                 for col_idx, _label in activity_labels:
@@ -413,6 +439,15 @@ class AmbienteProvider:
         row_meta["row_axis_cols_interpreted"] = [row_axis_col]
         matrix, kpis = self._build_matrix_payload_from_rows(effective_rows, row_meta)
         matrix["mode"] = row_mode_requested
+        matrix["allow_row_drill"] = (
+            (row_mode_requested == "bloco" and isinstance(axis_map.get("pavimento"), int))
+            or (row_mode_requested == "pavimento" and isinstance(axis_map.get("apto"), int))
+        )
+        matrix["drill_axis_key"] = (
+            "pavimento"
+            if row_mode_requested == "bloco"
+            else ("apto" if row_mode_requested == "pavimento" else "")
+        )
         matrix["header_first_col"] = {
             "bloco": "Bloco",
             "pavimento": "Pavimento",
@@ -522,10 +557,6 @@ class AmbienteProvider:
         }
         matrix_stable_qs = urlencode(
             {
-                "status": selected["status"],
-                "search": selected["search"],
-                "quick": selected["quick_find"],
-                "atividade": selected["atividade"],
                 "matrix_mode": row_mode_requested,
                 "ambiente_id": ambiente.id,
             }
@@ -1087,14 +1118,10 @@ class LegacyObraProvider:
 
         matrix_stable_qs = ""
         if obra:
-            matrix_stable_qs = urlencode(
-                {
-                    "status": selected["status"],
-                    "search": selected["search"],
-                    "quick": selected["quick_find"],
-                    "atividade": selected["atividade"],
-                }
-            )
+            stable_params = {}
+            if str(selected.get("atividade") or "").strip():
+                stable_params["atividade"] = selected["atividade"]
+            matrix_stable_qs = urlencode(stable_params)
 
             def _build_nav_url(params: dict) -> str:
                 clean = {}

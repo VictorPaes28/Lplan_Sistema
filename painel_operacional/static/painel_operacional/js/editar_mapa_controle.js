@@ -114,8 +114,393 @@
       font-size: 0.67rem;
       color: #64748b;
     }
+    .po-mapa-insert-dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 13000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .po-mapa-insert-dialog[hidden] {
+      display: none !important;
+    }
+    .po-mapa-insert-dialog__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+    }
+    .po-mapa-insert-dialog__panel {
+      position: relative;
+      width: min(420px, 100%);
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 22px 50px rgba(15, 23, 42, 0.22);
+      padding: 16px 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .po-mapa-insert-dialog__title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .po-mapa-insert-dialog__scope {
+      margin: 0;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: #475569;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .po-mapa-insert-dialog__field label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    .po-mapa-insert-dialog__field input[type="text"] {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+    }
+    .po-mapa-insert-dialog__field input[type="text"]:focus {
+      outline: 2px solid #93c5fd;
+      border-color: #60a5fa;
+    }
+    .po-mapa-insert-dialog__positions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .po-mapa-insert-dialog__positions legend {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 4px;
+    }
+    .po-mapa-insert-dialog__pos {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 7px 9px;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #0f172a;
+    }
+    .po-mapa-insert-dialog__pos:hover {
+      border-color: #93c5fd;
+      background: #f8fbff;
+    }
+    .po-mapa-insert-dialog__pos.is-active {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .po-mapa-insert-dialog__pos input {
+      margin-top: 2px;
+    }
+    .po-mapa-insert-dialog__pos small {
+      display: block;
+      color: #64748b;
+      font-size: 0.7rem;
+      margin-top: 2px;
+    }
+    .po-mapa-insert-dialog__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .po-mapa-insert-dialog__actions .btn-primary {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
   `;
   document.head.appendChild(contextMenuStyle);
+
+  const insertDialogEl = document.createElement("div");
+  insertDialogEl.id = "poMapaInsertDialog";
+  insertDialogEl.className = "po-mapa-insert-dialog";
+  insertDialogEl.hidden = true;
+  insertDialogEl.setAttribute("role", "dialog");
+  insertDialogEl.setAttribute("aria-modal", "true");
+  insertDialogEl.innerHTML = `
+    <div class="po-mapa-insert-dialog__backdrop" data-insert-dismiss="1"></div>
+    <div class="po-mapa-insert-dialog__panel">
+      <h3 class="po-mapa-insert-dialog__title" data-insert-title>Novo item</h3>
+      <p class="po-mapa-insert-dialog__scope" data-insert-scope></p>
+      <div class="po-mapa-insert-dialog__field">
+        <label data-insert-name-label>Nome</label>
+        <input type="text" data-insert-name autocomplete="off" />
+      </div>
+      <fieldset class="po-mapa-insert-dialog__positions">
+        <legend>Posição na lista</legend>
+        <label class="po-mapa-insert-dialog__pos" data-insert-pos="above">
+          <input type="radio" name="poMapaInsertPos" value="above" />
+          <span><span data-insert-pos-above-label>Acima da linha selecionada</span></span>
+        </label>
+        <label class="po-mapa-insert-dialog__pos" data-insert-pos="below">
+          <input type="radio" name="poMapaInsertPos" value="below" />
+          <span><span data-insert-pos-below-label>Abaixo da linha selecionada</span></span>
+        </label>
+        <label class="po-mapa-insert-dialog__pos" data-insert-pos="end">
+          <input type="radio" name="poMapaInsertPos" value="end" />
+          <span>No final da lista<small>Depois de todas as linhas visíveis</small></span>
+        </label>
+      </fieldset>
+      <div class="po-mapa-insert-dialog__actions">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-insert-cancel>Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" data-insert-confirm>Adicionar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(insertDialogEl);
+
+  const insertDialog = {
+    open: false,
+    kind: "row",
+    onSubmit: null,
+    els: {
+      title: insertDialogEl.querySelector("[data-insert-title]"),
+      scope: insertDialogEl.querySelector("[data-insert-scope]"),
+      nameLabel: insertDialogEl.querySelector("[data-insert-name-label]"),
+      nameInput: insertDialogEl.querySelector("[data-insert-name]"),
+      posAbove: insertDialogEl.querySelector('[data-insert-pos="above"]'),
+      posBelow: insertDialogEl.querySelector('[data-insert-pos="below"]'),
+      posEnd: insertDialogEl.querySelector('[data-insert-pos="end"]'),
+      posAboveLabel: insertDialogEl.querySelector("[data-insert-pos-above-label]"),
+      posBelowLabel: insertDialogEl.querySelector("[data-insert-pos-below-label]"),
+      confirm: insertDialogEl.querySelector("[data-insert-confirm]"),
+      cancel: insertDialogEl.querySelector("[data-insert-cancel]"),
+    },
+  };
+
+  function rowAxisHumanLabel(axisKey) {
+    if (axisKey === "pavimento") return "Pavimento";
+    if (axisKey === "apto") return "Unidade / apto";
+    if (axisKey === "setor") return "Setor";
+    return "Bloco";
+  }
+
+  function rowAxisPlaceholder(axisKey) {
+    if (axisKey === "pavimento") return "Ex.: Térreo, 1º andar…";
+    if (axisKey === "apto") return "Ex.: 101, 102, Sala 01…";
+    if (axisKey === "setor") return "Ex.: Torre Norte…";
+    return "Ex.: Bloco A, Bloco B…";
+  }
+
+  function buildRowInsertScopeHint() {
+    const scope = parseCurrentScope();
+    const axisKey = inferRowAxisKeyFromPage();
+    const crumbs = [];
+    if (scope.setor) crumbs.push(scope.setor);
+    if (scope.bloco) crumbs.push(scope.bloco);
+    if (scope.pavimento) crumbs.push(scope.pavimento);
+    if (crumbs.length) {
+      return `Dentro de ${crumbs.join(" › ")} — cadastre um novo ${rowAxisHumanLabel(axisKey).toLowerCase()} neste nível.`;
+    }
+    return `Lista de ${rowAxisHumanLabel(axisKey).toLowerCase()}s na raiz do mapa.`;
+  }
+
+  function selectedRowReferenceLabel() {
+    const sc = selectedCoords();
+    if (!sc || sc.r <= 0) return "";
+    const table = tableRef();
+    if (!table) return "";
+    const tbody = table.querySelector("tbody");
+    if (!tbody) return "";
+    const rows = Array.from(tbody.querySelectorAll("tr")).filter((tr) => !tr.classList.contains("totals-row"));
+    const row = rows[sc.r - 1];
+    if (!row) return "";
+    const nameCell = row.querySelector(".row-name, .sticky-left");
+    if (!nameCell) return "";
+    return String(textNodeForCell(nameCell).textContent || "").trim() || "linha selecionada";
+  }
+
+  function selectedColumnReferenceLabel() {
+    const sc = selectedCoords();
+    if (!sc || sc.c <= 0) return "";
+    const table = tableRef();
+    if (!table) return "";
+    const headerRow = table.querySelector("thead tr") || table.querySelector("tr");
+    if (!headerRow) return "";
+    const cell = headerRow.children[sc.c];
+    if (!cell) return "";
+    return String(textNodeForCell(cell).textContent || "").trim() || "coluna selecionada";
+  }
+
+  function syncInsertDialogPositionUi(kind) {
+    const isColumn = kind === "column";
+    const ref = isColumn ? selectedColumnReferenceLabel() : selectedRowReferenceLabel();
+    const hasRef = Boolean(ref);
+    const { posAbove, posBelow, posEnd, posAboveLabel, posBelowLabel } = insertDialog.els;
+    const endHint = posEnd ? posEnd.querySelector("small") : null;
+    if (posAbove) {
+      posAbove.hidden = !hasRef;
+      if (posAboveLabel) {
+        if (isColumn) {
+          posAboveLabel.textContent = hasRef ? `Antes de «${ref}»` : "Antes da coluna selecionada";
+        } else {
+          posAboveLabel.textContent = hasRef ? `Acima de «${ref}»` : "Acima da linha selecionada";
+        }
+      }
+    }
+    if (posBelow) {
+      posBelow.hidden = !hasRef;
+      if (posBelowLabel) {
+        if (isColumn) {
+          posBelowLabel.textContent = hasRef ? `Depois de «${ref}»` : "Depois da coluna selecionada";
+        } else {
+          posBelowLabel.textContent = hasRef ? `Abaixo de «${ref}»` : "Abaixo da linha selecionada";
+        }
+      }
+    }
+    if (posEnd) posEnd.hidden = false;
+    if (endHint) {
+      endHint.textContent = isColumn
+        ? "Última posição antes da coluna Total"
+        : "Depois de todas as linhas visíveis";
+    }
+    const defaultPos = hasRef ? "below" : "end";
+    insertDialogEl.querySelectorAll('input[name="poMapaInsertPos"]').forEach((input) => {
+      const label = input.closest(".po-mapa-insert-dialog__pos");
+      input.checked = input.value === defaultPos;
+      if (label) label.classList.toggle("is-active", input.checked);
+    });
+  }
+
+  function hideInsertDialog() {
+    insertDialog.open = false;
+    insertDialog.onSubmit = null;
+    insertDialogEl.hidden = true;
+  }
+
+  function showInsertDialog(config) {
+    if (!config || typeof config.onSubmit !== "function") return;
+    hideContextMenu();
+    insertDialog.open = true;
+    insertDialog.kind = config.kind === "column" ? "column" : "row";
+    insertDialog.onSubmit = config.onSubmit;
+
+    const { title, scope, nameLabel, nameInput, confirm } = insertDialog.els;
+    if (title) title.textContent = insertDialog.kind === "column" ? "Nova coluna / atividade" : "Nova linha";
+    if (scope) {
+      scope.textContent =
+        insertDialog.kind === "column"
+          ? `Adiciona uma coluna de atividade no ${scopeDisplayLabel()}.`
+          : buildRowInsertScopeHint();
+    }
+    if (nameLabel) {
+      if (insertDialog.kind === "column") {
+        nameLabel.textContent = "Nome da atividade";
+      } else {
+        nameLabel.textContent = rowAxisHumanLabel(inferRowAxisKeyFromPage());
+      }
+    }
+    if (nameInput) {
+      nameInput.value = "";
+      nameInput.placeholder =
+        insertDialog.kind === "column" ? "Ex.: Alvenaria, Instalações…" : rowAxisPlaceholder(inferRowAxisKeyFromPage());
+    }
+    if (confirm) confirm.textContent = insertDialog.kind === "column" ? "Adicionar coluna" : "Adicionar linha";
+    const posLegend = insertDialogEl.querySelector(".po-mapa-insert-dialog__positions legend");
+    if (posLegend) {
+      posLegend.textContent = insertDialog.kind === "column" ? "Posição na grade" : "Posição na lista";
+    }
+
+    syncInsertDialogPositionUi(insertDialog.kind);
+    insertDialogEl.hidden = false;
+    window.setTimeout(() => {
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 0);
+  }
+
+  function readInsertDialogPosition() {
+    const checked = insertDialogEl.querySelector('input[name="poMapaInsertPos"]:checked');
+    return checked ? String(checked.value || "end") : "end";
+  }
+
+  function resolveRowInsertIndex(position) {
+    const table = tableRef();
+    if (!table) return 0;
+    const tbodyRows = Array.from(table.querySelectorAll("tbody tr"));
+    let insertAt = tbodyRows.findIndex((tr) => tr.classList.contains("totals-row"));
+    if (insertAt < 0) insertAt = tbodyRows.length;
+    const sc = selectedCoords();
+    if (!sc || sc.r <= 0) return insertAt;
+    const base = sc.r - 1;
+    const mode = String(position || "below").trim().toLowerCase();
+    if (mode === "above") return Math.max(0, base);
+    if (mode === "end") {
+      insertAt = tbodyRows.findIndex((tr) => tr.classList.contains("totals-row"));
+      return insertAt < 0 ? tbodyRows.length : insertAt;
+    }
+    return Math.max(0, base + 1);
+  }
+
+  function resolveColumnInsertIndex(position) {
+    const table = tableRef();
+    if (!table) return 1;
+    const headerRow = table.querySelector("tr");
+    let insertAt = headerRow ? Math.max(1, headerRow.children.length - 1) : 1;
+    const sc = selectedCoords();
+    if (!sc || sc.c <= 0) return insertAt;
+    const mode = String(position || "below").trim().toLowerCase();
+    if (mode === "above") return sc.c;
+    if (mode === "end") return Math.max(1, headerRow.children.length - 1);
+    return sc.c + 1;
+  }
+
+  insertDialogEl.querySelectorAll(".po-mapa-insert-dialog__pos").forEach((label) => {
+    label.addEventListener("click", () => {
+      const input = label.querySelector('input[type="radio"]');
+      if (!input || input.disabled) return;
+      input.checked = true;
+      insertDialogEl.querySelectorAll(".po-mapa-insert-dialog__pos").forEach((el) => {
+        el.classList.toggle("is-active", el.querySelector('input[type="radio"]')?.checked);
+      });
+    });
+  });
+
+  insertDialogEl.querySelector("[data-insert-cancel]")?.addEventListener("click", () => hideInsertDialog());
+  insertDialogEl.querySelector('[data-insert-dismiss="1"]')?.addEventListener("click", () => hideInsertDialog());
+  insertDialogEl.querySelector("[data-insert-confirm]")?.addEventListener("click", () => {
+    if (!insertDialog.open || typeof insertDialog.onSubmit !== "function") return;
+    const name = String(insertDialog.els.nameInput?.value || "").trim();
+    if (!name) {
+      insertDialog.els.nameInput?.focus();
+      updateStatus("Informe um nome para continuar.");
+      return;
+    }
+    const position = readInsertDialogPosition();
+    const submit = insertDialog.onSubmit;
+    hideInsertDialog();
+    submit({ name, position });
+  });
+  insertDialog.els.nameInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      insertDialogEl.querySelector("[data-insert-confirm]")?.click();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      hideInsertDialog();
+    }
+  });
 
   function hideLoading() {
     if (loading) loading.style.display = "none";
@@ -229,6 +614,288 @@
     }
   }
 
+  function getCsrfToken() {
+    if (ctx.csrfToken) return ctx.csrfToken;
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function rowLabelForCell(cell) {
+    if (!cell) return "";
+    const tr = cell.closest("tr");
+    if (!tr) return "";
+    const nameCell = tr.querySelector(".row-name, .sticky-left");
+    if (!nameCell) return "";
+    return String(textNodeForCell(nameCell).textContent || "").trim();
+  }
+
+  function rememberCellPatch(cell, key, text) {
+    const page = ensurePageDraft(currentPageKey());
+    const coords = cellCoordsFromKey(cell);
+    if (!coords) return;
+    page.cells = page.cells || {};
+    page.cells[key] = {
+      colIndex: coords.c,
+      rowLabel: rowLabelForCell(cell),
+      text: String(text || ""),
+    };
+  }
+
+  function parsePageFilters(pageKey) {
+    try {
+      const u = new URL(pageKey, window.location.origin);
+      const filters = {};
+      ["setor", "bloco", "pavimento", "apto"].forEach((k) => {
+        const v = u.searchParams.get(k);
+        if (v) filters[k] = v;
+      });
+      return filters;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function buildAxisMapFromMeta(meta, header) {
+    const axisMap = {};
+    const cols = meta && Array.isArray(meta.axis_cols_interpreted) ? meta.axis_cols_interpreted : [];
+    const headers =
+      meta && Array.isArray(meta.axis_headers_interpreted) ? meta.axis_headers_interpreted : [];
+    const keys = ["setor", "bloco", "pavimento", "apto"];
+    cols.forEach((col, idx) => {
+      if (!Number.isInteger(col)) return;
+      const label = String(headers[idx] || (header[col] || "")).toUpperCase();
+      if (label.includes("SETOR") || label.includes("REGIAO")) axisMap.setor = col;
+      else if (label.includes("BLOCO") || label.includes("LOCAL") || label.includes("TORRE")) axisMap.bloco = col;
+      else if (label.includes("PAV") || label.includes("ANDAR") || label.includes("NIVEL")) axisMap.pavimento = col;
+      else if (label.includes("APTO") || label.includes("UNIDADE")) axisMap.apto = col;
+    });
+    if (!Object.keys(axisMap).length && header.length) {
+      axisMap.bloco = 0;
+    }
+    return axisMap;
+  }
+
+  function rowMatchesFilters(row, axisMap, filters) {
+    if (!filters || !Object.keys(filters).length) return true;
+    return Object.entries(filters).every(([key, value]) => {
+      const idx = axisMap[key];
+      if (!Number.isInteger(idx)) return true;
+      return String(row[idx] || "").trim() === String(value || "").trim();
+    });
+  }
+
+  function primaryAxisIndex(axisMap) {
+    if (Number.isInteger(axisMap.pavimento)) return axisMap.pavimento;
+    if (Number.isInteger(axisMap.apto)) return axisMap.apto;
+    if (Number.isInteger(axisMap.bloco)) return axisMap.bloco;
+    if (Number.isInteger(axisMap.setor)) return axisMap.setor;
+    return 0;
+  }
+
+  function inferRowAxisKeyFromPage() {
+    try {
+      const u = new URL(frame.contentWindow.location.href);
+      const mode = String(u.searchParams.get("matrix_mode") || "").trim();
+      if (mode === "apto") return "apto";
+      if (mode === "pavimento") return "pavimento";
+      return "bloco";
+    } catch (e) {
+      return "bloco";
+    }
+  }
+
+  function applyCellTextToLayoutRows(rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey) {
+    if (!Array.isArray(rows) || !rowLabel || !Number.isInteger(colIndex)) return;
+    const axisKey = rowAxisKey || inferRowAxisKeyFromPage();
+    const axisIdx = Number.isInteger(axisMap[axisKey]) ? axisMap[axisKey] : primaryAxisIndex(axisMap);
+    for (let ri = 1; ri < rows.length; ri += 1) {
+      const row = rows[ri];
+      if (!Array.isArray(row)) continue;
+      if (!rowMatchesFilters(row, axisMap, filters)) continue;
+      if (String(row[axisIdx] || "").trim() !== String(rowLabel).trim()) continue;
+      while (row.length <= colIndex) row.push("");
+      row[colIndex] = text;
+    }
+  }
+
+  function isManualFlatLayout(meta, axisMap) {
+    const axisCols =
+      meta && Array.isArray(meta.axis_cols_interpreted) ? meta.axis_cols_interpreted : [];
+    return axisCols.length <= 1 || Object.keys(axisMap).length <= 1;
+  }
+
+  function exportTableBodyRows(table, header, axisMap) {
+    if (!table || !Array.isArray(header) || !header.length) return [];
+    const colCount = header.length;
+    const out = [];
+    const filters = parsePageFilters(currentPageKey());
+    const rowAxisKey = inferRowAxisKeyFromPage();
+    const rowAxisIdx = axisMap[rowAxisKey];
+    const bodyRows = Array.from(table.querySelectorAll("tbody tr")).filter(
+      (tr) => !tr.classList.contains("totals-row")
+    );
+    bodyRows.forEach((tr) => {
+      const row = new Array(colCount).fill("");
+      ["setor", "bloco", "pavimento", "apto"].forEach((key) => {
+        const idx = axisMap[key];
+        if (Number.isInteger(idx) && filters[key]) row[idx] = filters[key];
+      });
+      const nameCell = tr.querySelector(".row-name, .sticky-left");
+      if (nameCell && Number.isInteger(rowAxisIdx)) {
+        let label = String(textNodeForCell(nameCell).textContent || "").trim();
+        if (label === "-") label = "";
+        row[rowAxisIdx] = label;
+      }
+      tr.querySelectorAll("td").forEach((cell) => {
+        if (cell.classList.contains("row-name") || cell.classList.contains("sticky-left")) return;
+        const coords = cellCoordsFromKey(cell);
+        const colIndex = coords ? coords.c : null;
+        if (colIndex == null || colIndex < 0 || colIndex >= colCount) return;
+        let text = String(textNodeForCell(cell).textContent || "").trim();
+        if (text === "-") text = "";
+        if (text.endsWith("%")) {
+          text = text.replace(/%/g, "").trim();
+        }
+        row[colIndex] = text;
+      });
+      out.push(row);
+    });
+    return out;
+  }
+
+  function replaceLayoutRowsFromTableExport(data, axisMap, meta) {
+    const doc = frame.contentDocument;
+    const table = doc && doc.querySelector(".matrix-table");
+    if (!table || !data || !Array.isArray(data.rows) || !data.rows.length) return;
+    const header = data.rows[0];
+    const exported = exportTableBodyRows(table, header, axisMap);
+    if (!exported.length) return;
+
+    const filters = parsePageFilters(currentPageKey());
+    const manualFlat = isManualFlatLayout(meta, axisMap);
+    const hasScopedAxisFilter = Object.entries(filters).some(([key, value]) => {
+      if (!value) return false;
+      return Number.isInteger(axisMap[key]);
+    });
+
+    if (manualFlat || !hasScopedAxisFilter) {
+      data.rows = [header, ...exported];
+      return;
+    }
+
+    const kept = [];
+    for (let ri = 1; ri < data.rows.length; ri += 1) {
+      const row = data.rows[ri];
+      if (!Array.isArray(row)) continue;
+      if (!rowMatchesFilters(row, axisMap, filters)) {
+        kept.push(row);
+      }
+    }
+    data.rows = [header, ...kept, ...exported];
+  }
+
+  function mergeVisibleTableIntoLayoutRows(rows, axisMap, filters) {
+    const doc = frame.contentDocument;
+    const table = doc && doc.querySelector(".matrix-table");
+    if (!table || !Array.isArray(rows) || !rows.length) return;
+    const bodyRows = Array.from(table.querySelectorAll("tbody tr")).filter(
+      (tr) => !tr.classList.contains("totals-row")
+    );
+    bodyRows.forEach((tr) => {
+      const nameCell = tr.querySelector(".row-name, .sticky-left");
+      if (!nameCell) return;
+      const rowLabel = String(textNodeForCell(nameCell).textContent || "").trim();
+      tr.querySelectorAll("td").forEach((cell) => {
+        if (cell.classList.contains("row-name") || cell.classList.contains("sticky-left")) return;
+        const coords = cellCoordsFromKey(cell);
+        if (!coords) return;
+        const text = String(textNodeForCell(cell).textContent || "").trim();
+        applyCellTextToLayoutRows(rows, axisMap, filters, rowLabel, coords.c, text, inferRowAxisKeyFromPage());
+      });
+    });
+  }
+
+  function mergeAllDraftsIntoLayout(layout) {
+    const next = layout && typeof layout === "object" ? layout : { sections: [] };
+    const sections = Array.isArray(next.sections) ? next.sections : [];
+    sections.forEach((section) => {
+      const data = section && section.data;
+      if (!data || !Array.isArray(data.rows) || !data.rows.length) return;
+      const header = data.rows[0];
+      const meta = data.importMeta && typeof data.importMeta === "object" ? data.importMeta : {};
+      const axisMap = buildAxisMapFromMeta(meta, header);
+      const pages = state.draft.pages || {};
+      Object.entries(pages).forEach(([pageKey, pageDraft]) => {
+        const filters = parsePageFilters(pageKey);
+        const texts = (pageDraft && pageDraft.text) || {};
+        const cells = (pageDraft && pageDraft.cells) || {};
+        const keys = new Set([...Object.keys(texts), ...Object.keys(cells)]);
+        keys.forEach((key) => {
+          const patch = cells[key] || {};
+          const colIndex = Number.isInteger(patch.colIndex) ? patch.colIndex : null;
+          const rowLabel = patch.rowLabel != null ? String(patch.rowLabel).trim() : "";
+          const text =
+            texts[key] != null ? String(texts[key]) : patch.text != null ? String(patch.text) : "";
+          if (!rowLabel || colIndex == null) return;
+        const rowAxisKey = inferRowAxisKeyFromPage();
+        applyCellTextToLayoutRows(data.rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey);
+      });
+    });
+      mergeVisibleTableIntoLayoutRows(data.rows, axisMap, parsePageFilters(currentPageKey()));
+      replaceLayoutRowsFromTableExport(data, axisMap, meta);
+    });
+    return next;
+  }
+
+  async function saveDraftToServer() {
+    if (!ctx.ambienteId || !ctx.endpoints || !ctx.endpoints.saveDraft) {
+      saveDraftToStorage();
+      return;
+    }
+    finishInlineEdit({ commit: true });
+    updateStatus("Salvando no servidor...");
+    try {
+      const detRes = await fetch(ctx.endpoints.detalhe, {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      const detJson = await detRes.json();
+      if (!detRes.ok || !detJson.success) {
+        throw new Error((detJson && detJson.error) || "Falha ao carregar rascunho do ambiente.");
+      }
+      const draft = detJson.draft || detJson.versao || {};
+      const layout = mergeAllDraftsIntoLayout(JSON.parse(JSON.stringify(draft.layout || {})));
+      const saveRes = await fetch(ctx.endpoints.saveDraft, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({
+          layout,
+          metadados: draft.metadados || {},
+        }),
+      });
+      const saveJson = await saveRes.json();
+      if (!saveRes.ok || !saveJson.success) {
+        throw new Error((saveJson && saveJson.error) || "Falha ao salvar no servidor.");
+      }
+      state.dirty = false;
+      state.draft = { pages: {} };
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch (e) {
+        void e;
+      }
+      updateStatus("Mapa salvo no servidor.");
+      frame.contentWindow.location.reload();
+    } catch (err) {
+      updateStatus(err && err.message ? err.message : "Erro ao salvar no servidor.");
+    }
+  }
+
   function saveDraftToStorage() {
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(state.draft));
@@ -329,10 +996,15 @@
       const style = doc.createElement("style");
       style.id = styleId;
       style.textContent = `
-        .po-map-edit-enabled .matrix-table a {
+        .po-map-edit-enabled .matrix-table a:not(.row-link) {
           pointer-events: none !important;
           cursor: default !important;
           text-decoration: none !important;
+        }
+        .po-map-edit-enabled .matrix-table a.row-link {
+          pointer-events: auto !important;
+          cursor: pointer !important;
+          text-decoration: underline !important;
         }
       `;
       (doc.head || doc.documentElement).appendChild(style);
@@ -353,6 +1025,7 @@
     if (commit && inline.key) {
       inline.node.textContent = nextText;
       page.text[inline.key] = nextText;
+      rememberCellPatch(inline.cell, inline.key, nextText);
       if (hasChanged) markDirty();
       if (inpText && state.selectedCell === inline.cell) {
         inpText.value = nextText;
@@ -786,22 +1459,15 @@
     if (!state.enabled) return;
     const table = tableRef();
     if (!table) return;
-    const name = window.prompt("Nome da nova coluna/atividade:", "Nova atividade");
-    if (name === null) return;
-    const label = String(name || "").trim();
-    if (!label) return;
-    const sc = selectedCoords();
-    let insertAt = table.querySelector("tr") ? Math.max(1, table.querySelector("tr").children.length - 1) : 1;
-    if (sc && sc.c > 0) {
-      const pos = window.prompt("Posição da coluna: antes | depois | fim", "depois");
-      const mode = String(pos || "depois").trim().toLowerCase();
-      if (mode === "antes") insertAt = sc.c;
-      else if (mode === "fim") insertAt = Math.max(1, table.querySelector("tr").children.length - 1);
-      else insertAt = sc.c + 1;
-    }
-    if (applyInsertColumn(insertAt, label, { registerOp: true, keepSelection: true })) {
-      updateStatus(`Coluna "${label}" adicionada no ${scopeDisplayLabel()}.`);
-    }
+    showInsertDialog({
+      kind: "column",
+      onSubmit: ({ name, position }) => {
+        const insertAt = resolveColumnInsertIndex(position);
+        if (applyInsertColumn(insertAt, name, { registerOp: true, keepSelection: true })) {
+          updateStatus(`Coluna "${name}" adicionada no ${scopeDisplayLabel()}.`);
+        }
+      },
+    });
   }
 
   function addRowFromToolbar() {
@@ -810,29 +1476,16 @@
     if (!table) return;
     const tbodyRows = Array.from(table.querySelectorAll("tbody tr"));
     if (!tbodyRows.length) return;
-    const name = window.prompt("Nome da nova linha:", "Nova linha");
-    if (name === null) return;
-    const label = String(name || "").trim();
-    if (!label) return;
-
-    const sc = selectedCoords();
-    let insertAt = tbodyRows.findIndex((tr) => tr.classList.contains("totals-row"));
-    if (insertAt < 0) insertAt = tbodyRows.length;
-    if (sc && sc.r > 0) {
-      const base = sc.r - 1;
-      const pos = window.prompt("Posição da linha: acima | abaixo | fim", "abaixo");
-      const mode = String(pos || "abaixo").trim().toLowerCase();
-      if (mode === "acima") insertAt = Math.max(0, base);
-      else if (mode === "fim") {
-        insertAt = tbodyRows.findIndex((tr) => tr.classList.contains("totals-row"));
-        if (insertAt < 0) insertAt = tbodyRows.length;
-      } else {
-        insertAt = Math.max(0, base + 1);
-      }
-    }
-    if (applyInsertRow(insertAt, label, { registerOp: true, keepSelection: true })) {
-      updateStatus(`Linha "${label}" adicionada no ${scopeDisplayLabel()}.`);
-    }
+    showInsertDialog({
+      kind: "row",
+      onSubmit: ({ name, position }) => {
+        const insertAt = resolveRowInsertIndex(position);
+        if (applyInsertRow(insertAt, name, { registerOp: true, keepSelection: true })) {
+          updateStatus(`Linha "${name}" adicionada no ${scopeDisplayLabel()}.`);
+          if (state.selectedCell) startInlineEdit(state.selectedCell);
+        }
+      },
+    });
   }
 
   function deleteColumnFromToolbar() {
@@ -917,7 +1570,7 @@
     contextMenuEl.appendChild(menuItem("Cor personalizada", "", { disabled: !state.enabled, onClick: () => inpColor && inpColor.click() }));
 
     contextMenuEl.appendChild(menuSeparator());
-    contextMenuEl.appendChild(menuItem("Salvar rascunho local", "", { disabled: !state.enabled, onClick: saveDraftToStorage }));
+    contextMenuEl.appendChild(menuItem("Salvar no servidor", "", { disabled: !state.enabled, onClick: () => saveDraftToServer() }));
     contextMenuEl.appendChild(menuItem("Descartar rascunho", "", { disabled: !state.enabled, danger: true, onClick: discardDraft }));
 
     showContextMenu(event.clientX, event.clientY);
@@ -925,9 +1578,12 @@
 
   function onDocClick(event) {
     if (state.context.visible) hideContextMenu();
-    if (!state.enabled) return;
     const target = resolveEventElement(event.target);
     if (!target) return;
+    if (target.closest("a.row-link")) {
+      return;
+    }
+    if (!state.enabled) return;
     if (state.inline.node && (target === state.inline.node || target.closest('[data-po-inline-edit="1"]'))) {
       return;
     }
@@ -965,6 +1621,10 @@
   }
 
   function onAnyDocKeyDown(event) {
+    if (insertDialog.open && event.key === "Escape") {
+      hideInsertDialog();
+      return;
+    }
     if (!state.context.visible) return;
     if (event.key === "Escape") {
       hideContextMenu();
@@ -1052,6 +1712,7 @@
     if (inpText) inpText.value = value;
     textNodeForCell(state.selectedCell).textContent = value;
     page.text[state.selectedKey] = value;
+    rememberCellPatch(state.selectedCell, state.selectedKey, value);
     markDirty();
   }
 
@@ -1063,6 +1724,7 @@
     inpText.value = value;
     textNodeForCell(state.selectedCell).textContent = value;
     page.text[state.selectedKey] = value;
+    rememberCellPatch(state.selectedCell, state.selectedKey, value);
     markDirty();
   }
 
@@ -1247,7 +1909,7 @@
       }
     });
   }
-  if (btnSaveDraft) btnSaveDraft.addEventListener("click", saveDraftToStorage);
+  if (btnSaveDraft) btnSaveDraft.addEventListener("click", () => saveDraftToServer());
   if (btnDiscardDraft) btnDiscardDraft.addEventListener("click", discardDraft);
 
   updateToggleUi();

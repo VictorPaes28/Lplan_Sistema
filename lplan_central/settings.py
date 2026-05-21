@@ -518,7 +518,7 @@ LOGGING = {
     'handlers': {
         'file': {
             'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'lplan_central.log_handlers.SafeRotatingFileHandler',
             'filename': LOG_DIR / 'lplan.log',
             'maxBytes': 1024 * 1024 * 5,  # 5 MB
             'backupCount': 3,
@@ -526,7 +526,7 @@ LOGGING = {
         },
         'file_errors': {
             'level': 'ERROR',
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'lplan_central.log_handlers.SafeRotatingFileHandler',
             'filename': LOG_DIR / 'lplan_errors.log',
             'maxBytes': 1024 * 1024 * 5,
             'backupCount': 5,

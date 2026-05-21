@@ -209,8 +209,8 @@
   </div>
 
   <p class="po-mapa-edit__notice">
-    Você está no fluxo de edição especializado deste mapa. Clique em <strong>Ativar edição</strong>, selecione uma célula
-    da matriz e edite texto/cor dentro do contexto atual.
+    Ative a edição, selecione uma célula e altere texto/cor. Use <strong>+ Linha</strong> ou o menu com o botão direito
+    para cadastrar blocos, pavimentos ou unidades no nível em que você está navegando — com posição acima, abaixo ou no final.
   </p>
 
   <div class="po-mapa-edit__frame-wrap">
@@ -256,7 +256,7 @@
         <button id="btnMapaDeleteRow" type="button" class="btn btn-outline-danger btn-sm" disabled>Apagar linha</button>
       </span>
       <span class="po-mapa-edit__toolbar-group po-mapa-edit__draft-group">
-        <button id="btnMapaSaveDraft" type="button" class="btn btn-primary btn-sm" disabled>Salvar rascunho local</button>
+        <button id="btnMapaSaveDraft" type="button" class="btn btn-primary btn-sm" disabled>Salvar no servidor</button>
       </span>
       <button id="btnMapaDiscardDraft" type="button" class="btn btn-outline-danger btn-sm po-mapa-edit__discard-btn" disabled>Descartar rascunho</button>
     </div>
@@ -278,6 +278,12 @@
 <script>
 window.PO_MAPA_EDIT_CONTEXT = {
   ambienteId: {{ ambiente_id }},
+  obraId: {{ obra_selecionada.id }},
+  csrfToken: "{{ csrf_token }}",
+  endpoints: {
+    detalhe: "{{ api_detalhe_url }}",
+    saveDraft: "{{ api_salvar_rascunho_url }}",
+  },
 };
 </script>
 <script src="{% static 'painel_operacional/js/editar_mapa_controle.js' %}"></script>
