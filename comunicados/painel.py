@@ -221,7 +221,8 @@ def editar(request, pk):
         saved_ok = False
         fs_invalid = None
         with transaction.atomic():
-            form.save()
+            instance = form.save(commit=False)
+            instance.save()
             form.save_m2m()
             fs = FS(request.POST, request.FILES, instance=comunicado)
             if fs.is_valid():
