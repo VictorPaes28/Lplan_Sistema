@@ -5,41 +5,97 @@
 
 <div class="th-cal-header">
   <div class="th-cal-nav">
-    <a href="?year={{ prev_year }}&month={{ prev_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}" class="th-cal-btn">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}{% if filtros.tipo %}&tipo={{ filtros.tipo }}{% endif %}{% if filtros.status %}&status={{ filtros.status }}{% endif %}{% if filtros.responsavel %}&responsavel={{ filtros.responsavel }}{% endif %}{% if filtros.prioridade %}&prioridade={{ filtros.prioridade }}{% endif %}" class="th-cal-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
     <span class="th-cal-month">{{ month_label }}</span>
-    <a href="?year={{ next_year }}&month={{ next_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}" class="th-cal-btn">
+    <a href="?year={{ next_year }}&month={{ next_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}{% if filtros.tipo %}&tipo={{ filtros.tipo }}{% endif %}{% if filtros.status %}&status={{ filtros.status }}{% endif %}{% if filtros.responsavel %}&responsavel={{ filtros.responsavel }}{% endif %}{% if filtros.prioridade %}&prioridade={{ filtros.prioridade }}{% endif %}" class="th-cal-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
   </div>
   <div class="th-cal-header-right">
-    <div class="th-cal-legend" aria-label="Legenda de prioridades">
-      <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--urgente" aria-hidden="true"></span>
-        Urgente
-      </span>
-      <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--alta" aria-hidden="true"></span>
-        Alta
-      </span>
-      <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--normal" aria-hidden="true"></span>
-        Normal
-      </span>
-      <span class="th-cal-legend-item">
-        <span class="th-cal-legend-swatch th-cal-legend-swatch--baixa" aria-hidden="true"></span>
-        Baixa
-      </span>
+    <div class="th-cal-filters" data-year="{{ year }}" data-month="{{ month }}">
+
+      {# Prioridade (multi) #}
+      <div class="th-cf-wrap" data-filter="prioridade" data-current="{{ filtros.prioridade }}" data-multi="true">
+        <button type="button" class="th-cf-btn{% if filtros.prioridade_label %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+          <span class="th-cf-label">{% if filtros.prioridade_label %}{{ filtros.prioridade_label }}{% else %}Prioridade{% endif %}</span>
+          <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="th-cf-panel" hidden role="listbox" aria-multiselectable="true">
+          <ul class="th-cf-list">
+            <li class="th-cf-item th-cf-item--multi{% if 'urgente' in filtros.prioridade_vals %} th-cf-item--checked{% endif %}" data-value="urgente" role="option"><span class="th-cf-checkbox"></span><span class="th-cf-dot th-cf-dot--urgente"></span>Urgente</li>
+            <li class="th-cf-item th-cf-item--multi{% if 'alta' in filtros.prioridade_vals %} th-cf-item--checked{% endif %}" data-value="alta" role="option"><span class="th-cf-checkbox"></span><span class="th-cf-dot th-cf-dot--alta"></span>Alta</li>
+            <li class="th-cf-item th-cf-item--multi{% if 'normal' in filtros.prioridade_vals %} th-cf-item--checked{% endif %}" data-value="normal" role="option"><span class="th-cf-checkbox"></span><span class="th-cf-dot th-cf-dot--normal"></span>Normal</li>
+            <li class="th-cf-item th-cf-item--multi{% if 'baixa' in filtros.prioridade_vals %} th-cf-item--checked{% endif %}" data-value="baixa" role="option"><span class="th-cf-checkbox"></span><span class="th-cf-dot th-cf-dot--baixa"></span>Baixa</li>
+          </ul>
+        </div>
+      </div>
+
+      {# Local #}
+      <div class="th-cf-wrap" data-filter="obra" data-current="{{ filtros.obra }}">
+        <button type="button" class="th-cf-btn{% if filtros.obra %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+          <span class="th-cf-label">{% if filtros.obra_nome %}{{ filtros.obra_nome }}{% else %}Local{% endif %}</span>
+          <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="th-cf-panel" hidden role="listbox">
+          <input type="text" class="th-cf-search" placeholder="Buscar local…" autocomplete="off" aria-label="Filtrar locais">
+          <ul class="th-cf-list">
+            <li class="th-cf-item{% if not filtros.obra %} th-cf-item--selected{% endif %}" data-value="" role="option">Todos os locais</li>
+            {% for o in obras %}<li class="th-cf-item{% if filtros.obra == o.id|stringformat:'s' %} th-cf-item--selected{% endif %}" data-value="{{ o.id }}" role="option">{{ o.nome }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      {# Tipo #}
+      <div class="th-cf-wrap" data-filter="tipo" data-current="{{ filtros.tipo }}">
+        <button type="button" class="th-cf-btn{% if filtros.tipo %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+          <span class="th-cf-label">{% if filtros.tipo_label %}{{ filtros.tipo_label }}{% else %}Tipo{% endif %}</span>
+          <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="th-cf-panel" hidden role="listbox">
+          <ul class="th-cf-list">
+            <li class="th-cf-item{% if not filtros.tipo %} th-cf-item--selected{% endif %}" data-value="" role="option">Todos os tipos</li>
+            {% for t_val, t_label in tipos %}<li class="th-cf-item{% if filtros.tipo == t_val %} th-cf-item--selected{% endif %}" data-value="{{ t_val }}" role="option">{{ t_label }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      {# Status #}
+      <div class="th-cf-wrap" data-filter="status" data-current="{{ filtros.status }}">
+        <button type="button" class="th-cf-btn{% if filtros.status %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+          <span class="th-cf-label">{% if filtros.status_label %}{{ filtros.status_label }}{% else %}Status{% endif %}</span>
+          <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="th-cf-panel" hidden role="listbox">
+          <ul class="th-cf-list">
+            <li class="th-cf-item{% if not filtros.status %} th-cf-item--selected{% endif %}" data-value="" role="option">Todos os status</li>
+            <li class="th-cf-item{% if filtros.status == 'em_aberto' %} th-cf-item--selected{% endif %}" data-value="em_aberto" role="option">Em aberto</li>
+            <li class="th-cf-item{% if filtros.status == 'vencida' %} th-cf-item--selected{% endif %}" data-value="vencida" role="option">Vencida</li>
+            <li class="th-cf-item{% if filtros.status == 'concluida' %} th-cf-item--selected{% endif %}" data-value="concluida" role="option">Concluída</li>
+            <li class="th-cf-item{% if filtros.status == 'cancelada' %} th-cf-item--selected{% endif %}" data-value="cancelada" role="option">Cancelada</li>
+          </ul>
+        </div>
+      </div>
+
+      {# Responsável #}
+      <div class="th-cf-wrap" data-filter="responsavel" data-current="{{ filtros.responsavel }}">
+        <button type="button" class="th-cf-btn{% if filtros.responsavel %} th-cf-btn--active{% endif %}" aria-haspopup="listbox" aria-expanded="false">
+          {% if filtros.responsavel_iniciais %}<span class="th-cf-avatar" data-nome="{{ filtros.responsavel_nome }}">{{ filtros.responsavel_iniciais }}</span>{% endif %}
+          <span class="th-cf-label">{% if filtros.responsavel_nome %}{{ filtros.responsavel_nome }}{% else %}Responsável{% endif %}</span>
+          <svg class="th-cf-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="th-cf-panel" hidden role="listbox">
+          <input type="text" class="th-cf-search" placeholder="Buscar responsável…" autocomplete="off" aria-label="Filtrar responsáveis">
+          <ul class="th-cf-list" id="th-cf-resp-list"></ul>
+        </div>
+      </div>
+
+      {% if filtros.obra or filtros.tipo or filtros.status or filtros.responsavel or filtros.prioridade_label %}
+      <a href="?year={{ year }}&month={{ month }}" class="th-cf-clear">Limpar filtros</a>
+      {% endif %}
+
     </div>
-    <form method="GET">
-      <input type="hidden" name="year" value="{{ year }}">
-      <input type="hidden" name="month" value="{{ month }}">
-      <select name="obra" class="th-filter-select" onchange="this.form.submit()">
-        <option value="">Todos os locais</option>
-        {% for o in obras %}<option value="{{ o.id }}" {% if filtros.obra == o.id|stringformat:"s" %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
-      </select>
-    </form>
   </div>
 </div>
 
@@ -97,10 +153,11 @@
 
 {% include "trackhub/includes/modal_cal_dia.html" %}
 <script type="application/json" id="th-cal-day-data" data-url-pattern="{{ pendencia_detalhe_url_pattern }}">{{ calendar_day_data_json|safe }}</script>
+<script type="application/json" id="th-cal-resp-data">{{ responsaveis_json|safe }}</script>
 
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
-<script src="{% static 'trackhub/js/trackhub_calendario.js' %}?v=2"></script>
+<script src="{% static 'trackhub/js/trackhub_calendario.js' %}?v=4"></script>
 {% endblock %}

@@ -883,7 +883,7 @@ def _fila_stats_for_user(user):
     etapas_pendentes = EtapaPendencia.objects.filter(
         pendencia__in=pendencias_base,
         status="pendente",
-    ).count()
+    ).exclude(pendencia__status="cancelada").count()
     return {
         "urgentes_vencidas": pendencias_base.filter(
             Q(prioridade="urgente") | Q(prazo__lt=hoje)
@@ -968,6 +968,8 @@ def _fila_list_render(request, template_name, origem=None):
     tipo = (request.GET.get("tipo") or "").strip()
     prioridade = (request.GET.get("prioridade") or "").strip()
     status = (request.GET.get("status") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+    responsavel_id = (request.GET.get("responsavel") or "").strip()
 
     if obra_id and str(obra_id).isdigit():
         qs = qs.filter(obra_id=int(obra_id))
@@ -976,7 +978,17 @@ def _fila_list_render(request, template_name, origem=None):
     if prioridade:
         qs = qs.filter(prioridade=prioridade)
     if status:
-        qs = qs.filter(status=status)
+        if status == 'em_aberto':
+            qs = qs.filter(status__in=['aberta', 'em_andamento'])
+        elif status == 'vencida':
+            hoje = timezone.localdate()
+            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=hoje)
+        else:
+            qs = qs.filter(status=status)
+    if q:
+        qs = qs.filter(titulo__icontains=q)
+    if responsavel_id and str(responsavel_id).isdigit():
+        qs = qs.filter(responsavel_interno_id=int(responsavel_id))
 
     hoje = timezone.localdate()
     items = list(qs)
@@ -991,20 +1003,51 @@ def _fila_list_render(request, template_name, origem=None):
     page_obj = paginator.get_page(request.GET.get("page"))
     pode_editar_trackhub_pks = _pks_pode_editar_trackhub(request.user, page_obj.object_list)
 
+    resp_nome = ""
+    resp_iniciais = ""
+    if responsavel_id and str(responsavel_id).isdigit():
+        _usr = User.objects.filter(pk=int(responsavel_id), is_active=True).first()
+        if _usr:
+            resp_nome = _usr.get_full_name().strip() or _usr.username
+            resp_iniciais = _iniciais(resp_nome)
+
     filtros = {
         "obra": obra_id or "",
         "tipo": tipo,
         "prioridade": prioridade,
         "status": status,
+        "q": q,
+        "responsavel": responsavel_id,
+        "responsavel_nome": resp_nome,
+        "responsavel_iniciais": resp_iniciais,
     }
+
+    roles = _trackhub_roles(request.user)
+    if roles["admin"]:
+        responsaveis_payload = _todos_usuarios_ativos_payload()
+    else:
+        obra_payloads = _responsaveis_por_obra_payload(obras_qs)
+        seen: set = set()
+        responsaveis_payload = []
+        for op in obra_payloads:
+            for p in op["pessoas"]:
+                if p["id"] not in seen:
+                    seen.add(p["id"])
+                    responsaveis_payload.append(p)
+        responsaveis_payload.sort(key=lambda p: (p.get("nome") or "").lower())
+
+    tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
+    tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
     ctx = {
         "obras": obras_qs,
         "page_obj": page_obj,
         "filtros": filtros,
+        "tipos": tipos,
         "stats": _fila_stats_for_user(request.user),
         "pagination_qs": _pagination_qs(request),
         "pode_editar_trackhub_pks": pode_editar_trackhub_pks,
+        "responsaveis_json": json.dumps(responsaveis_payload, ensure_ascii=False),
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, template_name, ctx)
@@ -1253,7 +1296,16 @@ def calendario_view(request):
     mes_fim = date(year, month, last_day)
 
     obras_qs = _obras_queryset_for_user(request.user)
-    obra_id = request.GET.get("obra")
+    obra_id = request.GET.get("obra", "")
+    tipo_val = request.GET.get("tipo", "")
+    status_val = request.GET.get("status", "")
+    responsavel_id = request.GET.get("responsavel", "")
+    prioridade_raw = request.GET.get("prioridade", "")
+    _valid_prioridades = {"urgente", "alta", "normal", "baixa"}
+    prioridade_vals = [
+        v.strip() for v in prioridade_raw.split(",")
+        if v.strip() in _valid_prioridades
+    ] if prioridade_raw else []
     qs = (
         _pendencias_qs_for_user(request.user)
         .select_related("obra")
@@ -1261,8 +1313,32 @@ def calendario_view(request):
     )
     if obra_id and str(obra_id).isdigit():
         qs = qs.filter(obra_id=int(obra_id))
+    if tipo_val:
+        qs = qs.filter(tipo=tipo_val)
+    if status_val:
+        if status_val == 'em_aberto':
+            qs = qs.filter(status__in=['aberta', 'em_andamento'])
+        elif status_val == 'vencida':
+            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=today)
+        elif status_val == 'concluida':
+            qs = qs.filter(status='concluida')
+        elif status_val == 'cancelada':
+            qs = qs.filter(status='cancelada')
+    if responsavel_id and str(responsavel_id).isdigit():
+        qs = qs.filter(responsavel_interno_id=int(responsavel_id))
+    if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
+        qs = qs.filter(prioridade__in=prioridade_vals)
 
-    pendencias_mes = _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim)
+    if status_val == 'vencida':
+        pendencias_mes = []
+        for p in qs:
+            di, df = _pendencia_intervalo_calendario(p)
+            df_efetivo = max(df, today)
+            if di <= mes_fim and df_efetivo >= mes_inicio:
+                pendencias_mes.append((p, di, df_efetivo))
+        pendencias_mes.sort(key=lambda x: (x[1], x[2], x[0].titulo or ""))
+    else:
+        pendencias_mes = _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim)
 
     cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
     calendar_weeks = []
@@ -1328,11 +1404,65 @@ def calendario_view(request):
 
     month_label = f"{_MONTHS_PT[month]} {year}"
 
-    filtros = {"obra": obra_id or ""}
+    tipo_labels = dict(Pendencia.TIPO_CHOICES)
+    status_labels = dict(Pendencia.STATUS_CHOICES)
+    prioridade_label_map = dict(Pendencia.PRIORIDADE_CHOICES)
+    _order_prio = ["urgente", "alta", "normal", "baixa"]
+    if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
+        prioridade_label = ", ".join(
+            prioridade_label_map[v] for v in _order_prio if v in set(prioridade_vals)
+        )
+    else:
+        prioridade_label = ""
+
+    obra_nome = ""
+    if obra_id and str(obra_id).isdigit():
+        obra_nome = obras_qs.filter(pk=int(obra_id)).values_list("nome", flat=True).first() or ""
+
+    resp_nome = ""
+    resp_iniciais = ""
+    if responsavel_id and str(responsavel_id).isdigit():
+        usr = User.objects.filter(pk=int(responsavel_id), is_active=True).first()
+        if usr:
+            resp_nome = usr.get_full_name().strip() or usr.username
+            resp_iniciais = _iniciais(resp_nome)
+
+    filtros = {
+        "obra": obra_id,
+        "obra_nome": obra_nome,
+        "tipo": tipo_val,
+        "tipo_label": tipo_labels.get(tipo_val, tipo_val) if tipo_val else "",
+        "status": status_val,
+        "status_label": {"em_aberto": "Em aberto", "vencida": "Vencida", "concluida": "Concluída", "cancelada": "Cancelada"}.get(status_val, ""),
+        "responsavel": responsavel_id,
+        "responsavel_nome": resp_nome,
+        "responsavel_iniciais": resp_iniciais,
+        "prioridade": prioridade_raw,
+        "prioridade_vals": prioridade_vals,
+        "prioridade_label": prioridade_label,
+    }
+
+    roles = _trackhub_roles(request.user)
+    if roles["admin"]:
+        responsaveis_payload = _todos_usuarios_ativos_payload()
+    else:
+        obra_payloads = _responsaveis_por_obra_payload(obras_qs)
+        seen: set = set()
+        responsaveis_payload = []
+        for op in obra_payloads:
+            for p in op["pessoas"]:
+                if p["id"] not in seen:
+                    seen.add(p["id"])
+                    responsaveis_payload.append(p)
+        responsaveis_payload.sort(key=lambda p: (p.get("nome") or "").lower())
+
+    tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
+    tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
     ctx = {
         "calendar_weeks": calendar_weeks,
         "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+        "responsaveis_json": json.dumps(responsaveis_payload, ensure_ascii=False),
         "pendencia_detalhe_url_pattern": reverse(
             "trackhub:pendencia_detalhe", kwargs={"pk": 0}
         ).replace("/0/", "/{id}/"),
@@ -1345,6 +1475,7 @@ def calendario_view(request):
         "month": month,
         "obras": obras_qs,
         "filtros": filtros,
+        "tipos": tipos,
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/calendario.html", ctx)
