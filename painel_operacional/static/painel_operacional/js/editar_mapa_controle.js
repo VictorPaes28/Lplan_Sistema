@@ -636,19 +636,37 @@
       .trim();
   }
 
+  function isPlaceholderRowLabel(label) {
+    const t = String(label || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\.$/, "");
+    return t === "sem dados para matriz";
+  }
+
   function rowDisplayLabelFromNameCell(nameCell) {
     if (!nameCell) return "";
+    const tr = nameCell.closest("tr");
+    if (tr && isMatrixEmptyRow(tr)) return "";
     const plain = nameCell.querySelector(".row-name-txt");
-    if (plain) return sanitizeRowDisplayLabel(plain.textContent);
+    if (plain) {
+      const lbl = sanitizeRowDisplayLabel(plain.textContent);
+      return isPlaceholderRowLabel(lbl) ? "" : lbl;
+    }
     const link = nameCell.querySelector("a.row-link");
-    if (link) return sanitizeRowDisplayLabel(link.textContent);
+    if (link) {
+      const lbl = sanitizeRowDisplayLabel(link.textContent);
+      return isPlaceholderRowLabel(lbl) ? "" : lbl;
+    }
     const wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
     if (wrap) {
       const clone = wrap.cloneNode(true);
       clone.querySelectorAll(".po-mapa-row-add, .po-mapa-row-inline-add").forEach((el) => el.remove());
-      return sanitizeRowDisplayLabel(clone.textContent);
+      const lbl = sanitizeRowDisplayLabel(clone.textContent);
+      return isPlaceholderRowLabel(lbl) ? "" : lbl;
     }
-    return sanitizeRowDisplayLabel(textNodeForCell(nameCell).textContent);
+    const lbl = sanitizeRowDisplayLabel(textNodeForCell(nameCell).textContent);
+    return isPlaceholderRowLabel(lbl) ? "" : lbl;
   }
 
   function rowLabelForCell(cell) {
@@ -661,7 +679,11 @@
   }
 
   function isMatrixEmptyRow(tr) {
-    return !!(tr && tr.classList && tr.classList.contains("matrix-empty-row"));
+    return !!(
+      tr &&
+      tr.classList &&
+      (tr.classList.contains("matrix-empty-row") || String(tr.getAttribute("data-empty-row") || "") === "1")
+    );
   }
 
   function isNonDataMatrixRow(tr) {
@@ -704,14 +726,17 @@
         p.set("bloco", label);
         p.delete("pavimento");
         p.delete("apto");
+        p.delete("matrix_mode");
       } else if (ctx.mode === "pavimento") {
         if (ctx.bloco) p.set("bloco", ctx.bloco);
         p.set("pavimento", label);
         p.delete("apto");
+        p.delete("matrix_mode");
       } else if (ctx.mode === "apto") {
         if (ctx.bloco) p.set("bloco", ctx.bloco);
         if (ctx.pavimento) p.set("pavimento", ctx.pavimento);
         p.set("apto", label);
+        p.delete("matrix_mode");
       }
       if (ctx.setor && !p.get("setor")) p.set("setor", ctx.setor);
       return `${u.pathname}?${p.toString()}`;
@@ -770,29 +795,105 @@
     return { rows: [], header: [], meta: {}, axisMap: {} };
   }
 
-  function verifyCreateRowsInLayout(layout, structuralOps) {
+  function isValidStructuralCreateOp(op) {
+    if (!op || op.type !== "create_row") return false;
+    const label = String(op.label || "").trim();
+    if (!label || isPlaceholderRowLabel(label)) return false;
+    return !!(op.context && op.context.level);
+  }
+
+  function layoutRowHasPlaceholderLabel(row, axisMap) {
+    if (!Array.isArray(row)) return false;
+    for (const key of ["setor", "bloco", "pavimento", "apto"]) {
+      const idx = axisMap[key];
+      if (!Number.isInteger(idx)) continue;
+      if (isPlaceholderRowLabel(row[idx])) return true;
+    }
+    return row.some((cell) => isPlaceholderRowLabel(cell));
+  }
+
+  function isStructuralGhostLayoutRow(row, axisMap) {
+    if (!Array.isArray(row)) return true;
+    const keys = ["setor", "bloco", "pavimento", "apto"];
+    let hasAxis = false;
+    for (const key of keys) {
+      const idx = axisMap[key];
+      if (!Number.isInteger(idx)) continue;
+      hasAxis = true;
+      if (String(row[idx] || "").trim()) return false;
+    }
+    return hasAxis;
+  }
+
+  function purgeInvalidStructuralLayoutRows(data, axisMap) {
+    if (!data || !Array.isArray(data.rows) || data.rows.length < 2) return;
+    const header = data.rows[0];
+    const kept = [header];
+    for (let ri = 1; ri < data.rows.length; ri += 1) {
+      const row = data.rows[ri];
+      if (!Array.isArray(row)) continue;
+      if (layoutRowHasPlaceholderLabel(row, axisMap)) continue;
+      if (isStructuralGhostLayoutRow(row, axisMap)) continue;
+      kept.push(row);
+    }
+    data.rows = kept;
+  }
+
+  function layoutStructuralRowsForDebug(layout) {
     const { rows, axisMap } = extractLayoutMatrixFromLayout(layout);
-    if (!rows.length) return structuralOps.filter((op) => op && op.type === "create_row");
-    return structuralOps.filter((op) => {
-      if (!op || op.type !== "create_row") return false;
+    if (!rows.length) return [];
+    return rows.slice(1).map((row) => ({
+      setor: Number.isInteger(axisMap.setor) ? row[axisMap.setor] : "",
+      bloco: Number.isInteger(axisMap.bloco) ? row[axisMap.bloco] : "",
+      pavimento: Number.isInteger(axisMap.pavimento) ? row[axisMap.pavimento] : "",
+      apto: Number.isInteger(axisMap.apto) ? row[axisMap.apto] : "",
+    }));
+  }
+
+  function verifyCreateRowsInLayout(layout, structuralOps) {
+    const ops = (structuralOps || []).filter((op) => op && op.type === "create_row");
+    const invalid = ops.filter((op) => !isValidStructuralCreateOp(op));
+    if (invalid.length) return invalid;
+    const { rows, axisMap } = extractLayoutMatrixFromLayout(layout);
+    if (!rows.length) return ops;
+    return ops.filter((op) => {
       const context = op.context || {};
       const label = String(op.label || "").trim();
       return !layoutHasStructuralRow(rows, axisMap, context, label);
     });
   }
 
+  function layoutDataRowIndexFromCell(cell) {
+    const tr = cell && cell.closest ? cell.closest("tr") : null;
+    const tbody = tr && tr.closest ? tr.closest("tbody") : null;
+    if (!tr || !tbody || isNonDataMatrixRow(tr)) return null;
+    const dataRows = listMatrixTbodyRows(tbody);
+    const bodyIdx = dataRows.indexOf(tr);
+    if (bodyIdx < 0) return null;
+    return bodyIdx + 1;
+  }
+
   function rememberCellPatch(cell, key, text) {
     const kind = patchKindForCell(cell);
     if (!kind) return;
-    const page = ensurePageDraft(currentPageKey());
+    const pageKey = currentPageKey();
+    const page = ensurePageDraft(pageKey);
     const coords = cellCoordsFromKey(cell);
     if (!coords) return;
+    const filters = parsePageFilters(pageKey);
     page.cells = page.cells || {};
     page.cells[key] = {
       colIndex: coords.c,
       rowLabel: rowLabelForCell(cell),
       text: String(text || ""),
       kind,
+      rowAxisKey: inferRowAxisKeyFromPage(pageKey),
+      pageFilters: {
+        setor: filters.setor || "",
+        bloco: filters.bloco || "",
+        pavimento: filters.pavimento || "",
+      },
+      dataRowIndex: layoutDataRowIndexFromCell(cell),
     };
   }
 
@@ -864,7 +965,10 @@
       if (s.bloco) return "pavimento";
       return "bloco";
     }
-    if (r === "bloco") return "bloco";
+    if (r === "bloco") {
+      if (String(s.bloco || "").trim() && !String(s.pavimento || "").trim()) return "pavimento";
+      return "bloco";
+    }
 
     if (s.bloco && s.pavimento) return "apto";
     if (s.bloco) return "pavimento";
@@ -914,6 +1018,28 @@
     });
   }
 
+  /**
+   * Recorte pai (setor/bloco/pavimento) ao aplicar patch de célula.
+   * Célula vazia no eixo não invalida a linha (layout esparso no recorte de UND).
+   */
+  function rowMatchesParentScope(row, axisMap, pageFilters, rowAxisKey) {
+    const scope = pageFilters && typeof pageFilters === "object" ? pageFilters : {};
+    const ctx = {
+      setor: String(scope.setor || "").trim(),
+      bloco: String(scope.bloco || "").trim(),
+      pavimento: String(scope.pavimento || "").trim(),
+      level: rowAxisKey || "apto",
+    };
+    const parentF = parentFiltersForStructuralLevel(ctx);
+    return Object.entries(parentF).every(([key, value]) => {
+      const idx = axisMap[key];
+      if (!Number.isInteger(idx)) return true;
+      const rowVal = String(row[idx] || "").trim();
+      if (!rowVal) return true;
+      return rowVal === String(value || "").trim();
+    });
+  }
+
   function primaryAxisIndex(axisMap) {
     if (Number.isInteger(axisMap.pavimento)) return axisMap.pavimento;
     if (Number.isInteger(axisMap.apto)) return axisMap.apto;
@@ -931,18 +1057,91 @@
     return resolveMatrixMode(scope);
   }
 
-  function applyCellTextToLayoutRows(rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey) {
-    if (!Array.isArray(rows) || !rowLabel || !Number.isInteger(colIndex)) return;
-    const axisKey = rowAxisKey || inferRowAxisKeyFromPage();
-    const axisIdx = Number.isInteger(axisMap[axisKey]) ? axisMap[axisKey] : primaryAxisIndex(axisMap);
-    for (let ri = 1; ri < rows.length; ri += 1) {
-      const row = rows[ri];
-      if (!Array.isArray(row)) continue;
-      if (!rowMatchesFilters(row, axisMap, filters)) continue;
-      if (String(row[axisIdx] || "").trim() !== String(rowLabel).trim()) continue;
+  function applyCellTextToLayoutRows(rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey, patchMeta) {
+    if (!Array.isArray(rows) || !Number.isInteger(colIndex)) return false;
+    const meta = patchMeta && typeof patchMeta === "object" ? patchMeta : {};
+    const pageFilters =
+      meta.pageFilters && typeof meta.pageFilters === "object" ? meta.pageFilters : filters;
+    const label = String(rowLabel || "").trim();
+    const axisKey = rowAxisKey || meta.rowAxisKey || "apto";
+    const levelIdx = Number.isInteger(axisMap[axisKey]) ? axisMap[axisKey] : primaryAxisIndex(axisMap);
+    const dataRowIndex = Number.isInteger(meta.dataRowIndex) ? meta.dataRowIndex : null;
+    const matchesScope = (row) => rowMatchesParentScope(row, axisMap, pageFilters, axisKey);
+
+    const writeCell = (row) => {
+      if (!Array.isArray(row)) return false;
       while (row.length <= colIndex) row.push("");
+      if (meta.kind === "structural" && colIndex === 0 && Number.isInteger(levelIdx)) {
+        const title = String(text || "").trim().replace(/%$/, "");
+        row[levelIdx] = title;
+        return true;
+      }
       row[colIndex] = text;
+      return true;
+    };
+
+    if (label) {
+      for (let ri = 1; ri < rows.length; ri += 1) {
+        const row = rows[ri];
+        if (!Array.isArray(row)) continue;
+        if (!matchesScope(row)) continue;
+        if (String(row[levelIdx] || "").trim() !== label) continue;
+        return writeCell(row);
+      }
     }
+
+    if (dataRowIndex != null && dataRowIndex >= 1 && dataRowIndex < rows.length) {
+      const row = rows[dataRowIndex];
+      if (Array.isArray(row) && matchesScope(row)) {
+        return writeCell(row);
+      }
+    }
+    return false;
+  }
+
+  function mergeCellPatchesIntoLayoutRows(dataRows, axisMap, pages) {
+    let applied = 0;
+    let missed = 0;
+    Object.entries(pages || {}).forEach(([pageKey, pageDraft]) => {
+      if (!pageDraft) return;
+      const texts = pageDraft.text || {};
+      const cells = pageDraft.cells || {};
+      const keys = new Set([...Object.keys(texts), ...Object.keys(cells)]);
+      keys.forEach((key) => {
+        const patch = cells[key] || {};
+        const kind = patch.kind || (Number(patch.colIndex) === 0 ? "structural" : "percent");
+        if (kind === "percent" && !isAptoUndManualEntryLayer(pageKey)) {
+          missed += 1;
+          return;
+        }
+        const colIndex = Number.isInteger(patch.colIndex) ? patch.colIndex : null;
+        const rowLabel = patch.rowLabel != null ? String(patch.rowLabel).trim() : "";
+        let text = texts[key] != null ? String(texts[key]) : patch.text != null ? String(patch.text) : "";
+        if (colIndex == null) return;
+        if (!rowLabel && !Number.isInteger(patch.dataRowIndex)) {
+          missed += 1;
+          return;
+        }
+        if (kind === "percent" && isAptoUndManualEntryLayer(pageKey)) {
+          text = normalizePercentLayoutValue(text);
+        }
+        const filters = parsePageFilters(pageKey);
+        const ok = applyCellTextToLayoutRows(
+          dataRows,
+          axisMap,
+          filters,
+          rowLabel,
+          colIndex,
+          text,
+          patch.rowAxisKey || inferRowAxisKeyFromPage(pageKey),
+          patch,
+        );
+        if (ok) applied += 1;
+        else missed += 1;
+      });
+    });
+    poMapaDebug("merge cell patches", { applied, missed });
+    return { applied, missed };
   }
 
   function isManualFlatLayout(meta, axisMap) {
@@ -1007,7 +1206,13 @@
     const header = rows[0];
     if (!Array.isArray(header) || !header.length) return false;
     const title = String(label || "").trim();
-    if (!title || layoutHasStructuralRow(rows, axisMap, context, title)) return false;
+    if (!title || isPlaceholderRowLabel(title)) return false;
+    const levelIdx = axisMap[context.level];
+    if (!Number.isInteger(levelIdx)) {
+      poMapaDebug("applyCreateRowToLayout falhou: eixo inválido", { context, axisMap });
+      return false;
+    }
+    if (layoutHasStructuralRow(rows, axisMap, context, title)) return false;
     rows.push(newCanonicalLayoutRow(header, axisMap, context, title));
     return true;
   }
@@ -1114,6 +1319,9 @@
       if (!draft || !canPersistStructuralLayoutOps(pageKey)) return;
       const push = (op) => {
         if (!op || typeof op !== "object") return;
+        if (op.type === "create_row") {
+          if (!isValidStructuralCreateOp(op)) return;
+        }
         const key = structuralOpDedupeKey(op);
         if (key) {
           if (seen.has(key)) return;
@@ -1137,7 +1345,9 @@
           draft.structuralExport.forEach((row) => {
             if (!Array.isArray(row)) return;
             const label = String(row[levelIdx] || "").trim();
-            if (label) push({ type: "create_row", context, label });
+            if (label && !isPlaceholderRowLabel(label)) {
+              push({ type: "create_row", context, label });
+            }
           });
         }
       }
@@ -1163,7 +1373,10 @@
 
     creates.forEach((op) => {
       const context = op.context || {};
-      applyCreateRowToLayout(rows, axisMap, context, op.label);
+      const ok = applyCreateRowToLayout(rows, axisMap, context, op.label);
+      if (!ok) {
+        poMapaDebug("applyCreateRowToLayout não aplicou", { op, axisMap, context });
+      }
     });
     deletes.forEach((op) => {
       applyDeleteRowToLayout(rows, axisMap, op.context || {}, op.label);
@@ -1188,10 +1401,22 @@
     return pageDraftHasStructuralOps(pageDraft);
   }
 
+  function countPercentCellPatches(pages) {
+    let total = 0;
+    Object.entries(pages || {}).forEach(([pageKey, draft]) => {
+      if (!isAptoUndManualEntryLayer(pageKey)) return;
+      Object.values((draft && draft.cells) || {}).forEach((patch) => {
+        if (patch && patch.kind === "percent") total += 1;
+      });
+    });
+    return total;
+  }
+
   function mergeAllDraftsIntoLayout(layout) {
     const next = layout && typeof layout === "object" ? layout : { sections: [] };
     const sections = Array.isArray(next.sections) ? next.sections : [];
     const pages = state.draft.pages || {};
+    const cellPatchStats = { applied: 0, missed: 0 };
     sections.forEach((section) => {
       const data = section && section.data;
       if (!data || !Array.isArray(data.rows) || !data.rows.length) return;
@@ -1200,43 +1425,117 @@
       const axisMap = buildAxisMapFromMeta(meta, header);
       const rowsBefore = data.rows.length;
 
-      Object.entries(pages).forEach(([pageKey, pageDraft]) => {
-        const filters = parsePageFilters(pageKey);
-        const texts = (pageDraft && pageDraft.text) || {};
-        const cells = (pageDraft && pageDraft.cells) || {};
-        const keys = new Set([...Object.keys(texts), ...Object.keys(cells)]);
-        keys.forEach((key) => {
-          const patch = cells[key] || {};
-          const kind =
-            patch.kind || (Number(patch.colIndex) === 0 ? "structural" : "percent");
-          if (kind === "percent" && !isAptoUndManualEntryLayer(pageKey)) return;
-          const colIndex = Number.isInteger(patch.colIndex) ? patch.colIndex : null;
-          const rowLabel = patch.rowLabel != null ? String(patch.rowLabel).trim() : "";
-          const text =
-            texts[key] != null ? String(texts[key]) : patch.text != null ? String(patch.text) : "";
-          if (!rowLabel || colIndex == null) return;
-          const rowAxisKey = inferRowAxisKeyFromPage(pageKey);
-          applyCellTextToLayoutRows(data.rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey);
-        });
-      });
-
       const structuralOps = gatherStructuralOpsForMerge(pages, axisMap);
       if (structuralOps.length) {
         applyStructuralOpsToLayoutData(data, axisMap, structuralOps);
       }
 
+      const patchMerge = mergeCellPatchesIntoLayoutRows(data.rows, axisMap, pages);
+      cellPatchStats.applied += patchMerge.applied;
+      cellPatchStats.missed += patchMerge.missed;
+
+      purgeInvalidStructuralLayoutRows(data, axisMap);
+
       poMapaDebug("merge layout seção", {
         rowsAntes: rowsBefore,
         rowsDepois: data.rows.length,
         structuralOps: structuralOps.length,
+        cellPatches: patchMerge,
         pages: Object.keys(pages).length,
       });
     });
+    next.__poCellPatchStats = cellPatchStats;
     return next;
+  }
+
+  function clearCellSelectionAndToolbar() {
+    finishInlineEdit({ commit: false });
+    if (state.selectedCell) {
+      state.selectedCell.style.outline = "";
+      state.selectedCell.style.outlineOffset = "";
+    }
+    state.selectedCell = null;
+    state.selectedKey = "";
+    if (inpText) inpText.value = "";
+    refreshToolbarEditState();
+    refreshMoveButtons();
+  }
+
+  function applyToolbarValueToSelectedCell(normalizedValue) {
+    if (!state.selectedCell || !state.selectedKey) return;
+    const value = String(normalizedValue || "");
+    const page = ensurePageDraft(currentPageKey());
+    textNodeForCell(state.selectedCell).textContent = value;
+    page.text[state.selectedKey] = value;
+    rememberCellPatch(state.selectedCell, state.selectedKey, value);
+    if (inpText) inpText.value = value;
+    markDirty();
+  }
+
+  function isInvalidPercentToolbarInput(rawValue) {
+    const trimmed = String(rawValue || "").trim();
+    if (!trimmed) return false;
+    if (isPercentNotApplicableText(trimmed)) return false;
+    if (trimmed.includes("%")) return false;
+    return !/^-?\d+(?:[.,]\d+)?$/.test(trimmed);
+  }
+
+  /** Aplica valor pendente da toolbar na célula antes do save (não exige botão Aplicar). */
+  function flushPendingToolbarEditBeforeSave() {
+    if (!state.enabled) return true;
+    finishInlineEdit({ commit: true });
+
+    if (!state.selectedCell || !state.selectedKey) return true;
+
+    const doc = frame.contentDocument;
+    if (!doc || !doc.contains(state.selectedCell)) {
+      clearCellSelectionAndToolbar();
+      return true;
+    }
+
+    const canPercent = canEditPercentCell(state.selectedCell, { silent: true });
+    const canStructural = canEditStructuralCell(state.selectedCell);
+    const rawInput = inpText ? String(inpText.value || "") : "";
+
+    if (!canPercent && !canStructural) {
+      if (rawInput.trim() && isMatrixPercentDataCell(state.selectedCell)) {
+        showBlockedPercentEditMessage();
+        return false;
+      }
+      return true;
+    }
+
+    if (canPercent && isInvalidPercentToolbarInput(rawInput)) {
+      updateStatus("Valor de percentual inválido. Use número (ex.: 10 ou 10%) ou \"-\" para não aplicável.");
+      return false;
+    }
+
+    const value = normalizeCellText(state.selectedCell, rawInput);
+    const currentDisplay = normalizeCellText(
+      state.selectedCell,
+      String(textNodeForCell(state.selectedCell).textContent || ""),
+    );
+    if (value !== currentDisplay || rawInput.trim()) {
+      applyToolbarValueToSelectedCell(value);
+    }
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(state.draft));
+    } catch (e) {
+      void e;
+    }
+    poMapaDebug("flush toolbar pré-save", {
+      pageKey: currentPageKey(),
+      cellKey: state.selectedKey,
+      rowLabel: rowLabelForCell(state.selectedCell),
+      value,
+      patches: Object.keys((state.draft.pages[currentPageKey()] || {}).cells || {}).length,
+    });
+    return true;
   }
 
   async function saveDraftToServer() {
     if (!ctx.ambienteId || !ctx.endpoints || !ctx.endpoints.saveDraft) {
+      if (!flushPendingToolbarEditBeforeSave()) return;
       saveDraftToStorage();
       return;
     }
@@ -1249,7 +1548,8 @@
         return;
       }
     }
-    finishInlineEdit({ commit: true });
+    if (!flushPendingToolbarEditBeforeSave()) return;
+    markDirty();
     updateStatus("Salvando no servidor...");
     try {
       const detRes = await fetch(ctx.endpoints.detalhe, {
@@ -1262,8 +1562,20 @@
       }
       const draft = detJson.draft || detJson.versao || {};
       const layoutIn = JSON.parse(JSON.stringify(draft.layout || {}));
+      const pageKeyNow = currentPageKey();
+      const structuralOpsPreSave = gatherStructuralOpsForMerge(
+        state.draft.pages || {},
+        extractLayoutMatrixFromLayout(layoutIn).axisMap,
+      );
+      poMapaDebug("save trace pré-merge", {
+        pageKey: pageKeyNow,
+        contexto: getMatrixEditContext(pageKeyNow),
+        structuralOps: structuralOpsPreSave,
+        draftPages: Object.keys(state.draft.pages || {}),
+        domDataRows: listMatrixTbodyRows(frame.contentDocument?.querySelector(".matrix-table tbody")).length,
+      });
       poMapaDebug("save servidor início", {
-        pageKey: currentPageKey(),
+        pageKey: pageKeyNow,
         contexto: getMatrixEditContext(),
         rowsLayout: (layoutIn.sections && layoutIn.sections[0] && layoutIn.sections[0].data && layoutIn.sections[0].data.rows || []).length,
       });
@@ -1272,19 +1584,47 @@
       const structuralOpsSnapshot = gatherStructuralOpsForMerge(pagesSnapshot, axisMapIn);
 
       const layout = mergeAllDraftsIntoLayout(layoutIn);
+      const cellPatchStats = layout.__poCellPatchStats || { applied: 0, missed: 0 };
+      const percentPatchCount = countPercentCellPatches(pagesSnapshot);
+      if (percentPatchCount > 0 && cellPatchStats.missed > 0) {
+        throw new Error(
+          "Os percentuais editados não foram aplicados ao layout antes do envio. Recarregue a página e tente salvar novamente.",
+        );
+      }
       const { rows: rowsMerged } = extractLayoutMatrixFromLayout(layout);
+      const layoutRowsDebug = layoutStructuralRowsForDebug(layout);
       const missingInPayload = verifyCreateRowsInLayout(layout, structuralOpsSnapshot);
       poMapaDebug("save servidor layout merge", {
         rowsLayout: rowsMerged.length,
         structuralOps: structuralOpsSnapshot.length,
         missingInPayload: missingInPayload.map((o) => o.label),
         structuralOpsLista: structuralOpsSnapshot,
+        layoutRows: layoutRowsDebug,
+        temPlaceholderNoLayout: layoutRowsDebug.some(
+          (r) =>
+            isPlaceholderRowLabel(r.bloco) ||
+            isPlaceholderRowLabel(r.pavimento) ||
+            isPlaceholderRowLabel(r.apto),
+        ),
       });
       if (missingInPayload.length) {
+        const labels = missingInPayload.map((o) => o.label).join(", ");
         throw new Error(
-          "As linhas criadas não foram aplicadas ao layout antes do envio. Recarregue a página e tente novamente.",
+          `As linhas criadas não foram aplicadas ao layout antes do envio (${labels}). Recarregue a página e tente novamente.`,
         );
       }
+      const placeholderInLayout = layoutRowsDebug.some(
+        (r) =>
+          isPlaceholderRowLabel(r.bloco) ||
+          isPlaceholderRowLabel(r.pavimento) ||
+          isPlaceholderRowLabel(r.apto),
+      );
+      if (placeholderInLayout) {
+        throw new Error(
+          'O layout contém linha inválida "Sem dados para matriz". O rascunho local foi mantido.',
+        );
+      }
+      delete layout.__poCellPatchStats;
       const saveRes = await fetch(ctx.endpoints.saveDraft, {
         method: "POST",
         credentials: "same-origin",
@@ -1314,10 +1654,11 @@
           ? (verifyJson.draft || verifyJson.versao || {}).layout || {}
           : {};
       const missingAfterSave = verifyCreateRowsInLayout(savedLayout, structuralOpsSnapshot);
-      poMapaDebug("save servidor verificação", {
+      poMapaDebug("save servidor verificação GET", {
         ok: verifyRes.ok,
         rowsPersistidas: extractLayoutMatrixFromLayout(savedLayout).rows.length,
         missingAfterSave: missingAfterSave.map((o) => o.label),
+        layoutRows: layoutStructuralRowsForDebug(savedLayout),
       });
       if (missingAfterSave.length) {
         throw new Error(
@@ -1334,6 +1675,7 @@
         void e;
       }
       updateStatus("Mapa salvo no servidor.");
+      clearCellSelectionAndToolbar();
       state.restoreEditOnNextLoad = keepEditEnabled;
       frame.contentWindow.location.reload();
     } catch (err) {
@@ -1342,6 +1684,7 @@
   }
 
   function saveDraftToStorage() {
+    if (!flushPendingToolbarEditBeforeSave()) return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(state.draft));
       state.dirty = false;
@@ -1583,15 +1926,30 @@
     if (btnApplyColor) btnApplyColor.disabled = !(state.enabled && canPercent);
   }
 
-  function normalizeCellText(cell, rawValue) {
-    const value = String(rawValue || "").trim();
-    if (!value) return "";
-    if (!isPercentEligibleCell(cell)) return value;
+  function isPercentNotApplicableText(value) {
+    const t = String(value || "").trim();
+    return t === "-" || t === "--";
+  }
+
+  function defaultNewPercentCellText() {
+    return "0%";
+  }
+
+  function normalizePercentLayoutValue(text) {
+    const value = String(text || "").trim();
+    if (!value) return "0%";
+    if (isPercentNotApplicableText(value)) return "-";
     if (value.includes("%")) return value;
     if (/^-?\d+(?:[.,]\d+)?$/.test(value)) {
-      return `${value}%`;
+      return `${value.replace(",", ".")}%`;
     }
-    return value;
+    return "0%";
+  }
+
+  function normalizeCellText(cell, rawValue) {
+    const value = String(rawValue || "").trim();
+    if (!isPercentEligibleCell(cell)) return value;
+    return normalizePercentLayoutValue(value);
   }
 
   function ensureEditModeIframeGuards() {
@@ -1803,6 +2161,7 @@
     });
     (page.ops || []).forEach((op) => {
       if (!op || typeof op !== "object") return;
+      if (op.type === "insert_row" && isPlaceholderRowLabel(op.label)) return;
       if (op.type === "move_col") applyMoveColumn(op.from, op.to, { registerOp: false, keepSelection: false });
       else if (op.type === "move_row") applyMoveRow(op.from, op.to, { registerOp: false, keepSelection: false });
       else if (op.type === "insert_col") applyInsertColumn(op.index, op.label, { registerOp: false, keepSelection: false });
@@ -1992,13 +2351,15 @@
       const nameCell = src.querySelector(".row-name, .sticky-left");
       const rowLabel = nameCell ? rowDisplayLabelFromNameCell(nameCell) : "";
       ensurePageDraft(currentPageKey()).ops.push({ type: "move_row", from, to });
-      afterStructuralLayoutOpCommitted({
-        type: "move_row",
-        context: buildStructuralRowContext(currentPageKey()),
-        label: rowLabel,
-        from,
-        to,
-      });
+      if (rowLabel && !isPlaceholderRowLabel(rowLabel)) {
+        afterStructuralLayoutOpCommitted({
+          type: "move_row",
+          context: buildStructuralRowContext(currentPageKey()),
+          label: rowLabel,
+          from,
+          to,
+        });
+      }
     }
     refreshMoveButtons();
     return true;
@@ -2098,6 +2459,7 @@
     }
 
     matrixBodyRows().forEach((tr, bodyIndex) => {
+      if (isMatrixEmptyRow(tr)) return;
       const nameCell = tr.querySelector(".row-name, .sticky-left");
       if (!nameCell) return;
       const wrap = ensureRowNameWrap(doc, nameCell);
@@ -2380,13 +2742,15 @@
         newCell = document.createElement("td");
         newCell.className = "total-col";
         newCell.textContent = "-";
-      } else {
+      } else if (!isNonDataMatrixRow(row)) {
         newCell = document.createElement("td");
-        newCell.className = "cell-empty";
-        newCell.textContent = "-";
+        newCell.className = "cell-pct cell-0";
+        newCell.textContent = isAptoUndManualEntryLayer()
+          ? defaultNewPercentCellText()
+          : "-";
       }
       const anchor = row.children[insertAt] || null;
-      row.insertBefore(newCell, anchor);
+      if (newCell) row.insertBefore(newCell, anchor);
     });
 
     mapEditableCells();
@@ -2419,7 +2783,11 @@
     if (!colCount || colCount < 2) return false;
 
     const insertAt = clampIndex(Number(index), 0, bodyRows.length);
-    const title = String(label || "Nova linha").trim() || "Nova linha";
+    const title = sanitizeRowDisplayLabel(String(label || "Nova linha").trim() || "Nova linha");
+    if (isPlaceholderRowLabel(title)) {
+      updateStatus('Não é possível criar linha com o nome "Sem dados para matriz".');
+      return false;
+    }
     const anchor = bodyRows[insertAt] || tbody.querySelector("tr.totals-row") || null;
 
     const doc = frame.contentDocument || document;
@@ -2429,8 +2797,8 @@
     row.appendChild(first);
     for (let c = 1; c < colCount - 1; c += 1) {
       const td = document.createElement("td");
-      td.className = "cell-empty";
-      td.textContent = "-";
+      td.className = isAptoUndManualEntryLayer(pageKey) ? "cell-pct cell-0" : "cell-empty";
+      td.textContent = isAptoUndManualEntryLayer(pageKey) ? defaultNewPercentCellText() : "-";
       row.appendChild(td);
     }
     const total = document.createElement("td");
@@ -2539,11 +2907,13 @@
     }
     if (cfg.registerOp !== false) {
       ensurePageDraft(currentPageKey()).ops.push({ type: "delete_row", index: idx });
-      afterStructuralLayoutOpCommitted({
-        type: "delete_row",
-        context: buildStructuralRowContext(currentPageKey()),
-        label: rowLabel,
-      });
+      if (rowLabel && !isPlaceholderRowLabel(rowLabel)) {
+        afterStructuralLayoutOpCommitted({
+          type: "delete_row",
+          context: buildStructuralRowContext(currentPageKey()),
+          label: rowLabel,
+        });
+      }
     }
     refreshMoveButtons();
     return true;
@@ -2868,6 +3238,10 @@
 
   function afterStructuralLayoutOpCommitted(structuralOp) {
     if (structuralOp && typeof structuralOp === "object") {
+      if (structuralOp.type === "create_row" && !isValidStructuralCreateOp(structuralOp)) {
+        poMapaDebug("structuralOp ignorada (inválida)", structuralOp);
+        return;
+      }
       const page = ensurePageDraft(currentPageKey());
       page.structuralOps.push(structuralOp);
       poMapaDebug("structuralOp registrada", structuralOp);
@@ -2881,13 +3255,8 @@
       return;
     }
     finishInlineEdit({ commit: true });
-    const page = ensurePageDraft(currentPageKey());
     const value = normalizeCellText(state.selectedCell, inpText ? inpText.value : "");
-    if (inpText) inpText.value = value;
-    textNodeForCell(state.selectedCell).textContent = value;
-    page.text[state.selectedKey] = value;
-    rememberCellPatch(state.selectedCell, state.selectedKey, value);
-    markDirty();
+    applyToolbarValueToSelectedCell(value);
   }
 
   function syncToolbarTextToCell() {
@@ -2896,13 +3265,8 @@
       return;
     }
     finishInlineEdit({ commit: true });
-    const page = ensurePageDraft(currentPageKey());
     const value = normalizeCellText(state.selectedCell, String(inpText.value || ""));
-    inpText.value = value;
-    textNodeForCell(state.selectedCell).textContent = value;
-    page.text[state.selectedKey] = value;
-    rememberCellPatch(state.selectedCell, state.selectedKey, value);
-    markDirty();
+    applyToolbarValueToSelectedCell(value);
   }
 
   function applyColorChange() {
@@ -2961,6 +3325,7 @@
       void e;
       updateStatus("Edição ativa (rascunho local parcialmente indisponível).");
     }
+    clearCellSelectionAndToolbar();
     updateStatus(state.enabled ? "Edição ativa. Selecione uma célula." : "Somente visualização");
     if (state.enabled) {
       updateToggleUi();

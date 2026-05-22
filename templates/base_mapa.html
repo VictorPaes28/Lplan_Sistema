@@ -14,7 +14,7 @@
     window.__LPLAN_CSRF_TOKEN__ = "{{ csrf_token|escapejs }}";
     window.__LPLAN_CSRF_TOKEN_URL__ = "{% url 'api_csrf_token' %}";
     window.__LPLAN_API_BASE__ = "";  // Subpath do sistema (vazio = raiz). Ex.: "" ou "/lplan"
-    window.__LPLAN_SUPPLYMAP_VER__ = "9";  // Conferir no F12: deve bater com o log [LPLAN] SupplyMap v
+    window.__LPLAN_SUPPLYMAP_VER__ = "10";  // Conferir no F12: deve bater com o log [LPLAN] SupplyMap v
     </script>
     
     <!-- Favicon - logo LPLAN -->
@@ -33,7 +33,7 @@
     
     <!-- Custom CSS -->
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/supplymap.css' %}">
+    <link rel="stylesheet" href="{% static 'css/supplymap.css' %}?v=10">
     <style>
         /* Trocar Sistema: primeiro item e em destaque */
         .nav-link-switch-system {
@@ -80,7 +80,7 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav me-auto lplan-nav-main flex-nowrap">
                     {% if user.is_authenticated %}
                         <li class="nav-item">
                             <a class="nav-link nav-link-switch-system px-3 py-2 rounded me-1 {% if request.resolver_match.url_name == 'select-system' %}active fw-semibold{% endif %}" href="{% url 'select-system' %}" title="Trocar de sistema">
@@ -186,7 +186,7 @@
                         {% endif %}
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav lplan-nav-utils flex-nowrap">
                     {% if user.is_authenticated %}
                         {# Dropdown de obra: fluxo Mapa de Suprimentos / telas que usam obra_atual do módulo de obras. No Mapa de Controle a obra vem de ?obra= / sessão (formulário na página), não deste seletor. #}
                         {% if obras_disponiveis %}

@@ -71,10 +71,110 @@ h2 {
    NAVBAR (LPLAN)
    ======================================== */
 .lplan-navbar {
-    min-height: 56px;
-    padding: 0 14px;
+    min-height: 52px;
+    padding: 0 10px;
     background: linear-gradient(180deg, var(--lplan-navy) 0%, var(--lplan-navy-2) 100%) !important;
     border-bottom: 1px solid var(--lplan-border);
+}
+
+.lplan-navbar > .container-fluid {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 52px;
+}
+
+.lplan-navbar .navbar-brand {
+    flex: 0 0 auto;
+    max-width: min(200px, 22vw);
+    margin-right: 4px;
+}
+
+.lplan-navbar .navbar-collapse {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (min-width: 992px) {
+    .lplan-navbar .navbar-collapse {
+        display: flex !important;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .lplan-navbar .lplan-nav-main {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+        padding-bottom: 1px;
+    }
+
+    .lplan-navbar .lplan-nav-main::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .lplan-navbar .lplan-nav-main::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.45);
+        border-radius: 4px;
+    }
+
+    .lplan-navbar .navbar-nav {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .lplan-navbar .nav-item {
+        flex: 0 0 auto;
+    }
+
+    .lplan-navbar .lplan-nav-utils {
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+    }
+}
+
+.lplan-navbar .nav-link,
+.lplan-navbar .nav-link-switch-system {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center;
+    gap: 0.35rem;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+}
+
+.lplan-navbar .nav-link span,
+.lplan-navbar .nav-link-switch-system span {
+    white-space: nowrap;
+}
+
+.lplan-navbar .nav-link i,
+.lplan-navbar .nav-link-switch-system i {
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.lplan-navbar .obra-nome-atual {
+    display: inline-block;
+    max-width: min(220px, 18vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 .lplan-brand {
@@ -191,10 +291,13 @@ h2 {
     text-overflow: ellipsis;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1280px) {
     .lplan-wordmark-sub {
         display: none;
     }
+}
+
+@media (max-width: 768px) {
     .lplan-user-name {
         display: none;
     }
