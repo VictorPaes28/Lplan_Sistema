@@ -280,7 +280,7 @@
                         <td class="total-col">{% if row.total != None %}{{ row.total }}%{% else %}-{% endif %}</td>
                     </tr>
                     {% empty %}
-                    <tr class="matrix-empty-row"><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
+                    <tr class="matrix-empty-row" data-empty-row="1"><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
                     {% endfor %}
                     {% if matrix.atividades %}
                     <tr class="totals-row">
@@ -428,7 +428,7 @@
             <a class="layer-card {% if selected.setor == row.setor %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ row.setor|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&{{ matrix_stable_qs }}">
                 <span class="name">{{ row.setor|default:"Sem setor" }}</span>
-                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}-{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -449,7 +449,7 @@
             <a class="layer-card {% if selected.bloco == row.bloco %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.bloco|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&{{ matrix_stable_qs }}">
                 <span class="name">{{ row.bloco|default:"Sem bloco" }}</span>
-                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}-{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -471,7 +471,7 @@
             <a class="layer-card {% if selected.pavimento == row.pavimento %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&{{ matrix_stable_qs }}">
                 <span class="name">{{ row.pavimento|default:"Sem pavimento" }}</span>
-                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} itens - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}-{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>
@@ -493,7 +493,7 @@
             <a class="layer-card {% if selected.apto == row.apto %}active{% endif %}"
                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&{{ matrix_stable_qs }}">
                 <span class="name">{{ row.apto|default:"Sem apto" }}</span>
-                <span class="meta">{{ row.total }} ativ. - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}0.00{% endif %}</span>
+                <span class="meta">{{ row.total }} ativ. - {% if row.progresso != None %}{{ row.progresso|floatformat:2 }}{% else %}-{% endif %}</span>
                 <div class="meta-inline">
                     <span class="s-ok">{{ row.concluidos }}</span>
                     <span class="s-mid">{{ row.em_andamento }}</span>

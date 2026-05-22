@@ -205,21 +205,12 @@ def _normalize_ambiente_layout(layout: dict) -> dict:
 
 
 def _parse_matrix_pct(value):
-    raw = str(value or "").strip()
-    if not raw:
+    """Alinhado ao AmbienteProvider: vazio=0%, \"-\"=N/A (None), inválido=0%."""
+    from suprimentos.services.mapa_controle_viewmodel import _cell_pct_for_average, _is_pct_not_applicable
+
+    if _is_pct_not_applicable(value):
         return None
-    had_percent = "%" in raw
-    raw = raw.replace("%", "").replace(",", ".").strip()
-    try:
-        num = float(raw)
-    except (TypeError, ValueError):
-        return None
-    if not had_percent and -1.0 <= num <= 1.0:
-        num *= 100.0
-    num = max(0.0, min(100.0, num))
-    if abs(num - round(num)) < 0.01:
-        return int(round(num))
-    return round(num, 1)
+    return _cell_pct_for_average(value)
 
 
 def _is_total_header_label(value: str) -> bool:
@@ -670,6 +661,9 @@ def _resolve_matrix_mode(requested: str, selected: dict) -> str:
             return "pavimento"
         return "bloco"
     if r == "bloco":
+        # Dentro de um bloco (recorte), novas linhas são pavimentos — mesmo com pill "Por bloco".
+        if bloco and not pavimento:
+            return "pavimento"
         return "bloco"
 
     if bloco and pavimento:

@@ -85,6 +85,57 @@ def row_matches_filters(row: list[str], axis_map: dict[str, int], filters: dict[
     return True
 
 
+def row_matches_parent_scope(
+    row: list[str],
+    axis_map: dict[str, int],
+    page_filters: dict[str, str],
+    row_axis_key: str,
+) -> bool:
+    """Espelha rowMatchesParentScope no JS (layout esparso no recorte UND)."""
+    ctx = {
+        "setor": (page_filters.get("setor") or "").strip(),
+        "bloco": (page_filters.get("bloco") or "").strip(),
+        "pavimento": (page_filters.get("pavimento") or "").strip(),
+        "level": row_axis_key or "apto",
+    }
+    parent_f = parent_filters_for_level(ctx)
+    for key, value in parent_f.items():
+        idx = axis_map.get(key)
+        if idx is None:
+            continue
+        row_val = str(row[idx] or "").strip()
+        if not row_val:
+            continue
+        if row_val != str(value).strip():
+            return False
+    return True
+
+
+def apply_percent_patch_to_layout_row(
+    rows: list[list[str]],
+    *,
+    page_filters: dict[str, str],
+    row_label: str,
+    col_index: int,
+    text: str,
+    row_axis_key: str = "apto",
+) -> bool:
+    """Espelha applyCellTextToLayoutRows para patch de % (rótulo + escopo pai)."""
+    axis_map = build_axis_map()
+    level_idx = axis_map.get(row_axis_key, axis_map["apto"])
+    want = row_label.strip()
+    for row in rows[1:]:
+        if not row_matches_parent_scope(row, axis_map, page_filters, row_axis_key):
+            continue
+        if str(row[level_idx] or "").strip() != want:
+            continue
+        while len(row) <= col_index:
+            row.append("")
+        row[col_index] = text
+        return True
+    return False
+
+
 def parent_filters_for_level(context: dict) -> dict[str, str]:
     f = {}
     if context.get("setor"):
@@ -178,6 +229,18 @@ class MapaEditorSaveContextTests(unittest.TestCase):
         q = {"setor": "ÁREA COMUM", "bloco": "A", "matrix_mode": "bloco"}
         self.assertEqual(resolve_row_axis_from_query(q), "pavimento")
 
+    def test_matrix_mode_bloco_com_bloco_habitacao_vira_pavimento(self):
+        """Drill com matrix_mode=bloco na URL não pode gravar filho no eixo BLOCO."""
+        q = {"setor": "HAB", "bloco": "Bloco Teste", "matrix_mode": "bloco"}
+        self.assertEqual(resolve_row_axis_from_query(q), "pavimento")
+        self.assertEqual(
+            _resolve_matrix_mode(
+                "bloco",
+                {"setor": "HAB", "bloco": "Bloco Teste", "pavimento": "", "apto": ""},
+            ),
+            "pavimento",
+        )
+
     def test_6_create_row_delta_preserva_outras_camadas(self):
         header = ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV"]
         existing = [
@@ -265,6 +328,27 @@ class MapaEditorSaveContextTests(unittest.TestCase):
                 {"setor": "HAB", "bloco": "B1", "matrix_mode": "apto"},
             )
         )
+
+    def test_percent_patch_em_linha_esparso_no_recorte_und(self):
+        """Layout só com APTO na linha ainda recebe % quando URL tem bloco+pavimento."""
+        header = ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV1"]
+        rows = [
+            header,
+            ["", "", "", "101", "0%"],
+            ["", "", "", "102", ""],
+        ]
+        page_filters = {"setor": "HAB", "bloco": "B1", "pavimento": "1P"}
+        self.assertFalse(row_matches_filters(rows[1], build_axis_map(), page_filters))
+        self.assertTrue(row_matches_parent_scope(rows[1], build_axis_map(), page_filters, "apto"))
+        ok = apply_percent_patch_to_layout_row(
+            rows,
+            page_filters=page_filters,
+            row_label="101",
+            col_index=4,
+            text="10%",
+        )
+        self.assertTrue(ok)
+        self.assertEqual(rows[1][4], "10%")
 
 
 if __name__ == "__main__":
