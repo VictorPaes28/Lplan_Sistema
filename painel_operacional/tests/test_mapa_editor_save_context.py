@@ -227,10 +227,10 @@ class MapaEditorSaveContextTests(unittest.TestCase):
         self.assertEqual(resolve_row_axis_from_query({"obra": "6"}), "bloco")
         self.assertEqual(resolve_row_axis_from_query({"obra": "6", "bloco": "teste"}), "pavimento")
 
-    def test_fluxo_inline_e_toolbar_mesmo_eixo(self):
-        """+ inline e + Linha registram create_row com contexto de pavimento."""
+    def test_fluxo_toolbar_insert_mesmo_eixo(self):
+        """+ Linha na toolbar registra create_row com contexto de pavimento."""
         ctx = {"setor": "", "bloco": "teste", "pavimento": "", "level": "pavimento"}
-        for label in ("via_inline", "via_toolbar"):
+        for label in ("via_toolbar_a", "via_toolbar_b"):
             row = new_canonical_row(5, ctx, label)
             self.assertEqual(row[1], "teste")
             self.assertEqual(row[2], label)
