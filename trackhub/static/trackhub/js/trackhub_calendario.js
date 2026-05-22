@@ -52,6 +52,12 @@
     items.forEach(function (item) {
       var a = document.createElement('a');
       a.href = pendenciaUrl(item.id);
+      a.setAttribute('data-pk', String(item.id));
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (window.abrirDetalhe) window.abrirDetalhe(item.id);
+      });
       a.className = 'th-cal-pop-item ' + (item.prioridade || 'normal');
       if (item.status === 'concluida')      a.classList.add('th-cal-pop-item--concluida');
       else if (item.status === 'cancelada') a.classList.add('th-cal-pop-item--cancelada');
@@ -93,6 +99,9 @@
     positionPanel(anchor);
     requestAnimationFrame(function () { positionPanel(anchor); });
   }
+
+  /* Expõe para uso no listener inline do calendário */
+  window.thCalAbrirPopoverDia = openPopover;
 
   /* ── Filtros dropdown ─────────────────────────────────────────── */
   var responsaveisData = [];
@@ -292,6 +301,25 @@
     if (nome) av.style.background = avatarColor(nome);
   });
 
+  /* ── Calendário: Mais N e cards (capture, acima da zona vazia) ─── */
+  document.addEventListener('click', function (e) {
+    var mais = e.target.closest && e.target.closest('.th-cal-more, .cal-mais');
+    if (mais) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var iso = mais.getAttribute('data-day-iso');
+      if (iso) openPopover(iso, mais);
+      return;
+    }
+    var card = e.target.closest && e.target.closest('.th-cal-event');
+    if (card) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var pk = card.getAttribute('data-pk');
+      if (pk && window.abrirDetalhe) window.abrirDetalhe(parseInt(pk, 10));
+    }
+  }, true);
+
   /* ── Event listeners ──────────────────────────────────────────── */
   document.addEventListener('click', function (e) {
     // Filtro — botão trigger
@@ -325,16 +353,6 @@
     // Clique fora: fecha (e para multi, aplica + navega se mudou)
     if (activeWrap && !(e.target.closest && e.target.closest('.th-cf-wrap'))) {
       closeAllFilters();
-    }
-
-    // Popover "Mais N"
-    var moreBtn = e.target.closest && e.target.closest('.th-cal-more');
-    if (moreBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      var iso = moreBtn.getAttribute('data-day-iso');
-      if (iso) openPopover(iso, moreBtn);
-      return;
     }
 
     // Fechar popover dia

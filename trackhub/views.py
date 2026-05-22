@@ -1459,6 +1459,10 @@ def calendario_view(request):
     tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
     tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
+    # Contexto para modal de criação de pendência a partir do calendário
+    modal_form = PendenciaForm(obras_queryset=obras_qs)
+    modal_formset = EtapaFormSet()
+
     ctx = {
         "calendar_weeks": calendar_weeks,
         "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
@@ -1476,6 +1480,12 @@ def calendario_view(request):
         "obras": obras_qs,
         "filtros": filtros,
         "tipos": tipos,
+        # Modal criar pendência
+        "modal_form": modal_form,
+        "modal_formset": modal_formset,
+        "modal_responsaveis_por_obra": _responsaveis_por_obra_payload(obras_qs),
+        "modal_todos_usuarios": _todos_usuarios_ativos_payload(),
+        "modal_tipos_custom": TipoCustom.objects.order_by("nome"),
     }
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/calendario.html", ctx)
@@ -1490,6 +1500,94 @@ def tipo_custom_criar_view(request):
         return JsonResponse({"success": False, "error": "Nome é obrigatório."}, status=400)
     obj, _ = TipoCustom.objects.get_or_create(nome=nome, defaults={"criado_por": request.user})
     return JsonResponse({"success": True, "nome": obj.nome})
+
+
+@login_required
+@require_trackhub
+@require_POST
+def pendencia_criar_ajax_view(request):
+    """Cria pendência via AJAX (modal do calendário). Retorna JSON."""
+    from .recurrence import legacy_scalar_fields_for_db, proxima_data_estrita_depois
+
+    obras_qs = _obras_queryset_for_user(request.user)
+    hoje = timezone.localdate()
+
+    form = PendenciaForm(request.POST, request.FILES, obras_queryset=obras_qs)
+    rec_form = RecorrenciaPendenciaForm(request.POST)
+
+    form_ok = form.is_valid()
+    rec_ok = rec_form.is_valid()
+
+    if not (form_ok and rec_ok):
+        errors = {}
+        for field, err_list in form.errors.items():
+            errors[field] = [str(e) for e in err_list]
+        if not rec_ok:
+            for field, err_list in rec_form.errors.items():
+                errors[f"rec_{field}"] = [str(e) for e in err_list]
+        return JsonResponse({"ok": False, "errors": errors}, status=422)
+
+    saved_pk = None
+    with transaction.atomic():
+        p = form.save(commit=False)
+        p.criado_por = request.user
+        p.status = "aberta"
+        p.origem = "manual"
+        p.save()
+        fs = EtapaFormSet(request.POST, request.FILES, instance=p)
+        if fs.is_valid():
+            fs.save()
+            _salvar_anexos_geral_pendencia(request, p, request.user)
+            _salvar_anexos_etapas_form(request, fs, request.user)
+            prazo_max_etapa = p.etapas.filter(prazo__isnull=False).aggregate(m=Max("prazo"))["m"]
+            if prazo_max_etapa and (p.prazo is None or prazo_max_etapa > p.prazo):
+                p.prazo = prazo_max_etapa
+                p.save(update_fields=["prazo"])
+            recalcular_status_pendencia(p)
+            _notificar_criacao_pendencia(p, request.user)
+            saved_pk = p.pk
+
+            rcd = rec_form.cleaned_data
+            regra = rcd.get("recorrencia_regra") or PendenciaRecorrente.REGRA_NONE
+            if regra != PendenciaRecorrente.REGRA_NONE:
+                p.refresh_from_db()
+                dc = timezone.localtime(p.created_at).date()
+                di = p.data_inicio_efetiva
+                po = (p.prazo - dc).days if p.prazo else None
+                ref_snap = ref_date_para_etapas_snapshot(p, po)
+                snap = etapas_snapshot_from_pendencia(p, ref_snap)
+                pm = rcd.get("recorrencia_parametros") or {}
+                prox = proxima_data_estrita_depois(hoje, regra, parametros=pm)
+                leg_wd, leg_dm, leg_m = legacy_scalar_fields_for_db(regra, pm)
+                rec = PendenciaRecorrente.objects.create(
+                    obra=p.obra,
+                    criado_por=request.user,
+                    titulo=p.titulo,
+                    descricao=p.descricao or "",
+                    tipo=p.tipo,
+                    prioridade=p.prioridade,
+                    prazo_offset_dias=po,
+                    prazo_original=p.prazo,
+                    data_inicio_original=di,
+                    data_criacao_original=dc,
+                    regra=regra,
+                    dia_semana=leg_wd,
+                    dia_mes=leg_dm,
+                    mes=leg_m,
+                    parametros_json=pm,
+                    etapas_snapshot=snap,
+                    proxima_execucao=prox,
+                )
+                Pendencia.objects.filter(pk=p.pk).update(recorrencia_serie_id=rec.pk)
+        else:
+            transaction.set_rollback(True)
+
+    if saved_pk:
+        return JsonResponse({"ok": True, "pk": saved_pk})
+    return JsonResponse(
+        {"ok": False, "errors": {"__all__": ["Erro ao salvar. Tente novamente."]}},
+        status=422,
+    )
 
 
 @login_required

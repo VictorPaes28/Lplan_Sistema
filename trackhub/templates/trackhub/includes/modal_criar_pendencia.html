@@ -1,0 +1,211 @@
+{% load static %}
+{# Modal: criar pendência a partir do clique numa célula do calendário #}
+<div id="th-cal-criar-overlay" class="th-cal-criar-overlay" hidden aria-modal="true" role="dialog" aria-labelledby="th-cal-criar-title">
+  <div class="th-cal-criar-modal">
+
+    <div class="th-cal-criar-head">
+      <h2 class="th-cal-criar-title" id="th-cal-criar-title">Nova Pendência</h2>
+      <button type="button" class="th-cal-criar-close" id="th-cal-criar-close-btn" aria-label="Fechar modal">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="th-cal-criar-body">
+      <form id="th-cal-criar-form" method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        {# Inputs hidden de recorrência — IDs usados pelo trackhub_recorrencia_form.js #}
+        <input type="hidden" name="recorrencia_regra" id="id_recorrencia_regra" value="none">
+        <input type="hidden" name="recorrencia_parametros_json" id="id_recorrencia_parametros_json" value="{}">
+        {# EtapaFormSet management form — gerenciado via JS #}
+        {{ modal_formset.management_form }}
+        {# Dados para ResponsavelPicker #}
+        {{ modal_responsaveis_por_obra|json_script:"th-cal-modal-resp-por-obra" }}
+        {{ modal_todos_usuarios|json_script:"th-cal-modal-todos-usuarios" }}
+
+        {# Erros #}
+        <div id="th-cal-criar-erros" style="display:none;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.5;"></div>
+
+        {# ── Dados da Pendência ──────────────────────────────────────── #}
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:16px;">Dados da Pendência</div>
+
+          {# Local + Tipo — 50% / 50% #}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Local <span style="color:#ef4444;">*</span></label>
+              {{ modal_form.obra }}
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Tipo <span style="color:#ef4444;">*</span></label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <select id="th-modal-id-tipo" name="tipo" required style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:13px;font-family:inherit;color:#1e293b;box-sizing:border-box;cursor:pointer;">
+                  <option value="" disabled selected>Selecione...</option>
+                  <option value="financeiro">Financeiro</option>
+                  <option value="operacional">Operacional</option>
+                  <option value="documento">Documento</option>
+                  <option value="tarefa">Tarefa</option>
+                  {% for tc in modal_tipos_custom %}<option value="{{ tc.nome }}">* {{ tc.nome }}</option>{% endfor %}
+                </select>
+                <button type="button" onclick="thCalModalAbrirTipoCustom()" style="padding:9px 14px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#374151;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Personalizar</button>
+              </div>
+              <div id="th-cal-modal-tipo-custom-row" style="display:none;margin-top:8px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" id="th-cal-modal-tipo-custom-inp" maxlength="100" placeholder="Nome do tipo..." style="flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box;">
+                  <button type="button" onclick="thCalModalSalvarTipoCustom()" style="padding:9px 14px;border-radius:8px;border:none;background:#3498db;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Salvar</button>
+                  <button type="button" onclick="thCalModalCancelarTipoCustom()" style="padding:9px 14px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#374151;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Cancelar</button>
+                </div>
+                <div id="th-cal-modal-tipo-custom-err" style="font-size:11px;color:#ef4444;margin-top:3px;display:none;"></div>
+              </div>
+            </div>
+          </div>
+
+          {# Título #}
+          <div style="margin-bottom:16px;">
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Título <span style="color:#ef4444;">*</span></label>
+            {{ modal_form.titulo }}
+          </div>
+
+          {# Descrição #}
+          <div style="margin-bottom:16px;">
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Descrição</label>
+            {{ modal_form.descricao }}
+          </div>
+
+          {# Prioridade + Responsável #}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prioridade <span style="color:#ef4444;">*</span></label>
+              {{ modal_form.prioridade }}
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Responsável da pendência</label>
+              {{ modal_form.responsavel_interno }}
+            </div>
+          </div>
+
+          {# Data início + Data fim #}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:0;">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Data início</label>
+              {{ modal_form.data_inicio }}
+              <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Em branco: usa o dia da criação</div>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Data fim</label>
+              {{ modal_form.prazo }}
+              <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Deixe em branco se não houver data fim</div>
+            </div>
+          </div>
+
+          {# Repetir #}
+          <div style="margin-top:18px;padding-top:18px;border-top:1px solid #f1f5f9;">
+            <div class="th-recorrencia" id="th-rec-root">
+              <div class="th-recorrencia-label-row">
+                <label class="th-recorrencia-label" for="th-rec-trigger">Repetir</label>
+              </div>
+              <div class="th-recorrencia-wrap">
+                <button type="button" class="th-recorrencia-trigger" id="th-rec-trigger" aria-expanded="false" aria-haspopup="listbox">
+                  <span class="th-recorrencia-trigger-text" id="th-rec-trigger-text">Não se repete</span>
+                  <span class="th-recorrencia-chevron" aria-hidden="true">▾</span>
+                </button>
+                <ul class="th-recorrencia-menu" id="th-rec-menu" role="listbox" hidden>
+                  <li><button type="button" class="th-recorrencia-opt" data-rule="none">Não se repete</button></li>
+                  <li><button type="button" class="th-recorrencia-opt" data-rule="daily">Diariamente</button></li>
+                  <li><button type="button" class="th-recorrencia-opt" data-rule="weekdays">Dias da semana (seg–sex)</button></li>
+                  <li><button type="button" class="th-recorrencia-opt" data-rule="weekly">Semanal</button></li>
+                  <li><button type="button" class="th-recorrencia-opt" data-rule="monthly">Mensal</button></li>
+                  <li><button type="button" class="th-recorrencia-opt" data-rule="yearly">Anual</button></li>
+                  <li><button type="button" class="th-recorrencia-opt th-recorrencia-opt-accent" data-action="custom">Personalizar…</button></li>
+                </ul>
+              </div>
+              <div class="th-recorrencia-custom" id="th-rec-custom" hidden>
+                <div class="th-recorrencia-custom-title">Personalizar recorrência</div>
+                <label class="th-recorrencia-mini-label" for="th-rec-custom-mode">Tipo</label>
+                <select id="th-rec-custom-mode" class="th-filter-select th-rec-select" style="width:100%;box-sizing:border-box;margin-bottom:14px;">
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensal</option>
+                  <option value="yearly">Anual</option>
+                </select>
+                <div id="th-rec-sec-weekly" class="th-rec-sec" hidden>
+                  <div class="th-recorrencia-mini-label">Dias da semana</div>
+                  <div class="th-rec-chip-row" id="th-rec-chips-wd" role="group" aria-label="Dias da semana"></div>
+                </div>
+                <div id="th-rec-sec-monthly" class="th-rec-sec" hidden>
+                  <div class="th-recorrencia-mini-label">Dias do mês</div>
+                  <div class="th-rec-chip-row th-rec-chip-row-wrap" id="th-rec-chips-dom" role="group" aria-label="Dias do mês"></div>
+                </div>
+                <div id="th-rec-sec-yearly" class="th-rec-sec" hidden>
+                  <div class="th-recorrencia-mini-label">Datas no ano</div>
+                  <div id="th-rec-ano-rows"></div>
+                  <button type="button" class="th-rec-link-add" id="th-rec-ano-add">+ Adicionar data</button>
+                </div>
+                <div class="th-recorrencia-custom-actions">
+                  <button type="button" class="th-rec-btn-secondary" id="th-rec-custom-cancel">Cancelar</button>
+                  <button type="button" class="th-rec-btn-primary" id="th-rec-custom-apply">Aplicar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# ── Etapas ──────────────────────────────────────────────────── #}
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Etapas</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:16px;">Opcional — adicione as etapas necessárias para resolver esta pendência</div>
+
+          <div id="etapas-container" data-prefix="{{ modal_formset.prefix }}"></div>
+
+          <template id="etapa-template">
+            <div class="etapa-form-bloco" style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;background:#fafafa;position:relative;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                <div class="etapa-num-label" style="width:28px;height:28px;border-radius:50%;background:#3498db;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">N</div>
+                <span class="th-etapa-num-text" style="font-size:13px;font-weight:600;color:#374151;flex:1;">Etapa N</span>
+                <button type="button" onclick="thCalRemoverEtapa(this)" title="Remover etapa" aria-label="Remover etapa" style="width:26px;height:26px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <input type="hidden" name="{{ modal_formset.prefix }}-__prefix__-ordem" value="0">
+              <input type="hidden" name="{{ modal_formset.prefix }}-__prefix__-id" value="">
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Título</label>
+                <input type="text" name="{{ modal_formset.prefix }}-__prefix__-titulo" class="th-etapa-titulo-inline" style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;width:100%;padding:9px 12px;font-size:13px;font-family:inherit;color:#1e293b;box-sizing:border-box;" placeholder="Título da etapa...">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Usuário responsável</label>
+                  <select name="{{ modal_formset.prefix }}-__prefix__-responsavel_interno" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;background:#fff;color:#1e293b;cursor:pointer;"><option value="">Selecione...</option></select>
+                </div>
+                <div>
+                  <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Prazo da etapa</label>
+                  <input type="date" name="{{ modal_formset.prefix }}-__prefix__-prazo" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;background:#fff;color:#1e293b;cursor:pointer;">
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>
+                <textarea name="{{ modal_formset.prefix }}-__prefix__-observacao" rows="3" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;background:#fff;color:#1e293b;resize:vertical;min-height:72px;" placeholder="Observações sobre esta etapa..."></textarea>
+              </div>
+            </div>
+          </template>
+
+          <button type="button" onclick="thCalAdicionarEtapa()"
+            style="width:100%;padding:10px;border:2px dashed #e2e8f0;border-radius:10px;background:transparent;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;"
+            onmouseover="this.style.borderColor='#3498db';this.style.color='#3498db'"
+            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adicionar etapa
+          </button>
+        </div>
+
+        {# Botões #}
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="th-cal-criar-cancel-btn" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#fff;color:#374151;border:1px solid #e2e8f0;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancelar</button>
+          <button type="submit" id="th-cal-criar-submit-btn" style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:#3498db;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Salvar pendência
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>

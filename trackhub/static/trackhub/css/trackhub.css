@@ -619,7 +619,7 @@
   z-index: 0;
   pointer-events: none;
 }
-.th-cal-day-col .th-cal-cell-num { pointer-events: auto; }
+.th-cal-day-col .th-cal-cell-num { pointer-events: auto; cursor: pointer; }
 .th-cal-day-col:last-child { border-right: none; }
 .th-cal-day-col.other-month { background: #fafafa; }
 .th-cal-week-events {
@@ -634,6 +634,8 @@
   position: relative;
 }
 .th-cal-more {
+  position: relative;
+  z-index: 3;
   font-size: 9.5px;
   font-weight: 600;
   color: #64748b;
@@ -787,6 +789,8 @@
 .th-cal-day-col.today .th-cal-cell-num { width: 22px; height: 22px; background: var(--th-accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; }
 .th-cal-day-col.other-month .th-cal-cell-num { color: #cbd5e1; }
 .th-cal-event {
+  position: relative;
+  z-index: 2;
   font-size: 9.5px; font-weight: 600; padding: 1px 5px; border-radius: 3px;
   cursor: pointer; transition: opacity .15s; text-decoration: none;
   display: flex; align-items: center; gap: 4px; min-width: 0;
@@ -2558,4 +2562,58 @@
   margin-top: 8px !important;
   border-radius: 8px !important;
 }
+
+/* ─── Calendário: zona de clique para criar pendência ─────────── */
+.th-cal-day-click-zone {
+  grid-row: 1 / -1;
+  cursor: pointer;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+/* ─── Modal criar pendência (a partir do calendário) ──────────── */
+.th-cal-criar-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+  z-index: 500; display: none; align-items: flex-start; justify-content: center;
+  padding: 24px 16px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.th-cal-criar-overlay.is-open { display: flex; }
+.th-cal-criar-modal {
+  background: #fff; border-radius: 16px; width: 100%; max-width: 700px;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
+  animation: th-modal-in .2s cubic-bezier(.4,0,.2,1);
+  flex-shrink: 0; margin: auto 0;
+  display: flex; flex-direction: column; max-height: calc(100vh - 48px);
+}
+.th-cal-criar-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0;
+}
+.th-cal-criar-title { font-size: 15px; font-weight: 700; color: #0f172a; margin: 0; }
+.th-cal-criar-close {
+  width: 30px; height: 30px; border-radius: 8px; border: none;
+  background: #f1f5f9; cursor: pointer; color: #64748b;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+}
+.th-cal-criar-close:hover { background: #e2e8f0; color: #374151; }
+.th-cal-criar-body { padding: 20px; overflow-y: auto; flex: 1; min-height: 0; }
+.th-cal-criar-body input[type="text"],
+.th-cal-criar-body input[type="date"],
+.th-cal-criar-body textarea {
+  width: 100%; padding: 9px 12px; border-radius: 8px;
+  border: 1px solid #e2e8f0; font-size: 13px; font-family: inherit;
+  background: #fff; color: #1e293b; box-sizing: border-box;
+  transition: border-color .2s;
+}
+.th-cal-criar-body input[type="text"]:focus,
+.th-cal-criar-body input[type="date"]:focus,
+.th-cal-criar-body textarea:focus { outline: none; border-color: #3498db; }
+.th-cal-criar-body select {
+  padding: 9px 12px; border-radius: 8px; border: 1px solid #e2e8f0;
+  font-size: 13px; font-family: inherit; background: #fff; color: #1e293b;
+  width: 100%; max-width: none !important; box-sizing: border-box; cursor: pointer;
+}
+.th-cal-criar-body select:focus { outline: none; border-color: #3498db; }
+.th-cal-criar-body .th-filter-select { width: 100% !important; max-width: none !important; box-sizing: border-box; }
 
