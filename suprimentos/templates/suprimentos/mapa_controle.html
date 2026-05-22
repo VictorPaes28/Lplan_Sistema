@@ -280,7 +280,7 @@
                         <td class="total-col">{% if row.total != None %}{{ row.total }}%{% else %}-{% endif %}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
+                    <tr class="matrix-empty-row"><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
                     {% endfor %}
                     {% if matrix.atividades %}
                     <tr class="totals-row">
