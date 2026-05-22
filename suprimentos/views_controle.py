@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import unicodedata
 
@@ -29,6 +30,8 @@ _PLACEHOLDER_ROW_KEYS = frozenset(
         "sem setor",
     }
 )
+# Só placeholders genéricos do import ("Linha 1", "linha 2") — não nomes reais como "linha 1 bloco".
+_LINHA_ROW_PLACEHOLDER_RE = re.compile(r"^linha\s+\d+\s*$", re.IGNORECASE)
 
 
 def _matrix_row_drillable(row_key: str) -> bool:
@@ -38,7 +41,7 @@ def _matrix_row_drillable(row_key: str) -> bool:
     low = key.lower()
     if low in _PLACEHOLDER_ROW_KEYS:
         return False
-    if low.startswith("linha "):
+    if _LINHA_ROW_PLACEHOLDER_RE.match(key):
         return False
     return True
 
@@ -220,6 +223,21 @@ def _is_total_header_label(value: str) -> bool:
     return token == "TOTAL" or token == "TOTAL GERAL" or token.startswith("TOTAL")
 
 
+def _matrix_header_is_axis_label(value: str) -> bool:
+    token = str(value or "").strip().upper()
+    if not token:
+        return False
+    if "SETOR" in token or "REGIAO" in token:
+        return True
+    if "BLOCO" in token or "LOCAL" in token or "TORRE" in token:
+        return True
+    if "PAV" in token or "ANDAR" in token or "NIVEL" in token:
+        return True
+    if "APTO" in token or "UNIDADE" in token:
+        return True
+    return False
+
+
 def _normalize_meta_col_indices(values) -> list[int]:
     out = []
     if not isinstance(values, list):
@@ -275,15 +293,22 @@ def _build_matrix_payload_from_rows(rows: list[list[str]], matrix_meta: dict | N
 
     activity_col_indices = _normalize_meta_col_indices(matrix_meta.get("activity_cols_interpreted"))
     activity_col_indices = [i for i in activity_col_indices if i < len(header)]
+    axis_set = set(axis_col_indices)
     if axis_col_indices:
         if not activity_col_indices:
-            activity_col_indices = [i for i in range(len(header)) if i not in axis_col_indices and i != total_col_idx]
+            activity_col_indices = [i for i in range(len(header)) if i not in axis_set and i != total_col_idx]
     else:
         if not activity_col_indices:
             activity_col_indices = [i for i in range(1, len(header)) if i != total_col_idx]
 
     if not activity_col_indices:
         activity_col_indices = [i for i in range(len(header)) if i != total_col_idx]
+
+    activity_col_indices = [
+        i
+        for i in activity_col_indices
+        if i != total_col_idx and not _matrix_header_is_axis_label(str(header[i] or ""))
+    ]
 
     if axis_headers:
         header_first_col = " / ".join(axis_headers)[:120]

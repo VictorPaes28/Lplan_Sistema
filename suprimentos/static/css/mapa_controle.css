@@ -1168,16 +1168,38 @@
     font-size: 0.62rem;
 }
 
+/*
+ * Grade com box-shadow inset (não border): mesma cor em todas as divisórias,
+ * inclusive com muitas colunas estreitas no modo Bloco (evita traço ausente ou “dobrado”).
+ */
 .matrix-table th,
 .matrix-table td {
-    border: 1px solid #e5e7eb;
+    border: none;
+    box-shadow:
+        inset -1px 0 0 #e5e7eb,
+        inset 0 -1px 0 #e5e7eb;
     text-align: center;
     padding: 0.1rem 0.16rem;
     white-space: nowrap;
 }
 
+.matrix-table tr > :first-child {
+    box-shadow:
+        inset 1px 0 0 #e5e7eb,
+        inset -1px 0 0 #e5e7eb,
+        inset 0 -1px 0 #e5e7eb;
+}
+
+.matrix-table thead tr:first-child > * {
+    box-shadow:
+        inset 1px 0 0 #e5e7eb,
+        inset -1px 0 0 #e5e7eb,
+        inset 0 1px 0 #e5e7eb,
+        inset 0 -1px 0 #e5e7eb;
+}
+
 .matrix-table th {
-    background: #f8fafc;
+    background-color: #f8fafc;
     font-weight: 700;
 }
 
@@ -1195,13 +1217,31 @@
     position: sticky;
     left: 0;
     z-index: 2;
-    background: #f8fafc;
+    background-color: #f8fafc;
 }
 
 .matrix-table .row-name {
     font-weight: 700;
     text-align: left;
     padding-left: 0.26rem;
+}
+
+/* Visão com uma coluna de atividade (?atividade=…): mesma largura da matriz completa */
+.matrix-wrap--col-filter {
+    width: 100%;
+}
+
+.matrix-table--col-filter {
+    width: 100%;
+}
+
+.matrix-table--col-filter .sticky-left,
+.matrix-table--col-filter .row-name {
+    min-width: 7.5rem;
+}
+
+.matrix-table--col-filter th.vertical {
+    min-width: 24px;
 }
 
 .matrix-table .cell-link {
@@ -1238,11 +1278,11 @@
 
 .matrix-table .total-col {
     font-weight: 700;
-    background: #eff6ff;
+    background-color: #eff6ff;
 }
 
 .matrix-table .totals-row td {
-    background: #f1f5f9;
+    background-color: #f1f5f9;
 }
 
 .matrix-table .cell-empty {
@@ -2100,7 +2140,7 @@
     }
 
     .matrix-table .sticky-left {
-        background: #eef6ff;
+        background-color: #eef6ff;
     }
 
     .table-compact tbody td {

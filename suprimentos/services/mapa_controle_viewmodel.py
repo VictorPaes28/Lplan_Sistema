@@ -161,6 +161,36 @@ def _is_percent_source_row(row: list, axis_map: dict, *, is_area_comum: bool, is
     return False
 
 
+def _matrix_row_is_visible_unit(row: list, row_axis_col: int, activity_col_indices: list[int]) -> bool:
+    """Exibe só unidades com nome no eixo ou com % lançado (evita slots vazios do preset antigo)."""
+    if not isinstance(row, list):
+        return False
+    if isinstance(row_axis_col, int) and 0 <= row_axis_col < len(row):
+        if str(row[row_axis_col] or "").strip():
+            return True
+    for idx in activity_col_indices:
+        if isinstance(idx, int) and idx < len(row) and str(row[idx] or "").strip():
+            return True
+    return False
+
+
+def _apply_preferred_axis_order(keys: list[str], preferred: list | None) -> list[str]:
+    """Mantém ordem gravada no layout (editor) quando existir; demais chaves no fim."""
+    if not preferred or not isinstance(preferred, list):
+        return keys
+    seen = set(keys)
+    ordered: list[str] = []
+    for raw in preferred:
+        val = str(raw or "").strip()
+        if not val or val not in seen or val in ordered:
+            continue
+        ordered.append(val)
+    for val in keys:
+        if val not in ordered:
+            ordered.append(val)
+    return ordered
+
+
 def _distinct_structural_axis_keys(rows: list[list], row_axis_col: int) -> list[str]:
     """Valores do eixo exibido na camada atual (bloco/pavimento/apto), inclusive linhas só estruturais."""
     keys: list[str] = []
@@ -286,6 +316,71 @@ def _extract_axis_map_from_meta(matrix_meta: dict) -> dict:
     return axis_map
 
 
+def _header_is_axis_label(value: str) -> bool:
+    token = _norm_token(value)
+    if not token:
+        return False
+    if "SETOR" in token or "REGIAO" in token:
+        return True
+    if "BLOCO" in token or token == "LOCAL" or "TORRE" in token:
+        return True
+    if "PAV" in token or "ANDAR" in token or "NIVEL" in token:
+        return True
+    if "APTO" in token or "UNIDADE" in token:
+        return True
+    return False
+
+
+def _supplement_axis_map_from_header(header: list, axis_map: dict) -> dict:
+    out = dict(axis_map or {})
+    for idx, raw in enumerate(header):
+        label = str(raw or "").strip()
+        if not label or _is_total_header_label(label):
+            continue
+        token = _norm_token(label)
+        if ("SETOR" in token or "REGIAO" in token) and "setor" not in out:
+            out["setor"] = idx
+        elif ("BLOCO" in token or "LOCAL" in token or "TORRE" in token) and "bloco" not in out:
+            out["bloco"] = idx
+        elif ("PAV" in token or "ANDAR" in token or "NIVEL" in token) and "pavimento" not in out:
+            out["pavimento"] = idx
+        elif ("APTO" in token or "UNIDADE" in token) and "apto" not in out:
+            out["apto"] = idx
+    return out
+
+
+def _resolve_activity_col_indices(header: list, matrix_meta: dict, axis_cols: list[int]) -> list[int]:
+    axis_set = set(axis_cols or [])
+    from_meta = matrix_meta.get("activity_cols_interpreted") if isinstance(matrix_meta.get("activity_cols_interpreted"), list) else []
+    indices = [c for c in from_meta if isinstance(c, int) and 0 <= c < len(header) and c not in axis_set]
+    cleaned = [i for i in indices if not _header_is_axis_label(str(header[i] or ""))]
+    if cleaned:
+        return cleaned
+    return [
+        idx
+        for idx in range(len(header))
+        if idx not in axis_set
+        and not _is_total_header_label(header[idx])
+        and not _header_is_axis_label(str(header[idx] or ""))
+    ]
+
+
+def _match_activity_labels(activity_labels: list[tuple[int, str]], wanted: str) -> list[tuple[int, str]]:
+    needle = str(wanted or "").strip()
+    if not needle:
+        return activity_labels
+    needle_norm = _norm_token(needle)
+    exact = [
+        (idx, lbl)
+        for idx, lbl in activity_labels
+        if _norm_token(lbl) == needle_norm or str(lbl).strip().lower() == needle.lower()
+    ]
+    if exact:
+        return exact
+    partial = [(idx, lbl) for idx, lbl in activity_labels if needle.lower() in str(lbl).strip().lower()]
+    return partial if partial else activity_labels
+
+
 class AmbienteProvider:
     """
     Provider do ViewModel dedicado por ambiente.
@@ -326,33 +421,16 @@ class AmbienteProvider:
 
         header = rows_layout[0] if rows_layout else []
         body_rows = rows_layout[1:] if len(rows_layout) > 1 else []
-        axis_map = _extract_axis_map_from_meta(matrix_meta)
-        axis_cols = [idx for idx in axis_map.values() if isinstance(idx, int)]
-        axis_cols = sorted(set(axis_cols))
+        axis_map = _supplement_axis_map_from_header(header, _extract_axis_map_from_meta(matrix_meta))
+        axis_cols = sorted({idx for idx in axis_map.values() if isinstance(idx, int)})
 
-        activity_cols = matrix_meta.get("activity_cols_interpreted") if isinstance(matrix_meta.get("activity_cols_interpreted"), list) else []
-        activity_cols = [c for c in activity_cols if isinstance(c, int)]
-        if not axis_map and header:
-            first_label = str(header[0] or "").strip()
-            if first_label:
-                token = _norm_token(first_label)
-                if "SETOR" in token or "REGIAO" in token:
-                    axis_map["setor"] = 0
-                elif "BLOCO" in token or "LOCAL" in token or "TORRE" in token:
-                    axis_map["bloco"] = 0
-                else:
-                    axis_map["bloco"] = 0
-                axis_cols = sorted(set(axis_map.values()))
-        if not activity_cols and header:
-            activity_cols = [
-                idx
-                for idx in range(len(header))
-                if idx not in axis_cols and not _is_total_header_label(header[idx])
-            ]
+        activity_cols = _resolve_activity_col_indices(header, matrix_meta, axis_cols)
 
         is_manual_flat = len(axis_cols) <= 1
         is_area_comum = _setor_e_area_comum(str(selected.get("setor") or ""))
         filter_selected = dict(selected)
+        ativ_nav = str(filter_selected.get("atividade") or "").strip()
+        coluna_filtrada_aviso = None
 
         quick_find = str(filter_selected.get("quick_find") or "").strip()
         if quick_find and not str(selected.get("apto") or "").strip():
@@ -414,6 +492,12 @@ class AmbienteProvider:
                     lbl = str(header[idx] or "").strip() or f"Atividade {idx + 1}"
                     activity_labels.append((idx, lbl))
 
+        if ativ_nav:
+            narrowed = _match_activity_labels(activity_labels, ativ_nav)
+            if narrowed:
+                activity_labels = narrowed
+                coluna_filtrada_aviso = ativ_nav
+
         def _layer_rows_with_stats(axis_key: str, prefilter: dict | None = None):
             idx = axis_map.get(axis_key)
             if not isinstance(idx, int):
@@ -422,6 +506,8 @@ class AmbienteProvider:
             # Com recorte na URL, mesma base da matriz; na raiz, todo o layout.
             list_src = filtered_body if pf else body_rows
             values = _distinct_structural_axis_values(list_src, axis_map, axis_key, pf)
+            row_order_pref = matrix_meta.get(f"row_order_{axis_key}")
+            values = _apply_preferred_axis_order(values, row_order_pref)
             rows = []
             for v in values:
                 rows_match = []
@@ -509,6 +595,14 @@ class AmbienteProvider:
             row_mode_requested = "pavimento"
         else:
             row_mode_requested = "bloco"
+        # Filtro por coluna: na raiz (sem bloco/pavimento) lista todos os blocos × só essa atividade.
+        if (
+            ativ_nav
+            and not str(filter_selected.get("apto") or "").strip()
+            and not str(filter_selected.get("pavimento") or "").strip()
+            and not str(filter_selected.get("bloco") or "").strip()
+        ):
+            row_mode_requested = "bloco"
         if not is_manual_flat:
             if row_mode_requested == "apto" and not str(filter_selected.get("pavimento") or "").strip():
                 row_mode_requested = "pavimento" if str(filter_selected.get("bloco") or "").strip() else "bloco"
@@ -519,6 +613,10 @@ class AmbienteProvider:
         row_axis_col = axis_map.get(row_axis_key)
         if not isinstance(row_axis_col, int):
             row_axis_col = axis_cols[0] if axis_cols else 0
+        if ativ_nav and row_mode_requested == "bloco":
+            bloco_col = axis_map.get("bloco")
+            if isinstance(bloco_col, int):
+                row_axis_col = bloco_col
 
         effective_rows = [header]
 
@@ -544,6 +642,20 @@ class AmbienteProvider:
                 continue
             processed_rows.append(out)
 
+        if row_mode_requested == "apto" and isinstance(row_axis_col, int):
+            act_indices = [idx for idx, _ in activity_labels]
+            visible = [
+                row
+                for row in processed_rows
+                if _matrix_row_is_visible_unit(row, row_axis_col, act_indices)
+            ]
+            if visible:
+                processed_rows = visible
+            elif processed_rows:
+                scaffold = [""] * len(header)
+                scaffold[row_axis_col] = "Linha 1"
+                processed_rows = [scaffold]
+
         # Base numérica: só linhas com lançamento real (UND/APTO), nunca % consolidado em linha estrutural.
         percent_source_rows = [
             row
@@ -568,6 +680,8 @@ class AmbienteProvider:
         ):
             # Exibição: todos os eixos estruturais do recorte; cálculo: só linhas-fonte de %.
             axis_keys = _distinct_structural_axis_keys(processed_rows, row_axis_col)
+            row_order_pref = matrix_meta.get(f"row_order_{row_axis_key}")
+            axis_keys = _apply_preferred_axis_order(axis_keys, row_order_pref)
             grouped = {key: {col_idx: [] for col_idx, _ in activity_labels} for key in axis_keys}
 
             for row in percent_source_rows:
@@ -806,7 +920,7 @@ class AmbienteProvider:
             "importacao_info": None,
             "focus_detail": None,
             "matrix_context": matrix_context,
-            "coluna_filtrada_aviso": None,
+            "coluna_filtrada_aviso": coluna_filtrada_aviso,
             "macro_pulse": None,
             "matrix_stable_qs": matrix_stable_qs,
             "is_area_comum": is_area_comum,

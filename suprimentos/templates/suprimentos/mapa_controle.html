@@ -195,8 +195,8 @@
         <p class="mapa-controle-hint mb-2" role="status">Coluna Â«{{ coluna_filtrada_aviso }}Â»: escolha um bloco e clique no % para ver o detalhe dos serviÃ§os.</p>
         {% endif %}
 
-        <div class="matrix-wrap">
-            <table class="matrix-table">
+        <div class="matrix-wrap{% if coluna_filtrada_aviso %} matrix-wrap--col-filter{% endif %}">
+            <table class="matrix-table{% if coluna_filtrada_aviso %} matrix-table--col-filter{% endif %}">
                 <thead>
                     <tr>
                         <th class="sticky-left">{{ matrix.header_first_col|default:"Bloco" }}</th>
