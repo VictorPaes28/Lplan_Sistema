@@ -226,6 +226,52 @@
       background: #2563eb;
       border-color: #2563eb;
     }
+    .po-map-edit-enabled .po-mapa-row-name-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .po-map-edit-enabled .po-mapa-row-name-wrap > :not(.po-mapa-row-add) {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .po-map-edit-enabled .po-mapa-row-add {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #2563eb;
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .po-map-edit-enabled .po-mapa-row-add:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
+    .po-mapa-row-inline-add {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px dashed #e2e8f0;
+    }
+    .po-mapa-row-inline-add input {
+      flex: 1 1 auto;
+      min-width: 0;
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.82rem;
+    }
+    .po-mapa-row-inline-add input:focus {
+      outline: 2px solid #bfdbfe;
+    }
   `;
   document.head.appendChild(contextMenuStyle);
 
@@ -325,7 +371,7 @@
     if (!row) return "";
     const nameCell = row.querySelector(".row-name, .sticky-left");
     if (!nameCell) return "";
-    return String(textNodeForCell(nameCell).textContent || "").trim() || "linha selecionada";
+    return rowDisplayLabelFromNameCell(nameCell) || "linha selecionada";
   }
 
   function selectedColumnReferenceLabel() {
@@ -620,13 +666,28 @@
     return match ? decodeURIComponent(match[1]) : "";
   }
 
+  function rowDisplayLabelFromNameCell(nameCell) {
+    if (!nameCell) return "";
+    const plain = nameCell.querySelector(".row-name-txt");
+    if (plain) return String(plain.textContent || "").trim();
+    const link = nameCell.querySelector("a.row-link");
+    if (link) return String(link.textContent || "").trim();
+    const wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
+    if (wrap) {
+      const clone = wrap.cloneNode(true);
+      clone.querySelectorAll(".po-mapa-row-add, .po-mapa-row-inline-add").forEach((el) => el.remove());
+      return String(clone.textContent || "").trim();
+    }
+    return String(textNodeForCell(nameCell).textContent || "").trim();
+  }
+
   function rowLabelForCell(cell) {
     if (!cell) return "";
     const tr = cell.closest("tr");
     if (!tr) return "";
     const nameCell = tr.querySelector(".row-name, .sticky-left");
     if (!nameCell) return "";
-    return String(textNodeForCell(nameCell).textContent || "").trim();
+    return rowDisplayLabelFromNameCell(nameCell);
   }
 
   function rememberCellPatch(cell, key, text) {
@@ -652,6 +713,81 @@
       return filters;
     } catch (e) {
       return {};
+    }
+  }
+
+  function normalizeSetorKey(setor) {
+    return String(setor || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, " ");
+  }
+
+  function isSetorAreaComum(setor) {
+    return normalizeSetorKey(setor) === "AREA COMUM";
+  }
+
+  function parseScopeFromPageKey(pageKey) {
+    try {
+      const u = new URL(pageKey || currentPageKey(), window.location.origin);
+      return {
+        requestedMode: String(u.searchParams.get("matrix_mode") || "").trim().toLowerCase(),
+        setor: String(u.searchParams.get("setor") || "").trim(),
+        bloco: String(u.searchParams.get("bloco") || "").trim(),
+        pavimento: String(u.searchParams.get("pavimento") || "").trim(),
+        apto: String(u.searchParams.get("apto") || "").trim(),
+      };
+    } catch (e) {
+      return { requestedMode: "", setor: "", bloco: "", pavimento: "", apto: "" };
+    }
+  }
+
+  /** Espelha suprimentos.views_controle._resolve_matrix_mode (recorte + matrix_mode). */
+  function resolveMatrixMode(scope) {
+    const s = scope && typeof scope === "object" ? scope : parseScopeFromPageKey();
+    let r = s.requestedMode;
+    if (r && r !== "bloco" && r !== "pavimento" && r !== "apto") {
+      r = "";
+    }
+
+    if (isSetorAreaComum(s.setor)) {
+      if (r === "apto") r = "pavimento";
+      if (s.bloco) return "pavimento";
+      if (r === "pavimento" && !s.bloco) return "bloco";
+      if (r === "pavimento") return "pavimento";
+      if (r === "bloco") return "bloco";
+      return "bloco";
+    }
+
+    if (r === "apto") {
+      if (s.bloco && s.pavimento) return "apto";
+      if (s.bloco) return "pavimento";
+      return "bloco";
+    }
+    if (r === "pavimento") {
+      if (s.bloco) return "pavimento";
+      return "bloco";
+    }
+    if (r === "bloco") return "bloco";
+
+    if (s.bloco && s.pavimento) return "apto";
+    if (s.bloco) return "pavimento";
+    if (s.setor) return "bloco";
+    return "bloco";
+  }
+
+  function readMatrixModeFromIframeDom() {
+    try {
+      const doc = frame.contentDocument;
+      const active = doc && doc.querySelector(".matrix-mode-pill.active");
+      if (!active) return "";
+      const href = String(active.getAttribute("href") || "");
+      const m = href.match(/matrix_mode=(bloco|pavimento|apto)/i);
+      return m ? String(m[1]).toLowerCase() : "";
+    } catch (e) {
+      return "";
     }
   }
 
@@ -692,16 +828,13 @@
     return 0;
   }
 
-  function inferRowAxisKeyFromPage() {
-    try {
-      const u = new URL(frame.contentWindow.location.href);
-      const mode = String(u.searchParams.get("matrix_mode") || "").trim();
-      if (mode === "apto") return "apto";
-      if (mode === "pavimento") return "pavimento";
-      return "bloco";
-    } catch (e) {
-      return "bloco";
+  function inferRowAxisKeyFromPage(pageKey) {
+    const scope = parseScopeFromPageKey(pageKey);
+    if (!pageKey || pageKey === currentPageKey()) {
+      const domMode = readMatrixModeFromIframeDom();
+      if (domMode) scope.requestedMode = domMode;
     }
+    return resolveMatrixMode(scope);
   }
 
   function applyCellTextToLayoutRows(rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey) {
@@ -742,7 +875,7 @@
       });
       const nameCell = tr.querySelector(".row-name, .sticky-left");
       if (nameCell && Number.isInteger(rowAxisIdx)) {
-        let label = String(textNodeForCell(nameCell).textContent || "").trim();
+        let label = rowDisplayLabelFromNameCell(nameCell);
         if (label === "-") label = "";
         row[rowAxisIdx] = label;
       }
@@ -804,7 +937,7 @@
     bodyRows.forEach((tr) => {
       const nameCell = tr.querySelector(".row-name, .sticky-left");
       if (!nameCell) return;
-      const rowLabel = String(textNodeForCell(nameCell).textContent || "").trim();
+      const rowLabel = rowDisplayLabelFromNameCell(nameCell);
       tr.querySelectorAll("td").forEach((cell) => {
         if (cell.classList.contains("row-name") || cell.classList.contains("sticky-left")) return;
         const coords = cellCoordsFromKey(cell);
@@ -837,7 +970,7 @@
           const text =
             texts[key] != null ? String(texts[key]) : patch.text != null ? String(patch.text) : "";
           if (!rowLabel || colIndex == null) return;
-        const rowAxisKey = inferRowAxisKeyFromPage();
+        const rowAxisKey = inferRowAxisKeyFromPage(pageKey);
         applyCellTextToLayoutRows(data.rows, axisMap, filters, rowLabel, colIndex, text, rowAxisKey);
       });
     });
@@ -1138,6 +1271,7 @@
         cell.setAttribute("data-po-edit-key", `r${rIdx}c${cIdx}`);
       });
     });
+    ensureRowInlineAddControls();
   }
 
   function tableRef() {
@@ -1262,19 +1396,107 @@
   }
 
   function parseCurrentScope() {
-    try {
-      const u = new URL(String(frame.contentWindow.location.href || ""));
-      const params = u.searchParams;
-      const matrixMode = String(params.get("matrix_mode") || "bloco").trim() || "bloco";
-      return {
-        mode: matrixMode,
-        setor: String(params.get("setor") || "").trim(),
-        bloco: String(params.get("bloco") || "").trim(),
-        pavimento: String(params.get("pavimento") || "").trim(),
-      };
-    } catch (e) {
-      return { mode: "bloco", setor: "", bloco: "", pavimento: "" };
-    }
+    const scope = parseScopeFromPageKey(currentPageKey());
+    const domMode = readMatrixModeFromIframeDom();
+    if (domMode) scope.requestedMode = domMode;
+    return {
+      mode: resolveMatrixMode(scope),
+      setor: scope.setor,
+      bloco: scope.bloco,
+      pavimento: scope.pavimento,
+    };
+  }
+
+  function cancelRowInlineAdd() {
+    const doc = frame.contentDocument;
+    if (!doc) return;
+    doc.querySelectorAll(".po-mapa-row-inline-add").forEach((el) => el.remove());
+  }
+
+  function openRowInlineAdd(anchorRow, insertAfterBodyIndex) {
+    if (!state.enabled || !anchorRow) return;
+    cancelRowInlineAdd();
+    const nameCell = anchorRow.querySelector(".row-name, .sticky-left");
+    if (!nameCell) return;
+    const wrap = nameCell.querySelector(".po-mapa-row-name-wrap") || nameCell;
+    const line = document.createElement("div");
+    line.className = "po-mapa-row-inline-add";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = rowAxisPlaceholder(inferRowAxisKeyFromPage());
+    input.setAttribute("aria-label", `Novo ${rowAxisHumanLabel(inferRowAxisKeyFromPage()).toLowerCase()}`);
+    line.appendChild(input);
+    wrap.appendChild(line);
+    input.focus();
+
+    const commit = () => {
+      const name = String(input.value || "").trim();
+      if (!name) {
+        cancelRowInlineAdd();
+        return;
+      }
+      const insertAt = Math.max(0, Number(insertAfterBodyIndex) + 1);
+      if (applyInsertRow(insertAt, name, { registerOp: true, keepSelection: true })) {
+        updateStatus(`${rowAxisHumanLabel(inferRowAxisKeyFromPage())} "${name}" adicionado em ${scopeDisplayLabel()}.`);
+      }
+      cancelRowInlineAdd();
+    };
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelRowInlineAdd();
+      }
+    });
+    input.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (!line.isConnected) return;
+        if (line.contains(doc.activeElement)) return;
+        cancelRowInlineAdd();
+      }, 120);
+    });
+  }
+
+  function ensureRowInlineAddControls() {
+    const doc = frame.contentDocument;
+    if (!doc) return;
+    const tbody = doc.querySelector(".matrix-table tbody");
+    if (!tbody) return;
+    const bodyRows = Array.from(tbody.querySelectorAll("tr")).filter((tr) => !tr.classList.contains("totals-row"));
+    bodyRows.forEach((tr, bodyIndex) => {
+      const nameCell = tr.querySelector(".row-name, .sticky-left");
+      if (!nameCell) return;
+      let wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
+      if (!wrap) {
+        wrap = doc.createElement("div");
+        wrap.className = "po-mapa-row-name-wrap";
+        while (nameCell.firstChild) {
+          wrap.appendChild(nameCell.firstChild);
+        }
+        nameCell.appendChild(wrap);
+      }
+      let btn = wrap.querySelector(".po-mapa-row-add");
+      if (!btn) {
+        btn = doc.createElement("button");
+        btn.type = "button";
+        btn.className = "po-mapa-row-add";
+        btn.title = "Adicionar linha abaixo neste nível";
+        btn.setAttribute("aria-label", "Adicionar linha abaixo");
+        btn.textContent = "+";
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!state.enabled) return;
+          openRowInlineAdd(tr, bodyIndex);
+        });
+        wrap.insertBefore(btn, wrap.firstChild);
+      }
+      btn.hidden = !state.enabled;
+    });
   }
 
   function scopeDisplayLabel() {
@@ -1386,6 +1608,7 @@
       ensurePageDraft(currentPageKey()).ops.push({ type: "insert_row", index: insertAt, label: title });
       markDirty();
     }
+    ensureRowInlineAddControls();
     refreshMoveButtons();
     return true;
   }
@@ -1451,6 +1674,7 @@
       ensurePageDraft(currentPageKey()).ops.push({ type: "delete_row", index: idx });
       markDirty();
     }
+    ensureRowInlineAddControls();
     refreshMoveButtons();
     return true;
   }
@@ -1583,6 +1807,9 @@
     if (target.closest("a.row-link")) {
       return;
     }
+    if (target.closest(".po-mapa-row-add, .po-mapa-row-inline-add")) {
+      return;
+    }
     if (!state.enabled) return;
     if (state.inline.node && (target === state.inline.node || target.closest('[data-po-inline-edit="1"]'))) {
       return;
@@ -1687,6 +1914,7 @@
     toggleControls(state.enabled);
     if (!state.enabled) {
       finishInlineEdit({ commit: true });
+      cancelRowInlineAdd();
       if (state.selectedCell) {
         state.selectedCell.style.outline = "";
         state.selectedCell.style.outlineOffset = "";
@@ -1696,6 +1924,7 @@
       updateStatus("Somente visualização");
     }
     ensureEditModeIframeGuards();
+    ensureRowInlineAddControls();
     refreshMoveButtons();
   }
 
@@ -1776,6 +2005,7 @@
 
   frame.addEventListener("load", () => {
     hideLoading();
+    cancelRowInlineAdd();
     initDocumentHooks();
     resizeFrameToContent();
     scrollIframeToMatrix();
