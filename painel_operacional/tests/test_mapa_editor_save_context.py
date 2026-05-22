@@ -34,6 +34,21 @@ def resolve_row_axis_from_query(query: dict, dom_mode: str = "") -> str:
     return py_mode
 
 
+def is_apto_und_manual_entry_layer(query: dict, dom_mode: str = "") -> bool:
+    """Espelha isAptoUndManualEntryLayer no JS (edição manual de %)."""
+    setor = (query.get("setor") or "").strip()
+    if _norm_setor(setor) == "AREA COMUM":
+        return False
+    mode = resolve_row_axis_from_query(query, dom_mode)
+    if mode != "apto":
+        return False
+    if not (query.get("bloco") or "").strip():
+        return False
+    if not (query.get("pavimento") or "").strip():
+        return False
+    return True
+
+
 def build_axis_map() -> dict[str, int]:
     return {"setor": 0, "bloco": 1, "pavimento": 2, "apto": 3}
 
@@ -70,25 +85,47 @@ def row_matches_filters(row: list[str], axis_map: dict[str, int], filters: dict[
     return True
 
 
-def replace_layout_rows_scoped(
-    all_rows: list[list[str]],
-    exported: list[list[str]],
-    filters: dict[str, str],
-) -> list[list[str]]:
-    """Espelha replaceLayoutRowsFromTableExport com recorte ativo."""
+def parent_filters_for_level(context: dict) -> dict[str, str]:
+    f = {}
+    if context.get("setor"):
+        f["setor"] = context["setor"]
+    if context.get("level") in ("pavimento", "apto") and context.get("bloco"):
+        f["bloco"] = context["bloco"]
+    if context.get("level") == "apto" and context.get("pavimento"):
+        f["pavimento"] = context["pavimento"]
+    return f
+
+
+def new_canonical_row(header_len: int, context: dict, label: str) -> list[str]:
+    axis_map = build_axis_map()
+    row = [""] * header_len
+    for key in ("setor", "bloco", "pavimento", "apto"):
+        idx = axis_map.get(key)
+        val = context.get(key)
+        if idx is not None and val:
+            row[idx] = val
+    level_idx = axis_map.get(context.get("level"))
+    if level_idx is not None:
+        row[level_idx] = label
+    return row
+
+
+def apply_create_row_delta(all_rows: list[list[str]], context: dict, label: str) -> list[list[str]]:
+    """Espelha applyCreateRowToLayout (delta no layout canônico, sem tbody)."""
     axis_map = build_axis_map()
     header = all_rows[0]
-    has_scoped = any(
-        filters.get(k) and axis_map.get(k) is not None for k in ("setor", "bloco", "pavimento", "apto")
-    )
-    if not has_scoped:
-        return [header, *exported]
-    kept = [
-        row
-        for row in all_rows[1:]
-        if isinstance(row, list) and not row_matches_filters(row, axis_map, filters)
-    ]
-    return [header, *kept, *exported]
+    parent_f = parent_filters_for_level(context)
+    level_idx = axis_map.get(context.get("level"))
+    if level_idx is None:
+        return all_rows
+    for row in all_rows[1:]:
+        if not isinstance(row, list):
+            continue
+        if parent_f and not row_matches_filters(row, axis_map, parent_f):
+            continue
+        if str(row[level_idx] or "").strip() == label:
+            return all_rows
+    return [header, *all_rows[1:], new_canonical_row(len(header), context, label)]
 
 
 class MapaEditorSaveContextTests(unittest.TestCase):
@@ -141,31 +178,46 @@ class MapaEditorSaveContextTests(unittest.TestCase):
         q = {"setor": "ÁREA COMUM", "bloco": "A", "matrix_mode": "bloco"}
         self.assertEqual(resolve_row_axis_from_query(q), "pavimento")
 
-    def test_6_merge_preserva_outras_camadas(self):
+    def test_6_create_row_delta_preserva_outras_camadas(self):
         header = ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV"]
         existing = [
             header,
-            ["HAB", "teste", "1P", "101", "50%"],
-            ["HAB", "outro", "2P", "201", "30%"],
+            ["HAB", "teste", "1P", "101", "50"],
+            ["HAB", "outro", "2P", "201", "30"],
         ]
-        exported = [
-            build_export_row(
-                filters={"bloco": "teste"},
-                row_axis_key="pavimento",
-                row_label="TERREO",
-            )
-        ]
-        merged = replace_layout_rows_scoped(
+        merged = apply_create_row_delta(
             existing,
-            exported,
-            filters={"bloco": "teste"},
+            {
+                "setor": "HAB",
+                "bloco": "teste",
+                "pavimento": "",
+                "level": "pavimento",
+            },
+            "TERREO",
         )
         blocos = {r[1] for r in merged[1:]}
         self.assertIn("outro", blocos)
         self.assertIn("teste", blocos)
-        teste_rows = [r for r in merged[1:] if r[1] == "teste"]
-        self.assertEqual(len(teste_rows), 1)
-        self.assertEqual(teste_rows[0][2], "TERREO")
+        self.assertEqual(len([r for r in merged[1:] if r[1] == "outro"]), 1)
+        terreo = [r for r in merged[1:] if r[1] == "teste" and r[2] == "TERREO"]
+        self.assertEqual(len(terreo), 1)
+        self.assertEqual(terreo[0][3], "")
+
+    def test_create_bloco_na_raiz_append_sem_apagar_filhos(self):
+        header = ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV"]
+        existing = [
+            header,
+            ["HAB", "Bloco A", "P1", "101", ""],
+            ["HAB", "Bloco B", "X", "201", ""],
+        ]
+        merged = apply_create_row_delta(
+            existing,
+            {"setor": "HAB", "bloco": "", "pavimento": "", "level": "bloco"},
+            "Bloco C",
+        )
+        self.assertEqual(len(merged), 4)
+        self.assertEqual(merged[3][1], "Bloco C")
+        self.assertEqual(merged[1][2], "P1")
 
     def test_page_key_por_url_distinto(self):
         """Rascunhos por página usam pathname+search (camadas diferentes)."""
@@ -176,15 +228,43 @@ class MapaEditorSaveContextTests(unittest.TestCase):
         self.assertEqual(resolve_row_axis_from_query({"obra": "6", "bloco": "teste"}), "pavimento")
 
     def test_fluxo_inline_e_toolbar_mesmo_eixo(self):
-        """+ inline e + Linha usam applyInsertRow + mesmo export no save."""
+        """+ inline e + Linha registram create_row com contexto de pavimento."""
+        ctx = {"setor": "", "bloco": "teste", "pavimento": "", "level": "pavimento"}
         for label in ("via_inline", "via_toolbar"):
-            row = build_export_row(
-                filters={"bloco": "teste"},
-                row_axis_key="pavimento",
-                row_label=label,
-            )
+            row = new_canonical_row(5, ctx, label)
             self.assertEqual(row[1], "teste")
             self.assertEqual(row[2], label)
+
+    def test_edicao_percentual_somente_apto_und(self):
+        self.assertFalse(is_apto_und_manual_entry_layer({"obra": "6"}))
+        self.assertFalse(
+            is_apto_und_manual_entry_layer({"obra": "6", "setor": "HAB", "bloco": "B1"})
+        )
+        self.assertTrue(
+            is_apto_und_manual_entry_layer(
+                {"obra": "6", "setor": "HAB", "bloco": "B1", "pavimento": "1P"}
+            )
+        )
+
+    def test_area_comum_nunca_edita_percentual(self):
+        self.assertFalse(
+            is_apto_und_manual_entry_layer(
+                {"setor": "ÁREA COMUM", "bloco": "A", "pavimento": "TÉRREO"}
+            )
+        )
+        self.assertFalse(
+            is_apto_und_manual_entry_layer(
+                {"setor": "AREA COMUM", "bloco": "A"},
+                dom_mode="pavimento",
+            )
+        )
+
+    def test_pill_por_unidade_sem_pavimento_nao_edita(self):
+        self.assertFalse(
+            is_apto_und_manual_entry_layer(
+                {"setor": "HAB", "bloco": "B1", "matrix_mode": "apto"},
+            )
+        )
 
 
 if __name__ == "__main__":
