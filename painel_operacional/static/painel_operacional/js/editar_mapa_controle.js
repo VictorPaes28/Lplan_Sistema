@@ -27,6 +27,17 @@
   let bridgedDeltaY = 0;
   let bridgeRaf = 0;
   let restoreParentScrollY = null;
+  const matrixDnD = {
+    active: false,
+    axis: null,
+    from: null,
+    dropTarget: null,
+    dragEl: null,
+    handleEl: null,
+    pointerId: null,
+    onPointerMove: null,
+    onPointerEnd: null,
+  };
 
   const storageKey = `po_mapa_edit_draft_${ctx.ambienteId || "global"}`;
   const state = {
@@ -225,52 +236,6 @@
     .po-mapa-insert-dialog__actions .btn-primary {
       background: #2563eb;
       border-color: #2563eb;
-    }
-    .po-map-edit-enabled .po-mapa-row-name-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-    }
-    .po-map-edit-enabled .po-mapa-row-name-wrap > :not(.po-mapa-row-add) {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-    .po-map-edit-enabled .po-mapa-row-add {
-      flex: 0 0 auto;
-      width: 22px;
-      height: 22px;
-      padding: 0;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      background: #f8fafc;
-      color: #2563eb;
-      font-size: 0.95rem;
-      line-height: 1;
-      cursor: pointer;
-    }
-    .po-map-edit-enabled .po-mapa-row-add:hover {
-      background: #eff6ff;
-      border-color: #93c5fd;
-    }
-    .po-mapa-row-inline-add {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 4px;
-      padding-top: 4px;
-      border-top: 1px dashed #e2e8f0;
-    }
-    .po-mapa-row-inline-add input {
-      flex: 1 1 auto;
-      min-width: 0;
-      border: 1px solid #93c5fd;
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.82rem;
-    }
-    .po-mapa-row-inline-add input:focus {
-      outline: 2px solid #bfdbfe;
     }
   `;
   document.head.appendChild(contextMenuStyle);
@@ -663,19 +628,27 @@
     return match ? decodeURIComponent(match[1]) : "";
   }
 
+  function sanitizeRowDisplayLabel(raw) {
+    return String(raw || "")
+      .replace(/[⋮⠿\u22ee]+/g, "")
+      .replace(/^\s*\+\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function rowDisplayLabelFromNameCell(nameCell) {
     if (!nameCell) return "";
     const plain = nameCell.querySelector(".row-name-txt");
-    if (plain) return String(plain.textContent || "").trim();
+    if (plain) return sanitizeRowDisplayLabel(plain.textContent);
     const link = nameCell.querySelector("a.row-link");
-    if (link) return String(link.textContent || "").trim();
+    if (link) return sanitizeRowDisplayLabel(link.textContent);
     const wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
     if (wrap) {
       const clone = wrap.cloneNode(true);
       clone.querySelectorAll(".po-mapa-row-add, .po-mapa-row-inline-add").forEach((el) => el.remove());
-      return String(clone.textContent || "").trim();
+      return sanitizeRowDisplayLabel(clone.textContent);
     }
-    return String(textNodeForCell(nameCell).textContent || "").trim();
+    return sanitizeRowDisplayLabel(textNodeForCell(nameCell).textContent);
   }
 
   function rowLabelForCell(cell) {
@@ -1639,6 +1612,79 @@
           cursor: pointer !important;
           text-decoration: underline !important;
         }
+        .po-map-edit-enabled .po-mapa-row-name-wrap {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+        }
+        .po-map-edit-enabled .po-mapa-row-name-wrap > :not(.po-mapa-dnd-handle) {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .po-map-edit-enabled .po-mapa-dnd-handle {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 22px;
+          margin: 0;
+          padding: 0;
+          border: 1px solid #cbd5e1;
+          border-radius: 5px;
+          background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+          color: #64748b;
+          font-size: 0.72rem;
+          line-height: 1;
+          cursor: grab;
+          user-select: none;
+          touch-action: none;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+          overflow: hidden;
+        }
+        .po-map-edit-enabled .po-mapa-dnd-handle__icon {
+          pointer-events: none;
+          font-size: 0.72rem;
+          line-height: 1;
+        }
+        .po-map-edit-enabled .po-mapa-dnd-handle:hover {
+          color: #2563eb;
+          border-color: #93c5fd;
+          background: #eff6ff;
+        }
+        .po-map-edit-enabled .po-mapa-dnd-handle:active,
+        .po-map-edit-enabled .po-mapa-dnd-handle.is-dragging {
+          cursor: grabbing;
+          color: #1d4ed8;
+          border-color: #2563eb;
+          background: #dbeafe;
+        }
+        .po-map-edit-enabled th.vertical .po-mapa-dnd-handle {
+          display: inline-flex;
+          vertical-align: middle;
+          margin-right: 3px;
+        }
+        .po-map-edit-enabled tr.po-mapa-dnd-dragging > td,
+        .po-map-edit-enabled tr.po-mapa-dnd-dragging > th {
+          opacity: 0.62;
+          cursor: grabbing !important;
+        }
+        .po-map-edit-enabled th.po-mapa-dnd-dragging {
+          opacity: 0.62;
+          cursor: grabbing !important;
+        }
+        .po-map-edit-enabled tr.po-mapa-dnd-row-slot > td,
+        .po-map-edit-enabled tr.po-mapa-dnd-row-slot > th {
+          box-shadow: inset 0 -3px 0 0 #2563eb;
+        }
+        .po-map-edit-enabled thead th.po-mapa-dnd-col-slot:not(.vertical) {
+          box-shadow: inset -3px 0 0 0 #2563eb;
+        }
+        /* Só no cabeçalho da coluna; rotate(180deg) inverte o lado do shadow */
+        .po-map-edit-enabled thead th.vertical.po-mapa-dnd-col-slot {
+          box-shadow: inset 3px 0 0 0 #2563eb;
+        }
       `;
       (doc.head || doc.documentElement).appendChild(style);
     }
@@ -1791,7 +1837,9 @@
         cell.setAttribute("data-po-edit-key", `r${rIdx}c${cIdx}`);
       });
     });
-    ensureRowInlineAddControls();
+    cleanupRowAddControls();
+    enhanceMatrixDragHandles();
+    bindMatrixDragReorder();
   }
 
   function tableRef() {
@@ -1824,12 +1872,20 @@
   }
 
   function canMoveSelectedRow() {
-    const table = tableRef();
-    if (!table || !state.selectedCell) return false;
+    if (!state.selectedCell) return false;
     const tr = state.selectedCell.closest("tr");
     if (!tr || isNonDataMatrixRow(tr)) return false;
-    const tbody = table.querySelector("tbody");
-    return listMatrixTbodyRows(tbody).includes(tr);
+    const tbody = tableRef()?.querySelector("tbody");
+    return tbody ? listMatrixTbodyRows(tbody).includes(tr) : false;
+  }
+
+  function selectedBodyRowIndex() {
+    if (!state.selectedCell) return -1;
+    const tr = state.selectedCell.closest("tr");
+    if (!tr) return -1;
+    const tbody = tableRef()?.querySelector("tbody");
+    if (!tbody) return -1;
+    return listMatrixTbodyRows(tbody).indexOf(tr);
   }
 
   function refreshMoveButtons() {
@@ -1847,16 +1903,43 @@
     if (btnDeleteRow) btnDeleteRow.disabled = !canRow;
   }
 
+  function movableColumnBounds() {
+    const table = tableRef();
+    if (!table) return null;
+    const row = table.querySelector("tr");
+    if (!row) return null;
+    const colCount = row.children.length;
+    if (colCount < 3) return null;
+    return { min: 1, max: colCount - 2 };
+  }
+
+  function matrixBodyRows() {
+    const tbody = tableRef()?.querySelector("tbody");
+    return listMatrixTbodyRows(tbody);
+  }
+
+  function willApplyMatrixMove(axis, from, dropTarget) {
+    if (!Number.isInteger(from) || !Number.isInteger(dropTarget) || from === dropTarget) return false;
+    if (axis === "col") {
+      const bounds = movableColumnBounds();
+      if (!bounds) return false;
+      return dropTarget >= bounds.min && dropTarget <= bounds.max;
+    }
+    const movable = matrixBodyRows();
+    return dropTarget >= 0 && dropTarget < movable.length;
+  }
+
   function applyMoveColumn(fromIdx, toIdx, options) {
     const cfg = options && typeof options === "object" ? options : {};
     if (!guardStructuralLayoutOp(cfg)) return false;
     const table = tableRef();
     if (!table) return false;
+    const bounds = movableColumnBounds();
+    if (!bounds) return false;
     const rows = Array.from(table.querySelectorAll("tr"));
     if (!rows.length) return false;
-    const colCount = rows[0].children.length;
-    const from = clampIndex(Number(fromIdx), 0, colCount - 1);
-    const to = clampIndex(Number(toIdx), 0, colCount - 1);
+    const from = clampIndex(Number(fromIdx), bounds.min, bounds.max);
+    const to = clampIndex(Number(toIdx), bounds.min, bounds.max);
     if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return false;
     rows.forEach((row) => {
       const cells = Array.from(row.children);
@@ -1889,22 +1972,21 @@
     if (!table) return false;
     const tbody = table.querySelector("tbody");
     if (!tbody) return false;
-    const rows = listMatrixTbodyRows(tbody);
-    if (!rows.length) return false;
-    const max = rows.length - 1;
+    const movable = listMatrixTbodyRows(tbody);
+    if (movable.length < 2) return false;
+    const max = movable.length - 1;
     const from = clampIndex(Number(fromBodyIdx), 0, max);
     const to = clampIndex(Number(toBodyIdx), 0, max);
     if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return false;
-    const src = rows[from];
-    const tgt = rows[to];
+    const src = movable[from];
+    const tgt = movable[to];
     if (!src || !tgt) return false;
-    if (src.classList.contains("totals-row") || tgt.classList.contains("totals-row")) return false;
     if (from < to) tbody.insertBefore(src, tgt.nextSibling);
     else tbody.insertBefore(src, tgt);
     mapEditableCells();
-    if (cfg.keepSelection) {
-      const selected = table.querySelector(`[data-po-edit-key="r${to + 1}c0"]`);
-      if (selected) setSelectedCell(selected);
+    if (cfg.keepSelection && src) {
+      const nameCell = src.querySelector(".row-name, .sticky-left") || src.querySelector("td,th");
+      if (nameCell) setSelectedCell(nameCell);
     }
     if (cfg.registerOp !== false) {
       const nameCell = src.querySelector(".row-name, .sticky-left");
@@ -1922,6 +2004,314 @@
     return true;
   }
 
+  function ensureRowNameWrap(doc, nameCell) {
+    let wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
+    if (wrap) return wrap;
+    wrap = doc.createElement("div");
+    wrap.className = "po-mapa-row-name-wrap";
+    while (nameCell.firstChild) {
+      wrap.appendChild(nameCell.firstChild);
+    }
+    nameCell.appendChild(wrap);
+    return wrap;
+  }
+
+  function ensureDragHandle(doc, parent, label) {
+    parent.querySelectorAll(":scope > .po-mapa-dnd-handle").forEach((el, idx) => {
+      if (idx > 0) el.remove();
+    });
+    let handle = parent.querySelector(":scope > .po-mapa-dnd-handle");
+    if (!handle) {
+      handle = doc.createElement("button");
+      handle.type = "button";
+      handle.className = "po-mapa-dnd-handle";
+      handle.title = label;
+      handle.setAttribute("aria-label", label);
+      const icon = doc.createElement("i");
+      icon.className = "bi bi-grip-vertical po-mapa-dnd-handle__icon";
+      icon.setAttribute("aria-hidden", "true");
+      handle.appendChild(icon);
+      parent.insertBefore(handle, parent.firstChild);
+    } else if (!handle.querySelector(".po-mapa-dnd-handle__icon")) {
+      handle.textContent = "";
+      const icon = doc.createElement("i");
+      icon.className = "bi bi-grip-vertical po-mapa-dnd-handle__icon";
+      icon.setAttribute("aria-hidden", "true");
+      handle.appendChild(icon);
+    } else if (handle.textContent.trim() && handle.textContent.trim() !== "") {
+      const icon = handle.querySelector(".po-mapa-dnd-handle__icon");
+      handle.textContent = "";
+      if (icon) handle.appendChild(icon);
+    }
+    handle.hidden = !state.enabled;
+    return handle;
+  }
+
+  function sanitizeRowNameCellContent(nameCell) {
+    if (!nameCell) return;
+    nameCell.querySelectorAll(":scope > .po-mapa-dnd-handle").forEach((el) => el.remove());
+    const wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
+    if (!wrap) return;
+    wrap.querySelectorAll(".po-mapa-dnd-handle").forEach((el, idx) => {
+      if (idx > 0) el.remove();
+    });
+    wrap.querySelectorAll(".row-name-txt, a.row-link").forEach((el) => {
+      const next = sanitizeRowDisplayLabel(el.textContent);
+      if (next) el.textContent = next;
+    });
+    Array.from(wrap.childNodes).forEach((node) => {
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      const next = sanitizeRowDisplayLabel(node.textContent);
+      if (!next) wrap.removeChild(node);
+      else node.textContent = next;
+    });
+  }
+
+  function clearMatrixDnDHighlights() {
+    const doc = frame.contentDocument;
+    if (!doc) return;
+    doc.querySelectorAll(".po-mapa-dnd-dragging").forEach((el) => el.classList.remove("po-mapa-dnd-dragging"));
+    doc.querySelectorAll(".po-mapa-dnd-row-slot").forEach((el) => el.classList.remove("po-mapa-dnd-row-slot"));
+    doc.querySelectorAll(".po-mapa-dnd-col-slot").forEach((el) => el.classList.remove("po-mapa-dnd-col-slot"));
+    doc.querySelectorAll(".po-mapa-dnd-handle.is-dragging").forEach((el) => el.classList.remove("is-dragging"));
+  }
+
+  function enhanceMatrixDragHandles() {
+    const doc = frame.contentDocument;
+    const table = doc && doc.querySelector(".matrix-table");
+    if (!doc || !table) return;
+
+    doc.querySelectorAll(".po-mapa-dnd-handle").forEach((el) => {
+      el.hidden = !state.enabled;
+    });
+    if (!state.enabled) return;
+
+    const headerRow = table.querySelector("thead tr");
+    if (headerRow) {
+      const colCount = headerRow.children.length;
+      Array.from(headerRow.children).forEach((cell, colIndex) => {
+        if (colIndex <= 0 || colIndex >= colCount - 1) return;
+        if (!cell.classList.contains("vertical")) return;
+        ensureDragHandle(doc, cell, "Arrastar para mover coluna");
+        cell.dataset.poDndCol = String(colIndex);
+      });
+    }
+
+    matrixBodyRows().forEach((tr, bodyIndex) => {
+      const nameCell = tr.querySelector(".row-name, .sticky-left");
+      if (!nameCell) return;
+      const wrap = ensureRowNameWrap(doc, nameCell);
+      sanitizeRowNameCellContent(nameCell);
+      ensureDragHandle(doc, wrap, "Arrastar para mover linha");
+      tr.dataset.poDndRow = String(bodyIndex);
+    });
+  }
+
+  function cleanupMatrixDnDListeners() {
+    const doc = frame.contentDocument;
+    const handle = matrixDnD.handleEl;
+    const pid = matrixDnD.pointerId;
+    if (handle && matrixDnD.onPointerMove) {
+      handle.removeEventListener("pointermove", matrixDnD.onPointerMove);
+      handle.removeEventListener("pointerup", matrixDnD.onPointerEnd);
+      handle.removeEventListener("pointercancel", matrixDnD.onPointerEnd);
+      handle.removeEventListener("lostpointercapture", matrixDnD.onPointerEnd);
+    }
+    if (doc && matrixDnD.onPointerEnd) {
+      doc.removeEventListener("pointerup", matrixDnD.onPointerEnd, true);
+      doc.removeEventListener("pointercancel", matrixDnD.onPointerEnd, true);
+    }
+    if (matrixDnD.onPointerEnd) {
+      window.removeEventListener("pointerup", matrixDnD.onPointerEnd, true);
+      window.removeEventListener("pointercancel", matrixDnD.onPointerEnd, true);
+      window.removeEventListener("blur", matrixDnD.onPointerEnd);
+    }
+    if (handle && pid != null) {
+      try {
+        if (handle.hasPointerCapture && handle.hasPointerCapture(pid)) {
+          handle.releasePointerCapture(pid);
+        }
+      } catch (e) {
+        void e;
+      }
+    }
+    matrixDnD.active = false;
+    matrixDnD.axis = null;
+    matrixDnD.from = null;
+    matrixDnD.dropTarget = null;
+    matrixDnD.dragEl = null;
+    matrixDnD.handleEl = null;
+    matrixDnD.pointerId = null;
+    matrixDnD.onPointerMove = null;
+    matrixDnD.onPointerEnd = null;
+    clearMatrixDnDHighlights();
+  }
+
+  /** Coluna cujo campo inteiro (faixa vertical da tabela × largura do cabeçalho) contém o ponteiro. */
+  function colTargetIndexFromPointer(clientX, clientY) {
+    const bounds = movableColumnBounds();
+    const table = tableRef();
+    if (!bounds || !table) return null;
+    const headerRow = table.querySelector("thead tr");
+    if (!headerRow) return null;
+    const tableRect = table.getBoundingClientRect();
+    if (clientY < tableRect.top || clientY > tableRect.bottom) return null;
+
+    for (let c = bounds.min; c <= bounds.max; c += 1) {
+      const cell = headerRow.children[c];
+      if (!cell) continue;
+      const rect = cell.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right) return c;
+    }
+    return null;
+  }
+
+  /** Linha cujo campo inteiro (altura da linha) contém clientY. */
+  function rowTargetIndexFromY(clientY) {
+    const rows = matrixBodyRows();
+    for (let i = 0; i < rows.length; i += 1) {
+      const rect = rows[i].getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) return i;
+    }
+    return null;
+  }
+
+  function updateMatrixDnDHighlights() {
+    const doc = frame.contentDocument;
+    if (!doc || !matrixDnD.active) return;
+    clearMatrixDnDHighlights();
+    if (matrixDnD.dragEl) matrixDnD.dragEl.classList.add("po-mapa-dnd-dragging");
+    if (matrixDnD.handleEl) matrixDnD.handleEl.classList.add("is-dragging");
+
+    const slot = matrixDnD.dropTarget;
+    if (!Number.isInteger(slot) || slot === matrixDnD.from) return;
+
+    if (matrixDnD.axis === "row") {
+      const rows = matrixBodyRows();
+      const target = rows[slot];
+      if (target && target !== matrixDnD.dragEl) target.classList.add("po-mapa-dnd-row-slot");
+      return;
+    }
+
+    if (matrixDnD.axis === "col") {
+      const headerRow = tableRef()?.querySelector("thead tr");
+      if (!headerRow) return;
+      const cell = headerRow.children[slot];
+      if (cell) cell.classList.add("po-mapa-dnd-col-slot");
+    }
+  }
+
+  function onMatrixDnDPointerMove(event) {
+    if (!matrixDnD.active || event.pointerId !== matrixDnD.pointerId) return;
+    event.preventDefault();
+    if (matrixDnD.axis === "col") {
+      const t = colTargetIndexFromPointer(event.clientX, event.clientY);
+      if (t != null) matrixDnD.dropTarget = t;
+    } else {
+      const t = rowTargetIndexFromY(event.clientY);
+      if (t != null) matrixDnD.dropTarget = t;
+    }
+    updateMatrixDnDHighlights();
+  }
+
+  function endMatrixDnD(commit) {
+    const ctx = {
+      axis: matrixDnD.axis,
+      from: matrixDnD.from,
+      dropTarget: matrixDnD.dropTarget,
+    };
+    cleanupMatrixDnDListeners();
+    if (!commit || !state.enabled) return;
+
+    if (ctx.axis === "col" && Number.isInteger(ctx.from) && Number.isInteger(ctx.dropTarget)) {
+      if (!willApplyMatrixMove("col", ctx.from, ctx.dropTarget)) return;
+      if (applyMoveColumn(ctx.from, ctx.dropTarget, { registerOp: true, keepSelection: true })) {
+        updateStatus("Coluna reorganizada.");
+      }
+      return;
+    }
+
+    if (ctx.axis === "row" && Number.isInteger(ctx.from) && Number.isInteger(ctx.dropTarget)) {
+      if (!willApplyMatrixMove("row", ctx.from, ctx.dropTarget)) return;
+      if (applyMoveRow(ctx.from, ctx.dropTarget, { registerOp: true, keepSelection: true })) {
+        updateStatus("Linha reorganizada.");
+      }
+    }
+  }
+
+  function beginMatrixDnD(event, axis, fromIndex, dragEl, handleEl) {
+    if (!state.enabled || !dragEl || !handleEl) return;
+    if (event.button != null && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishInlineEdit({ commit: true });
+    hideContextMenu();
+    cleanupMatrixDnDListeners();
+
+    matrixDnD.active = true;
+    matrixDnD.axis = axis;
+    matrixDnD.from = fromIndex;
+    matrixDnD.dropTarget = fromIndex;
+    matrixDnD.dragEl = dragEl;
+    matrixDnD.handleEl = handleEl;
+    matrixDnD.pointerId = event.pointerId;
+
+    try {
+      handleEl.setPointerCapture(event.pointerId);
+    } catch (e) {
+      void e;
+    }
+
+    updateMatrixDnDHighlights();
+
+    let ended = false;
+    const finish = (upEvent, doCommit) => {
+      if (ended) return;
+      if (upEvent && upEvent.pointerId != null && upEvent.pointerId !== matrixDnD.pointerId) return;
+      ended = true;
+      endMatrixDnD(doCommit);
+    };
+
+    matrixDnD.onPointerMove = onMatrixDnDPointerMove;
+    matrixDnD.onPointerEnd = (upEvent) => finish(upEvent, true);
+
+    handleEl.addEventListener("pointermove", matrixDnD.onPointerMove);
+    handleEl.addEventListener("pointerup", matrixDnD.onPointerEnd);
+    handleEl.addEventListener("pointercancel", matrixDnD.onPointerEnd);
+    handleEl.addEventListener("lostpointercapture", matrixDnD.onPointerEnd);
+
+    const doc = frame.contentDocument;
+    if (doc) {
+      doc.addEventListener("pointerup", matrixDnD.onPointerEnd, true);
+      doc.addEventListener("pointercancel", matrixDnD.onPointerEnd, true);
+    }
+    window.addEventListener("pointerup", matrixDnD.onPointerEnd, true);
+    window.addEventListener("pointercancel", matrixDnD.onPointerEnd, true);
+    window.addEventListener("blur", () => finish(null, false));
+  }
+
+  function onMatrixDnDStart(event) {
+    if (!state.enabled) return;
+    const target = resolveEventElement(event.target);
+    if (!target || !target.classList.contains("po-mapa-dnd-handle")) return;
+    const colCell = target.closest("th[data-po-dnd-col]");
+    if (colCell) {
+      beginMatrixDnD(event, "col", Number(colCell.dataset.poDndCol), colCell, target);
+      return;
+    }
+    const rowEl = target.closest("tr[data-po-dnd-row]");
+    if (rowEl) {
+      beginMatrixDnD(event, "row", Number(rowEl.dataset.poDndRow), rowEl, target);
+    }
+  }
+
+  function bindMatrixDragReorder() {
+    const doc = frame.contentDocument;
+    if (!doc || doc.__poMatrixDnDBound) return;
+    doc.__poMatrixDnDBound = true;
+    doc.addEventListener("pointerdown", onMatrixDnDStart, true);
+  }
+
   function parseCurrentScope() {
     const scope = parseScopeFromPageKey(currentPageKey());
     const domMode = readMatrixModeFromIframeDom();
@@ -1934,103 +2324,18 @@
     };
   }
 
-  function cancelRowInlineAdd() {
+  function cleanupRowAddControls() {
     const doc = frame.contentDocument;
     if (!doc) return;
     doc.querySelectorAll(".po-mapa-row-inline-add").forEach((el) => el.remove());
-  }
-
-  function openRowInlineAdd(anchorRow, insertAfterBodyIndex) {
-    if (!state.enabled || !anchorRow) return;
-    if (isMatrixEmptyRow(anchorRow)) {
-      addRowFromToolbar();
-      return;
-    }
-    if (!canPersistStructuralLayoutOps()) {
-      showStructuralLayoutOpsBlockedMessage();
-      return;
-    }
-    cancelRowInlineAdd();
-    const nameCell = anchorRow.querySelector(".row-name, .sticky-left");
-    if (!nameCell) return;
-    const wrap = nameCell.querySelector(".po-mapa-row-name-wrap") || nameCell;
-    const line = document.createElement("div");
-    line.className = "po-mapa-row-inline-add";
-    const input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = rowAxisPlaceholder(inferRowAxisKeyFromPage());
-    input.setAttribute("aria-label", `Novo ${rowAxisHumanLabel(inferRowAxisKeyFromPage()).toLowerCase()}`);
-    line.appendChild(input);
-    wrap.appendChild(line);
-    input.focus();
-
-    const commit = () => {
-      const name = String(input.value || "").trim();
-      if (!name) {
-        cancelRowInlineAdd();
-        return;
+    doc.querySelectorAll(".po-mapa-row-add").forEach((el) => el.remove());
+    doc.querySelectorAll(".po-mapa-row-name-wrap").forEach((wrap) => {
+      const parent = wrap.parentElement;
+      if (!parent) return;
+      while (wrap.firstChild) {
+        parent.insertBefore(wrap.firstChild, wrap);
       }
-      const insertAt = Math.max(0, Number(insertAfterBodyIndex) + 1);
-      if (applyInsertRow(insertAt, name, { registerOp: true, keepSelection: true })) {
-        updateStatus(`${rowAxisHumanLabel(inferRowAxisKeyFromPage())} "${name}" adicionado em ${scopeDisplayLabel()}.`);
-      }
-      cancelRowInlineAdd();
-    };
-
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        commit();
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelRowInlineAdd();
-      }
-    });
-    input.addEventListener("blur", () => {
-      window.setTimeout(() => {
-        if (!line.isConnected) return;
-        if (line.contains(doc.activeElement)) return;
-        cancelRowInlineAdd();
-      }, 120);
-    });
-  }
-
-  function ensureRowInlineAddControls() {
-    const doc = frame.contentDocument;
-    if (!doc) return;
-    const tbody = doc.querySelector(".matrix-table tbody");
-    if (!tbody) return;
-    const bodyRows = listMatrixTbodyRows(tbody);
-    bodyRows.forEach((tr, bodyIndex) => {
-      const nameCell = tr.querySelector(".row-name, .sticky-left");
-      if (!nameCell) return;
-      let wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
-      if (!wrap) {
-        wrap = doc.createElement("div");
-        wrap.className = "po-mapa-row-name-wrap";
-        while (nameCell.firstChild) {
-          wrap.appendChild(nameCell.firstChild);
-        }
-        nameCell.appendChild(wrap);
-      }
-      let btn = wrap.querySelector(".po-mapa-row-add");
-      if (!btn) {
-        btn = doc.createElement("button");
-        btn.type = "button";
-        btn.className = "po-mapa-row-add";
-        btn.title = "Adicionar linha abaixo neste nível";
-        btn.setAttribute("aria-label", "Adicionar linha abaixo");
-        btn.textContent = "+";
-        btn.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!state.enabled) return;
-          openRowInlineAdd(tr, bodyIndex);
-        });
-        wrap.insertBefore(btn, wrap.firstChild);
-      }
-      btn.hidden = !state.enabled;
+      wrap.remove();
     });
   }
 
@@ -2117,9 +2422,10 @@
     const title = String(label || "Nova linha").trim() || "Nova linha";
     const anchor = bodyRows[insertAt] || tbody.querySelector("tr.totals-row") || null;
 
+    const doc = frame.contentDocument || document;
     const row = document.createElement("tr");
     const first = document.createElement("td");
-    populateRowNameCell(first, title, pageKey);
+    populateRowNameCell(first, sanitizeRowDisplayLabel(title) || title, pageKey);
     row.appendChild(first);
     for (let c = 1; c < colCount - 1; c += 1) {
       const td = document.createElement("td");
@@ -2163,7 +2469,6 @@
       });
       afterStructuralLayoutOpCommitted(structuralOp);
     }
-    ensureRowInlineAddControls();
     refreshMoveButtons();
     return true;
   }
@@ -2240,7 +2545,6 @@
         label: rowLabel,
       });
     }
-    ensureRowInlineAddControls();
     refreshMoveButtons();
     return true;
   }
@@ -2289,9 +2593,8 @@
 
   function deleteRowFromToolbar() {
     if (!state.enabled || !canMoveSelectedRow()) return;
-    const sc = selectedCoords();
-    if (!sc) return;
-    const bodyIndex = sc.r - 1;
+    const bodyIndex = selectedBodyRowIndex();
+    if (bodyIndex < 0) return;
     const ok = window.confirm("Apagar a linha selecionada? Esta ação afeta apenas o rascunho local.");
     if (!ok) return;
     if (applyDeleteRow(bodyIndex, { registerOp: true, keepSelection: true })) {
@@ -2393,7 +2696,7 @@
     if (target.closest("a.row-link")) {
       return;
     }
-    if (target.closest(".po-mapa-row-add, .po-mapa-row-inline-add")) {
+    if (target.closest(".po-mapa-dnd-handle")) {
       return;
     }
     if (!state.enabled) return;
@@ -2458,6 +2761,12 @@
   }
 
   function onAnyDocKeyDown(event) {
+    if (matrixDnD.active && event.key === "Escape") {
+      event.preventDefault();
+      endMatrixDnD(false);
+      updateStatus("Reorganização cancelada.");
+      return;
+    }
     if (insertDialog.open && event.key === "Escape") {
       hideInsertDialog();
       return;
@@ -2531,7 +2840,7 @@
     toggleControls(state.enabled);
     if (!state.enabled) {
       finishInlineEdit({ commit: true });
-      cancelRowInlineAdd();
+      cleanupRowAddControls();
       if (state.selectedCell) {
         state.selectedCell.style.outline = "";
         state.selectedCell.style.outlineOffset = "";
@@ -2541,7 +2850,9 @@
       updateStatus("Somente visualização");
     }
     ensureEditModeIframeGuards();
-    ensureRowInlineAddControls();
+    cleanupRowAddControls();
+    enhanceMatrixDragHandles();
+    if (!state.enabled) cleanupMatrixDnDListeners();
     refreshMoveButtons();
   }
 
@@ -2622,6 +2933,7 @@
   }
 
   function initDocumentHooks() {
+    document.querySelectorAll(".po-mapa-dnd-guide").forEach((el) => el.remove());
     const doc = frame.contentDocument;
     if (!doc) return;
     const pageKey = currentPageKey();
@@ -2657,7 +2969,7 @@
 
   frame.addEventListener("load", () => {
     hideLoading();
-    cancelRowInlineAdd();
+    cleanupRowAddControls();
     if (state.restoreEditOnNextLoad) {
       state.enabled = true;
       state.restoreEditOnNextLoad = false;
@@ -2773,9 +3085,8 @@
   }
   if (btnMoveRowUp) {
     btnMoveRowUp.addEventListener("click", () => {
-      const sc = selectedCoords();
-      if (!sc || !canMoveSelectedRow()) return;
-      const fromBody = sc.r - 1;
+      const fromBody = selectedBodyRowIndex();
+      if (fromBody < 0 || !canMoveSelectedRow()) return;
       const target = Math.max(0, fromBody - 1);
       if (applyMoveRow(fromBody, target, { registerOp: true, keepSelection: true })) {
         updateStatus("Linha movida para cima.");
@@ -2784,11 +3095,9 @@
   }
   if (btnMoveRowDown) {
     btnMoveRowDown.addEventListener("click", () => {
-      const table = tableRef();
-      const sc = selectedCoords();
-      if (!table || !sc || !canMoveSelectedRow()) return;
-      const movable = listMatrixTbodyRows(table.querySelector("tbody"));
-      const fromBody = sc.r - 1;
+      const movable = matrixBodyRows();
+      const fromBody = selectedBodyRowIndex();
+      if (fromBody < 0 || !canMoveSelectedRow()) return;
       const target = Math.min(movable.length - 1, fromBody + 1);
       if (applyMoveRow(fromBody, target, { registerOp: true, keepSelection: true })) {
         updateStatus("Linha movida para baixo.");
