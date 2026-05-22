@@ -1941,7 +1941,11 @@
   }
 
   function openRowInlineAdd(anchorRow, insertAfterBodyIndex) {
-    if (!state.enabled || !anchorRow || isMatrixEmptyRow(anchorRow)) return;
+    if (!state.enabled || !anchorRow) return;
+    if (isMatrixEmptyRow(anchorRow)) {
+      addRowFromToolbar();
+      return;
+    }
     if (!canPersistStructuralLayoutOps()) {
       showStructuralLayoutOpsBlockedMessage();
       return;
@@ -2260,9 +2264,6 @@
     if (!state.enabled) return;
     const table = tableRef();
     if (!table) return;
-    const tbody = table.querySelector("tbody");
-    const tbodyRows = listMatrixTbodyRows(tbody);
-    if (!tbodyRows.length) return;
     showInsertDialog({
       kind: "row",
       onSubmit: ({ name, position }) => {
