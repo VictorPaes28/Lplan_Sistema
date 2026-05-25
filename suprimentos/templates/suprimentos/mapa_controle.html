@@ -98,42 +98,55 @@
         </div>
 
         {% if ambiente_id %}
-        <p class="mapa-controle-hint mapa-controle-drill-hint mb-2" role="status">
-            {% if layer_nav.breadcrumbs %}
-            {% for crumb in layer_nav.breadcrumbs %}<a class="mapa-controle-crumb" href="{{ crumb.url }}">{{ crumb.label }}</a>{% if not forloop.last %} › {% endif %}{% endfor %}
-            <span class="mapa-controle-crumb-sep"> · </span>
+        <div class="mapa-controle-nav-bar mb-2" role="navigation" aria-label="Navegação na matriz">
+            {% if layer_nav.has_scope and layer_nav.prev_url %}
+            <a class="mapa-controle-nav-back" href="{{ layer_nav.prev_url }}" title="Voltar ao nível anterior">
+                <span class="mapa-controle-nav-back__icon" aria-hidden="true">←</span> Voltar
+            </a>
             {% endif %}
-            {% if matrix.allow_row_drill and matrix.mode == 'bloco' %}
-            Clique num bloco para ver os pavimentos dentro dele (como pastas no Excel).
-            {% elif matrix.allow_row_drill and matrix.mode == 'pavimento' %}
-            Dentro de «{{ selected.bloco }}» — clique num pavimento para ver as unidades (aptos).
-            {% elif matrix.mode == 'apto' and selected.bloco and selected.pavimento %}
-            Dentro de «{{ selected.bloco }}» › «{{ selected.pavimento }}» — cada linha é uma unidade.
-            {% elif not layer_nav.breadcrumbs %}
-            Preencha BLOCO, PAVIMENTO e APTO no editor; aqui navegue clicando nas linhas.
-            {% endif %}
-        </p>
+            <p class="mapa-controle-hint mapa-controle-drill-hint mb-0" role="status">
+                {% if layer_nav.breadcrumbs %}
+                {% for crumb in layer_nav.breadcrumbs %}<a class="mapa-controle-crumb" href="{{ crumb.url }}">{{ crumb.label }}</a>{% if not forloop.last %} › {% endif %}{% endfor %}
+                <span class="mapa-controle-crumb-sep"> · </span>
+                {% endif %}
+                {% if matrix.unit_detail_view %}
+                Unidade «{{ selected.apto }}».
+                {% elif matrix.allow_row_drill and matrix.mode == 'bloco' %}
+                Clique no bloco para ver pavimentos.
+                {% elif matrix.allow_row_drill and matrix.mode == 'pavimento' %}
+                Clique no pavimento para ver unidades.
+                {% elif matrix.mode == 'apto' and selected.bloco and selected.pavimento and not matrix.unit_detail_view %}
+                Clique na unidade para detalhe.
+                {% elif not layer_nav.breadcrumbs %}
+                Clique nas linhas para navegar.
+                {% endif %}
+            </p>
+        </div>
         {% endif %}
 
         {% if matrix_context %}
         <div class="matrix-context-compact">
-            <p class="matrix-context-compact__where" title="{{ matrix_context.obra_titulo }}">{{ matrix_context.caminho }}</p>
-            <p class="matrix-context-compact__stats">
-                <span title="Linhas Ã— colunas da grade">{{ matrix_context.n_grade_linhas }}Ã—{{ matrix_context.n_grade_cols }}</span>
-                <span class="matrix-context-compact__sep">Â·</span>
+            <p class="matrix-context-compact__summary" title="{{ matrix_context.obra_titulo }}">
+                <span class="matrix-context-compact__name">{{ matrix_context.caminho }}</span>
+                <span class="matrix-context-compact__sep" aria-hidden="true">·</span>
+                <span title="Linhas × colunas">{{ matrix_context.n_grade_linhas }}×{{ matrix_context.n_grade_cols }}</span>
+                {% if kpis.total_itens %}
+                <span class="matrix-context-compact__sep" aria-hidden="true">·</span>
+                <span title="Células com percentual no recorte">{{ kpis.total_itens }} com %</span>
+                {% endif %}
+                <span class="matrix-context-compact__sep" aria-hidden="true">·</span>
+                <span>média {{ kpis.percentual_medio|floatformat:2 }}%</span>
+                {% if selected.status and matrix_context.status_filtro != "Dados do ambiente" and matrix_context.status_filtro != "Qualquer status" %}
+                <span class="matrix-context-compact__sep" aria-hidden="true">·</span>
                 <span>{{ matrix_context.status_filtro }}</span>
-                <span class="matrix-context-compact__sep">Â·</span>
-                <span title="Itens no recorte">{{ kpis.total_itens }} itens</span>
-                {% if kpis.percentual_medio %}<span class="matrix-context-compact__sep">Â·</span><span>mÃ©dia {{ kpis.percentual_medio }}%</span>{% endif %}
-                <span class="matrix-context-compact__sep">Â·</span>
-                <span class="matrix-context-compact__st" title="ConcluÃ­dos / em andamento / nÃ£o iniciados">{{ kpis.concluidos }} / {{ kpis.em_andamento }} / {{ kpis.nao_iniciados }}</span>
-                <span class="matrix-context-compact__sep">Â·</span>
-                <span title="Qualidade dos dados neste recorte">{{ confiabilidade.score }}% {% firstof confiabilidade.nivel_display confiabilidade.nivel %}</span>
-                {% if selected.search %}<span class="matrix-context-compact__sep">Â·</span><span>â€œ{{ selected.search }}â€</span>{% endif %}
-                {% if selected.quick_find %}<span class="matrix-context-compact__sep">Â·</span><span>ir: {{ selected.quick_find }}</span>{% endif %}
+                {% endif %}
+                {% if selected.search %}
+                <span class="matrix-context-compact__sep" aria-hidden="true">·</span>
+                <span>busca: {{ selected.search }}</span>
+                {% endif %}
             </p>
             {% if importacao_info %}
-            <p class="matrix-context-compact__import" title="{{ importacao_info.nome_arquivo }} Â· {{ importacao_info.aba_origem }} Â· {{ importacao_info.total_linhas_importadas }}/{{ importacao_info.total_linhas_lidas }} linhas">Dados: {{ importacao_info.created_at|date:"d/m/Y H:i" }}</p>
+            <p class="matrix-context-compact__import" title="{{ importacao_info.nome_arquivo }} · {{ importacao_info.aba_origem }} · {{ importacao_info.total_linhas_importadas }}/{{ importacao_info.total_linhas_lidas }} linhas">Importação {{ importacao_info.created_at|date:"d/m/Y H:i" }}</p>
             {% endif %}
         </div>
         {% endif %}
@@ -221,8 +234,9 @@
                                title="Ver unidades (aptos) deste pavimento na matriz"
                                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
                             {% endif %}
-                            {% elif matrix.allow_row_drill and row.row_drillable and matrix.mode == 'apto' %}
+                            {% elif matrix.allow_row_drill and row.row_drillable and matrix.mode == 'apto' and not matrix.unit_detail_view %}
                             <a class="cell-link row-link"
+                               title="Ver detalhe desta unidade na matriz"
                                href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
                             {% elif matrix.allow_row_drill and row.row_drillable %}
                             <a class="cell-link row-link"
@@ -235,7 +249,11 @@
                         {% for cell in row.cells %}
                             {% if matrix.mode == 'pavimento' %}
                                 {% if cell.pct == None %}
+                                {% if cell.raw == "-" or cell.raw == "—" %}
                                 <td class="cell-empty">-</td>
+                                {% else %}
+                                <td class="cell-pct cell-0">0%</td>
+                                {% endif %}
                                 {% elif cell.pct >= 90 %}
                                 <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
                                 {% elif cell.pct >= 70 %}
@@ -249,7 +267,11 @@
                                 {% endif %}
                             {% elif matrix.mode == 'apto' %}
                                 {% if cell.pct == None %}
+                                {% if cell.raw == "-" or cell.raw == "—" %}
                                 <td class="cell-empty">-</td>
+                                {% else %}
+                                <td class="cell-pct cell-0">0%</td>
+                                {% endif %}
                                 {% elif cell.pct >= 90 %}
                                 <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
                                 {% elif cell.pct >= 70 %}
@@ -263,7 +285,11 @@
                                 {% endif %}
                             {% else %}
                                 {% if cell.pct == None %}
+                                {% if cell.raw == "-" or cell.raw == "—" %}
                                 <td class="cell-empty">-</td>
+                                {% else %}
+                                <td class="cell-pct cell-0">0%</td>
+                                {% endif %}
                                 {% elif cell.pct >= 90 %}
                                 <td class="cell-pct cell-90"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
                                 {% elif cell.pct >= 70 %}
@@ -277,7 +303,7 @@
                                 {% endif %}
                             {% endif %}
                         {% endfor %}
-                        <td class="total-col">{% if row.total != None %}{{ row.total }}%{% else %}-{% endif %}</td>
+                        <td class="total-col">{% if row.total != None %}{{ row.total|floatformat:2 }}%{% else %}-{% endif %}</td>
                     </tr>
                     {% empty %}
                     <tr class="matrix-empty-row" data-empty-row="1"><td colspan="100" class="text-center text-muted py-3">Sem dados para matriz.</td></tr>
@@ -289,18 +315,18 @@
                             {% if total.pct == None %}
                             <td class="cell-empty">-</td>
                             {% elif selected.bloco %}
-                            <td class="total-col">
+                            <td class="footer-activity-col">
                                 <a class="cell-link"
                                    href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ total.pct }}#detalhe-celula"
                                    title="Abrir detalhe por unidade (bloco jÃ¡ selecionado)">
-                                    {{ total.pct }}%
+                                    {{ total.pct|floatformat:2 }}%
                                 </a>
                             </td>
                             {% else %}
-                            <td class="total-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da mÃ©dia da coluna">{{ total.pct }}%</td>
+                            <td class="footer-activity-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da mÃ©dia da coluna">{{ total.pct|floatformat:2 }}%</td>
                             {% endif %}
                         {% endfor %}
-                        <td class="total-col">-</td>
+                        <td class="total-col matrix-grand-total">{% if matrix.total_geral != None %}{{ matrix.total_geral|floatformat:2 }}%{% else %}-{% endif %}</td>
                     </tr>
                     {% endif %}
                 </tbody>

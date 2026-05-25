@@ -208,10 +208,12 @@ def _normalize_ambiente_layout(layout: dict) -> dict:
 
 
 def _parse_matrix_pct(value):
-    """Alinhado ao AmbienteProvider: vazio=0%, \"-\"=N/A (None), inválido=0%."""
+    """Vazio = sem lançamento (None na grade). \"-\" = N/A. Número/0% explícito = valor."""
     from suprimentos.services.mapa_controle_viewmodel import _cell_pct_for_average, _is_pct_not_applicable
 
     if _is_pct_not_applicable(value):
+        return None
+    if not str(value or "").strip():
         return None
     return _cell_pct_for_average(value)
 
@@ -356,21 +358,25 @@ def _build_matrix_payload_from_rows(rows: list[list[str]], matrix_meta: dict | N
         for pos, atividade in enumerate(atividade_labels):
             col_idx = data_col_indices[pos]
             raw_cell = row[col_idx] if len(row) > col_idx else ""
+            raw_txt = str(raw_cell or "").strip()
             pct = _parse_matrix_pct(raw_cell)
-            if pct is not None:
+            if raw_txt and pct is not None:
                 pct_num = float(pct)
                 row_values.append(pct_num)
-                col_values[pos].append(pct_num)
-                all_values.append(pct_num)
-            cells.append({"atividade": atividade, "pct": pct, "raw": str(raw_cell or "").strip()})
+            if pct is not None:
+                col_values[pos].append(float(pct))
+                all_values.append(float(pct))
+            cells.append({"atividade": atividade, "pct": pct, "raw": raw_txt})
 
         raw_total = ""
         if total_col_idx is not None and len(row) > total_col_idx:
             raw_total = row[total_col_idx]
-        total = _parse_matrix_pct(raw_total)
-        if total is None and row_values:
-            avg = sum(row_values) / len(row_values)
-            total = int(round(avg)) if abs(avg - round(avg)) < 0.01 else round(avg, 1)
+        if row_values:
+            total = round(sum(row_values) / len(row_values), 2)
+        else:
+            total = _parse_matrix_pct(raw_total)
+            if total is not None:
+                total = round(float(total), 2)
         matrix_rows.append(
             {
                 "row_key": row_label,
@@ -387,13 +393,11 @@ def _build_matrix_payload_from_rows(rows: list[list[str]], matrix_meta: dict | N
         if not vals:
             totais.append({"atividade": atividade, "pct": None})
             continue
-        avg = sum(vals) / len(vals)
-        pct = int(round(avg)) if abs(avg - round(avg)) < 0.01 else round(avg, 1)
+        pct = round(sum(vals) / len(vals), 2)
         totais.append({"atividade": atividade, "pct": pct})
 
     if all_values:
-        media = sum(all_values) / len(all_values)
-        media_fmt = int(round(media)) if abs(media - round(media)) < 0.01 else round(media, 1)
+        media_fmt = round(sum(all_values) / len(all_values), 2)
     else:
         media_fmt = 0.0
 
@@ -404,11 +408,14 @@ def _build_matrix_payload_from_rows(rows: list[list[str]], matrix_meta: dict | N
         "em_andamento": sum(1 for v in all_values if 0 < v < 99.5),
         "nao_iniciados": sum(1 for v in all_values if v <= 0),
     }
+    from suprimentos.services.mapa_controle_viewmodel import _grand_total_from_matrix_rows
+
     matrix = {
         "atividades": atividade_labels,
         "atividade_grupos": atividade_grupos,
         "rows": matrix_rows,
         "totais": totais,
+        "total_geral": _grand_total_from_matrix_rows(matrix_rows),
         "mode": "bloco",
         "header_first_col": header_first_col,
     }

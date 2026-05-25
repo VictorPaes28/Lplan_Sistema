@@ -7,6 +7,8 @@ import unittest
 from suprimentos.services.mapa_controle_viewmodel import (
     _clean_layer_prefilter,
     _distinct_structural_axis_values,
+    _forward_fill_hierarchy_axes,
+    _is_percent_source_row,
     _row_matches_layer_prefilter,
 )
 
@@ -50,6 +52,16 @@ class MapaLayerChipsHelpersTests(unittest.TestCase):
         ]
         vals = _distinct_structural_axis_values(rows, _axis_map(), "pavimento", {"bloco": "B1"})
         self.assertEqual(vals, ["Pavimento 01", "Pavimento 02"])
+
+    def test_forward_fill_herda_apto_em_linha_de_continuacao(self):
+        rows = [
+            ["HAB", "B1", "P1", "101", "100%"],
+            ["HAB", "B1", "P1", "", "0%"],
+        ]
+        axis = _axis_map()
+        _forward_fill_hierarchy_axes(rows, axis)
+        self.assertEqual(rows[1][3], "101")
+        self.assertTrue(_is_percent_source_row(rows[1], axis, is_area_comum=False, is_manual_flat=False))
 
     def test_placeholder_nunca_vira_chip(self):
         rows = [["HAB", "B1", "Sem dados para matriz", "UND 1", ""]]
