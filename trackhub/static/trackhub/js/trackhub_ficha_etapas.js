@@ -128,9 +128,8 @@
       esc(prazo) +
       '" class="th-filter-select" style="width:100%;box-sizing:border-box;"></div></div>' +
       '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>' +
-      '<textarea name="observacao" rows="4" class="th-filter-select" style="width:100%;min-height:72px;resize:vertical;box-sizing:border-box;">' +
-      esc(obs) +
-      '</textarea></div>' +
+      (window.ThRichText ? window.ThRichText.observacaoBlockHtml(obs) : '') +
+      '</div>' +
       '<label class="th-assinatura-toggle" style="margin-bottom:12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px;">' +
       '<input type="checkbox" name="requer_assinatura" value="1"' +
       (reqAss ? ' checked' : '') +
@@ -140,6 +139,7 @@
       '</div>';
 
     editHost.innerHTML = html;
+    if (window.ThRichText) window.ThRichText.initAll(editHost);
 
     var sel = editHost.querySelector('select[name="responsavel_interno"]');
     if (sel && window.ThRespPicker) {
@@ -175,6 +175,18 @@
     if (inp) inp.focus();
   };
 
+  function thFichaObsFromForm(form) {
+    if (!form) return '';
+    var rt = form.querySelector('.th-richtext[data-th-richtext]');
+    if (rt && window.ThRichText) {
+      window.ThRichText.syncToTextarea(rt);
+      var ta = form.querySelector('textarea[name="observacao"]');
+      return ta ? ta.value : '';
+    }
+    var taOnly = form.querySelector('textarea[name="observacao"]');
+    return taOnly ? taOnly.value : '';
+  }
+
   window.thFichaSalvarEditarEtapa = function () {
     var form = document.getElementById('th-ficha-form-editar-etapa');
     if (!form) return;
@@ -190,7 +202,7 @@
     data.append('titulo', titulo);
     data.append('responsavel_interno', resp);
     data.append('prazo', form.querySelector('input[name="prazo"]').value || '');
-    data.append('observacao', form.querySelector('textarea[name="observacao"]').value || '');
+    data.append('observacao', thFichaObsFromForm(form));
     data.append(
       'requer_assinatura',
       form.querySelector('input[name="requer_assinatura"]').checked ? '1' : ''

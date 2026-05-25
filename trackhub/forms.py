@@ -15,10 +15,29 @@ from .models import (
     PendenciaRecorrente,
     TipoCustom,
 )
+from .utils.html_sanitize import sanitize_rich_text
 
 User = get_user_model()
 
 MSG_DATA_FIM_ANTES_INICIO = "A data fim não pode ser anterior à data início."
+
+
+class RichTextWidget(forms.Textarea):
+    """Textarea oculto + editor contenteditable com toolbar."""
+
+    template_name = "trackhub/widgets/richtext.html"
+
+    def __init__(self, *, toolbar="top", attrs=None):
+        merged = {"class": "th-richtext-sync", "style": "display:none;"}
+        if attrs:
+            merged.update(attrs)
+        super().__init__(attrs=merged)
+        self.toolbar = toolbar
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["toolbar"] = self.toolbar
+        return context
 
 
 def inicio_efetiva_pendencia_para_validacao(data_inicio, pendencia=None):
@@ -63,7 +82,7 @@ class PendenciaForm(forms.ModelForm):
         widgets = {
             "data_inicio": forms.DateInput(attrs={"type": "date"}),
             "prazo": forms.DateInput(attrs={"type": "date"}),
-            "descricao": forms.Textarea(attrs={"rows": 3}),
+            "descricao": RichTextWidget(toolbar="top", attrs={"rows": 3}),
         }
         labels = {
             "data_inicio": "Data início",
@@ -96,6 +115,9 @@ class PendenciaForm(forms.ModelForm):
             self.add_error("prazo", err)
         return cleaned_data
 
+    def clean_descricao(self):
+        return sanitize_rich_text(self.cleaned_data.get("descricao"))
+
     def clean_tipo(self):
         valor = self.cleaned_data.get("tipo", "").strip()
         if not valor:
@@ -125,7 +147,7 @@ class EtapaForm(forms.ModelForm):
         ]
         widgets = {
             "prazo": forms.DateInput(attrs={"type": "date"}),
-            "observacao": forms.Textarea(attrs={"rows": 2}),
+            "observacao": RichTextWidget(toolbar="top", attrs={"rows": 2}),
         }
 
     def clean(self):
@@ -137,6 +159,9 @@ class EtapaForm(forms.ModelForm):
                     "Informe o responsável interno desta etapa."
                 )
         return cleaned_data
+
+    def clean_observacao(self):
+        return sanitize_rich_text(self.cleaned_data.get("observacao"))
 
 
 EtapaFormSet = inlineformset_factory(
@@ -201,7 +226,12 @@ class RecorrenciaPendenciaForm(forms.Form):
             ds = pm.get("dias_semana")
             if not isinstance(ds, list) or not ds:
                 raise forms.ValidationError("Selecione pelo menos um dia da semana.")
-        elif regra == PendenciaRecorrente.REGRA_MONTHLY:
+        elif regra in (
+            PendenciaRecorrente.REGRA_MONTHLY,
+            PendenciaRecorrente.REGRA_BIMONTHLY,
+            PendenciaRecorrente.REGRA_QUARTERLY,
+            PendenciaRecorrente.REGRA_SEMIANNUAL,
+        ):
             dm = pm.get("dias_mes")
             if not isinstance(dm, list) or not dm:
                 raise forms.ValidationError("Selecione pelo menos um dia do mês.")

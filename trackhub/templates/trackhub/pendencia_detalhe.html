@@ -51,8 +51,8 @@
         </div>
       </div>
       {% if pendencia.descricao %}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;font-size:13px;color:#374151;line-height:1.6;">
-        {{ pendencia.descricao|linebreaksbr }}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;font-size:13px;color:#374151;line-height:1.6;" class="th-det-descricao-rich">
+        {{ pendencia.descricao|safe }}
       </div>
       {% endif %}
 
@@ -100,6 +100,8 @@
       data-pendencia-pk="{{ pendencia.pk }}"
       data-csrf="{{ csrf_token }}"
       data-pode-editar="{% if pode_editar %}1{% else %}0{% endif %}"
+      data-pode-comentar="{% if pode_comentar %}1{% else %}0{% endif %}"
+      data-pode-concluir="{% if pode_concluir %}1{% else %}0{% endif %}"
       data-pendencia-status="{{ pendencia.status }}"
       data-url-reordenar="{% url 'trackhub:pendencia_etapas_reordenar' pendencia.pk %}"
       data-url-editar="{% url 'trackhub:etapa_editar' pk=0 %}"
@@ -236,7 +238,7 @@
 
           {% if etapa.observacao %}
           <div style="margin-top:10px;font-size:12.5px;color:#475569;line-height:1.5;">
-            {{ etapa.observacao|linebreaksbr }}
+            <div class="th-etapa-obs-text">{{ etapa.observacao|safe }}</div>
           </div>
           {% endif %}
           {% if etapa.arquivos.exists %}
@@ -274,8 +276,9 @@
           </div>
           {% endif %}
 
-          {% if etapa.status == 'pendente' and pode_editar %}
+          {% if etapa.status == 'pendente' and etapa.pode_concluir_etapa or etapa.status == 'pendente' and pode_comentar %}
           <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;">
+            {% if etapa.pode_concluir_etapa %}
             {% if not etapa.requer_assinatura or request.user.id == etapa.responsavel_interno_id %}
             <form method="POST" action="{% url 'trackhub:etapa_concluir' etapa.pk %}" style="display:inline;">
               {% csrf_token %}
@@ -286,11 +289,14 @@
               </button>
             </form>
             {% endif %}
+            {% endif %}
+            {% if pode_comentar %}
             <button type="button" onclick="abrirModalNotif({{ etapa.pk }}, '{{ etapa.titulo|escapejs }}', '{{ etapa.responsavel_nome|escapejs }}', '{{ etapa.responsavel_whatsapp|escapejs }}', '{{ etapa.responsavel_email|escapejs }}')"
               style="display:inline-flex;align-items:center;gap:5px;padding:8px 12px;border-radius:8px;background:#ebf6fd;color:#3498db;border:1px solid #b8d4eb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .99h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
               Notificar
             </button>
+            {% endif %}
           </div>
           {% endif %}
         </div>
@@ -345,8 +351,11 @@
 
             <div class="etapa-observacao-wrap" style="margin-bottom:12px;">
               <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>
-              <textarea name="observacao" class="th-filter-select" rows="4" placeholder="Observações sobre esta etapa…"
-                style="width:100%;min-height:96px;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
+              <div class="th-richtext th-richtext--top" data-th-richtext="top">
+                {% include "trackhub/widgets/richtext_toolbar.html" %}
+                <div class="th-richtext-editor" contenteditable="true" role="textbox" aria-multiline="true" tabindex="0" data-placeholder="Observações sobre esta etapa…"></div>
+                <textarea name="observacao" class="th-richtext-sync" style="display:none;"></textarea>
+              </div>
             </div>
 
             <div class="th-etapa-upload-row" style="margin-bottom:12px;">
@@ -404,7 +413,7 @@
           <span style="font-size:10.5px;color:#94a3b8;">{{ comentario.created_at|date:"d/m/Y H:i" }}</span>
         </div>
         <div style="font-size:13px;color:#1e293b;line-height:1.5;padding-left:34px;">
-          {% if comentario.texto %}{{ comentario.texto|linebreaksbr }}{% endif %}
+          {% if comentario.texto %}<div class="th-comment-text-rich">{{ comentario.texto|safe }}</div>{% endif %}
           {% if comentario.anexos.exists %}
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
             {% for cx in comentario.anexos.all %}
@@ -426,15 +435,20 @@
       <div style="text-align:center;padding:16px;color:#94a3b8;font-size:13px;">Nenhum comentário ainda.</div>
       {% endfor %}
 
+      {% if pode_comentar %}
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
-        <form method="POST" action="{% url 'trackhub:comentario_criar' pendencia.pk %}" enctype="multipart/form-data">
+        <form method="POST" action="{% url 'trackhub:comentario_criar' pendencia.pk %}" enctype="multipart/form-data" class="th-richtext th-richtext--comment" data-th-richtext="comment">
           {% csrf_token %}
-          <textarea name="texto" style="width:100%;min-height:70px;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;resize:vertical;margin-bottom:8px;" placeholder="Adicionar comentário..."></textarea>
+          {% include "trackhub/widgets/richtext_toolbar.html" %}
+          <div class="th-comment-editor-field">
+            <div class="th-richtext-editor th-comment-textarea" contenteditable="true" role="textbox" aria-multiline="true" tabindex="0" data-placeholder="Adicionar comentário..."></div>
+          </div>
+          <textarea name="texto" class="th-richtext-sync" style="display:none;" aria-hidden="true"></textarea>
 
           <div class="th-file-chips" id="th-comentario-chips"></div>
 
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
-            <button type="button" class="th-comentario-attach-btn"
+          <div class="th-comment-footer">
+            <button type="button" class="th-comment-attach th-comentario-attach-btn"
               onclick="document.getElementById('th-input-comentario').click()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Adicionar arquivo
@@ -442,13 +456,14 @@
             <input type="file" id="th-input-comentario" name="arquivos_comentario"
               multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none"
               onchange="thPreviewComentarioFiles(this)">
-            <button type="submit" style="display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;background:#3498db;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <button type="submit" class="btn-send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               Comentar
             </button>
           </div>
         </form>
       </div>
+      {% endif %}
     </div>
 
   </div>
@@ -471,7 +486,7 @@
           </form>
         </div>
         {% endif %}
-        {% if pendencia.status != 'concluida' and pendencia.status != 'cancelada' %}
+        {% if pode_concluir %}
         <form method="POST" action="{% url 'trackhub:pendencia_concluir' pendencia.pk %}">
           {% csrf_token %}
           <button type="submit" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:8px;background:#27ae60;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
@@ -684,8 +699,20 @@ function thPreviewComentarioFiles(input) {
 }
 
 document.querySelectorAll('form[action*="comentar"]').forEach(function(f) {
+  if (window.ThRichText) window.ThRichText.initRoot(f);
+  var editor = f.querySelector('.th-richtext-editor');
   var ta = f.querySelector('textarea[name="texto"]');
-  if (ta) {
+  if (editor) {
+    editor.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault();
+      if (typeof f.requestSubmit === 'function') f.requestSubmit();
+      else {
+        var btn = f.querySelector('button[type="submit"]');
+        if (btn) btn.click();
+      }
+    });
+  } else if (ta) {
     ta.addEventListener('keydown', function(e) {
       if (e.key !== 'Enter' || e.shiftKey) return;
       e.preventDefault();
@@ -697,6 +724,7 @@ document.querySelectorAll('form[action*="comentar"]').forEach(function(f) {
     });
   }
   f.addEventListener("submit", function() {
+    if (window.ThRichText) window.ThRichText.syncToTextarea(f);
     var inp = document.getElementById("th-input-comentario");
     if (inp && inp._thAcc && inp._thAcc.length) thRedrawComentarioChips(inp);
   });

@@ -53,6 +53,11 @@ from .recurrence_jobs import (
     ref_date_para_etapas_snapshot,
     sync_recorrencia_etapas_snapshot_if_linked,
 )
+from .utils.html_sanitize import (
+    rich_text_is_empty,
+    rich_text_to_plain_preview,
+    sanitize_rich_text,
+)
 
 _MAX_ANEXOS_ETAPA = 5
 
@@ -294,6 +299,9 @@ def _pendencia_detail_payload(pendencia, request):
                     and request.user.is_authenticated
                     and e.responsavel_interno_id == request.user.id
                 ),
+                "pode_concluir_etapa": _user_can_conclude_etapa(
+                    request.user, e, pendencia
+                ),
             }
         )
 
@@ -318,12 +326,10 @@ def _pendencia_detail_payload(pendencia, request):
     ]
 
     etapas_pendentes_count = sum(1 for e in pendencia.etapas.all() if e.status == "pendente")
-    pode_concluir = etapas_pendentes_count == 0 and pendencia.status not in (
-        "concluida",
-        "cancelada",
-    )
-
-    pode_editar = _user_can_edit_pendencia(request.user, pendencia)
+    perms = _pendencia_permission_flags(request.user, pendencia)
+    pode_editar = perms["pode_editar"]
+    pode_comentar = perms["pode_comentar"]
+    pode_concluir = perms["pode_concluir"]
     responsaveis_obra = (
         _responsaveis_por_obra_payload(Obra.objects.filter(pk=pendencia.obra_id))
         if pendencia.obra_id
@@ -366,6 +372,7 @@ def _pendencia_detail_payload(pendencia, request):
         "updated_at": _format_trackhub_datetime(pendencia.updated_at),
         "criado_por_nome": _user_display_name(pendencia.criado_por),
         "pode_editar": pode_editar,
+        "pode_comentar": pode_comentar,
         "pode_concluir": pode_concluir,
         "etapas_pendentes_count": etapas_pendentes_count,
         "esta_vencida": pendencia.esta_vencida,
@@ -473,11 +480,17 @@ def _project_ids_for_user(user):
     return sorted(set(list(owner) + list(member) + list(approver)))
 
 
+def _trackhub_has_full_access(user):
+    """Admin legado, administrador global, staff ou superuser — acesso total."""
+    if user.is_superuser or user.is_staff:
+        return True
+    return _trackhub_roles(user)["admin"]
+
+
 def _trackhub_roles(user):
     if user.is_superuser or user.is_staff:
         return {"admin": True, "aprovador": True, "solicitante": True}
     gset = set(user.groups.values_list("name", flat=True))
-    # Grupo legado TrackHub mantém acesso administrativo por compatibilidade.
     legacy_admin = GRUPOS.TRACKHUB in gset
     plat_admin = usuario_tem_administracao_global_na_plataforma(user)
     return {
@@ -487,11 +500,36 @@ def _trackhub_roles(user):
     }
 
 
+def _obra_pks_designadas(user):
+    """PKs de obras ativas nos projetos vinculados ao usuário. None = todas (admin)."""
+    if _trackhub_has_full_access(user):
+        return None
+    ids = _project_ids_for_user(user)
+    if not ids:
+        return frozenset()
+    return frozenset(
+        Obra.objects.filter(
+            project_id__in=ids, ativa=True, project__is_active=True
+        ).values_list("pk", flat=True)
+    )
+
+
+def _pendencia_in_obra_designada(user, pendencia):
+    obra_pks = _obra_pks_designadas(user)
+    if obra_pks is None:
+        return True
+    return pendencia.obra_id in obra_pks
+
+
+def _user_is_responsavel_em_pendencia(user, pendencia):
+    if pendencia.responsavel_interno_id == user.id:
+        return True
+    return pendencia.etapas.filter(responsavel_interno_id=user.id).exists()
+
+
 def _obras_queryset_for_user(user):
     """Escopo de obras conforme papéis TrackHub e vínculos de projeto."""
-    # Apenas superuser/staff têm visão global; demais papéis do TrackHub
-    # devem enxergar somente obras ativas dentro dos projetos vinculados.
-    if user.is_superuser or user.is_staff:
+    if _trackhub_has_full_access(user):
         return (
             Obra.objects.filter(ativa=True, project__is_active=True)
             .select_related("project")
@@ -585,51 +623,102 @@ def _responsaveis_por_obra_payload(obras_qs):
 
 
 def _pendencias_qs_for_user(user):
+    if _trackhub_has_full_access(user):
+        return Pendencia.objects.all()
     roles = _trackhub_roles(user)
-    obras = _obras_queryset_for_user(user)
-    qs = Pendencia.objects.filter(obra__in=obras)
-    if roles["admin"] or roles["aprovador"]:
-        return (
-            Pendencia.objects.filter(
-                Q(obra__in=obras)
-                | Q(etapas__responsavel_interno=user)
-                | Q(responsavel_interno=user)
-            )
-            .distinct()
-        )
-    if roles["solicitante"]:
-        return (
-            Pendencia.objects.filter(
-                Q(pk__in=qs.values("pk"))
-                | Q(criado_por=user)
-                | Q(etapas__responsavel_interno=user)
-                | Q(responsavel_interno=user)
-            )
-            .distinct()
-        )
-    return Pendencia.objects.none()
+    if not (roles["aprovador"] or roles["solicitante"]):
+        return Pendencia.objects.none()
+    obra_pks = _obra_pks_designadas(user)
+    resp_q = Q(etapas__responsavel_interno=user) | Q(responsavel_interno=user)
+    if not obra_pks:
+        return Pendencia.objects.filter(resp_q).distinct()
+    return Pendencia.objects.filter(Q(obra_id__in=obra_pks) | resp_q).distinct()
 
 
 def _pendencia_queryset_for_user(user):
     return _pendencias_qs_for_user(user)
 
 
+def _user_can_comment_pendencia(user, pendencia):
+    return _pendencias_qs_for_user(user).filter(pk=pendencia.pk).exists()
+
+
 def _user_can_edit_pendencia(user, pendencia):
-    if pendencia.responsavel_interno_id == user.id:
+    if _trackhub_has_full_access(user):
         return True
     roles = _trackhub_roles(user)
-    if roles["admin"] or roles["aprovador"]:
-        return True
-    if roles["solicitante"]:
-        if pendencia.criado_por_id == user.id:
+    if roles["aprovador"]:
+        if _pendencia_in_obra_designada(user, pendencia):
             return True
-        return pendencia.etapas.filter(responsavel_interno_id=user.id).exists()
+        return pendencia.responsavel_interno_id == user.id
+    if roles["solicitante"]:
+        return pendencia.criado_por_id == user.id
     return False
+
+
+def _user_can_conclude_pendencia(user, pendencia):
+    if not _user_can_comment_pendencia(user, pendencia):
+        return False
+    if _trackhub_has_full_access(user):
+        return True
+    roles = _trackhub_roles(user)
+    if roles["aprovador"]:
+        if _pendencia_in_obra_designada(user, pendencia):
+            return True
+        return pendencia.responsavel_interno_id == user.id
+    if roles["solicitante"]:
+        return pendencia.criado_por_id == user.id
+    return False
+
+
+def _user_can_conclude_etapa(user, etapa, pendencia=None):
+    """Quem pode concluir uma etapa específica (assinatura exige responsável da etapa)."""
+    if pendencia is None:
+        pendencia = etapa.pendencia
+    if not _user_can_comment_pendencia(user, pendencia):
+        return False
+    if _trackhub_has_full_access(user):
+        return True
+    roles = _trackhub_roles(user)
+    if roles["aprovador"]:
+        if _pendencia_in_obra_designada(user, pendencia):
+            return True
+        if pendencia.responsavel_interno_id == user.id:
+            return True
+        if etapa.responsavel_interno_id == user.id:
+            return True
+        return False
+    if roles["solicitante"]:
+        return etapa.responsavel_interno_id == user.id
+    return False
+
+
+def _pendencia_permission_flags(user, pendencia):
+    etapas_pendentes_count = pendencia.etapas.filter(status="pendente").count()
+    pode_editar = _user_can_edit_pendencia(user, pendencia)
+    pode_comentar = _user_can_comment_pendencia(user, pendencia)
+    pode_concluir_perm = _user_can_conclude_pendencia(user, pendencia)
+    pode_concluir = (
+        pode_concluir_perm
+        and etapas_pendentes_count == 0
+        and pendencia.status not in ("concluida", "cancelada")
+    )
+    return {
+        "pode_editar": pode_editar,
+        "pode_comentar": pode_comentar,
+        "pode_concluir": pode_concluir,
+        "etapas_pendentes_count": etapas_pendentes_count,
+    }
 
 
 def _pks_pode_editar_trackhub(user, pendencias):
     """PKs de pendências que o usuário pode alterar na UI."""
     return {p.pk for p in pendencias if _user_can_edit_pendencia(user, p)}
+
+
+def _pks_pode_concluir_trackhub(user, pendencias):
+    """PKs de pendências em que o usuário pode tentar concluir (permissão, sem checar etapas)."""
+    return {p.pk for p in pendencias if _user_can_conclude_pendencia(user, p)}
 
 
 def _iniciais(nome: str) -> str:
@@ -733,7 +822,7 @@ def _parse_etapa_form_post(request):
         "true",
         "True",
     )
-    observacao = (request.POST.get("observacao") or "").strip()
+    observacao = sanitize_rich_text(request.POST.get("observacao"))
     return {
         "titulo": titulo,
         "responsavel": responsavel,
@@ -956,6 +1045,17 @@ def recalcular_status_pendencia(pendencia):
     pendencia.save(update_fields=["status", "updated_at"])
 
 
+def _modal_criar_pendencia_context(obras_qs):
+    """Formulário e formset para o modal de nova pendência (fila e calendário)."""
+    return {
+        "modal_form": PendenciaForm(obras_queryset=obras_qs),
+        "modal_formset": EtapaFormSet(),
+        "modal_responsaveis_por_obra": _responsaveis_por_obra_payload(obras_qs),
+        "modal_todos_usuarios": _todos_usuarios_ativos_payload(),
+        "modal_tipos_custom": TipoCustom.objects.order_by("nome"),
+    }
+
+
 def _fila_list_render(request, template_name, origem=None):
     obras_qs = _obras_queryset_for_user(request.user)
     qs = _pendencias_qs_for_user(request.user).select_related("obra", "criado_por").prefetch_related(
@@ -1002,6 +1102,7 @@ def _fila_list_render(request, template_name, origem=None):
     paginator = Paginator(items, 20)
     page_obj = paginator.get_page(request.GET.get("page"))
     pode_editar_trackhub_pks = _pks_pode_editar_trackhub(request.user, page_obj.object_list)
+    pode_concluir_trackhub_pks = _pks_pode_concluir_trackhub(request.user, page_obj.object_list)
 
     resp_nome = ""
     resp_iniciais = ""
@@ -1047,8 +1148,10 @@ def _fila_list_render(request, template_name, origem=None):
         "stats": _fila_stats_for_user(request.user),
         "pagination_qs": _pagination_qs(request),
         "pode_editar_trackhub_pks": pode_editar_trackhub_pks,
+        "pode_concluir_trackhub_pks": pode_concluir_trackhub_pks,
         "responsaveis_json": json.dumps(responsaveis_payload, ensure_ascii=False),
     }
+    ctx.update(_modal_criar_pendencia_context(obras_qs))
     ctx.update(_nav_tab_context(request.user))
     return render(request, template_name, ctx)
 
@@ -1459,10 +1562,6 @@ def calendario_view(request):
     tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
     tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
-    # Contexto para modal de criação de pendência a partir do calendário
-    modal_form = PendenciaForm(obras_queryset=obras_qs)
-    modal_formset = EtapaFormSet()
-
     ctx = {
         "calendar_weeks": calendar_weeks,
         "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
@@ -1480,13 +1579,8 @@ def calendario_view(request):
         "obras": obras_qs,
         "filtros": filtros,
         "tipos": tipos,
-        # Modal criar pendência
-        "modal_form": modal_form,
-        "modal_formset": modal_formset,
-        "modal_responsaveis_por_obra": _responsaveis_por_obra_payload(obras_qs),
-        "modal_todos_usuarios": _todos_usuarios_ativos_payload(),
-        "modal_tipos_custom": TipoCustom.objects.order_by("nome"),
     }
+    ctx.update(_modal_criar_pendencia_context(obras_qs))
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/calendario.html", ctx)
 
@@ -1594,6 +1688,11 @@ def pendencia_criar_ajax_view(request):
 @require_trackhub
 def pendencia_criar_view(request):
     from .recurrence import legacy_scalar_fields_for_db, proxima_data_estrita_depois
+
+    if request.method == "GET":
+        qs = request.GET.copy()
+        qs["nova"] = "1"
+        return redirect(f"{reverse('trackhub:fila')}?{qs.urlencode()}")
 
     obras_qs = _obras_queryset_for_user(request.user)
     responsaveis_por_obra = _responsaveis_por_obra_payload(obras_qs)
@@ -1767,7 +1866,6 @@ def pendencia_detalhe_view(request, pk):
     etapas = list(pendencia.etapas.all())
     comentarios = list(pendencia.comentarios.all())
     anexos_list = list(pendencia.anexos.all())
-    pode_editar = _user_can_edit_pendencia(request.user, pendencia)
     etapas_concluidas_count = sum(1 for e in etapas if e.status == "concluida")
     etapas_pendentes_count = sum(1 for e in etapas if e.status == "pendente")
     total_notificacoes = sum(len(list(e.notificacoes.all())) for e in etapas)
@@ -1776,14 +1874,18 @@ def pendencia_detalhe_view(request, pk):
         ficha_resp_blocos = _responsaveis_por_obra_payload(
             Obra.objects.filter(pk=pendencia.obra_id)
         )
-
+    perms = _pendencia_permission_flags(request.user, pendencia)
+    for e in etapas:
+        e.pode_concluir_etapa = _user_can_conclude_etapa(request.user, e, pendencia)
     ctx = {
         "pendencia": pendencia,
         "etapas": etapas,
         "comentarios": comentarios,
         "anexos_list": anexos_list,
         "num_anexos": len(anexos_list),
-        "pode_editar": pode_editar,
+        "pode_editar": perms["pode_editar"],
+        "pode_comentar": perms["pode_comentar"],
+        "pode_concluir": perms["pode_concluir"],
         "etapas_concluidas_count": etapas_concluidas_count,
         "etapas_pendentes_count": etapas_pendentes_count,
         "total_notificacoes": total_notificacoes,
@@ -1799,7 +1901,7 @@ def pendencia_detalhe_view(request, pk):
 @require_POST
 def pendencia_concluir_view(request, pk):
     pendencia = get_object_or_404(_pendencia_queryset_for_user(request.user), pk=pk)
-    if not _user_can_edit_pendencia(request.user, pendencia):
+    if not _user_can_conclude_pendencia(request.user, pendencia):
         msg = "Sem permissão para concluir esta pendência."
         if _wants_json_response(request):
             return _json_no_cache({"ok": False, "error": msg}, status=403)
@@ -2031,7 +2133,7 @@ def etapa_concluir_view(request, pk):
             return _json_no_cache({"ok": False, "error": "Acesso negado."}, status=403)
         messages.error(request, "Acesso negado.")
         return redirect("trackhub:fila")
-    if not _user_can_edit_pendencia(request.user, e.pendencia):
+    if not _user_can_conclude_etapa(request.user, e):
         msg = "Sem permissão para concluir esta etapa."
         if _wants_json_response(request):
             return _json_no_cache({"ok": False, "error": msg}, status=403)
@@ -2271,16 +2373,16 @@ def etapa_notificar_view(request, pk):
 @require_POST
 def comentario_criar_view(request, pk):
     p = get_object_or_404(_pendencia_queryset_for_user(request.user), pk=pk)
-    if not _user_can_edit_pendencia(request.user, p):
+    if not _user_can_comment_pendencia(request.user, p):
         messages.error(request, "Sem permissão para comentar nesta pendência.")
         return redirect("trackhub:pendencia_detalhe", pk=pk)
-    texto = (request.POST.get("texto") or "").strip()
+    texto = sanitize_rich_text(request.POST.get("texto"))
     arquivos = [
         f
         for f in request.FILES.getlist("arquivos_comentario")
         if f and getattr(f, "name", None)
     ]
-    if not texto and not arquivos:
+    if rich_text_is_empty(texto) and not arquivos:
         messages.error(request, "Escreva um comentário ou anexe pelo menos um arquivo.")
         return redirect("trackhub:pendencia_detalhe", pk=pk)
     c = ComentarioPendencia.objects.create(
@@ -2395,7 +2497,7 @@ def pendencia_update_field(request, pk):
             pendencia, actor, "Alterou título", AtividadePendencia.TIPO_TITULO
         )
     elif field == "descricao":
-        pendencia.descricao = str(value) if value is not None else ""
+        pendencia.descricao = sanitize_rich_text(str(value) if value is not None else "")
         pendencia.save(update_fields=["descricao", "updated_at"])
         _registrar_atividade_pendencia(
             pendencia, actor, "Alterou descrição", AtividadePendencia.TIPO_DESCRICAO
@@ -2626,19 +2728,19 @@ def pendencia_comentarios_ajax(request, pk):
                 "comentarios": [_serialize_comentario_pendencia(c, request) for c in qs],
             }
         )
-    if not _user_can_edit_pendencia(request.user, pendencia):
+    if not _user_can_comment_pendencia(request.user, pendencia):
         return _json_no_cache(
             {"ok": False, "error": "Sem permissão para comentar nesta pendência."},
             status=403,
         )
 
-    texto = (request.POST.get("texto") or "").strip()
+    texto = sanitize_rich_text(request.POST.get("texto"))
     arquivos = [
         f
         for f in request.FILES.getlist("arquivos_comentario")
         if f and getattr(f, "name", None)
     ]
-    if not texto and not arquivos:
+    if rich_text_is_empty(texto) and not arquivos:
         return _json_no_cache(
             {"ok": False, "error": "Escreva um comentário ou anexe pelo menos um arquivo."},
             status=400,
@@ -2665,8 +2767,8 @@ def pendencia_comentarios_ajax(request, pk):
         )
         .get(pk=c.pk)
     )
-    if texto:
-        prev = texto[:120] + ("…" if len(texto) > 120 else "")
+    if not rich_text_is_empty(texto):
+        prev = rich_text_to_plain_preview(texto, 120)
         descricao = f'Comentou: "{prev}"'
     else:
         descricao = f"Comentou com {len(arquivos)} arquivo(s)"

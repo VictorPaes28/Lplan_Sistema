@@ -5,7 +5,12 @@
 
 {% block extra_css %}
 {# Tipografia herdada do layout Core (Inter) — evita segunda família apenas no TrackHub #}
-<link rel="stylesheet" href="{% static 'trackhub/css/trackhub.css' %}?v=44">
+<link rel="stylesheet" href="{% static 'trackhub/css/trackhub.css' %}?v=51">
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'trackhub/js/trackhub_richtext.js' %}?v=5"></script>
 {% endblock %}
 
 {% block title %}TrackHub — LPLAN{% endblock %}

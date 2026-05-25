@@ -1,0 +1,5 @@
+<div class="th-richtext th-richtext--top" data-th-richtext="top">
+  {% include "trackhub/widgets/richtext_toolbar.html" %}
+  <div class="th-richtext-editor" contenteditable="true" role="textbox" aria-multiline="true" tabindex="0" data-placeholder="{{ placeholder|default:'Observações sobre esta etapa...' }}"></div>
+  <textarea name="{{ name }}" class="th-richtext-sync" style="display:none;">{{ value|default_if_none:"" }}</textarea>
+</div>

@@ -117,6 +117,9 @@
               <li><button type="button" class="th-recorrencia-opt" data-rule="weekdays">Dias da semana (seg–sex)</button></li>
               <li><button type="button" class="th-recorrencia-opt" data-rule="weekly">Semanal</button></li>
               <li><button type="button" class="th-recorrencia-opt" data-rule="monthly">Mensal</button></li>
+              <li><button type="button" class="th-recorrencia-opt" data-rule="bimonthly">Bimestral</button></li>
+              <li><button type="button" class="th-recorrencia-opt" data-rule="quarterly">Trimestral</button></li>
+              <li><button type="button" class="th-recorrencia-opt" data-rule="semiannual">Semestral</button></li>
               <li><button type="button" class="th-recorrencia-opt" data-rule="yearly">Anual</button></li>
               <li><button type="button" class="th-recorrencia-opt th-recorrencia-opt-accent" data-action="custom">Personalizar…</button></li>
             </ul>
@@ -127,6 +130,9 @@
             <select id="th-rec-custom-mode" class="th-filter-select th-rec-select" style="width:100%;box-sizing:border-box;margin-bottom:14px;">
               <option value="weekly">Semanal</option>
               <option value="monthly">Mensal</option>
+              <option value="bimonthly">Bimestral (a cada 2 meses)</option>
+              <option value="quarterly">Trimestral (a cada 3 meses)</option>
+              <option value="semiannual">Semestral (a cada 6 meses)</option>
               <option value="yearly">Anual</option>
             </select>
 
@@ -136,7 +142,7 @@
             </div>
 
             <div id="th-rec-sec-monthly" class="th-rec-sec" hidden>
-              <div class="th-recorrencia-mini-label">Dias do mês</div>
+              <div class="th-recorrencia-mini-label" id="th-rec-sec-monthly-label">Dias do mês</div>
               <div class="th-rec-chip-row th-rec-chip-row-wrap" id="th-rec-chips-dom" role="group" aria-label="Dias do mês"></div>
             </div>
 
@@ -282,7 +288,11 @@
           </div>
           <div class="etapa-observacao-wrap" style="margin-top:14px;">
             <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Observação</label>
-            <textarea name="{{ formset.prefix }}-__prefix__-observacao" class="th-filter-select" rows="4" style="width:100%;min-height:96px;resize:vertical;box-sizing:border-box;" placeholder="Observações sobre esta etapa..."></textarea>
+            <div class="th-richtext th-richtext--top" data-th-richtext="top">
+              {% include "trackhub/widgets/richtext_toolbar.html" %}
+              <div class="th-richtext-editor" contenteditable="true" role="textbox" aria-multiline="true" tabindex="0" data-placeholder="Observações sobre esta etapa..."></div>
+              <textarea name="{{ formset.prefix }}-__prefix__-observacao" class="th-richtext-sync" style="display:none;"></textarea>
+            </div>
           </div>
 
           <div class="th-etapa-upload-row">
@@ -322,9 +332,11 @@
           inp.style.padding = '9px 12px';
         });
         c.querySelectorAll('.etapa-observacao-wrap textarea').forEach(function(t){
+          if (t.classList.contains('th-richtext-sync')) return;
           t.rows = 4;
           t.style.minHeight = '96px';
         });
+        if (window.ThRichText) window.ThRichText.initAll(c);
       })();
       </script>
 
@@ -353,7 +365,7 @@
 
 {% block extra_js %}
 <script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
-<script src="{% static 'trackhub/js/trackhub_recorrencia_form.js' %}?v=7"></script>
+<script src="{% static 'trackhub/js/trackhub_recorrencia_form.js' %}?v=9"></script>
 <script>
 (function () {
   var MSG = 'A data fim não pode ser anterior à data início.';
@@ -503,6 +515,7 @@ function adicionarEtapa() {
   if (novoSelResp && window.ThRespPicker) {
     window.ThRespPicker.attach(novoSelResp, thParseResponsaveisPorObra, thGetObraSelecionadaId, thRespPickerOpts);
   }
+  if (window.ThRichText) window.ThRichText.initAll(novo);
   atualizarNumerosEtapa();
 }
 

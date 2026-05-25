@@ -52,22 +52,28 @@ def _proxima_weekday_estrita_depois(ref: date, wd: int) -> date:
     return start + timedelta(days=7)
 
 
-def _proximo_mensal_depois(ref: date, dia_querido: int) -> date:
+def _proximo_mensal_intervalo_depois(ref: date, dia_querido: int, interval_months: int = 1) -> date:
+    """Próxima data > ref no dia desejado, avançando de interval_months em interval_months."""
+    interval_months = max(1, int(interval_months))
     y, m = ref.year, ref.month
     ult = calendar.monthrange(y, m)[1]
     dom = min(int(dia_querido), ult)
     cand = date(y, m, dom)
     if cand > ref:
         return cand
-    cur = date(y, m, 1) + relativedelta(months=1)
+    cur = date(y, m, 1) + relativedelta(months=interval_months)
     for _ in range(48):
         ult = calendar.monthrange(cur.year, cur.month)[1]
         dom = min(int(dia_querido), ult)
         cand = date(cur.year, cur.month, dom)
         if cand > ref:
             return cand
-        cur = cur + relativedelta(months=1)
-    return ref + timedelta(days=31)
+        cur = cur + relativedelta(months=interval_months)
+    return ref + timedelta(days=31 * interval_months)
+
+
+def _proximo_mensal_depois(ref: date, dia_querido: int) -> date:
+    return _proximo_mensal_intervalo_depois(ref, dia_querido, 1)
 
 
 def _proximo_anual_depois(ref: date, mes: int, dia: int) -> date:
@@ -166,6 +172,18 @@ def proxima_data_estrita_depois(
         dias = _dias_mes_from_param(p, dia_mes)
         return min(_proximo_mensal_depois(ref, d) for d in dias)
 
+    if regra == "bimonthly":
+        dias = _dias_mes_from_param(p, dia_mes)
+        return min(_proximo_mensal_intervalo_depois(ref, d, 2) for d in dias)
+
+    if regra == "quarterly":
+        dias = _dias_mes_from_param(p, dia_mes)
+        return min(_proximo_mensal_intervalo_depois(ref, d, 3) for d in dias)
+
+    if regra == "semiannual":
+        dias = _dias_mes_from_param(p, dia_mes)
+        return min(_proximo_mensal_intervalo_depois(ref, d, 6) for d in dias)
+
     if regra == "yearly":
         pares = _datas_ano_from_param(p, mes, dia_mes)
         return min(_proximo_anual_depois(ref, mm, dd) for mm, dd in pares)
@@ -199,6 +217,21 @@ def rotulo_recorrencia(
         if len(dias) == 1:
             return f"Todo mês no dia {dias[0]}"
         return "Todo mês nos dias " + ", ".join(str(d) for d in dias)
+    if regra == "bimonthly":
+        dias = _dias_mes_from_param(p, dia_mes)
+        if len(dias) == 1:
+            return f"Bimestral — dia {dias[0]}"
+        return "Bimestral — dias " + ", ".join(str(d) for d in dias)
+    if regra == "quarterly":
+        dias = _dias_mes_from_param(p, dia_mes)
+        if len(dias) == 1:
+            return f"Trimestral — dia {dias[0]}"
+        return "Trimestral — dias " + ", ".join(str(d) for d in dias)
+    if regra == "semiannual":
+        dias = _dias_mes_from_param(p, dia_mes)
+        if len(dias) == 1:
+            return f"Semestral — dia {dias[0]}"
+        return "Semestral — dias " + ", ".join(str(d) for d in dias)
     if regra == "yearly":
         pares = _datas_ano_from_param(p, mes, dia_mes)
         if len(pares) == 1:
@@ -216,6 +249,9 @@ def legacy_scalar_fields_for_db(regra: str, parametros: dict | None) -> tuple[in
         d = _dias_semana_from_param(p, None)
         return (d[0], None, None) if d else (None, None, None)
     if regra == "monthly":
+        dm = _dias_mes_from_param(p, None)
+        return (None, dm[0], None) if dm else (None, None, None)
+    if regra in ("bimonthly", "quarterly", "semiannual"):
         dm = _dias_mes_from_param(p, None)
         return (None, dm[0], None) if dm else (None, None, None)
     if regra == "yearly":

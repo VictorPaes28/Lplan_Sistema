@@ -472,6 +472,9 @@ class PendenciaRecorrente(models.Model):
     REGRA_WEEKDAYS = "weekdays"
     REGRA_WEEKLY = "weekly"
     REGRA_MONTHLY = "monthly"
+    REGRA_BIMONTHLY = "bimonthly"
+    REGRA_QUARTERLY = "quarterly"
+    REGRA_SEMIANNUAL = "semiannual"
     REGRA_YEARLY = "yearly"
     REGRA_CHOICES = [
         (REGRA_NONE, "Não se repete"),
@@ -479,6 +482,9 @@ class PendenciaRecorrente(models.Model):
         (REGRA_WEEKDAYS, "Dias da semana"),
         (REGRA_WEEKLY, "Semanal"),
         (REGRA_MONTHLY, "Mensal"),
+        (REGRA_BIMONTHLY, "Bimestral"),
+        (REGRA_QUARTERLY, "Trimestral"),
+        (REGRA_SEMIANNUAL, "Semestral"),
         (REGRA_YEARLY, "Anual"),
     ]
 

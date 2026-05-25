@@ -14,6 +14,7 @@ from django.test import TestCase
 from mapa_obras.models import Obra
 
 from trackhub.models import Pendencia, PendenciaRecorrente
+from trackhub.recurrence import proxima_data_estrita_depois, rotulo_recorrencia
 from trackhub.recurrence_jobs import processar_todas_recorrencias
 
 User = get_user_model()
@@ -313,6 +314,160 @@ class RecorrenciasProcessamentoTestCase(TestCase):
             self.assertEqual(p.prazo, esperado_prazo)
             self._assert_pendencia_ocorrencia_e_etapas(p, occ, intervalo=intervalo)
 
+    def _months_between(self, a: date, b: date) -> int:
+        return (b.year - a.year) * 12 + b.month - a.month
+
+    # --- 4b. BIMESTRAL / TRIMESTRAL / SEMESTRAL ---
+    def test_bimonthly_dia_10_intervalo_2_meses(self, _mock_notif):
+        d0 = date(2026, 5, 10)
+        serie = PendenciaRecorrente.objects.create(
+            **self._base_kwargs(),
+            regra=PendenciaRecorrente.REGRA_BIMONTHLY,
+            proxima_execucao=d0,
+            parametros_json={"dias_mes": [10]},
+            dia_mes=10,
+        )
+        esperados_ocorr = [
+            date(2026, 5, 10),
+            date(2026, 7, 10),
+            date(2026, 9, 10),
+            date(2026, 11, 10),
+            date(2027, 1, 10),
+        ]
+        esperados_prox = [
+            date(2026, 7, 10),
+            date(2026, 9, 10),
+            date(2026, 11, 10),
+            date(2027, 1, 10),
+            date(2027, 3, 10),
+        ]
+        criadas = self._rodar_n_vezes(serie, esperados_ocorr, esperados_proxima_depois=esperados_prox)
+        for i in range(1, len(esperados_ocorr)):
+            self.assertEqual(self._months_between(esperados_ocorr[i - 1], esperados_ocorr[i]), 2)
+        for occ, p in zip(esperados_ocorr, criadas):
+            self.assertEqual(occ.day, 10)
+            self.assertEqual(p.prazo, occ + self.intervalo)
+            self._assert_pendencia_ocorrencia_e_etapas(p, occ)
+        serie.refresh_from_db()
+        self.assertEqual(serie.proxima_execucao, date(2027, 3, 10))
+
+    def test_bimonthly_dia_30_fevereiro_ultimo_dia(self, _mock_notif):
+        """Bimestral dia 30: em fevereiro usa último dia do mês."""
+        intervalo = timedelta(days=2)
+        kwargs = {
+            **self._base_kwargs(),
+            "data_criacao_original": date(2025, 12, 30),
+            "prazo_original": date(2026, 1, 1),
+            "prazo_offset_dias": intervalo.days,
+            "regra": PendenciaRecorrente.REGRA_BIMONTHLY,
+            "proxima_execucao": date(2025, 12, 30),
+            "parametros_json": {"dias_mes": [30]},
+            "dia_mes": 30,
+        }
+        serie = PendenciaRecorrente.objects.create(**kwargs)
+        esperados_ocorr = [date(2025, 12, 30), date(2026, 2, 28), date(2026, 4, 30)]
+        esperados_prox = [date(2026, 2, 28), date(2026, 4, 30), date(2026, 6, 30)]
+        criadas = self._rodar_n_vezes(serie, esperados_ocorr, esperados_proxima_depois=esperados_prox)
+        for occ, p in zip(esperados_ocorr, criadas):
+            self.assertEqual(p.prazo, occ + intervalo)
+            self._assert_pendencia_ocorrencia_e_etapas(p, occ, intervalo=intervalo)
+
+    def test_quarterly_dia_15_intervalo_3_meses(self, _mock_notif):
+        d0 = date(2026, 3, 15)
+        serie = PendenciaRecorrente.objects.create(
+            **self._base_kwargs(),
+            regra=PendenciaRecorrente.REGRA_QUARTERLY,
+            proxima_execucao=d0,
+            parametros_json={"dias_mes": [15]},
+            dia_mes=15,
+        )
+        esperados_ocorr = [
+            date(2026, 3, 15),
+            date(2026, 6, 15),
+            date(2026, 9, 15),
+            date(2026, 12, 15),
+            date(2027, 3, 15),
+        ]
+        esperados_prox = [
+            date(2026, 6, 15),
+            date(2026, 9, 15),
+            date(2026, 12, 15),
+            date(2027, 3, 15),
+            date(2027, 6, 15),
+        ]
+        criadas = self._rodar_n_vezes(serie, esperados_ocorr, esperados_proxima_depois=esperados_prox)
+        for i in range(1, len(esperados_ocorr)):
+            self.assertEqual(self._months_between(esperados_ocorr[i - 1], esperados_ocorr[i]), 3)
+        for occ, p in zip(esperados_ocorr, criadas):
+            self.assertEqual(occ.day, 15)
+            self.assertEqual(p.prazo, occ + self.intervalo)
+            self._assert_pendencia_ocorrencia_e_etapas(p, occ)
+        serie.refresh_from_db()
+        self.assertEqual(serie.proxima_execucao, date(2027, 6, 15))
+
+    def test_quarterly_dias_5_e_20_sequencia(self, _mock_notif):
+        """Personalizado trimestral: dias 5 e 20 alternam antes de avançar 3 meses."""
+        d0 = date(2026, 1, 5)
+        serie = PendenciaRecorrente.objects.create(
+            **self._base_kwargs(),
+            regra=PendenciaRecorrente.REGRA_QUARTERLY,
+            proxima_execucao=d0,
+            parametros_json={"dias_mes": [5, 20]},
+            dia_mes=5,
+        )
+        esperados_ocorr = [
+            date(2026, 1, 5),
+            date(2026, 1, 20),
+            date(2026, 4, 5),
+            date(2026, 4, 20),
+            date(2026, 7, 5),
+        ]
+        esperados_prox = [
+            date(2026, 1, 20),
+            date(2026, 4, 5),
+            date(2026, 4, 20),
+            date(2026, 7, 5),
+            date(2026, 7, 20),
+        ]
+        criadas = self._rodar_n_vezes(serie, esperados_ocorr, esperados_proxima_depois=esperados_prox)
+        for occ, p in zip(esperados_ocorr, criadas):
+            self.assertIn(occ.day, (5, 20))
+            self.assertEqual(p.prazo, occ + self.intervalo)
+            self._assert_pendencia_ocorrencia_e_etapas(p, occ)
+
+    def test_semiannual_dia_20_intervalo_6_meses(self, _mock_notif):
+        d0 = date(2026, 2, 20)
+        serie = PendenciaRecorrente.objects.create(
+            **self._base_kwargs(),
+            regra=PendenciaRecorrente.REGRA_SEMIANNUAL,
+            proxima_execucao=d0,
+            parametros_json={"dias_mes": [20]},
+            dia_mes=20,
+        )
+        esperados_ocorr = [
+            date(2026, 2, 20),
+            date(2026, 8, 20),
+            date(2027, 2, 20),
+            date(2027, 8, 20),
+            date(2028, 2, 20),
+        ]
+        esperados_prox = [
+            date(2026, 8, 20),
+            date(2027, 2, 20),
+            date(2027, 8, 20),
+            date(2028, 2, 20),
+            date(2028, 8, 20),
+        ]
+        criadas = self._rodar_n_vezes(serie, esperados_ocorr, esperados_proxima_depois=esperados_prox)
+        for i in range(1, len(esperados_ocorr)):
+            self.assertEqual(self._months_between(esperados_ocorr[i - 1], esperados_ocorr[i]), 6)
+        for occ, p in zip(esperados_ocorr, criadas):
+            self.assertEqual(occ.day, 20)
+            self.assertEqual(p.prazo, occ + self.intervalo)
+            self._assert_pendencia_ocorrencia_e_etapas(p, occ)
+        serie.refresh_from_db()
+        self.assertEqual(serie.proxima_execucao, date(2028, 8, 20))
+
     # --- 5. YEARLY 15/03 ---
     def test_yearly_15_marco_anual(self, _mock_notif):
         d0 = date(2026, 3, 15)
@@ -522,8 +677,59 @@ class RecorrenciasProcessamentoTestCase(TestCase):
         from trackhub.recurrence_jobs import ref_date_para_etapas_snapshot
 
         fake_today = date(2029, 3, 1)
-        pend = MagicMock()
+        pend = MagicMock(spec=["prazo"])
         pend.prazo = None
         with patch("trackhub.recurrence_jobs.timezone.localdate", return_value=fake_today):
             ref = ref_date_para_etapas_snapshot(pend, None)
         self.assertEqual(ref, fake_today)
+
+
+class RecorrenciaCalculoUnitTestCase(TestCase):
+    """Testes unitários de proxima_data_estrita_depois e rótulos (sem banco)."""
+
+    def test_proxima_data_bimonthly_quarterly_semiannual(self):
+        ref = date(2026, 5, 10)
+        self.assertEqual(
+            proxima_data_estrita_depois(ref, "bimonthly", parametros={"dias_mes": [10]}),
+            date(2026, 7, 10),
+        )
+        self.assertEqual(
+            proxima_data_estrita_depois(ref, "quarterly", parametros={"dias_mes": [10]}),
+            date(2026, 8, 10),
+        )
+        self.assertEqual(
+            proxima_data_estrita_depois(ref, "semiannual", parametros={"dias_mes": [10]}),
+            date(2026, 11, 10),
+        )
+
+    def test_proxima_data_bimonthly_dia_30_fevereiro(self):
+        ref = date(2025, 12, 30)
+        self.assertEqual(
+            proxima_data_estrita_depois(ref, "bimonthly", parametros={"dias_mes": [30]}),
+            date(2026, 2, 28),
+        )
+
+    def test_proxima_data_quarterly_multiplos_dias(self):
+        ref = date(2026, 1, 5)
+        self.assertEqual(
+            proxima_data_estrita_depois(ref, "quarterly", parametros={"dias_mes": [5, 20]}),
+            date(2026, 1, 20),
+        )
+        self.assertEqual(
+            proxima_data_estrita_depois(date(2026, 1, 20), "quarterly", parametros={"dias_mes": [5, 20]}),
+            date(2026, 4, 5),
+        )
+
+    def test_rotulo_recorrencia_intervalos_meses(self):
+        self.assertEqual(
+            rotulo_recorrencia("bimonthly", parametros={"dias_mes": [10]}),
+            "Bimestral — dia 10",
+        )
+        self.assertEqual(
+            rotulo_recorrencia("quarterly", parametros={"dias_mes": [15, 25]}),
+            "Trimestral — dias 15, 25",
+        )
+        self.assertEqual(
+            rotulo_recorrencia("semiannual", parametros={"dias_mes": [20]}),
+            "Semestral — dia 20",
+        )

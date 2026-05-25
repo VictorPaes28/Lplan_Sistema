@@ -131,10 +131,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="th-fila-search" class="th-search-input" placeholder="Buscar pendência..." value="{{ filtros.q }}" autocomplete="off">
     </div>
-    <a href="{% url 'trackhub:pendencia_criar' %}" class="th-btn-primary">
+    <button type="button" class="th-btn-primary" onclick="thCalAbrirModalCriar()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nova Pendência
-    </a>
+    </button>
   </div>
 </div>
 <script type="application/json" id="th-fila-resp-data">{{ responsaveis_json|safe }}</script>
@@ -227,12 +227,14 @@
         </div>
         <div class="th-actions-slot">
           {% if p.status != 'concluida' and p.status != 'cancelada' %}
+          {% if p.pk in pode_editar_trackhub_pks or p.pk in pode_concluir_trackhub_pks %}
           <form method="POST" action="{% url 'trackhub:pendencia_concluir' p.pk %}" class="th-fila-concluir-form" data-pk="{{ p.pk }}" onclick="event.stopPropagation();">
             {% csrf_token %}
             <button type="submit" class="th-btn-icon" title="Concluir pendência" onclick="event.stopPropagation();">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
           </form>
+          {% endif %}
           {% endif %}
         </div>
       </div>
@@ -262,6 +264,7 @@
 {% endif %}
 
 {% include "trackhub/includes/modal_detalhe.html" %}
+{% include "trackhub/includes/modal_criar_pendencia.html" %}
 
 <script>
 (function () {
@@ -294,4 +297,20 @@
 </script>
 <script src="{% static 'trackhub/js/trackhub_fila.js' %}?v=1"></script>
 
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% include "trackhub/includes/modal_criar_pendencia_scripts.html" %}
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('nova') === '1' && typeof window.thCalAbrirModalCriar === 'function') {
+    params.delete('nova');
+    var newSearch = params.toString();
+    history.replaceState(null, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
+    window.thCalAbrirModalCriar();
+  }
+})();
+</script>
 {% endblock %}
