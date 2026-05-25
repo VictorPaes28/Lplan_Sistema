@@ -48,16 +48,6 @@
     border-radius: 10px;
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
   }
-  .po-mapa-edit__notice {
-    margin: 0;
-    padding: 9px 11px;
-    border: 1px solid #c7d2fe;
-    border-radius: 10px;
-    background: #eef2ff;
-    color: #334155;
-    font-size: 0.79rem;
-    line-height: 1.45;
-  }
   .po-mapa-edit__toolbar {
     display: flex;
     flex-wrap: nowrap;
@@ -125,11 +115,57 @@
     border-color: #fcd34d;
     background: #fffbeb;
   }
-  .po-mapa-edit__draft-group {
-    margin-left: auto;
+  .po-mapa-edit__color-input-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
-  .po-mapa-edit__discard-btn {
-    margin-left: 10px;
+  .po-mapa-edit__color-tool {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    width: 2.125rem;
+    min-width: 2.125rem;
+    height: 2.125rem;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    vertical-align: middle;
+  }
+  .po-mapa-edit__color-tool-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 3px 2px 1px;
+    line-height: 1;
+    color: #334155;
+  }
+  .po-mapa-edit__color-tool-body .bi {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .po-mapa-edit__color-tool-swatch {
+    display: block;
+    flex: 0 0 5px;
+    width: 100%;
+    min-height: 5px;
+    border-top: 1px solid rgba(15, 23, 42, 0.12);
+  }
+  .po-mapa-edit__color-tool:not(:disabled):hover .po-mapa-edit__color-tool-body {
+    color: #1d4ed8;
+  }
+  .po-mapa-edit__color-tool:disabled {
+    opacity: 0.55;
   }
   .po-mapa-edit__frame-wrap {
     position: relative;
@@ -208,13 +244,6 @@
     </div>
   </div>
 
-  <p class="po-mapa-edit__notice">
-    Ative a edição, selecione uma célula e altere texto/cor. <strong>Um clique no texto</strong> do bloco, pavimento ou atividade abre o nível ou filtra a coluna; <strong>duplo clique na célula</strong> renomeia.
-    Arraste o ícone <strong>⋮⋮</strong> no cabeçalho da coluna ou ao lado do nome da linha para reorganizar.
-    Use <strong>+ Linha</strong> na barra ou o menu com o botão direito para cadastrar itens no nível atual.
-    As alterações (texto, cor, ordem, linhas e colunas) são salvas automaticamente no servidor.
-  </p>
-
   <div class="po-mapa-edit__frame-wrap">
     <div class="po-mapa-edit__toolbar po-mapa-edit__toolbar--matrix">
       <span class="po-mapa-edit__toolbar-group">
@@ -226,9 +255,21 @@
       <span class="po-mapa-edit__toolbar-group">
         <input id="inpMapaEditText" type="text" class="form-control form-control-sm" placeholder="Texto da célula selecionada" disabled>
       </span>
-      <span class="po-mapa-edit__toolbar-group">
-        <input id="inpMapaEditColor" type="color" class="form-control form-control-color form-control-sm" value="#0ea5e9" disabled>
-        <button id="btnMapaApplyColor" type="button" class="btn btn-outline-secondary btn-sm" disabled>Aplicar cor</button>
+      <span class="po-mapa-edit__toolbar-group po-mapa-edit__toolbar-group--color">
+        <input id="inpMapaEditColor" type="color" class="po-mapa-edit__color-input-hidden" value="#0ea5e9" disabled tabindex="-1" aria-hidden="true">
+        <button
+          id="btnMapaColorPicker"
+          type="button"
+          class="btn btn-outline-secondary btn-sm po-mapa-edit__color-tool"
+          disabled
+          title="Cor de preenchimento da célula"
+          aria-label="Escolher cor de preenchimento"
+        >
+          <span class="po-mapa-edit__color-tool-body" aria-hidden="true">
+            <i class="bi bi-paint-bucket"></i>
+          </span>
+          <span id="poMapaColorSwatch" class="po-mapa-edit__color-tool-swatch"></span>
+        </button>
       </span>
       <span class="po-mapa-edit__toolbar-group">
         <span class="po-mapa-edit__move-group">
@@ -256,7 +297,6 @@
         <button id="btnMapaDeleteCol" type="button" class="btn btn-outline-danger btn-sm" disabled>Apagar coluna</button>
         <button id="btnMapaDeleteRow" type="button" class="btn btn-outline-danger btn-sm" disabled>Apagar linha</button>
       </span>
-      <button id="btnMapaDiscardDraft" type="button" class="btn btn-outline-danger btn-sm po-mapa-edit__discard-btn" disabled>Descartar rascunho</button>
     </div>
     <div id="poMapaEditLoading" class="po-mapa-edit__loading">Carregando mapa para edição...</div>
     <iframe

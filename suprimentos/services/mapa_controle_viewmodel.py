@@ -120,11 +120,15 @@ def _is_placeholder_matrix_label(value: object) -> bool:
     return token == "sem dados para matriz"
 
 
-def _avg_pct_display(values: list[float]):
+def _avg_pct_total(values: list[float]) -> float | None:
+    """Média para Total da linha / rodapé — sempre 2 casas decimais."""
     if not values:
         return None
-    avg = sum(values) / len(values)
-    return int(round(avg)) if abs(avg - round(avg)) < 0.01 else round(avg, 1)
+    return round(sum(values) / len(values), 2)
+
+
+def _avg_pct_display(values: list[float]) -> float | None:
+    return _avg_pct_total(values)
 
 
 def _append_pct_for_average(bucket: list[float], value) -> None:
@@ -263,6 +267,139 @@ def _distinct_structural_axis_values(
     return keys
 
 
+def _forward_fill_hierarchy_axes(rows: list[list], axis_map: dict) -> None:
+    """
+    Propaga setor/bloco/pavimento/apto para linhas de continuação (mesma unidade, várias linhas de serviço).
+    Modifica as linhas in-place antes de filtrar ou consolidar percentuais.
+    """
+    chain = ["setor", "bloco", "pavimento", "apto"]
+    last: dict[str, str] = {k: "" for k in chain}
+    for row in rows:
+        if not isinstance(row, list):
+            continue
+        for key in chain:
+            idx = axis_map.get(key)
+            if not isinstance(idx, int):
+                continue
+            while len(row) <= idx:
+                row.append("")
+            val = str(row[idx] or "").strip()
+            if val:
+                if key == "setor" and val != last.get("setor"):
+                    last["bloco"] = ""
+                    last["pavimento"] = ""
+                    last["apto"] = ""
+                elif key == "bloco" and val != last.get("bloco"):
+                    last["pavimento"] = ""
+                    last["apto"] = ""
+                elif key == "pavimento" and val != last.get("pavimento"):
+                    last["apto"] = ""
+                last[key] = val
+            elif last.get(key):
+                row[idx] = last[key]
+
+
+def _pct_for_matrix_average(cell: dict) -> float | None:
+    """
+    Valor para média de totais (linha/coluna/geral).
+    0% exibido na grade entra; N/A (\"-\") não entra; vazio exibido como 0% conta como zero.
+    """
+    if not isinstance(cell, dict):
+        return None
+    if _is_pct_not_applicable(cell.get("raw")):
+        return None
+    raw = str(cell.get("raw") or "").strip()
+    if raw:
+        val = _pct_from_display_cell(cell)
+        return float(val) if val is not None else None
+    pct = cell.get("pct")
+    if pct is not None:
+        return float(pct)
+    return 0.0
+
+
+def _row_total_from_display_cells(matrix_row: dict) -> int | float | None:
+    """Total da linha = média de todas as atividades exibidas na linha (0% entra; N/A não)."""
+    row_vals: list[float] = []
+    for cell in matrix_row.get("cells") or []:
+        if not isinstance(cell, dict):
+            continue
+        val = _pct_for_matrix_average(cell)
+        if val is not None:
+            row_vals.append(val)
+    return _avg_pct_total(row_vals)
+
+
+def _pct_from_display_cell(cell: dict) -> float | None:
+    """Valor numérico da célula exibida (0% explícito entra; vazio/N/A não)."""
+    if not isinstance(cell, dict):
+        return None
+    raw = str(cell.get("raw") or "").strip()
+    if not raw:
+        return None
+    if _is_pct_not_applicable(raw):
+        return None
+    pct = cell.get("pct")
+    if pct is not None:
+        return float(pct)
+    parsed = _cell_pct_for_average(cell.get("raw"))
+    return float(parsed) if parsed is not None else None
+
+
+def _pct_from_footer_cell(cell: dict) -> float | None:
+    """Rodapé por coluna = média das linhas visíveis (0% exibido entra; N/A não)."""
+    return _pct_for_matrix_average(cell)
+
+
+def _footer_totals_from_matrix_display(
+    matrix_rows: list,
+    activity_labels: list[tuple[int, str]],
+) -> tuple[list[dict], list[float]]:
+    """
+    Total da coluna (rodapé) = média das linhas exibidas na grade naquela coluna.
+    Zero é dado válido; ausente/N/A não entra no denominador.
+    """
+    labels = [lbl for _idx, lbl in activity_labels]
+    buckets: dict[str, list[float]] = {lbl: [] for lbl in labels}
+    all_values: list[float] = []
+    for row in matrix_rows:
+        if not isinstance(row, dict):
+            continue
+        for cell in row.get("cells") or []:
+            if not isinstance(cell, dict):
+                continue
+            label = str(cell.get("atividade") or "").strip()
+            if label not in buckets:
+                continue
+            val = _pct_from_footer_cell(cell)
+            if val is None:
+                continue
+            buckets[label].append(val)
+            all_values.append(val)
+    totais: list[dict] = []
+    for label in labels:
+        vals = buckets.get(label) or []
+        if not vals:
+            totais.append({"atividade": label, "pct": None})
+            continue
+        pct = _avg_pct_total(vals)
+        totais.append({"atividade": label, "pct": pct})
+    return totais, all_values
+
+
+def _grand_total_from_matrix_rows(matrix_rows: list) -> float | None:
+    """Total geral (canto inferior direito) = média de todas as células exibidas (0% entra)."""
+    values: list[float] = []
+    for row in matrix_rows:
+        if not isinstance(row, dict):
+            continue
+        for cell in row.get("cells") or []:
+            val = _pct_for_matrix_average(cell)
+            if val is not None:
+                values.append(val)
+    return _avg_pct_total(values)
+
+
 def _percent_rows_for_axis_key(percent_source_rows: list[list], row_axis_col: int, axis_key_value: str) -> list[list]:
     want = str(axis_key_value or "").strip()
     if not want:
@@ -284,6 +421,132 @@ def _consolidated_activity_cell_display(values: list[float], *, has_percent_unit
     if has_percent_units:
         return "-"
     return "0%"
+
+
+def _consolidated_display_for_column_rows(
+    rows: list[list],
+    col_idx: int,
+    *,
+    infer_zero_for_empty: bool = True,
+) -> str:
+    """
+    Consolida uma coluna de atividade para um eixo (pavimento/bloco/UND).
+    - vazio sem lançamento → 0% (camadas estruturais) ou vazio (UND na grade);
+    - só \"-\" nas linhas-fonte → N/A (-);
+    - com números → média.
+    """
+    if not rows:
+        return "0%"
+    if len(rows) == 1 and not infer_zero_for_empty:
+        row = rows[0]
+        if not isinstance(row, list):
+            return ""
+        raw_cell = row[col_idx] if col_idx < len(row) else ""
+        if _is_pct_not_applicable(raw_cell):
+            return "-"
+        raw_txt = str(raw_cell or "").strip()
+        if not raw_txt:
+            return ""
+        parsed = _parse_pct_loose(raw_cell)
+        if parsed is not None:
+            return _fmt_pct(parsed)
+        return raw_txt
+    bucket: list[float] = []
+    saw_na = False
+    saw_launch = False
+    for row in rows:
+        if not isinstance(row, list):
+            continue
+        raw_cell = row[col_idx] if col_idx < len(row) else ""
+        if _is_pct_not_applicable(raw_cell):
+            saw_na = True
+            continue
+        if str(raw_cell or "").strip():
+            saw_launch = True
+            _append_pct_for_average(bucket, raw_cell)
+        elif len(rows) > 1:
+            saw_launch = True
+            bucket.append(0.0)
+    if bucket:
+        avg = sum(bucket) / len(bucket)
+        return _fmt_pct(avg)
+    if saw_na and not saw_launch:
+        return "-"
+    return "0%"
+
+
+def _rows_matching_axis_scope(
+    percent_source_rows: list[list],
+    axis_map: dict,
+    scope: dict[str, str],
+) -> list[list]:
+    """Linhas-fonte que batem com recorte (ex.: bloco=teste e pavimento=pav1)."""
+    matched = []
+    for row in percent_source_rows:
+        if not isinstance(row, list):
+            continue
+        ok = True
+        for key, wanted in scope.items():
+            want = str(wanted or "").strip()
+            if not want:
+                continue
+            idx = axis_map.get(key)
+            if not isinstance(idx, int):
+                continue
+            cur = str(row[idx] if idx < len(row) else "").strip()
+            if cur != want:
+                ok = False
+                break
+        if ok:
+            matched.append(row)
+    return matched
+
+
+def _column_bucket_for_row_set(rows: list[list], col_idx: int) -> list[float]:
+    bucket: list[float] = []
+    for row in rows:
+        if not isinstance(row, list):
+            continue
+        raw_cell = row[col_idx] if col_idx < len(row) else ""
+        if str(raw_cell or "").strip():
+            _append_pct_for_average(bucket, raw_cell)
+        elif len(rows) > 1:
+            bucket.append(0.0)
+    return bucket
+
+
+def _consolidated_pct_values_for_child_axis(
+    percent_source_rows: list[list],
+    axis_map: dict,
+    parent_scope: dict[str, str],
+    child_axis_key: str,
+    col_idx: int,
+) -> list[float]:
+    """
+    Um % consolidado por filho estrutural (ex.: cada pavimento do bloco).
+    A camada bloco faz a média desses valores — alinhado ao que o usuário vê ao descer um nível.
+    """
+    child_idx = axis_map.get(child_axis_key)
+    if not isinstance(child_idx, int):
+        return []
+    child_keys: list[str] = []
+    seen: set[str] = set()
+    for row in _rows_matching_axis_scope(percent_source_rows, axis_map, parent_scope):
+        val = str(row[child_idx] if child_idx < len(row) else "").strip()
+        if not val or val in seen:
+            continue
+        seen.add(val)
+        child_keys.append(val)
+
+    consolidated: list[float] = []
+    for child_key in child_keys:
+        scope = {**parent_scope, child_axis_key: child_key}
+        child_rows = _rows_matching_axis_scope(percent_source_rows, axis_map, scope)
+        display = _consolidated_display_for_column_rows(child_rows, col_idx)
+        pct = _parse_pct_loose(display)
+        if pct is not None:
+            consolidated.append(float(pct))
+    return consolidated
 
 
 def _extract_axis_map_from_meta(matrix_meta: dict) -> dict:
@@ -420,8 +683,12 @@ class AmbienteProvider:
             rows_layout = []
 
         header = rows_layout[0] if rows_layout else []
-        body_rows = rows_layout[1:] if len(rows_layout) > 1 else []
+        body_rows = [
+            list(r) if isinstance(r, list) else [str(r or "")]
+            for r in (rows_layout[1:] if len(rows_layout) > 1 else [])
+        ]
         axis_map = _supplement_axis_map_from_header(header, _extract_axis_map_from_meta(matrix_meta))
+        _forward_fill_hierarchy_axes(body_rows, axis_map)
         axis_cols = sorted({idx for idx in axis_map.values() if isinstance(idx, int)})
 
         activity_cols = _resolve_activity_col_indices(header, matrix_meta, axis_cols)
@@ -665,6 +932,35 @@ class AmbienteProvider:
             )
         ]
 
+        apto_filter = str(filter_selected.get("apto") or "").strip()
+        # Recorte por unidade (chip): detalhe da UND — uma linha consolidada, mesma regra do pavimento.
+        if (
+            apto_filter
+            and not is_manual_flat
+            and row_mode_requested == "apto"
+            and isinstance(row_axis_col, int)
+        ):
+            grouped_unit = {col_idx: [] for col_idx, _ in activity_labels}
+            key_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, apto_filter)
+            for row in percent_source_rows:
+                key = str(row[row_axis_col] if row_axis_col < len(row) else "").strip() or apto_filter
+                if key != apto_filter:
+                    continue
+                for col_idx, _label in activity_labels:
+                    if col_idx >= len(row):
+                        continue
+                    raw_cell = row[col_idx] if col_idx < len(row) else ""
+                    if str(raw_cell or "").strip():
+                        _append_pct_for_average(grouped_unit[col_idx], raw_cell)
+                    elif len(key_rows) > 1:
+                        grouped_unit[col_idx].append(0.0)
+            out = [""] * len(header)
+            out[row_axis_col] = apto_filter
+            unit_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, apto_filter)
+            for col_idx, _label in activity_labels:
+                out[col_idx] = _consolidated_display_for_column_rows(unit_rows, col_idx)
+            processed_rows = [out]
+
         # Totais/KPIs: média simples de todas as células de atividade das unidades no recorte (Opção A).
         activity_value_buckets = {label: [] for _idx, label in activity_labels}
         for row in percent_source_rows:
@@ -675,35 +971,43 @@ class AmbienteProvider:
 
         if (
             not is_manual_flat
-            and row_mode_requested in {"bloco", "pavimento"}
+            and row_mode_requested in {"bloco", "pavimento", "apto"}
             and isinstance(row_axis_col, int)
+            and not (row_mode_requested == "apto" and apto_filter)
         ):
-            # Exibição: todos os eixos estruturais do recorte; cálculo: só linhas-fonte de %.
+            # Exibição: eixos estruturais (bloco/pavimento/UND); várias linhas-fonte → uma linha por chave.
             axis_keys = _distinct_structural_axis_keys(processed_rows, row_axis_col)
             row_order_pref = matrix_meta.get(f"row_order_{row_axis_key}")
             axis_keys = _apply_preferred_axis_order(axis_keys, row_order_pref)
-            grouped = {key: {col_idx: [] for col_idx, _ in activity_labels} for key in axis_keys}
-
-            for row in percent_source_rows:
-                key = str(row[row_axis_col] if row_axis_col < len(row) else "").strip()
-                if key not in grouped:
-                    continue
-                for col_idx, _label in activity_labels:
-                    if col_idx >= len(row):
-                        continue
-                    _append_pct_for_average(grouped[key][col_idx], row[col_idx])
+            use_bloco_via_pavimentos = (
+                row_mode_requested == "bloco"
+                and isinstance(axis_map.get("pavimento"), int)
+            )
 
             aggregated_rows = []
             for key in axis_keys:
-                by_col = grouped.get(key) or {}
-                has_percent_units = bool(_percent_rows_for_axis_key(percent_source_rows, row_axis_col, key))
+                key_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, key)
                 out = [""] * len(header)
                 out[row_axis_col] = key
                 for col_idx, _label in activity_labels:
-                    values = by_col.get(col_idx) or []
-                    out[col_idx] = _consolidated_activity_cell_display(
-                        values, has_percent_units=has_percent_units
-                    )
+                    if use_bloco_via_pavimentos:
+                        values = _consolidated_pct_values_for_child_axis(
+                            percent_source_rows,
+                            axis_map,
+                            {row_axis_key: key},
+                            "pavimento",
+                            col_idx,
+                        )
+                        out[col_idx] = _consolidated_activity_cell_display(
+                            values,
+                            has_percent_units=bool(key_rows),
+                        )
+                    else:
+                        out[col_idx] = _consolidated_display_for_column_rows(
+                            key_rows,
+                            col_idx,
+                            infer_zero_for_empty=(row_mode_requested != "apto"),
+                        )
                 aggregated_rows.append(out)
             processed_rows = aggregated_rows
 
@@ -718,9 +1022,15 @@ class AmbienteProvider:
         row_meta["row_axis_cols_interpreted"] = [row_axis_col]
         matrix, kpis = self._build_matrix_payload_from_rows(effective_rows, row_meta)
         matrix["mode"] = row_mode_requested
+        matrix["unit_detail_view"] = bool(apto_filter and row_mode_requested == "apto")
         matrix["allow_row_drill"] = (
             (row_mode_requested == "bloco" and isinstance(axis_map.get("pavimento"), int))
             or (row_mode_requested == "pavimento" and isinstance(axis_map.get("apto"), int))
+            or (
+                row_mode_requested == "apto"
+                and not apto_filter
+                and isinstance(axis_map.get("apto"), int)
+            )
         )
         matrix["drill_axis_key"] = (
             "pavimento"
@@ -750,50 +1060,48 @@ class AmbienteProvider:
                     if not str(cell.get("raw") or "").strip():
                         cell["pct"] = 0
 
-        # Recalcula totais/KPIs por base real de células (evita média de médias).
-        totais_reais = []
-        all_values = []
-        for _idx, label in activity_labels:
-            vals = activity_value_buckets.get(label) or []
-            if not vals:
-                totais_reais.append({"atividade": label, "pct": None})
-                continue
-            avg = sum(vals) / len(vals)
-            pct = int(round(avg)) if abs(avg - round(avg)) < 0.01 else round(avg, 1)
-            totais_reais.append({"atividade": label, "pct": pct})
-            all_values.extend(vals)
+        # Rodapé: média das linhas exibidas na camada atual (0% entra; N/A não).
+        if not is_manual_flat and row_mode_requested in {"bloco", "pavimento", "apto"}:
+            totais_reais, all_values = _footer_totals_from_matrix_display(
+                matrix.get("rows") or [], activity_labels
+            )
+        else:
+            totais_reais = []
+            all_values = []
+            for _idx, label in activity_labels:
+                vals = activity_value_buckets.get(label) or []
+                if not vals:
+                    totais_reais.append({"atividade": label, "pct": None})
+                    continue
+                pct = _avg_pct_total(vals)
+                totais_reais.append({"atividade": label, "pct": pct})
+                all_values.extend(vals)
         matrix["totais"] = totais_reais
+        matrix["total_geral"] = _grand_total_from_matrix_rows(matrix.get("rows") or [])
 
         rows_matrix = matrix.get("rows") or []
         for row in rows_matrix:
             group_key = str(row.get("row_key") or row.get("row_label") or "").strip()
+            total_display = _row_total_from_display_cells(row)
             if (
                 not is_manual_flat
-                and row_mode_requested in {"bloco", "pavimento"}
+                and row_mode_requested in {"bloco", "pavimento", "apto"}
                 and isinstance(row_axis_col, int)
                 and group_key
             ):
-                row_vals = []
-                for src in _percent_rows_for_axis_key(percent_source_rows, row_axis_col, group_key):
-                    for col_idx, _lbl in activity_labels:
-                        if col_idx >= len(src):
-                            continue
-                        _append_pct_for_average(row_vals, src[col_idx])
-                if row_vals:
-                    row["total"] = _avg_pct_display(row_vals)
+                if total_display is not None:
+                    row["total"] = total_display
                 elif not _percent_rows_for_axis_key(percent_source_rows, row_axis_col, group_key):
                     row["total"] = 0
                 else:
                     row["total"] = None
+            elif total_display is not None:
+                row["total"] = total_display
             else:
-                row_vals = []
-                for cell in row.get("cells") or []:
-                    _append_pct_for_average(row_vals, cell.get("raw"))
-                row["total"] = _avg_pct_display(row_vals)
+                row["total"] = None
 
         if all_values:
-            media = sum(all_values) / len(all_values)
-            media_fmt = int(round(media)) if abs(media - round(media)) < 0.01 else round(media, 1)
+            media_fmt = round(sum(all_values) / len(all_values), 2)
         else:
             media_fmt = 0.0
         kpis = {
@@ -843,8 +1151,8 @@ class AmbienteProvider:
 
         matrix_context = {
             "obra_titulo": f"{obra.codigo_sienge} — {obra.nome}",
-            "caminho": f"Ambiente dedicado — {ambiente.nome}",
-            "status_filtro": "Dados do ambiente",
+            "caminho": str(ambiente.nome or "").strip() or "Ambiente",
+            "status_filtro": "",
             "modo_grade_label": "Bloco × atividade",
             "n_grade_linhas": len(matrix.get("rows") or []),
             "n_grade_cols": len(matrix.get("atividades") or []),
@@ -894,11 +1202,16 @@ class AmbienteProvider:
                     "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected.get('bloco',''), 'pavimento': selected.get('pavimento',''), 'apto': selected['apto']})}",
                 }
             )
+        prev_url = f"?{root_qs}" if root_qs else "?"
+        if len(breadcrumbs) >= 2:
+            prev_url = breadcrumbs[-2]["url"]
+        elif len(breadcrumbs) == 1:
+            prev_url = f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id})}"
         layer_nav = {
             "has_scope": bool(breadcrumbs),
             "depth": len(breadcrumbs),
             "root_url": f"?{root_qs}" if root_qs else "?",
-            "prev_url": f"?{root_qs}" if root_qs else "?",
+            "prev_url": prev_url,
             "current_path": f"Ambiente: {ambiente.nome}",
             "breadcrumbs": breadcrumbs,
         }

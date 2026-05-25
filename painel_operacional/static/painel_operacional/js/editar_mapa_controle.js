@@ -5,7 +5,8 @@
   const btnToggle = document.getElementById("btnMapaEditToggle");
   const inpText = document.getElementById("inpMapaEditText");
   const inpColor = document.getElementById("inpMapaEditColor");
-  const btnApplyColor = document.getElementById("btnMapaApplyColor");
+  const btnColorPicker = document.getElementById("btnMapaColorPicker");
+  const colorSwatchEl = document.getElementById("poMapaColorSwatch");
   const btnMoveColLeft = document.getElementById("btnMapaMoveColLeft");
   const btnMoveColRight = document.getElementById("btnMapaMoveColRight");
   const btnMoveRowUp = document.getElementById("btnMapaMoveRowUp");
@@ -14,7 +15,6 @@
   const btnAddRow = document.getElementById("btnMapaAddRow");
   const btnDeleteCol = document.getElementById("btnMapaDeleteCol");
   const btnDeleteRow = document.getElementById("btnMapaDeleteRow");
-  const btnDiscardDraft = document.getElementById("btnMapaDiscardDraft");
   const statusEl = document.getElementById("poMapaEditStatus");
   if (!frame) return;
   const contextMenuEl = document.createElement("div");
@@ -25,7 +25,8 @@
   let bridgedDeltaY = 0;
   let bridgeRaf = 0;
   let restoreParentScrollY = null;
-  const AUTO_SAVE_DELAY_MS = 1200;
+  /** Debounce do autosave: evita rajadas de POST enquanto o usuário edita. */
+  const AUTO_SAVE_DELAY_MS = 2200;
   let autoSaveTimer = 0;
   let autoSaveInFlight = false;
   let autoSaveQueued = false;
@@ -325,9 +326,9 @@
     if (scope.bloco) crumbs.push(scope.bloco);
     if (scope.pavimento) crumbs.push(scope.pavimento);
     if (crumbs.length) {
-      return `Dentro de ${crumbs.join(" › ")} — cadastre um novo ${rowAxisHumanLabel(axisKey).toLowerCase()} neste nível.`;
+      return `${crumbs.join(" › ")} · + Linha para novo ${rowAxisHumanLabel(axisKey).toLowerCase()}.`;
     }
-    return `Lista de ${rowAxisHumanLabel(axisKey).toLowerCase()}s na raiz do mapa.`;
+    return `+ Linha para novo ${rowAxisHumanLabel(axisKey).toLowerCase()}.`;
   }
 
   function selectedRowReferenceLabel() {
@@ -714,6 +715,25 @@
     return Array.from(tbody.querySelectorAll("tr")).filter((tr) => !isNonDataMatrixRow(tr));
   }
 
+  /** Espelha _matrix_row_drillable (views_controle): placeholders não são eixo estrutural. */
+  function isMatrixRowLabelDrillable(rowLabel) {
+    const key = String(rowLabel || "").trim();
+    if (!key) return false;
+    const low = key.toLowerCase();
+    if (
+      low === "sem valor" ||
+      low === "sem bloco" ||
+      low === "sem pav." ||
+      low === "sem pavimento" ||
+      low === "sem apto" ||
+      low === "sem setor"
+    ) {
+      return false;
+    }
+    if (/^linha\s+\d+$/i.test(key)) return false;
+    return true;
+  }
+
   function shouldRowNameBeDrillLink(pageKey) {
     const ctx = getMatrixEditContext(pageKey);
     if (ctx.isAreaComum && ctx.mode === "pavimento") return false;
@@ -726,7 +746,7 @@
       const u = new URL(String(frame.contentWindow.location.href || ""), window.location.origin);
       const p = new URLSearchParams(u.search);
       const label = String(rowLabel || "").trim();
-      if (!label) return null;
+      if (!label || !isMatrixRowLabelDrillable(label)) return null;
       const ctx = getMatrixEditContext(pageKey);
       if (ctx.mode === "bloco") {
         p.set("bloco", label);
@@ -757,6 +777,9 @@
     if (ctx.mode === "pavimento" && !ctx.isAreaComum) {
       return "Ver unidades (aptos) deste pavimento na matriz";
     }
+    if (ctx.mode === "apto" && !ctx.isAreaComum) {
+      return "Ver detalhe desta unidade na matriz";
+    }
     return "";
   }
 
@@ -775,7 +798,16 @@
     const key = pageKey || currentPageKey();
     const label = rowDisplayLabelFromNameCell(nameCell);
     const href = buildMatrixDrillHref(label, key);
-    if (!href || !label) return;
+    if (!href || !label) {
+      const stale = nameCell.querySelector("a.row-link");
+      if (stale && !href) {
+        const span = document.createElement("span");
+        span.className = "row-name-txt";
+        span.textContent = label || stale.textContent || "";
+        stale.replaceWith(span);
+      }
+      return;
+    }
     const ctx = getMatrixEditContext(key);
     const title = rowDrillLinkTitle(ctx);
     const wrap = nameCell.querySelector(".po-mapa-row-name-wrap");
@@ -1999,6 +2031,7 @@
     rememberCellPatch(state.selectedCell, state.selectedKey, value);
     if (inpText) inpText.value = value;
     markDirty();
+    if (patchKindForCell(state.selectedCell) === "percent") refreshMatrixTotalsDisplay();
   }
 
   function isInvalidPercentToolbarInput(rawValue) {
@@ -2046,6 +2079,8 @@
     );
     if (value !== currentDisplay || rawInput.trim()) {
       applyToolbarValueToSelectedCell(value);
+    } else if (canPercent) {
+      refreshMatrixTotalsDisplay();
     }
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(state.draft));
@@ -2190,26 +2225,29 @@
         throw new Error((saveJson && saveJson.error) || "Falha ao salvar no servidor.");
       }
 
-      const verifyRes = await fetch(ctx.endpoints.detalhe, {
-        credentials: "same-origin",
-        headers: { "X-Requested-With": "XMLHttpRequest" },
-      });
-      const verifyJson = await verifyRes.json();
-      const savedLayout =
-        verifyJson && verifyJson.success
-          ? (verifyJson.draft || verifyJson.versao || {}).layout || {}
-          : {};
-      const missingAfterSave = verifyCreateRowsInLayout(savedLayout, structuralOpsSnapshot);
-      poMapaDebug("save servidor verificação GET", {
-        ok: verifyRes.ok,
-        rowsPersistidas: extractLayoutMatrixFromLayout(savedLayout).rows.length,
-        missingAfterSave: missingAfterSave.map((o) => o.label),
-        layoutRows: layoutStructuralRowsForDebug(savedLayout),
-      });
-      if (missingAfterSave.length) {
-        throw new Error(
-          "O servidor não confirmou as linhas criadas no layout. O rascunho local foi mantido.",
-        );
+      if (!isAuto) {
+        const verifyRes = await fetch(ctx.endpoints.detalhe, {
+          credentials: "same-origin",
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        const verifyJson = await verifyRes.json();
+        const savedLayout =
+          verifyJson && verifyJson.success
+            ? (verifyJson.draft || verifyJson.versao || {}).layout || {}
+            : {};
+        const missingAfterSave = verifyCreateRowsInLayout(savedLayout, structuralOpsSnapshot);
+        poMapaDebug("save servidor verificação GET", {
+          ok: verifyRes.ok,
+          rowsPersistidas: extractLayoutMatrixFromLayout(savedLayout).rows.length,
+          missingAfterSave: missingAfterSave.map((o) => o.label),
+          layoutRows: layoutStructuralRowsForDebug(savedLayout),
+        });
+        if (missingAfterSave.length) {
+          throw new Error(
+            "O servidor não confirmou as linhas criadas no layout. O rascunho local foi mantido.",
+          );
+        }
+        cacheLayoutFromExtracted(extractLayoutMatrixFromLayout(savedLayout));
       }
 
       const keepEditEnabled = state.enabled;
@@ -2230,7 +2268,10 @@
       } else {
         updateStatus(isAuto ? "Alterações salvas automaticamente." : "Mapa salvo no servidor.");
       }
-      if (shouldReload || isAuto) {
+      if (!shouldReload) {
+        refreshMatrixTotalsDisplay();
+      }
+      if (shouldReload) {
         clearCellSelectionAndToolbar();
         state.restoreEditOnNextLoad = keepEditEnabled;
         frame.contentWindow.location.reload();
@@ -2466,6 +2507,41 @@
     return true;
   }
 
+  function isMatrixActivityColumnIndex(cIdx, totalColIdx) {
+    return cIdx > 0 && cIdx < totalColIdx;
+  }
+
+  /** Célula de atividade no corpo (não rodapé): lê % para média linha/coluna. */
+  function isMatrixBodyPercentValueCell(cell, cIdx, totalColIdx) {
+    if (!cell || cell.tagName !== "TD") return false;
+    if (!isMatrixActivityColumnIndex(cIdx, totalColIdx)) return false;
+    if (cell.classList.contains("row-name") || cell.classList.contains("sticky-left")) return false;
+    const tr = cell.closest("tr");
+    if (!tr || !tr.closest("tbody") || tr.classList.contains("totals-row")) return false;
+    return (
+      isMatrixPercentDataCell(cell) ||
+      cell.classList.contains("cell-pct") ||
+      cell.classList.contains("cell-empty")
+    );
+  }
+
+  /** Célula de atividade na linha Total do rodapé (não confundir com matrix-grand-total). */
+  function isMatrixFooterActivityCell(cell, cIdx, totalColIdx) {
+    if (!cell || cell.tagName !== "TD") return false;
+    if (!isMatrixActivityColumnIndex(cIdx, totalColIdx)) return false;
+    if (cell.classList.contains("matrix-grand-total")) return false;
+    const tr = cell.closest("tr");
+    return !!(tr && tr.classList.contains("totals-row") && cell.classList.contains("footer-activity-col"));
+  }
+
+  function refreshMatrixTotalsDisplay() {
+    try {
+      recalculateMatrixTotals();
+    } catch (e) {
+      void e;
+    }
+  }
+
   /**
    * Lançamento manual de percentual — somente camada APTO/UND (habitação).
    * Não confundir com edição estrutural do escopo (nome/ordem de linha e coluna).
@@ -2511,14 +2587,45 @@
     return "";
   }
 
+  function cssColorToHex(color) {
+    const raw = String(color || "").trim();
+    if (!raw) return "";
+    if (raw.startsWith("#")) {
+      return raw.length === 4
+        ? `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`
+        : raw.slice(0, 7);
+    }
+    const m = raw.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (!m) return "";
+    const hex = [m[1], m[2], m[3]].map((n) => {
+      const v = Math.max(0, Math.min(255, Number(n) || 0));
+      return v.toString(16).padStart(2, "0");
+    });
+    return `#${hex.join("")}`;
+  }
+
+  function syncColorToolSwatch() {
+    if (!colorSwatchEl || !inpColor) return;
+    const hex = cssColorToHex(inpColor.value) || inpColor.value || "#0ea5e9";
+    colorSwatchEl.style.backgroundColor = hex;
+  }
+
+  function syncColorPickerFromCell(cell) {
+    if (!inpColor || !cell) return;
+    const hex = cssColorToHex(cell.style.backgroundColor);
+    if (hex) inpColor.value = hex;
+    syncColorToolSwatch();
+  }
+
   function refreshToolbarEditState() {
     const cell = state.selectedCell;
     const canPercent = cell && canEditPercentCell(cell, { silent: true });
     const canStructural = cell && canEditStructuralCell(cell);
     const canText = state.enabled && (canPercent || canStructural);
+    const canColor = state.enabled && canPercent;
     if (inpText) inpText.disabled = !canText;
-    if (inpColor) inpColor.disabled = !(state.enabled && canPercent);
-    if (btnApplyColor) btnApplyColor.disabled = !(state.enabled && canPercent);
+    if (inpColor) inpColor.disabled = !canColor;
+    if (btnColorPicker) btnColorPicker.disabled = !canColor;
   }
 
   function isPercentNotApplicableText(value) {
@@ -2548,6 +2655,12 @@
     return m ? Number(m[1]) : null;
   }
 
+  function formatMatrixTotalPct(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "-";
+    return `${n.toFixed(2)}%`;
+  }
+
   /** Recalcula coluna Total e rodapé a partir das células de % visíveis (só exibição). */
   function recalculateMatrixTotals() {
     const doc = frame.contentDocument;
@@ -2569,9 +2682,10 @@
       let rowSum = 0;
       let rowCount = 0;
       cells.forEach((cell, cIdx) => {
-        if (cIdx === 0 || cIdx >= totalColIdx) return;
-        if (!isMatrixPercentDataCell(cell)) return;
-        const n = percentNumberFromDisplay(textNodeForCell(cell).textContent);
+        if (!isMatrixBodyPercentValueCell(cell, cIdx, totalColIdx)) return;
+        const displayText = String(textNodeForCell(cell).textContent || "").trim();
+        if (!displayText) return;
+        const n = percentNumberFromDisplay(displayText);
         if (n == null) return;
         rowSum += n;
         rowCount += 1;
@@ -2581,8 +2695,7 @@
       if (totalCell) {
         const node = textNodeForCell(totalCell);
         if (rowCount) {
-          const avg = Math.round(rowSum / rowCount);
-          node.textContent = `${avg}%`;
+          node.textContent = formatMatrixTotalPct(rowSum / rowCount);
         } else {
           node.textContent = "-";
         }
@@ -2592,26 +2705,23 @@
     const totalsTr = tbody.querySelector("tr.totals-row");
     if (!totalsTr) return;
     totalsTr.querySelectorAll("td").forEach((cell, cIdx) => {
-      if (cIdx === 0 || cIdx >= totalColIdx) return;
-      if (!isMatrixPercentDataCell(cell)) return;
-      const vals = colBuckets[cIdx] || [];
+      if (!isMatrixFooterActivityCell(cell, cIdx, totalColIdx)) return;
+      const vals = (colBuckets[cIdx] || []).filter((n) => n != null);
       const node = textNodeForCell(cell);
       if (!vals.length) {
         node.textContent = "-";
         return;
       }
-      const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-      node.textContent = `${avg}%`;
+      node.textContent = formatMatrixTotalPct(vals.reduce((a, b) => a + b, 0) / vals.length);
     });
-    const footerTotal = totalsTr.querySelector("td.total-col");
+    const footerTotal = totalsTr.querySelector("td.matrix-grand-total");
     if (footerTotal) {
       const all = colBuckets.flat().filter((n) => n != null);
       const node = textNodeForCell(footerTotal);
       if (!all.length) {
         node.textContent = "-";
       } else {
-        const avg = Math.round(all.reduce((a, b) => a + b, 0) / all.length);
-        node.textContent = `${avg}%`;
+        node.textContent = formatMatrixTotalPct(all.reduce((a, b) => a + b, 0) / all.length);
       }
     }
   }
@@ -2743,7 +2853,7 @@
       return;
     }
     finishInlineEdit({ commit: true });
-    recalculateMatrixTotals();
+    refreshMatrixTotalsDisplay();
     if (!state.dirty) return;
     updateStatus("Salvando percentual…");
     void runAutoSave();
@@ -2766,7 +2876,7 @@
         rememberCellPatch(inline.cell, inline.key, nextText);
         if (hasChanged) {
           markDirty();
-          if (patchKindForCell(inline.cell) === "percent") recalculateMatrixTotals();
+          if (patchKindForCell(inline.cell) === "percent") refreshMatrixTotalsDisplay();
         }
       }
       if (inpText && state.selectedCell === inline.cell) {
@@ -2850,6 +2960,7 @@
       state.selectedCell.style.outlineOffset = "-2px";
       const node = textNodeForCell(state.selectedCell);
       if (inpText) inpText.value = String(node.textContent || "").trim();
+      syncColorPickerFromCell(state.selectedCell);
     }
     refreshMoveButtons();
     refreshToolbarEditState();
@@ -2899,6 +3010,7 @@
     });
     refreshAllMatrixRowDrillLinks();
     refreshAllMatrixColumnHeadLinks();
+    refreshMatrixTotalsDisplay();
   }
 
   function mapEditableCells() {
@@ -3460,7 +3572,7 @@
         newCell.appendChild(headLink);
       } else if (row.classList.contains("totals-row")) {
         newCell = document.createElement("td");
-        newCell.className = "total-col";
+        newCell.className = "footer-activity-col";
         newCell.textContent = "-";
       } else if (!isNonDataMatrixRow(row)) {
         newCell = document.createElement("td");
@@ -3696,6 +3808,7 @@
     if (!state.enabled || !state.selectedCell || !state.selectedKey) return;
     if (!canEditPercentCell(state.selectedCell, { silent: true })) return;
     if (inpColor) inpColor.value = color;
+    syncColorToolSwatch();
     applyColorChange();
   }
 
@@ -3772,7 +3885,6 @@
     );
 
     contextMenuEl.appendChild(menuSeparator());
-    contextMenuEl.appendChild(menuItem("Descartar rascunho", "", { disabled: !state.enabled, danger: true, onClick: discardDraft }));
 
     showContextMenu(event.clientX, event.clientY);
   }
@@ -3793,6 +3905,11 @@
     if (rowHeadLink) {
       const linkCell = rowHeadLink.closest("td.row-name, td.sticky-left");
       if (linkCell && navigateMatrixRowDrill(linkCell, event)) return;
+      const fallbackHref = rowHeadLink.getAttribute("href");
+      if (fallbackHref && fallbackHref !== "#") {
+        event.preventDefault();
+        frame.contentWindow.location.assign(fallbackHref);
+      }
       return;
     }
     if (!state.enabled) return;
@@ -3911,13 +4028,12 @@
   }
 
   function toggleControls(enabled) {
-    if (btnDiscardDraft) btnDiscardDraft.disabled = !enabled;
     if (!enabled) {
       if (autoSaveTimer) {
         window.clearTimeout(autoSaveTimer);
         autoSaveTimer = 0;
       }
-      [inpText, inpColor, btnApplyColor].forEach((el) => {
+      [inpText, inpColor, btnColorPicker].forEach((el) => {
         if (el) el.disabled = true;
       });
     } else {
@@ -4014,7 +4130,7 @@
       refreshMatrixColumnHeadLink(state.selectedCell);
     }
     markDirty();
-    if (patchKindForCell(state.selectedCell) === "percent") recalculateMatrixTotals();
+    if (patchKindForCell(state.selectedCell) === "percent") refreshMatrixTotalsDisplay();
   }
 
   function applyColorChange() {
@@ -4065,7 +4181,6 @@
     });
     mapEditableCells();
     ensureEditModeIframeGuards();
-    void refreshLayoutMetaCache();
     doc.addEventListener("click", onDocClick, true);
     doc.addEventListener("dblclick", onDocDoubleClick, true);
     doc.addEventListener("contextmenu", onDocContextMenu, true);
@@ -4095,10 +4210,10 @@
     initDocumentHooks();
     resizeFrameToContent();
     scrollIframeToMatrix();
-    window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
       resizeFrameToContent();
       scrollIframeToMatrix();
-    }, 120);
+    });
     if (typeof restoreParentScrollY === "number") {
       const targetY = restoreParentScrollY;
       restoreParentScrollY = null;
@@ -4188,13 +4303,20 @@
       syncToolbarTextToCell();
     });
   }
-  if (btnApplyColor) btnApplyColor.addEventListener("click", applyColorChange);
+  if (btnColorPicker && inpColor) {
+    btnColorPicker.addEventListener("click", () => {
+      if (!state.enabled || !state.selectedCell || btnColorPicker.disabled) return;
+      inpColor.click();
+    });
+  }
   if (inpColor) {
     inpColor.addEventListener("input", () => {
+      syncColorToolSwatch();
       if (!state.enabled || !state.selectedCell) return;
       applyColorChange();
     });
   }
+  syncColorToolSwatch();
   if (btnAddCol) btnAddCol.addEventListener("click", addColumnFromToolbar);
   if (btnAddRow) btnAddRow.addEventListener("click", addRowFromToolbar);
   if (btnDeleteCol) btnDeleteCol.addEventListener("click", deleteColumnFromToolbar);
@@ -4243,8 +4365,6 @@
       }
     });
   }
-  if (btnDiscardDraft) btnDiscardDraft.addEventListener("click", discardDraft);
-
   window.addEventListener("beforeunload", () => {
     if (!state.enabled || !state.dirty) return;
     if (autoSaveTimer) {
@@ -4259,6 +4379,7 @@
   });
 
   updateToggleUi();
+  void refreshLayoutMetaCache();
 
   // Fallback para conexões lentas.
   window.setTimeout(hideLoading, 6500);
