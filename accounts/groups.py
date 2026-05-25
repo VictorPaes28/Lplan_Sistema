@@ -145,7 +145,7 @@ GRUPO_LABEL_ATRIBUICAO_UI = {
     GRUPOS.SOLICITANTE: 'Solicitante GestControll',
     GRUPOS.ENVIAR_PARA_CENTRAL_APROVACOES: 'Enviar pedidos aprovados à Central de Aprovações',
     GRUPOS.GESTAO_IMPEDIMENTOS: 'Acesso a Restrições (Gestão de Impeditivos)',
-    GRUPOS.TRACKHUB: 'TrackHub — perfil único (legado)',
+    GRUPOS.TRACKHUB: 'TrackHub — administrador (acesso total)',
     GRUPOS.TRACKHUB_ADMIN: 'TrackHub — administrador',
     GRUPOS.TRACKHUB_APROVADOR: 'TrackHub — aprovador',
     GRUPOS.TRACKHUB_SOLICITANTE: 'TrackHub — solicitante',
@@ -229,17 +229,35 @@ GROUP_UI_SECTIONS = [
     {
         'id': 'mod_trackhub',
         'title': 'TrackHub',
-        'description': '',
+        'description': (
+            'Pendências e etapas por obra. O vínculo às obras vem do Diário de Obra '
+            '(membro, dono ou aprovador do projeto). Marque um ou mais perfis conforme a função.'
+        ),
         'modules': [
             {
-                'id': 'trackhub_papeis',
+                'id': 'trackhub_solicitante',
                 'title': '',
-                'subtitle': '',
-                'names': [
-                    GRUPOS.TRACKHUB_APROVADOR,
-                    GRUPOS.TRACKHUB_SOLICITANTE,
-                    GRUPOS.TRACKHUB,
-                ],
+                'subtitle': (
+                    'Abre pendências nas obras designadas; edita apenas as que criou; '
+                    'conclui só etapas em que é responsável; comenta nas demais visíveis.'
+                ),
+                'names': [GRUPOS.TRACKHUB_SOLICITANTE],
+            },
+            {
+                'id': 'trackhub_aprovador',
+                'title': '',
+                'subtitle': (
+                    'Gerencia pendências das obras designadas. Fora do escopo: se for responsável '
+                    'pela pendência, edita e conclui tudo; se for responsável só por uma etapa, '
+                    'conclui apenas essa etapa (sem editar a pendência).'
+                ),
+                'names': [GRUPOS.TRACKHUB_APROVADOR],
+            },
+            {
+                'id': 'trackhub_admin',
+                'title': '',
+                'subtitle': 'Acesso total — todas as obras, pendências e ações (perfil legado).',
+                'names': [GRUPOS.TRACKHUB],
             },
         ],
     },

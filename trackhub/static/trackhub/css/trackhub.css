@@ -1300,8 +1300,15 @@
   font-size: 13px; color: #374151; line-height: 1.6; outline: none; min-height: 50px;
   border: 1px solid transparent; border-radius: 6px; padding: 6px 8px;
   cursor: text; transition: border-color .2s; white-space: pre-wrap;
+  background: #ffffff;
 }
-.th-det-descricao:focus { border-color: var(--th-accent); background: var(--th-surface-accent); }
+.th-det-descricao:focus,
+.th-det-descricao.th-richtext-editor:focus {
+  border-color: transparent;
+  background: #ffffff;
+  box-shadow: none;
+  outline: none;
+}
 .th-det-descricao:empty::before { content: 'Adicionar descrição…'; color: #94a3b8; }
 .th-det-descricao.is-placeholder, .th-detalhe-editable.is-placeholder { color: #94a3b8; font-style: italic; }
 
@@ -1491,11 +1498,25 @@
 }
 .th-comment-textarea {
   width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;
-  font-size: 12.5px; font-family: inherit; resize: none; transition: border-color .2s;
+  font-size: 12.5px; font-family: inherit; resize: none; transition: border-color .2s, box-shadow .2s;
   box-sizing: border-box;
 }
-.th-comment-textarea:focus { outline: none; border-color: var(--th-accent); }
-.th-comment-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.th-comment-input.th-detalhe-composer,
+.th-richtext--comment {
+  overflow: visible;
+}
+.th-comment-editor-field {
+  width: 100%;
+  flex-shrink: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.th-comment-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: nowrap; gap: 8px;
+  width: 100%; box-sizing: border-box;
+}
 .th-comment-attach {
   display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 6px;
   border: 1px solid #e2e8f0; background: #f8fafc; font-size: 11px; font-weight: 600;
@@ -2516,15 +2537,18 @@
   font-size: 12px;
 }
 .th-detalhe-modal .th-comment-footer {
-  margin-top: 4px;
+  margin-top: 0;
+  gap: 6px;
 }
 .th-detalhe-modal .th-comment-attach {
   padding: 3px 8px;
   font-size: 10.5px;
+  flex-shrink: 0;
 }
 .th-detalhe-modal .btn-send {
   padding: 6px 12px;
   font-size: 11.5px;
+  flex-shrink: 0;
 }
 .th-detalhe-modal .th-activity {
   margin-bottom: 8px;
@@ -2616,4 +2640,159 @@
 }
 .th-cal-criar-body select:focus { outline: none; border-color: #3498db; }
 .th-cal-criar-body .th-filter-select { width: 100% !important; max-width: none !important; box-sizing: border-box; }
+
+/* ─── Rich text editor ─────────────────────────────────────────── */
+.th-richtext { display: flex; flex-direction: column; gap: 0; width: 100%; }
+.th-richtext-toolbar {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 6px 8px; background: #f8fafc; border: 1px solid #e2e8f0;
+  border-radius: 8px 8px 0 0; border-bottom: none;
+}
+.th-richtext--bottom .th-richtext-toolbar {
+  border-radius: 8px; border: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc; padding: 4px 6px;
+}
+.th-richtext--bottom .th-richtext-editor {
+  border-radius: 8px 8px 0 0;
+}
+
+/* Comentários: toolbar acima, caixa fechada, ações abaixo */
+.th-richtext--comment {
+  display: flex; flex-direction: column; gap: 10px; width: 100%;
+  overflow: visible;
+}
+.th-richtext--comment > .th-richtext-toolbar {
+  display: flex; align-items: center; gap: 4px; flex-wrap: nowrap;
+  padding: 0; margin: 0;
+  border: none; background: transparent; border-radius: 0;
+  overflow: visible; flex-shrink: 0;
+  box-shadow: none;
+}
+.th-richtext--comment .th-comment-editor-field {
+  width: 100%;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.th-richtext--comment .th-comment-editor-field .th-richtext-editor,
+.th-richtext--comment .th-comment-editor-field .th-comment-textarea.th-richtext-editor {
+  display: block;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 52px;
+  max-height: 160px;
+  padding: 8px 10px;
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+}
+.th-richtext--comment .th-comment-editor-field [contenteditable]:focus,
+.th-richtext--comment .th-comment-editor-field .th-richtext-editor:focus,
+.th-richtext--comment .th-comment-editor-field .th-comment-textarea:focus {
+  outline: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.th-richtext--comment .th-comment-footer {
+  margin-top: 0;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+.th-richtext--comment .th-comment-file-chips,
+.th-richtext--comment .th-file-chips {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+.th-richtext-btn {
+  min-width: 28px; height: 28px; padding: 0 7px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent; color: #475569;
+  font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.th-richtext-btn:hover { background: #e2e8f0; border-color: #cbd5e1; }
+.th-richtext-btn svg { width: 15px; height: 15px; flex-shrink: 0; display: block; }
+.th-richtext-btn.is-active {
+  background: var(--th-surface-accent, #ebf6fd); border-color: var(--th-accent-border, #b8d4eb);
+  color: var(--th-accent-hover, #2980b9);
+}
+.th-richtext-sep {
+  width: 1px; height: 18px; background: #e2e8f0; margin: 0 4px; flex-shrink: 0;
+}
+.th-richtext-editor {
+  min-height: 72px; max-height: 240px; overflow-y: auto;
+  padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;
+  font-size: 13px; font-family: inherit; color: #1e293b; background: #fff;
+  line-height: 1.5; outline: none; transition: border-color .2s, box-shadow .2s;
+  box-sizing: border-box; width: 100%;
+}
+.th-richtext--top .th-richtext-editor { border-top: none; }
+.th-richtext--standalone .th-richtext-editor { border-radius: 0 0 8px 8px; border-top: none; }
+.th-richtext--standalone.th-richtext--top .th-richtext-toolbar { border-radius: 8px 8px 0 0; }
+.th-richtext-editor:focus {
+  outline: none;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+.th-richtext-editor.is-empty {
+  position: relative;
+}
+.th-richtext-editor.is-empty:not(:focus) {
+  caret-color: transparent;
+}
+.th-richtext-editor.is-empty:focus {
+  caret-color: #1e293b;
+}
+.th-richtext-editor.is-empty:before {
+  content: attr(data-placeholder);
+  color: #94a3b8; pointer-events: none;
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 9px 12px; box-sizing: border-box; line-height: 1.5;
+}
+.th-comment-textarea.th-richtext-editor.is-empty:before {
+  padding: 8px 10px;
+}
+.th-detalhe-modal .th-comment-textarea.th-richtext-editor.is-empty:before {
+  padding: 6px 8px;
+}
+.th-richtext-editor.is-readonly {
+  background: #f8fafc; cursor: default;
+}
+.th-richtext-editor.is-readonly:focus {
+  border-color: #e2e8f0; box-shadow: none;
+}
+.th-richtext-editor ul, .th-richtext-editor ol { margin: 0.4em 0; padding-left: 1.4em; }
+.th-richtext-editor p { margin: 0 0 0.35em; }
+.th-richtext-editor p:last-child { margin-bottom: 0; }
+.th-det-descricao.th-richtext-editor { min-height: 56px; background: #ffffff; }
+.th-det-descricao.th-richtext-editor.is-readonly { background: #ffffff; }
+.th-detalhe-modal .th-richtext--comment > .th-richtext-toolbar {
+  padding: 0;
+}
+.th-detalhe-modal .th-richtext--comment .th-richtext-btn {
+  min-width: 24px; height: 24px; padding: 0 4px;
+}
+.th-detalhe-modal .th-richtext--comment .th-richtext-btn svg {
+  width: 13px; height: 13px;
+}
+.th-detalhe-modal .th-richtext--comment .th-comment-editor-field .th-richtext-editor,
+.th-detalhe-modal .th-richtext--comment .th-comment-editor-field .th-comment-textarea {
+  min-height: 44px;
+  max-height: 120px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.th-comment-text-rich, .th-comment-text { word-break: break-word; }
+.th-comment-text-rich ul, .th-comment-text-rich ol { margin: 0.35em 0; padding-left: 1.3em; }
+.th-etapa-obs-text ul, .th-etapa-obs-text ol { margin: 0.35em 0; padding-left: 1.3em; }
+.th-det-descricao-rich ul, .th-det-descricao-rich ol { margin: 0.35em 0; padding-left: 1.3em; }
 

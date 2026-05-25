@@ -1,0 +1,407 @@
+{% load static %}
+<script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
+<script src="{% static 'trackhub/js/trackhub_recorrencia_form.js' %}?v=9"></script>
+<script>
+(function () {
+  'use strict';
+
+  var overlay   = document.getElementById('th-cal-criar-overlay');
+  var form      = document.getElementById('th-cal-criar-form');
+  var errDiv    = document.getElementById('th-cal-criar-erros');
+  var submitBtn = document.getElementById('th-cal-criar-submit-btn');
+  var inpInicio = form && form.querySelector('input[name="data_inicio"]');
+  var inpFim    = form && form.querySelector('input[name="prazo"]');
+  var AJAX_URL  = '{% url "trackhub:pendencia_criar_ajax" %}';
+  var TIPO_CUSTOM_URL = '{% url "trackhub:tipo_custom_criar" %}';
+
+  var respPorObra    = [];
+  var todosUsuarios  = [];
+  try { respPorObra   = JSON.parse(document.getElementById('th-cal-modal-resp-por-obra').textContent); } catch(e) {}
+  try { todosUsuarios = JSON.parse(document.getElementById('th-cal-modal-todos-usuarios').textContent); } catch(e) {}
+
+  function getModalObraId() {
+    var s = form && form.querySelector('select[name="obra"]');
+    return s ? (s.value || '') : '';
+  }
+  function getModalObraNome() {
+    var s = form && form.querySelector('select[name="obra"]');
+    if (!s || !s.value) return '';
+    var o = s.options[s.selectedIndex];
+    return o ? (o.textContent || '').trim() : '';
+  }
+
+  var selResp = form && form.querySelector('select[name="responsavel_interno"]');
+  if (selResp && window.ThRespPicker) {
+    window.ThRespPicker.attach(
+      selResp,
+      function () { return respPorObra; },
+      getModalObraId,
+      { getOutrosFn: function () { return todosUsuarios; }, getObraNomeFn: getModalObraNome, zIndex: 600 }
+    );
+    var selObra = form.querySelector('select[name="obra"]');
+    if (selObra && selResp._thRespRefresh) {
+      selObra.addEventListener('change', function () { selResp._thRespRefresh(); });
+    }
+  }
+
+  function hojeIso() {
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function syncMinFim() {
+    if (!inpFim) return;
+    inpFim.min = (inpInicio && inpInicio.value) ? inpInicio.value : hojeIso();
+  }
+  if (inpInicio) {
+    inpInicio.addEventListener('change', syncMinFim);
+    inpInicio.addEventListener('input',  syncMinFim);
+  }
+
+  window.thCalAbrirModalCriar = function (isoDate) {
+    if (!overlay || !form) return;
+    form.reset();
+    var row = document.getElementById('th-cal-modal-tipo-custom-row');
+    if (row) row.style.display = 'none';
+    if (errDiv) { errDiv.textContent = ''; errDiv.style.display = 'none'; }
+    var inpRegra = document.getElementById('id_recorrencia_regra');
+    var inpParams = document.getElementById('id_recorrencia_parametros_json');
+    if (inpRegra)  inpRegra.value  = 'none';
+    if (inpParams) inpParams.value = '{}';
+    var recText = document.getElementById('th-rec-trigger-text');
+    if (recText) recText.textContent = 'Não se repete';
+    var recMenu = document.getElementById('th-rec-menu');
+    if (recMenu) recMenu.hidden = true;
+    var recCustom = document.getElementById('th-rec-custom');
+    if (recCustom) recCustom.hidden = true;
+    var container = document.getElementById('etapas-container');
+    if (container) {
+      container.innerHTML = '';
+      var prefix = container.getAttribute('data-prefix') || '';
+      var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+      if (totalInput) totalInput.value = '0';
+    }
+    if (isoDate && inpInicio) {
+      inpInicio.value = isoDate;
+      syncMinFim();
+    } else {
+      syncMinFim();
+    }
+    overlay.removeAttribute('hidden');
+    overlay.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () {
+      var s = form.querySelector('select[name="obra"]');
+      if (s) s.focus();
+    }, 80);
+  };
+
+  function fecharModal() {
+    if (!overlay) return;
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+  }
+
+  var closeBtn  = document.getElementById('th-cal-criar-close-btn');
+  var cancelBtn = document.getElementById('th-cal-criar-cancel-btn');
+  if (closeBtn)  closeBtn.addEventListener('click', fecharModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', fecharModal);
+
+  if (overlay) {
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) fecharModal();
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && overlay && !overlay.hasAttribute('hidden')) fecharModal();
+  });
+
+  function thRedrawEtapaChips(input) {
+    var row = input.closest('.th-etapa-upload-row');
+    if (!row) return;
+    var chips = row.querySelector('.th-file-chips');
+    input._thAcc = input._thAcc || [];
+    var acc = input._thAcc;
+    var dt = new DataTransfer();
+    acc.forEach(function (f) { dt.items.add(f); });
+    try { input.files = dt.files; } catch (e) {}
+    chips.innerHTML = '';
+    acc.forEach(function (file) {
+      var chip = document.createElement('div');
+      chip.className = 'th-file-chip';
+      var isImg = file.type && file.type.startsWith('image/');
+      var nm = file.name.length > 22 ? file.name.slice(0, 20) + '\u2026' : file.name;
+      chip.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        (isImg ? '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>' :
+                 '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>') +
+        '</svg>' + String(nm).replace(/</g, '') +
+        '<button type="button">\u00d7</button>';
+      chip.querySelector('button').onclick = function () {
+        input._thAcc = (input._thAcc || []).filter(function (x) { return x !== file; });
+        thRedrawEtapaChips(input);
+      };
+      chips.appendChild(chip);
+    });
+    input.value = '';
+  }
+
+  window.thPreviewEtapaFiles = function (input) {
+    input._thAcc = input._thAcc || [];
+    Array.from(input.files || []).forEach(function (f) { input._thAcc.push(f); });
+    thRedrawEtapaChips(input);
+  };
+
+  function thSyncAllEtapaInputs() {
+    if (!form) return;
+    form.querySelectorAll('input[type=file][name*="-anexos_etapa"]').forEach(function (inp) {
+      var acc = inp._thAcc || [];
+      if (!acc.length) return;
+      var dt = new DataTransfer();
+      acc.forEach(function (f) { dt.items.add(f); });
+      try { inp.files = dt.files; } catch (e) {}
+    });
+  }
+
+  function thAppendEtapaFilesToFormData(fd) {
+    if (!form) return;
+    form.querySelectorAll('input[type=file][name*="-anexos_etapa"]').forEach(function (inp) {
+      var name = inp.getAttribute('name');
+      if (!name) return;
+      fd.delete(name);
+      var list = (inp._thAcc && inp._thAcc.length) ? inp._thAcc : Array.from(inp.files || []);
+      list.forEach(function (f) {
+        if (f) fd.append(name, f, f.name);
+      });
+    });
+  }
+
+  function thInitAssinaturaToggle(label) {
+    if (!label) return;
+    var ch = label.querySelector('input[type=checkbox]');
+    if (!ch) return;
+    label.classList.toggle('ativo', ch.checked);
+    var hint = label.querySelector('span:last-of-type');
+    if (hint && hint !== label.querySelector('.th-assinatura-toggle-label')) {
+      hint.style.color = ch.checked ? '#2980b9' : '#94a3b8';
+    }
+  }
+
+  document.addEventListener('change', function (e) {
+    if (!form || !form.contains(e.target)) return;
+    if (e.target.type === 'checkbox' && e.target.closest('.th-assinatura-toggle')) {
+      thInitAssinaturaToggle(e.target.closest('.th-assinatura-toggle'));
+    }
+  });
+
+  document.addEventListener('input', function (e) {
+    if (!form || !form.contains(e.target)) return;
+    if (e.target.classList.contains('th-etapa-titulo-inline') ||
+        (e.target.type === 'text' && e.target.closest('.etapa-form-bloco'))) {
+      var bloco = e.target.closest('.etapa-form-bloco');
+      if (!bloco) return;
+      var chk = bloco.querySelector('input[type="checkbox"][name$="requer_assinatura"]');
+      if (!chk) return;
+      var tem = (e.target.value || '').toLowerCase().includes('assinatura');
+      if (tem && !chk.checked) {
+        chk.checked = true;
+        chk.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  });
+
+  function showErrors(errors) {
+    if (!errDiv) return;
+    var msgs = [];
+    Object.keys(errors).forEach(function (k) {
+      var list = errors[k];
+      if (Array.isArray(list)) list.forEach(function (m) { msgs.push(String(m)); });
+      else msgs.push(String(list));
+    });
+    errDiv.textContent = msgs.join(' ');
+    errDiv.style.display = 'block';
+    errDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      if (inpFim && inpFim.value && inpInicio && inpInicio.value && inpFim.value < inpInicio.value) {
+        showErrors({ prazo: ['A data fim não pode ser anterior à data início.'] });
+        return;
+      }
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (errDiv) { errDiv.textContent = ''; errDiv.style.display = 'none'; }
+
+      thSyncAllEtapaInputs();
+      var fd = new FormData(form);
+      thAppendEtapaFilesToFormData(fd);
+
+      fetch(AJAX_URL, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+      })
+      .then(function (r) {
+        return r.json().then(function (data) { return { status: r.status, data: data }; });
+      })
+      .then(function (res) {
+        if (res.data.ok) {
+          fecharModal();
+          window.location.reload();
+        } else {
+          showErrors(res.data.errors || { '__all__': ['Erro ao salvar. Verifique os campos.'] });
+        }
+      })
+      .catch(function () {
+        showErrors({ '__all__': ['Erro de conexão. Tente novamente.'] });
+      })
+      .finally(function () {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    });
+  }
+
+  window.thCalModalAbrirTipoCustom = function () {
+    var row = document.getElementById('th-cal-modal-tipo-custom-row');
+    if (row) { row.style.display = 'block'; document.getElementById('th-cal-modal-tipo-custom-inp').focus(); }
+  };
+  window.thCalModalCancelarTipoCustom = function () {
+    var row = document.getElementById('th-cal-modal-tipo-custom-row');
+    if (row) row.style.display = 'none';
+    var inp = document.getElementById('th-cal-modal-tipo-custom-inp');
+    if (inp) inp.value = '';
+    var err = document.getElementById('th-cal-modal-tipo-custom-err');
+    if (err) { err.textContent = ''; err.style.display = 'none'; }
+  };
+  window.thCalModalSalvarTipoCustom = function () {
+    var inp  = document.getElementById('th-cal-modal-tipo-custom-inp');
+    var nome = inp ? inp.value.trim() : '';
+    var errEl = document.getElementById('th-cal-modal-tipo-custom-err');
+    if (errEl) errEl.style.display = 'none';
+    if (!nome) {
+      if (errEl) { errEl.textContent = 'Informe um nome para o tipo.'; errEl.style.display = 'block'; }
+      return;
+    }
+    var csrf = (form.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
+    fetch(TIPO_CUSTOM_URL, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'nome=' + encodeURIComponent(nome),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.success) {
+        var sel = document.getElementById('th-modal-id-tipo');
+        if (sel && !Array.from(sel.options).some(function (o) { return o.value === data.nome; })) {
+          var opt = document.createElement('option');
+          opt.value = data.nome; opt.textContent = '* ' + data.nome;
+          sel.appendChild(opt);
+        }
+        if (sel) sel.value = data.nome;
+        window.thCalModalCancelarTipoCustom();
+      } else {
+        if (errEl) { errEl.textContent = data.error || 'Erro ao salvar tipo.'; errEl.style.display = 'block'; }
+      }
+    })
+    .catch(function () {
+      if (errEl) { errEl.textContent = 'Erro de conexão.'; errEl.style.display = 'block'; }
+    });
+  };
+
+  var customInp = document.getElementById('th-cal-modal-tipo-custom-inp');
+  if (customInp) {
+    customInp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); window.thCalModalSalvarTipoCustom(); }
+      if (e.key === 'Escape') window.thCalModalCancelarTipoCustom();
+    });
+  }
+
+  function thCalGetRespPorObra() { return respPorObra; }
+
+  function thCalAtualizarNumerosEtapa() {
+    var n = 1;
+    var container = document.getElementById('etapas-container');
+    if (!container) return;
+    container.querySelectorAll('.etapa-form-bloco').forEach(function (bloco) {
+      if (bloco.style.display === 'none') return;
+      var nl = bloco.querySelector('.etapa-num-label');
+      if (nl) nl.textContent = n;
+      var nt = bloco.querySelector('.th-etapa-num-text');
+      if (nt) nt.textContent = 'Etapa ' + n;
+      n++;
+    });
+  }
+
+  window.thCalRemoverEtapa = function (btn) {
+    var bloco = btn.closest('.etapa-form-bloco');
+    if (!bloco) return;
+    var deleteInput = bloco.querySelector('input[name$="-DELETE"]');
+    if (deleteInput) {
+      deleteInput.checked = true;
+      deleteInput.value = 'on';
+      bloco.style.display = 'none';
+    } else {
+      bloco.remove();
+      var container = document.getElementById('etapas-container');
+      if (container) {
+        var prefix = container.getAttribute('data-prefix');
+        var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+        if (totalInput) totalInput.value = String(container.querySelectorAll('.etapa-form-bloco').length);
+      }
+    }
+    thCalAtualizarNumerosEtapa();
+  };
+
+  window.thCalAdicionarEtapa = function () {
+    var container = document.getElementById('etapas-container');
+    if (!container) return;
+    var prefix = container.getAttribute('data-prefix');
+    var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+    if (!totalInput) return;
+    var total = parseInt(totalInput.value, 10);
+    var template = document.getElementById('etapa-template');
+    if (!template) return;
+    var frag = template.content.cloneNode(true);
+    var wrap = document.createElement('div');
+    wrap.appendChild(frag);
+    var html = wrap.innerHTML.replace(/__prefix__/g, String(total));
+    container.insertAdjacentHTML('beforeend', html);
+    totalInput.value = String(total + 1);
+    var novo = container.lastElementChild;
+    if (novo && window.ThRespPicker) {
+      var respSel = novo.querySelector('select[name$="-responsavel_interno"]');
+      if (respSel) {
+        window.ThRespPicker.attach(
+          respSel,
+          thCalGetRespPorObra,
+          getModalObraId,
+          { getOutrosFn: function () { return todosUsuarios; }, getObraNomeFn: getModalObraNome, zIndex: 600 }
+        );
+      }
+    }
+    if (novo) {
+      novo.querySelectorAll('.th-assinatura-toggle').forEach(thInitAssinaturaToggle);
+      if (window.ThRichText) window.ThRichText.initAll(novo);
+    }
+    thCalAtualizarNumerosEtapa();
+  };
+
+  if (form) {
+    var selObraEtapas = form.querySelector('select[name="obra"]');
+    if (selObraEtapas) {
+      selObraEtapas.addEventListener('change', function () {
+        var container = document.getElementById('etapas-container');
+        if (!container) return;
+        container.querySelectorAll('select[name$="-responsavel_interno"]').forEach(function (sel) {
+          if (sel._thRespRefresh) sel._thRespRefresh();
+        });
+      });
+    }
+  }
+
+})();
+</script>

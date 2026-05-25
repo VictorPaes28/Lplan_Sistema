@@ -31,6 +31,23 @@
     'Dezembro',
   ];
   var MESES_CURTO = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  var REGRAS_DIAS_MES = ['monthly', 'bimonthly', 'quarterly', 'semiannual'];
+  var INTERVALO_MESES_LABEL = {
+    monthly: 1,
+    bimonthly: 2,
+    quarterly: 3,
+    semiannual: 6,
+  };
+
+  function isRegraDiasMes(rule) {
+    return REGRAS_DIAS_MES.indexOf(rule) >= 0;
+  }
+
+  function labelDiasMesSecao(rule) {
+    var n = INTERVALO_MESES_LABEL[rule] || 1;
+    if (n === 1) return 'Dias do mês';
+    return 'A cada ' + n + ' meses — dias do mês';
+  }
 
   function $(id) {
     return document.getElementById(id);
@@ -96,7 +113,7 @@
     var d = dt.getDate();
     var m = dt.getMonth() + 1;
     if (regra === 'weekly') return { dias_semana: [py] };
-    if (regra === 'monthly') return { dias_mes: [d] };
+    if (isRegraDiasMes(regra)) return { dias_mes: [d] };
     if (regra === 'yearly') return { datas_ano: [{ m: m, d: d }] };
     return {};
   }
@@ -106,7 +123,7 @@
     var now = new Date();
     var py = jsParaPythonWeekday(now);
     if (rule === 'weekly') return { dias_semana: [py] };
-    if (rule === 'monthly') return { dias_mes: [now.getDate()] };
+    if (isRegraDiasMes(rule)) return { dias_mes: [now.getDate()] };
     if (rule === 'yearly') return { datas_ano: [{ m: now.getMonth() + 1, d: now.getDate() }] };
     return {};
   }
@@ -129,6 +146,27 @@
       dm.sort(function (a, b) { return a - b; });
       if (dm.length === 1) return 'Todo mês no dia ' + dm[0];
       return 'Todo mês nos dias ' + dm.join(', ');
+    }
+    if (rule === 'bimonthly') {
+      var dmB = Array.isArray(pm.dias_mes) ? pm.dias_mes.map(Number).filter(function (x) { return !isNaN(x); }) : [];
+      if (!dmB.length) return 'Bimestral';
+      dmB.sort(function (a, b) { return a - b; });
+      if (dmB.length === 1) return 'Bimestral — dia ' + dmB[0];
+      return 'Bimestral — dias ' + dmB.join(', ');
+    }
+    if (rule === 'quarterly') {
+      var dmQ = Array.isArray(pm.dias_mes) ? pm.dias_mes.map(Number).filter(function (x) { return !isNaN(x); }) : [];
+      if (!dmQ.length) return 'Trimestral';
+      dmQ.sort(function (a, b) { return a - b; });
+      if (dmQ.length === 1) return 'Trimestral — dia ' + dmQ[0];
+      return 'Trimestral — dias ' + dmQ.join(', ');
+    }
+    if (rule === 'semiannual') {
+      var dmS = Array.isArray(pm.dias_mes) ? pm.dias_mes.map(Number).filter(function (x) { return !isNaN(x); }) : [];
+      if (!dmS.length) return 'Semestral';
+      dmS.sort(function (a, b) { return a - b; });
+      if (dmS.length === 1) return 'Semestral — dia ' + dmS[0];
+      return 'Semestral — dias ' + dmS.join(', ');
     }
     if (rule === 'yearly') {
       var da = Array.isArray(pm.datas_ano) ? pm.datas_ano : [];
@@ -330,9 +368,19 @@
     var sw = $('th-rec-sec-weekly');
     var sm = $('th-rec-sec-monthly');
     var sy = $('th-rec-sec-yearly');
+    var smLabel = $('th-rec-sec-monthly-label');
     if (sw) sw.hidden = m !== 'weekly';
-    if (sm) sm.hidden = m !== 'monthly';
+    if (sm) sm.hidden = !isRegraDiasMes(m);
     if (sy) sy.hidden = m !== 'yearly';
+    if (smLabel && isRegraDiasMes(m)) smLabel.textContent = labelDiasMesSecao(m);
+  }
+
+  function syncDomChipsForMode(mode) {
+    var pm = getParametros();
+    if (!Array.isArray(pm.dias_mes) || !pm.dias_mes.length) {
+      pm = syncFromPrazoSubset(mode) || defaultParamsWhenNoPrazo(mode);
+    }
+    syncDomChipsFromPm(pm);
   }
 
   function applyMenuRule(rule) {
@@ -341,8 +389,8 @@
     var pm = {};
     if (rule === 'weekly') {
       pm = syncFromPrazoSubset('weekly') || defaultParamsWhenNoPrazo('weekly');
-    } else if (rule === 'monthly') {
-      pm = syncFromPrazoSubset('monthly') || defaultParamsWhenNoPrazo('monthly');
+    } else if (isRegraDiasMes(rule)) {
+      pm = syncFromPrazoSubset(rule) || defaultParamsWhenNoPrazo(rule);
     } else if (rule === 'yearly') {
       pm = syncFromPrazoSubset('yearly') || defaultParamsWhenNoPrazo('yearly');
     } else {
@@ -393,7 +441,7 @@
           closeMenu();
           if (modeEl) {
             var r = getRegra();
-            if (r === 'weekly' || r === 'monthly' || r === 'yearly') {
+            if (r === 'weekly' || r === 'yearly' || isRegraDiasMes(r)) {
               modeEl.value = r;
             } else {
               modeEl.value = 'weekly';
@@ -402,7 +450,7 @@
           refreshModeSections();
           var pm0 = getParametros();
           if (modeEl && modeEl.value === 'weekly') syncWeekChipsFromPm(pm0);
-          if (modeEl && modeEl.value === 'monthly') syncDomChipsFromPm(pm0);
+          if (modeEl && isRegraDiasMes(modeEl.value)) syncDomChipsForMode(modeEl.value);
           if (modeEl && modeEl.value === 'yearly') ensureAnoRowsFromPm(pm0);
           if (custom) custom.hidden = false;
           setDraftMode(true);
@@ -429,6 +477,7 @@
         if (m === 'yearly' && $('th-rec-ano-rows') && !$('th-rec-ano-rows').children.length) {
           ensureAnoRowsFromPm({ datas_ano: [{ m: 1, d: 1 }] });
         }
+        if (isRegraDiasMes(m)) syncDomChipsForMode(m);
       });
     }
 
@@ -463,8 +512,8 @@
           setRegra('weekly');
           pm.dias_semana = collectWeekDays();
           if (!pm.dias_semana.length) return;
-        } else if (mode === 'monthly') {
-          setRegra('monthly');
+        } else if (isRegraDiasMes(mode)) {
+          setRegra(mode);
           pm.dias_mes = collectDomDays();
           if (!pm.dias_mes.length) return;
         } else {

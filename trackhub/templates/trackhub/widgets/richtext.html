@@ -1,0 +1,12 @@
+<div class="th-richtext th-richtext--{{ toolbar }}" data-th-richtext="{{ toolbar }}">
+  {% if toolbar == "top" %}
+  {% include "trackhub/widgets/richtext_toolbar.html" %}
+  {% endif %}
+  <div class="th-richtext-editor"
+    contenteditable="true"
+    role="textbox"
+    aria-multiline="true"
+    tabindex="0"
+    data-placeholder="{{ widget.attrs.placeholder|default:'' }}"></div>
+  <textarea name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>{{ widget.value|default_if_none:"" }}</textarea>
+</div>

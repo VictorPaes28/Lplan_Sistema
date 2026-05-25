@@ -78,7 +78,7 @@
         </div>
 
         <div class="th-section-label">Descrição</div>
-        <div id="th-det-descricao" class="th-det-descricao th-detalhe-editable" contenteditable="false" tabindex="0"></div>
+        <div id="th-det-descricao" class="th-det-descricao th-detalhe-editable th-det-descricao-rich" contenteditable="false" tabindex="0" data-placeholder="Descrição da pendência…"></div>
 
         <div class="th-section-label th-etapas-section-head">
           <span>Etapas</span>
@@ -102,19 +102,23 @@
         </div>
         <div id="th-det-panel-comments" class="th-detalhe-tab-panel th-panel-stack th-tab-panel--visible">
           <div id="th-det-comments-list" class="th-detalhe-comments-list th-comments-list"></div>
-          <div class="th-comment-input th-detalhe-composer">
-            <textarea id="th-det-comment-text" class="th-comment-textarea" rows="2" placeholder="Adicione um comentário…"></textarea>
+          <div class="th-comment-input th-detalhe-composer th-richtext th-richtext--comment" data-th-richtext="comment">
+            {% include "trackhub/widgets/richtext_toolbar.html" %}
+            <div class="th-comment-editor-field">
+              <div id="th-det-comment-text" class="th-richtext-editor th-comment-textarea" contenteditable="true" role="textbox" aria-multiline="true" tabindex="0" data-placeholder="Adicione um comentário…"></div>
+            </div>
+            <textarea id="th-det-comment-text-sync" name="texto" class="th-richtext-sync" style="display:none;" aria-hidden="true"></textarea>
             <input type="file" id="th-det-comment-file-input" class="sr-only" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
             <div id="th-det-comment-files" class="th-file-chips th-comment-file-chips" hidden></div>
             <div class="th-comment-footer">
               <button type="button" class="th-comment-attach" id="th-det-comment-attach">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Arquivo
-              </button>
-              <button type="button" class="btn-send" id="th-det-comment-send" disabled>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Comentar
-              </button>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Arquivo
+                </button>
+                <button type="button" class="btn-send" id="th-det-comment-send" disabled>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Comentar
+                </button>
             </div>
           </div>
         </div>
@@ -151,4 +155,4 @@
 {% include "trackhub/includes/modal_notificar.html" %}
 
 <script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
-<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=30"></script>
+<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=34"></script>
