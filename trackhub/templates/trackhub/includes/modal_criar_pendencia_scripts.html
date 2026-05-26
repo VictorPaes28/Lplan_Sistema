@@ -1,6 +1,7 @@
 {% load static %}
 <script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
 <script src="{% static 'trackhub/js/trackhub_recorrencia_form.js' %}?v=9"></script>
+<script src="{% static 'trackhub/js/trackhub_modal_select.js' %}?v=1"></script>
 <script>
 (function () {
   'use strict';
@@ -41,6 +42,12 @@
     var selObra = form.querySelector('select[name="obra"]');
     if (selObra && selResp._thRespRefresh) {
       selObra.addEventListener('change', function () { selResp._thRespRefresh(); });
+    }
+  }
+
+  function thCalEnhanceModalSelects(root) {
+    if (window.ThModalSelect) {
+      window.ThModalSelect.enhanceAll(root || form);
     }
   }
 
@@ -90,9 +97,14 @@
     overlay.removeAttribute('hidden');
     overlay.classList.add('is-open');
     document.body.style.overflow = 'hidden';
+    thCalEnhanceModalSelects(form);
+    if (window.ThModalSelect) window.ThModalSelect.syncAll(form);
     setTimeout(function () {
       var s = form.querySelector('select[name="obra"]');
-      if (s) s.focus();
+      var focusEl = s && s._thMsWrap
+        ? s._thMsWrap.querySelector('.th-ms-trigger')
+        : s;
+      if (focusEl) focusEl.focus();
     }, 80);
   };
 
@@ -302,6 +314,7 @@
           sel.appendChild(opt);
         }
         if (sel) sel.value = data.nome;
+        if (sel && window.ThModalSelect) window.ThModalSelect.rebuild(sel);
         window.thCalModalCancelarTipoCustom();
       } else {
         if (errEl) { errEl.textContent = data.error || 'Erro ao salvar tipo.'; errEl.style.display = 'block'; }
@@ -386,9 +399,12 @@
     if (novo) {
       novo.querySelectorAll('.th-assinatura-toggle').forEach(thInitAssinaturaToggle);
       if (window.ThRichText) window.ThRichText.initAll(novo);
+      thCalEnhanceModalSelects(novo);
     }
     thCalAtualizarNumerosEtapa();
   };
+
+  thCalEnhanceModalSelects(form);
 
   if (form) {
     var selObraEtapas = form.querySelector('select[name="obra"]');

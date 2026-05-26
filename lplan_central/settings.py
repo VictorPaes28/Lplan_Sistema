@@ -486,6 +486,12 @@ if DEBUG and CSRF_TRUSTED_ORIGINS:
             if h not in CSRF_TRUSTED_ORIGINS:
                 _extra.append(h)
     CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + _extra
+# Desenvolvimento local (runserver em HTTP): origens padrão quando .env não define CSRF_TRUSTED_ORIGINS
+if DEBUG and not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+    ]
 # Requisições AJAX que falharem na CSRF recebem JSON 403 em vez de HTML
 CSRF_FAILURE_VIEW = 'core.csrf_views.csrf_failure_json'
 

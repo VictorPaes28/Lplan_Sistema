@@ -2,6 +2,7 @@
 {% load static %}
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block trackhub_content %}
+<div class="th-page-fila">
 <!-- Stats -->
 <div class="th-stats-row">
   <div class="th-stat-card">
@@ -131,7 +132,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="th-fila-search" class="th-search-input" placeholder="Buscar pendência..." value="{{ filtros.q }}" autocomplete="off">
     </div>
-    <button type="button" class="th-btn-primary" onclick="thCalAbrirModalCriar()">
+    <button type="button" class="th-btn-primary th-fila-btn-nova" onclick="thCalAbrirModalCriar()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nova Pendência
     </button>
@@ -146,25 +147,29 @@
   <div class="th-card{% if p.esta_vencida %} vencida{% endif %}{% if p.encerrada_na_fila %} th-card--encerrada{% endif %}{% if p.status == 'cancelada' %} th-card--cancelada{% endif %}" onclick="abrirDetalhe({{ p.pk }})" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe({{ p.pk }});}">
     <div class="th-prio {{ p.prioridade }}"></div>
     <div class="th-main">
-      <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <div class="th-card-head" style="display:flex;align-items:center;gap:8px;min-width:0;">
         {% if p.recorrencia_serie_id %}
         <span class="th-rec-indicator" title="Pendência recorrente" aria-label="Recorrente">↻</span>
         {% endif %}
         <div class="th-titulo">{{ p.titulo }}</div>
       </div>
       <div class="th-meta">
-        <span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span>
-        {% if p.esta_vencida %}<span class="th-badge vencida">⚠ Vencida</span>{% endif %}
-        <span class="th-badge {{ p.status }}">{{ p.get_status_display }}</span>
-        <span class="th-badge {{ p.tipo }}">{{ p.get_tipo_display }}</span>
-        <span class="th-meta-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          {{ p.obra.nome }}
-        </span>
-        <span class="th-meta-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          {{ p.responsavel_nome }}
-        </span>
+        <div class="th-card-tags" style="display:contents">
+          <span class="th-badge {{ p.prioridade }}">{{ p.get_prioridade_display }}</span>
+          {% if p.esta_vencida %}<span class="th-badge vencida">⚠ Vencida</span>{% endif %}
+          <span class="th-badge {{ p.status }}">{{ p.get_status_display }}</span>
+          <span class="th-badge {{ p.tipo }}">{{ p.get_tipo_display }}</span>
+        </div>
+        <div class="th-card-foot-meta" style="display:contents">
+          <span class="th-meta-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            {{ p.obra.nome }}
+          </span>
+          <span class="th-meta-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ p.responsavel_nome }}
+          </span>
+        </div>
       </div>
     </div>
     <div class="th-card-rail">
@@ -177,6 +182,11 @@
           <span class="th-etapa-progresso th-etapa-progresso--empty" aria-hidden="true">&nbsp;</span>
           {% endif %}
         </div>
+        {% if p.th_etapas_total %}
+        <div class="th-etapa-progress-bar" aria-hidden="true" hidden>
+          <div class="th-etapa-progress-fill" style="width: {% widthratio p.th_etapas_concluidas p.th_etapas_total 100 %}%"></div>
+        </div>
+        {% endif %}
         {% if p.etapa_atual %}
           <div class="th-etapa-nome">{{ p.etapa_atual.titulo }}</div>
           <div class="th-etapa-resp">{{ p.etapa_atual.responsavel_nome }}</div>
@@ -262,6 +272,7 @@
   <p>Tente ajustar os filtros ou crie uma nova pendência.</p>
 </div>
 {% endif %}
+</div>
 
 {% include "trackhub/includes/modal_detalhe.html" %}
 {% include "trackhub/includes/modal_criar_pendencia.html" %}

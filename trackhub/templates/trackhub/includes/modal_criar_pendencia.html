@@ -61,8 +61,8 @@
 
           {# Título #}
           <div style="margin-bottom:16px;">
-            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;">Título <span style="color:#ef4444;">*</span></label>
-            {{ modal_form.titulo }}
+            <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;" for="{{ modal_form.titulo.id_for_label }}">Título <span style="color:#ef4444;">*</span></label>
+            <input type="text" name="titulo" id="{{ modal_form.titulo.id_for_label }}" maxlength="200" autocomplete="off" required class="th-filter-select" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;font-family:inherit;color:#1e293b;box-sizing:border-box;" value="{{ modal_form.titulo.value|default_if_none:'' }}">
           </div>
 
           {# Descrição #}

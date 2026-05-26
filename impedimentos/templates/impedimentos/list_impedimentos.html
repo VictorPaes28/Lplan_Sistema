@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=64">
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=73">
 {% endblock %}
 
 {% block content %}
@@ -428,24 +428,17 @@
                 <div class="imp-calendar-day-number">{{ day.day }}</div>
                 <div class="imp-calendar-items">
                     {% for item in day.items %}
-                    <div class="imp-calendar-pill-row">
                     <button
                         type="button"
-                        class="imp-calendar-pill{% if cat_param == 'all' and item.categorias %} imp-calendar-pill--stacked{% endif %}"
-                        {% if item.categorias %}
-                        style="background-color: {{ item.categorias.0.cor }}1A; border-color: {{ item.categorias.0.cor }}66; color: {{ item.categorias.0.cor }};"
-                        {% else %}
-                        style="background-color: {{ item.status_cor }}1A; border-color: {{ item.status_cor }}66; color: {{ item.status_cor }};"
-                        {% endif %}
+                        class="imp-calendar-pill {{ item.prioridade_badge_class|default:'imp-priority-normal' }}{% if cat_param == 'all' and item.categorias %} imp-calendar-pill--stacked{% endif %}"
                         data-calendar-detail-trigger
+                        aria-label="Abrir restrição {{ item.titulo|escape }}"
                     >
                         {% if cat_param == 'all' and item.categorias %}
                         <span class="imp-calendar-pill__cats">{% for cat in item.categorias %}<span class="imp-calendar-pill__cat">{{ cat.nome }}</span>{% if not forloop.last %}<span class="imp-calendar-pill__cat-sep"> · </span>{% endif %}{% endfor %}</span>
                         {% endif %}
                         <span class="imp-calendar-pill__titulo">{{ item.titulo }}</span>
                     </button>
-                    {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param menu_variant='calendar' %}
-                    </div>
                     <div class="imp-calendar-detail-data hidden" data-impedimento-id="{{ item.id }}">
                         <div data-detail-title>{{ item.titulo }}</div>
                         <div data-detail-status-name>{{ item.status_nome }}</div>

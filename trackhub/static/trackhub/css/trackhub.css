@@ -2796,3 +2796,1006 @@
 .th-etapa-obs-text ul, .th-etapa-obs-text ol { margin: 0.35em 0; padding-left: 1.3em; }
 .th-det-descricao-rich ul, .th-det-descricao-rich ol { margin: 0.35em 0; padding-left: 1.3em; }
 
+/* ─── Fila: layout mobile (≤768px) ─────────────────────────────── */
+@media (max-width: 768px) {
+  .main-content.trackhub-main > .trackhub-fullbleed .th-content:has(.th-page-fila) {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: 80px !important;
+    overflow: visible !important;
+  }
+  .main-content.trackhub-main > .trackhub-fullbleed:has(.th-page-fila) {
+    overflow: visible !important;
+  }
+
+  .th-page-fila .th-stats-row,
+  .th-page-fila .th-list,
+  .th-page-fila .th-empty {
+    padding-left: 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
+  }
+
+  /* 1 — Stats 2×2, padding compacto */
+  .th-page-fila .th-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .th-page-fila .th-stat-card {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .th-page-fila .th-stat-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .th-page-fila .th-stat-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  .th-page-fila .th-stat-value {
+    font-size: 20px;
+  }
+  .th-page-fila .th-stat-label {
+    font-size: 10px;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 2 — Filtros em chips (overflow visível para não cortar .th-cf-panel) */
+  .th-page-fila .th-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-left: 0;
+    padding-right: 0;
+    overflow: visible !important;
+  }
+  .th-page-fila #th-fila-cf-filters.th-cal-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    overflow: visible !important;
+    padding: 0 16px 2px;
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 20;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-wrap {
+    flex: 0 0 auto;
+    position: relative;
+    overflow: visible !important;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-wrap:has(.th-cf-panel:not([hidden])) {
+    z-index: 1100;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-panel {
+    z-index: 1101 !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: auto !important;
+    overflow: visible !important;
+    box-sizing: border-box;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-panel:not([hidden]) {
+    display: block !important;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-panel:not([hidden]) .th-cf-list {
+    max-height: min(50vh, 280px);
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-btn {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    max-width: none;
+    gap: 4px;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-label {
+    max-width: 88px;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-avatar {
+    display: none;
+  }
+  .th-page-fila #th-fila-cf-filters .th-cf-clear {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* 3 — Busca + Nova Pendência na mesma linha */
+  .th-page-fila .th-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 0 16px;
+    box-sizing: border-box;
+  }
+  .th-page-fila .th-search-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+  .th-page-fila .th-search-input,
+  .th-page-fila #th-fila-search,
+  .th-page-fila input.th-search-input[type="text"],
+  .th-page-fila input[type="text"][placeholder*="Buscar"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 12px 7px 38px !important;
+  }
+  .th-page-fila .th-fila-btn-nova {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  /* 4 — Cards de pendência */
+  .th-page-fila .th-list {
+    gap: 10px;
+    padding-bottom: 80px;
+  }
+  .th-page-fila .th-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 8px;
+    row-gap: 6px;
+    align-items: start;
+    padding: 0 0 10px;
+    overflow: visible;
+  }
+  .th-page-fila .th-card.th-card--menu-open {
+    z-index: 300 !important;
+    overflow: visible !important;
+  }
+  .th-page-fila .th-card.vencida {
+    border-left-width: 1px;
+  }
+  .th-page-fila .th-main,
+  .th-page-fila .th-meta,
+  .th-page-fila .th-card-rail {
+    display: contents;
+  }
+  .th-page-fila .th-prio {
+    grid-row: 1;
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 3px;
+    border-radius: 0;
+    align-self: stretch;
+  }
+  .th-page-fila .th-prio.urgente { background: var(--th-danger); }
+  .th-page-fila .th-prio.alta { background: var(--th-warning); }
+  .th-page-fila .th-prio.normal { background: var(--th-accent); }
+  .th-page-fila .th-prio.baixa { background: #94a3b8; }
+  .th-page-fila .th-card-head {
+    grid-row: 2;
+    grid-column: 1;
+    padding: 10px 0 0 12px;
+    min-width: 0;
+  }
+  .th-page-fila .th-titulo {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .th-page-fila .th-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+    grid-row: 2;
+    grid-column: 2;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 8px 12px 0 0;
+    align-self: start;
+    justify-content: flex-end;
+  }
+  .th-page-fila .th-actions-slot {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    max-width: 28px !important;
+    flex-shrink: 0;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .th-page-fila .th-actions .th-card-menu-wrap,
+  .th-page-fila .th-actions .th-fila-concluir-form {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    max-width: 28px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .th-page-fila .th-actions button,
+  .th-page-fila .th-actions .th-btn-icon,
+  .th-page-fila .th-actions .th-etapa-menu-btn,
+  .th-page-fila .th-actions [type="submit"] {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    max-width: 28px !important;
+    max-height: 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .th-page-fila .th-actions .th-btn-icon svg,
+  .th-page-fila .th-actions .th-etapa-menu-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .th-page-fila .th-card-menu-wrap,
+  .th-page-fila .th-etapa-menu-wrap {
+    position: relative;
+    overflow: visible !important;
+  }
+  .th-page-fila .th-card-menu-wrap.is-open .th-etapa-menu-dropdown,
+  .th-page-fila .th-card.th-card--menu-open .th-etapa-menu-dropdown {
+    display: block !important;
+    position: absolute !important;
+    right: 0 !important;
+    left: auto !important;
+    top: calc(100% + 4px) !important;
+    min-width: 148px !important;
+    width: max-content !important;
+    max-width: min(220px, calc(100vw - 32px)) !important;
+    padding: 4px !important;
+    z-index: 310 !important;
+    box-sizing: border-box;
+  }
+  .th-page-fila .th-etapa-menu-dropdown .th-etapa-menu-item {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 10px 16px !important;
+    margin: 0 !important;
+    border-radius: 6px !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .th-page-fila .th-card-tags {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 5px;
+    grid-row: 3;
+    grid-column: 1 / -1;
+    padding: 0 12px;
+  }
+  .th-page-fila .th-etapa {
+    grid-row: 4;
+    grid-column: 1 / -1;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    margin: 0 12px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+  }
+  .th-page-fila .th-etapa-progress-bar[hidden] {
+    display: block !important;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 99px;
+    overflow: hidden;
+    margin: 4px 0 6px;
+  }
+  .th-page-fila .th-etapa-progress-fill {
+    height: 100%;
+    background: var(--th-accent);
+    border-radius: 99px;
+    transition: width 0.35s;
+  }
+  .th-page-fila .th-etapa-resp {
+    display: none;
+  }
+  .th-page-fila .th-card-foot-meta {
+    display: flex !important;
+    grid-row: 5;
+    grid-column: 1;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 0 0 12px;
+    margin-top: 2px;
+    border-top: 1px solid #f1f5f9;
+  }
+  .th-page-fila .th-card-foot-meta .th-meta-item {
+    font-size: 10.5px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .th-page-fila .th-card-foot-meta .th-meta-item svg {
+    flex-shrink: 0;
+  }
+  .th-page-fila .th-prazo-slot {
+    grid-row: 5;
+    grid-column: 2;
+    width: auto;
+    min-width: 0;
+    justify-content: flex-end;
+    align-self: center;
+    padding: 8px 12px 0 0;
+    margin-top: 2px;
+    border-top: 1px solid #f1f5f9;
+  }
+  .th-page-fila .th-prazo-slot:has(.th-prazo-empty) {
+    justify-content: flex-end;
+  }
+
+  /* Paginação */
+  .th-page-fila > div[style*="justify-content:center"] {
+    padding-left: 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
+  }
+
+  /* Modal detalhe da pendência — fullscreen, coluna única */
+  .th-detalhe-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    overflow: hidden !important;
+  }
+  .th-detalhe-modal {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    min-height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .th-detalhe-modal .th-modal-topbar,
+  .th-detalhe-modal .th-modal-pills {
+    flex-shrink: 0 !important;
+  }
+  .th-detalhe-modal .th-modal-pills {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 8px 16px !important;
+  }
+  .th-detalhe-modal .th-modal-meta-created {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-top: 4px !important;
+    flex-basis: 100% !important;
+  }
+  .th-detalhe-modal .th-detalhe-body.th-modal-body {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .th-detalhe-modal .th-detalhe-col-left.th-modal-left,
+  .th-detalhe-modal .th-detalhe-col-right.th-modal-right {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+    border: none !important;
+    border-right: none !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+  }
+  .th-detalhe-modal .th-detalhe-col-left.th-modal-left {
+    order: 1;
+    padding: 12px 16px !important;
+  }
+  .th-detalhe-modal .th-detalhe-col-right.th-modal-right {
+    order: 2;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #fff !important;
+  }
+  .th-detalhe-modal .th-detalhe-tabs.th-right-tabs {
+    flex-shrink: 0 !important;
+  }
+
+  /* 1 — Pills do topo (.th-modal-pills > button.th-detalhe-pill) */
+  .th-detalhe-modal .th-modal-pills {
+    gap: 4px !important;
+    padding: 6px 12px !important;
+    align-items: center !important;
+  }
+  .th-detalhe-modal .th-modal-pills button.th-detalhe-pill,
+  .th-detalhe-modal .th-modal-pills .th-detalhe-pill.th-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    padding: 2px 7px !important;
+    gap: 3px !important;
+    border-radius: 4px !important;
+    box-sizing: border-box !important;
+  }
+  .th-detalhe-modal .th-modal-pills button.th-detalhe-pill .th-pill-ico,
+  .th-detalhe-modal .th-modal-pills .th-detalhe-pill .th-pill-ico {
+    width: 9px !important;
+    height: 9px !important;
+    flex-shrink: 0 !important;
+  }
+  .th-detalhe-modal .th-modal-pills button.th-detalhe-pill span,
+  .th-detalhe-modal .th-modal-pills .th-detalhe-pill span {
+    line-height: 1.2 !important;
+  }
+  .th-detalhe-modal .th-modal-meta-created {
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+    padding: 2px 0 !important;
+  }
+
+  /* 2 — Menu ⋮ da etapa */
+  .th-detalhe-modal .th-etapa-menu-btn {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    max-width: 28px !important;
+    max-height: 28px !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .th-detalhe-modal .th-etapa-menu-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  /* 3 — Notificar + Concluir etapa na mesma linha */
+  .th-detalhe-modal .th-etapa-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  .th-detalhe-modal .th-etapa-actions .btn-etapa-notif,
+  .th-detalhe-modal .th-etapa-actions .btn-etapa-concluir,
+  .th-detalhe-modal .th-etapa-actions .btn-etapa-reabrir,
+  .th-detalhe-modal .th-etapa-actions button {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* 4 — Abas: só o painel ativo visível */
+  .th-detalhe-modal .th-detalhe-tab-panel.th-tab-panel--hidden,
+  .th-detalhe-modal .th-detalhe-tab-panel[hidden] {
+    display: none !important;
+  }
+  .th-detalhe-modal .th-detalhe-tab-panel.th-tab-panel--visible {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+  .th-detalhe-modal .th-comments-list,
+  .th-detalhe-modal .th-detalhe-comments-list,
+  .th-detalhe-modal .th-activities-list,
+  .th-detalhe-modal .th-detalhe-activities-list {
+    flex: none !important;
+    overflow: visible !important;
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+  .th-detalhe-modal .th-comment-input.th-detalhe-composer {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 8 !important;
+    background: #fff !important;
+    border-top: 1px solid #e2e8f0 !important;
+    flex-shrink: 0 !important;
+    margin-top: 8px !important;
+    padding: 10px 12px !important;
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .th-detalhe-modal .th-modal-footer-full {
+    flex-shrink: 0 !important;
+    position: relative !important;
+    z-index: 10 !important;
+    background: #fff !important;
+    border-top: 1px solid #e2e8f0 !important;
+    padding: 10px 16px !important;
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .th-detalhe-modal .btn-nova-etapa--text {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .th-detalhe-modal .th-modal-footer-full-right {
+    width: 100% !important;
+    margin-left: 0 !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .th-detalhe-modal .th-modal-footer-full-right form {
+    width: 100% !important;
+    display: flex !important;
+  }
+  .th-detalhe-modal .th-modal-footer-full-right .btn-excluir,
+  .th-detalhe-modal .th-modal-footer-full-right .btn-concluir {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Modal criar pendência (#th-cal-criar-overlay / .th-cal-criar-modal) */
+  #th-cal-criar-overlay.th-cal-criar-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    overflow: hidden !important;
+  }
+  #th-cal-criar-overlay.th-cal-criar-overlay.is-open {
+    display: flex !important;
+  }
+  .th-cal-criar-modal {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    min-height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .th-cal-criar-head {
+    flex-shrink: 0 !important;
+    padding: 12px 16px !important;
+  }
+  .th-cal-criar-body {
+    padding: 16px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body form {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body form > div[style*="padding:20px"],
+  .th-cal-criar-body form > div[style*="padding: 20px"] {
+    padding: 14px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+  /* Uma coluna: select ocupa a largura do card e o painel nativo acompanha o campo */
+  .th-cal-criar-body [style*="grid-template-columns: 1fr 1fr"],
+  .th-cal-criar-body [style*="grid-template-columns:1fr 1fr"] {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body [style*="grid-template-columns: 1fr 1fr"] > div,
+  .th-cal-criar-body [style*="grid-template-columns:1fr 1fr"] > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* Tipo: select + Personalizar — empilhar no mobile para o select não ficar só com "S" */
+  .th-cal-criar-body #th-modal-id-tipo {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: none !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body button[onclick*="thCalModalAbrirTipoCustom"] {
+    width: 100% !important;
+    flex: none !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+  }
+  .th-cal-criar-body [style*="grid-template-columns: 1fr 1fr"] > div > [style*="display:flex"],
+  .th-cal-criar-body [style*="grid-template-columns:1fr 1fr"] > div > [style*="display:flex"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    max-width: 100% !important;
+  }
+  .th-cal-criar-body input,
+  .th-cal-criar-body select,
+  .th-cal-criar-body textarea,
+  .th-cal-criar-body .th-richtext-editor,
+  .th-cal-criar-body .th-filter-select {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+  }
+  .th-cal-criar-body .th-richtext {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* Hints (ex.: "Deixe em branco se não houver data fim") */
+  .th-cal-criar-body div[style*="font-size:11px"][style*="color:#94a3b8"],
+  .th-cal-criar-body div[style*="font-size: 11px"][style*="color: #94a3b8"],
+  .th-cal-criar-body div[style*="margin-top:4px"][style*="color:#94a3b8"] {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: anywhere !important;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+    max-width: 100% !important;
+  }
+  .th-cal-criar-body > form > div:last-child[style*="display:flex"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .th-cal-criar-body > form > div:last-child[style*="display:flex"] button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body .etapa-form-bloco [style*="grid-template-columns: 1fr 1fr"],
+  .th-cal-criar-body .etapa-form-bloco [style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Selects (Local, Tipo, Prioridade) — mesma largura do card = painel alinhado ao campo */
+  .th-cal-criar-body select,
+  .th-cal-criar-body select.th-filter-select,
+  .th-cal-criar-body #th-modal-id-tipo {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    font-size: 13px !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body [style*="grid-template-columns"] > div > select,
+  .th-cal-criar-body [style*="grid-template-columns"] > div > .th-filter-select,
+  .th-cal-criar-body [style*="grid-template-columns"] > div > .th-resp-picker-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Personalizar tipo — input + Salvar + Cancelar na mesma linha */
+  .th-cal-criar-body #th-cal-modal-tipo-custom-row > div[style*="display:flex"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body #th-cal-modal-tipo-custom-inp {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    font-size: 13px !important;
+    padding: 7px 8px !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body #th-cal-modal-tipo-custom-row button {
+    flex: 0 0 auto !important;
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* Título e demais inputs de texto */
+  .th-cal-criar-body input[type="text"][name="titulo"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 13px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Datas */
+  .th-cal-criar-body input[type="date"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 13px !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Repetir — menu não cortado; trigger clicável */
+  .th-cal-criar-body .th-recorrencia {
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  .th-cal-criar-body .th-recorrencia-wrap {
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+  .th-cal-criar-body .th-recorrencia-wrap:has(.th-recorrencia-menu:not([hidden])) {
+    z-index: 200 !important;
+  }
+  .th-cal-criar-body .th-recorrencia-trigger {
+    pointer-events: auto !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    font-size: 13px !important;
+    padding: 8px 10px !important;
+  }
+  .th-cal-criar-body .th-recorrencia-menu:not([hidden]) {
+    display: block !important;
+    pointer-events: auto !important;
+    z-index: 201 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 13px !important;
+  }
+  .th-cal-criar-body .th-recorrencia-opt {
+    min-height: 0 !important;
+    font-size: 13px !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Responsável — popover não empurra a tela */
+  .th-cal-criar-body .th-resp-picker-wrap {
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+  .th-cal-criar-body .th-resp-picker-trigger {
+    min-height: 0 !important;
+    font-size: 13px !important;
+  }
+  .th-cal-criar-body .imp-resp-popover.th-resp-popover-trackhub.th-resp-popover--anchored,
+  #th-cal-criar-overlay .imp-resp-popover.th-resp-popover-trackhub.th-resp-popover--anchored {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+  #th-cal-criar-overlay .imp-resp-popover.th-resp-popover-trackhub:not(.th-resp-popover--anchored) {
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    max-width: calc(100vw - 32px) !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Etapas — anexos e assinatura */
+  .th-cal-criar-body .th-etapa-upload-row {
+    font-size: 12px !important;
+    padding: 8px 0 !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .th-cal-criar-body .th-etapa-upload-label {
+    font-size: 12px !important;
+  }
+  .th-cal-criar-body .th-etapa-upload-btn {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+  .th-cal-criar-body .th-assinatura-toggle {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+    box-sizing: border-box !important;
+    flex-wrap: wrap !important;
+  }
+  .th-cal-criar-body .th-assinatura-toggle input[type="checkbox"] {
+    flex-shrink: 0 !important;
+    width: 16px !important;
+    height: 16px !important;
+    min-height: 0 !important;
+  }
+  .th-cal-criar-body .th-assinatura-toggle-label {
+    font-size: 12px !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+  .th-cal-criar-body .th-assinatura-toggle > span[style*="font-size:10"] {
+    flex: 1 1 100% !important;
+    margin-left: 24px !important;
+    font-size: 10px !important;
+  }
+
+  /* Select customizado mobile — lista com a mesma largura do campo */
+  .th-cal-criar-body .th-ms-wrap {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .th-cal-criar-body .th-ms-native {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  .th-cal-criar-body .th-ms-trigger {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 9px 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #fff !important;
+    font-size: 13px !important;
+    font-family: inherit !important;
+    color: #1e293b !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+  .th-cal-criar-body .th-ms-trigger:focus {
+    outline: none !important;
+    border-color: var(--th-accent, #3498db) !important;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15) !important;
+  }
+  .th-cal-criar-body .th-ms-wrap--open .th-ms-trigger {
+    border-color: var(--th-accent, #3498db) !important;
+  }
+  .th-cal-criar-body .th-ms-label {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-weight: 500 !important;
+  }
+  .th-cal-criar-body .th-ms-chevron {
+    flex-shrink: 0 !important;
+    font-size: 10px !important;
+    color: #64748b !important;
+  }
+  .th-cal-criar-body .th-ms-wrap--open .th-ms-chevron {
+    transform: rotate(180deg);
+  }
+  .th-cal-criar-body .th-ms-panel {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: calc(100% + 4px) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 4px 0 !important;
+    list-style: none !important;
+    background: #fff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12) !important;
+    z-index: 220 !important;
+    max-height: min(240px, 45vh) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .th-cal-criar-body .th-ms-panel:not([hidden]) {
+    display: block !important;
+  }
+  .th-cal-criar-body .th-ms-opt {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 8px 12px !important;
+    border: none !important;
+    background: transparent !important;
+    font-size: 13px !important;
+    font-family: inherit !important;
+    color: #1e293b !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    min-height: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .th-cal-criar-body .th-ms-opt:hover {
+    background: #f8fafc !important;
+  }
+  .th-cal-criar-body .th-ms-opt--selected {
+    background: #eff6ff !important;
+    color: var(--th-accent, #3498db) !important;
+    font-weight: 600 !important;
+  }
+  .th-cal-criar-body .th-ms-opt:disabled {
+    opacity: 0.45 !important;
+    cursor: default !important;
+  }
+  .th-cal-criar-body .th-ms-wrap--open {
+    z-index: 221 !important;
+  }
+}
+

@@ -1592,6 +1592,56 @@ main::-webkit-scrollbar-thumb:hover {
     .top-bar-title {
         font-size: 1.2rem !important;
     }
+
+    /* Sino de notificações (.notif-bell-link em base.html) — heading width:100% empurrava o ícone para fora */
+    .top-bar-container {
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        overflow: visible !important;
+        gap: 0.5rem !important;
+    }
+    .top-bar-container .top-bar-heading-group {
+        width: auto !important;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+    .top-bar-container > div:last-child {
+        flex: 0 0 auto !important;
+        flex-shrink: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        visibility: visible !important;
+        overflow: visible !important;
+        margin-left: auto !important;
+        position: relative !important;
+        z-index: 2 !important;
+    }
+    .top-bar-container .notif-bell-link {
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        flex-shrink: 0 !important;
+        width: 2.25rem !important;
+        height: 2.25rem !important;
+        min-width: 2.25rem !important;
+        min-height: 2.25rem !important;
+        position: relative !important;
+        overflow: visible !important;
+    }
+    .top-bar-container .notif-bell-link .fa-bell,
+    .top-bar-container .notif-bell-link [class*="fa-bell"] {
+        display: inline-block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        font-size: 1.125rem !important;
+        line-height: 1 !important;
+    }
+    .top-bar-container .notif-count-badge {
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
 }
 
 @media (min-width: 1280px) {

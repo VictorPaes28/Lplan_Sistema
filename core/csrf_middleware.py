@@ -24,6 +24,8 @@ def _origin_host_allowed(origin, allowed_hosts):
     """True se o host da origem (scheme + netloc) está em ALLOWED_HOSTS."""
     if not origin or not allowed_hosts:
         return False
+    if "*" in allowed_hosts:
+        return True
     try:
         parsed = urlsplit(origin)
     except ValueError:
@@ -90,7 +92,8 @@ class CsrfViewMiddleware(DjangoCsrfViewMiddleware):
         if "" in (referer_parsed.scheme, referer_parsed.netloc):
             raise RejectRequest(REASON_MALFORMED_REFERER)
 
-        if referer_parsed.scheme != "https":
+        # Só exige HTTPS no Referer quando a própria requisição é HTTPS (igual ao Django).
+        if referer_parsed.scheme != "https" and request.is_secure():
             raise RejectRequest(REASON_INSECURE_REFERER)
 
         # Primeiro tenta a lógica padrão (trusted origins / get_host())
@@ -119,7 +122,7 @@ class CsrfViewMiddleware(DjangoCsrfViewMiddleware):
         if "" in (referer.scheme, referer.netloc):
             raise RejectRequest(REASON_MALFORMED_REFERER)
 
-        if referer.scheme != "https":
+        if referer.scheme != "https" and request.is_secure():
             raise RejectRequest(REASON_INSECURE_REFERER)
 
         if any(
