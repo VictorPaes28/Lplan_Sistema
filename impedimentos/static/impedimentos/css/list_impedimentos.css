@@ -2598,22 +2598,56 @@
 
     .imp-calendar-day {
         min-height: 108px;
+        min-width: 0;
     }
 
+    /* Pill: título inteiro; rolar na horizontal dentro do card do dia */
     .imp-calendar-pill {
         padding: 0.1rem 0.3rem !important;
         font-size: 0.62rem !important;
         line-height: 1.1 !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        text-overflow: clip !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+    }
+
+    .imp-calendar-pill::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .imp-calendar-pill::-webkit-scrollbar-thumb {
+        background: rgba(15, 23, 42, 0.22);
+        border-radius: 4px;
     }
 
     .imp-calendar-pill__titulo {
+        display: inline-block;
+        width: max-content;
+        min-width: 100%;
+        max-width: none;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
         font-size: 0.62rem !important;
         line-height: 1.1 !important;
     }
 
     .imp-calendar-pill__cats {
+        display: inline-block;
+        width: max-content;
+        min-width: 100%;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
         font-size: 0.55rem !important;
         line-height: 1.05 !important;
+    }
+
+    .imp-calendar-pill--stacked {
+        white-space: nowrap !important;
     }
 
     .imp-table-shell {
