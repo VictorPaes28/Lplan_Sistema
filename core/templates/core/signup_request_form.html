@@ -6,97 +6,437 @@
     <title>Solicitar cadastro - LPLAN</title>
     {% load static %}
     <link rel="icon" type="image/png" href="{% static 'core/images/lplan-logo2.png' %}">
-    <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; margin: 0; padding: 24px; color: #e2e8f0; }
-        .wrap { max-width: 760px; margin: 0 auto; }
-        .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 24px; }
-        .title { margin: 0 0 8px; font-size: 1.5rem; }
-        .desc { margin: 0 0 20px; color: #cbd5e1; font-size: 0.92rem; }
-        .group { margin-bottom: 14px; }
-        label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: #cbd5e1; }
-        input, textarea { width: 100%; box-sizing: border-box; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; border-radius: 10px; padding: 10px 12px; }
-        textarea { min-height: 90px; resize: vertical; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .box { border: 1px solid #334155; border-radius: 10px; padding: 10px; max-height: 180px; overflow: auto; background: #0b1220; }
-        .opt { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .opt input { width: auto; }
-        .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
-        .btn { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
-        .btn-primary { background: #2563eb; color: #fff; }
-        .btn-secondary { background: #1e293b; color: #e2e8f0; text-decoration: none; display: inline-flex; align-items: center; }
-        .msg { border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.88rem; }
-        .msg-success { background: rgba(22,163,74,0.15); border: 1px solid rgba(22,163,74,0.5); }
-        .msg-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.5); }
-        .msg-info { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.5); }
-        .small { font-size: 0.8rem; color: #94a3b8; }
-        @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            background: #0f172a;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            z-index: 0;
+        }
+        .bg-gradient::before {
+            content: '';
+            position: absolute;
+            inset: -50%;
+            background:
+                radial-gradient(circle at 25% 35%, rgba(99, 102, 241, 0.1) 0%, transparent 45%),
+                radial-gradient(circle at 75% 65%, rgba(59, 130, 246, 0.08) 0%, transparent 45%);
+            animation: bgPulse 10s ease-in-out infinite alternate;
+        }
+        @keyframes bgPulse {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-2%, -2%) scale(1.04); }
+        }
+
+        .dots { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+        .dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(148, 163, 184, 0.14);
+            border-radius: 50%;
+            animation: float linear infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+        }
+
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 2rem 1rem 3rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 2rem 2rem 2.25rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: cardEntry 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes cardEntry {
+            0% { opacity: 0; transform: translateY(24px) scale(0.97); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .logo-container { text-align: center; margin-bottom: 1.5rem; }
+        .logo-ring {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 72px;
+            height: 72px;
+            border-radius: 18px;
+            background: #fff;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+            padding: 8px;
+            margin-bottom: 0.85rem;
+        }
+        .logo-ring img { width: 100%; height: 100%; object-fit: contain; }
+        .logo-title {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: #f1f5f9;
+            letter-spacing: 0.04em;
+        }
+        .logo-subtitle {
+            font-size: 0.68rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .page-heading { margin-bottom: 1.35rem; }
+        .page-heading h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 0.35rem;
+        }
+        .page-heading p {
+            font-size: 0.84rem;
+            color: #94a3b8;
+            line-height: 1.55;
+        }
+
+        .section-title {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            margin: 1.25rem 0 0.75rem;
+            padding-top: 0.25rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .section-title:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+        }
+        .form-label i { margin-right: 0.35rem; opacity: 0.65; font-size: 0.72rem; }
+        .req { color: #f87171; }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 0.9rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 10px;
+            color: #f1f5f9;
+            font-size: 0.88rem;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+            outline: none;
+        }
+        .form-input::placeholder { color: #64748b; }
+        .form-input:focus {
+            border-color: rgba(30, 64, 175, 0.55);
+            background: rgba(255, 255, 255, 0.07);
+            box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.18);
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+        .input-wrap { position: relative; }
+        .input-wrap .form-input { padding-right: 2.75rem; }
+        .password-toggle {
+            position: absolute;
+            right: 0.65rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 0.35rem;
+            line-height: 1;
+        }
+        .password-toggle:hover { color: #cbd5e1; }
+
+        .hint { font-size: 0.72rem; color: #64748b; margin-top: 0.35rem; line-height: 1.4; }
+
+        .projects-box {
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 10px;
+            padding: 0.5rem 0.65rem;
+            max-height: 160px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.15);
+        }
+        .project-opt {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.55rem;
+            padding: 0.45rem 0.35rem;
+            font-size: 0.82rem;
+            color: #cbd5e1;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .project-opt:hover { background: rgba(255, 255, 255, 0.04); }
+        .project-opt input { width: auto; margin-top: 0.2rem; flex-shrink: 0; accent-color: #1e40af; }
+
+        textarea.form-input { min-height: 76px; resize: vertical; }
+
+        .msg {
+            border-radius: 10px;
+            padding: 0.75rem 0.9rem;
+            margin-bottom: 1rem;
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .msg-success { background: rgba(22, 163, 74, 0.12); border: 1px solid rgba(22, 163, 74, 0.35); color: #86efac; }
+        .msg-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+        .msg-info { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+
+        .btn-submit {
+            width: 100%;
+            margin-top: 0.5rem;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px -5px rgba(30, 64, 175, 0.45);
+        }
+        .btn-submit i { margin-right: 0.4rem; }
+
+        .form-footer {
+            text-align: center;
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .form-footer a {
+            color: #60a5fa;
+            text-decoration: none;
+            font-size: 0.84rem;
+            font-weight: 500;
+        }
+        .form-footer a:hover { color: #93c5fd; }
+
+        @media (max-width: 520px) {
+            .grid-2 { grid-template-columns: 1fr; }
+            .card { padding: 1.5rem 1.25rem; }
+        }
     </style>
 </head>
 <body>
-<div class="wrap">
-    <div class="card">
-        <h1 class="title">Solicitar cadastro</h1>
-        <p class="desc">Preencha seus dados. Após sua aprovação, você receberá o acesso por e-mail.</p>
+    <div class="bg-gradient" aria-hidden="true"></div>
+    <div class="dots" id="dotsContainer" aria-hidden="true"></div>
 
-        {% if messages %}
-            {% for message in messages %}
-                <div class="msg {% if message.tags == 'success' %}msg-success{% elif message.tags == 'error' %}msg-error{% else %}msg-info{% endif %}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-
-        <form method="post">
-            {% csrf_token %}
-            <div class="grid">
-                <div class="group">
-                    <label for="first_name">Nome *</label>
-                    <input id="first_name" name="first_name" required value="{{ request.POST.first_name|default:'' }}">
+    <div class="page">
+        <div class="card">
+            <div class="logo-container">
+                <div class="logo-ring">
+                    <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN">
                 </div>
-                <div class="group">
-                    <label for="last_name">Sobrenome *</label>
-                    <input id="last_name" name="last_name" required value="{{ request.POST.last_name|default:'' }}">
+                <div class="logo-title">LPLAN</div>
+                <div class="logo-subtitle">Gestão de Obras</div>
+            </div>
+
+            <div class="page-heading">
+                <h1>Solicitar cadastro</h1>
+                <p>Envie seus dados para análise. Após aprovação, você acessa o sistema com o usuário e a senha definidos abaixo.</p>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="msg {% if message.tags == 'success' %}msg-success{% elif message.tags == 'error' %}msg-error{% else %}msg-info{% endif %}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" id="signupForm" novalidate>
+                {% csrf_token %}
+
+                <p class="section-title">Identificação</p>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="first_name"><i class="fas fa-user"></i> Nome <span class="req">*</span></label>
+                        <input class="form-input" id="first_name" name="first_name" required autocomplete="given-name"
+                               placeholder="Nome" value="{{ request.POST.first_name|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="last_name">Sobrenome <span class="req">*</span></label>
+                        <input class="form-input" id="last_name" name="last_name" required autocomplete="family-name"
+                               placeholder="Sobrenome" value="{{ request.POST.last_name|default:'' }}">
+                    </div>
                 </div>
-            </div>
 
-            <div class="group">
-                <label for="email">E-mail corporativo *</label>
-                <input id="email" type="email" name="email" required value="{{ request.POST.email|default:'' }}">
-                {% if allowed_domains %}
-                    <div class="small">Domínios permitidos: {{ allowed_domains|join:", " }}</div>
-                {% endif %}
-            </div>
-
-            <div class="group">
-                <label for="username_suggestion">Nome de usuário</label>
-                <input id="username_suggestion" name="username_suggestion" value="{{ request.POST.username_suggestion|default:'' }}">
-            </div>
-
-            <div class="group">
-                <label>Obras solicitadas</label>
-                <div class="box">
-                    {% for project in projects %}
-                    <label class="opt">
-                        <input type="checkbox" name="projects" value="{{ project.id }}" {% if project.id|stringformat:"s" in selected_projects %}checked{% endif %}>
-                        <span>{{ project.code }} - {{ project.name }}</span>
-                    </label>
-                    {% empty %}
-                    <p class="small">Nenhuma obra ativa cadastrada.</p>
-                    {% endfor %}
+                <div class="form-group">
+                    <label class="form-label" for="email"><i class="fas fa-envelope"></i> E-mail <span class="req">*</span></label>
+                    <input class="form-input" id="email" type="email" name="email" required autocomplete="email"
+                           placeholder="seu@email.com" value="{{ request.POST.email|default:'' }}">
+                    <p class="hint">Aceita qualquer provedor (Gmail, Outlook, corporativo, etc.).</p>
                 </div>
-            </div>
 
-            <div class="group">
-                <label for="notes">Observações</label>
-                <textarea id="notes" name="notes" placeholder="Descreva rapidamente para qual obra/projeto você precisa acesso.">{{ request.POST.notes|default:'' }}</textarea>
-            </div>
+                <div class="form-group">
+                    <label class="form-label" for="phone"><i class="fas fa-phone"></i> Telefone / WhatsApp <span class="req">*</span></label>
+                    <input class="form-input" id="phone" type="tel" name="phone" required autocomplete="tel"
+                           inputmode="tel" placeholder="(00) 00000-0000"
+                           value="{{ request.POST.phone|default:'' }}">
+                </div>
 
-            <div class="actions">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Enviar solicitação</button>
-                <a href="{% url 'login' %}" class="btn btn-secondary">Voltar para login</a>
+                <p class="section-title">Acesso ao sistema</p>
+
+                <div class="form-group">
+                    <label class="form-label" for="username_suggestion"><i class="fas fa-at"></i> Nome de usuário</label>
+                    <input class="form-input" id="username_suggestion" name="username_suggestion" autocomplete="username"
+                           placeholder="Sugestão de login (opcional)"
+                           value="{{ request.POST.username_suggestion|default:'' }}">
+                    <p class="hint">Se não informar, será gerado automaticamente na aprovação.</p>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="password"><i class="fas fa-lock"></i> Senha <span class="req">*</span></label>
+                        <div class="input-wrap">
+                            <input class="form-input" id="password" type="password" name="password" required
+                                   autocomplete="new-password" minlength="8" placeholder="Mín. 8 caracteres">
+                            <button type="button" class="password-toggle" data-target="password" aria-label="Mostrar senha">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="password_confirm">Confirmar senha <span class="req">*</span></label>
+                        <div class="input-wrap">
+                            <input class="form-input" id="password_confirm" type="password" name="password_confirm" required
+                                   autocomplete="new-password" minlength="8" placeholder="Repita a senha">
+                            <button type="button" class="password-toggle" data-target="password_confirm" aria-label="Mostrar senha">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <p class="hint">Essa será a senha da sua conta após aprovação. Evite senhas muito simples ou já usadas em outros sites.</p>
+
+                <p class="section-title">Obras e observações</p>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fas fa-building"></i> Obras solicitadas</label>
+                    <div class="projects-box">
+                        {% for project in projects %}
+                        <label class="project-opt">
+                            <input type="checkbox" name="projects" value="{{ project.id }}"
+                                   {% if project.id|stringformat:"s" in selected_projects %}checked{% endif %}>
+                            <span>{{ project.code }} — {{ project.name }}</span>
+                        </label>
+                        {% empty %}
+                        <p class="hint" style="margin:0.5rem;">Nenhuma obra ativa no momento.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="notes"><i class="fas fa-comment"></i> Observações</label>
+                    <textarea class="form-input" id="notes" name="notes"
+                              placeholder="Função, motivo do acesso ou outras informações úteis.">{{ request.POST.notes|default:'' }}</textarea>
+                </div>
+
+                <button type="submit" class="btn-submit">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i> Enviar solicitação
+                </button>
+            </form>
+
+            <div class="form-footer">
+                <a href="{% url 'login' %}"><i class="fas fa-arrow-left"></i> Voltar para login</a>
             </div>
-        </form>
+        </div>
     </div>
-</div>
+
+    <script>
+        (function () {
+            var container = document.getElementById('dotsContainer');
+            if (container) {
+                for (var i = 0; i < 18; i++) {
+                    var dot = document.createElement('div');
+                    dot.className = 'dot';
+                    dot.style.left = Math.random() * 100 + '%';
+                    dot.style.animationDuration = (8 + Math.random() * 12) + 's';
+                    dot.style.animationDelay = Math.random() * 8 + 's';
+                    container.appendChild(dot);
+                }
+            }
+
+            document.querySelectorAll('.password-toggle').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var input = document.getElementById(btn.getAttribute('data-target'));
+                    if (!input) return;
+                    var show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    var icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('fa-eye', !show);
+                        icon.classList.toggle('fa-eye-slash', show);
+                    }
+                });
+            });
+
+            var phone = document.getElementById('phone');
+            if (phone) {
+                phone.addEventListener('input', function () {
+                    var d = this.value.replace(/\D/g, '').slice(0, 11);
+                    if (d.length <= 10) {
+                        this.value = d.replace(/(\d{0,2})(\d{0,4})(\d{0,4})/, function (_, a, b, c) {
+                            var out = '';
+                            if (a) out += '(' + a;
+                            if (a.length === 2) out += ') ';
+                            if (b) out += b;
+                            if (c) out += (b ? '-' : '') + c;
+                            return out;
+                        });
+                    } else {
+                        this.value = d.replace(/(\d{0,2})(\d{0,5})(\d{0,4})/, function (_, a, b, c) {
+                            var out = '';
+                            if (a) out += '(' + a;
+                            if (a.length === 2) out += ') ';
+                            if (b) out += b;
+                            if (c) out += '-' + c;
+                            return out;
+                        });
+                    }
+                });
+            }
+        })();
+    </script>
 </body>
 </html>
