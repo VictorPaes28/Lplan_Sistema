@@ -45,9 +45,9 @@ from accounts.models import UserSignupRequest
 from .obras_readonly import OBRA_INATIVA_CONSULTA_MSG, UNSAFE_HTTP_METHODS, response_for_inactive_project_write_attempt
 from accounts.signup_services import (
     create_signup_request,
-    is_allowed_signup_email,
+    is_valid_signup_phone,
     notify_signup_request_created,
-    get_allowed_signup_domains,
+    validate_signup_password,
 )
 from .user_messages import flash_message
 
@@ -92,7 +92,6 @@ def signup_request_view(request):
             groups.append(group)
 
     projects = Project.objects.filter(is_active=True).order_by('name')
-    allowed_domains = get_allowed_signup_domains()
 
     selected_groups = []
     selected_projects = []
@@ -101,21 +100,36 @@ def signup_request_view(request):
         last_name = (request.POST.get('last_name') or '').strip()
         full_name = f'{first_name} {last_name}'.strip()
         email = (request.POST.get('email') or '').strip().lower()
+        phone = (request.POST.get('phone') or '').strip()
+        password = request.POST.get('password') or ''
+        password_confirm = request.POST.get('password_confirm') or ''
         username_suggestion = (request.POST.get('username_suggestion') or '').strip()
         notes = (request.POST.get('notes') or '').strip()
         selected_projects = request.POST.getlist('projects')
+        password_error = validate_signup_password(
+            password,
+            email=email,
+            username_suggestion=username_suggestion,
+        )
 
-        if not first_name or not last_name or not email:
-            messages.error(request, 'Nome, sobrenome e e-mail são obrigatórios.')
-        elif not is_allowed_signup_email(email):
-            domains = ', '.join(allowed_domains) if allowed_domains else 'domínios permitidos'
-            messages.error(request, f'Este e-mail não é permitido para cadastro. Use um domínio autorizado ({domains}).')
+        if not first_name or not last_name or not email or not phone or not password:
+            messages.error(request, 'Nome, sobrenome, e-mail, telefone e senha são obrigatórios.')
+        elif '@' not in email or '.' not in email.split('@')[-1]:
+            messages.error(request, 'Informe um e-mail válido.')
+        elif not is_valid_signup_phone(phone):
+            messages.error(request, 'Informe um telefone válido com DDD (mínimo 10 dígitos).')
+        elif password_error:
+            messages.error(request, password_error)
+        elif password != password_confirm:
+            messages.error(request, 'As senhas informadas não coincidem.')
         elif UserSignupRequest.objects.filter(email__iexact=email, status=UserSignupRequest.STATUS_PENDENTE).exists():
             messages.info(request, 'Já existe uma solicitação pendente para este e-mail. Aguarde a análise.')
         else:
             create_signup_request(
                 full_name=full_name,
                 email=email,
+                phone=phone,
+                password=password,
                 username_suggestion=username_suggestion,
                 notes=notes,
                 requested_groups=[],
@@ -138,7 +152,6 @@ def signup_request_view(request):
         {
             'groups': groups,
             'projects': projects,
-            'allowed_domains': allowed_domains,
             'selected_groups': selected_groups,
             'selected_projects': [str(p) for p in selected_projects],
         },

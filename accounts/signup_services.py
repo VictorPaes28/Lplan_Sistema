@@ -3,7 +3,10 @@ import re
 from datetime import datetime
 
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import Group, User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.core.mail import EmailMessage
 from django.utils import timezone
@@ -28,6 +31,30 @@ def is_allowed_signup_email(email):
     if not allowed:
         return True
     return domain in allowed
+
+
+def normalize_signup_phone(phone):
+    return re.sub(r'\D', '', (phone or '').strip())
+
+
+def is_valid_signup_phone(phone):
+    digits = normalize_signup_phone(phone)
+    return 10 <= len(digits) <= 15
+
+
+def validate_signup_password(password, *, email='', username_suggestion=''):
+    value = password or ''
+    if len(value) < 8:
+        return 'A senha deve ter no mínimo 8 caracteres.'
+    pseudo_user = User(
+        username=(username_suggestion or email.split('@')[0] or 'usuario')[:150],
+        email=email,
+    )
+    try:
+        validate_password(value, user=pseudo_user)
+    except ValidationError as exc:
+        return ' '.join(exc.messages)
+    return None
 
 
 def get_signup_approver_users():
@@ -57,10 +84,13 @@ def _normalize_project_ids(project_ids):
     return out
 
 
-def create_signup_request(*, full_name, email, username_suggestion='', notes='', requested_groups=None, requested_project_ids=None, origem='auto', requested_by=None):
+def create_signup_request(*, full_name, email, phone='', password='', username_suggestion='', notes='', requested_groups=None, requested_project_ids=None, origem='auto', requested_by=None):
+    plain_password = password or ''
     return UserSignupRequest.objects.create(
         full_name=(full_name or '').strip(),
         email=(email or '').strip().lower(),
+        phone=normalize_signup_phone(phone) or (phone or '').strip(),
+        password_hash=make_password(plain_password) if plain_password else '',
         username_suggestion=(username_suggestion or '').strip(),
         notes=(notes or '').strip(),
         requested_groups=_normalize_groups(requested_groups),
@@ -87,6 +117,7 @@ def notify_signup_request_created(signup_request):
                 mensagem=(
                     f'{signup_request.full_name} ({signup_request.email}) enviou uma solicitação '
                     f'de cadastro para aprovação.'
+                    + (f' Tel: {signup_request.phone}.' if signup_request.phone else '')
                 ),
                 work_order=None,
             )
@@ -102,6 +133,7 @@ def notify_signup_request_created(signup_request):
         f'Uma nova solicitação de cadastro foi registrada.\n\n'
         f'Nome: {signup_request.full_name}\n'
         f'E-mail: {signup_request.email}\n'
+        f'Telefone: {signup_request.phone or "—"}\n'
         f'Origem: {"Auto cadastro" if signup_request.origem == "auto" else "Cadastro interno"}\n\n'
         f'Acesse o painel para aprovar/rejeitar:\n{approval_url}\n\n'
         f'Mensagem automática do sistema LPLAN.'
@@ -157,14 +189,25 @@ def approve_signup_request(signup_request, approved_by, selected_groups=None, se
         first_name = parts[0]
         last_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
 
-    password = build_default_password(first_name, last_name)
-    user = User.objects.create_user(
-        username=username,
-        email=signup_request.email,
-        password=password,
-        first_name=first_name,
-        last_name=last_name,
-    )
+    if signup_request.password_hash:
+        password = None
+        user = User(
+            username=username,
+            email=signup_request.email,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        user.password = signup_request.password_hash
+        user.save()
+    else:
+        password = build_default_password(first_name, last_name)
+        user = User.objects.create_user(
+            username=username,
+            email=signup_request.email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+        )
 
     requested_groups = _normalize_groups(selected_groups if selected_groups is not None else signup_request.requested_groups)
     for group_name in requested_groups:
@@ -225,13 +268,31 @@ def approve_signup_request(signup_request, approved_by, selected_groups=None, se
     if user.email:
         try:
             site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
-            enviar_email_credenciais_novo_usuario(
-                email_destino=user.email,
-                username=user.username,
-                senha_plana=password,
-                nome_completo=user.get_full_name() or user.username,
-                site_url=site_url,
-            )
+            if password:
+                enviar_email_credenciais_novo_usuario(
+                    email_destino=user.email,
+                    username=user.username,
+                    senha_plana=password,
+                    nome_completo=user.get_full_name() or user.username,
+                    site_url=site_url,
+                )
+            elif signup_request.password_hash:
+                from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or getattr(settings, 'EMAIL_HOST_USER', '')
+                nome = user.get_full_name() or user.username
+                body = (
+                    f'Olá, {nome},\n\n'
+                    f'Seu cadastro no sistema LPLAN foi aprovado.\n\n'
+                    f'Link de acesso: {site_url or "/"}\n'
+                    f'Usuário: {user.username}\n\n'
+                    f'Use a senha que você definiu ao enviar a solicitação de cadastro.\n\n'
+                    f'LPLAN'
+                )
+                EmailMessage(
+                    subject='Acesso ao sistema LPLAN - cadastro aprovado',
+                    body=body,
+                    from_email=from_email,
+                    to=[user.email],
+                ).send(fail_silently=True)
         except Exception as exc:
             logger.warning('Falha ao enviar e-mail de credenciais para usuário aprovado: %s', exc)
     return user

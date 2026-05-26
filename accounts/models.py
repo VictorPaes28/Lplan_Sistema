@@ -63,6 +63,8 @@ class UserSignupRequest(models.Model):
 
     full_name = models.CharField(max_length=255, verbose_name='Nome completo')
     email = models.EmailField(db_index=True, verbose_name='E-mail')
+    phone = models.CharField(max_length=32, blank=True, verbose_name='Telefone')
+    password_hash = models.CharField(max_length=128, blank=True, verbose_name='Senha (hash)')
     username_suggestion = models.CharField(
         max_length=150,
         blank=True,
