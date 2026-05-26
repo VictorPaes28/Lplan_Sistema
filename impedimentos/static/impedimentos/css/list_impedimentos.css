@@ -1683,6 +1683,11 @@
     transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* Desktop: filhos do pill ficam no fluxo do botão */
+.imp-calendar-pill__body {
+    display: contents;
+}
+
 .imp-calendar-pill--stacked {
     display: flex;
     flex-direction: column;
@@ -1690,6 +1695,14 @@
     gap: 0;
     padding: 0.1rem 0.32rem;
     white-space: normal;
+}
+
+.imp-calendar-pill--stacked .imp-calendar-pill__body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
 }
 
 .imp-calendar-pill__cats {
@@ -2599,26 +2612,38 @@
     .imp-calendar-day {
         min-height: 108px;
         min-width: 0;
+        overflow-x: hidden;
     }
 
-    /* Pill: título inteiro; rolar na horizontal dentro do card do dia */
+    /* overflow-y:auto no pai vira overflow-x:auto — esconder X fora do pill */
+    .imp-calendar-items {
+        overflow-x: hidden !important;
+    }
+
     .imp-calendar-pill {
         padding: 0.1rem 0.3rem !important;
         font-size: 0.62rem !important;
         line-height: 1.1 !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow: hidden !important;
         text-overflow: clip !important;
+        white-space: normal !important;
+    }
+
+    .imp-calendar-pill__body {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
         scrollbar-width: thin;
     }
 
-    .imp-calendar-pill::-webkit-scrollbar {
+    .imp-calendar-pill__body::-webkit-scrollbar {
         height: 4px;
     }
 
-    .imp-calendar-pill::-webkit-scrollbar-thumb {
+    .imp-calendar-pill__body::-webkit-scrollbar-thumb {
         background: rgba(15, 23, 42, 0.22);
         border-radius: 4px;
     }
@@ -2626,7 +2651,6 @@
     .imp-calendar-pill__titulo {
         display: inline-block;
         width: max-content;
-        min-width: 100%;
         max-width: none;
         overflow: visible !important;
         text-overflow: clip !important;
@@ -2638,7 +2662,7 @@
     .imp-calendar-pill__cats {
         display: inline-block;
         width: max-content;
-        min-width: 100%;
+        max-width: none;
         overflow: visible !important;
         text-overflow: clip !important;
         white-space: nowrap !important;
@@ -2646,8 +2670,11 @@
         line-height: 1.05 !important;
     }
 
-    .imp-calendar-pill--stacked {
-        white-space: nowrap !important;
+    .imp-calendar-pill--stacked .imp-calendar-pill__body {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0;
     }
 
     .imp-table-shell {

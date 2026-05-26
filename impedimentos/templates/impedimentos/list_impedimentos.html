@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=74">
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=75">
 {% endblock %}
 
 {% block content %}
@@ -434,10 +434,12 @@
                         data-calendar-detail-trigger
                         aria-label="Abrir restrição {{ item.titulo|escape }}"
                     >
-                        {% if cat_param == 'all' and item.categorias %}
-                        <span class="imp-calendar-pill__cats">{% for cat in item.categorias %}<span class="imp-calendar-pill__cat">{{ cat.nome }}</span>{% if not forloop.last %}<span class="imp-calendar-pill__cat-sep"> · </span>{% endif %}{% endfor %}</span>
-                        {% endif %}
-                        <span class="imp-calendar-pill__titulo">{{ item.titulo }}</span>
+                        <span class="imp-calendar-pill__body">
+                            {% if cat_param == 'all' and item.categorias %}
+                            <span class="imp-calendar-pill__cats">{% for cat in item.categorias %}<span class="imp-calendar-pill__cat">{{ cat.nome }}</span>{% if not forloop.last %}<span class="imp-calendar-pill__cat-sep"> · </span>{% endif %}{% endfor %}</span>
+                            {% endif %}
+                            <span class="imp-calendar-pill__titulo">{{ item.titulo }}</span>
+                        </span>
                     </button>
                     <div class="imp-calendar-detail-data hidden" data-impedimento-id="{{ item.id }}">
                         <div data-detail-title>{{ item.titulo }}</div>
