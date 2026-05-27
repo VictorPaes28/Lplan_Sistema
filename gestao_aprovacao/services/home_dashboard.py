@@ -8,25 +8,41 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from django.db.models import Count, Q, DateTimeField
+from django.db.models import Count, Prefetch, Q, DateTimeField
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
 
 from gestao_aprovacao.models import Approval, Comment, Empresa, Obra, WorkOrder, WorkOrderPermission
+
+_REPROVACOES_PREFETCH = Prefetch(
+    "approvals",
+    queryset=Approval.objects.filter(decisao="reprovado")
+    .prefetch_related("tags_erro")
+    .order_by("-created_at"),
+    to_attr="prefetched_reprovacoes",
+)
 from gestao_aprovacao.utils import is_admin, is_aprovador, is_engenheiro, is_responsavel_empresa
+
+
+def _workorders_obras_ativas(qs):
+    """Somente pedidos de obras ativas (``Obra.ativo`` espelha ``Project.is_active``)."""
+    return qs.filter(obra__ativo=True)
 
 
 def queryset_workorders_home_scope(user):
     """Pedidos relevantes por perfil — espelha a dashboard home original."""
     if is_admin(user):
-        return WorkOrder.objects.select_related("obra", "obra__empresa", "criado_por").all()
-    if is_aprovador(user):
-        obras_ids = WorkOrderPermission.objects.filter(
-            usuario=user,
-            tipo_permissao="aprovador",
+        qs = WorkOrder.objects.select_related("obra", "obra__empresa", "criado_por").all()
+    elif is_aprovador(user):
+        obras_ids = Obra.objects.filter(
+            id__in=WorkOrderPermission.objects.filter(
+                usuario=user,
+                tipo_permissao="aprovador",
+                ativo=True,
+            ).values_list("obra_id", flat=True),
             ativo=True,
-        ).values_list("obra_id", flat=True).distinct()
+        ).values_list("id", flat=True)
         empresas_ids = [
             e
             for e in Obra.objects.filter(id__in=obras_ids).values_list("empresa_id", flat=True).distinct()
@@ -35,27 +51,34 @@ def queryset_workorders_home_scope(user):
         obras_sem_empresa_ids = list(
             Obra.objects.filter(id__in=obras_ids, empresa_id__isnull=True).values_list("id", flat=True)
         )
-        return WorkOrder.objects.filter(
+        qs = WorkOrder.objects.filter(
             Q(obra__empresa_id__in=empresas_ids) | Q(obra_id__in=obras_sem_empresa_ids)
         ).select_related("obra", "obra__empresa", "criado_por")
-    if is_responsavel_empresa(user):
+    elif is_responsavel_empresa(user):
         empresas_resp = Empresa.objects.filter(responsavel=user, ativo=True)
-        return WorkOrder.objects.filter(obra__empresa__in=empresas_resp).select_related(
+        qs = WorkOrder.objects.filter(obra__empresa__in=empresas_resp).select_related(
             "obra", "obra__empresa", "criado_por"
         )
-    if is_engenheiro(user):
-        obras_ids = WorkOrderPermission.objects.filter(
-            usuario=user,
-            tipo_permissao="solicitante",
+    elif is_engenheiro(user):
+        obras_ids = Obra.objects.filter(
+            id__in=WorkOrderPermission.objects.filter(
+                usuario=user,
+                tipo_permissao="solicitante",
+                ativo=True,
+            ).values_list("obra_id", flat=True),
             ativo=True,
-        ).values_list("obra_id", flat=True).distinct()
+        ).values_list("id", flat=True)
         if obras_ids:
-            return (
+            qs = (
                 WorkOrder.objects.filter(Q(criado_por=user) | Q(obra_id__in=obras_ids))
                 .select_related("obra", "obra__empresa", "criado_por")
                 .distinct()
             )
-    return WorkOrder.objects.filter(criado_por=user).select_related("obra", "obra__empresa", "criado_por")
+        else:
+            qs = WorkOrder.objects.filter(criado_por=user).select_related("obra", "obra__empresa", "criado_por")
+    else:
+        qs = WorkOrder.objects.filter(criado_por=user).select_related("obra", "obra__empresa", "criado_por")
+    return _workorders_obras_ativas(qs)
 
 
 # Lista unificada da home: prioridades no topo, depois recentes até o limite.
@@ -64,14 +87,110 @@ FEED_RECENT_DAYS = 21
 # Card "Motivos de reprovação" (somente não-aprovadores no template): ranking limitado na UI.
 TAGS_RANK_VISIBLE_CAP = 6
 # Card lateral: para aprovadores, lembrete de pedidos há muito tempo na fila (no lugar de tags).
-APROVADOR_FILA_ATRASO_DIAS = 15
+APROVADOR_FILA_ATRASO_DIAS = 7
 APROVADOR_FILA_ATRASO_MAX_ITENS = 20
-APROVADOR_FILA_CANDIDATES_SCAN = 120
+APROVADOR_FILA_ATRASO_PDF_MAX_ITENS = 500
+APROVADOR_FILA_CANDIDATES_SCAN = 500
+
+
+def _format_valor_medicao(wo) -> str:
+    if getattr(wo, "tipo_solicitacao", None) != "medicao" or wo.valor_medicao is None:
+        return "—"
+    v = wo.valor_medicao
+    s = f"{v:.2f}"
+    inteiro, dec = s.split(".", 1) if "." in s else (s, "00")
+    neg = inteiro.startswith("-")
+    if neg:
+        inteiro = inteiro[1:]
+    try:
+        n = int(inteiro)
+        inteiro_fmt = f"{n:,}".replace(",", ".")
+    except ValueError:
+        return f"R$ {v}"
+    if neg:
+        inteiro_fmt = "-" + inteiro_fmt
+    return f"R$ {inteiro_fmt},{dec}"
+
+
+def _format_ultimo_motivo_reprovacao(approval) -> str:
+    if not approval:
+        return "—"
+    parts = []
+    tags = list(approval.tags_erro.all())
+    if tags:
+        parts.append(", ".join(t.nome for t in tags))
+    comentario = (approval.comentario or "").strip()
+    if comentario:
+        parts.append(comentario)
+    return " | ".join(parts) if parts else "—"
 
 
 def _local_month_start():
     d0 = timezone.localdate().replace(day=1)
     return timezone.make_aware(datetime.combine(d0, datetime.min.time()))
+
+
+def collect_aprovador_fila_atraso(user, scoped_qs, *, limit: int | None = None) -> list[dict[str, Any]]:
+    """
+    Pedidos pendentes/reaprovação há mais de APROVADOR_FILA_ATRASO_DIAS dias
+    (data de envio, ou criação se não houver envio), no escopo do usuário.
+    """
+    from gestao_aprovacao.utils import is_aprovador
+
+    if not is_aprovador(user):
+        return []
+
+    now = timezone.now()
+    cutoff_fila = now - timedelta(days=APROVADOR_FILA_ATRASO_DIAS)
+    candidatos = (
+        scoped_qs.filter(status__in=["pendente", "reaprovacao"])
+        .annotate(wait_from=Coalesce("data_envio", "created_at", output_field=DateTimeField()))
+        .filter(wait_from__lte=cutoff_fila)
+        .select_related("obra", "obra__empresa", "criado_por")
+        .prefetch_related(_REPROVACOES_PREFETCH)
+        .order_by("wait_from")[:APROVADOR_FILA_CANDIDATES_SCAN]
+    )
+
+    pedidos: list[dict[str, Any]] = []
+    for wo in candidatos:
+        if not wo.pode_aprovar(user):
+            continue
+        wait_from = wo.wait_from
+        dias_na_fila = max(0, (now - wait_from).days)
+        solicitante = ""
+        if wo.criado_por_id:
+            solicitante = (wo.criado_por.get_full_name() or wo.criado_por.username or "").strip()
+        reprovacoes = getattr(wo, "prefetched_reprovacoes", None) or []
+        ultimo_motivo = _format_ultimo_motivo_reprovacao(reprovacoes[0] if reprovacoes else None)
+        pedidos.append(
+            {
+                "pk": wo.pk,
+                "codigo": wo.codigo,
+                "obra_nome": wo.obra.nome if wo.obra_id else "",
+                "obra_codigo": wo.obra.codigo if wo.obra_id else "",
+                "empresa_nome": (wo.obra.empresa.nome if wo.obra_id and wo.obra.empresa_id else "") or "",
+                "detail_url": reverse("gestao:detail_workorder", kwargs={"pk": wo.pk}),
+                "dias_na_fila": dias_na_fila,
+                "status": wo.status,
+                "status_display": wo.get_status_display(),
+                "tipo_solicitacao": wo.tipo_solicitacao,
+                "tipo_solicitacao_display": wo.get_tipo_solicitacao_display(),
+                "nome_credor": (wo.nome_credor or "").strip(),
+                "valor_medicao": wo.valor_medicao,
+                "valor_medicao_display": _format_valor_medicao(wo),
+                "observacoes": (wo.observacoes or "").strip(),
+                "wait_from": wait_from,
+                "data_envio": wo.data_envio,
+                "created_at": wo.created_at,
+                "updated_at": wo.updated_at,
+                "solicitante": solicitante,
+                "qtd_reprovacoes": len(reprovacoes),
+                "ultimo_motivo_reprovacao": ultimo_motivo,
+            }
+        )
+        if limit is not None and len(pedidos) >= limit:
+            break
+    return pedidos
 
 
 def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str, Any]:
@@ -134,9 +253,6 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
             }
         )
 
-    for wo in agg_qs.filter(status="rascunho").order_by("-updated_at")[:8]:
-        append_row(wo, "Finalize o envio (rascunho).", 10)
-
     for wo in agg_qs.filter(status="reprovado").order_by("-updated_at")[:8]:
         append_row(wo, "Pedido reprovado — ajustar e reenviar.", 20)
 
@@ -147,7 +263,8 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
     comment_qs = Comment.objects.filter(
         origem=Comment.Origem.USUARIO,
         created_at__gte=cutoff_cm,
-    ).exclude(autor_id=user.pk)
+        work_order__obra__ativo=True,
+    ).exclude(autor_id=user.pk).exclude(work_order__status="rascunho")
     if admin_scope:
         comment_qs = comment_qs.filter(work_order__in=scoped_qs)
     else:
@@ -201,7 +318,10 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
 
     if slack > 0:
         for wo in (
-            scoped_qs.filter(updated_at__gte=data_limite_feed).exclude(pk__in=pks_pri).order_by("-updated_at")[:slack]
+            scoped_qs.filter(updated_at__gte=data_limite_feed)
+            .exclude(pk__in=pks_pri)
+            .exclude(status="rascunho")
+            .order_by("-updated_at")[:slack]
         ):
             dash_feed.append(
                 {
@@ -251,36 +371,15 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
     dash_tags_reprovacao: list[dict[str, Any]]
 
     if is_aprovador(user):
-        cutoff_fila = now - timedelta(days=APROVADOR_FILA_ATRASO_DIAS)
-        candidatos = (
-            scoped_qs.filter(status__in=["pendente", "reaprovacao"])
-            .annotate(wait_from=Coalesce("data_envio", "created_at", output_field=DateTimeField()))
-            .filter(wait_from__lte=cutoff_fila)
-            .select_related("obra")
-            .order_by("wait_from")[:APROVADOR_FILA_CANDIDATES_SCAN]
-        )
-        pedidos_atraso: list[dict[str, Any]] = []
-        for wo in candidatos:
-            if not wo.pode_aprovar(user):
-                continue
-            dias_na_fila = max(0, (now - wo.wait_from).days)
-            pedidos_atraso.append(
-                {
-                    "pk": wo.pk,
-                    "codigo": wo.codigo,
-                    "obra_nome": wo.obra.nome if wo.obra_id else "",
-                    "detail_url": reverse("gestao:detail_workorder", kwargs={"pk": wo.pk}),
-                    "dias_na_fila": dias_na_fila,
-                    "status_display": wo.get_status_display(),
-                }
-            )
-            if len(pedidos_atraso) >= APROVADOR_FILA_ATRASO_MAX_ITENS:
-                break
+        todos_atraso = collect_aprovador_fila_atraso(user, scoped_qs)
+        pedidos_atraso = todos_atraso[:APROVADOR_FILA_ATRASO_MAX_ITENS]
 
         dash_aprovador_fila_atraso = {
             "dias_limite": APROVADOR_FILA_ATRASO_DIAS,
             "pedidos": pedidos_atraso,
+            "total_na_fila": len(todos_atraso),
             "link_pendentes": dash_quick_links["pendentes"],
+            "pdf_url": reverse("gestao:export_fila_atraso_pdf"),
         }
         dash_tags_meta = {
             "reprovacoes_total": 0,

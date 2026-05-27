@@ -14,7 +14,7 @@
     window.__LPLAN_CSRF_TOKEN__ = "{{ csrf_token|escapejs }}";
     window.__LPLAN_CSRF_TOKEN_URL__ = "{% url 'api_csrf_token' %}";
     window.__LPLAN_API_BASE__ = "";  // Subpath do sistema (vazio = raiz). Ex.: "" ou "/lplan"
-    window.__LPLAN_SUPPLYMAP_VER__ = "10";  // Conferir no F12: deve bater com o log [LPLAN] SupplyMap v
+    window.__LPLAN_SUPPLYMAP_VER__ = "11";  // Conferir no F12: deve bater com o log [LPLAN] SupplyMap v
     </script>
     
     <!-- Favicon - logo LPLAN -->
@@ -33,7 +33,7 @@
     
     <!-- Custom CSS -->
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/supplymap.css' %}?v=10">
+    <link rel="stylesheet" href="{% static 'css/supplymap.css' %}?v=11">
     <style>
         /* Trocar Sistema: primeiro item e em destaque */
         .nav-link-switch-system {
@@ -280,8 +280,8 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Custom JS (v=8: corrige SyntaxError variável t redeclarada) -->
-    <script src="{% static 'js/supplymap.js' %}?v=8"></script>
+    <!-- Custom JS (v=11: salvamento inline sem reload da página) -->
+    <script src="{% static 'js/supplymap.js' %}?v=11"></script>
     
     {% if user.is_authenticated %}
     <link rel="stylesheet" href="{% static 'comunicados/css/comunicados.css' %}?v=12">

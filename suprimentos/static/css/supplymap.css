@@ -1539,20 +1539,12 @@ select.form-control-sm:focus {
 .mb-4 { margin-bottom: 14px !important; }
 
 .saved-feedback { background-color: #dcfce7 !important; transition: background-color 0.3s; }
-.row-saving { opacity: 0.75; pointer-events: none; }
-.row-saving td:first-child { position: relative; }
-.row-saving td:first-child::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 18px;
-    height: 18px;
-    margin: -9px 0 0 -9px;
-    border: 2px solid #3b82f6;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
+/* Salvamento: não bloqueia a linha inteira — o usuário pode ir ao próximo campo */
+.input-inline.field-saving,
+select.input-inline.field-saving {
+    opacity: 0.85;
+    outline: 1px dashed rgba(59, 130, 246, 0.55);
+    outline-offset: 1px;
 }
 .loading { opacity: 0.5; pointer-events: none; }
 .alert { padding: 10px 14px; font-size: 13px; border-radius: 4px; margin-bottom: 10px; }

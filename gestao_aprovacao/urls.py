@@ -6,6 +6,7 @@ app_name = 'gestao'
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('fila-atraso/exportar-pdf/', views.export_fila_atraso_pdf, name='export_fila_atraso_pdf'),
     # Usuários: staff é redirecionado ao central; responsável por empresa usa as views aqui
     path('usuarios/', views.list_users_or_redirect_central, name='list_users'),
     path('usuarios/criar/', views.create_user_or_redirect_central, name='create_user'),

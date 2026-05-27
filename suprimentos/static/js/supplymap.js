@@ -1,9 +1,12 @@
 // SupplyMap - JavaScript principal
-// Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa (ex.: 8)
-var __LPLAN_JS_VER__ = '8';
+// Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa
+var __LPLAN_JS_VER__ = '11';
+
+var _csrfReadyPromise = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.warn('[LPLAN] SupplyMap v' + __LPLAN_JS_VER__ + ' carregado. Se não aparecer "v8" em produção, o JS está em cache ou collectstatic não foi executado.');
+    console.warn('[LPLAN] SupplyMap v' + __LPLAN_JS_VER__ + ' carregado. Se não aparecer "v11" em produção, o JS está em cache ou collectstatic não foi executado.');
+    _csrfReadyPromise = getCsrfTokenAsync().then(function(t) { return t || getCsrfToken(); });
     // Diagnóstico CSRF no F12 (Console): filtrar por [LPLAN]
     try {
         var w = typeof window.__LPLAN_CSRF_TOKEN__ === 'string' && window.__LPLAN_CSRF_TOKEN__ ? 'sim' : 'não';
@@ -63,7 +66,7 @@ function initInlineEdit() {
                 updatePrioridadeClass(this, value);
             }
             
-            updateItemField(itemId, field, value, url);
+            updateItemField(itemId, field, value, url, this);
         });
         
         if (input.getAttribute('data-field') === 'prioridade') {
@@ -90,75 +93,158 @@ function updatePrioridadeClass(selectElement, value) {
     }
 }
 
-// Atualizar campo via AJAX
-// CSRF: o token vem de 1) cookie csrftoken, 2) meta name="csrf-token", 3) input name="csrfmiddlewaretoken".
-// Se não houver, getCsrfTokenAsync() busca em /api/csrf-token/ e atualiza a meta.
-function updateItemField(itemId, field, value, url) {
-    getCsrfTokenAsync().then(function(csrftoken) {
-        if (!csrftoken) {
-            csrftoken = getCsrfToken();
+function ensureCsrfToken() {
+    if (_csrfReadyPromise) {
+        return _csrfReadyPromise.then(function(t) { return t || getCsrfToken(); });
+    }
+    return getCsrfTokenAsync().then(function(t) { return t || getCsrfToken(); });
+}
+
+function setFieldSaving(inputEl, saving) {
+    if (!inputEl) return;
+    if (saving) {
+        inputEl.classList.add('field-saving');
+        inputEl.setAttribute('aria-busy', 'true');
+    } else {
+        inputEl.classList.remove('field-saving');
+        inputEl.removeAttribute('aria-busy');
+    }
+}
+
+function markInputSaved(inputEl, value) {
+    if (!inputEl) return;
+    var v = value != null ? String(value) : (inputEl.value || '');
+    inputEl.setAttribute('data-initial-value', v);
+}
+
+function syncObraQueryParam(obraId) {
+    if (!obraId) return;
+    try {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('obra') === String(obraId)) return;
+        params.set('obra', obraId);
+        var qs = params.toString();
+        var next = window.location.pathname + (qs ? '?' + qs : '');
+        history.replaceState(null, '', next);
+    } catch (e) { /* ignore */ }
+}
+
+function escapeHtml(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function applyRowPatch(itemId, patch) {
+    if (!patch) return;
+    var row = document.querySelector('tr[data-item-id="' + itemId + '"]');
+    if (!row) return;
+
+    var codInp = row.querySelector('[data-field="insumo_codigo"]');
+    if (codInp && patch.insumo_codigo && patch.insumo_codigo.indexOf('SM-LEV-') !== 0) {
+        codInp.value = patch.insumo_codigo;
+        markInputSaved(codInp, patch.insumo_codigo);
+    }
+    var empInp = row.querySelector('[data-field="empresa_fornecedora"]');
+    if (empInp && patch.empresa_fornecedora) {
+        empInp.value = patch.empresa_fornecedora;
+        markInputSaved(empInp, patch.empresa_fornecedora);
+    }
+
+    var pcCell = row.querySelector('[data-sienge-patch="numero_pc"]');
+    if (pcCell) {
+        if (patch.numero_pc) {
+            pcCell.innerHTML = '<span class="text-primary fw-bold" style="font-size: 0.95em;">' + escapeHtml(patch.numero_pc) + '</span>';
+        } else {
+            pcCell.innerHTML = '<span class="text-muted small">-</span>';
         }
+    }
+    var prazoCell = row.querySelector('[data-sienge-patch="prazo_recebimento"]');
+    if (prazoCell) {
+        if (patch.prazo_recebimento) {
+            prazoCell.innerHTML = '<span style="font-size: 0.9em;">' + escapeHtml(patch.prazo_recebimento) + '</span>';
+        } else {
+            prazoCell.innerHTML = '<span class="text-muted small">-</span>';
+        }
+    }
+    var qtdCell = row.querySelector('[data-sienge-patch="quantidade_solicitada"]');
+    if (qtdCell && patch.quantidade_solicitada_sienge) {
+        var qtd = escapeHtml(patch.quantidade_solicitada_sienge.replace('.', ','));
+        var un = escapeHtml(patch.quantidade_solicitada_unidade || '');
+        qtdCell.innerHTML = '<strong>' + qtd + '</strong>' +
+            (un ? ' <span class="text-muted small">' + un + '</span>' : '');
+    }
+    if (patch.status_etapa) {
+        row.setAttribute('data-status-etapa', patch.status_etapa);
+        var badge = row.querySelector('.badge-status');
+        if (badge) {
+            var icon = badge.querySelector('i');
+            var iconHtml = icon ? icon.outerHTML : '';
+            badge.innerHTML = iconHtml + ' ' + escapeHtml(patch.status_etapa);
+        }
+    }
+}
+
+// Atualizar campo via AJAX (sem recarregar a página — fluxo fluido como no mapa de controle)
+function updateItemField(itemId, field, value, url, inputEl) {
+    ensureCsrfToken().then(function(csrftoken) {
         if (!csrftoken) {
             _logCsrf('Sessão inválida: token não obtido (nem async nem retry getCsrfToken). Verifique os logs [LPLAN] acima.');
             showMessage('Sessão inválida. Recarregue a página e tente novamente.', 'error');
             return;
         }
-        setRowSaving(itemId, true);
-        _logCsrf('POST', url);
+        setFieldSaving(inputEl, true);
         fetch(url, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrftoken
-        },
-        body: JSON.stringify({
-            item_id: itemId,
-            field: field,
-            value: value
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                item_id: itemId,
+                field: field,
+                value: value
+            })
         })
-    })
-    .then(response => {
-        return response.text().then(function(text) {
-            var data;
-            try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
-            if (!response.ok) {
-                _logCsrf('POST falhou:', { status: response.status, url: url, error: (data && data.error) ? data.error : text ? text.substring(0, 200) : '' });
-                var msg = (data && data.error) ? data.error : ('Erro ' + response.status);
-                throw { status: response.status, message: msg };
-            }
-            return data;
-        });
-    })
-    .then(data => {
-        setRowSaving(itemId, false);
-        if (data.success) {
-            showSaveFeedback(itemId);
-            showMessage('Salvo', 'success');
-            if (data.status_css) {
-                updateRowStatus(itemId, data.status_css);
-            }
-            if (data.debug_no_recebimento) {
-                showMessage('Nenhum recebimento do Sienge para esta obra + SC + insumo. Reimporte o MAPA_CONTROLE com a obra correta ou confira em Admin > Recebimentos na Obra.', 'error');
-            }
-            console.warn('[LPLAN] POST salvou com sucesso. Redirecionando com obra_id=', data.obra_id);
-            // Sempre recarregar a página com ?obra= na URL para os dados salvos aparecerem
-            if (data.obra_id) {
-                var params = new URLSearchParams(window.location.search);
-                params.set('obra', data.obra_id);
-                window.location.href = window.location.pathname + '?' + params.toString();
+        .then(function(response) {
+            return response.text().then(function(text) {
+                var data;
+                try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+                if (!response.ok) {
+                    var msg = (data && data.error) ? data.error : ('Erro ' + response.status);
+                    throw { status: response.status, message: msg };
+                }
+                return data;
+            });
+        })
+        .then(function(data) {
+            if (data.success) {
+                markInputSaved(inputEl, value);
+                showSaveFeedback(itemId);
+                if (data.status_css) {
+                    updateRowStatus(itemId, data.status_css);
+                }
+                if (data.row_patch) {
+                    applyRowPatch(itemId, data.row_patch);
+                }
+                syncObraQueryParam(data.obra_id);
+                if (data.debug_no_recebimento) {
+                    showMessage('Nenhum recebimento do Sienge para esta obra + SC + insumo. Reimporte o MAPA_CONTROLE com a obra correta ou confira em Admin > Recebimentos na Obra.', 'error');
+                }
             } else {
-                window.location.reload();
+                showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
             }
-        } else {
-            showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
-        }
-    })
-    .catch(error => {
-        setRowSaving(itemId, false);
-        _logCsrf('POST catch:', error && error.message ? error.message : error);
-        showMessage((error && error.message) ? error.message : 'Erro ao salvar. Recarregue e tente novamente.', 'error');
-    });
+        })
+        .catch(function(error) {
+            _logCsrf('POST catch:', error && error.message ? error.message : error);
+            showMessage((error && error.message) ? error.message : 'Erro ao salvar. Recarregue e tente novamente.', 'error');
+        })
+        .finally(function() {
+            setFieldSaving(inputEl, false);
+        });
     });
 }
 
@@ -170,13 +256,6 @@ function updateRowStatus(itemId, statusCss) {
         if (statusCell) {
             statusCell.className = 'status-cell ' + statusCss;
         }
-    }
-}
-
-function setRowSaving(itemId, saving) {
-    const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
-    if (row) {
-        if (saving) row.classList.add('row-saving'); else row.classList.remove('row-saving');
     }
 }
 

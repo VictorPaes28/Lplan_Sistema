@@ -56,10 +56,14 @@ from core.obras_readonly import (
     redirect_if_gestao_obra_readonly,
 )
 from gestao_aprovacao.services.home_dashboard import (
+    APROVADOR_FILA_ATRASO_DIAS,
+    APROVADOR_FILA_ATRASO_PDF_MAX_ITENS,
     build_admin_dashboard_context,
     build_personal_dashboard_context,
+    collect_aprovador_fila_atraso,
     queryset_workorders_home_scope,
 )
+from gestao_aprovacao.services.fila_atraso_pdf import build_fila_atraso_pdf
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from .services.user_governance import (
     TimelineOptions,
@@ -231,6 +235,33 @@ def home(request):
     }
     context.update(dash_ctx)
     return render(request, 'obras/home.html', context)
+
+
+@login_required
+def export_fila_atraso_pdf(request):
+    """PDF dos pedidos há mais de N dias na fila de aprovação (card da home)."""
+    user = request.user
+    if not is_aprovador(user):
+        messages.error(request, 'Apenas usuários com papel de aprovador podem exportar esta fila.')
+        return redirect('gestao:home')
+
+    scoped_qs = queryset_workorders_home_scope(user)
+    pedidos = collect_aprovador_fila_atraso(
+        user,
+        scoped_qs,
+        limit=APROVADOR_FILA_ATRASO_PDF_MAX_ITENS,
+    )
+    pdf_bytes = build_fila_atraso_pdf(
+        pedidos=pedidos,
+        dias_limite=APROVADOR_FILA_ATRASO_DIAS,
+        usuario_nome=user.get_full_name() or user.username,
+        escopo_admin=is_admin(user),
+        site_url=getattr(settings, "SITE_URL", "") or "",
+    )
+    filename = f"fila-atraso-{timezone.now().strftime('%Y%m%d-%H%M')}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 # ========== CRUD WorkOrder ==========

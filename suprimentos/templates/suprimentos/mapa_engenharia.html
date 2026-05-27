@@ -475,6 +475,7 @@
                 </td>
                 <!-- 7. QUANTITATIVO (do Sienge) -->
                 <td class="input-readonly campo-sienge text-center"
+                    data-sienge-patch="quantidade_solicitada"
                     data-bs-toggle="tooltip"
                     title="Quantidade solicitada no Sienge (SC)">
                     {% if item.quantidade_solicitada_sienge > 0 %}
@@ -576,6 +577,7 @@
                 </td>
                 <!-- 11. Nº PEDIDO (Readonly - Sienge - Automático) -->
                 <td class="input-readonly campo-sienge text-center" 
+                    data-sienge-patch="numero_pc"
                     data-bs-toggle="tooltip" 
                     title="Nº Pedido de Compra (preenchido automaticamente pelo Sienge)"
                     style="padding: 4px 6px; min-width: 90px; max-width: 120px;">
@@ -599,6 +601,7 @@
                 </td>
                 <!-- 13. PRAZO RECEBIMENTO (Readonly - Sienge - Automático) -->
                 <td class="input-readonly campo-sienge text-center" 
+                    data-sienge-patch="prazo_recebimento"
                     data-bs-toggle="tooltip" 
                     title="Prazo de recebimento (preenchido automaticamente pelo Sienge)"
                     style="padding: 4px 6px; min-width: 90px;">

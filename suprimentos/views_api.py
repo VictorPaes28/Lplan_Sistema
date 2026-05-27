@@ -145,6 +145,25 @@ def _aplicar_dados_recebimento_obra(item):
     return True
 
 
+def _item_row_sienge_patch(item):
+    """Campos do Sienge para atualizar a linha no front sem recarregar a página."""
+    qtd = item.quantidade_solicitada_sienge
+    try:
+        qtd_f = float(qtd) if qtd is not None else 0.0
+    except (TypeError, ValueError):
+        qtd_f = 0.0
+    unidade = ((item.insumo.unidade if item.insumo else '') or '').strip()
+    return {
+        'numero_pc': (item.numero_pc or '').strip(),
+        'empresa_fornecedora': (item.empresa_fornecedora or '').strip(),
+        'prazo_recebimento': item.prazo_recebimento.strftime('%d/%m/%Y') if item.prazo_recebimento else '',
+        'quantidade_solicitada_sienge': f'{qtd_f:.2f}',
+        'quantidade_solicitada_unidade': unidade,
+        'status_etapa': item.status_etapa or '',
+        'insumo_codigo': (item.insumo.codigo_sienge if item.insumo else '') or '',
+    }
+
+
 @login_required
 @require_http_methods(["GET"])
 def item_detalhe(request, item_id):
@@ -895,7 +914,7 @@ def item_atualizar_campo(request):
             ip_address=request.META.get('REMOTE_ADDR')
         )
         
-        return JsonResponse({
+        payload = {
             'success': True,
             'obra_id': item.obra_id,
             'status_css': item.status_css,
@@ -907,7 +926,10 @@ def item_atualizar_campo(request):
                 and bool(item.insumo_id)
                 and not (item.insumo and (item.insumo.codigo_sienge or '').startswith('SM-LEV-'))
             ),
-        })
+        }
+        if filled_from_sienge:
+            payload['row_patch'] = _item_row_sienge_patch(item)
+        return JsonResponse(payload)
     
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

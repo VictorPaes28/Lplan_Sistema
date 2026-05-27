@@ -164,56 +164,59 @@
 
             <!-- Coluna Direita: Ações Rápidas + Informações / tags -->
             <div class="dashboard-right">
-                <div class="actions-card {% if dashboard_modo_pessoal or pode_ver_desempenho %}actions-card--compact{% endif %}">
-                    <div class="card-header">
-                        <h2 class="card-title">Ações rápidas</h2>
+                <div class="actions-card gc-actions-card {% if dashboard_modo_pessoal or pode_ver_desempenho %}actions-card--compact{% endif %}">
+                    <div class="card-header gc-actions-card__header">
+                        <div>
+                            <h2 class="card-title">Ações rápidas</h2>
+                            <p class="gc-actions-card__subtitle">Atalhos frequentes</p>
+                        </div>
                     </div>
                     {% if dashboard_modo_pessoal or pode_ver_desempenho %}
                     <div class="gc-actions-panel" aria-label="Ações rápidas">
                         {% if dashboard_modo_pessoal %}
-                        <div class="gc-actions-flow" role="group" aria-label="Pedidos e listagens">
+                        <p class="gc-actions-group-label">Pedidos</p>
+                        <div class="gc-actions-flow gc-actions-flow--grid" role="group" aria-label="Pedidos e listagens">
                             {% if pode_criar_pedido %}
-                            <a href="{% url 'gestao:create_workorder' %}" class="gc-actions-btn gc-actions-btn--primary gc-open-create-modal">
+                            <a href="{% url 'gestao:create_workorder' %}" class="gc-actions-btn gc-actions-btn--primary gc-open-create-modal" title="Abrir formulário de novo pedido">
                                 <span class="gc-actions-btn__icon" aria-hidden="true">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                 </span>
                                 Criar pedido
                             </a>
                             {% endif %}
-                            <a href="{{ dash_quick_links.lista_todos }}" class="gc-actions-btn gc-actions-btn--secondary" title="Abrir a lista completa de pedidos">
+                            <a href="{{ dash_quick_links.lista_todos }}" class="gc-actions-btn gc-actions-btn--tile" title="Abrir a lista completa de pedidos">
                                 Todos os pedidos
                             </a>
-                            <a href="{{ dash_quick_links.pendentes }}" class="gc-actions-btn gc-actions-btn--secondary" title="{% if dash_escopo_admin %}Pendentes e reaprovações em todo o alcance administrativo{% else %}Status pendente ou reaprovação entre os seus pedidos{% endif %}">
-                                {% if dash_escopo_admin %}Pendentes{% else %}Meus pendentes{% endif %}
+                            <a href="{{ dash_quick_links.pendentes }}" class="gc-actions-btn gc-actions-btn--tile" title="{% if dash_escopo_admin %}Pendentes e reaprovações em todo o alcance administrativo{% else %}Status pendente ou reaprovação entre os seus pedidos{% endif %}">
+                                <span class="gc-actions-btn__text">{% if dash_escopo_admin %}Pendentes{% else %}Meus pendentes{% endif %}</span>
+                                {% if dash_escopo_admin and dash_kpis.pedidos_aguardando_aprovadores %}
+                                <span class="gc-actions-badge">{{ dash_kpis.pedidos_aguardando_aprovadores }}</span>
+                                {% elif dash_kpis.aguardando_sua_analise %}
+                                <span class="gc-actions-badge">{{ dash_kpis.aguardando_sua_analise }}</span>
+                                {% endif %}
                             </a>
-                            <a href="{{ dash_quick_links.reprovados }}" class="gc-actions-btn gc-actions-btn--secondary" title="{% if dash_escopo_admin %}Todos os reprovados no alcance{% else %}Pedidos seus com status reprovado{% endif %}">
+                            <a href="{{ dash_quick_links.reprovados }}" class="gc-actions-btn gc-actions-btn--tile" title="{% if dash_escopo_admin %}Todos os reprovados no alcance{% else %}Pedidos seus com status reprovado{% endif %}">
                                 {% if dash_escopo_admin %}Reprovados{% else %}Meus reprovados{% endif %}
                             </a>
-                            <a href="{{ dash_quick_links.rascunhos }}" class="gc-actions-btn gc-actions-btn--secondary" title="{% if dash_escopo_admin %}Rascunhos no alcance administrativo{% else %}Rascunhos dos seus pedidos{% endif %}">
+                            <a href="{{ dash_quick_links.rascunhos }}" class="gc-actions-btn gc-actions-btn--tile" title="{% if dash_escopo_admin %}Rascunhos no alcance administrativo{% else %}Rascunhos dos seus pedidos{% endif %}">
                                 {% if dash_escopo_admin %}Rascunhos{% else %}Meus rascunhos{% endif %}
                             </a>
                         </div>
-                        {% if is_admin or pode_ver_desempenho %}
-                        <div class="gc-actions-flow gc-actions-flow--toolbar" role="group" aria-label="Configurações e análise">
-                            {% if is_admin %}
-                            <a href="{% url 'gestao:manage_aprovacao_destinatarios' %}" class="gc-actions-btn gc-actions-btn--secondary" title="E-mails que recebem cópia do PDF ao aprovar um pedido">
-                                PDF ao aprovar
-                            </a>
-                            {% endif %}
-                            {% if pode_ver_desempenho %}
-                            <a href="{% url 'gestao:desempenho_equipe' %}" class="gc-actions-btn gc-actions-btn--secondary gc-actions-btn--with-icon" title="Ver desempenho completo: gráficos e tempo médio de resposta da equipe">
+                        {% if pode_ver_desempenho %}
+                        <p class="gc-actions-group-label">Gestão e análise</p>
+                        <div class="gc-actions-flow gc-actions-flow--toolbar" role="group" aria-label="Análise">
+                            <a href="{% url 'gestao:desempenho_equipe' %}" class="gc-actions-btn gc-actions-btn--tile gc-actions-btn--with-icon" title="Ver desempenho completo: gráficos e tempo médio de resposta da equipe">
                                 <span class="gc-actions-btn__icon" aria-hidden="true">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12l4-4 4 8 5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                 </span>
                                 Desempenho da equipe
                             </a>
-                            {% endif %}
                         </div>
                         {% endif %}
                         {% endif %}
                         {% if not dashboard_modo_pessoal and pode_ver_desempenho %}
-                        <div class="gc-actions-flow" role="group" aria-label="Análise">
-                            <a href="{% url 'gestao:desempenho_equipe' %}" class="gc-actions-btn gc-actions-btn--secondary gc-actions-btn--with-icon" title="Ver desempenho completo: gráficos e tempo médio de resposta da equipe">
+                        <div class="gc-actions-flow gc-actions-flow--toolbar" role="group" aria-label="Análise">
+                            <a href="{% url 'gestao:desempenho_equipe' %}" class="gc-actions-btn gc-actions-btn--tile gc-actions-btn--with-icon" title="Ver desempenho completo: gráficos e tempo médio de resposta da equipe">
                                 <span class="gc-actions-btn__icon" aria-hidden="true">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12l4-4 4 8 5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                 </span>
@@ -227,8 +230,8 @@
                 {% if dashboard_modo_pessoal %}
                 {% if dash_aprovador_fila_atraso %}
                 <section class="updates-card gc-aprovador-atraso-card" aria-labelledby="gc-aprov-atraso-heading">
-                    <div class="card-header">
-                        <div>
+                    <div class="card-header gc-aprovador-atraso-card__header">
+                        <div class="gc-aprovador-atraso-card__header-text">
                             <h2 id="gc-aprov-atraso-heading" class="card-title">Há bastante tempo na fila</h2>
                             <p class="gc-card-subtitle gc-aprovador-atraso-card__intro">
                                 Lembrete · pedidos no <strong>papel de aprovador(a)</strong> há mais de
@@ -237,10 +240,27 @@
                                 {% if dash_escopo_admin %}
                                 <span class="gc-tags-card__stat">Alcance administrativo.</span>
                                 {% endif %}
+                                {% if dash_aprovador_fila_atraso.total_na_fila %}
+                                <span class="gc-tags-card__stat">
+                                    {{ dash_aprovador_fila_atraso.total_na_fila }} pedido{% if dash_aprovador_fila_atraso.total_na_fila != 1 %}s{% endif %} na fila.
+                                </span>
+                                {% endif %}
                             </p>
                         </div>
+                        <a href="{{ dash_aprovador_fila_atraso.pdf_url }}"
+                           class="gc-aprovador-atraso-card__pdf-btn"
+                           title="Baixar PDF com todos os pedidos há mais de {{ dash_aprovador_fila_atraso.dias_limite }} dias na fila">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 11v6"/><path d="M9.5 14.5 12 17l2.5-2.5"/></svg>
+                            Exportar PDF
+                        </a>
                     </div>
                     {% if dash_aprovador_fila_atraso.pedidos %}
+                    {% if dash_aprovador_fila_atraso.total_na_fila > dash_aprovador_fila_atraso.pedidos|length %}
+                    <p class="gc-aprovador-atraso-card__more-hint">
+                        Exibindo {{ dash_aprovador_fila_atraso.pedidos|length }} de {{ dash_aprovador_fila_atraso.total_na_fila }}.
+                        Use <strong>Exportar PDF</strong> para a lista completa.
+                    </p>
+                    {% endif %}
                     <ul class="gc-atraso-fila-list" role="list">
                         {% for item in dash_aprovador_fila_atraso.pedidos %}
                         <li role="listitem">
