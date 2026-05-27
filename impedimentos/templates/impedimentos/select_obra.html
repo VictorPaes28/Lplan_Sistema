@@ -7,11 +7,11 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/select_project.css' %}?v=5">
-<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'impedimentos/css/select_obra.css' %}?v=1">
 {% endblock %}
 
 {% block content %}
-<div class="select-project-page max-w-6xl mx-auto fade-in">
+<div class="imp-select-page select-project-page max-w-6xl mx-auto fade-in">
     {% if error %}
     <div class="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg shadow-sm flex items-start" role="alert" aria-live="polite">
         <i class="fas fa-exclamation-circle mr-2 mt-0.5 flex-shrink-0"></i>
@@ -31,7 +31,7 @@
         </div>
     </div>
 
-    {% if projects %}
+    {% if project_cards %}
     <div class="project-search-block">
         <div class="project-search">
             <div class="search-input-wrapper">
@@ -43,7 +43,7 @@
                        autocomplete="off">
             </div>
         </div>
-        <p class="project-results-count"><span id="projectVisibleCount">{{ projects|length }}</span> obras encontradas</p>
+        <p class="project-results-count"><span id="projectVisibleCount">{{ project_cards|length }}</span> obras encontradas</p>
     </div>
 
     <div class="no-results hidden" id="noResults">
@@ -53,7 +53,8 @@
     </div>
 
     <div class="select-project-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="projectsGrid">
-        {% for project in projects %}
+        {% for card in project_cards %}
+        {% with project=card.project stats=card.stats %}
         <form method="post" action="{% url 'impedimentos:select_obra' %}" class="project-card select-project-card" data-project-name="{{ project.name|lower }}" data-project-code="{{ project.code|lower }}">
             {% csrf_token %}
             <input type="hidden" name="project_id" value="{{ project.id }}">
@@ -74,8 +75,55 @@
                     </div>
                     <i class="fas fa-chevron-right select-project-card-arrow flex-shrink-0 ml-2"></i>
                 </div>
+
+                <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-slate-100 mt-3">
+                    <div class="imp-select-card-footer-left">
+                        {% if stats.has_obra %}
+                            {% if stats.abertas > 0 %}
+                            <span class="imp-select-stat" title="Restrições em aberto">
+                                <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                                {{ stats.abertas }} aberta{{ stats.abertas|pluralize }}
+                            </span>
+                            {% if stats.vencidas > 0 %}
+                            <span class="imp-select-stat imp-select-stat--alert" title="Restrições com prazo vencido">
+                                <i class="fas fa-clock" aria-hidden="true"></i>
+                                {{ stats.vencidas }} vencida{{ stats.vencidas|pluralize }}
+                            </span>
+                            {% endif %}
+                            {% if stats.criticas > 0 %}
+                            <span class="imp-select-stat imp-select-stat--critica" title="Prioridade crítica">
+                                <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                                {{ stats.criticas }} crítica{{ stats.criticas|pluralize }}
+                            </span>
+                            {% endif %}
+                            {% else %}
+                            <span class="imp-select-stat imp-select-stat--ok" title="Nenhuma restrição pendente">
+                                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                                Sem pendências
+                            </span>
+                            {% endif %}
+                        {% else %}
+                        <span class="imp-select-stat">
+                            <i class="fas fa-layer-group" aria-hidden="true"></i>
+                            Sem restrições
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap justify-end">
+                        {% if project.is_active %}
+                        <span class="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-xs">
+                            <i class="fas fa-circle mr-1"></i>Ativa
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-slate-100 text-slate-600 rounded-full font-medium text-xs border border-slate-200">
+                            <i class="fas fa-ban mr-1" aria-hidden="true"></i>Inativa
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
             </button>
         </form>
+        {% endwith %}
         {% endfor %}
     </div>
     {% else %}

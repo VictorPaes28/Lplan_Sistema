@@ -794,37 +794,57 @@ a.gc-btn-reprovar:hover,
 .gc-footer-btn {
     display: inline-flex;
     align-items: center;
-    padding: 0.4rem 0.75rem;
-    border-radius: 8px;
-    font-size: 0.78rem;
-    font-weight: 600;
+    gap: 0.35rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 500;
     text-decoration: none;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-    color: #334155;
+    border: none;
     cursor: pointer;
     font-family: inherit;
+    white-space: nowrap;
 }
 
-.gc-footer-btn:hover {
-    background: #f1f5f9;
+.gc-footer-btn--export-pdf {
+    background: #1a3a5c;
+    color: #fff;
+}
+
+.gc-footer-btn--export-pdf:hover {
+    background: #13314f;
+    color: #fff;
+}
+
+.gc-footer-btn--secondary {
+    background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+    color: #fff;
+}
+
+.gc-footer-btn--secondary:hover {
+    background: linear-gradient(135deg, #7f8c8d 0%, #95a5a6 100%);
+    color: #fff;
 }
 
 .gc-footer-btn--primary {
-    border-color: #93c5fd;
+    border: 1px solid #93c5fd;
+    background: #fff;
     color: #1565c0;
 }
 
-.gc-footer-btn--danger {
-    background: #fef2f2;
-    border-color: #fecaca;
-    color: #b91c1c;
+.gc-footer-btn--primary:hover {
+    background: #eff6ff;
+    color: #1565c0;
 }
 
-.gc-footer-btn--danger:hover {
-    background: #fee2e2;
-    border-color: #f87171;
-    color: #991b1b;
+.gc-footer-btn--exclusao {
+    background: #b91c1c;
+    color: #fff;
+}
+
+.gc-footer-btn--exclusao:hover {
+    background: #991b1b;
+    color: #fff;
 }
 
 /* Pedido reprovado: mesmo conceito da página completa (detail_workorder) */

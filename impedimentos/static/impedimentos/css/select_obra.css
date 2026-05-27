@@ -1,0 +1,57 @@
+/* Restrições — seleção de obra (cards enriquecidos, padrão Diário/Mapa) */
+
+.imp-select-card-footer-left {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.imp-select-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.imp-select-stat i {
+    font-size: 0.68rem;
+    color: #94a3b8;
+}
+
+.imp-select-stat--alert {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.imp-select-stat--alert i {
+    color: #dc2626;
+}
+
+.imp-select-stat--critica {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.imp-select-stat--critica i {
+    color: #dc2626;
+}
+
+.imp-select-stat--warn {
+    color: #c2410c;
+    font-weight: 600;
+}
+
+.imp-select-stat--warn i {
+    color: #ea580c;
+}
+
+.imp-select-stat--ok {
+    color: #15803d;
+    font-weight: 500;
+}
+
+.imp-select-stat--ok i {
+    color: #16a34a;
+}

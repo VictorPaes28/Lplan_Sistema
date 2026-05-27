@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField, Q, Value
+from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Value
 from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -203,6 +203,87 @@ def _get_projects_for_user(user):
 
     linked_ids = sorted(set(owner_project_ids + member_project_ids + approver_project_ids))
     return Project.objects.filter(pk__in=linked_ids).order_by("-is_active", "-created_at")
+
+
+def _empty_select_obra_stats():
+    return {
+        "has_obra": False,
+        "abertas": 0,
+        "vencidas": 0,
+        "criticas": 0,
+    }
+
+
+def _build_select_obra_cards(projects):
+    """Monta cards da seleção de obra com indicadores de restrições (como Diário/Mapa)."""
+    project_list = list(projects)
+    if not project_list:
+        return []
+
+    project_ids = [p.pk for p in project_list]
+    obras_by_project = {
+        o.project_id: o
+        for o in Obra.objects.filter(project_id__in=project_ids).only("id", "project_id")
+    }
+    obra_ids = [o.pk for o in obras_by_project.values()]
+
+    stats_by_obra = {oid: _empty_select_obra_stats() for oid in obra_ids}
+    for oid in obra_ids:
+        stats_by_obra[oid]["has_obra"] = True
+
+    if obra_ids:
+        hoje = date.today()
+        final_status_subq = (
+            StatusImpedimento.objects.filter(obra_id=OuterRef("obra_id"))
+            .order_by("-ordem")
+            .values("pk")[:1]
+        )
+        agg_rows = (
+            Impedimento.objects.filter(obra_id__in=obra_ids, parent__isnull=True)
+            .annotate(final_status_id=Subquery(final_status_subq))
+            .exclude(status_id=F("final_status_id"))
+            .values("obra_id")
+            .annotate(
+                abertas=Count("id", distinct=True),
+                vencidas=Count(
+                    "id",
+                    filter=Q(prazo__isnull=False, prazo__lt=hoje),
+                    distinct=True,
+                ),
+                criticas=Count(
+                    "id",
+                    filter=Q(prioridade=Impedimento.PRIORIDADE_CRITICA),
+                    distinct=True,
+                ),
+            )
+        )
+        for row in agg_rows:
+            stats_by_obra[row["obra_id"]].update(
+                {
+                    "abertas": row["abertas"],
+                    "vencidas": row["vencidas"],
+                    "criticas": row["criticas"],
+                }
+            )
+
+    cards = []
+    for project in project_list:
+        obra = obras_by_project.get(project.pk)
+        stats = (
+            stats_by_obra.get(obra.pk, _empty_select_obra_stats())
+            if obra
+            else _empty_select_obra_stats()
+        )
+        cards.append({"project": project, "stats": stats})
+    return cards
+
+
+def _select_obra_context(projects, **extra):
+    ctx = {
+        "project_cards": _build_select_obra_cards(projects),
+        **extra,
+    }
+    return ctx
 
 
 def _attachments_payload_by_impedimento(obra):
@@ -581,11 +662,11 @@ def select_obra(request):
                 response = render(
                     request,
                     "impedimentos/select_obra.html",
-                    {
-                        "projects": projects,
-                        "selected_project_id": request.session.get("selected_project_id"),
-                        "error": "Obra não encontrada.",
-                    },
+                    _select_obra_context(
+                        projects,
+                        selected_project_id=request.session.get("selected_project_id"),
+                        error="Obra não encontrada.",
+                    ),
                 )
                 return _with_no_cache_headers(response)
 
@@ -593,11 +674,11 @@ def select_obra(request):
                 response = render(
                     request,
                     "impedimentos/select_obra.html",
-                    {
-                        "projects": projects,
-                        "selected_project_id": request.session.get("selected_project_id"),
-                        "error": "Você não está vinculado a esta obra.",
-                    },
+                    _select_obra_context(
+                        projects,
+                        selected_project_id=request.session.get("selected_project_id"),
+                        error="Você não está vinculado a esta obra.",
+                    ),
                 )
                 return _with_no_cache_headers(response)
 
@@ -610,10 +691,10 @@ def select_obra(request):
     response = render(
         request,
         "impedimentos/select_obra.html",
-        {
-            "projects": projects,
-            "selected_project_id": request.session.get("selected_project_id"),
-        },
+        _select_obra_context(
+            projects,
+            selected_project_id=request.session.get("selected_project_id"),
+        ),
     )
     return _with_no_cache_headers(response)
 
