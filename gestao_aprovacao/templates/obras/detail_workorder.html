@@ -455,7 +455,11 @@
                                 {{ history.created_at|date:"d/m/Y H:i" }}
                             </span>
                         </div>
-                        {% if history.observacao %}
+                        {% if history.observacao_exibicao %}
+                            <p class="approval-comment {% if history.status_anterior == history.status_novo %}editado{% endif %}">
+                                {{ history.observacao_exibicao }}
+                            </p>
+                        {% elif history.observacao %}
                             <p class="approval-comment {% if history.status_anterior == history.status_novo %}editado{% endif %}">
                                 {{ history.observacao }}
                             </p>

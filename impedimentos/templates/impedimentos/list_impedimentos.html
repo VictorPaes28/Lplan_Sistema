@@ -2404,7 +2404,35 @@
 
     if (kanbanBoard) {
         let draggedCard = null;
+        let draggedStack = null;
         let originContainer = null;
+        const impPageRootKanban = document.getElementById('imp-page-root');
+        const listaFinalizadoIdKanban = impPageRootKanban && impPageRootKanban.dataset.impListaFinalizadoId
+            ? parseInt(impPageRootKanban.dataset.impListaFinalizadoId, 10)
+            : null;
+
+        function kanbanStackForCard(card) {
+            return card ? (card.closest('.imp-kanban-stack') || card) : null;
+        }
+
+        function kanbanDropzoneStatusId(container) {
+            if (!container) return null;
+            if (container.matches && container.matches('[data-dropzone]')) {
+                return container.dataset.statusId || null;
+            }
+            const dz = container.closest ? container.closest('[data-dropzone]') : null;
+            return dz ? (dz.dataset.statusId || null) : null;
+        }
+
+        function syncKanbanCardDoneClass(card, statusId) {
+            if (!card || listaFinalizadoIdKanban == null) return;
+            const sid = parseInt(String(statusId), 10);
+            if (!Number.isFinite(sid)) {
+                card.classList.remove('imp-kanban-card--done');
+                return;
+            }
+            card.classList.toggle('imp-kanban-card--done', sid === listaFinalizadoIdKanban);
+        }
 
         function updateColumnCount(columnElement) {
             if (!columnElement) return;
@@ -2422,7 +2450,8 @@
                     return;
                 }
                 draggedCard = card;
-                originContainer = card.parentElement;
+                draggedStack = kanbanStackForCard(card);
+                originContainer = draggedStack.parentElement;
                 card.classList.add('is-dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', card.dataset.itemId || '');
@@ -2448,6 +2477,7 @@
                 zone.classList.remove('is-drop-target');
                 if (!draggedCard || !originContainer) return;
 
+                const moveEl = draggedStack || draggedCard;
                 const newStatusId = zone.dataset.statusId;
                 const impedimentoId = draggedCard.dataset.itemId;
                 const oldContainer = originContainer;
@@ -2457,7 +2487,9 @@
                 if (!newStatusId || !impedimentoId) return;
                 if (oldContainer === zone) return;
 
-                zone.appendChild(draggedCard);
+                const oldStatusId = kanbanDropzoneStatusId(oldContainer);
+                zone.appendChild(moveEl);
+                syncKanbanCardDoneClass(draggedCard, newStatusId);
                 updateColumnCount(oldColumn);
                 updateColumnCount(newColumn);
 
@@ -2480,13 +2512,15 @@
                         }
                     })
                     .catch((err) => {
-                        oldContainer.appendChild(draggedCard);
+                        oldContainer.appendChild(moveEl);
+                        syncKanbanCardDoneClass(draggedCard, oldStatusId);
                         updateColumnCount(oldColumn);
                         updateColumnCount(newColumn);
                         alert(err.message || 'Falha ao mover o card.');
                     })
                     .finally(() => {
                         draggedCard = null;
+                        draggedStack = null;
                         originContainer = null;
                     });
             });
@@ -3189,7 +3223,10 @@
         const raw = btn.getAttribute('data-imp-kanban-subtask-toggle');
         const id = parseInt(raw, 10);
         if (!id) return;
-        const host = document.querySelector('[data-imp-kanban-subtasks-host="' + id + '"]');
+        const stack = btn.closest('.imp-kanban-stack');
+        const host = stack
+            ? stack.querySelector('[data-imp-kanban-subtasks-host="' + id + '"]')
+            : document.querySelector('[data-imp-kanban-subtasks-host="' + id + '"]');
         if (!host) return;
         const expanded = btn.classList.contains('open');
         if (expanded) {

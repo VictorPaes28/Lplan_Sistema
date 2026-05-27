@@ -13,6 +13,7 @@ from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
+import re
 from datetime import timedelta, datetime, time
 from urllib.parse import urlencode
 import os
@@ -40,6 +41,7 @@ from .utils import (
     is_admin,
     is_responsavel_empresa,
     is_aprovador,
+    usuario_e_admin_sistema_gestao,
     gestor_required,
     criar_notificacao,
     admin_required,
@@ -1345,7 +1347,7 @@ def detail_workorder(request, pk):
     
     # Verificar permissão de visualização baseada em obra
     tem_permissao = False
-    if is_admin(user):
+    if usuario_e_admin_sistema_gestao(user):
         tem_permissao = True
     elif is_aprovador(user):
         # Aprovador vê se tem permissão na obra (ou em obra da mesma empresa)
@@ -1441,7 +1443,11 @@ def detail_workorder(request, pk):
     approvals = Approval.objects.filter(work_order=workorder).order_by('-created_at')
     
     # Buscar histórico completo de status
-    status_history = StatusHistory.objects.filter(work_order=workorder).order_by('-created_at')
+    status_history = list(
+        StatusHistory.objects.filter(work_order=workorder).order_by('-created_at')
+    )
+    for h in status_history:
+        h.observacao_exibicao = _format_observacao_historico(h)
     
     # Buscar anexos - separar por versão de reaprovação
     attachments = Attachment.objects.filter(work_order=workorder).order_by('versao_reaprovacao', '-created_at')
@@ -1479,12 +1485,8 @@ def detail_workorder(request, pk):
             can_delete_attachment = True
     # Aprovadores não podem adicionar/deletar anexos (já está False por padrão)
     
-    # Verificar se pode solicitar exclusão (apenas criador, pedido pendente/reprovado, não já solicitado)
-    can_solicitar_exclusao = (
-        workorder.criado_por == user and
-        workorder.status in ['pendente', 'reprovado'] and
-        not workorder.solicitado_exclusao
-    )
+    # Verificar se pode solicitar exclusão (criador ou admin da plataforma)
+    can_solicitar_exclusao = _can_solicitar_exclusao(workorder, user, tem_permissao=tem_permissao)
     
     # Verificar se pode aprovar/rejeitar exclusão (aprovador/admin, pedido solicitado e em status elegível)
     can_aprovar_exclusao = False
@@ -1578,13 +1580,30 @@ def detail_workorder(request, pk):
     return render(request, 'obras/detail_workorder.html', context)
 
 
+def _can_solicitar_exclusao(workorder, user, *, tem_permissao=True):
+    """
+    Solicitante: apenas pedidos próprios em pendente/reprovado, sem exclusão já pedida.
+    Admin da plataforma: qualquer pedido visível nas mesmas condições de status.
+    """
+    if workorder.solicitado_exclusao:
+        return False
+    if workorder.status not in ('pendente', 'reprovado'):
+        return False
+    if usuario_e_admin_sistema_gestao(user):
+        return True
+    return (
+        tem_permissao
+        and workorder.criado_por == user
+    )
+
+
 def _workorder_ajax_permission_flags(workorder, user):
     """
     Mesmas regras de permissão da view detail_workorder.
     Usado apenas por workorder_detail_ajax (não altera a view de detalhe).
     """
     tem_permissao = False
-    if is_admin(user):
+    if usuario_e_admin_sistema_gestao(user):
         tem_permissao = True
     elif is_aprovador(user):
         if workorder.obra.empresa_id is None:
@@ -1657,12 +1676,7 @@ def _workorder_ajax_permission_flags(workorder, user):
                 can_add_attachment = True
                 can_delete_attachment = True
 
-    can_solicitar_exclusao = (
-        tem_permissao
-        and workorder.criado_por == user
-        and workorder.status in ['pendente', 'reprovado']
-        and not workorder.solicitado_exclusao
-    )
+    can_solicitar_exclusao = _can_solicitar_exclusao(workorder, user, tem_permissao=tem_permissao)
 
     can_aprovar_exclusao = False
     if tem_permissao and workorder.solicitado_exclusao and workorder.status in ['pendente', 'reprovado']:
@@ -1723,6 +1737,64 @@ def _fmt_brl_ajax(val):
     return f'R$ {inteiro},{dec}'
 
 
+def _nome_usuario_gestao(u):
+    if not u:
+        return 'N/A'
+    return u.get_full_name() or u.username or 'N/A'
+
+
+def _mensagem_exclusao_aprovada_historico(solicitante_nome, aprovador_nome, motivo=None):
+    """Texto gravado/exibido ao cancelar pedido após aprovação de exclusão."""
+    solicitante = (solicitante_nome or 'N/A').strip()
+    aprovador = (aprovador_nome or 'N/A').strip()
+    if solicitante.lower() == aprovador.lower():
+        msg = f'Exclusão solicitada e aprovada por {aprovador}.'
+    else:
+        msg = f'Exclusão solicitada por {solicitante} e aprovada por {aprovador}.'
+    if motivo:
+        msg += f' Motivo: {motivo.strip()}'
+    return msg
+
+
+def _format_observacao_historico(h):
+    """Normaliza observações de cancelamento por exclusão (inclui registros legados)."""
+    obs = (h.observacao or '').strip()
+    if not obs or h.status_novo != 'cancelado':
+        return obs
+    low = obs.lower()
+    if low.startswith('exclusão solicitada') or low.startswith('exclusao solicitada'):
+        return obs
+    if 'solicitação de ' in low and 'aprovação realizada por' in low:
+        m = re.match(
+            r'Pedido exclu[íi]do ap[óo]s solicita[çc][ãa]o de ([^.]+)\.'
+            r'(?:\s*Motivo:\s*(.*?))?\s*Aprova[çc][ãa]o realizada por ([^.]+)\.\s*$',
+            obs,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return _mensagem_exclusao_aprovada_historico(
+                m.group(1).strip(),
+                m.group(3).strip(),
+                m.group(2).strip() if m.group(2) else None,
+            )
+    legacy = re.match(
+        r'Pedido exclu[íi]do ap[óo]s solicita[çc][ãa]o do solicitante\s*([^\.]*)\.'
+        r'(?:\s*Motivo:\s*(.*?))?\s*(?:Aprova[çc][ãa]o realizada por\s*([^\.\s][^\.]*)\.)?\s*$',
+        obs,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if legacy:
+        nome_antigo = (legacy.group(1) or '').strip()
+        motivo = (legacy.group(2) or '').strip() or None
+        aprovador = (legacy.group(3) or '').strip()
+        if not aprovador and h.alterado_por:
+            aprovador = _nome_usuario_gestao(h.alterado_por)
+        solicitante = nome_antigo or aprovador
+        if solicitante and aprovador:
+            return _mensagem_exclusao_aprovada_historico(solicitante, aprovador, motivo)
+    return obs
+
+
 def _user_iniciais_ajax(u):
     if not u:
         return '?'
@@ -1766,6 +1838,8 @@ def _titulo_atividade_status(h, status_labels):
         return 'Pedido enviado para análise'
     if sn == 'reaprovacao':
         return 'Reenvio para reaprovação'
+    if sn == 'cancelado' and ('excluído' in obs_low or 'excluido' in obs_low):
+        return 'Pedido excluído'
     sa = status_labels.get(h.status_anterior, h.status_anterior)
     sn_disp = status_labels.get(sn, sn)
     return f'{sa} → {sn_disp}'
@@ -1786,7 +1860,7 @@ def _workorder_atividades_ajax(workorder, status_labels):
             'por': por_nome,
             'iniciais': _user_iniciais_ajax(h.alterado_por),
             'data': _fmt_dt_ajax(h.created_at),
-            'detalhes': (h.observacao or '').strip(),
+            'detalhes': _format_observacao_historico(h),
             'status_dot': h.status_novo or '',
         })
     return items
@@ -1848,7 +1922,7 @@ def workorder_detail_ajax(request, pk):
             'status_display': status_labels.get(h.status_novo, h.status_novo),
             'status_anterior': h.status_anterior,
             'por': (h.alterado_por.get_full_name() or h.alterado_por.username) if h.alterado_por else '—',
-            'obs': (h.observacao or '').strip(),
+            'obs': _format_observacao_historico(h),
             'data': _fmt_dt_ajax(h.created_at),
         })
 
@@ -1978,7 +2052,7 @@ def exportar_snapshot_workorder_pdf(request, pk):
     user = request.user
 
     tem_permissao = False
-    if is_admin(user):
+    if usuario_e_admin_sistema_gestao(user):
         tem_permissao = True
     elif is_aprovador(user):
         if workorder.obra.empresa_id is None:
@@ -4672,22 +4746,12 @@ def solicitar_exclusao(request, pk):
     """
     workorder = get_object_or_404(WorkOrder, pk=pk)
     user = request.user
-    
-    # Verificar se é o criador do pedido
-    if workorder.criado_por != user:
+
+    perm = _workorder_ajax_permission_flags(workorder, user)
+    if not perm.get('can_solicitar_exclusao'):
         flash_message(request, "error", "gestao.delete_request.only_creator")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
-    # Verificar se o pedido está em status elegível
-    if workorder.status not in ['pendente', 'reprovado']:
-        flash_message(request, "error", "gestao.delete_request.invalid_status")
-        return redirect('gestao:detail_workorder', pk=workorder.pk)
-    
-    # Verificar se já foi solicitado
-    if workorder.solicitado_exclusao:
-        messages.warning(request, 'A exclusão deste pedido já foi solicitada e está aguardando aprovação.')
-        return redirect('gestao:detail_workorder', pk=workorder.pk)
-
     blocked = redirect_if_gestao_obra_readonly(request, workorder)
     if blocked:
         return blocked
@@ -4721,7 +4785,7 @@ def solicitar_exclusao(request, pk):
                 usuario=usuario,
                 tipo='exclusao_solicitada',
                 titulo=f'Exclusão Solicitada: {workorder.codigo}',
-                mensagem=f'O solicitante {user.get_full_name() or user.username} solicitou a exclusão do pedido {workorder.codigo}. Motivo: {motivo}',
+                mensagem=f'{_nome_usuario_gestao(user)} solicitou a exclusão do pedido {workorder.codigo}. Motivo: {motivo}',
                 work_order=workorder,
             )
 
@@ -4790,12 +4854,11 @@ def aprovar_exclusao(request, pk):
     if request.method == 'POST':
         # Salvar dados da solicitação antes de limpar
         solicitante_exclusao = workorder.solicitado_exclusao_por or workorder.criado_por
-        solicitante_nome = (
-            workorder.solicitado_exclusao_por.get_full_name()
-            if workorder.solicitado_exclusao_por
-            else 'N/A'
+        observacao_exclusao = _mensagem_exclusao_aprovada_historico(
+            _nome_usuario_gestao(workorder.solicitado_exclusao_por or workorder.criado_por),
+            _nome_usuario_gestao(user),
+            workorder.motivo_exclusao,
         )
-        motivo_texto = f' Motivo: {workorder.motivo_exclusao}' if workorder.motivo_exclusao else ''
         codigo_wo = workorder.codigo
         detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
 
@@ -4805,7 +4868,7 @@ def aprovar_exclusao(request, pk):
             status_anterior=workorder.status,
             status_novo='cancelado',
             alterado_por=user,
-            observacao=f'Pedido excluído após solicitação do solicitante {solicitante_nome}.{motivo_texto} Aprovação realizada por {user.get_full_name() or user.username}.'
+            observacao=observacao_exclusao,
         )
         
         # Mudar status para cancelado e limpar campos de solicitação de exclusão
@@ -5790,7 +5853,7 @@ def add_comment(request, pk):
 
     # Verificar permissão de visualização (mesma lógica do detail_workorder)
     tem_permissao = False
-    if is_admin(user):
+    if usuario_e_admin_sistema_gestao(user):
         tem_permissao = True
     elif is_aprovador(user):
         if workorder.obra.empresa_id is None:

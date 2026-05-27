@@ -66,6 +66,20 @@ def is_admin(user):
     )
 
 
+def usuario_e_admin_sistema_gestao(user):
+    """
+    Admin operacional do sistema — pode solicitar exclusão de qualquer pedido elegível.
+    Superuser, staff Django, grupo «Administrador» e demais admins globais legados.
+    """
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser or getattr(user, 'is_staff', False):
+        return True
+    if usuario_tem_administracao_global_na_plataforma(user):
+        return True
+    return user.groups.filter(name=GRUPOS.ADMINISTRADOR).exists()
+
+
 def projects_disponiveis_para_vinculo_usuario():
     """Projetos listados ao vincular usuário (ativos e inativos; inativos = consulta nos módulos)."""
     from core.models import Project

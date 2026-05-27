@@ -28,8 +28,8 @@
     <div class="central-project-card">
         <div class="flex items-start justify-between mb-4">
             <div class="min-w-0 flex-1 pr-2">
-                <h3 class="text-lg font-semibold text-slate-800 truncate">{{ project.code }}</h3>
-                <p class="text-sm text-slate-500 mt-1 line-clamp-2">{{ project.name }}</p>
+                <h3 class="text-lg font-semibold text-slate-800 truncate">{{ project.name }}</h3>
+                <p class="text-sm text-slate-500 mt-1 line-clamp-2">{{ project.code }}</p>
             </div>
             <span class="central-project-badge shrink-0 {% if project.is_active %}central-project-badge-ativo{% else %}central-project-badge-inativo{% endif %}">{% if project.is_active %}Ativo{% else %}Inativa{% endif %}</span>
         </div>
