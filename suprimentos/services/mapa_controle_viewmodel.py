@@ -319,14 +319,17 @@ def _pct_for_matrix_average(cell: dict) -> float | None:
 
 
 def _row_total_from_display_cells(matrix_row: dict) -> int | float | None:
-    """Total da linha = média de todas as atividades exibidas na linha (0% entra; N/A não)."""
+    """Total da linha = média das atividades com lançamento exibido (alinha a _build_matrix_payload)."""
     row_vals: list[float] = []
     for cell in matrix_row.get("cells") or []:
         if not isinstance(cell, dict):
             continue
-        val = _pct_for_matrix_average(cell)
+        raw = str(cell.get("raw") or "").strip()
+        if not raw:
+            continue
+        val = _pct_from_display_cell(cell)
         if val is not None:
-            row_vals.append(val)
+            row_vals.append(float(val))
     return _avg_pct_total(row_vals)
 
 
@@ -423,11 +426,28 @@ def _consolidated_activity_cell_display(values: list[float], *, has_percent_unit
     return "0%"
 
 
+def _rows_share_single_apto(rows: list[list], axis_map: dict | None) -> bool:
+    """Várias linhas-fonte do mesmo apto (continuação de serviço) — vazio na coluna não é 0%."""
+    if not isinstance(axis_map, dict):
+        return False
+    apto_idx = axis_map.get("apto")
+    if not isinstance(apto_idx, int):
+        return False
+    keys: set[str] = set()
+    for row in rows:
+        if not isinstance(row, list):
+            continue
+        keys.add(str(row[apto_idx] if apto_idx < len(row) else "").strip())
+    keys.discard("")
+    return len(keys) <= 1
+
+
 def _consolidated_display_for_column_rows(
     rows: list[list],
     col_idx: int,
     *,
     infer_zero_for_empty: bool = True,
+    axis_map: dict | None = None,
 ) -> str:
     """
     Consolida uma coluna de atividade para um eixo (pavimento/bloco/UND).
@@ -464,7 +484,7 @@ def _consolidated_display_for_column_rows(
         if str(raw_cell or "").strip():
             saw_launch = True
             _append_pct_for_average(bucket, raw_cell)
-        elif len(rows) > 1:
+        elif len(rows) > 1 and not _rows_share_single_apto(rows, axis_map):
             saw_launch = True
             bucket.append(0.0)
     if bucket:
@@ -473,6 +493,61 @@ def _consolidated_display_for_column_rows(
     if saw_na and not saw_launch:
         return "-"
     return "0%"
+
+
+def _consolidated_column_across_apto_units(
+    rows: list[list],
+    col_idx: int,
+    axis_map: dict,
+    activity_col_indices: list[int],
+    *,
+    infer_zero_for_empty: bool = True,
+) -> str:
+    """
+    Pavimento/bloco: média entre unidades (aptos), cada unidade consolida suas linhas de continuação.
+    Ignora linhas sem apto no eixo; não trata vazio de continuação como 0% entre colunas.
+    """
+    apto_idx = axis_map.get("apto")
+    if not isinstance(apto_idx, int):
+        return _consolidated_display_for_column_rows(
+            rows,
+            col_idx,
+            infer_zero_for_empty=infer_zero_for_empty,
+            axis_map=axis_map,
+        )
+    by_apto: dict[str, list[list]] = {}
+    for row in rows:
+        if not isinstance(row, list):
+            continue
+        apto_key = str(row[apto_idx] if apto_idx < len(row) else "").strip()
+        if not apto_key:
+            continue
+        by_apto.setdefault(apto_key, []).append(row)
+    if not by_apto:
+        return "0%" if infer_zero_for_empty else "-"
+    unit_values: list[float] = []
+    for unit_rows in by_apto.values():
+        scoped = list(unit_rows)
+        if len(scoped) > 1:
+            scoped = _dedupe_percent_rows_drop_empty_siblings(
+                scoped, axis_map, "apto", activity_col_indices
+            )
+        display = _consolidated_display_for_column_rows(
+            scoped,
+            col_idx,
+            infer_zero_for_empty=False,
+            axis_map=axis_map,
+        )
+        parsed = _parse_pct_loose(display)
+        if parsed is not None:
+            unit_values.append(float(parsed))
+        elif str(display or "").strip() == "-":
+            continue
+        elif infer_zero_for_empty:
+            unit_values.append(0.0)
+    if not unit_values:
+        return "-"
+    return _fmt_pct(sum(unit_values) / len(unit_values))
 
 
 def _rows_matching_axis_scope(
@@ -502,7 +577,58 @@ def _rows_matching_axis_scope(
     return matched
 
 
-def _column_bucket_for_row_set(rows: list[list], col_idx: int) -> list[float]:
+def _row_has_activity_launch(row: list, activity_col_indices: list[int]) -> bool:
+    if not isinstance(row, list):
+        return False
+    for col_idx in activity_col_indices:
+        if isinstance(col_idx, int) and col_idx < len(row) and str(row[col_idx] or "").strip():
+            return True
+    return False
+
+
+def _dedupe_percent_rows_drop_empty_siblings(
+    rows: list[list],
+    axis_map: dict,
+    group_axis_key: str,
+    activity_col_indices: list[int],
+) -> list[list]:
+    """
+    Mesmo apto com linha sem lançamento e linha com % → descarta a vazia antes da média.
+    Várias linhas de serviço com lançamento no mesmo apto continuam todas na média.
+    """
+    idx = axis_map.get(group_axis_key)
+    if not isinstance(idx, int) or len(rows) < 2:
+        return rows
+    groups: dict[str, list[list]] = {}
+    for row in rows:
+        if not isinstance(row, list):
+            continue
+        key = str(row[idx] if idx < len(row) else "").strip()
+        if not key:
+            continue
+        groups.setdefault(key, []).append(row)
+    if not groups:
+        return rows
+    out: list[list] = []
+    for group in groups.values():
+        if len(group) < 2:
+            out.extend(group)
+            continue
+        with_launch = [r for r in group if _row_has_activity_launch(r, activity_col_indices)]
+        without_launch = [r for r in group if r not in with_launch]
+        if with_launch and without_launch:
+            out.extend(with_launch)
+        else:
+            out.extend(group)
+    return out if out else rows
+
+
+def _column_bucket_for_row_set(
+    rows: list[list],
+    col_idx: int,
+    *,
+    axis_map: dict | None = None,
+) -> list[float]:
     bucket: list[float] = []
     for row in rows:
         if not isinstance(row, list):
@@ -510,7 +636,7 @@ def _column_bucket_for_row_set(rows: list[list], col_idx: int) -> list[float]:
         raw_cell = row[col_idx] if col_idx < len(row) else ""
         if str(raw_cell or "").strip():
             _append_pct_for_average(bucket, raw_cell)
-        elif len(rows) > 1:
+        elif len(rows) > 1 and not _rows_share_single_apto(rows, axis_map):
             bucket.append(0.0)
     return bucket
 
@@ -521,6 +647,7 @@ def _consolidated_pct_values_for_child_axis(
     parent_scope: dict[str, str],
     child_axis_key: str,
     col_idx: int,
+    activity_col_indices: list[int],
 ) -> list[float]:
     """
     Um % consolidado por filho estrutural (ex.: cada pavimento do bloco).
@@ -542,7 +669,20 @@ def _consolidated_pct_values_for_child_axis(
     for child_key in child_keys:
         scope = {**parent_scope, child_axis_key: child_key}
         child_rows = _rows_matching_axis_scope(percent_source_rows, axis_map, scope)
-        display = _consolidated_display_for_column_rows(child_rows, col_idx)
+        if child_rows:
+            _forward_fill_hierarchy_axes(child_rows, axis_map)
+        if isinstance(axis_map.get("apto"), int):
+            display = _consolidated_column_across_apto_units(
+                child_rows,
+                col_idx,
+                axis_map,
+                activity_col_indices,
+                infer_zero_for_empty=True,
+            )
+        else:
+            display = _consolidated_display_for_column_rows(
+                child_rows, col_idx, axis_map=axis_map
+            )
         pct = _parse_pct_loose(display)
         if pct is not None:
             consolidated.append(float(pct))
@@ -940,25 +1080,18 @@ class AmbienteProvider:
             and row_mode_requested == "apto"
             and isinstance(row_axis_col, int)
         ):
-            grouped_unit = {col_idx: [] for col_idx, _ in activity_labels}
-            key_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, apto_filter)
-            for row in percent_source_rows:
-                key = str(row[row_axis_col] if row_axis_col < len(row) else "").strip() or apto_filter
-                if key != apto_filter:
-                    continue
-                for col_idx, _label in activity_labels:
-                    if col_idx >= len(row):
-                        continue
-                    raw_cell = row[col_idx] if col_idx < len(row) else ""
-                    if str(raw_cell or "").strip():
-                        _append_pct_for_average(grouped_unit[col_idx], raw_cell)
-                    elif len(key_rows) > 1:
-                        grouped_unit[col_idx].append(0.0)
+            act_col_indices = [idx for idx, _ in activity_labels]
+            unit_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, apto_filter)
+            if isinstance(axis_map.get("apto"), int):
+                unit_rows = _dedupe_percent_rows_drop_empty_siblings(
+                    unit_rows, axis_map, "apto", act_col_indices
+                )
             out = [""] * len(header)
             out[row_axis_col] = apto_filter
-            unit_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, apto_filter)
             for col_idx, _label in activity_labels:
-                out[col_idx] = _consolidated_display_for_column_rows(unit_rows, col_idx)
+                out[col_idx] = _consolidated_display_for_column_rows(
+                    unit_rows, col_idx, axis_map=axis_map
+                )
             processed_rows = [out]
 
         # Totais/KPIs: média simples de todas as células de atividade das unidades no recorte (Opção A).
@@ -985,8 +1118,11 @@ class AmbienteProvider:
             )
 
             aggregated_rows = []
+            act_col_indices = [idx for idx, _ in activity_labels]
             for key in axis_keys:
                 key_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, key)
+                if key_rows:
+                    _forward_fill_hierarchy_axes(key_rows, axis_map)
                 out = [""] * len(header)
                 out[row_axis_col] = key
                 for col_idx, _label in activity_labels:
@@ -997,16 +1133,26 @@ class AmbienteProvider:
                             {row_axis_key: key},
                             "pavimento",
                             col_idx,
+                            act_col_indices,
                         )
                         out[col_idx] = _consolidated_activity_cell_display(
                             values,
                             has_percent_units=bool(key_rows),
+                        )
+                    elif isinstance(axis_map.get("apto"), int):
+                        out[col_idx] = _consolidated_column_across_apto_units(
+                            key_rows,
+                            col_idx,
+                            axis_map,
+                            act_col_indices,
+                            infer_zero_for_empty=(row_mode_requested != "apto"),
                         )
                     else:
                         out[col_idx] = _consolidated_display_for_column_rows(
                             key_rows,
                             col_idx,
                             infer_zero_for_empty=(row_mode_requested != "apto"),
+                            axis_map=axis_map,
                         )
                 aggregated_rows.append(out)
             processed_rows = aggregated_rows

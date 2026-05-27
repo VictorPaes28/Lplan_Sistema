@@ -498,8 +498,130 @@ class MapaConsolidacaoPercentualTests(TestCase):
         pavs = [p.get("pavimento") for p in resp.context["layers"]["pavimentos"]]
         self.assertIn("Pavimento 01", pavs)
 
+    def test_pavimento_total_nao_zero_com_continuacao_e_varias_unidades(self):
+        """Pavimento: Total da linha = média das atividades exibidas, não 0 por dense_zero fantasma."""
+        ambiente_id = self._criar_ambiente_mapa("Total pavimento")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or detalhe.get("draft", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "Atividade 1", "Atividade 2", "Total"],
+            ["B1", "2º PAV", "101", "40%", "", ""],
+            ["", "", "", "", "20%", ""],
+            ["B1", "2º PAV", "102", "80%", "10%", ""],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "pivot_atividade_colunas",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3, 4],
+            "activity_headers_interpreted": ["Atividade 1", "Atividade 2"],
+            "row_axis_key": "bloco",
+        }
+        self._salvar_layout(ambiente_id, layout)
+        resp = self._abrir_mapa(ambiente_id, bloco="B1")
+        pav = next(r for r in resp.context["matrix"]["rows"] if r.get("row_label") == "2º PAV")
+        self.assertEqual(pav["cells"][0]["pct"], 60)
+        self.assertEqual(pav["cells"][1]["pct"], 15)
+        self.assertGreater(float(pav["total"]), 0)
+        self.assertAlmostEqual(float(pav["total"]), 37.5, places=1)
+
+    def test_linha_continuacao_importada_persiste_apos_salvar_rascunho(self):
+        """Linha de continuação (eixo vazio, % na coluna) não pode sumir do layout ao salvar."""
+        ambiente_id = self._criar_ambiente_mapa("Continuacao import")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or detalhe.get("draft", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "Atividade 1", "Atividade 2", "Total"],
+            ["B1", "2º PAV", "101", "50%", "", ""],
+            ["", "", "", "", "30%", ""],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "pivot_atividade_colunas",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3, 4],
+            "activity_headers_interpreted": ["Atividade 1", "Atividade 2"],
+            "row_axis_key": "bloco",
+        }
+        self._salvar_layout(ambiente_id, layout)
+        det2 = self._detalhe(ambiente_id)
+        layout2 = det2.get("draft", {}).get("layout") or det2.get("versao", {}).get("layout") or {}
+        rows = self._primeira_matriz_section(layout2)["data"]["rows"]
+        self.assertGreaterEqual(len(rows), 3, "Layout deve manter linha de continuação")
+        resp = self._abrir_mapa(ambiente_id, bloco="B1")
+        pav = next(r for r in resp.context["matrix"]["rows"] if r.get("row_label") == "2º PAV")
+        self.assertEqual(pav["cells"][0]["pct"], 50)
+        self.assertEqual(pav["cells"][1]["pct"], 30)
+
+    def test_chip_unidade_detalhe_nao_dilui_com_linhas_fantasma(self):
+        """Visão b1>p1>a1: 50% com 2 linhas vazias duplicadas → 50%, não 16,7% (50÷3)."""
+        ambiente_id = self._criar_ambiente_mapa("Chip detalhe A1")
+        self._aplicar_layout_manual(
+            ambiente_id,
+            [
+                ["Bloco A", "Pavimento 01", "A1", "50%", ""],
+                ["Bloco A", "Pavimento 01", "A1", "", ""],
+                ["Bloco A", "Pavimento 01", "A1", "", ""],
+            ],
+        )
+        resp_pav = self._abrir_mapa(ambiente_id, bloco="Bloco A", pavimento="Pavimento 01")
+        a1_lista = next(r for r in resp_pav.context["matrix"]["rows"] if r.get("row_label") == "A1")
+        self.assertEqual(a1_lista["cells"][0]["pct"], 50)
+        resp_det = self._abrir_mapa(
+            ambiente_id,
+            bloco="Bloco A",
+            pavimento="Pavimento 01",
+            apto="A1",
+        )
+        matrix = resp_det.context["matrix"]
+        self.assertTrue(matrix.get("unit_detail_view"))
+        self.assertEqual(len(matrix["rows"]), 1)
+        self.assertEqual(matrix["rows"][0]["cells"][0]["pct"], 50)
+        self.assertEqual(matrix["rows"][0]["total"], 50)
+
+    def test_linha_duplicada_vazia_mesmo_apto_nao_dilui_pavimento(self):
+        """Preset com linha fantasma do mesmo apto sem % não deve reduzir 50% para 25% no pavimento."""
+        ambiente_id = self._criar_ambiente_mapa("Fantasma apto")
+        self._aplicar_layout_manual(
+            ambiente_id,
+            [
+                ["Bloco A", "Pavimento 01", "A1", "50%", ""],
+                ["Bloco A", "Pavimento 01", "A1", "", ""],
+            ],
+        )
+        resp_pav = self._abrir_mapa(ambiente_id, bloco="Bloco A")
+        pav = next(r for r in resp_pav.context["matrix"]["rows"] if r.get("row_label") == "Pavimento 01")
+        self.assertEqual(pav["cells"][0]["pct"], 50)
+        resp_apto = self._abrir_mapa(ambiente_id, bloco="Bloco A", pavimento="Pavimento 01")
+        a1 = next(r for r in resp_apto.context["matrix"]["rows"] if r.get("row_label") == "A1")
+        self.assertEqual(a1["cells"][0]["pct"], 50)
+
+    def test_apto_unico_50_por_cento_nao_reconsolida_para_25(self):
+        """Uma UND com 50% em uma coluna: visão apto mantém 50%; pavimento consolida 50%, não 25%."""
+        ambiente_id = self._criar_ambiente_mapa("Apto unico 50")
+        self._aplicar_layout_manual(
+            ambiente_id,
+            [
+                ["Bloco A", "Pavimento 01", "A1", "50%", ""],
+            ],
+        )
+        resp_apto = self._abrir_mapa(ambiente_id, bloco="Bloco A", pavimento="Pavimento 01")
+        matrix_apto = resp_apto.context["matrix"]
+        self.assertEqual(matrix_apto.get("mode"), "apto")
+        a1 = next(r for r in matrix_apto["rows"] if r.get("row_label") == "A1")
+        self.assertEqual(a1["cells"][0]["pct"], 50)
+        self.assertEqual(a1["total"], 50)
+        resp_pav = self._abrir_mapa(ambiente_id, bloco="Bloco A")
+        pav = next(r for r in resp_pav.context["matrix"]["rows"] if r.get("row_label") == "Pavimento 01")
+        self.assertEqual(pav["cells"][0]["pct"], 50)
+        self.assertEqual(pav["total"], 50)
+
     def test_varias_linhas_mesmo_apto_media_na_coluna_do_pavimento(self):
-        """Várias linhas de serviço do mesmo apto na mesma coluna → média no pavimento."""
+        """Mesmo apto: média na coluna por unidade, depois média entre unidades (50% e 100% → 75%)."""
         ambiente_id = self._criar_ambiente_mapa("Multi linha apto")
         self._aplicar_layout_manual(
             ambiente_id,
@@ -511,8 +633,8 @@ class MapaConsolidacaoPercentualTests(TestCase):
         )
         resp = self._abrir_mapa(ambiente_id, bloco="Bloco A")
         pav = next(r for r in resp.context["matrix"]["rows"] if r.get("row_label") == "Pavimento 01")
-        self.assertAlmostEqual(float(pav["cells"][0]["pct"]), 66.7, places=1)
-        self.assertAlmostEqual(float(pav["total"]), 66.7, places=1)
+        self.assertAlmostEqual(float(pav["cells"][0]["pct"]), 75.0, places=1)
+        self.assertAlmostEqual(float(pav["total"]), 75.0, places=1)
 
     def test_linha_continuacao_sem_apto_herda_e_entra_na_media(self):
         ambiente_id = self._criar_ambiente_mapa("Continuacao apto")

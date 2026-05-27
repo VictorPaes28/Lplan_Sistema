@@ -1040,15 +1040,61 @@
     return hasAxis;
   }
 
+  function layoutRowHasActivityLaunch(row, activityCols) {
+    if (!Array.isArray(row) || !activityCols.length) return false;
+    return activityCols.some(
+      (ci) => Number.isInteger(ci) && ci < row.length && String(row[ci] || "").trim(),
+    );
+  }
+
+  /**
+   * Espelha mapa_controle_viewmodel._forward_fill_hierarchy_axes — linhas de continuação da
+   * importação (eixo vazio, % nas colunas) precisam herdar bloco/pavimento/apto antes do purge.
+   */
+  function forwardFillHierarchyAxesInLayout(data, axisMap) {
+    if (!data || !Array.isArray(data.rows) || data.rows.length < 2) return;
+    const chain = ["setor", "bloco", "pavimento", "apto"];
+    const last = { setor: "", bloco: "", pavimento: "", apto: "" };
+    for (let ri = 1; ri < data.rows.length; ri += 1) {
+      const row = data.rows[ri];
+      if (!Array.isArray(row)) continue;
+      chain.forEach((key) => {
+        const idx = axisMap[key];
+        if (!Number.isInteger(idx)) return;
+        while (row.length <= idx) row.push("");
+        const val = String(row[idx] || "").trim();
+        if (val) {
+          if (key === "setor" && val !== last.setor) {
+            last.bloco = "";
+            last.pavimento = "";
+            last.apto = "";
+          } else if (key === "bloco" && val !== last.bloco) {
+            last.pavimento = "";
+            last.apto = "";
+          } else if (key === "pavimento" && val !== last.pavimento) {
+            last.apto = "";
+          }
+          last[key] = val;
+        } else if (last[key]) {
+          row[idx] = last[key];
+        }
+      });
+    }
+  }
+
   function purgeInvalidStructuralLayoutRows(data, axisMap) {
     if (!data || !Array.isArray(data.rows) || data.rows.length < 2) return;
     const header = data.rows[0];
+    const meta = data.importMeta && typeof data.importMeta === "object" ? data.importMeta : {};
+    const activityCols = activityColsFromMeta(meta, header ? header.length : 0);
     const kept = [header];
     for (let ri = 1; ri < data.rows.length; ri += 1) {
       const row = data.rows[ri];
       if (!Array.isArray(row)) continue;
       if (layoutRowHasPlaceholderLabel(row, axisMap)) continue;
-      if (isStructuralGhostLayoutRow(row, axisMap)) continue;
+      if (isStructuralGhostLayoutRow(row, axisMap) && !layoutRowHasActivityLaunch(row, activityCols)) {
+        continue;
+      }
       kept.push(row);
     }
     data.rows = kept;
@@ -1093,6 +1139,44 @@
         }
       }
       if (siblingWithUnit) remove.push(ri);
+    }
+    remove.sort((a, b) => b - a).forEach((ri) => data.rows.splice(ri, 1));
+  }
+
+  /** Remove linha duplicada do mesmo apto sem % quando já existe irmã com lançamento (evita média 50%→25%). */
+  function purgeDuplicateAptoRowsWithoutActivity(data, axisMap) {
+    if (!data || !Array.isArray(data.rows) || data.rows.length < 2) return;
+    const aptoIdx = axisMap.apto;
+    if (!Number.isInteger(aptoIdx)) return;
+    const meta = data.importMeta && typeof data.importMeta === "object" ? data.importMeta : {};
+    const activityCols = activityColsFromMeta(meta, data.rows[0] ? data.rows[0].length : 0);
+    const hasActivity = (row) =>
+      activityCols.some((ci) => Array.isArray(row) && ci < row.length && String(row[ci] || "").trim());
+    const parentKey = (row) => {
+      const parts = [];
+      ["bloco", "pavimento", "apto"].forEach((key) => {
+        const idx = axisMap[key];
+        if (Number.isInteger(idx) && Array.isArray(row) && idx < row.length) {
+          parts.push(String(row[idx] || "").trim());
+        }
+      });
+      return parts.join("|");
+    };
+    const remove = [];
+    for (let ri = 1; ri < data.rows.length; ri += 1) {
+      const row = data.rows[ri];
+      if (!Array.isArray(row) || !String(row[aptoIdx] || "").trim() || hasActivity(row)) continue;
+      const pk = parentKey(row);
+      if (!pk) continue;
+      for (let rj = 1; rj < data.rows.length; rj += 1) {
+        if (rj === ri) continue;
+        const other = data.rows[rj];
+        if (!Array.isArray(other) || parentKey(other) !== pk) continue;
+        if (hasActivity(other)) {
+          remove.push(ri);
+          break;
+        }
+      }
     }
     remove.sort((a, b) => b - a).forEach((ri) => data.rows.splice(ri, 1));
   }
@@ -1994,8 +2078,10 @@
       cellPatchStats.aptoPercentExpected += patchMerge.aptoPercentExpected || 0;
       cellPatchStats.aptoPercentMissed += patchMerge.aptoPercentMissed || 0;
 
+      forwardFillHierarchyAxesInLayout(data, axisMap);
       purgeInvalidStructuralLayoutRows(data, axisMap);
       purgeRedundantEmptyUnitSlots(data, axisMap);
+      purgeDuplicateAptoRowsWithoutActivity(data, axisMap);
 
       poMapaDebug("merge layout seção", {
         rowsAntes: rowsBefore,
@@ -2876,7 +2962,9 @@
         rememberCellPatch(inline.cell, inline.key, nextText);
         if (hasChanged) {
           markDirty();
-          if (patchKindForCell(inline.cell) === "percent") refreshMatrixTotalsDisplay();
+        }
+        if (patchKindForCell(inline.cell) === "percent") {
+          refreshMatrixTotalsDisplay();
         }
       }
       if (inpText && state.selectedCell === inline.cell) {
@@ -4022,7 +4110,10 @@
       if (!doc) return;
       const active = doc.activeElement;
       if (active !== state.inline.node) {
+        const wasPercent =
+          state.inline.cell && patchKindForCell(state.inline.cell) === "percent";
         finishInlineEdit({ commit: true });
+        if (wasPercent) refreshMatrixTotalsDisplay();
       }
     }, 0);
   }

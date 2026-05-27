@@ -5,8 +5,6 @@ Rodar: python manage.py test suprimentos.tests.test_analise_obra -v 2
 """
 
 from datetime import date
-from decimal import Decimal
-
 from django.contrib.auth.models import Group
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -15,7 +13,6 @@ from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
 
 from core.models import Project, ProjectMember
-from suprimentos.models import ItemMapaServico
 from suprimentos.services import analise_obra_service as analise_obra_service_mod
 from suprimentos.services.analise_obra_service import (
     AnaliseObraFilters,
@@ -23,26 +20,18 @@ from suprimentos.services.analise_obra_service import (
     AnaliseObraService,
     _classify_occurrence_severity,
 )
+from suprimentos.tests.test_analise_obra_ambiente import _criar_ambiente_mapa
 
 
 class TestAnaliseObraService(TestCase):
     def setUp(self):
         self.obra = Obra.objects.create(codigo_sienge="TST-ANL", nome="Obra Análise", ativa=True)
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="k1",
-            atividade="Armação",
-            bloco="B1",
-            pavimento="3",
-            status_percentual=Decimal("0.25"),
-        )
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="k2",
-            atividade="Concreto",
-            bloco="B1",
-            pavimento="3",
-            status_percentual=Decimal("0.80"),
+        _criar_ambiente_mapa(
+            self.obra,
+            [
+                ["BLOCO", "PAVIMENTO", "APTO", "Armação", "Concreto", "Total"],
+                ["B1", "3", "U1", "25%", "80%", "52.5"],
+            ],
         )
 
     def test_payload_contem_tres_origens_e_heatmap(self):
@@ -56,7 +45,7 @@ class TestAnaliseObraService(TestCase):
         self.assertIn("suprimentos", out)
         self.assertIn("diario", out)
         self.assertIn("heatmap", out)
-        self.assertEqual(out["controle"]["origem"], "mapa_controle_execucao")
+        self.assertEqual(out["controle"]["origem"], "mapa_controle_ambiente")
         self.assertIn("ranking_progressao_meta", out["controle"])
         self.assertIn("progressao_eixos_completo", out["controle"])
         c = out["controle"]
@@ -82,35 +71,38 @@ class TestAnaliseObraService(TestCase):
         svc2 = AnaliseObraService(self.obra, periodo=p, filtros=f2)
         out2 = svc2.build_payload()
         self.assertEqual(out2["controle"]["kpis"]["total_itens"], 2)
+        self.assertAlmostEqual(out2["controle"]["kpis"]["percentual_medio"], 52.5, places=1)
 
-    def test_filtro_status_servico_considera_percentual_0_100_e_0_1(self):
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="k3",
-            atividade="Pintura",
-            bloco="B2",
-            pavimento="1",
-            status_percentual=Decimal("100"),
+    def test_filtro_status_servico_por_coluna_total(self):
+        _criar_ambiente_mapa(
+            self.obra,
+            [
+                ["BLOCO", "PAVIMENTO", "APTO", "Pintura", "Total"],
+                ["B1", "3", "U1", "25%", "52.5"],
+                ["B2", "1", "U2", "100%", "100"],
+            ],
+            nome="Mapa status filtro",
+            replace_existing=True,
         )
         p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
 
         svc_andamento = AnaliseObraService(self.obra, periodo=p, filtros=AnaliseObraFilters(status_servico="em_andamento"))
         out_andamento = svc_andamento.build_payload()
-        self.assertEqual(out_andamento["controle"]["kpis"]["total_itens"], 2)
+        self.assertEqual(out_andamento["controle"]["kpis"]["total_itens"], 1)
 
         svc_concluido = AnaliseObraService(self.obra, periodo=p, filtros=AnaliseObraFilters(status_servico="concluido"))
         out_concluido = svc_concluido.build_payload()
         self.assertEqual(out_concluido["controle"]["kpis"]["total_itens"], 1)
 
-    def test_status_texto_andando_parado_gera_avanco_e_em_andamento(self):
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="k4",
-            atividade="Instalação",
-            bloco="D",
-            pavimento="2",
-            status_percentual=None,
-            status_texto="Andando / parado",
+    def test_apto_em_andamento_aparece_no_ranking(self):
+        _criar_ambiente_mapa(
+            self.obra,
+            [
+                ["BLOCO", "PAVIMENTO", "APTO", "Instalação", "Total"],
+                ["D", "2", "U9", "50%", "50"],
+            ],
+            nome="Mapa em andamento",
+            replace_existing=True,
         )
         p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
         out = AnaliseObraService(self.obra, periodo=p).build_payload()
@@ -118,31 +110,17 @@ class TestAnaliseObraService(TestCase):
         blocos = out["controle"]["blocos_mais_atrasados"]
         self.assertTrue(any(b["bloco"] == "D" and b["percentual_medio"] > 0 for b in blocos))
 
-    def test_blocos_mais_atrasados_usam_rotulo_mais_frequente_no_banco(self):
-        """Agrupa por _norm_key, mas expõe o texto de bloco mais comum (filtro exato no mapa)."""
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="kmix1",
-            atividade="X",
-            bloco="d",
-            pavimento="9",
-            status_percentual=Decimal("0.05"),
-        )
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="kmix2",
-            atividade="Y",
-            bloco="d",
-            pavimento="9",
-            status_percentual=Decimal("0.05"),
-        )
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="kmix3",
-            atividade="Z",
-            bloco="D",
-            pavimento="9",
-            status_percentual=Decimal("0.05"),
+    def test_blocos_mais_atrasados_usam_rotulo_mais_frequente(self):
+        _criar_ambiente_mapa(
+            self.obra,
+            [
+                ["BLOCO", "PAVIMENTO", "APTO", "Ativ", "Total"],
+                ["d", "9", "A", "", "5"],
+                ["d", "9", "B", "", "5"],
+                ["D", "9", "C", "", "5"],
+            ],
+            nome="Mapa votos bloco",
+            replace_existing=True,
         )
         p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
         out = AnaliseObraService(self.obra, periodo=p).build_payload()
@@ -152,24 +130,15 @@ class TestAnaliseObraService(TestCase):
         self.assertEqual(row["amostras"], 3)
 
     def test_dois_setores_mesmo_codigo_bloco_geram_duas_linhas_no_ranking(self):
-        """Com 2+ setores, não mistura médias de torres que repetem a mesma letra de bloco."""
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="t1d",
-            setor="Torre A",
-            atividade="Alvenaria",
-            bloco="D",
-            pavimento="1",
-            status_percentual=Decimal("0.10"),
-        )
-        ItemMapaServico.objects.create(
-            obra=self.obra,
-            chave_uid="t2d",
-            setor="Torre B",
-            atividade="Alvenaria",
-            bloco="D",
-            pavimento="1",
-            status_percentual=Decimal("0.90"),
+        _criar_ambiente_mapa(
+            self.obra,
+            [
+                ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "Ativ", "Total"],
+                ["Torre A", "D", "1", "101", "", "10"],
+                ["Torre B", "D", "1", "102", "", "90"],
+            ],
+            nome="Mapa dois setores",
+            replace_existing=True,
         )
         p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
         out = AnaliseObraService(self.obra, periodo=p).build_payload()
@@ -250,6 +219,15 @@ class TestAnaliseObraApi(TestCase):
         self.assertIn("data", data)
 
     def test_drilldown_api(self):
+        _criar_ambiente_mapa(
+            self.obra,
+            [
+                ["BLOCO", "PAVIMENTO", "APTO", "Ativ", "Total"],
+                ["B1", "1", "101", "", "40"],
+            ],
+            nome="Mapa drill API",
+            replace_existing=True,
+        )
         self.client.login(username="u_analise", password="senha123")
         url = (
             reverse("suprimentos:analise_obra_drilldown_api")

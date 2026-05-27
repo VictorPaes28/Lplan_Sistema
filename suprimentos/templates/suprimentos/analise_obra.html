@@ -914,13 +914,18 @@ html, body {
         <div class="sec-title"><div class="sec-num">1</div>Execução física</div>
         <div class="sec-right"><div class="sec-source">Mapa de Controle</div></div>
       </div>
+      {% if analise_payload.controle.sem_dados %}
+      <div class="sem-dados-msg" style="margin-bottom:14px;padding:14px 16px;border-radius:10px;background:var(--bi-yellow-bg);border:1px solid var(--bi-yellow);color:var(--bi-text);font-size:12.5px">
+        {{ analise_payload.controle.mensagem }}
+      </div>
+      {% endif %}
       <div class="grid-3">
         {% if analise_payload %}
         {% with pct=analise_payload.controle.kpis.percentual_medio|default:0 %}
         <div class="card">
           <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
           <div class="big-num {% if pct >= 60 %}green{% elif pct >= 30 %}yellow{% else %}red{% endif %}">{{ pct|floatformat:1 }}%</div>
-          <div class="big-sub">média dos itens do mapa de serviço</div>
+          <div class="big-sub">média das células de atividade do mapa (regra do mapa clássico)</div>
           <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill {% if pct >= 60 %}green{% elif pct >= 30 %}yellow{% else %}red{% endif %}" style="width:{{ pct|floatformat:1 }}%"></div></div></div>
           <div class="chips" style="margin-top:12px">
             <div class="chip chip-green">✓ {{ analise_payload.controle.kpis.concluidos|default:0 }} concluídos</div>
@@ -953,7 +958,7 @@ html, body {
         <div class="card">
           <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
           <div class="big-num yellow">38,5%</div>
-          <div class="big-sub">média dos itens do mapa de serviço</div>
+          <div class="big-sub">média das células de atividade do mapa (regra do mapa clássico)</div>
           <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill yellow" style="width:38.5%"></div></div></div>
           <div class="chips" style="margin-top:12px">
             <div class="chip chip-green">✓ 142 concluídos</div>

@@ -1,7 +1,7 @@
 """
 Agregação para a página **Análise da Obra**: separa semanticamente três fontes:
 
-- **controle** — `ItemMapaServico` (avanço físico / hierarquia da obra).
+- **controle** — `AmbienteVersao.layout` (mapa de controle por ambiente operacional da obra).
 - **suprimentos** — `ItemMapa` via `MapaControleService` (pipeline SC/PC/entrega/alocação).
 - **diario** — `ConstructionDiary` + `DiaryOccurrence` (fatos e ocorrências).
 
@@ -25,8 +25,12 @@ from django.utils import timezone
 
 from core.models import ConstructionDiary, DiaryOccurrence, DiaryStatus, OccurrenceTag, Project
 from mapa_obras.models import Obra
-from suprimentos.models import ItemMapaServico
 from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
+from suprimentos.services.mapa_controle_viewmodel import (
+    _append_pct_for_average,
+    _cell_pct_for_average,
+    _is_total_header_label,
+)
 
 
 def _norm_key(value: object) -> str:
@@ -134,35 +138,6 @@ def _representative_setor_bloco_from_votes(
     return rotulo, "", ""
 
 
-def _status_to_ratio(item: ItemMapaServico) -> float | None:
-    if item.status_percentual is not None:
-        try:
-            value = float(item.status_percentual)
-        except (TypeError, ValueError):
-            value = None
-        if value is not None:
-            if value > 1:
-                value = value / 100.0
-            return max(0.0, min(1.0, value))
-    txt = (item.status_texto or "").strip().lower()
-    if not txt:
-        return None
-    if "conclu" in txt or "final" in txt or "entreg" in txt or "feito" in txt or "ok" == txt:
-        return 1.0
-    if (
-        "exec" in txt
-        or "andamento" in txt
-        or "andando" in txt
-        or "parcial" in txt
-        or "iniciad" in txt
-        or "parado" in txt
-    ):
-        return 0.5
-    if "nao" in txt or "não" in txt or "pend" in txt or "aguard" in txt or "bloq" in txt:
-        return 0.0
-    return None
-
-
 def _resolve_project_for_obra(obra: Obra) -> Project | None:
     codes = {obra.codigo_sienge.strip()}
     raw = (obra.codigos_sienge_alternativos or "").strip()
@@ -215,6 +190,107 @@ def _criticidade_from_pct(pct: float | None) -> str:
     if pct < 75:
         return "media"
     return "baixa"
+
+
+def _norm_header_col(value: object) -> str:
+    text = (str(value or "")).strip().upper()
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKD", text).encode("ASCII", "ignore").decode("ASCII")
+    return " ".join(text.split())
+
+
+def _find_header_col(header: list, *tokens: str) -> int | None:
+    wanted = {_norm_header_col(t) for t in tokens if t}
+    for idx, cell in enumerate(header):
+        hn = _norm_header_col(cell)
+        if not hn:
+            continue
+        if hn in wanted:
+            return idx
+        for w in wanted:
+            if w and w in hn:
+                return idx
+    return None
+
+
+def _parse_layout_matrix_rows(layout: dict | None) -> list[list[str]]:
+    if not isinstance(layout, dict):
+        return []
+    sections = layout.get("sections")
+    if not isinstance(sections, list):
+        return []
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        if str(section.get("kind") or "").strip() not in {"matrix_table", "table"}:
+            continue
+        data = section.get("data") if isinstance(section.get("data"), dict) else {}
+        rows = data.get("rows")
+        if not isinstance(rows, list) or not rows:
+            continue
+        out: list[list[str]] = []
+        for row in rows:
+            if isinstance(row, list):
+                out.append([str(c or "").strip() for c in row])
+            else:
+                out.append([str(row or "").strip()])
+        return out
+    return []
+
+
+def _parse_total_pct_cell(value: object) -> float | None:
+    parsed = _cell_pct_for_average(value)
+    if parsed is None:
+        return None
+    try:
+        return float(parsed)
+    except (TypeError, ValueError):
+        return None
+
+
+def _collect_activity_pcts_from_values(atividades: dict[str, str] | None) -> list[float]:
+    """
+    Mesma regra do mapa clássico (AmbienteProvider): cada célula de atividade preenchida
+  entra na média; vazio → 0%; \"-\" / N/A não entra no denominador.
+    """
+    bucket: list[float] = []
+    acts = atividades if isinstance(atividades, dict) else {}
+    for val in acts.values():
+        _append_pct_for_average(bucket, val)
+    return bucket
+
+
+def _avg_pct_from_activity_values(atividades: dict[str, str] | None) -> float:
+    values = _collect_activity_pcts_from_values(atividades)
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 2)
+
+
+def _collect_all_activity_pcts_from_rows(rows: list[dict[str, Any]]) -> list[float]:
+    out: list[float] = []
+    for row in rows:
+        out.extend(_collect_activity_pcts_from_values(row.get("atividades")))
+    return out
+
+
+def _apto_status_bucket(total_pct: float) -> str:
+    if total_pct >= 100.0 or total_pct >= 99.9:
+        return "concluido"
+    if total_pct <= 0.0:
+        return "nao_iniciado"
+    return "em_andamento"
+
+
+def _activity_cell_ratio(value: object) -> float | None:
+    parsed = _parse_total_pct_cell(value)
+    if parsed is None:
+        return None
+    return max(0.0, min(1.0, parsed / 100.0))
+
+
+MENSAGEM_CONTROLE_SEM_MAPA = "Nenhum mapa de controle criado para esta obra"
 
 
 # Frases que não devem disparar nível máximo (prevenção / ausência de evento).
@@ -477,35 +553,254 @@ class AnaliseObraService:
         else:
             self.periodo = AnaliseObraPeriodo(data_inicio=today - timedelta(days=30), data_fim=today)
         self.filtros = filtros or AnaliseObraFilters()
+        self._controle_bundle_cache: dict[str, Any] | None = None
 
-    def controle_base_queryset(self):
-        qs = ItemMapaServico.objects.filter(obra=self.obra)
+    def controle_ambiente_cache_stamp(self) -> str:
+        """Carimbo para invalidar cache do BI quando o ambiente de mapa for editado."""
+        bundle = self._load_controle_bundle()
+        if not bundle:
+            return "sem_mapa"
+        updated = bundle.get("ambiente_updated_at")
+        ambiente_id = bundle.get("ambiente_id")
+        if updated is not None:
+            try:
+                return f"{ambiente_id}:{updated.isoformat()}"
+            except AttributeError:
+                return f"{ambiente_id}:{updated}"
+        return f"{ambiente_id}:0"
+
+    def _load_controle_bundle(self) -> dict[str, Any] | None:
+        if self._controle_bundle_cache is not None:
+            return self._controle_bundle_cache
+        self._controle_bundle_cache = self.controle_base_from_ambiente(self.obra)
+        return self._controle_bundle_cache
+
+    def controle_base_from_ambiente(self, obra: Obra) -> dict[str, Any] | None:
+        from painel_operacional.models import AmbienteOperacional, AmbienteTipo, AmbienteVersao, VersaoEstado
+
+        ambiente = (
+            AmbienteOperacional.objects.filter(
+                obra_id=obra.id,
+                tipo=AmbienteTipo.MAPA_CONTROLE,
+                ativo=True,
+            )
+            .order_by("-updated_at")
+            .first()
+        )
+        if not ambiente:
+            return None
+
+        versao = (
+            ambiente.versoes.filter(estado=VersaoEstado.DRAFT).order_by("-numero").first()
+        )
+        if not versao:
+            versao = (
+                ambiente.versoes.filter(estado=VersaoEstado.PUBLISHED).order_by("-numero").first()
+            )
+        if not versao:
+            return None
+
+        rows = self._parse_layout_rows(versao.layout if isinstance(versao.layout, dict) else {})
+        return {
+            "ambiente_id": ambiente.id,
+            "ambiente_updated_at": ambiente.updated_at,
+            "rows": rows,
+        }
+
+    def _parse_layout_rows(self, layout: dict) -> list[dict[str, Any]]:
+        matrix = _parse_layout_matrix_rows(layout)
+        if not matrix:
+            return []
+
+        header = matrix[0]
+        idx_setor = _find_header_col(header, "SETOR", "REGIAO")
+        idx_bloco = _find_header_col(header, "BLOCO", "TORRE", "LOCAL")
+        idx_pav = _find_header_col(header, "PAVIMENTO", "PAV", "ANDAR", "NIVEL")
+        idx_apto = _find_header_col(header, "APTO", "UNIDADE", "UND", "LOCAL")
+
+        idx_total = None
+        for idx, cell in enumerate(header):
+            if _is_total_header_label(str(cell or "")):
+                idx_total = idx
+                break
+        if idx_total is None and len(header) > 0:
+            idx_total = len(header) - 1
+
+        axis_max = max(
+            [i for i in (idx_setor, idx_bloco, idx_pav, idx_apto) if isinstance(i, int)],
+            default=-1,
+        )
+        activity_cols: list[tuple[int, str]] = []
+        for idx in range(axis_max + 1, len(header)):
+            if idx == idx_total:
+                continue
+            label = str(header[idx] or "").strip() or f"Atividade {idx}"
+            if _is_total_header_label(label):
+                continue
+            activity_cols.append((idx, label))
+
+        parsed: list[dict[str, Any]] = []
+        for row in matrix[1:]:
+            if not row:
+                continue
+            while len(row) < len(header):
+                row.append("")
+
+            apto = (
+                str(row[idx_apto] if isinstance(idx_apto, int) and idx_apto < len(row) else "")
+                .strip()
+            )
+            if not apto:
+                continue
+
+            setor = (
+                str(row[idx_setor] if isinstance(idx_setor, int) and idx_setor < len(row) else "")
+                .strip()
+            )
+            bloco = (
+                str(row[idx_bloco] if isinstance(idx_bloco, int) and idx_bloco < len(row) else "")
+                .strip()
+            )
+            pavimento = (
+                str(row[idx_pav] if isinstance(idx_pav, int) and idx_pav < len(row) else "")
+                .strip()
+            )
+
+            atividades: dict[str, str] = {}
+            for col_idx, col_name in activity_cols:
+                if col_idx < len(row):
+                    atividades[col_name] = str(row[col_idx] or "").strip()
+
+            # Ignora Total gravado no JSON — recalcula como média das colunas de atividade (mapa clássico).
+            total_pct = _avg_pct_from_activity_values(atividades)
+
+            parsed.append(
+                {
+                    "setor": setor,
+                    "bloco": bloco,
+                    "pavimento": pavimento,
+                    "apto": apto,
+                    "total_pct": total_pct,
+                    "atividades": atividades,
+                    "activity_pcts": _collect_activity_pcts_from_values(atividades),
+                }
+            )
+        return parsed
+
+    def _filter_controle_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         f = self.filtros
-        if f.setor:
-            qs = qs.filter(setor=f.setor)
-        if f.bloco:
-            qs = qs.filter(bloco=f.bloco)
-        if f.pavimento:
-            qs = qs.filter(pavimento=f.pavimento)
-        if f.apto:
-            qs = qs.filter(apto=f.apto)
-        if f.atividade:
-            qs = qs.filter(Q(atividade__icontains=f.atividade) | Q(grupo_servicos__icontains=f.atividade))
-        if f.status_servico in {"concluido", "em_andamento", "nao_iniciado"}:
-            # Filtra por status em Python para suportar fontes com percentual em 0-1 e 0-100.
-            matched_ids: list[int] = []
-            for item in qs.only("id", "status_percentual", "status_texto"):
-                ratio = _status_to_ratio(item)
-                if ratio is None:
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            if f.setor and (row.get("setor") or "").strip() != f.setor.strip():
+                continue
+            if f.bloco and (row.get("bloco") or "").strip() != f.bloco.strip():
+                continue
+            if f.pavimento and (row.get("pavimento") or "").strip() != f.pavimento.strip():
+                continue
+            if f.apto and (row.get("apto") or "").strip() != f.apto.strip():
+                continue
+            if f.atividade:
+                needle = f.atividade.strip().lower()
+                acts = row.get("atividades") if isinstance(row.get("atividades"), dict) else {}
+                if not any(needle in str(k).lower() or needle in str(v).lower() for k, v in acts.items()):
                     continue
-                if f.status_servico == "concluido" and ratio >= 0.999:
-                    matched_ids.append(item.id)
-                elif f.status_servico == "em_andamento" and 0.0 < ratio < 0.999:
-                    matched_ids.append(item.id)
-                elif f.status_servico == "nao_iniciado" and ratio <= 0.0:
-                    matched_ids.append(item.id)
-            qs = qs.filter(id__in=matched_ids) if matched_ids else qs.none()
-        return qs
+            if f.status_servico in {"concluido", "em_andamento", "nao_iniciado"}:
+                bucket = _apto_status_bucket(float(row.get("total_pct") or 0))
+                if bucket != f.status_servico:
+                    continue
+            out.append(row)
+        return out
+
+    def _controle_sem_dados_payload(self, mensagem: str | None = None) -> dict[str, Any]:
+        return {
+            "sem_dados": True,
+            "mensagem": mensagem or MENSAGEM_CONTROLE_SEM_MAPA,
+            "origem": "mapa_controle_ambiente",
+            "descricao_curta": "Progressão física a partir do mapa de controle do ambiente operacional.",
+            "agrupamento_eixo": "bloco",
+            "ranking_progressao_meta": {
+                "eixos_listados": 0,
+                "eixos_com_medicao": 0,
+                "eixos_lista_completa": 0,
+                "limite_ranking": 16,
+                "lista_completa_cortada": False,
+            },
+            "kpis": {
+                "total_itens": 0,
+                "percentual_medio": None,
+                "concluidos": 0,
+                "em_andamento": 0,
+                "nao_iniciados": 0,
+            },
+            "blocos_mais_atrasados": [],
+            "progressao_eixos_completo": [],
+            "blocos_mais_avancados": [],
+        }
+
+    def _build_controle_ranking_rows(
+        self, rows: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], bool]:
+        setores_ns = {_norm_key(r.get("setor")) for r in rows if (str(r.get("setor") or "")).strip()}
+        use_setor_grupo = len(setores_ns) >= 2
+
+        by_eixo: dict[str, list[float]] = {}
+        pair_votes: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
+
+        for row in rows:
+            cell_values = row.get("activity_pcts")
+            if not isinstance(cell_values, list) or not cell_values:
+                cell_values = _collect_activity_pcts_from_values(row.get("atividades"))
+            if not cell_values:
+                continue
+            sn = _norm_key(row.get("setor"))
+            bn = _norm_key(row.get("bloco")) or "SEM BLOCO"
+            raw_s = (str(row.get("setor") or "")).strip()
+            raw_b = (str(row.get("bloco") or "")).strip()
+
+            if use_setor_grupo:
+                sn_g = sn if sn else "SEM SETOR"
+                gkey = f"{sn_g}{EIXO_SETOR_BLOCO_SEP}{bn}"
+            else:
+                gkey = bn
+
+            by_eixo.setdefault(gkey, []).extend(float(v) for v in cell_values)
+            if use_setor_grupo:
+                if raw_s or raw_b:
+                    pair_votes[gkey][(raw_s, raw_b)] += 1
+            elif raw_b:
+                pair_votes[gkey][("", raw_b)] += 1
+
+        bloco_scores: list[dict[str, Any]] = []
+        for gkey, values in by_eixo.items():
+            if not values:
+                continue
+            avg = sum(values) / len(values)
+            if use_setor_grupo:
+                sk, bk = gkey.split(EIXO_SETOR_BLOCO_SEP, 1)
+            else:
+                sk, bk = "", gkey
+
+            votes = pair_votes.get(gkey, Counter())
+            rotulo, rs, rb = _representative_setor_bloco_from_votes(votes, sk, bk)
+            if not rb:
+                rb = _representative_bloco_label(bk, _pair_votes_to_bloco_counter(votes))
+
+            setor_norm_out = ""
+            if use_setor_grupo and sk and sk != "SEM SETOR":
+                setor_norm_out = sk
+
+            bloco_scores.append(
+                {
+                    "rotulo": rotulo,
+                    "setor": rs,
+                    "bloco": rb,
+                    "setor_norm": setor_norm_out,
+                    "bloco_norm": bk,
+                    "percentual_medio": round(avg, 1),
+                    "amostras": len(values),
+                }
+            )
+        return bloco_scores, use_setor_grupo
 
     def _build_gestcontroll(self) -> dict[str, Any]:
         """Pedidos / aprovações (GestControll) para a obra do mapa e o período do BI."""
@@ -778,12 +1073,22 @@ class AnaliseObraService:
 
     def build_filtros_payload(self) -> dict[str, Any]:
         """Opções de dropdown e valores aplicados (para UI e API)."""
-        base = ItemMapaServico.objects.filter(obra=self.obra)
-        setores = list(base.exclude(setor="").values_list("setor", flat=True).distinct().order_by("setor")[:120])
-        blocos = list(base.exclude(bloco="").values_list("bloco", flat=True).distinct().order_by("bloco")[:120])
-        pavs = list(base.exclude(pavimento="").values_list("pavimento", flat=True).distinct().order_by("pavimento")[:80])
-        aptos = list(base.exclude(apto="").values_list("apto", flat=True).distinct().order_by("apto")[:200])
-        atividades = list(base.values_list("atividade", flat=True).distinct().order_by("atividade")[:200])
+        bundle = self._load_controle_bundle()
+        base_rows = bundle.get("rows", []) if bundle else []
+        setores = sorted({(r.get("setor") or "").strip() for r in base_rows if (r.get("setor") or "").strip()})[:120]
+        blocos = sorted({(r.get("bloco") or "").strip() for r in base_rows if (r.get("bloco") or "").strip()})[:120]
+        pavs = sorted(
+            {(r.get("pavimento") or "").strip() for r in base_rows if (r.get("pavimento") or "").strip()}
+        )[:80]
+        aptos = sorted({(r.get("apto") or "").strip() for r in base_rows if (r.get("apto") or "").strip()})[:200]
+        atividades_set: set[str] = set()
+        for r in base_rows:
+            acts = r.get("atividades") if isinstance(r.get("atividades"), dict) else {}
+            for name in acts:
+                label = str(name or "").strip()
+                if label:
+                    atividades_set.add(label)
+        atividades = sorted(atividades_set)[:200]
 
         mcf = MapaControleService(obra=self.obra, filters=MapaControleFilters(limit=1)).build_summary_payload()
         filt_sup = mcf.get("filtros") or {}
@@ -938,59 +1243,74 @@ class AnaliseObraService:
         bloco = (bloco or "").strip()
         pavimento = (pavimento or "").strip()
         setor = (setor or "").strip()
-        qs = self.controle_base_queryset().filter(bloco=bloco)
-        if setor:
-            qs = qs.filter(setor=setor)
-        if pavimento:
-            qs = qs.filter(pavimento=pavimento)
 
-        itens = list(
-            qs.order_by("apto", "atividade").values(
-                "atividade",
-                "apto",
-                "pavimento",
-                "status_texto",
-                "status_percentual",
-                "observacao",
-            )[:80]
-        )
-        def _row_ratio(row: dict[str, Any]) -> float | None:
-            sp = row.get("status_percentual")
-            if sp is not None:
-                try:
-                    v = float(sp)
-                    if v > 1:
-                        v = v / 100.0
-                    return max(0.0, min(1.0, v))
-                except (TypeError, ValueError):
-                    pass
-            st = (row.get("status_texto") or "").strip().lower()
-            if not st:
-                return None
-            if "conclu" in st or "final" in st or "entreg" in st or "feito" in st:
-                return 1.0
-            if "exec" in st or "andamento" in st or "andando" in st or "parcial" in st or "parado" in st:
-                return 0.5
-            if "nao" in st or "não" in st or "pend" in st or "aguard" in st or "bloq" in st:
-                return 0.0
-            return None
-
-        ratios = []
-        concluidos = em_andamento = nao_iniciados = sem_dado = 0
-        itens_com_ratio = []
-        for row in itens:
-            ratio = _row_ratio(row)
-            if ratio is None:
-                sem_dado += 1
+        bundle = self._load_controle_bundle()
+        base_rows = bundle.get("rows", []) if bundle else []
+        scoped = []
+        for row in base_rows:
+            if bloco and (row.get("bloco") or "").strip() != bloco:
                 continue
-            ratios.append(ratio)
-            itens_com_ratio.append((row, ratio))
-            if ratio >= 0.999:
+            if setor and (row.get("setor") or "").strip() != setor:
+                continue
+            if pavimento and (row.get("pavimento") or "").strip() != pavimento:
+                continue
+            scoped.append(row)
+
+        itens: list[dict[str, Any]] = []
+        for row in scoped:
+            total_pct = float(row.get("total_pct") or 0)
+            acts = row.get("atividades") if isinstance(row.get("atividades"), dict) else {}
+            for act_name, act_val in acts.items():
+                ratio = _activity_cell_ratio(act_val)
+                itens.append(
+                    {
+                        "atividade": act_name,
+                        "apto": row.get("apto"),
+                        "pavimento": row.get("pavimento"),
+                        "status_texto": str(act_val or ""),
+                        "status_percentual": ratio,
+                        "observacao": "",
+                    }
+                )
+            itens.append(
+                {
+                    "atividade": "Total unidade",
+                    "apto": row.get("apto"),
+                    "pavimento": row.get("pavimento"),
+                    "status_texto": f"{total_pct:.1f}%",
+                    "status_percentual": max(0.0, min(1.0, total_pct / 100.0)),
+                    "observacao": "",
+                }
+            )
+
+        ratios: list[float] = []
+        concluidos = em_andamento = nao_iniciados = sem_dado = 0
+        itens_com_ratio: list[tuple[dict[str, Any], float]] = []
+        for row in scoped:
+            cell_values = row.get("activity_pcts")
+            if not isinstance(cell_values, list) or not cell_values:
+                cell_values = _collect_activity_pcts_from_values(row.get("atividades"))
+            unit_avg = _avg_pct_from_activity_values(row.get("atividades"))
+            unit_ratio = max(0.0, min(1.0, unit_avg / 100.0))
+            preview_row = {
+                "atividade": "Total unidade",
+                "apto": row.get("apto"),
+                "pavimento": row.get("pavimento"),
+                "status_texto": f"{unit_avg:.1f}%",
+                "status_percentual": unit_ratio,
+                "observacao": "",
+            }
+            itens_com_ratio.append((preview_row, unit_ratio))
+            bucket = _apto_status_bucket(unit_avg)
+            if bucket == "concluido":
                 concluidos += 1
-            elif ratio <= 0.0:
+            elif bucket == "nao_iniciado":
                 nao_iniciados += 1
             else:
                 em_andamento += 1
+            for pct_val in cell_values:
+                ratios.append(max(0.0, min(1.0, float(pct_val) / 100.0)))
+
         pct_local = round((sum(ratios) / len(ratios)) * 100, 1) if ratios else None
         itens_com_ratio.sort(key=lambda x: x[1])
         atividades_criticas = [
@@ -1072,85 +1392,24 @@ class AnaliseObraService:
         }
 
     def _build_controle(self) -> dict[str, Any]:
-        qs = self.controle_base_queryset()
-        items = list(
-            qs.only("status_percentual", "status_texto", "setor", "bloco", "pavimento", "atividade")
-        )
-        total = len(items)
-        soma_pct = 0.0
-        pct_count = 0
-        concluidos = em_andamento = nao_iniciados = 0
+        bundle = self._load_controle_bundle()
+        if not bundle:
+            return self._controle_sem_dados_payload()
 
-        setores_ns = {_norm_key(it.setor) for it in items if (str(it.setor or "")).strip()}
-        use_setor_grupo = len(setores_ns) >= 2
+        rows = self._filter_controle_rows(bundle.get("rows") or [])
+        if not rows:
+            return self._controle_sem_dados_payload(
+                "Nenhuma unidade no mapa de controle corresponde aos filtros aplicados."
+            )
 
-        by_eixo: dict[str, list[float]] = {}
-        pair_votes: dict[str, Counter[tuple[str, str]]] = defaultdict(Counter)
+        all_values = _collect_all_activity_pcts_from_rows(rows)
+        pct_medio = round(sum(all_values) / len(all_values), 2) if all_values else None
 
-        for item in items:
-            ratio = _status_to_ratio(item)
-            sn = _norm_key(item.setor)
-            bn = _norm_key(item.bloco) or "SEM BLOCO"
-            raw_s = (str(item.setor or "")).strip()
-            raw_b = (str(item.bloco or "")).strip()
+        concluidos = sum(1 for v in all_values if v >= 99.5)
+        em_andamento = sum(1 for v in all_values if 0 < v < 99.5)
+        nao_iniciados = sum(1 for v in all_values if v <= 0)
 
-            if use_setor_grupo:
-                sn_g = sn if sn else "SEM SETOR"
-                gkey = f"{sn_g}{EIXO_SETOR_BLOCO_SEP}{bn}"
-            else:
-                gkey = bn
-
-            if ratio is not None:
-                by_eixo.setdefault(gkey, []).append(ratio)
-                if use_setor_grupo:
-                    if raw_s or raw_b:
-                        pair_votes[gkey][(raw_s, raw_b)] += 1
-                elif raw_b:
-                    pair_votes[gkey][("", raw_b)] += 1
-            if ratio is not None:
-                soma_pct += ratio
-                pct_count += 1
-                if ratio >= 0.999:
-                    concluidos += 1
-                elif ratio <= 0.0:
-                    nao_iniciados += 1
-                else:
-                    em_andamento += 1
-            else:
-                # Sem sinal confiável: mantém contagem conservadora em "não iniciado".
-                nao_iniciados += 1
-
-        pct_medio = round((soma_pct / pct_count) * 100, 2) if pct_count else 0.0
-
-        bloco_scores = []
-        for gkey, ratios in by_eixo.items():
-            if not ratios:
-                continue
-            avg = sum(ratios) / len(ratios)
-            if use_setor_grupo:
-                sk, bk = gkey.split(EIXO_SETOR_BLOCO_SEP, 1)
-            else:
-                sk, bk = "", gkey
-
-            votes = pair_votes.get(gkey, Counter())
-            rotulo, rs, rb = _representative_setor_bloco_from_votes(votes, sk, bk)
-            if not rb:
-                rb = _representative_bloco_label(bk, _pair_votes_to_bloco_counter(votes))
-
-            setor_norm_out = ""
-            if use_setor_grupo and sk and sk != "SEM SETOR":
-                setor_norm_out = sk
-
-            row = {
-                "rotulo": rotulo,
-                "setor": rs,
-                "bloco": rb,
-                "setor_norm": setor_norm_out,
-                "bloco_norm": bk,
-                "percentual_medio": round(avg * 100, 1),
-                "amostras": len(ratios),
-            }
-            bloco_scores.append(row)
+        bloco_scores, use_setor_grupo = self._build_controle_ranking_rows(rows)
 
         piores = _diversificar_ranking_por_setor(
             bloco_scores,
@@ -1182,12 +1441,17 @@ class AnaliseObraService:
         }
 
         return {
-            "origem": "mapa_controle_execucao",
-            "descricao_curta": "Progressão física média por eixo (mapa de serviço): destaca eixos com menor % médio de execução; não compara prazos nem cronograma.",
+            "sem_dados": False,
+            "origem": "mapa_controle_ambiente",
+            "ambiente_id": bundle.get("ambiente_id"),
+            "descricao_curta": (
+                "Progressão física média das células de atividade do mapa de controle "
+                "(mesma regra do mapa clássico); não compara prazos nem cronograma."
+            ),
             "agrupamento_eixo": "setor_bloco" if use_setor_grupo else "bloco",
             "ranking_progressao_meta": ranking_meta,
             "kpis": {
-                "total_itens": total,
+                "total_itens": len(all_values),
                 "percentual_medio": pct_medio,
                 "concluidos": concluidos,
                 "em_andamento": em_andamento,
@@ -1200,24 +1464,41 @@ class AnaliseObraService:
 
     def _build_heatmap(self) -> dict[str, Any]:
         """Matriz bloco × pavimento com % médio e criticidade (somente controle)."""
-        qs = self.controle_base_queryset()
-        items = list(qs.only("setor", "bloco", "pavimento", "status_percentual", "status_texto"))
-        n_set = len({_norm_key(i.setor) for i in items if (str(i.setor or "")).strip()})
+        bundle = self._load_controle_bundle()
+        if not bundle:
+            return {
+                "origem": "mapa_controle_ambiente",
+                "descricao_curta": "Criticidade consolidada apenas do avanço físico (não mistura suprimento nem diário).",
+                "agrupamento_eixo": "bloco",
+                "blocos_eixo": [],
+                "pavimentos_eixo": [],
+                "celulas": [],
+                "legenda_criticidade": {
+                    "critica": "< 30% executado",
+                    "alta": "30–55%",
+                    "media": "55–75%",
+                    "baixa": "≥ 75%",
+                    "sem_dado": "Sem amostra válida",
+                },
+            }
+
+        items = self._filter_controle_rows(bundle.get("rows") or [])
+        n_set = len({_norm_key(r.get("setor")) for r in items if (str(r.get("setor") or "")).strip()})
         use_sg = n_set >= 2
 
         agg: dict[tuple, list[float]] = {}
         cell_pair_votes: dict[tuple, Counter[tuple[str, str]]] = defaultdict(Counter)
 
-        for item in items:
-            ratio = _status_to_ratio(item)
-            if ratio is None:
-                continue
-            p = (item.pavimento or "").strip() or "-"
-            raw_s = (str(item.setor or "")).strip()
-            raw_b = (str(item.bloco or "")).strip()
-            bn = _norm_key(item.bloco) or "SEM BLOCO"
+        for row in items:
+            cell_values = row.get("activity_pcts")
+            if not isinstance(cell_values, list) or not cell_values:
+                cell_values = _collect_activity_pcts_from_values(row.get("atividades"))
+            p = (row.get("pavimento") or "").strip() or "-"
+            raw_s = (str(row.get("setor") or "")).strip()
+            raw_b = (str(row.get("bloco") or "")).strip()
+            bn = _norm_key(row.get("bloco")) or "SEM BLOCO"
             if use_sg:
-                sn = _norm_key(item.setor)
+                sn = _norm_key(row.get("setor"))
                 sn_g = sn if sn else "SEM SETOR"
                 key = (sn_g, bn, p)
                 if raw_s or raw_b:
@@ -1226,7 +1507,9 @@ class AnaliseObraService:
                 key = (bn, p)
                 if raw_b:
                     cell_pair_votes[key][("", raw_b)] += 1
-            agg.setdefault(key, []).append(ratio)
+            for pct_val in cell_values:
+                ratio = max(0.0, min(1.0, float(pct_val) / 100.0))
+                agg.setdefault(key, []).append(ratio)
 
         celulas = []
         for gkey, ratios in agg.items():
@@ -1266,7 +1549,7 @@ class AnaliseObraService:
         pavs = sorted({c["pavimento"] for c in celulas})[:18]
 
         return {
-            "origem": "mapa_controle_execucao",
+            "origem": "mapa_controle_ambiente",
             "descricao_curta": "Criticidade consolidada apenas do avanço físico (não mistura suprimento nem diário).",
             "agrupamento_eixo": "setor_bloco" if use_sg else "bloco",
             "blocos_eixo": blocos,
@@ -1655,7 +1938,8 @@ class AnaliseObraService:
         kd = diario.get("kpis") or {}
         pr = diario.get("prioridades") or {}
 
-        pct = float(kc.get("percentual_medio") or 0)
+        pct_raw = kc.get("percentual_medio")
+        pct = float(pct_raw) if pct_raw is not None else 0.0
         atrasados = int(ks.get("atrasados") or 0)
         occ = int(kd.get("ocorrencias_no_periodo") or 0)
         occ_crit = int(pr.get("p1_critica") or kd.get("ocorrencias_criticas_no_periodo") or 0)

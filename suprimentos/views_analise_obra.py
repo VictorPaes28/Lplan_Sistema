@@ -135,14 +135,34 @@ def _service_for_request(request, obra: Obra):
     return AnaliseObraService(obra, periodo=periodo, filtros=filtros), ini, fim, filtros
 
 
-def _build_cache_key(prefix: str, *, user_id: int, obra_id: int, ini, fim, filtros: AnaliseObraFilters, extra: str = "") -> str:
+def _build_cache_key(
+    prefix: str,
+    *,
+    user_id: int,
+    obra_id: int,
+    ini,
+    fim,
+    filtros: AnaliseObraFilters,
+    controle_stamp: str = "",
+    extra: str = "",
+) -> str:
     filtros_json = json.dumps(filtros.to_dict(), sort_keys=True, ensure_ascii=True)
-    raw = f"{prefix}|u:{user_id}|o:{obra_id}|ini:{ini}|fim:{fim}|f:{filtros_json}|x:{extra}"
+    raw = (
+        f"{prefix}|u:{user_id}|o:{obra_id}|ini:{ini}|fim:{fim}"
+        f"|f:{filtros_json}|mapa:{controle_stamp}|x:{extra}"
+    )
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return f"analise_obra:{prefix}:{digest}"
 
 
+def _controle_cache_stamp_for_obra(obra: Obra, filtros: AnaliseObraFilters, ini, fim) -> str:
+    periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
+    svc = AnaliseObraService(obra, periodo=periodo, filtros=filtros)
+    return svc.controle_ambiente_cache_stamp()
+
+
 def _get_cached_payload_or_build(request, obra: Obra, ini, fim, filtros: AnaliseObraFilters):
+    controle_stamp = _controle_cache_stamp_for_obra(obra, filtros, ini, fim)
     key = _build_cache_key(
         "full",
         user_id=request.user.id,
@@ -150,6 +170,7 @@ def _get_cached_payload_or_build(request, obra: Obra, ini, fim, filtros: Analise
         ini=ini.isoformat() if ini else "",
         fim=fim.isoformat() if fim else "",
         filtros=filtros,
+        controle_stamp=controle_stamp,
     )
     cached = cache.get(key)
     if cached is not None:
@@ -234,6 +255,7 @@ def analise_obra_api(request):
     if secao in {"all", "full"}:
         data = _get_cached_payload_or_build(request, obra, ini, fim, filtros)
     else:
+        controle_stamp = _controle_cache_stamp_for_obra(obra, filtros, ini, fim)
         key = _build_cache_key(
             "section",
             user_id=request.user.id,
@@ -241,6 +263,7 @@ def analise_obra_api(request):
             ini=ini.isoformat() if ini else "",
             fim=fim.isoformat() if fim else "",
             filtros=filtros,
+            controle_stamp=controle_stamp,
             extra=secao,
         )
         data = cache.get(key)
