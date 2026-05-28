@@ -688,3 +688,93 @@ class MapaConsolidacaoPercentualTests(TestCase):
         resp = self._abrir_mapa(ambiente_id, bloco="B1", pavimento="P1")
         aptos = [a.get("apto") for a in resp.context["layers"]["aptos"]]
         self.assertIn("UND 101", aptos)
+
+    def test_pesquisa_universal_por_coluna_filtra_atividades(self):
+        ambiente_id = self._criar_ambiente_mapa("Busca coluna")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or detalhe.get("draft", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "Atividade Estrutura", "Atividade Acabamento", "Total"],
+            ["Bloco A", "P1", "UND 101", "10%", "80%", ""],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "manual_template",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3, 4],
+            "activity_headers_interpreted": ["Atividade Estrutura", "Atividade Acabamento"],
+            "row_axis_key": "bloco",
+        }
+        self._salvar_layout(ambiente_id, layout)
+
+        resp = self._abrir_mapa(ambiente_id, search="acabamento")
+        matrix = resp.context["matrix"]
+        self.assertEqual(matrix.get("atividades"), ["Atividade Acabamento"])
+        self.assertTrue(matrix.get("rows"), "Busca por coluna deve manter linhas da matriz.")
+
+    def test_quick_legado_nao_altera_recorte_no_modo_dedicado(self):
+        ambiente_id = self._criar_ambiente_mapa("Sem quick dedicado")
+        self._aplicar_layout_manual(
+            ambiente_id,
+            [
+                ["Bloco A", "P1", "UND 101", "10%", ""],
+            ],
+        )
+        resp = self._abrir_mapa(ambiente_id, quick="UND 101")
+        selected = resp.context["selected"]
+        self.assertEqual(selected.get("bloco"), "")
+        self.assertEqual(selected.get("pavimento"), "")
+        self.assertEqual(selected.get("apto"), "")
+
+    def test_filtro_por_grupo_exibe_somente_colunas_do_grupo(self):
+        ambiente_id = self._criar_ambiente_mapa("Grupo paredes")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or detalhe.get("draft", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "Alvenaria", "Chapisco", "Reboco", "Total"],
+            ["Bloco A", "P1", "UND 101", "10%", "20%", "30%", ""],
+        ]
+        section["data"]["columnGroups"] = [
+            {"id": "paredes", "name": "Paredes", "columns": ["Alvenaria", "Chapisco", "Reboco"]},
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "manual_template",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3, 4, 5],
+            "activity_headers_interpreted": ["Alvenaria", "Chapisco", "Reboco"],
+            "row_axis_key": "bloco",
+            "column_groups": section["data"]["columnGroups"],
+        }
+        self._salvar_layout(ambiente_id, layout)
+
+        resp = self._abrir_mapa(ambiente_id, column_group="paredes")
+        self.assertEqual(resp.context["matrix"]["atividades"], ["Alvenaria", "Chapisco", "Reboco"])
+        self.assertEqual(resp.context.get("column_group_selected"), "paredes")
+        self.assertTrue(resp.context.get("column_groups"), "Lista de grupos deve ser entregue ao template.")
+
+    def test_salvar_grupos_colunas_persiste_no_layout_do_ambiente(self):
+        ambiente_id = self._criar_ambiente_mapa("Persistir grupos")
+        url = f"{reverse('engenharia:mapa_controle_salvar_grupos_colunas', args=[ambiente_id])}?obra={self.obra.id}"
+        payload = {
+            "groups": [
+                {"id": "paredes", "name": "Paredes", "columns": ["Atividade 1"]},
+                {"id": "piso", "name": "Piso", "columns": ["Atividade 1"]},
+            ]
+        }
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json().get("success"), response.content)
+
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or detalhe.get("draft", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        data = section.get("data") or {}
+        groups = data.get("columnGroups") or []
+        names = [str(g.get("name") or "").strip() for g in groups]
+        self.assertIn("Paredes", names)
+        self.assertIn("Piso", names)

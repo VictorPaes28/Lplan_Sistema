@@ -17,19 +17,18 @@
             {% endif %}
         </header>
         <div class="mapa-controle-top__grid">
-            <form method="get" id="mapaControleObraForm" class="mapa-controle-obra-form">
+            <div class="mapa-controle-obra-form">
                 <label class="mapa-controle-field-label" for="mapaControleObra">Obra</label>
-                <select class="form-select mapa-controle-obra-select" name="obra" id="mapaControleObra" {% if not obras %}disabled{% endif %} title="Trocar a obra zera o recorte (setor, bloco...); mantÃ©m estes filtros.">
-                    {% for o in obras %}
-                    <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>
-                        {% if o.codigo_sienge %}{{ o.codigo_sienge }} - {% endif %}{{ o.nome }}
-                    </option>
-                    {% empty %}
-                    <option value="">Nenhuma obra disponÃ­vel</option>
-                    {% endfor %}
-                </select>
-            </form>
+                <input
+                    class="form-control mapa-controle-obra-select"
+                    id="mapaControleObra"
+                    type="text"
+                    value="{% if obra_selecionada %}{% if obra_selecionada.codigo_sienge %}{{ obra_selecionada.codigo_sienge }} - {% endif %}{{ obra_selecionada.nome }}{% else %}Nenhuma obra disponível{% endif %}"
+                    readonly
+                />
+            </div>
             <form method="get" class="mapa-controle-filter-form" id="mapaControleFilterForm">
+                {% csrf_token %}
                 <input type="hidden" name="obra" value="{{ obra_selecionada.id|default:'' }}">
                 {% if ambiente_id %}
                 <input type="hidden" name="ambiente_id" value="{{ ambiente_id }}">
@@ -41,24 +40,23 @@
                 <input type="hidden" name="atividade" value="{{ selected.atividade|default:'' }}">
                 <div class="mapa-controle-filter-fields">
                     <div class="mapa-controle-field">
-                        <label class="mapa-controle-field-label" for="filtro-status-mc">Status</label>
-                        <select class="form-select mapa-controle-input" id="filtro-status-mc" name="status">
-                            <option value="" {% if not selected.status %}selected{% endif %}>Todos</option>
-                            <option value="concluido" {% if selected.status == 'concluido' %}selected{% endif %}>ConcluÃ­do</option>
-                            <option value="em_andamento" {% if selected.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
-                            <option value="nao_iniciado" {% if selected.status == 'nao_iniciado' %}selected{% endif %}>NÃ£o iniciado</option>
+                        <label class="mapa-controle-field-label" for="filtro-column-group-mc">Filtrar por grupo</label>
+                        <select class="form-select mapa-controle-input" id="filtro-column-group-mc" name="column_group">
+                            <option value="">Todos os grupos</option>
+                            {% for grp in column_groups %}
+                            <option value="{{ grp.id }}" {% if column_group_selected == grp.id %}selected{% endif %}>{{ grp.name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mapa-controle-field mapa-controle-field--grow">
-                        <label class="mapa-controle-field-label" for="filtro-search-mc">Filtrar texto</label>
-                        <input class="form-control mapa-controle-input" id="filtro-search-mc" name="search" value="{{ selected.search|default:'' }}" placeholder="Atividade, grupo, unidade..." autocomplete="off" />
-                    </div>
-                    <div class="mapa-controle-field mapa-controle-field--grow">
-                        <label class="mapa-controle-field-label" for="filtro-quick-mc">Ir para</label>
-                        <input class="form-control mapa-controle-input" id="filtro-quick-mc" name="quick" value="{{ selected.quick_find|default:'' }}" placeholder="Apto, torre, pavimento..." autocomplete="off" title="Leva direto a um recorte quando encontrar correspondÃªncia" />
+                        <label class="mapa-controle-field-label" for="filtro-search-mc">Pesquisa universal</label>
+                        <input class="form-control mapa-controle-input" id="filtro-search-mc" name="search" value="{{ selected.search|default:'' }}" placeholder="Buscar em linhas e colunas da matriz..." autocomplete="off" />
                     </div>
                     <div class="mapa-controle-field mapa-controle-field--actions">
                         <button type="submit" class="btn mapa-controle-btn-apply">Aplicar</button>
+                        {% if ambiente_id %}
+                        <button type="button" class="btn btn-outline-secondary" id="btnColumnGroupsModal">Grupos de colunas</button>
+                        {% endif %}
                         <a class="mapa-controle-link-quiet" href="?obra={{ obra_selecionada.id|default:'' }}">Limpar recorte</a>
                     </div>
                 </div>
@@ -76,24 +74,6 @@
                 <div class="matrix-panel-title-block">
                     <h6 class="matrix-panel-h">Matriz</h6>
                 </div>
-            </div>
-            <div class="matrix-mode-switch" role="tablist" aria-label="O que cada linha da tabela representa">
-                <a class="matrix-mode-pill {% if matrix.mode == 'bloco' %}active{% endif %}"
-                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=bloco&{{ matrix_stable_qs }}">Por bloco</a>
-                {% if selected.bloco %}
-                <a class="matrix-mode-pill {% if matrix.mode == 'pavimento' %}active{% endif %}"
-                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=pavimento&{{ matrix_stable_qs }}">Por pavimento</a>
-                {% else %}
-                <span class="matrix-mode-pill disabled" title="Escolha um bloco nos chips abaixo">Por pavimento</span>
-                {% endif %}
-                {% if not is_area_comum %}
-                {% if selected.bloco and selected.pavimento %}
-                <a class="matrix-mode-pill {% if matrix.mode == 'apto' %}active{% endif %}"
-                   href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&atividade={{ selected.atividade|urlencode }}&matrix_mode=apto&{{ matrix_stable_qs }}">Por unidade</a>
-                {% else %}
-                <span class="matrix-mode-pill disabled" title="Defina bloco e pavimento nos chips">Por unidade</span>
-                {% endif %}
-                {% endif %}
             </div>
         </div>
 
@@ -563,29 +543,268 @@
     </div>
     {% endif %}
 </div>
+
+{% if ambiente_id %}
+<div class="modal fade" id="columnGroupsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Grupos de colunas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="columnGroupNameInput">Nome do grupo</label>
+                    <input type="text" class="form-control" id="columnGroupNameInput" placeholder="Ex.: Paredes">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Colunas do grupo</label>
+                    <div id="columnGroupColumnsList" class="border rounded p-2" style="max-height: 280px; overflow:auto;"></div>
+                </div>
+                <div>
+                    <label class="form-label">Grupos cadastrados</label>
+                    <div id="columnGroupsList" class="list-group"></div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" id="btnSaveColumnGroup">Salvar grupo</button>
+                    <button type="button" class="btn btn-outline-danger" id="btnDeleteColumnGroup" disabled>Excluir</button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="btnPersistColumnGroups">Salvar alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ matrix_all_atividades|json_script:"mc-all-cols-json" }}
+{{ column_groups|json_script:"mc-column-groups-json" }}
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
-    var sel = document.getElementById('mapaControleObra');
-    var obraForm = document.getElementById('mapaControleObraForm');
     var filtForm = document.getElementById('mapaControleFilterForm');
-    if (!sel || !obraForm || !filtForm) return;
-    sel.addEventListener('change', function () {
-        ['status', 'search', 'quick'].forEach(function (name) {
-            var el = filtForm.querySelector('[name="' + name + '"]');
-            if (!el) return;
-            var h = obraForm.querySelector('input[name="' + name + '"]');
-            if (!h) {
-                h = document.createElement('input');
-                h.type = 'hidden';
-                h.name = name;
-                obraForm.appendChild(h);
-            }
-            h.value = el.value;
+    if (!filtForm) return;
+
+    var groupFilter = document.getElementById('filtro-column-group-mc');
+    if (groupFilter) {
+        groupFilter.addEventListener('change', function () {
+            filtForm.submit();
         });
-        obraForm.submit();
+    }
+
+    var modalEl = document.getElementById('columnGroupsModal');
+    var openBtn = document.getElementById('btnColumnGroupsModal');
+    if (!modalEl || !openBtn) return;
+    var bsModal = new bootstrap.Modal(modalEl);
+    var saveUrl = "{{ column_group_save_url|default:''|escapejs }}";
+    var allColumnsEl = document.getElementById('mc-all-cols-json');
+    var allColumns = [];
+    if (allColumnsEl) {
+        try { allColumns = JSON.parse(allColumnsEl.textContent || '[]'); } catch (_e) { allColumns = []; }
+    }
+    var groupsEl = document.getElementById('mc-column-groups-json');
+    var groups = [];
+    if (groupsEl) {
+        try { groups = JSON.parse(groupsEl.textContent || '[]'); } catch (_e2) { groups = []; }
+    }
+    var selectedGroupId = "{{ column_group_selected|default:''|escapejs }}";
+    var selectedGroupIdModal = selectedGroupId;
+
+    var nameInput = document.getElementById('columnGroupNameInput');
+    var columnsList = document.getElementById('columnGroupColumnsList');
+    var groupsList = document.getElementById('columnGroupsList');
+    var saveGroupBtn = document.getElementById('btnSaveColumnGroup');
+    var deleteGroupBtn = document.getElementById('btnDeleteColumnGroup');
+    var persistBtn = document.getElementById('btnPersistColumnGroups');
+    var csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function getCsrfToken() {
+        var fromInput = csrfInput ? String(csrfInput.value || '').trim() : '';
+        if (fromInput) return fromInput;
+        return String(getCookie('csrftoken') || '').trim();
+    }
+
+    function getEditingGroup() {
+        if (!selectedGroupIdModal) return null;
+        return groups.find(function (g) { return g.id === selectedGroupIdModal; }) || null;
+    }
+
+    function renderColumns() {
+        var editing = getEditingGroup();
+        var selected = new Set((editing && editing.columns) || []);
+        columnsList.innerHTML = '';
+        if (!allColumns.length) {
+            columnsList.innerHTML = '<p class="text-muted small mb-0">Sem colunas disponíveis na matriz.</p>';
+            return;
+        }
+        allColumns.forEach(function (col, idx) {
+            var id = 'colgrp_col_' + idx;
+            var item = document.createElement('div');
+            item.className = 'form-check';
+            item.innerHTML =
+                '<input class="form-check-input" type="checkbox" value="' + col + '" id="' + id + '"' + (selected.has(col) ? ' checked' : '') + '>' +
+                '<label class="form-check-label" for="' + id + '">' + col + '</label>';
+            columnsList.appendChild(item);
+        });
+    }
+
+    function renderGroups() {
+        groupsList.innerHTML = '';
+        if (!groups.length) {
+            groupsList.innerHTML = '<p class="text-muted small mb-0">Nenhum grupo cadastrado.</p>';
+            return;
+        }
+        groups.forEach(function (grp) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action' + (grp.id === selectedGroupIdModal ? ' active' : '');
+            btn.textContent = grp.name + (grp.columns && grp.columns.length ? ' (' + grp.columns.length + ')' : '');
+            btn.addEventListener('click', function () {
+                selectedGroupIdModal = grp.id;
+                nameInput.value = grp.name || '';
+                renderColumns();
+                renderGroups();
+                deleteGroupBtn.disabled = false;
+            });
+            groupsList.appendChild(btn);
+        });
+    }
+
+    function selectedColumnsFromUI() {
+        return Array.from(columnsList.querySelectorAll('input[type="checkbox"]:checked')).map(function (el) {
+            return String(el.value || '').trim();
+        }).filter(Boolean);
+    }
+
+    function resetModalSelection() {
+        selectedGroupIdModal = '';
+        nameInput.value = '';
+        deleteGroupBtn.disabled = true;
+        renderColumns();
+        renderGroups();
+    }
+
+    function persistGroups(reloadAfterSave) {
+        if (!saveUrl) {
+            alert('URL de salvamento indisponível para este ambiente.');
+            return Promise.resolve(false);
+        }
+        var csrfToken = getCsrfToken();
+        if (!csrfToken) {
+            alert('Sessão expirada ou token de segurança inválido. Recarregue a página e tente novamente.');
+            return Promise.resolve(false);
+        }
+        persistBtn.disabled = true;
+        return fetch(saveUrl + '?obra={{ obra_selecionada.id|default:"" }}', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ groups: groups })
+        })
+            .then(function (resp) {
+                return resp.text().then(function (txt) {
+                    var data = {};
+                    try { data = txt ? JSON.parse(txt) : {}; } catch (_e) { data = {}; }
+                    return { ok: resp.ok, status: resp.status, data: data, raw: txt };
+                });
+            })
+            .then(function (res) {
+                if (!res.ok || !res.data.success) {
+                    var msg = (res.data && (res.data.error || res.data.message)) || '';
+                    if (!msg && res.status === 403) {
+                        msg = 'Sessão expirada ou token de segurança inválido. Recarregue a página e tente novamente.';
+                    }
+                    if (!msg) {
+                        msg = 'Não foi possível salvar os grupos.';
+                    }
+                    throw new Error(msg);
+                }
+                if (reloadAfterSave) {
+                    window.location.reload();
+                    return true;
+                }
+                persistBtn.disabled = false;
+                return true;
+            })
+            .catch(function (err) {
+                alert(err && err.message ? err.message : 'Falha ao salvar grupos.');
+                persistBtn.disabled = false;
+                return false;
+            });
+    }
+
+    openBtn.addEventListener('click', function () {
+        selectedGroupIdModal = selectedGroupId || '';
+        var editing = getEditingGroup();
+        nameInput.value = editing ? (editing.name || '') : '';
+        deleteGroupBtn.disabled = !editing;
+        renderColumns();
+        renderGroups();
+        bsModal.show();
+    });
+
+    saveGroupBtn.addEventListener('click', function () {
+        var name = String(nameInput.value || '').trim();
+        if (!name) {
+            alert('Informe o nome do grupo.');
+            nameInput.focus();
+            return;
+        }
+        var cols = selectedColumnsFromUI();
+        if (!cols.length) {
+            alert('Selecione ao menos uma coluna.');
+            return;
+        }
+        if (selectedGroupIdModal) {
+            groups = groups.map(function (grp) {
+                if (grp.id !== selectedGroupIdModal) return grp;
+                return { id: grp.id, name: name, columns: cols };
+            });
+        } else {
+            selectedGroupIdModal = 'grp_' + Date.now().toString(36);
+            groups.push({ id: selectedGroupIdModal, name: name, columns: cols });
+        }
+        renderGroups();
+        persistGroups(true);
+    });
+
+    deleteGroupBtn.addEventListener('click', function () {
+        if (!selectedGroupIdModal) return;
+        groups = groups.filter(function (grp) { return grp.id !== selectedGroupIdModal; });
+        if (selectedGroupId === selectedGroupIdModal) {
+            selectedGroupId = '';
+        }
+        resetModalSelection();
+        persistGroups(true);
+    });
+
+    persistBtn.addEventListener('click', function () {
+        persistGroups(true);
     });
 })();
 </script>

@@ -784,6 +784,97 @@ def _match_activity_labels(activity_labels: list[tuple[int, str]], wanted: str) 
     return partial if partial else activity_labels
 
 
+def _normalize_column_groups(raw_groups, available_labels: list[str]) -> list[dict]:
+    if not isinstance(raw_groups, list):
+        return []
+    allowed = {str(lbl or "").strip() for lbl in available_labels if str(lbl or "").strip()}
+    out = []
+    seen_ids = set()
+    for idx, item in enumerate(raw_groups):
+        if not isinstance(item, dict):
+            continue
+        gid = str(item.get("id") or "").strip() or f"group_{idx + 1}"
+        if gid in seen_ids:
+            gid = f"{gid}_{idx + 1}"
+        seen_ids.add(gid)
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        cols = []
+        seen_cols = set()
+        for col in item.get("columns") if isinstance(item.get("columns"), list) else []:
+            lbl = str(col or "").strip()
+            if not lbl or lbl not in allowed or lbl in seen_cols:
+                continue
+            seen_cols.add(lbl)
+            cols.append(lbl)
+        out.append({"id": gid, "name": name[:120], "columns": cols})
+    return out
+
+
+def _extract_layout_column_groups(layout: dict, available_labels: list[str]) -> list[dict]:
+    if not isinstance(layout, dict):
+        return []
+    sections = layout.get("sections")
+    if not isinstance(sections, list):
+        return []
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        if str(section.get("kind") or "").strip() not in {"matrix_table", "table"}:
+            continue
+        data = section.get("data") if isinstance(section.get("data"), dict) else {}
+        direct_groups = data.get("columnGroups")
+        if isinstance(direct_groups, list):
+            return _normalize_column_groups(direct_groups, available_labels)
+        import_meta = data.get("importMeta") if isinstance(data.get("importMeta"), dict) else {}
+        return _normalize_column_groups(import_meta.get("column_groups"), available_labels)
+    return []
+
+
+def _resolve_ambiente_matrix_mode(requested: str, selected: dict, *, is_area_comum: bool) -> str:
+    """Mantém a mesma semântica de camada do legado para o modo dedicado."""
+    r = str(requested or "").strip().lower()
+    if r not in {"bloco", "pavimento", "apto"}:
+        r = ""
+
+    setor = str(selected.get("setor") or "").strip()
+    bloco = str(selected.get("bloco") or "").strip()
+    pavimento = str(selected.get("pavimento") or "").strip()
+
+    if is_area_comum:
+        if r == "apto":
+            r = "pavimento"
+        if bloco:
+            return "pavimento"
+        if r == "pavimento" and not bloco:
+            return "bloco"
+        if r in {"pavimento", "bloco"}:
+            return r
+        return "bloco"
+
+    if r == "apto":
+        if bloco and pavimento:
+            return "apto"
+        if bloco:
+            return "pavimento"
+        return "bloco"
+    if r == "pavimento":
+        return "pavimento" if bloco else "bloco"
+    if r == "bloco":
+        if bloco and not pavimento:
+            return "pavimento"
+        return "bloco"
+
+    if bloco and pavimento:
+        return "apto"
+    if bloco:
+        return "pavimento"
+    if setor:
+        return "bloco"
+    return "bloco"
+
+
 class AmbienteProvider:
     """
     Provider do ViewModel dedicado por ambiente.
@@ -868,8 +959,16 @@ class AmbienteProvider:
                     return False
             return True
 
-        search_filter = str(filter_selected.get("search") or "").strip().lower()
+        search_filter_raw = str(filter_selected.get("search") or "").strip()
+        search_filter = search_filter_raw.lower()
         status_filter = str(filter_selected.get("status") or "").strip()
+        search_matches_any_activity = False
+        if search_filter:
+            for col_idx in activity_cols:
+                header_lbl = str(header[col_idx] if col_idx < len(header) else "").strip().lower()
+                if header_lbl and search_filter in header_lbl:
+                    search_matches_any_activity = True
+                    break
         filtered_body = []
         for row in body_rows:
             if not isinstance(row, list):
@@ -878,7 +977,7 @@ class AmbienteProvider:
                 continue
             if search_filter:
                 row_blob = " ".join(str(v or "") for v in row).lower()
-                if search_filter not in row_blob:
+                if search_filter not in row_blob and not search_matches_any_activity:
                     continue
             filtered_body.append(row)
 
@@ -899,11 +998,27 @@ class AmbienteProvider:
                     lbl = str(header[idx] or "").strip() or f"Atividade {idx + 1}"
                     activity_labels.append((idx, lbl))
 
+        all_activity_labels = [lbl for _idx, lbl in activity_labels]
+        column_groups = _extract_layout_column_groups(versao.layout if versao else {}, all_activity_labels)
+        selected_group_id = str(filter_selected.get("column_group") or "").strip()
+        selected_group = next((g for g in column_groups if g.get("id") == selected_group_id), None)
+        if selected_group and selected_group.get("columns"):
+            wanted = {str(lbl or "").strip() for lbl in selected_group["columns"]}
+            activity_labels = [(idx, lbl) for idx, lbl in activity_labels if str(lbl or "").strip() in wanted]
+
         if ativ_nav:
             narrowed = _match_activity_labels(activity_labels, ativ_nav)
             if narrowed:
                 activity_labels = narrowed
                 coluna_filtrada_aviso = ativ_nav
+        elif search_filter:
+            # Pesquisa universal: também considera nomes de colunas/atividades.
+            narrowed_by_search = [
+                (idx, lbl) for idx, lbl in activity_labels if search_filter in str(lbl or "").strip().lower()
+            ]
+            if narrowed_by_search:
+                activity_labels = narrowed_by_search
+                coluna_filtrada_aviso = search_filter_raw
 
         def _layer_rows_with_stats(axis_key: str, prefilter: dict | None = None):
             idx = axis_map.get(axis_key)
@@ -992,15 +1107,12 @@ class AmbienteProvider:
 
         # No dedicado por ambiente, a grade acompanha a profundidade do recorte:
         # bloco selecionado -> grade por pavimento; pavimento selecionado -> grade por apto.
+        row_mode_requested = _resolve_ambiente_matrix_mode(
+            str(filter_selected.get("matrix_mode") or "").strip(),
+            filter_selected,
+            is_area_comum=is_area_comum,
+        )
         if is_manual_flat:
-            row_mode_requested = "bloco"
-        elif str(filter_selected.get("apto") or "").strip():
-            row_mode_requested = "apto"
-        elif str(filter_selected.get("pavimento") or "").strip():
-            row_mode_requested = "apto"
-        elif str(filter_selected.get("bloco") or "").strip():
-            row_mode_requested = "pavimento"
-        else:
             row_mode_requested = "bloco"
         # Filtro por coluna: na raiz (sem bloco/pavimento) lista todos os blocos × só essa atividade.
         if (
@@ -1307,45 +1419,52 @@ class AmbienteProvider:
             "cnt_pavs_camada": len(layers["pavimentos"]),
             "cnt_unids_camada": len(layers["aptos"]),
         }
-        matrix_stable_qs = urlencode(
-            {
-                "matrix_mode": row_mode_requested,
-                "ambiente_id": ambiente.id,
-            }
-        )
+        stable_params = {
+            "matrix_mode": row_mode_requested,
+            "ambiente_id": ambiente.id,
+        }
+        for stable_key in ("search", "atividade", "column_group"):
+            stable_val = str(selected.get(stable_key) or "").strip()
+            if stable_val:
+                stable_params[stable_key] = stable_val
+        matrix_stable_qs = urlencode(stable_params)
         base_qs = {
             "obra": obra.id,
             "ambiente_id": ambiente.id,
-            "status": selected["status"],
             "search": selected["search"],
-            "quick": selected["quick_find"],
             "atividade": selected["atividade"],
+            "column_group": selected.get("column_group") or "",
             "matrix_mode": row_mode_requested,
         }
         root_qs = urlencode({k: v for k, v in base_qs.items() if str(v or "").strip()})
 
         breadcrumbs = []
         if str(selected.get("setor") or "").strip():
-            breadcrumbs.append({"label": str(selected["setor"]), "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected['setor']})}"})
+            breadcrumbs.append(
+                {
+                    "label": str(selected["setor"]),
+                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected['setor'], 'matrix_mode': row_mode_requested, 'search': selected.get('search',''), 'atividade': selected.get('atividade',''), 'column_group': selected.get('column_group','')})}",
+                }
+            )
         if str(selected.get("bloco") or "").strip():
             breadcrumbs.append(
                 {
                     "label": str(selected["bloco"]),
-                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected['bloco']})}",
+                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected['bloco'], 'matrix_mode': row_mode_requested, 'search': selected.get('search',''), 'atividade': selected.get('atividade',''), 'column_group': selected.get('column_group','')})}",
                 }
             )
         if str(selected.get("pavimento") or "").strip():
             breadcrumbs.append(
                 {
                     "label": str(selected["pavimento"]),
-                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected.get('bloco',''), 'pavimento': selected['pavimento']})}",
+                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected.get('bloco',''), 'pavimento': selected['pavimento'], 'matrix_mode': row_mode_requested, 'search': selected.get('search',''), 'atividade': selected.get('atividade',''), 'column_group': selected.get('column_group','')})}",
                 }
             )
         if str(selected.get("apto") or "").strip():
             breadcrumbs.append(
                 {
                     "label": str(selected["apto"]),
-                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected.get('bloco',''), 'pavimento': selected.get('pavimento',''), 'apto': selected['apto']})}",
+                    "url": f"?{urlencode({'obra': obra.id, 'ambiente_id': ambiente.id, 'setor': selected.get('setor',''), 'bloco': selected.get('bloco',''), 'pavimento': selected.get('pavimento',''), 'apto': selected['apto'], 'matrix_mode': row_mode_requested, 'search': selected.get('search',''), 'atividade': selected.get('atividade',''), 'column_group': selected.get('column_group','')})}",
                 }
             )
         prev_url = f"?{root_qs}" if root_qs else "?"
@@ -1384,6 +1503,9 @@ class AmbienteProvider:
             "matrix_stable_qs": matrix_stable_qs,
             "is_area_comum": is_area_comum,
             "layer_nav": layer_nav,
+            "column_groups": column_groups,
+            "matrix_all_atividades": all_activity_labels,
+            "column_group_selected": selected_group_id,
         }
 
 
@@ -1952,4 +2074,7 @@ class LegacyObraProvider:
             "matrix_stable_qs": matrix_stable_qs,
             "is_area_comum": is_area_comum,
             "layer_nav": layer_nav,
+            "column_groups": [],
+            "matrix_all_atividades": matrix.get("atividades") or [],
+            "column_group_selected": "",
         }

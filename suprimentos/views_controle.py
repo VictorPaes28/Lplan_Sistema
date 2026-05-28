@@ -1,15 +1,20 @@
+import json
 import os
 import re
 import tempfile
 import unicodedata
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.management import call_command
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Avg, Q, Sum
 
 from accounts.decorators import require_group
@@ -478,6 +483,14 @@ def _build_filters_from_request(request):
         limit=limit,
         offset=max(0, offset),
     )
+
+
+def _parse_json_body(request):
+    try:
+        body = (request.body or b"").decode("utf-8")
+        return json.loads(body or "{}")
+    except Exception:
+        return {}
 
 
 def _status_to_ratio(item: ItemMapaServico) -> float | None:
@@ -1014,6 +1027,7 @@ def mapa_controle(request):
         "search": (request.GET.get("search") or "").strip(),
         "quick_find": (request.GET.get("quick") or "").strip(),
         "matrix_mode": (request.GET.get("matrix_mode") or "").strip(),
+        "column_group": (request.GET.get("column_group") or "").strip(),
     }
     view_ctx = None
     if obra and ambiente_param:
@@ -1023,6 +1037,9 @@ def mapa_controle(request):
             ambiente_id = None
         if ambiente_id:
             ambiente_id_ctx = ambiente_id
+            # No modo dedicado, mantém apenas pesquisa universal.
+            selected["status"] = ""
+            selected["quick_find"] = ""
             provider = AmbienteProvider(
                 extract_first_matrix_rows_from_layout=_extract_first_matrix_rows_from_layout,
                 build_matrix_payload_from_rows=_build_matrix_payload_from_rows,
@@ -1055,6 +1072,10 @@ def mapa_controle(request):
                         "matrix_stable_qs": "",
                         "is_area_comum": False,
                         "embed_mode": embed_mode,
+                        "column_groups": [],
+                        "matrix_all_atividades": [],
+                        "column_group_selected": "",
+                        "column_group_save_url": "",
                         "layer_nav": {"has_scope": False, "depth": 0, "root_url": "", "prev_url": "", "current_path": "Mapa geral", "breadcrumbs": []},
                         "erro_mapa_ambiente": "Ambiente de mapa não encontrado para esta obra.",
                     },
@@ -1107,8 +1128,99 @@ def mapa_controle(request):
             "embed_mode": embed_mode,
             "layer_nav": view_ctx["layer_nav"],
             "ambiente_id": ambiente_id_ctx,
+            "column_groups": view_ctx.get("column_groups") or [],
+            "matrix_all_atividades": view_ctx.get("matrix_all_atividades") or [],
+            "column_group_selected": view_ctx.get("column_group_selected") or "",
+            "column_group_save_url": (
+                reverse("engenharia:mapa_controle_salvar_grupos_colunas", args=[ambiente_id_ctx])
+                if ambiente_id_ctx
+                else ""
+            ),
         },
     )
+
+
+@login_required
+@require_group(GRUPOS.MAPA_CONTROLE)
+@require_http_methods(["POST"])
+def mapa_controle_salvar_grupos_colunas(request, ambiente_id: int):
+    from painel_operacional.models import AmbienteOperacional, AmbienteTipo, AmbienteVersao, VersaoEstado
+
+    payload = _parse_json_body(request)
+    raw_groups = payload.get("groups")
+    if not isinstance(raw_groups, list):
+        return JsonResponse({"success": False, "error": "Payload inválido: groups deve ser lista."}, status=400)
+
+    _, obra = _resolve_obra_for_request(request)
+    if not obra:
+        return JsonResponse({"success": False, "error": "Obra inválida."}, status=400)
+    ambiente = get_object_or_404(
+        AmbienteOperacional,
+        id=ambiente_id,
+        ativo=True,
+        tipo=AmbienteTipo.MAPA_CONTROLE,
+    )
+    if ambiente.obra_id != obra.id:
+        return JsonResponse({"success": False, "error": "Ambiente não pertence à obra ativa."}, status=403)
+
+    cleaned_groups = []
+    seen_ids = set()
+    for item in raw_groups:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        gid = str(item.get("id") or "").strip() or f"grp_{uuid4().hex[:10]}"
+        if gid in seen_ids:
+            gid = f"{gid}_{len(cleaned_groups) + 1}"
+        seen_ids.add(gid)
+        cols_raw = item.get("columns")
+        cols = []
+        if isinstance(cols_raw, list):
+            seen_cols = set()
+            for col in cols_raw:
+                lbl = str(col or "").strip()
+                if not lbl or lbl in seen_cols:
+                    continue
+                seen_cols.add(lbl)
+                cols.append(lbl)
+        cleaned_groups.append({"id": gid, "name": name[:120], "columns": cols})
+
+    with transaction.atomic():
+        draft = ambiente.versoes.filter(estado=VersaoEstado.DRAFT).order_by("-numero").first()
+        if not draft:
+            draft = AmbienteVersao.objects.create(
+                ambiente=ambiente,
+                numero=AmbienteVersao.proximo_numero(ambiente.id),
+                estado=VersaoEstado.DRAFT,
+                layout={},
+                metadados={},
+            )
+        layout = draft.layout if isinstance(draft.layout, dict) else {}
+        sections = layout.get("sections")
+        if not isinstance(sections, list):
+            sections = []
+        matrix_section = None
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            if str(section.get("kind") or "").strip() in {"matrix_table", "table"}:
+                matrix_section = section
+                break
+        if matrix_section is None:
+            return JsonResponse({"success": False, "error": "Seção de matriz não encontrada no ambiente."}, status=400)
+        data = matrix_section.get("data") if isinstance(matrix_section.get("data"), dict) else {}
+        import_meta = data.get("importMeta") if isinstance(data.get("importMeta"), dict) else {}
+        data["columnGroups"] = cleaned_groups
+        import_meta["column_groups"] = cleaned_groups
+        data["importMeta"] = import_meta
+        matrix_section["data"] = data
+        layout["sections"] = sections
+        draft.layout = _normalize_ambiente_layout(layout)
+        draft.save(update_fields=["layout", "updated_at"])
+
+    return JsonResponse({"success": True, "groups": cleaned_groups, "obra_id": obra.id, "obra_nome": obra.nome})
 
 
 @login_required

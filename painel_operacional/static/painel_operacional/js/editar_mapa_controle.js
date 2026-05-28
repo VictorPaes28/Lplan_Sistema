@@ -1548,6 +1548,20 @@
       return true;
     };
 
+    // Em camada de unidade, uma linha visível pode representar várias linhas-fonte.
+    // Atualiza todas as linhas da mesma unidade no escopo para evitar média "pela metade".
+    if (meta.kind === "percent" && label && Number.isInteger(levelIdx)) {
+      let updated = 0;
+      for (let ri = 1; ri < rows.length; ri += 1) {
+        const row = rows[ri];
+        if (!Array.isArray(row)) continue;
+        if (!matchesScope(row)) continue;
+        if (String(row[levelIdx] || "").trim() !== label) continue;
+        if (writeCell(row)) updated += 1;
+      }
+      if (updated > 0) return true;
+    }
+
     const layoutRi = resolveLayoutRowIndexForPatch(
       rows,
       axisMap,
