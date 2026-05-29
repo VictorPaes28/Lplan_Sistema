@@ -122,6 +122,14 @@ class SubjectKind(models.TextChoices):
     DJANGO_GROUP = 'django_group', 'Grupo Django'
 
 
+class ExternalSignupStatus(models.TextChoices):
+    PENDING = 'pendente', 'Pendente'
+    APPROVED = 'aprovado', 'Aprovado'
+    REJECTED = 'rejeitado', 'Rejeitado'
+    CANCELLED = 'cancelado', 'Cancelado'
+    INACTIVE = 'inativo', 'Inativo'
+
+
 class ApprovalStepParticipant(models.Model):
     """Quem participa da alçada (usuário ou grupo), com papel."""
 
@@ -153,6 +161,30 @@ class ApprovalStepParticipant(models.Model):
         blank=True,
         related_name='workflow_step_participations',
     )
+    is_variable = models.BooleanField(
+        default=False,
+        help_text='Se marcado, o participante é preenchido por processo na criação manual.',
+    )
+    variable_key = models.SlugField(
+        max_length=64,
+        blank=True,
+        help_text='Chave estável do campo variável (ex.: terceirizado_responsavel).',
+    )
+    variable_label = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text='Rótulo de exibição para o campo variável.',
+    )
+    required_on_create = models.BooleanField(
+        default=False,
+        help_text='Exige preenchimento na criação manual do processo.',
+    )
+    variable_subject_kind = models.CharField(
+        max_length=20,
+        choices=SubjectKind.choices,
+        blank=True,
+        help_text='Tipo de sujeito permitido quando a linha for variável.',
+    )
 
     class Meta:
         verbose_name = 'Participante da alçada'
@@ -160,7 +192,8 @@ class ApprovalStepParticipant(models.Model):
         constraints = [
             models.CheckConstraint(
                 check=(
-                    Q(subject_kind=SubjectKind.USER, user__isnull=False, django_group__isnull=True)
+                    Q(is_variable=True, user__isnull=True, django_group__isnull=True)
+                    | Q(subject_kind=SubjectKind.USER, user__isnull=False, django_group__isnull=True)
                     | Q(
                         subject_kind=SubjectKind.DJANGO_GROUP,
                         user__isnull=True,
@@ -177,6 +210,20 @@ class ApprovalStepParticipant(models.Model):
 
     def clean(self):
         super().clean()
+        if self.is_variable:
+            if self.subject_kind not in (SubjectKind.USER, SubjectKind.DJANGO_GROUP):
+                raise ValidationError({'subject_kind': 'Tipo de sujeito inválido para participante variável.'})
+            if not self.variable_key:
+                raise ValidationError({'variable_key': 'Informe a chave do participante variável.'})
+            if self.subject_kind == SubjectKind.USER and self.user_id:
+                raise ValidationError({'user': 'Participante variável não deve fixar utilizador no fluxo.'})
+            if self.subject_kind == SubjectKind.DJANGO_GROUP and self.django_group_id:
+                raise ValidationError({'django_group': 'Participante variável não deve fixar grupo no fluxo.'})
+            if self.variable_subject_kind and self.variable_subject_kind != self.subject_kind:
+                raise ValidationError(
+                    {'variable_subject_kind': 'O tipo variável deve corresponder ao tipo da linha variável.'}
+                )
+            return
         if self.subject_kind == SubjectKind.USER and not self.user_id:
             raise ValidationError({'user': 'Obrigatório para sujeito do tipo usuário.'})
         if self.subject_kind == SubjectKind.DJANGO_GROUP and not self.django_group_id:
@@ -386,6 +433,81 @@ class ApprovalProcess(models.Model):
         return f'{self.project.code} · {self.category.code} — {self.get_status_display()}'
 
 
+class ApprovalProcessParticipant(models.Model):
+    """
+    Participantes efetivos por processo/alçada.
+
+    Em processos antigos ou integrações legadas, quando vazio, o sistema usa os
+    participantes do fluxo (ApprovalStepParticipant) como fallback.
+    """
+
+    process = models.ForeignKey(
+        ApprovalProcess,
+        on_delete=models.CASCADE,
+        related_name='process_participants',
+    )
+    step = models.ForeignKey(
+        ApprovalStep,
+        on_delete=models.CASCADE,
+        related_name='process_participants',
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=ParticipantRole.choices,
+        default=ParticipantRole.APPROVER,
+    )
+    subject_kind = models.CharField(
+        max_length=20,
+        choices=SubjectKind.choices,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='workflow_process_participations',
+    )
+    django_group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='workflow_process_participations',
+    )
+    source_step_participant = models.ForeignKey(
+        ApprovalStepParticipant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='resolved_process_participants',
+    )
+    is_runtime_variable = models.BooleanField(default=False)
+    label_override = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['step__sequence', 'pk']
+        verbose_name = 'Participante efetivo do processo'
+        verbose_name_plural = 'Participantes efetivos dos processos'
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    Q(subject_kind=SubjectKind.USER, user__isnull=False, django_group__isnull=True)
+                    | Q(
+                        subject_kind=SubjectKind.DJANGO_GROUP,
+                        user__isnull=True,
+                        django_group__isnull=False,
+                    )
+                ),
+                name='workflow_process_participant_user_xor_group',
+            ),
+        ]
+
+    def __str__(self):
+        subj = self.user_id or self.django_group_id
+        return f'P{self.process_id} · S{self.step_id} · {self.role} · {subj}'
+
+
 class HistoryAction(models.TextChoices):
     SUBMITTED = 'submitted', 'Iniciado'
     APPROVED_STEP = 'approved_step', 'Aprovado na alçada'
@@ -492,3 +614,73 @@ class ApprovalIntegrationOutbox(models.Model):
         ordering = ['created_at']
         verbose_name = 'Outbox de integração'
         verbose_name_plural = 'Outbox de integração'
+
+
+class ExternalParticipantSignupRequest(models.Model):
+    """
+    Solicitação administrativa para criar/vincular participante externo variável.
+    """
+
+    process = models.ForeignKey(
+        ApprovalProcess,
+        on_delete=models.CASCADE,
+        related_name='external_signup_requests',
+    )
+    step = models.ForeignKey(
+        ApprovalStep,
+        on_delete=models.CASCADE,
+        related_name='external_signup_requests',
+    )
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_external_requests_created',
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_external_requests_reviewed',
+    )
+    linked_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_external_requests_linked',
+    )
+    variable_key = models.SlugField(max_length=64, blank=True)
+    full_name = models.CharField(max_length=255)
+    company_name = models.CharField(max_length=180, blank=True)
+    email = models.EmailField(db_index=True)
+    phone_whatsapp = models.CharField(max_length=40, blank=True, db_index=True)
+    cnpj = models.CharField(max_length=32, blank=True, db_index=True)
+    note = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=ExternalSignupStatus.choices,
+        default=ExternalSignupStatus.PENDING,
+        db_index=True,
+    )
+    review_reason = models.TextField(blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Solicitação de cadastro externo (workflow)'
+        verbose_name_plural = 'Solicitações de cadastro externo (workflow)'
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['email', 'status']),
+            models.Index(fields=['phone_whatsapp', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.full_name} · {self.email} · {self.get_status_display()}'

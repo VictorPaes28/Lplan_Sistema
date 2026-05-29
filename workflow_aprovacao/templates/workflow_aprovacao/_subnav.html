@@ -11,10 +11,20 @@
             <span class="wf-nav-badge" title="Pendências na sua fila">{{ workflow_pending_count }}</span>
             {% endif %}
         </a>
+        {% if not workflow_minimal_shell %}
+        <a href="{% url 'workflow_aprovacao:manual_request_new' %}"
+           class="{% if request.resolver_match.url_name == 'manual_request_new' %}wf-nav--active{% endif %}">
+            <i class="fas fa-plus-circle" aria-hidden="true"></i> Novo pedido
+        </a>
+        {% endif %}
         {% if workflow_show_config_nav %}
         <a href="{% url 'workflow_aprovacao:config_flow_list' %}"
            class="{% if request.resolver_match.url_name == 'config_flow_list' or request.resolver_match.url_name == 'flow_edit' %}wf-nav--active{% endif %}">
             <i class="fas fa-sitemap" aria-hidden="true"></i> Fluxos
+        </a>
+        <a href="{% url 'workflow_aprovacao:external_signup_requests' %}"
+           class="{% if request.resolver_match.url_name == 'external_signup_requests' %}wf-nav--active{% endif %}">
+            <i class="fas fa-user-clock" aria-hidden="true"></i> Solicitações externas
         </a>
         {% endif %}
     </nav>

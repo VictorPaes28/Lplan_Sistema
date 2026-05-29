@@ -1,0 +1,121 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:config_flow_list' %}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block wf_content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_messages.html' %}
+    <section class="wf-panel">
+        <div class="wf-panel__body">
+            <form method="get" class="wf-backlog-toolbar">
+                <label>Status
+                    <select name="status">
+                        <option value="pendente" {% if filter_status == 'pendente' %}selected{% endif %}>Pendente</option>
+                        <option value="aprovado" {% if filter_status == 'aprovado' %}selected{% endif %}>Aprovado</option>
+                        <option value="rejeitado" {% if filter_status == 'rejeitado' %}selected{% endif %}>Rejeitado</option>
+                        <option value="cancelado" {% if filter_status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                        <option value="inativo" {% if filter_status == 'inativo' %}selected{% endif %}>Inativo</option>
+                        <option value="all" {% if filter_status == 'all' %}selected{% endif %}>Todos</option>
+                    </select>
+                </label>
+                <label>Busca <input type="search" name="q" value="{{ filter_q|default:'' }}" placeholder="nome, e-mail, obra..."></label>
+                <button type="submit">Filtrar</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="wf-panel">
+        <div class="wf-panel__head"><h2 class="wf-panel__title">Solicitações</h2></div>
+        <div class="wf-panel__body wf-panel__body--flush">
+            {% if rows %}
+            <div class="wf-table-scroll">
+                <table class="wf-data-table">
+                    <thead>
+                        <tr><th>#</th><th>Terceirizado</th><th>Pedido</th><th>Status</th><th>Criado em</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>#{{ row.pk }}</td>
+                            <td>
+                                <div class="wf-cell-strong">{{ row.full_name }}</div>
+                                <div class="wf-cell-sub">{{ row.company_name }} · {{ row.email }} · {{ row.phone_whatsapp }}</div>
+                            </td>
+                            <td>
+                                <a href="{% url 'workflow_aprovacao:process_detail' row.process_id %}" class="wf-row-hit">
+                                    #{{ row.process_id }} · {{ row.process.project.code }}
+                                </a>
+                                <div class="wf-cell-sub">Alçada {{ row.step.sequence }} · {{ row.step.name }}</div>
+                            </td>
+                            <td>{{ row.get_status_display }}</td>
+                            <td>{{ row.created_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if row.status == 'pendente' %}
+                                <form method="post" action="{% url 'workflow_aprovacao:external_signup_request_review' row.pk %}" style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="approve">
+                                    <button type="submit" class="wf-btn-table">Aprovar</button>
+                                </form>
+                                <form method="post" action="{% url 'workflow_aprovacao:external_signup_request_review' row.pk %}" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.4rem;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="reject">
+                                    <input type="text" name="reason" class="wf-select" placeholder="Motivo da rejeição">
+                                    <button type="submit" class="wf-btn-table wf-btn-table--ghost">Rejeitar</button>
+                                </form>
+                                {% else %}
+                                <span class="wf-text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            {% if prefill_rows %}
+            <div class="wf-panel__body" style="border-top:1px solid #e2e8f0;">
+                <h3 class="wf-section-title" style="margin:0 0 .75rem 0;">Pré-cadastros enviados da configuração de fluxo</h3>
+                <p class="wf-help" style="margin:0 0 .75rem 0;">
+                    Estes registros foram enviados para a Central de Cadastros como <strong>terceirizado externo</strong>.
+                    A aprovação/rejeição é feita na tela de cadastros.
+                </p>
+                <a href="{% url 'central_signup_requests' %}" class="wf-btn-table wf-btn-table--ghost" style="margin-bottom:.75rem;">
+                    Abrir Central de Cadastros
+                </a>
+                <div class="wf-table-scroll">
+                    <table class="wf-data-table">
+                        <thead>
+                            <tr><th>#</th><th>Terceirizado</th><th>Status</th><th>Solicitado por</th><th>Criado em</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for row in prefill_rows %}
+                            <tr>
+                                <td>#{{ row.pk }}</td>
+                                <td>
+                                    <div class="wf-cell-strong">{{ row.full_name }}</div>
+                                    <div class="wf-cell-sub">{{ row.email }}{% if row.phone %} · {{ row.phone }}{% endif %}</div>
+                                </td>
+                                <td>{{ row.get_status_display }}</td>
+                                <td>{% if row.requested_by %}{{ row.requested_by.get_full_name|default:row.requested_by.username }}{% else %}—{% endif %}</td>
+                                <td>{{ row.created_at|date:"d/m/Y H:i" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not rows and not prefill_rows %}
+            <div class="wf-empty wf-empty--inline">
+                <p class="wf-empty__title">Sem solicitações neste filtro</p>
+                <p class="wf-empty__text">Quando enviar um novo terceirizado no fluxo, ele aparecerá aqui e também na Central de Cadastros.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

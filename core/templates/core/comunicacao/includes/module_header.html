@@ -1,0 +1,17 @@
+<header class="com-module-header">
+    <div class="com-module-header__main">
+        <p class="com-module-header__eyebrow">Painel do sistema</p>
+        <h1 class="com-module-header__title">E-mails e Notificações</h1>
+        {% if com_header_subtitle %}
+        <p class="com-module-header__subtitle">{{ com_header_subtitle }}</p>
+        {% endif %}
+    </div>
+    <div class="com-module-header__actions">
+        <a href="{% url 'perfil_comunicacao' %}" class="com-btn com-btn--ghost">
+            <i class="fas fa-envelope" aria-hidden="true"></i> Minhas preferências de e-mail
+        </a>
+        <a href="{% url 'accounts:admin_central' %}" class="com-btn com-btn--ghost">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i> Painel
+        </a>
+    </div>
+</header>

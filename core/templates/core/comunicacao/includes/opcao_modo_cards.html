@@ -1,0 +1,20 @@
+{# Radio cards para escolha de modo — espera: opcoes (lista), modo_atual, input_name, input_id_prefix #}
+<fieldset class="comunicacao-opcoes-fieldset">
+    <legend class="sr-only">Como receber este aviso</legend>
+    <div class="comunicacao-opcoes-grid">
+        {% for op in opcoes %}
+        <label class="comunicacao-opcao-card {% if modo_atual == op.value %}comunicacao-opcao-card--ativa{% endif %}">
+            <input
+                type="radio"
+                name="{{ input_name }}"
+                value="{{ op.value }}"
+                class="comunicacao-opcao-input"
+                {% if modo_atual == op.value %}checked{% endif %}
+            >
+            <span class="comunicacao-opcao-icone"><i class="fas {{ op.icone }}"></i></span>
+            <span class="comunicacao-opcao-titulo">{{ op.titulo }}</span>
+            <span class="comunicacao-opcao-desc">{{ op.descricao }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</fieldset>

@@ -5,6 +5,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from .htmx_views import project_activities_tree, activity_children
 from . import central_views
+from . import comunicacao_views
 from .offline_views import rdo_offline_service_worker
 from .project_locais_views import project_locais_manage_view
 from .frontend_views import (
@@ -145,6 +146,12 @@ urlpatterns = [
     path('dashboard/', dashboard_view, name='dashboard'),
     # path('integracoes/teams/chat/', teams_chat_embed_view, name='teams-chat-embed'),  # Pausado
     path('profile/', profile_view, name='profile'),
+    path('profile/comunicacao/', comunicacao_views.perfil_comunicacao_view, name='perfil_comunicacao'),
+    path('central/comunicacao/', comunicacao_views.admin_comunicacao_hub_view, name='admin_comunicacao_hub'),
+    path('central/comunicacao/tipos/', comunicacao_views.admin_comunicacao_tipos_view, name='admin_comunicacao_tipos'),
+    path('central/comunicacao/preferencias/', comunicacao_views.admin_comunicacao_preferencias_view, name='admin_comunicacao_preferencias'),
+    path('central/comunicacao/decisoes/', comunicacao_views.admin_comunicacao_decisoes_view, name='admin_comunicacao_decisoes'),
+    path('central/comunicacao/padroes-grupo/', comunicacao_views.admin_comunicacao_padroes_grupo_view, name='admin_comunicacao_padroes_grupo'),
     path('analytics/', analytics_view, name='analytics'),
     path('calendar-events/', calendar_events_view, name='calendar-events'),
     path('reports/', report_list_view, name='report-list'),

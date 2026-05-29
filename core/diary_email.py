@@ -15,6 +15,26 @@ from django.urls import reverse
 logger = logging.getLogger(__name__)
 
 
+def _pode_enviar_com_router(email, tipo_codigo, *, contexto=None, usuario=None):
+    """Consulta preferências centralizadas; em falha mantém envio."""
+    try:
+        from core.comunicacao_router import ComunicacaoPreferenciasService
+
+        return ComunicacaoPreferenciasService().pode_enviar_email(
+            email,
+            tipo_codigo,
+            usuario=usuario,
+            contexto=contexto or {},
+        ).enviar
+    except Exception as exc:
+        logger.warning(
+            'Router de comunicação indisponível para %s (%s): mantém envio.',
+            tipo_codigo,
+            exc,
+        )
+        return True
+
+
 def _get_rdo_connection_and_from():
     """
     Retorna (connection, from_email) para envio de e-mails do RDO.
@@ -59,6 +79,8 @@ def send_diary_to_owners(diary):
     """
     from core.models import ProjectOwner
 
+    from core.comunicacao_constants import TIPO_RDO_CLIENTE
+
     owners = ProjectOwner.objects.filter(project=diary.project).select_related('user')
     if not owners:
         return
@@ -74,6 +96,18 @@ def send_diary_to_owners(diary):
         for po in owners:
             email_addr = po.user.email
             if not email_addr:
+                continue
+            if not _pode_enviar_com_router(
+                email_addr,
+                TIPO_RDO_CLIENTE,
+                contexto={
+                    'modulo': 'rdo',
+                    'objeto_tipo': 'construction_diary',
+                    'objeto_id': diary.pk,
+                    'origem': 'rdo_envio_cliente',
+                },
+                usuario=po.user,
+            ):
                 continue
             try:
                 nome_destinatario = (po.user.get_full_name() or po.user.username or '').strip()
@@ -117,6 +151,23 @@ def send_diary_pdf_to_recipients(diary):
     Chamado quando o diário é aprovado; usa o mesmo SMTP do RDO se configurado.
     """
     recipients = list(diary.project.diary_recipients.values_list('email', flat=True))
+    if not recipients:
+        return
+    from core.comunicacao_constants import TIPO_RDO_LISTA_INTERNA
+
+    recipients = [
+        email for email in recipients
+        if _pode_enviar_com_router(
+            email,
+            TIPO_RDO_LISTA_INTERNA,
+            contexto={
+                'modulo': 'rdo',
+                'objeto_tipo': 'construction_diary',
+                'objeto_id': diary.pk,
+                'origem': 'rdo_envio_lista_interna',
+            },
+        )
+    ]
     if not recipients:
         return
     project = diary.project
@@ -220,8 +271,26 @@ def send_diary_email_for_date(target_date=None):
         is_active=True,
     ).annotate(rcpt_count=Count('diary_recipients')).filter(rcpt_count__gt=0)
 
+    from core.comunicacao_constants import TIPO_RDO_LISTA_INTERNA
+
     for project in projects_with_recipients:
         recipients = list(project.diary_recipients.values_list('email', flat=True))
+        if not recipients:
+            continue
+
+        recipients = [
+            email for email in recipients
+            if _pode_enviar_com_router(
+                email,
+                TIPO_RDO_LISTA_INTERNA,
+                contexto={
+                    'modulo': 'rdo',
+                    'objeto_tipo': 'project',
+                    'objeto_id': project.pk,
+                    'origem': 'rdo_envio_diario_data',
+                },
+            )
+        ]
         if not recipients:
             continue
 

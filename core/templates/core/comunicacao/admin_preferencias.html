@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/comunicacao.css' %}">
+{% endblock %}
+
+{% block page_title %}{% if alvo %}Ajustes por pessoa — {{ alvo.get_full_name|default:alvo.username }}{% else %}Ajustes por pessoa{% endif %}{% endblock %}
+{% block page_subtitle %}Configuração manual por pessoa e consulta de ajustes salvos{% endblock %}
+
+{% block content %}
+<div class="com-page">
+    {% include 'core/comunicacao/includes/module_header.html' with com_header_subtitle="Defina quem recebe cada aviso por e-mail. Ajuste individual tem prioridade sobre o padrão do perfil." %}
+    {% include 'core/comunicacao/includes/subnav.html' with com_nav_active='preferencias' %}
+
+    <nav class="com-tabs" aria-label="Modo de visualização">
+        <a href="{% url 'admin_comunicacao_preferencias' %}?vista=pessoa{% if alvo %}&amp;usuario={{ alvo.pk }}{% endif %}" class="com-tabs__link{% if vista == 'pessoa' %} is-active{% endif %}">Por pessoa</a>
+        <a href="{% url 'admin_comunicacao_preferencias' %}?vista=registros" class="com-tabs__link{% if vista == 'registros' %} is-active{% endif %}">Lista de ajustes</a>
+    </nav>
+    <p class="com-tabs-note">Nesta tela: <strong>configuração manual</strong>. Em <strong>Histórico técnico</strong>: decisões automáticas de envio.</p>
+
+    {% if vista == 'registros' %}
+    <form method="get" class="com-filters com-filters--standalone">
+        <input type="hidden" name="vista" value="registros">
+        <div class="com-field com-field--grow">
+            <label for="lista-q">Usuário ou e-mail</label>
+            <input type="search" name="lista_q" id="lista-q" value="{{ f_lista_q }}" class="com-input" placeholder="Nome, usuário ou e-mail…">
+        </div>
+        <div class="com-field">
+            <label for="lista-modulo">Módulo</label>
+            <select name="modulo" id="lista-modulo" class="com-select">
+                <option value="">Todos</option>
+                {% for val, label in modulos_choices %}
+                <option value="{{ val }}" {% if f_modulo == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="com-field">
+            <label for="lista-tipo">Tipo</label>
+            <select name="tipo" id="lista-tipo" class="com-select">
+                <option value="">Todos</option>
+                {% for t in tipos_filtro %}
+                <option value="{{ t.pk }}" {% if f_tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="com-field">
+            <label for="lista-modo">Preferência</label>
+            <select name="modo" id="lista-modo" class="com-select">
+                <option value="">Todas</option>
+                <option value="email" {% if f_modo == 'email' %}selected{% endif %}>E-mail imediato</option>
+                <option value="sem_email" {% if f_modo == 'sem_email' %}selected{% endif %}>Não enviar e-mail</option>
+                <option value="padrao" {% if f_modo == 'padrao' %}selected{% endif %}>Usar regra da empresa</option>
+            </select>
+        </div>
+        <button type="submit" class="com-btn com-btn--primary">Filtrar</button>
+        {% if f_lista_q or f_modulo or f_tipo or f_modo %}
+        <a href="{% url 'admin_comunicacao_preferencias' %}?vista=registros" class="com-btn com-btn--ghost">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="com-panel">
+        <div class="com-panel__head">
+            <h2 class="com-panel__title">Ajustes salvos</h2>
+        </div>
+        <div class="com-panel__body com-panel__body--flush">
+            <div class="com-table-wrap">
+                <table class="com-table com-table--responsive">
+                    <thead>
+                        <tr>
+                            <th>Destinatário</th>
+                            <th>Tipo</th>
+                            <th>Módulo</th>
+                            <th>Preferência</th>
+                            <th>Origem</th>
+                            <th>Atualizado</th>
+                            <th class="com-col-actions">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in lista_prefs %}
+                        {% with p=item.pref %}
+                        <tr>
+                            <td data-label="Destinatário">
+                                {% if p.usuario %}
+                                <span class="com-table__primary">{{ p.usuario.get_full_name|default:p.usuario.username }}</span>
+                                <span class="com-table__secondary">{{ p.usuario.email }}</span>
+                                {% else %}
+                                <span class="com-table__primary">{{ p.email }}</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Tipo">{{ p.tipo.nome }}</td>
+                            <td data-label="Módulo">{{ item.modulo_label }}</td>
+                            <td data-label="Preferência"><span class="com-badge {% if item.resumo.modo == 'sem_email' %}com-badge--off{% elif item.resumo.modo == 'email' %}com-badge--ok{% else %}com-badge--muted{% endif %}">{{ item.resumo.label }}</span></td>
+                            <td data-label="Origem">{{ item.resumo.origem }}</td>
+                            <td data-label="Atualizado">{{ p.updated_at|date:"d/m/Y H:i" }}</td>
+                            <td data-label="Ações" class="com-col-actions">
+                                {% if p.usuario %}
+                                <a href="?vista=pessoa&amp;usuario={{ p.usuario.pk }}" class="com-btn com-btn--ghost">Editar</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endwith %}
+                        {% empty %}
+                        <tr class="com-table__empty"><td colspan="7">Nenhuma preferência personalizada encontrada.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="com-layout-split com-layout-split--prefs">
+        <aside class="com-sidebar-panel">
+            <h2>Buscar pessoa</h2>
+            <p>Selecione um usuário para ajustar os avisos de e-mail.</p>
+            <form method="get" class="com-field" style="margin-bottom: 0.75rem;">
+                <input type="hidden" name="vista" value="pessoa">
+                <label for="busca-q" class="sr-only">Buscar</label>
+                <input type="search" name="q" id="busca-q" value="{{ q }}" class="com-input" placeholder="Nome, usuário ou e-mail…">
+                <button type="submit" class="com-btn com-btn--primary" style="width: 100%; margin-top: 0.5rem;">Buscar</button>
+            </form>
+            {% if usuarios %}
+            <ul class="com-user-list">
+                {% for u in usuarios %}
+                <li>
+                    <a href="?vista=pessoa&amp;usuario={{ u.pk }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="{% if alvo and alvo.pk == u.pk %}is-selected{% endif %}">
+                        <strong>{{ u.get_full_name|default:u.username }}</strong>
+                        <span class="com-user-list__email">{{ u.email|default:"sem e-mail" }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% elif q %}
+            <p class="comunicacao-empty">Nenhum usuário encontrado.</p>
+            {% endif %}
+        </aside>
+
+        <div>
+            {% if alvo %}
+            <div class="com-panel" style="margin-bottom: 1rem;">
+                <div class="com-panel__body">
+                    <p style="margin: 0; font-size: 0.9375rem;">
+                        <strong>{{ alvo.get_full_name|default:alvo.username }}</strong>
+                        <span style="color: #64748b;">— {{ alvo.email }}</span>
+                    </p>
+                </div>
+            </div>
+
+            <p class="com-notice com-notice--info">
+                <i class="fas fa-circle-info" aria-hidden="true"></i>
+                <span>Use o interruptor <em>Recebe / Não recebe</em> em cada aviso.
+                Cadeado = senha, credenciais ou diário ao cliente (não pode desligar).</span>
+            </p>
+
+            <div class="com-modulos-grid">
+            {% for mod in modulos_email %}
+            <div class="com-panel com-modulo-section">
+                <div class="com-panel__head">
+                    <h2 class="com-panel__title">{{ mod.label }}</h2>
+                </div>
+                <div class="com-panel__body">
+                    {% for linha in mod.controlaveis %}
+                    <form method="post" class="com-pref-row">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_usuario">
+                        <input type="hidden" name="user_id" value="{{ alvo.pk }}">
+                        <input type="hidden" name="tipo_id" value="{{ linha.tipo.pk }}">
+                        <div class="com-pref-row__text">
+                            <strong>{{ linha.titulo }}</strong>
+                            <span>{{ linha.quando }}</span>
+                        </div>
+                        <label class="com-switch">
+                            <span class="sr-only">{{ linha.titulo }} — receber e-mail</span>
+                            <input type="checkbox" name="receber" value="1" {% if linha.recebe %}checked{% endif %} onchange="this.form.submit()">
+                            <span class="com-switch__ui" aria-hidden="true"></span>
+                            <span class="com-switch__label">{% if linha.recebe %}Recebe{% else %}Não recebe{% endif %}</span>
+                        </label>
+                    </form>
+                    {% endfor %}
+                    {% for linha in mod.fixos %}
+                    <div class="com-pref-row com-pref-row--locked">
+                        <div class="com-pref-row__text">
+                            <strong>{{ linha.titulo }}</strong>
+                            <span>{{ linha.quando }}</span>
+                        </div>
+                        <span class="com-badge com-badge--lock" title="{{ linha.motivo }}"><i class="fas fa-lock" aria-hidden="true"></i> Sempre envia</span>
+                    </div>
+                    {% endfor %}
+                    {% if not mod.controlaveis and not mod.fixos %}
+                    <p class="comunicacao-empty">Nenhum aviso neste módulo.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <p class="comunicacao-empty">Selecione um usuário na lista ao lado.</p>
+            {% endfor %}
+            </div>
+
+            <details class="com-details">
+                <summary>Destinatário externo (sem usuário no sistema)</summary>
+                <div class="com-details__body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="email_livre">
+                        <input type="email" name="email" required class="com-input" placeholder="email@empresa.com.br" aria-label="E-mail externo">
+                        <select name="tipo_id" class="com-select" required aria-label="Tipo de aviso">
+                            {% for t in tipos_email_livre %}
+                            <option value="{{ t.pk }}">{{ t.nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <label class="com-check"><input type="checkbox" name="email_ativo" checked> Recebe</label>
+                        <button type="submit" class="com-btn com-btn--ghost">Salvar</button>
+                    </form>
+                </div>
+            </details>
+
+            {% else %}
+            <div class="com-panel">
+                <div class="com-panel__body">
+                    <p class="comunicacao-empty" style="margin: 0;">Busque e selecione uma pessoa na coluna à esquerda para editar os avisos por módulo.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Meus e-mails{% endblock %}
+{% block back_url %}{% url 'profile' %}{% endblock %}
+{% block page_title %}Meus e-mails{% endblock %}
+{% block page_subtitle %}Escolha quais avisos de e-mail chegam no seu endereço{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/comunicacao.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="com-page com-page--perfil">
+    <div class="com-layout-split com-layout-split--perfil">
+        <aside class="com-sidebar-panel">
+            <h2>Como funciona</h2>
+            <div class="com-perfil-intro">
+                <p>Você pode ligar ou desligar alguns avisos de e-mail quando o sistema permitir.</p>
+                <ul>
+                    <li><strong>Não enviar e-mail</strong> não cria notificação no sino.</li>
+                    <li>Avisos com cadeado (senha, credenciais, diário ao cliente) são obrigatórios.</li>
+                </ul>
+            </div>
+            {% if tem_algum_editavel %}
+            <p class="com-notice" style="margin-top: 1rem; margin-bottom: 0;">
+                <i class="fas fa-toggle-on" aria-hidden="true"></i>
+                <span>Use o interruptor em cada aviso abaixo.</span>
+            </p>
+            {% endif %}
+        </aside>
+
+        <div>
+            <div class="com-modulos-grid">
+            {% for mod in modulos_email %}
+            <div class="com-panel com-modulo-section">
+                <div class="com-panel__head">
+                    <h2 class="com-panel__title">{{ mod.label }}</h2>
+                </div>
+                <div class="com-panel__body">
+                    {% for linha in mod.controlaveis %}
+                    <form method="post" class="com-pref-row">
+                        {% csrf_token %}
+                        <input type="hidden" name="tipo_id" value="{{ linha.tipo.pk }}">
+                        <div class="com-pref-row__text">
+                            <strong>{{ linha.titulo }}</strong>
+                            <span>{{ linha.quando }}</span>
+                        </div>
+                        <label class="com-switch">
+                            <span class="sr-only">{{ linha.titulo }} — receber por e-mail</span>
+                            <input type="checkbox" name="receber" value="1" {% if linha.recebe %}checked{% endif %} onchange="this.form.submit()">
+                            <span class="com-switch__ui" aria-hidden="true"></span>
+                            <span class="com-switch__label">{% if linha.recebe %}Recebe{% else %}Não recebe{% endif %}</span>
+                        </label>
+                    </form>
+                    {% endfor %}
+                    {% for linha in mod.fixos %}
+                    <div class="com-pref-row com-pref-row--locked">
+                        <div class="com-pref-row__text">
+                            <strong>{{ linha.titulo }}</strong>
+                            <span>{{ linha.quando }}</span>
+                        </div>
+                        <span class="com-badge com-badge--lock" title="Este aviso não pode ser desligado"><i class="fas fa-lock" aria-hidden="true"></i> Sempre envia</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="com-panel">
+                <div class="com-panel__body">
+                    <p class="comunicacao-empty" style="margin:0;">Nada para configurar na sua conta no momento.</p>
+                </div>
+            </div>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <p class="com-back-link">
+        <a href="{% url 'profile' %}"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar ao perfil</a>
+    </p>
+</div>
+{% endblock %}

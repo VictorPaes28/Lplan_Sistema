@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/comunicacao.css' %}">
+{% endblock %}
+
+{% block page_title %}Tipos de comunicação{% endblock %}
+{% block page_subtitle %}Catálogo administrativo{% endblock %}
+
+{% block content %}
+<div class="com-page">
+    {% include 'core/comunicacao/includes/module_header.html' with com_header_subtitle="Referência dos avisos cadastrados e status de integração com o controle central de e-mail." %}
+    {% include 'core/comunicacao/includes/subnav.html' with com_nav_active='tipos' %}
+
+    <form method="get" class="com-filters com-filters--standalone">
+        <div class="com-field">
+            <label for="f-modulo">Módulo</label>
+            <select name="modulo" id="f-modulo" class="com-select">
+                <option value="">Todos</option>
+                {% for val, label in modulos_choices %}
+                <option value="{{ val }}" {% if f_modulo == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="com-field">
+            <label for="f-router">Controle ativo</label>
+            <select name="router" id="f-router" class="com-select">
+                <option value="">Todos</option>
+                <option value="sim" {% if f_router == 'sim' %}selected{% endif %}>Integrado</option>
+                <option value="nao" {% if f_router == 'nao' %}selected{% endif %}>Ainda não integrado</option>
+            </select>
+        </div>
+        <button type="submit" class="com-btn com-btn--primary">Filtrar</button>
+        {% if f_modulo or f_router %}
+        <a href="{% url 'admin_comunicacao_tipos' %}" class="com-btn com-btn--ghost">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="com-panel">
+        <div class="com-panel__head">
+            <h2 class="com-panel__title">{{ tipos_rows|length }} tipo(s)</h2>
+        </div>
+        <div class="com-panel__body com-panel__body--flush">
+            <div class="com-table-wrap">
+                <table class="com-table com-table--responsive">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Módulo</th>
+                            <th>Categoria</th>
+                            <th>Criticidade</th>
+                            <th>Pessoa</th>
+                            <th>Administrador</th>
+                            <th>Controle</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in tipos_rows %}
+                        {% with t=row.tipo %}
+                        <tr>
+                            <td data-label="Tipo">
+                                <span class="com-table__primary">{{ t.nome }}</span>
+                                {% if t.descricao %}<span class="com-table__secondary">{{ t.descricao|truncatechars:100 }}</span>{% endif %}
+                            </td>
+                            <td data-label="Módulo">{{ row.modulo_label }}</td>
+                            <td data-label="Categoria">{{ t.get_categoria_display }}</td>
+                            <td data-label="Criticidade">{{ t.get_criticidade_display }}</td>
+                            <td data-label="Pessoa">{% if t.permite_usuario_desativar_email %}<span class="com-badge com-badge--ok">Pode ajustar</span>{% else %}<span class="com-badge com-badge--muted">Não ajusta</span>{% endif %}</td>
+                            <td data-label="Administrador">{% if t.permite_admin_desativar_email %}<span class="com-badge com-badge--ok">Pode ajustar</span>{% else %}<span class="com-badge com-badge--muted">Não ajusta</span>{% endif %}</td>
+                            <td data-label="Controle">
+                                {% if row.router_ativo %}
+                                <span class="com-badge com-badge--ok">Ativo</span>
+                                {% else %}
+                                <span class="com-badge com-badge--muted">Não integrado</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Status">
+                                {% if not t.ativo %}<span class="com-badge com-badge--off">Inativo</span>
+                                {% elif row.nunca_desligar %}<span class="com-badge com-badge--lock"><i class="fas fa-lock" aria-hidden="true"></i> Obrigatório</span>
+                                {% else %}<span class="com-badge com-badge--muted">Configurável</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endwith %}
+                        {% empty %}
+                        <tr class="com-table__empty"><td colspan="8">Nenhum tipo encontrado com os filtros aplicados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

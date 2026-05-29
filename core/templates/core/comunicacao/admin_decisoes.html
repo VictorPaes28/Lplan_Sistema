@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load core_tags %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/comunicacao.css' %}">
+{% endblock %}
+
+{% block page_title %}Decisões de envio{% endblock %}
+{% block page_subtitle %}Histórico técnico do controle de envio{% endblock %}
+
+{% block content %}
+<div class="com-page">
+    {% include 'core/comunicacao/includes/module_header.html' with com_header_subtitle="Log automático de envio/bloqueio por destinatário e motivo técnico da decisão." %}
+    {% include 'core/comunicacao/includes/subnav.html' with com_nav_active='decisoes' %}
+    <p class="com-notice com-notice--info">
+        <i class="fas fa-circle-info" aria-hidden="true"></i>
+        <span>Esta tela mostra o que o sistema decidiu no envio. Para mudar regras, use <strong>Ajustes por pessoa</strong> ou <strong>Padrões por perfil</strong>.</span>
+    </p>
+
+    <form method="get" class="com-filters com-filters--standalone">
+        <div class="com-field">
+            <label for="f-decisao">Decisão</label>
+            <select name="decisao" id="f-decisao" class="com-select">
+                <option value="">Todas</option>
+                <option value="enviar" {% if decisao == 'enviar' %}selected{% endif %}>Enviar</option>
+                <option value="bloquear" {% if decisao == 'bloquear' %}selected{% endif %}>Bloquear</option>
+            </select>
+        </div>
+        <div class="com-field">
+            <label for="f-modulo">Módulo</label>
+            <select name="modulo" id="f-modulo" class="com-select">
+                <option value="">Todos</option>
+                {% for val, label in modulos_choices %}
+                <option value="{{ val }}" {% if modulo == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="com-field">
+            <label for="f-tipo">Tipo</label>
+            <select name="tipo" id="f-tipo" class="com-select">
+                <option value="">Todos</option>
+                {% for t in tipos %}
+                <option value="{{ t.codigo }}" {% if tipo_codigo == t.codigo %}selected{% endif %}>{{ t.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="com-field com-field--grow">
+            <label for="f-email">E-mail</label>
+            <input type="text" name="email" id="f-email" value="{{ email_f }}" placeholder="Filtrar por destinatário…" class="com-input">
+        </div>
+        <button type="submit" class="com-btn com-btn--primary">Filtrar</button>
+        {% if filtros_ativos %}
+        <a href="{% url 'admin_comunicacao_decisoes' %}" class="com-btn com-btn--ghost">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="com-panel">
+        <div class="com-panel__head">
+            <h2 class="com-panel__title">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} registro(s){% else %}Nenhum registro{% endif %}</h2>
+        </div>
+        <div class="com-panel__body com-panel__body--flush">
+            <div class="com-table-wrap">
+                <table class="com-table com-table--responsive">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Destinatário</th>
+                            <th>Tipo</th>
+                            <th>Módulo</th>
+                            <th>Decisão</th>
+                            <th>Motivo</th>
+                            <th>Origem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in page_obj %}
+                        <tr>
+                            <td data-label="Data">{{ log.created_at|date:"d/m/Y H:i:s" }}</td>
+                            <td data-label="Destinatário">{{ log.email|default:log.usuario.username }}</td>
+                            <td data-label="Tipo">
+                                <span class="com-table__primary">{% if log.tipo %}{{ log.tipo.nome }}{% else %}{{ log.tipo_codigo }}{% endif %}</span>
+                            </td>
+                            <td data-label="Módulo">{{ log.modulo }}</td>
+                            <td data-label="Decisão">
+                                {% if log.decisao == 'enviar' %}
+                                <span class="com-badge com-badge--ok">Enviar</span>
+                                {% elif log.decisao == 'bloquear' %}
+                                <span class="com-badge com-badge--off">Bloquear</span>
+                                {% else %}
+                                <span class="com-badge com-badge--muted">{{ log.get_decisao_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Motivo">
+                                {% with motivo_label=motivos_humanos|get_item:log.motivo %}
+                                <span class="com-table__truncate" title="{{ log.motivo }}">{{ motivo_label|default:log.motivo }}</span>
+                                {% endwith %}
+                            </td>
+                            <td data-label="Origem">{{ log.origem_destinatario|default:"—" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr class="com-table__empty"><td colspan="7">Nenhum log de decisão no período ou com os filtros aplicados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if page_obj.has_other_pages %}
+            <nav class="com-pagination" aria-label="Paginação">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&amp;decisao={{ decisao }}&amp;modulo={{ modulo }}&amp;tipo={{ tipo_codigo }}&amp;email={{ email_f|urlencode }}">Anterior</a>
+                {% endif %}
+                <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&amp;decisao={{ decisao }}&amp;modulo={{ modulo }}&amp;tipo={{ tipo_codigo }}&amp;email={{ email_f|urlencode }}">Próxima</a>
+                {% endif %}
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

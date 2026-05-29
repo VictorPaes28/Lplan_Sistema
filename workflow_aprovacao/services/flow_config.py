@@ -38,6 +38,11 @@ def serialize_flow_for_editor(flow: ApprovalFlowDefinition) -> dict[str, Any]:
                         "subject_kind": "user",
                         "user_id": p.user_id,
                         "group_id": None,
+                        "is_variable": bool(p.is_variable),
+                        "variable_key": p.variable_key or '',
+                        "variable_label": p.variable_label or '',
+                        "required_on_create": bool(p.required_on_create),
+                        "variable_subject_kind": p.variable_subject_kind or '',
                     }
                 )
             else:
@@ -46,6 +51,11 @@ def serialize_flow_for_editor(flow: ApprovalFlowDefinition) -> dict[str, Any]:
                         "subject_kind": "django_group",
                         "user_id": None,
                         "group_id": p.django_group_id,
+                        "is_variable": bool(p.is_variable),
+                        "variable_key": p.variable_key or '',
+                        "variable_label": p.variable_label or '',
+                        "required_on_create": bool(p.required_on_create),
+                        "variable_subject_kind": p.variable_subject_kind or '',
                     }
                 )
         steps_out.append(
@@ -54,7 +64,18 @@ def serialize_flow_for_editor(flow: ApprovalFlowDefinition) -> dict[str, Any]:
                 "name": st.name,
                 "is_active": st.is_active,
                 "participants": parts
-                or [{"subject_kind": "user", "user_id": None, "group_id": None}],
+                or [
+                    {
+                        "subject_kind": "user",
+                        "user_id": None,
+                        "group_id": None,
+                        "is_variable": False,
+                        "variable_key": "",
+                        "variable_label": "",
+                        "required_on_create": False,
+                        "variable_subject_kind": "",
+                    }
+                ],
             }
         )
     if not steps_out:
@@ -63,7 +84,18 @@ def serialize_flow_for_editor(flow: ApprovalFlowDefinition) -> dict[str, Any]:
                 "id": None,
                 "name": "1ª alçada",
                 "is_active": True,
-                "participants": [{"subject_kind": "user", "user_id": None, "group_id": None}],
+                "participants": [
+                    {
+                        "subject_kind": "user",
+                        "user_id": None,
+                        "group_id": None,
+                        "is_variable": False,
+                        "variable_key": "",
+                        "variable_label": "",
+                        "required_on_create": False,
+                        "variable_subject_kind": "",
+                    }
+                ],
             }
         )
     return {"is_active": flow.is_active, "steps": steps_out}
@@ -143,20 +175,55 @@ def apply_flow_configuration(
                 raise FlowConfigError(
                     f"Alçada «{name}»: cada participante deve ser utilizador ou grupo."
                 )
+            is_variable = bool(p.get("is_variable"))
+            variable_key = (p.get("variable_key") or "").strip().lower()
+            variable_label = (p.get("variable_label") or "").strip()
+            required_on_create = bool(p.get("required_on_create"))
+            variable_subject_kind = (p.get("variable_subject_kind") or "").strip()
+            if is_variable and not variable_key:
+                raise FlowConfigError(
+                    f"Alçada «{name}»: participante variável precisa de chave (variable_key)."
+                )
+            if variable_subject_kind and variable_subject_kind != sk:
+                raise FlowConfigError(
+                    f"Alçada «{name}»: tipo variável deve corresponder ao tipo selecionado."
+                )
             if sk == SubjectKind.USER:
                 uid = p.get("user_id")
-                if not isinstance(uid, int) or uid < 1:
+                if not is_variable and (not isinstance(uid, int) or uid < 1):
                     raise FlowConfigError(f"Alçada «{name}»: selecione o utilizador em cada linha.")
-                if not User.objects.filter(pk=uid, is_active=True).exists():
+                if not is_variable and not User.objects.filter(pk=uid, is_active=True).exists():
                     raise FlowConfigError(f"Alçada «{name}»: utilizador inválido ou inativo.")
-                plist.append({"subject_kind": SubjectKind.USER, "user_id": uid, "group_id": None})
+                plist.append(
+                    {
+                        "subject_kind": SubjectKind.USER,
+                        "user_id": None if is_variable else uid,
+                        "group_id": None,
+                        "is_variable": is_variable,
+                        "variable_key": variable_key,
+                        "variable_label": variable_label,
+                        "required_on_create": required_on_create,
+                        "variable_subject_kind": variable_subject_kind or SubjectKind.USER,
+                    }
+                )
             else:
                 gid = p.get("group_id")
-                if not isinstance(gid, int) or gid < 1:
+                if not is_variable and (not isinstance(gid, int) or gid < 1):
                     raise FlowConfigError(f"Alçada «{name}»: selecione o grupo em cada linha.")
-                if not Group.objects.filter(pk=gid).exists():
+                if not is_variable and not Group.objects.filter(pk=gid).exists():
                     raise FlowConfigError(f"Alçada «{name}»: grupo inválido.")
-                plist.append({"subject_kind": SubjectKind.DJANGO_GROUP, "user_id": None, "group_id": gid})
+                plist.append(
+                    {
+                        "subject_kind": SubjectKind.DJANGO_GROUP,
+                        "user_id": None,
+                        "group_id": None if is_variable else gid,
+                        "is_variable": is_variable,
+                        "variable_key": variable_key,
+                        "variable_label": variable_label,
+                        "required_on_create": required_on_create,
+                        "variable_subject_kind": variable_subject_kind or SubjectKind.DJANGO_GROUP,
+                    }
+                )
 
         normalized.append(
             {
@@ -227,6 +294,11 @@ def apply_flow_configuration(
                 subject_kind=p["subject_kind"],
                 user_id=p["user_id"],
                 django_group_id=p["group_id"],
+                is_variable=bool(p.get("is_variable")),
+                variable_key=p.get("variable_key") or "",
+                variable_label=p.get("variable_label") or "",
+                required_on_create=bool(p.get("required_on_create")),
+                variable_subject_kind=p.get("variable_subject_kind") or "",
             )
 
     flow.is_active = is_active

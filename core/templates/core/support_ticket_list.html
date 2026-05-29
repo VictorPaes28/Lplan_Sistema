@@ -7,7 +7,7 @@
 {% block content %}
 <div class="st-queue-page">
     <div class="st-queue-toolbar">
-        <a href="{% url 'select-system' %}" class="st-queue-back">
+        <a href="{% url 'support-home' %}" class="st-queue-back">
             <i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar
         </a>
         {% if can_manage_support_tickets %}
@@ -15,6 +15,9 @@
             <i class="fas fa-headset" aria-hidden="true"></i> Painel de suporte
         </a>
         {% endif %}
+        <a href="{% url 'support-home' %}?abrir_chamado=1" class="st-queue-btn st-queue-btn--primary" style="margin-left:auto;">
+            <i class="fas fa-plus" aria-hidden="true"></i>&nbsp;Novo chamado
+        </a>
     </div>
 
     <div class="st-queue-shell">
@@ -67,7 +70,12 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="st-queue-empty">Você ainda não abriu chamados pelo sistema.</div>
+        <div class="st-queue-empty">
+            <p style="margin:0 0 0.85rem;">Você ainda não abriu chamados pelo sistema.</p>
+            <a href="{% url 'support-home' %}?abrir_chamado=1" class="st-queue-btn st-queue-btn--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>&nbsp;Abrir meu primeiro chamado
+            </a>
+        </div>
         {% endif %}
     </div>
 </div>

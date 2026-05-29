@@ -23,10 +23,6 @@ def _is_true(value: Any, *, default: bool = False) -> bool:
     return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
 
 
-def _shadow_mode_enabled() -> bool:
-    return _is_true(getattr(settings, 'SIENGE_OUTBOUND_SHADOW_MODE', True), default=True)
-
-
 def _outbound_enabled() -> bool:
     return _is_true(getattr(settings, 'SIENGE_OUTBOUND_ENABLED', False), default=False)
 
@@ -35,9 +31,6 @@ def _outbound_enabled() -> bool:
 def dispatch_outbox_entry_now(*, outbox_id: int, actor=None, force: bool = False) -> dict[str, Any]:
     """
     Dispara um item da outbox para integração.
-
-    Nesta fase, o envio real para Sienge pode ficar desligado por configuração.
-    Se shadow mode estiver ligado, marca como enviado (simulado) para validar o fluxo.
     """
     entry = (
         ApprovalIntegrationOutbox.objects.select_for_update()
@@ -54,10 +47,9 @@ def dispatch_outbox_entry_now(*, outbox_id: int, actor=None, force: bool = False
 
     entry.attempts = int(entry.attempts or 0) + 1
 
-    shadow_mode = _shadow_mode_enabled()
     outbound_enabled = _outbound_enabled()
 
-    if not outbound_enabled and not shadow_mode:
+    if not outbound_enabled:
         msg = 'Envio ao Sienge está desativado por configuração (SIENGE_OUTBOUND_ENABLED=false).'
         entry.status = OutboxStatus.FAILED
         entry.last_error = msg
@@ -70,7 +62,7 @@ def dispatch_outbox_entry_now(*, outbox_id: int, actor=None, force: bool = False
 
     now = timezone.now()
     dispatch_info = {
-        'mode': 'shadow' if shadow_mode else 'real',
+        'mode': 'real',
         'dispatched_at': now.isoformat(),
         'dispatched_by_user_id': getattr(actor, 'pk', None),
     }
@@ -95,9 +87,7 @@ def dispatch_outbox_entry_now(*, outbox_id: int, actor=None, force: bool = False
         step_sequence_snapshot=process.current_step.sequence if process.current_step else None,
         actor=actor,
         action=HistoryAction.SYNC_EVENT,
-        comment='Retorno para integração marcado como enviado (modo shadow).'
-        if shadow_mode
-        else 'Retorno para integração enviado ao Sienge.',
+        comment='Retorno para integração enviado ao Sienge.',
         previous_status=process.status,
         new_status=process.status,
         payload={'outbox_id': entry.pk, 'dispatch': dispatch_info},

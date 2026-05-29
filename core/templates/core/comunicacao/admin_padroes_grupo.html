@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/comunicacao.css' %}">
+{% endblock %}
+
+{% block page_title %}Padrões por perfil{% endblock %}
+{% block page_subtitle %}Regra padrão de e-mail por perfil (grupo){% endblock %}
+
+{% block content %}
+<div class="com-page">
+    {% include 'core/comunicacao/includes/module_header.html' with com_header_subtitle="Define o padrão de envio por perfil. Ajuste individual por pessoa sempre tem prioridade." %}
+    {% include 'core/comunicacao/includes/subnav.html' with com_nav_active='padroes' %}
+
+    <p class="com-notice">
+        <i class="fas fa-lightbulb" aria-hidden="true"></i>
+        <span>Para alterar uma pessoa específica, use <a href="{% url 'admin_comunicacao_preferencias' %}">Preferências → Por pessoa</a>.</span>
+    </p>
+
+    <form method="get" class="com-filters com-filters--standalone">
+        <div class="com-field">
+            <label for="perfil-select">Perfil (grupo)</label>
+            <select name="grupo" id="perfil-select" class="com-select" onchange="this.form.submit()">
+                {% for g in grupos %}
+                <option value="{{ g.pk }}" {% if grupo and g.pk == grupo.pk %}selected{% endif %}>{{ g.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if grupo %}
+        <span class="com-badge com-badge--info">{{ grupo.user_set.count }} usuário(s) neste perfil</span>
+        {% endif %}
+    </form>
+
+    {% if grupo %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="grupo_id" value="{{ grupo.pk }}">
+        <input type="hidden" name="action" value="salvar_todos">
+
+        <div class="com-panel">
+            <div class="com-actions-bar com-actions-bar--top">
+                <div>
+                    <strong style="font-size: 0.9375rem; color: #0f172a;">{{ grupo.name }}</strong>
+                    <span style="display: block; font-size: 0.75rem; color: #64748b;">Padrão por tipo de aviso</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    <button type="submit" class="com-btn com-btn--primary">Salvar padrões</button>
+                </div>
+            </div>
+            <div class="com-panel__body com-panel__body--flush">
+                <div class="com-table-wrap">
+                    <table class="com-table com-table--responsive">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Módulo</th>
+                                <th>Categoria</th>
+                                <th>Controle</th>
+                                <th>Padrão atual</th>
+                                <th>Ajuste</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for linha in linhas %}
+                            <tr>
+                                <td data-label="Tipo">
+                                    <span class="com-table__primary">{{ linha.titulo }}</span>
+                                    <span class="com-table__secondary">{{ linha.tipo.nome }}</span>
+                                </td>
+                                <td data-label="Módulo">{{ linha.modulo_label }}</td>
+                                <td data-label="Categoria">{{ linha.tipo.get_categoria_display }}</td>
+                                <td data-label="Controle">
+                                    {% if linha.bloqueado %}
+                                    <span class="com-badge com-badge--lock">Obrigatório</span>
+                                    {% elif linha.router_ativo %}
+                                    <span class="com-badge com-badge--ok">Ativo</span>
+                                    {% else %}
+                                    <span class="com-badge com-badge--muted">Não integrado</span>
+                                    {% endif %}
+                                </td>
+                                <td data-label="Padrão atual">
+                                    <span class="com-badge com-badge--muted">{{ linha.modo_label }}</span>
+                                </td>
+                                <td data-label="Ajuste">
+                                    {% if linha.bloqueado %}
+                                    <span class="com-badge com-badge--lock" title="Não pode ser alterado"><i class="fas fa-lock" aria-hidden="true"></i></span>
+                                    {% elif linha.router_ativo %}
+                                    <select name="modo_{{ linha.tipo.pk }}" class="com-select com-select--compact" aria-label="Padrão para {{ linha.titulo }}">
+                                        <option value="padrao" {% if linha.modo == 'padrao' %}selected{% endif %}>Sem regra deste perfil</option>
+                                        <option value="email" {% if linha.modo == 'email' %}selected{% endif %}>E-mail imediato</option>
+                                        <option value="sem_email" {% if linha.modo == 'sem_email' %}selected{% endif %}>Não enviar e-mail</option>
+                                    </select>
+                                    {% else %}
+                                    <span class="com-table__secondary">Sem efeito no envio</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr class="com-table__empty"><td colspan="6">Este perfil ainda segue apenas o padrão geral do sistema.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="com-actions-bar">
+                <button type="submit" class="com-btn com-btn--primary">Salvar padrões — {{ grupo.name }}</button>
+            </div>
+        </div>
+    </form>
+
+    <form method="post" style="margin-top: 0.75rem;" onsubmit="return confirm('Limpar todos os padrões deste perfil?');">
+        {% csrf_token %}
+        <input type="hidden" name="grupo_id" value="{{ grupo.pk }}">
+        <input type="hidden" name="action" value="restaurar_grupo">
+        <button type="submit" class="com-btn com-btn--danger-ghost">Restaurar padrão do perfil</button>
+    </form>
+    {% else %}
+    <p class="comunicacao-empty">Nenhum grupo cadastrado no sistema.</p>
+    {% endif %}
+</div>
+{% endblock %}

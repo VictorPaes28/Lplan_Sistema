@@ -70,10 +70,13 @@ class ApprovalEngine:
         title: str = '',
         summary: str = '',
         content_object=None,
+        external_system: str = 'sienge',
         external_id: str = '',
         external_entity_type: str = '',
         sync_status=SyncStatus.NOT_APPLICABLE,
         external_payload: Optional[dict] = None,
+        variable_inputs=None,
+        allow_missing_required_variables: bool = False,
     ) -> ApprovalProcess:
         """
         Localiza fluxo ativo (project + category), cria processo na primeira alçada.
@@ -111,6 +114,7 @@ class ApprovalEngine:
             'summary': summary,
             'initiated_by': initiated_by,
             'external_id': external_id or '',
+            'external_system': (external_system or 'sienge').strip() or 'sienge',
             'external_entity_type': external_entity_type or '',
             'sync_status': sync_status,
             'external_payload': external_payload if isinstance(external_payload, dict) else {},
@@ -119,6 +123,16 @@ class ApprovalEngine:
             kwargs['content_object'] = content_object
 
         process = ApprovalProcess.objects.create(**kwargs)
+        from workflow_aprovacao.services.participants import initialize_process_participants
+
+        try:
+            initialize_process_participants(
+                process=process,
+                variable_inputs=variable_inputs,
+                allow_missing_required_variables=allow_missing_required_variables,
+            )
+        except ValueError as exc:
+            raise NoFlowConfigurationError(str(exc)) from exc
 
         ApprovalHistoryEntry.objects.create(
             process=process,

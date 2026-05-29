@@ -5,8 +5,10 @@ from workflow_aprovacao.models import (
     ApprovalHistoryEntry,
     ApprovalIntegrationOutbox,
     ApprovalProcess,
+    ApprovalProcessParticipant,
     ApprovalStep,
     ApprovalStepParticipant,
+    ExternalParticipantSignupRequest,
     ProcessCategory,
     SiengeCentralSyncState,
 )
@@ -58,6 +60,14 @@ class ApprovalHistoryEntryAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at',)
 
 
+@admin.register(ApprovalProcessParticipant)
+class ApprovalProcessParticipantAdmin(admin.ModelAdmin):
+    list_display = ('process', 'step', 'role', 'subject_kind', 'user', 'django_group', 'is_runtime_variable')
+    list_filter = ('role', 'subject_kind', 'is_runtime_variable')
+    search_fields = ('process__id', 'user__username', 'django_group__name', 'label_override')
+    raw_id_fields = ('process', 'step', 'user', 'django_group', 'source_step_participant')
+
+
 @admin.register(ApprovalIntegrationOutbox)
 class ApprovalIntegrationOutboxAdmin(admin.ModelAdmin):
     list_display = ('id', 'process', 'event_type', 'status', 'attempts', 'created_at', 'sent_at')
@@ -75,3 +85,22 @@ class SiengeCentralSyncStateAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ExternalParticipantSignupRequest)
+class ExternalParticipantSignupRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'process',
+        'step',
+        'full_name',
+        'email',
+        'phone_whatsapp',
+        'status',
+        'requester',
+        'reviewed_by',
+        'created_at',
+    )
+    list_filter = ('status',)
+    search_fields = ('full_name', 'email', 'phone_whatsapp', 'cnpj', 'process__id')
+    raw_id_fields = ('process', 'step', 'requester', 'reviewed_by', 'linked_user')

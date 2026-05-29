@@ -102,6 +102,7 @@ class AlcadaParticipationTests(TestCase):
                 'signer_name': 'alcada_a',
                 'confirm_read': 'on',
                 'signature_data': 'data:image/png;base64,' + ('x' * 600),
+                'geolocation_data': '{"latitude": -23.55052, "longitude": -46.633308}',
             },
         )
         self.assertEqual(r.status_code, 403)

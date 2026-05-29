@@ -616,6 +616,12 @@
 
                 </p>
 
+                {% if 'Central Aprovacoes Externo' in req.requested_groups %}
+
+                    <p><strong>Tipo:</strong> <span class="signup-badge signup-badge--pendente">Terceirizado externo (Central de Aprovações)</span></p>
+
+                {% endif %}
+
                 {% if req.notes %}
 
                     <p><strong>Observações:</strong> {{ req.notes }}</p>

@@ -1,0 +1,21 @@
+{% comment %}
+Subnavegação do módulo E-mails e Notificações.
+Variável obrigatória: com_nav_active — hub | tipos | preferencias | padroes | decisoes
+{% endcomment %}
+<nav class="com-subnav" aria-label="Seções de E-mails e Notificações">
+    <a href="{% url 'admin_comunicacao_hub' %}" class="com-subnav__link{% if com_nav_active == 'hub' %} is-active{% endif %}">
+        <i class="fas fa-gauge-high" aria-hidden="true"></i> Visão geral
+    </a>
+    <a href="{% url 'admin_comunicacao_tipos' %}" class="com-subnav__link{% if com_nav_active == 'tipos' %} is-active{% endif %}">
+        <i class="fas fa-list" aria-hidden="true"></i> Catálogo
+    </a>
+    <a href="{% url 'admin_comunicacao_preferencias' %}" class="com-subnav__link{% if com_nav_active == 'preferencias' %} is-active{% endif %}">
+        <i class="fas fa-sliders" aria-hidden="true"></i> Ajustes por pessoa
+    </a>
+    <a href="{% url 'admin_comunicacao_padroes_grupo' %}" class="com-subnav__link{% if com_nav_active == 'padroes' %} is-active{% endif %}">
+        <i class="fas fa-users-gear" aria-hidden="true"></i> Padrões por perfil
+    </a>
+    <a href="{% url 'admin_comunicacao_decisoes' %}" class="com-subnav__link{% if com_nav_active == 'decisoes' %} is-active{% endif %}">
+        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Histórico técnico
+    </a>
+</nav>
