@@ -16,9 +16,13 @@ from workflow_aprovacao.models import (
 )
 from workflow_aprovacao.services.signing import (
     _decision_heading,
+    _format_geolocation_label,
     _history_event_summary,
     _scaled_logo_size,
     _step_label,
+    build_final_signature_audit,
+    history_geolocation_display,
+    history_geolocation_label,
     latest_final_signature_event,
     logo_path_for_receipt_pdf,
     process_history_for_receipt,
@@ -198,3 +202,66 @@ class SigningReceiptTests(TestCase):
         with_logo = render_signature_receipt_pdf(process=self.process, event=ev)
         self.assertIn(b'/Image', with_logo)
         self.assertGreater(len(with_logo), 1200)
+
+    def test_history_geolocation_label_from_snapshot(self):
+        ev = ApprovalHistoryEntry(
+            process=self.process,
+            payload={
+                'signature_evidence': {
+                    'signed_snapshot': {
+                        'geo_location': {
+                            'latitude': -23.55052,
+                            'longitude': -46.633308,
+                            'accuracy_m': 12.3,
+                            'address': 'Av. Paulista, Bela Vista, São Paulo, SP',
+                            'maps_url': 'https://www.google.com/maps?q=-23.55052,-46.633308',
+                        },
+                        'geo_label': 'Av. Paulista, Bela Vista, São Paulo, SP (precisão ~12.3 m)',
+                    }
+                }
+            },
+        )
+        self.assertIn('Av. Paulista', history_geolocation_label(ev))
+        display = history_geolocation_display(ev)
+        self.assertIn('google.com/maps', display['maps_url'])
+
+    def test_format_geolocation_label_prefers_address(self):
+        label = _format_geolocation_label(
+            {
+                'latitude': -8.084836,
+                'longitude': -34.896197,
+                'accuracy_m': 85,
+                'address': 'Rua da Aurora, Recife, Pernambuco',
+            }
+        )
+        self.assertIn('Rua da Aurora', label)
+        self.assertNotIn('Lat ', label)
+
+    def test_build_final_signature_audit_includes_geo(self):
+        ev = ApprovalHistoryEntry.objects.create(
+            process=self.process,
+            actor=self.user,
+            action=HistoryAction.APPROVED_STEP,
+            new_status=ProcessStatus.APPROVED,
+            payload={
+                'signature_evidence': {
+                    'signature_hash_sha256': 'b' * 64,
+                    'signed_snapshot': {
+                        'signer_name': 'Victor Teste',
+                        'geo_location': {
+                            'latitude': -23.55052,
+                            'longitude': -46.633308,
+                            'address': 'Av. Paulista, São Paulo, SP',
+                            'maps_url': 'https://www.google.com/maps?q=-23.55052,-46.633308',
+                        },
+                        'geo_label': 'Av. Paulista, São Paulo, SP',
+                    },
+                }
+            },
+        )
+        audit = build_final_signature_audit(ev)
+        self.assertIsNotNone(audit)
+        assert audit is not None
+        self.assertIn('Av. Paulista', audit['geo_label'])
+        self.assertIn('google.com/maps', audit['geo_maps_url'])
+        self.assertEqual(audit['signed_by'], 'Victor Teste')

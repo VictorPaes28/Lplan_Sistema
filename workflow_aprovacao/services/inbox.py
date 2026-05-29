@@ -5,7 +5,7 @@ from typing import Any
 
 from django.db.models import Q, QuerySet
 
-from workflow_aprovacao.access import user_can_see_central_monitoring_queue
+from workflow_aprovacao.access import user_can_see_central_monitoring_queue, user_is_external_workflow_profile
 from workflow_aprovacao.models import (
     ApprovalProcess,
     ParticipantRole,
@@ -60,6 +60,15 @@ def user_involved_filter_q(user) -> Q:
 
 
 def available_inbox_tabs(user) -> list[dict[str, Any]]:
+    if user_is_external_workflow_profile(user):
+        counts = inbox_tab_counts(user)
+        return [
+            {
+                'key': TAB_PENDENTE,
+                'label': 'Para assinar',
+                'count': counts.get(TAB_PENDENTE, 0),
+            }
+        ]
     counts = inbox_tab_counts(user)
     tabs = [
         {'key': TAB_PENDENTE, 'label': 'Minhas pendências'},
@@ -71,7 +80,9 @@ def available_inbox_tabs(user) -> list[dict[str, Any]]:
     return [{**tab, 'count': counts.get(tab['key'], 0)} for tab in tabs]
 
 
-def _normalize_tab(tab: str | None, *, show_admin: bool) -> str:
+def _normalize_tab(tab: str | None, *, show_admin: bool, user=None) -> str:
+    if user and user_is_external_workflow_profile(user):
+        return TAB_PENDENTE
     allowed = {TAB_PENDENTE, TAB_APROVADO, TAB_REPROVADO}
     if show_admin:
         allowed.add(TAB_AGUARDANDO)
@@ -122,7 +133,7 @@ def build_inbox_queryset(
     origin: str = '',
 ) -> QuerySet:
     show_admin = user_can_see_central_monitoring_queue(user)
-    tab = _normalize_tab(tab, show_admin=show_admin)
+    tab = _normalize_tab(tab, show_admin=show_admin, user=user)
 
     if tab == TAB_PENDENTE:
         qs = processes_pending_for_user(user)
@@ -189,7 +200,7 @@ def fetch_inbox_page(
 ) -> tuple[list[ApprovalProcess], int, str]:
     """Lista paginada (limite fixo), total filtrado e aba normalizada."""
     show_admin = user_can_see_central_monitoring_queue(user)
-    tab = _normalize_tab(tab, show_admin=show_admin)
+    tab = _normalize_tab(tab, show_admin=show_admin, user=user)
     qs = build_inbox_queryset(
         user,
         tab=tab,

@@ -52,6 +52,11 @@ def user_can_configure_workflow(user) -> bool:
     return usuario_tem_administracao_global_na_plataforma(user)
 
 
+def user_can_view_workflow_geolocation(user) -> bool:
+    """Localização registrada na assinatura — visível apenas para administradores da Central."""
+    return user_can_configure_workflow(user)
+
+
 def user_can_act_on_workflow_processes(user) -> bool:
     """Pode usar ações de aprovar/reprovar (ainda exige participação na alçada atual)."""
     if not user or not user.is_authenticated:

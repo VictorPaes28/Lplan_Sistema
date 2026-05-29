@@ -436,6 +436,10 @@ class WorkOrder(models.Model):
         """
         return self.status in ['pendente', 'reaprovacao']
 
+    def bloqueia_alteracao_anexos(self):
+        """Anexos não podem ser alterados enquanto o pedido aguarda aprovação."""
+        return self.status in ('pendente', 'reaprovacao')
+
 
 class Approval(models.Model):
     """

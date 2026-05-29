@@ -8,8 +8,24 @@
 <div class="wf-root">
     {% include 'workflow_aprovacao/_messages.html' %}
 
-    <form method="post" class="wf-panel wf-manual-form">
+    {% if gestao_workorder %}
+    <div class="wf-panel" style="margin-bottom:1rem;border-color:#bfdbfe;background:#eff6ff;">
+        <div class="wf-panel__body">
+            <p style="margin:0;color:#1e3a8a;font-size:.92rem;line-height:1.45;">
+                <strong>Origem GestControll:</strong> pedido
+                <a href="{% url 'gestao:detail_workorder' gestao_workorder.pk %}" class="wf-link-dl">{{ gestao_workorder.codigo }}</a>
+                ({{ gestao_workorder.get_tipo_solicitacao_display }} · {{ gestao_workorder.obra.codigo }}).
+                Revise os dados abaixo, configure terceirizados se necessário e confirme para concluir o envio à Central.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="wf-panel wf-manual-form">
         {% csrf_token %}
+        {% if gestao_workorder %}
+        <input type="hidden" name="gestao_workorder_id" value="{{ gestao_workorder.pk }}">
+        {% endif %}
         <div class="wf-panel__head"><h2 class="wf-panel__title">Dados gerais</h2></div>
         <div class="wf-panel__body wf-manual-grid">
             <div class="wf-field">{{ form.project.label_tag }}{{ form.project }}</div>
@@ -27,24 +43,27 @@
         <div class="wf-panel__body">
             <div class="wf-manual-category" data-category="contrato">
                 <label class="wf-field">Vigência/escopo contratual<input type="text" class="wf-select" data-dyn-key="vigencia_escopo"></label>
-                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
             </div>
             <div class="wf-manual-category" data-category="medicao">
                 <label class="wf-field">Período da medição<input type="text" class="wf-select" data-dyn-key="periodo_medicao"></label>
                 <label class="wf-field">Número da medição<input type="text" class="wf-select" data-dyn-key="numero_medicao"></label>
-                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
             </div>
             <div class="wf-manual-category" data-category="ordem_servico">
                 <label class="wf-field">Prazo estimado<input type="text" class="wf-select" data-dyn-key="prazo_estimado"></label>
-                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
             </div>
             <div class="wf-manual-category" data-category="mapa_cotacao">
                 <label class="wf-field">Justificativa<input type="text" class="wf-select" data-dyn-key="justificativa"></label>
-                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
             </div>
             <div class="wf-manual-category" data-category="validacao_contrato">
                 <label class="wf-field">Tipo de validação<input type="text" class="wf-select" data-dyn-key="tipo_validacao"></label>
-                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
+            </div>
+            <div id="wf-manual-documents" class="wf-manual-documents" hidden>
+                <label class="wf-field wf-col-2">
+                    Documentos de referência
+                    <input type="file" name="documento_referencia_files" class="wf-select" multiple
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.webp,.gif,.zip,.rar,.7z">
+                    <small class="wf-help" style="margin-top:.35rem;display:block;">Anexe PDFs, imagens, planilhas ou arquivos compactados (opcional).</small>
+                </label>
             </div>
         </div>
 
@@ -123,19 +142,22 @@
 
         <div class="wf-panel__body">
             <button type="submit" class="wf-btn wf-btn--approve">
-                <i class="fas fa-plus-circle" aria-hidden="true"></i> Criar pedido manual
+                <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                {% if gestao_workorder %}Confirmar envio à Central{% else %}Criar pedido manual{% endif %}
             </button>
         </div>
     </form>
 </div>
 
 {{ category_code_map|json_script:"wf-manual-category-map" }}
+{% if gestao_category_payload %}{{ gestao_category_payload|json_script:"gestao-category-payload" }}{% endif %}
 <script>
 (function () {
     const projectSelect = document.getElementById('id_project');
     const categorySelect = document.getElementById('id_manual_category');
     const hiddenPayload = document.getElementById('id_category_payload_json');
     const mapNode = document.getElementById('wf-manual-category-map');
+    const gestaoPayloadNode = document.getElementById('gestao-category-payload');
     if (!categorySelect || !hiddenPayload) return;
     let categoryMap = {};
     if (mapNode && mapNode.textContent) {
@@ -148,6 +170,8 @@
             const shouldShow = code === (node.dataset.category || '');
             node.style.display = shouldShow ? '' : 'none';
         });
+        const docsBlock = document.getElementById('wf-manual-documents');
+        if (docsBlock) docsBlock.hidden = !code;
     }
     function syncPayload() {
         const payload = {};
@@ -385,8 +409,26 @@
     document.querySelectorAll('select.wf-existing-select-native').forEach((select) => {
         mountSearchableSelect(select);
     });
+    const manualForm = document.querySelector('.wf-manual-form');
+    if (manualForm) {
+        manualForm.addEventListener('submit', () => {
+            document.querySelectorAll('.wf-new-terceirizado input[disabled]').forEach((input) => {
+                input.disabled = false;
+            });
+        });
+    }
     syncCategorySections();
     syncPayload();
+    if (gestaoPayloadNode && gestaoPayloadNode.textContent) {
+        try {
+            const gestaoPayload = JSON.parse(gestaoPayloadNode.textContent);
+            Object.keys(gestaoPayload || {}).forEach(function (key) {
+                const input = document.querySelector('.wf-manual-category input[data-dyn-key="' + key + '"]');
+                if (input && !input.value) input.value = gestaoPayload[key];
+            });
+            syncPayload();
+        } catch (err) {}
+    }
 })();
 </script>
 <style>

@@ -1,0 +1,12 @@
+{% if geo.label %}
+<p class="wf-timeline-meta">
+    <i class="fas fa-location-dot" aria-hidden="true"></i>
+    <span>{{ geo.label }}</span>
+    {% if geo.maps_url %}
+    <a href="{{ geo.maps_url }}" class="wf-timeline-meta__maps" target="_blank" rel="noopener noreferrer">Abrir no Maps</a>
+    {% endif %}
+    {% if geo.coords and geo.address %}
+    <span class="wf-timeline-meta__coords">{{ geo.coords }}</span>
+    {% endif %}
+</p>
+{% endif %}

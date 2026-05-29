@@ -25,6 +25,7 @@
         </div>
 
         <div id="gc-banner-obra-inativa" style="display:none;margin:0.45rem 1rem 0;padding:0.5rem 0.75rem;background:#e2e8f0;border-radius:6px;font-size:0.85rem;color:#334155;line-height:1.35;" role="status"></div>
+        <div id="gc-banner-central" class="gc-banner-central" style="display:none;" role="status"></div>
 
         <div class="gc-modal-body">
             <div class="gc-modal-col-left">
@@ -93,7 +94,7 @@
                         <div class="gc-banner-aprov">
                             <p>Este pedido está aguardando sua aprovação.</p>
                             <div class="gc-aprov-actions">
-                                <a id="gc-aprov-link" href="#" class="gc-btn-aprovar">Aprovar</a>
+                                <button type="button" id="gc-aprov-btn" class="gc-btn-aprovar">Aprovar</button>
                                 <button type="button" id="gc-reprovar-btn" class="gc-btn-reprovar">Reprovar</button>
                             </div>
                             <button type="button" class="gc-ver-mais-toggle" id="gc-ver-mais-btn" onclick="toggleVerMaisAprovacao()">Ver mais sobre o fluxo de aprovação</button>
@@ -151,10 +152,17 @@
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 11v6"></path><path d="M9.5 14.5L12 17l2.5-2.5"></path></svg>
                     Exportar PDF
                 </a>
-                <a id="gc-ft-leitura" href="#" class="gc-footer-btn gc-footer-btn--secondary" title="Visualizar o PDF no navegador">
+                <a id="gc-ft-leitura" href="#" target="_blank" rel="noopener" class="gc-footer-btn gc-footer-btn--secondary" title="Visualizar o PDF no navegador">
                     <i class="fas fa-book-reader" aria-hidden="true"></i>
                     Modo leitura
                 </a>
+                <a id="gc-ft-central" href="#" class="gc-footer-btn gc-footer-btn--central" style="display:none;" title="Enviar para tramitação na Central de Aprovações">
+                    Enviar para Central de Aprovações
+                </a>
+                <a id="gc-ft-central-ver" href="#" target="_blank" rel="noopener" class="gc-footer-btn gc-footer-btn--secondary" style="display:none;" title="Abrir processo na Central de Aprovações">
+                    Ver processo na Central
+                </a>
+                <span id="gc-ft-central-enviado" class="gc-footer-btn gc-footer-btn--central-enviado" style="display:none;" title="Pedido já encaminhado à Central"></span>
                 <a id="gc-ft-editar" href="#" class="gc-footer-btn gc-footer-btn--primary" style="display:none;"><span id="gc-ft-editar-label">Editar</span></a>
                 <a id="gc-ft-exclusao" href="#" class="gc-footer-btn gc-footer-btn--exclusao" style="display:none;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -163,6 +171,8 @@
             </div>
         </div>
     </div>
+
+    {% include "gestao_aprovacao/includes/sheet_aprovar_pedido.html" %}
 
     <div id="gc-reprovar-overlay" class="gc-reprovar-overlay" aria-hidden="true">
         <div class="gc-reprovar-panel" role="dialog" aria-modal="true" aria-labelledby="gc-reprovar-title">

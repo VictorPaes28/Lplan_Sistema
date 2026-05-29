@@ -17,6 +17,7 @@
         
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
+            {% if list_return_query %}<input type="hidden" name="list_return" value="{{ list_return_query }}">{% endif %}
             
             {% if messages %}
                 {% for message in messages %}
@@ -110,7 +111,7 @@
             
             <div class="form-actions">
                 <button type="submit" class="btn" id="submit-create-user">Criar Usuário</button>
-                <a href="{% if use_central_urls %}{% url 'central_list_users' %}{% else %}{% url 'gestao:list_users' %}{% endif %}" class="btn btn-secondary">Cancelar</a>
+                <a href="{{ list_users_cancel_url }}" class="btn btn-secondary">Cancelar</a>
             </div>
         </form>
     </div>

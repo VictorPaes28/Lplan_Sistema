@@ -1,0 +1,23 @@
+<div id="gc-aprovar-overlay" class="gc-aprovar-overlay" aria-hidden="true">
+    <div class="gc-aprovar-panel" role="dialog" aria-modal="true" aria-labelledby="gc-aprovar-title">
+        <div class="gc-aprovar-panel-head">
+            <h2 id="gc-aprovar-title" class="gc-aprovar-title">Confirmar aprovação</h2>
+            <button type="button" class="gc-aprovar-close" id="gc-aprovar-close" aria-label="Fechar">✕</button>
+        </div>
+        <p class="gc-aprovar-intro">
+            Você está prestes a aprovar o pedido <strong id="gc-aprovar-codigo"></strong>.
+            O pedido será marcado como aprovado e não poderá mais ser editado.
+        </p>
+        <div class="gc-aprovar-field">
+            <label class="gc-aprovar-label" for="gc-aprovar-comentario">
+                Observação <span class="gc-aprovar-optional">(opcional)</span>
+            </label>
+            <textarea id="gc-aprovar-comentario" class="gc-aprovar-textarea" rows="4" placeholder="Adicione observações sobre a aprovação…"></textarea>
+        </div>
+        <p id="gc-aprovar-error" class="gc-aprovar-error" style="display:none;" role="alert"></p>
+        <div class="gc-aprovar-actions">
+            <button type="button" class="gc-aprovar-cancel" id="gc-aprovar-cancel">Cancelar</button>
+            <button type="button" class="gc-aprovar-submit" id="gc-aprovar-submit">Confirmar aprovação</button>
+        </div>
+    </div>
+</div>

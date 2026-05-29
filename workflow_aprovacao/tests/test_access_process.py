@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from accounts.groups import GRUPOS
 from core.models import Project
-from workflow_aprovacao.access import user_can_view_process
+from workflow_aprovacao.access import user_can_view_process, user_can_view_workflow_geolocation
 from workflow_aprovacao.models import (
     ApprovalFlowDefinition,
     ApprovalProcess,
@@ -62,3 +62,8 @@ class WorkflowProcessAccessTests(TestCase):
 
     def test_outsider_cannot_view(self):
         self.assertFalse(user_can_view_process(self.outsider, self.process))
+
+    def test_only_admin_can_view_geolocation(self):
+        self.assertTrue(user_can_view_workflow_geolocation(self.admin))
+        self.assertFalse(user_can_view_workflow_geolocation(self.externo))
+        self.assertFalse(user_can_view_workflow_geolocation(self.outsider))

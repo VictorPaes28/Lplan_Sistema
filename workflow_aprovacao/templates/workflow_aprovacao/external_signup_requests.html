@@ -9,6 +9,12 @@
     {% include 'workflow_aprovacao/_messages.html' %}
     <section class="wf-panel">
         <div class="wf-panel__body">
+            <p class="wf-help" style="margin:0 0 .75rem;">
+                Solicitações pendentes aparecem aqui e também em
+                <a href="{% url 'central_signup_requests' %}">Central de Cadastros</a>.
+                Você pode aprovar em qualquer uma das telas — a outra é atualizada automaticamente.
+                Após aprovar, use o filtro <strong>Aprovado</strong> para enviar login por WhatsApp.
+            </p>
             <form method="get" class="wf-backlog-toolbar">
                 <label>Status
                     <select name="status">
@@ -64,6 +70,20 @@
                                     <input type="text" name="reason" class="wf-select" placeholder="Motivo da rejeição">
                                     <button type="submit" class="wf-btn-table wf-btn-table--ghost">Rejeitar</button>
                                 </form>
+                                {% elif row.status == 'aprovado' and row.linked_user %}
+                                <div style="display:flex;flex-direction:column;gap:0.35rem;align-items:flex-start;">
+                                    <span class="wf-cell-sub">Usuário: <strong>{{ row.linked_user.username }}</strong></span>
+                                    <a href="{{ row.whatsapp_credentials_url }}"
+                                       class="wf-btn-whatsapp wf-btn-whatsapp--compact"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       title="Abrir WhatsApp com login e link do pedido">
+                                        <i class="fab fa-whatsapp" aria-hidden="true"></i> Enviar login por WhatsApp
+                                    </a>
+                                    {% if not row.phone_whatsapp %}
+                                    <span class="wf-cell-sub">Telefone não informado — escolha o contato no WhatsApp.</span>
+                                    {% endif %}
+                                </div>
                                 {% else %}
                                 <span class="wf-text-muted">—</span>
                                 {% endif %}

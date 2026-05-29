@@ -825,7 +825,14 @@ def central_signup_requests_list(request):
     grupos_secoes = grupos_secoes_para_atribuicao()
     projects = list(Project.objects.filter(is_active=True).order_by('name'))
     status_filter = (request.GET.get('status') or '').strip()
-    requests_qs = UserSignupRequest.objects.select_related('approved_by', 'approved_user', 'requested_by')
+    requests_qs = UserSignupRequest.objects.select_related(
+        'approved_by',
+        'approved_user',
+        'requested_by',
+        'workflow_external_signup',
+        'workflow_external_signup__process',
+        'workflow_external_signup__process__project',
+    )
     if status_filter in {
         UserSignupRequest.STATUS_PENDENTE,
         UserSignupRequest.STATUS_APROVADO,
@@ -833,11 +840,19 @@ def central_signup_requests_list(request):
     }:
         requests_qs = requests_qs.filter(status=status_filter)
     requests_qs = requests_qs.order_by('-created_at')
+    from workflow_aprovacao.services.external_credentials_share import build_central_signup_whatsapp_url
+
+    requests_list = list(requests_qs[:500])
+    for req in requests_list:
+        req.whatsapp_credentials_url = build_central_signup_whatsapp_url(
+            request=request,
+            signup_request=req,
+        )
     return render(
         request,
         'core/central_signup_requests.html',
         {
-            'requests_qs': requests_qs,
+            'requests_qs': requests_list,
             'status_filter': status_filter,
             'grupos_secoes': grupos_secoes,
             'projects': projects,
@@ -891,6 +906,28 @@ def central_signup_request_approve(request, pk):
             except Exception:
                 pass
         messages.success(request, f'Solicitação aprovada. Usuário "{user.username}" criado com sucesso.')
+        try:
+            from django.urls import reverse
+
+            from workflow_aprovacao.services.external_signup import complete_workflow_external_from_central
+
+            wf = getattr(signup_request, 'workflow_external_signup', None)
+            if wf is not None:
+                complete_workflow_external_from_central(
+                    workflow_request=wf,
+                    user=user,
+                    reviewer=request.user,
+                    access_url_builder=lambda _u, proc: reverse(
+                        'workflow_aprovacao:process_detail',
+                        kwargs={'pk': proc.pk},
+                    ),
+                )
+                messages.info(
+                    request,
+                    f'Pedido workflow #{wf.process_id} vinculado ao terceirizado aprovado.',
+                )
+        except Exception:
+            pass
     return redirect('central_signup_requests')
 
 
@@ -921,6 +958,17 @@ def central_signup_request_reject(request, pk):
     from accounts.audit_signup import record_signup_rejected
 
     record_signup_rejected(request, request.user, signup_request, rejection_reason)
+
+    try:
+        from workflow_aprovacao.services.external_signup import reject_workflow_external_from_central
+
+        reject_workflow_external_from_central(
+            signup_request=signup_request,
+            reviewer=request.user,
+            reason=rejection_reason,
+        )
+    except Exception:
+        pass
 
     if signup_request.email:
         site_url = (getattr(settings, 'SITE_URL', '') or '').rstrip('/') or '/'

@@ -22,6 +22,7 @@ from accounts.signup_services import create_signup_request, notify_signup_reques
 from workflow_aprovacao.access import (
     user_can_act_on_workflow_processes,
     user_can_configure_workflow,
+    user_can_view_workflow_geolocation,
     user_can_see_central_monitoring_queue,
     user_can_view_process,
     user_is_approver_on_current_step,
@@ -32,6 +33,7 @@ from workflow_aprovacao.decorators import (
     require_workflow_act,
     require_workflow_configure,
     require_workflow_module_access,
+    workflow_login_required,
 )
 from workflow_aprovacao.exceptions import InvalidTransitionError
 from workflow_aprovacao.forms import DecisionForm, ExternalSignupReviewForm, ManualRequestForm, NewFlowForm
@@ -42,6 +44,7 @@ from workflow_aprovacao.models import (
     ApprovalFlowDefinition,
     ApprovalIntegrationOutbox,
     ApprovalProcess,
+    ApprovalProcessAttachment,
     ApprovalProcessParticipant,
     ApprovalStepParticipant,
     ExternalParticipantSignupRequest,
@@ -63,9 +66,11 @@ from workflow_aprovacao.services.flow_config import (
 from workflow_aprovacao.services.outbound_dispatch import dispatch_outbox_entry_now
 from workflow_aprovacao.services.signing import (
     build_signature_evidence,
+    build_final_signature_audit,
     latest_final_signature_event,
     render_signature_receipt_pdf,
 )
+from workflow_aprovacao.services.share import build_process_share_payload
 from workflow_aprovacao.services.sienge_display import beautify_stored_summary_for_display, sienge_payload_display_rows
 from workflow_aprovacao.services.sync_trigger import trigger_sienge_sync_if_due
 from workflow_aprovacao.services.participants import VariableParticipantInput, bind_external_user_to_process_step
@@ -73,7 +78,6 @@ from workflow_aprovacao.services.external_signup import (
     ExternalCandidate,
     approve_external_signup_request,
     create_external_signup_request,
-    find_existing_external_user,
     reject_external_signup_request,
 )
 
@@ -205,13 +209,21 @@ def _workflow_select_options():
 
 def _workflow_context(request, extra=None):
     pending_nav_count = 0
+    external_signup_pending_count = 0
     if request.user.is_authenticated:
         pending_nav_count = processes_pending_for_user(request.user).count()
+        if user_can_configure_workflow(request.user):
+            external_signup_pending_count = ExternalParticipantSignupRequest.objects.filter(
+                status=ExternalSignupStatus.PENDING,
+            ).count()
     ctx = {
         'workflow_show_config_nav': user_can_configure_workflow(request.user),
+        'workflow_can_view_geolocation': user_can_view_workflow_geolocation(request.user),
         'workflow_can_act': user_can_act_on_workflow_processes(request.user),
         'workflow_minimal_shell': user_should_use_minimal_workflow_shell(request.user),
+        'workflow_external_profile': user_is_external_workflow_profile(request.user),
         'workflow_pending_count': pending_nav_count,
+        'workflow_external_signup_pending_count': external_signup_pending_count,
     }
     if extra:
         ctx.update(extra)
@@ -220,6 +232,8 @@ def _workflow_context(request, extra=None):
 
 def render_workflow_dashboard(request):
     """Painel inicial da Central — indicadores da fila e atalhos."""
+    if user_is_external_workflow_profile(request.user):
+        return redirect('workflow_aprovacao:pending')
     from workflow_aprovacao.services.dashboard import dashboard_context_for_user
 
     return render(
@@ -265,10 +279,16 @@ def pending_list(request):
     origin = (request.GET.get('origem') or '').strip()
     project_id = None
     category_id = None
-    if request.GET.get('project', '').strip().isdigit():
-        project_id = int(request.GET['project'])
-    if request.GET.get('category', '').strip().isdigit():
-        category_id = int(request.GET['category'])
+    is_external = user_is_external_workflow_profile(request.user)
+    if not is_external:
+        if request.GET.get('project', '').strip().isdigit():
+            project_id = int(request.GET['project'])
+        if request.GET.get('category', '').strip().isdigit():
+            category_id = int(request.GET['category'])
+    else:
+        tab = TAB_PENDENTE
+        origin = ''
+        q = ''
 
     processes, filtered_total, tab = fetch_inbox_page(
         request.user,
@@ -282,7 +302,7 @@ def pending_list(request):
     show_monitoring = user_can_see_central_monitoring_queue(request.user)
 
     tab_titles = {
-        TAB_PENDENTE: 'Minhas pendências',
+        TAB_PENDENTE: 'Para assinar' if is_external else 'Minhas pendências',
         TAB_APROVADO: 'Aprovados',
         TAB_REPROVADO: 'Reprovados',
         TAB_AGUARDANDO: 'Aguardando na Central',
@@ -301,9 +321,10 @@ def pending_list(request):
         'filter_category_id': category_id,
         'projects_for_filter': filters['projects'],
         'categories_for_filter': filters['categories'],
-        'page_title': 'Central de Aprovações',
+        'page_title': 'Assinaturas' if is_external else 'Central de Aprovações',
         'page_subtitle': tab_titles.get(tab, 'Fila'),
         'workflow_show_monitoring_queue': show_monitoring,
+        'inbox_external_profile': is_external,
     }
     return render(
         request,
@@ -419,6 +440,12 @@ def process_detail(request, pk):
     gestao_workorder = None
     gestao_detail_url = None
     gestao_attachments: list[dict] = []
+    manual_is_origin = process.external_entity_type == 'manual_request'
+    manual_attachments: list[dict] = []
+    if manual_is_origin:
+        from workflow_aprovacao.services.manual_attachments import manual_attachments_for_ui
+
+        manual_attachments = manual_attachments_for_ui(process)
     if gestao_is_origin:
         if gestao_dispatch:
             gestao_snapshot = gestao_dispatch.snapshot_payload or {}
@@ -469,6 +496,13 @@ def process_detail(request, pk):
         .select_related('requester', 'reviewed_by', 'linked_user', 'step')
         .order_by('-created_at')
     )
+    final_signature_event = None
+    final_signature_audit = None
+    if process.status in (ProcessStatus.APPROVED, ProcessStatus.REJECTED):
+        final_signature_event = latest_final_signature_event(process)
+        final_signature_audit = build_final_signature_audit(final_signature_event)
+
+    process_share = build_process_share_payload(request=request, process=process)
 
     return render(
         request,
@@ -494,7 +528,11 @@ def process_detail(request, pk):
                 'gestao_workorder': gestao_workorder,
                 'gestao_detail_url': gestao_detail_url,
                 'gestao_attachments': gestao_attachments,
+                'manual_is_origin': manual_is_origin,
+                'manual_attachments': manual_attachments,
                 'current_step_display': current_step_display,
+                'final_signature_audit': final_signature_audit,
+                'process_share': process_share,
                 'view_only_not_approver': (
                     process.status == ProcessStatus.AWAITING_STEP
                     and not can_act
@@ -568,6 +606,24 @@ def sienge_process_attachment_download(request, pk):
 
 
 @require_workflow_module_access
+def manual_process_attachment_download(request, pk, attachment_pk):
+    """Descarrega anexo enviado na criação manual do processo."""
+    process = get_object_or_404(ApprovalProcess.objects.select_related('project'), pk=pk)
+    if not user_can_view_process(request.user, process):
+        return HttpResponseForbidden('Sem permissão para visualizar este processo.')
+    if process.external_entity_type != 'manual_request':
+        raise Http404()
+    att = get_object_or_404(
+        ApprovalProcessAttachment.objects.filter(process=process),
+        pk=attachment_pk,
+    )
+    if not att.file:
+        raise Http404()
+    filename = (att.original_name or '').strip() or att.file.name.rsplit('/', 1)[-1] or 'anexo'
+    return FileResponse(att.file.open('rb'), as_attachment=True, filename=filename)
+
+
+@require_workflow_module_access
 def process_signature_receipt_pdf(request, pk):
     process = get_object_or_404(
         ApprovalProcess.objects.select_related('project', 'category', 'initiated_by'),
@@ -578,12 +634,61 @@ def process_signature_receipt_pdf(request, pk):
     event = latest_final_signature_event(process)
     if not event:
         raise Http404('Sem evento final de assinatura neste processo.')
-    pdf = render_signature_receipt_pdf(process=process, event=event)
+    pdf = render_signature_receipt_pdf(
+        process=process,
+        event=event,
+        include_geolocation=user_can_view_workflow_geolocation(request.user),
+    )
     response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="comprovante_processo_{process.pk}.pdf"'
     response['Cache-Control'] = 'private, no-store'
     return response
 
+
+@require_workflow_module_access
+def reverse_geocode_address(request):
+    from django.http import JsonResponse
+
+    if not user_can_view_workflow_geolocation(request.user):
+        return JsonResponse({'error': 'Sem permissão para consultar endereço.'}, status=403)
+
+    from workflow_aprovacao.services.geocoding import enrich_geolocation, google_maps_url
+    from workflow_aprovacao.services.signing import _format_geolocation_label
+
+    lat_raw = (request.GET.get('lat') or '').strip()
+    lng_raw = (request.GET.get('lng') or '').strip()
+    accuracy_raw = (request.GET.get('accuracy_m') or '').strip()
+    try:
+        latitude = float(lat_raw)
+        longitude = float(lng_raw)
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Coordenadas inválidas.'}, status=400)
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return JsonResponse({'error': 'Coordenadas fora do intervalo permitido.'}, status=400)
+
+    geo: dict = {
+        'latitude': round(latitude, 6),
+        'longitude': round(longitude, 6),
+        'source': 'browser',
+    }
+    if accuracy_raw:
+        try:
+            accuracy = float(accuracy_raw)
+            if accuracy > 0:
+                geo['accuracy_m'] = round(accuracy, 1)
+        except (TypeError, ValueError):
+            pass
+
+    geo = enrich_geolocation(geo)
+    label = _format_geolocation_label(geo)
+    return JsonResponse(
+        {
+            'address': geo.get('address') or '',
+            'maps_url': geo.get('maps_url') or google_maps_url(latitude=latitude, longitude=longitude),
+            'label': label,
+            'coords': f'{latitude:.6f}, {longitude:.6f}',
+        }
+    )
 
 @require_workflow_configure
 def config_flow_list(request):
@@ -1071,16 +1176,52 @@ def _external_users_for_select():
     return out
 
 
-@require_workflow_module_access
+@workflow_login_required
 def manual_request_new(request):
     if user_is_external_workflow_profile(request.user):
         return HttpResponseForbidden('Perfil externo não pode criar pedidos manuais.')
+
+    gestao_workorder = None
+    gestao_category_payload = {}
+    gestao_wo_raw = (request.POST.get('gestao_workorder_id') or request.GET.get('gestao_workorder') or '').strip()
+
+    if gestao_wo_raw.isdigit():
+        from gestao_aprovacao.gestao_central_access import user_can_send_workorder_to_central
+        from gestao_aprovacao.models import WorkOrder as GestaoWorkOrder
+        from gestao_aprovacao.services.central_dispatch import (
+            GestaoCentralDispatchDuplicateError,
+            GestaoCentralDispatchError,
+            build_manual_request_initial,
+            link_workorder_to_central_process,
+            workorder_dispatch_block_reason,
+        )
+
+        gestao_workorder = GestaoWorkOrder.objects.select_related(
+            'obra', 'obra__project', 'criado_por'
+        ).filter(pk=int(gestao_wo_raw)).first()
+        if gestao_workorder and not user_can_send_workorder_to_central(request.user):
+            gestao_workorder = None
+
+    from workflow_aprovacao.access import user_in_any_workflow_group
+
+    if gestao_workorder:
+        pass
+    elif not user_in_any_workflow_group(request.user):
+        return HttpResponseForbidden('Sem acesso à Central de Aprovações.')
 
     form = ManualRequestForm(request.POST or None)
     if request.method != 'POST':
         project_raw = (request.GET.get('project') or '').strip()
         category_raw = (request.GET.get('category') or '').strip()
         initial = {}
+        if gestao_workorder:
+            prefill = build_manual_request_initial(gestao_workorder)
+            initial.update(prefill['initial'])
+            gestao_category_payload = prefill.get('category_payload') or {}
+            if not project_raw.isdigit() and prefill.get('project'):
+                project_raw = str(prefill['project'].pk)
+            if not category_raw.isdigit() and prefill.get('category'):
+                category_raw = str(prefill['category'].pk)
         if project_raw.isdigit():
             initial['project'] = int(project_raw)
         if category_raw.isdigit():
@@ -1111,6 +1252,21 @@ def manual_request_new(request):
         implicit_external_step = _implicit_external_step_for_contract(selected_flow)
 
     if request.method == 'POST':
+        if gestao_workorder:
+            block = workorder_dispatch_block_reason(gestao_workorder)
+            if block:
+                messages.error(request, block)
+                return redirect('gestao:detail_workorder', pk=gestao_workorder.pk)
+
+        def _manual_request_redirect_url(project_pk, category_pk):
+            base = (
+                f"{reverse('workflow_aprovacao:manual_request_new')}"
+                f"?project={project_pk}&category={category_pk}"
+            )
+            if gestao_workorder:
+                base += f"&gestao_workorder={gestao_workorder.pk}"
+            return base
+
         if not form.is_valid():
             messages.error(request, 'Verifique os campos do formulário.')
         elif not selected_flow:
@@ -1145,31 +1301,24 @@ def manual_request_new(request):
                         f'Para cadastrar um novo terceirizado na alçada {slot.step.sequence}, informe nome, empresa e e-mail.',
                     )
                     return redirect(
-                        f"{reverse('workflow_aprovacao:manual_request_new')}?project={form.cleaned_data['project'].pk}&category={form.cleaned_data['category'].pk}"
-                    )
-                existing_external = find_existing_external_user(email=email, phone_whatsapp=phone)
-                if existing_external:
-                    variable_inputs.append(
-                        VariableParticipantInput(
-                            step_participant_id=slot.pk,
-                            subject_kind='user',
-                            user_id=existing_external.pk,
+                        _manual_request_redirect_url(
+                            form.cleaned_data['project'].pk,
+                            form.cleaned_data['category'].pk,
                         )
                     )
-                else:
-                    pending_candidates.append(
-                        (
-                            slot,
-                            ExternalCandidate(
-                                full_name=full_name,
-                                company_name=company,
-                                email=email,
-                                phone_whatsapp=phone,
-                                cnpj=cnpj,
-                                note=note,
-                            ),
-                        )
+                pending_candidates.append(
+                    (
+                        slot,
+                        ExternalCandidate(
+                            full_name=full_name,
+                            company_name=company,
+                            email=email,
+                            phone_whatsapp=phone,
+                            cnpj=cnpj,
+                            note=note,
+                        ),
                     )
+                )
             if implicit_external_step:
                 existing_user_raw = (request.POST.get('implicit_external_existing_user') or '').strip()
                 if existing_user_raw.isdigit():
@@ -1187,20 +1336,19 @@ def manual_request_new(request):
                     if not full_name or not email or not company:
                         messages.error(request, 'Para o terceirizado responsável da 1ª alçada, informe nome, empresa e e-mail.')
                         return redirect(
-                            f"{reverse('workflow_aprovacao:manual_request_new')}?project={form.cleaned_data['project'].pk}&category={form.cleaned_data['category'].pk}"
+                            _manual_request_redirect_url(
+                                form.cleaned_data['project'].pk,
+                                form.cleaned_data['category'].pk,
+                            )
                         )
-                    existing_external = find_existing_external_user(email=email, phone_whatsapp=phone)
-                    if existing_external:
-                        implicit_existing_external = existing_external
-                    else:
-                        implicit_pending_candidate = ExternalCandidate(
-                            full_name=full_name,
-                            company_name=company,
-                            email=email,
-                            phone_whatsapp=phone,
-                            cnpj=cnpj,
-                            note=note,
-                        )
+                    implicit_pending_candidate = ExternalCandidate(
+                        full_name=full_name,
+                        company_name=company,
+                        email=email,
+                        phone_whatsapp=phone,
+                        cnpj=cnpj,
+                        note=note,
+                    )
             try:
                 process = ApprovalEngine.start(
                     project=form.cleaned_data['project'],
@@ -1248,15 +1396,62 @@ def manual_request_new(request):
                         variable_key=(slot.variable_key or f'slot_{slot.pk}'),
                         candidate=candidate,
                     )
-                pending_count = len(pending_candidates) + (1 if implicit_pending_candidate else 0)
-                if pending_count:
+                from workflow_aprovacao.services.manual_attachments import (
+                    MAX_MANUAL_ATTACHMENTS,
+                    save_manual_request_attachments,
+                )
+
+                uploaded_files = request.FILES.getlist('documento_referencia_files')
+                if len(uploaded_files) > MAX_MANUAL_ATTACHMENTS:
                     messages.warning(
                         request,
-                        f'Pedido #{process.pk} criado. Aguarda aprovação de {pending_count} cadastro(s) externo(s).',
+                        f'Apenas os primeiros {MAX_MANUAL_ATTACHMENTS} documentos foram guardados.',
+                    )
+                    uploaded_files = uploaded_files[:MAX_MANUAL_ATTACHMENTS]
+                if uploaded_files:
+                    save_manual_request_attachments(process, uploaded_files, request.user)
+
+                if gestao_workorder:
+                    try:
+                        manual_payload = _manual_payload_from_form(form)
+                        link_workorder_to_central_process(
+                            gestao_workorder,
+                            process,
+                            user=request.user,
+                            send_comment=(form.cleaned_data.get('notes') or '').strip(),
+                            request=request,
+                            manual_payload=manual_payload,
+                        )
+                    except GestaoCentralDispatchDuplicateError as exc:
+                        messages.warning(request, str(exc))
+                    except GestaoCentralDispatchError as exc:
+                        messages.error(
+                            request,
+                            f'Pedido #{process.pk} criado na Central, mas não foi possível vincular ao '
+                            f'GestControll: {exc}',
+                        )
+                        return redirect('workflow_aprovacao:process_detail', pk=process.pk)
+
+                pending_count = len(pending_candidates) + (1 if implicit_pending_candidate else 0)
+                if gestao_workorder:
+                    messages.success(
+                        request,
+                        f'Pedido GestControll {gestao_workorder.codigo} enviado à Central '
+                        f'(processo #{process.pk}).',
+                    )
+                elif pending_count:
+                    messages.warning(
+                        request,
+                        f'Pedido #{process.pk} criado. {pending_count} cadastro(s) externo(s) aguardam aprovação em '
+                        f'«Solicitações externas».',
                     )
                 else:
                     messages.success(request, f'Pedido manual #{process.pk} criado com sucesso.')
                 return redirect('workflow_aprovacao:process_detail', pk=process.pk)
+
+    page_subtitle = 'Criação manual na Central'
+    if gestao_workorder:
+        page_subtitle = f'Concluir envio — GestControll {gestao_workorder.codigo}'
 
     ctx = {
         'form': form,
@@ -1269,7 +1464,9 @@ def manual_request_new(request):
         },
         'existing_external_users': _external_users_for_select(),
         'page_title': 'Novo pedido de assinatura',
-        'page_subtitle': 'Criação manual na Central',
+        'page_subtitle': page_subtitle,
+        'gestao_workorder': gestao_workorder,
+        'gestao_category_payload': gestao_category_payload,
     }
     return render(
         request,
@@ -1314,6 +1511,15 @@ def external_signup_requests_list(request):
             | Q(process__project__code__icontains=q)
         )
     rows = list(qs.order_by('-created_at')[:300])
+    from workflow_aprovacao.services.external_credentials_share import build_external_credentials_whatsapp_url
+
+    for row in rows:
+        row.whatsapp_credentials_url = ''
+        if row.status == ExternalSignupStatus.APPROVED and row.linked_user_id:
+            row.whatsapp_credentials_url = build_external_credentials_whatsapp_url(
+                request=request,
+                signup_request=row,
+            )
 
     signup_status_map = {
         ExternalSignupStatus.PENDING: UserSignupRequest.STATUS_PENDENTE,
@@ -1322,7 +1528,7 @@ def external_signup_requests_list(request):
     }
     prefill_qs = (
         UserSignupRequest.objects.select_related('requested_by', 'approved_by', 'approved_user')
-        .filter(origem=UserSignupRequest.ORIGEM_INTERNO)
+        .filter(origem=UserSignupRequest.ORIGEM_INTERNO, workflow_external_signup__isnull=True)
         .order_by('-created_at')
     )
     if status in signup_status_map:
@@ -1386,10 +1592,18 @@ def external_signup_request_review(request, pk):
                 reviewer=request.user,
                 access_url_builder=_external_access_url_for_user,
             )
-            messages.success(request, f'Solicitação aprovada e vinculada ao usuário {linked.username}.')
+            messages.success(
+                request,
+                f'Solicitação aprovada e vinculada ao usuário {linked.username}. '
+                f'E-mail de credenciais enviado automaticamente. '
+                f'Use «Enviar login por WhatsApp» se o terceirizado não receber o e-mail. '
+                f'A solicitação também foi atualizada em Central de Cadastros.',
+            )
+            return redirect(f'{reverse("workflow_aprovacao:external_signup_requests")}?status=aprovado')
         else:
             reject_external_signup_request(request_obj=row, reviewer=request.user, reason=reason)
             messages.warning(request, 'Solicitação externa rejeitada.')
+            return redirect(f'{reverse("workflow_aprovacao:external_signup_requests")}?status=rejeitado')
     except Exception as exc:
         messages.error(request, str(exc))
     return redirect('workflow_aprovacao:external_signup_requests')

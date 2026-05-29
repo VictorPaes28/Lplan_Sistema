@@ -23,6 +23,7 @@ from workflow_aprovacao.services.inbox import (
     TAB_REPROVADO,
     available_inbox_tabs,
     build_inbox_queryset,
+    fetch_inbox_page,
     inbox_tab_counts,
 )
 
@@ -164,3 +165,67 @@ class InboxViewTests(TestCase):
         r = self.client.get(reverse('workflow_aprovacao:pending'), {'aba': TAB_APROVADO})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, f'#{proc.pk}')
+
+
+class ExternalInboxTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.cat = ProcessCategory.objects.get(code='contrato')
+        self.project = Project.objects.create(
+            name='Obra ext',
+            code='EXT-1',
+            start_date=date(2025, 1, 1),
+            end_date=date(2026, 1, 1),
+        )
+        self.flow = ApprovalFlowDefinition.objects.create(
+            project=self.project,
+            category=self.cat,
+            is_active=True,
+        )
+        self.step = ApprovalStep.objects.create(flow=self.flow, sequence=1, name='Externo')
+        self.external = User.objects.create_user(username='ext_inbox', password='secret')
+        g, _ = Group.objects.get_or_create(name=GRUPOS.CENTRAL_APROVACOES_EXTERNO)
+        self.external.groups.add(g)
+        ApprovalStepParticipant.objects.create(
+            step=self.step,
+            role=ParticipantRole.APPROVER,
+            subject_kind=SubjectKind.USER,
+            user=self.external,
+        )
+
+    def test_external_inbox_has_single_tab(self):
+        ApprovalEngine.start(
+            project=self.project,
+            category=self.cat,
+            initiated_by=self.external,
+            title='Pendente externo',
+        )
+        tabs = available_inbox_tabs(self.external)
+        self.assertEqual(len(tabs), 1)
+        self.assertEqual(tabs[0]['key'], TAB_PENDENTE)
+        self.assertEqual(tabs[0]['label'], 'Para assinar')
+
+    def test_external_always_uses_pending_tab(self):
+        _, _, tab = fetch_inbox_page(self.external, tab=TAB_APROVADO)
+        self.assertEqual(tab, TAB_PENDENTE)
+
+    def test_external_pending_page_is_signature_focused(self):
+        proc = ApprovalEngine.start(
+            project=self.project,
+            category=self.cat,
+            initiated_by=self.external,
+            title='Assinar este',
+        )
+        self.client.login(username='ext_inbox', password='secret')
+        r = self.client.get(reverse('workflow_aprovacao:pending'))
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, 'wf-inbox-tabs')
+        self.assertNotContains(r, 'Visão geral')
+        self.assertContains(r, 'Assinar agora')
+        self.assertContains(r, f'#{proc.pk}')
+
+    def test_external_home_redirects_to_pending(self):
+        self.client.login(username='ext_inbox', password='secret')
+        r = self.client.get(reverse('workflow_aprovacao:home'))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.url, reverse('workflow_aprovacao:pending'))

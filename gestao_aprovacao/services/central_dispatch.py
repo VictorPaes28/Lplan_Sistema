@@ -128,6 +128,166 @@ def _summary_from_snapshot(snapshot: dict[str, Any]) -> str:
     return '\n'.join(lines)
 
 
+def build_manual_request_initial(workorder: WorkOrder) -> dict[str, Any]:
+    """
+    Pré-preenche o formulário «Novo pedido» da Central a partir de um pedido GestControll aprovado.
+    Categorias alinhadas via ``tipo_solicitacao`` (contrato, medicao, ordem_servico, …).
+    """
+    import json
+
+    category = category_for_workorder_tipo(workorder.tipo_solicitacao)
+    project = getattr(workorder.obra, 'project', None) if workorder.obra_id else None
+
+    amount = None
+    if workorder.tipo_solicitacao == 'medicao' and workorder.valor_medicao is not None:
+        amount = workorder.valor_medicao
+    elif workorder.valor_estimado is not None:
+        amount = workorder.valor_estimado
+
+    summary_parts = []
+    if workorder.observacoes and workorder.observacoes.strip():
+        summary_parts.append(workorder.observacoes.strip())
+    summary_parts.append(
+        f'Origem GestControll: pedido {workorder.codigo} '
+        f'({workorder.get_tipo_solicitacao_display()}).'
+    )
+    if workorder.local and str(workorder.local).strip():
+        summary_parts.append(f'Local: {workorder.local.strip()}')
+
+    tipo = (workorder.tipo_solicitacao or '').strip()
+    obs = (workorder.observacoes or '').strip()
+    category_payload: dict[str, str] = {}
+    if tipo == 'ordem_servico' and workorder.prazo_estimado is not None:
+        category_payload['prazo_estimado'] = f'{workorder.prazo_estimado} dias'
+    elif tipo == 'mapa_cotacao' and obs:
+        category_payload['justificativa'] = obs[:500]
+    elif tipo == 'validacao_contrato' and obs:
+        category_payload['tipo_validacao'] = obs[:500]
+    elif tipo == 'contrato' and obs:
+        category_payload['vigencia_escopo'] = obs[:500]
+    elif tipo == 'medicao':
+        if obs:
+            category_payload['periodo_medicao'] = obs[:500]
+        category_payload['numero_medicao'] = workorder.codigo
+
+    initial: dict[str, Any] = {
+        'title': f'GestControll {workorder.codigo} — {workorder.get_tipo_solicitacao_display()}',
+        'summary': '\n\n'.join(summary_parts),
+        'vendor_name': workorder.nome_credor or '',
+        'notes': (
+            f'Enviado a partir do pedido GestControll {workorder.codigo} '
+            f'(#{workorder.pk}).'
+        ),
+        'category_payload_json': json.dumps(category_payload, ensure_ascii=False),
+    }
+    if amount is not None:
+        initial['amount'] = amount
+    if project:
+        initial['project'] = project.pk
+    if category:
+        initial['category'] = category.pk
+
+    return {
+        'initial': initial,
+        'category_payload': category_payload,
+        'project': project,
+        'category': category,
+    }
+
+
+def manual_request_url_for_workorder(workorder: WorkOrder) -> str:
+    """URL da tela «Novo pedido» com obra, categoria e origem GestControll."""
+    from urllib.parse import urlencode
+
+    prefill = build_manual_request_initial(workorder)
+    project = prefill.get('project')
+    category = prefill.get('category')
+    if not project or not category:
+        raise GestaoCentralDispatchError(
+            prefill.get('block_reason')
+            or workorder_dispatch_block_reason(workorder)
+            or 'Não foi possível montar o envio para a Central.'
+        )
+    query = urlencode(
+        {
+            'gestao_workorder': workorder.pk,
+            'project': project.pk,
+            'category': category.pk,
+        }
+    )
+    return f'{reverse("workflow_aprovacao:manual_request_new")}?{query}'
+
+
+@transaction.atomic
+def link_workorder_to_central_process(
+    workorder: WorkOrder,
+    process,
+    *,
+    user: User,
+    send_comment: str = '',
+    request=None,
+    manual_payload: dict | None = None,
+) -> GestaoCentralDispatch:
+    """Vincula processo já criado na Central ao pedido GestControll (após «Novo pedido»)."""
+    if not user or not user.is_authenticated:
+        raise GestaoCentralDispatchError('Usuário não autenticado.')
+
+    wo = WorkOrder.objects.select_for_update().select_related('obra', 'obra__project', 'criado_por').get(
+        pk=workorder.pk
+    )
+
+    block = workorder_dispatch_block_reason(wo)
+    if block:
+        if 'já foi enviado' in block:
+            raise GestaoCentralDispatchDuplicateError(block)
+        raise GestaoCentralDispatchError(block)
+
+    snapshot = build_dispatch_snapshot(wo, request=request)
+    if manual_payload:
+        snapshot['manual_form'] = manual_payload
+
+    ct = ContentType.objects.get_for_model(WorkOrder)
+    process.external_system = GESTAO_EXTERNAL_SYSTEM
+    process.external_entity_type = GESTAO_EXTERNAL_ENTITY_TYPE
+    process.external_id = str(wo.pk)
+    process.external_payload = snapshot
+    process.content_type = ct
+    process.object_id = wo.pk
+    process.save(
+        update_fields=[
+            'external_system',
+            'external_entity_type',
+            'external_id',
+            'external_payload',
+            'content_type',
+            'object_id',
+            'updated_at',
+        ]
+    )
+
+    dispatch = GestaoCentralDispatch.objects.create(
+        work_order=wo,
+        approval_process=process,
+        sent_by=user,
+        send_comment=(send_comment or '').strip(),
+        snapshot_payload=snapshot,
+    )
+
+    obs_parts = [f'Enviado à Central de Aprovações (processo #{process.pk}).']
+    comment = (send_comment or '').strip()
+    if comment:
+        obs_parts.append(f'Observação: {comment}')
+    StatusHistory.objects.create(
+        work_order=wo,
+        status_anterior=wo.status,
+        status_novo=wo.status,
+        alterado_por=user,
+        observacao=' '.join(obs_parts),
+    )
+
+    return dispatch
+
+
 @transaction.atomic
 def dispatch_workorder_to_central(
     workorder: WorkOrder,
@@ -185,28 +345,13 @@ def dispatch_workorder_to_central(
             'Peça ao administrador da Central para configurar o fluxo.'
         ) from None
 
-    dispatch = GestaoCentralDispatch.objects.create(
-        work_order=wo,
-        approval_process=process,
-        sent_by=user,
-        send_comment=(send_comment or '').strip(),
-        snapshot_payload=snapshot,
+    return link_workorder_to_central_process(
+        wo,
+        process,
+        user=user,
+        send_comment=send_comment,
+        request=request,
     )
-
-    obs_parts = [
-        f'Enviado à Central de Aprovações (processo #{process.pk}).',
-    ]
-    if send_comment.strip():
-        obs_parts.append(f'Observação: {send_comment.strip()}')
-    StatusHistory.objects.create(
-        work_order=wo,
-        status_anterior=wo.status,
-        status_novo=wo.status,
-        alterado_por=user,
-        observacao=' '.join(obs_parts),
-    )
-
-    return dispatch
 
 
 def user_can_view_central_process_link(user) -> bool:

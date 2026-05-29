@@ -847,6 +847,44 @@ a.gc-btn-reprovar:hover,
     color: #fff;
 }
 
+.gc-footer-btn--central {
+    background: #1565c0;
+    color: #fff;
+}
+
+.gc-footer-btn--central:hover {
+    background: #0d47a1;
+    color: #fff;
+}
+
+.gc-footer-btn--central-enviado {
+    background: #e2e8f0;
+    color: #475569;
+    cursor: default;
+    opacity: 0.92;
+}
+
+.gc-banner-central {
+    margin: 0.45rem 1rem 0;
+    padding: 0.55rem 0.75rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #1e3a8a;
+    line-height: 1.45;
+}
+
+.gc-banner-central a {
+    color: #1d4ed8;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.gc-banner-central a:hover {
+    text-decoration: underline;
+}
+
 /* Pedido reprovado: mesmo conceito da página completa (detail_workorder) */
 .gc-banner-reprovado {
     border-left: 4px solid #ea580c;
@@ -1199,6 +1237,352 @@ a.gc-btn-reprovar:hover,
 }
 
 .gc-reprovar-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Sheet de aprovação (modal inline) */
+.gc-aprovar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.gc-aprovar-overlay.is-open {
+    display: flex;
+}
+
+.gc-aprovar-panel {
+    width: min(480px, 100%);
+    max-height: min(90vh, 640px);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    padding: 1.1rem 1.25rem 1.25rem;
+    font-family: 'Sora', system-ui, sans-serif;
+}
+
+.gc-aprovar-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.gc-aprovar-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.gc-aprovar-close {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 1.1rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.15rem;
+}
+
+.gc-aprovar-close:hover {
+    color: #0f172a;
+}
+
+.gc-aprovar-intro {
+    margin: 0 0 1rem;
+    font-size: 0.88rem;
+    color: #475569;
+    line-height: 1.45;
+}
+
+.gc-aprovar-field {
+    margin-bottom: 0.85rem;
+}
+
+.gc-aprovar-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 0.35rem;
+}
+
+.gc-aprovar-optional {
+    font-weight: 400;
+    color: #64748b;
+}
+
+.gc-aprovar-textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.88rem;
+    resize: vertical;
+    min-height: 5rem;
+}
+
+.gc-aprovar-error {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    font-size: 0.82rem;
+}
+
+.gc-aprovar-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.gc-aprovar-cancel {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-aprovar-cancel:hover {
+    background: #f8fafc;
+}
+
+.gc-aprovar-submit {
+    border: none;
+    background: #059669;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-aprovar-submit:hover:not(:disabled) {
+    background: #047857;
+}
+
+.gc-aprovar-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.gc-anexos-bloqueados-hint {
+    margin: 0 0 0.65rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+/* Sheet envio à Central */
+.gc-central-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10060;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.gc-central-overlay.is-open {
+    display: flex;
+}
+
+.gc-central-panel {
+    width: min(520px, 100%);
+    max-height: min(90vh, 720px);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    padding: 1.1rem 1.25rem 1.25rem;
+    font-family: 'Sora', system-ui, sans-serif;
+}
+
+.gc-central-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.gc-central-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.gc-central-close {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 1.1rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.15rem;
+}
+
+.gc-central-close:hover {
+    color: #0f172a;
+}
+
+.gc-central-intro {
+    margin: 0 0 0.85rem;
+    font-size: 0.88rem;
+    color: #475569;
+    line-height: 1.45;
+}
+
+.gc-central-resumo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.55rem 0.75rem;
+    margin-bottom: 0.85rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.gc-central-resumo-item small {
+    display: block;
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-bottom: 0.12rem;
+}
+
+.gc-central-resumo-item strong {
+    display: block;
+    font-size: 0.86rem;
+    color: #0f172a;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.gc-central-anexos-wrap {
+    margin-bottom: 0.85rem;
+}
+
+.gc-central-anexos-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.35rem;
+}
+
+.gc-central-anexos-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.84rem;
+    color: #475569;
+}
+
+.gc-central-field {
+    margin-bottom: 0.85rem;
+}
+
+.gc-central-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 0.35rem;
+}
+
+.gc-central-optional {
+    font-weight: 400;
+    color: #64748b;
+}
+
+.gc-central-textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.88rem;
+    resize: vertical;
+    min-height: 4.5rem;
+}
+
+.gc-central-error {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    font-size: 0.82rem;
+}
+
+.gc-central-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.gc-central-cancel {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-central-cancel:hover {
+    background: #f8fafc;
+}
+
+.gc-central-submit {
+    border: none;
+    background: #1565c0;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-central-submit:hover:not(:disabled) {
+    background: #0d47a1;
+}
+
+.gc-central-submit:disabled {
     opacity: 0.65;
     cursor: not-allowed;
 }

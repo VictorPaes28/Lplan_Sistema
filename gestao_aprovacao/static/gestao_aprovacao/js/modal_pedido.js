@@ -19,11 +19,70 @@
     }
 
     window._gcModalRejectData = null;
+    window._gcModalApproveData = null;
     window._gcListaPedidosAlterada = false;
+
+    function getAprovarOverlayEl() {
+        return document.getElementById('gc-aprovar-overlay');
+    }
 
     function getReprovarOverlayEl() {
         return document.getElementById('gc-reprovar-overlay');
     }
+
+    function hideAprovarInlineError() {
+        var el = document.getElementById('gc-aprovar-error');
+        if (el) {
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+    }
+
+    function showAprovarInlineError(msg) {
+        var el = document.getElementById('gc-aprovar-error');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.style.display = msg ? 'block' : 'none';
+    }
+
+    function resetAprovarFormUi() {
+        hideAprovarInlineError();
+        var ta = document.getElementById('gc-aprovar-comentario');
+        if (ta) ta.value = '';
+        var sub = document.getElementById('gc-aprovar-submit');
+        if (sub) {
+            sub.disabled = false;
+            sub.textContent = 'Confirmar aprovação';
+        }
+    }
+
+    window.fecharAprovarSheet = function () {
+        var ov = getAprovarOverlayEl();
+        if (ov) {
+            ov.classList.remove('is-open');
+            ov.setAttribute('aria-hidden', 'true');
+        }
+        resetAprovarFormUi();
+    };
+
+    window.abrirAprovarSheet = function () {
+        var data = window._gcModalApproveData;
+        if (!data || !data.aprovarUrl) {
+            alert('Não foi possível abrir a aprovação. Feche e abra o pedido novamente.');
+            return;
+        }
+        hideAprovarInlineError();
+        resetAprovarFormUi();
+        var cod = document.getElementById('gc-aprovar-codigo');
+        if (cod) cod.textContent = data.codigo || '';
+        var ov = getAprovarOverlayEl();
+        if (ov) {
+            ov.classList.add('is-open');
+            ov.setAttribute('aria-hidden', 'false');
+        }
+        var ta = document.getElementById('gc-aprovar-comentario');
+        if (ta) ta.focus();
+    };
 
     function hideReprovarInlineError() {
         var el = document.getElementById('gc-reprovar-error');
@@ -172,6 +231,7 @@
         window._gcListaPedidosAlterada = false;
 
         window.fecharReprovarSheet();
+        window.fecharAprovarSheet();
         var overlay = document.getElementById('gc-overlay');
         if (overlay) overlay.style.display = 'none';
         document.body.style.overflow = '';
@@ -179,6 +239,7 @@
         window._gcModalCurrentPk = null;
         window._gcModalUrls = null;
         window._gcModalRejectData = null;
+        window._gcModalApproveData = null;
 
         if (reloadLista) {
             window.location.reload();
@@ -241,7 +302,9 @@
     /** Limpa o modal antes do fetch para não mostrar dados do pedido anterior (cores/status). */
     window.modalPedidoResetParaCarregar = function () {
         window.fecharReprovarSheet();
+        window.fecharAprovarSheet();
         window._gcModalRejectData = null;
+        window._gcModalApproveData = null;
         var bc = document.getElementById('gc-breadcrumb');
         if (bc) bc.innerHTML =
             '<span style="color:#94a3b8;">Carregando…</span>';
@@ -305,12 +368,27 @@
             bIna.style.display = 'none';
             bIna.textContent = '';
         }
-        ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-aprov-link', 'gc-reprovado-cta'].forEach(
+        var bCentral = document.getElementById('gc-banner-central');
+        if (bCentral) {
+            bCentral.style.display = 'none';
+            bCentral.innerHTML = '';
+        }
+        ['gc-ft-pdf', 'gc-ft-leitura', 'gc-ft-editar', 'gc-ft-exclusao', 'gc-ft-central', 'gc-ft-central-ver', 'gc-reprovado-cta'].forEach(
             function (id) {
                 var el = document.getElementById(id);
-                if (el) el.href = '#';
+                if (el) {
+                    if (el.tagName === 'A') el.href = '#';
+                    if (id === 'gc-ft-central' || id === 'gc-ft-central-ver') {
+                        el.style.display = 'none';
+                    }
+                }
             }
         );
+        var ftCentralEnviado = document.getElementById('gc-ft-central-enviado');
+        if (ftCentralEnviado) {
+            ftCentralEnviado.style.display = 'none';
+            ftCentralEnviado.textContent = '';
+        }
     };
 
     window.preencherModalPedido = function (d) {
@@ -358,6 +436,29 @@
             }
         }
 
+        var banCentral = document.getElementById('gc-banner-central');
+        if (banCentral) {
+            if (d.central_dispatch) {
+                var cd = d.central_dispatch;
+                var centralHtml =
+                    'Este pedido foi encaminhado à Central de Aprovações' +
+                    (cd.sent_at ? ' em ' + escapeHtml(cd.sent_at) : '') +
+                    (cd.sent_by ? ' por ' + escapeHtml(cd.sent_by) : '') +
+                    '.';
+                if (d.central_process_url) {
+                    centralHtml +=
+                        ' <a href="' + escapeHtml(d.central_process_url) + '" target="_blank" rel="noopener">Abrir processo #' +
+                        escapeHtml(String(cd.process_id || d.central_dispatch_id || '')) +
+                        '</a>';
+                }
+                banCentral.innerHTML = centralHtml;
+                banCentral.style.display = 'block';
+            } else {
+                banCentral.innerHTML = '';
+                banCentral.style.display = 'none';
+            }
+        }
+
         function setText(id, text) {
             var n = document.getElementById(id);
             if (n) n.textContent = text == null || text === '' ? '—' : text;
@@ -381,8 +482,13 @@
         var secAprov = document.getElementById('gc-sec-aprovacao');
         if (secAprov) secAprov.style.display = d.pode_aprovar ? 'block' : 'none';
         window._gcModalRejectData = null;
-        var aprovL = document.getElementById('gc-aprov-link');
-        if (d.urls && aprovL) aprovL.href = d.urls.aprovar || '#';
+        window._gcModalApproveData = null;
+        if (d.pode_aprovar && d.urls && d.urls.aprovar) {
+            window._gcModalApproveData = {
+                aprovarUrl: d.urls.aprovar,
+                codigo: d.codigo || '',
+            };
+        }
         if (d.pode_aprovar && d.urls && d.urls.reprovar) {
             window._gcModalRejectData = {
                 reprovarUrl: d.urls.reprovar,
@@ -452,6 +558,11 @@
         var anex = document.getElementById('gc-anexos-grid');
         if (anex) {
             var parts = [];
+            if (d.anexos_bloqueados_fluxo && d.anexos_bloqueados_mensagem) {
+                parts.push(
+                    '<p class="gc-anexos-bloqueados-hint">' + escapeHtml(d.anexos_bloqueados_mensagem) + '</p>'
+                );
+            }
             if (d.anexos && d.anexos.length) {
                 d.anexos.forEach(function (x) {
                     var thumb = x.eh_imagem
@@ -525,6 +636,8 @@
         }
         setHref('gc-ft-pdf', u.exportar_pdf);
         setHref('gc-ft-leitura', u.leitura_pdf);
+        var ftLeitura = document.getElementById('gc-ft-leitura');
+        if (ftLeitura) ftLeitura.style.display = u.leitura_pdf ? 'inline-flex' : 'none';
         setHref('gc-ft-editar', u.editar);
         var ftEdit = document.getElementById('gc-ft-editar');
         if (ftEdit) ftEdit.style.display = d.pode_editar ? 'inline-flex' : 'none';
@@ -553,6 +666,33 @@
             var showExc = d.pode_solicitar_exclusao && !d.exclusao_pendente;
             ftExc.style.display = showExc ? 'inline-flex' : 'none';
             setHref('gc-ft-exclusao', u.solicitar_exclusao);
+        }
+
+        var ftCentral = document.getElementById('gc-ft-central');
+        if (ftCentral) {
+            var showCentralSend = !!(d.can_send_to_central && u.enviar_central);
+            ftCentral.style.display = showCentralSend ? 'inline-flex' : 'none';
+            setHref('gc-ft-central', u.enviar_central);
+        }
+
+        var ftCentralVer = document.getElementById('gc-ft-central-ver');
+        var ftCentralEnviado = document.getElementById('gc-ft-central-enviado');
+        if (ftCentralVer) {
+            var showCentralVer = !d.can_send_to_central && d.central_dispatch_id && d.central_process_url;
+            ftCentralVer.style.display = showCentralVer ? 'inline-flex' : 'none';
+            setHref('gc-ft-central-ver', d.central_process_url);
+        }
+        if (ftCentralEnviado) {
+            var showCentralBadge =
+                !d.can_send_to_central && d.central_dispatch_id && !d.central_process_url;
+            if (showCentralBadge) {
+                ftCentralEnviado.textContent =
+                    'Enviado à Central (#' + String(d.central_dispatch_id) + ')';
+                ftCentralEnviado.style.display = 'inline-flex';
+            } else {
+                ftCentralEnviado.textContent = '';
+                ftCentralEnviado.style.display = 'none';
+            }
         }
 
         syncGestaoListaPedidoRowFromModal(d);
@@ -602,6 +742,75 @@
             })
             .catch(function () {
                 alert('Erro de rede ao enviar comentário.');
+            });
+    };
+
+    window.enviarAprovarModal = function () {
+        var pk = window._gcModalCurrentPk;
+        var data = window._gcModalApproveData;
+        if (!pk || !data || !data.aprovarUrl) return;
+        hideAprovarInlineError();
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', getCsrfToken());
+        var com = document.getElementById('gc-aprovar-comentario');
+        fd.append('comentario', com ? com.value.trim() : '');
+        var sub = document.getElementById('gc-aprovar-submit');
+        if (sub) {
+            sub.disabled = true;
+            sub.textContent = 'Confirmando…';
+        }
+        fetch(data.aprovarUrl, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            redirect: 'manual',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+        })
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    try {
+                        return { body: JSON.parse(text), isJson: true };
+                    } catch (err) {
+                        return { isJson: false };
+                    }
+                });
+            })
+            .then(function (res) {
+                if (sub) {
+                    sub.disabled = false;
+                    sub.textContent = 'Confirmar aprovação';
+                }
+                if (!res.isJson || !res.body) {
+                    showAprovarInlineError(
+                        'Não foi possível concluir a aprovação. Atualize a página e tente novamente.'
+                    );
+                    return;
+                }
+                if (res.body.ok) {
+                    window.fecharAprovarSheet();
+                    if (
+                        typeof window.abrirModalPedido === 'function' &&
+                        window.GC_WORKORDER_JSON_URL &&
+                        document.getElementById('gc-overlay')
+                    ) {
+                        window._gcListaPedidosAlterada = true;
+                        window.abrirModalPedido(pk);
+                    } else {
+                        window.location.reload();
+                    }
+                    return;
+                }
+                showAprovarInlineError(res.body.error || 'Não foi possível aprovar.');
+            })
+            .catch(function () {
+                if (sub) {
+                    sub.disabled = false;
+                    sub.textContent = 'Confirmar aprovação';
+                }
+                showAprovarInlineError('Erro de rede. Verifique sua conexão e tente novamente.');
             });
     };
 
@@ -713,6 +922,30 @@
     document.addEventListener('DOMContentLoaded', function () {
         gcReprovarNovasRender();
 
+        var aprovarBtn = document.getElementById('gc-aprov-btn');
+        if (aprovarBtn) {
+            aprovarBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.abrirAprovarSheet();
+            });
+        }
+
+        var aov = getAprovarOverlayEl();
+        if (aov) {
+            aov.addEventListener('click', function (e) {
+                if (e.target === aov) window.fecharAprovarSheet();
+            });
+        }
+
+        var ac = document.getElementById('gc-aprovar-close');
+        if (ac) ac.addEventListener('click', function () { window.fecharAprovarSheet(); });
+
+        var acan = document.getElementById('gc-aprovar-cancel');
+        if (acan) acan.addEventListener('click', function () { window.fecharAprovarSheet(); });
+
+        var asub = document.getElementById('gc-aprovar-submit');
+        if (asub) asub.addEventListener('click', function () { window.enviarAprovarModal(); });
+
         var reprovarBtn = document.getElementById('gc-reprovar-btn');
         if (reprovarBtn) {
             reprovarBtn.addEventListener('click', function (e) {
@@ -778,6 +1011,12 @@
             if (e.key !== 'Escape') return;
             var criar = document.getElementById('wc-create-overlay');
             if (criar && criar.classList.contains('is-open')) return;
+            var ao = getAprovarOverlayEl();
+            if (ao && ao.classList.contains('is-open')) {
+                window.fecharAprovarSheet();
+                e.preventDefault();
+                return;
+            }
             var ro = getReprovarOverlayEl();
             if (ro && ro.classList.contains('is-open')) {
                 window.fecharReprovarSheet();

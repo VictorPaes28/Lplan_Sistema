@@ -1,4 +1,5 @@
 {% extends 'workflow_aprovacao/base_workflow.html' %}
+{% load workflow_history %}
 
 {% block back_url %}{% url 'workflow_aprovacao:pending' %}{% endblock %}
 
@@ -83,6 +84,49 @@
                     </div>
                     {% endif %}
                 </dl>
+                {% if final_signature_audit %}
+                <div class="wf-detail-audit" aria-label="Registro da assinatura final">
+                    <p class="wf-detail-audit__title">Assinatura final</p>
+                    <dl class="wf-detail-audit__dl">
+                        <div>
+                            <dt>Decisão</dt>
+                            <dd>{{ final_signature_audit.action_display }}</dd>
+                        </div>
+                        <div>
+                            <dt>Assinado por</dt>
+                            <dd>{{ final_signature_audit.signed_by }}</dd>
+                        </div>
+                        {% if final_signature_audit.signer_name %}
+                        <div>
+                            <dt>Nome declarado</dt>
+                            <dd>{{ final_signature_audit.signer_name }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if workflow_can_view_geolocation %}
+                        <div>
+                            <dt>Localização</dt>
+                            <dd class="wf-detail-audit__geo">
+                                {% if final_signature_audit.geo_label %}
+                                <i class="fas fa-location-dot" aria-hidden="true"></i> {{ final_signature_audit.geo_label }}
+                                {% if final_signature_audit.geo_maps_url %}
+                                <a href="{{ final_signature_audit.geo_maps_url }}" class="wf-timeline-meta__maps" target="_blank" rel="noopener noreferrer">Abrir no Maps</a>
+                                {% endif %}
+                                {% if final_signature_audit.geo_coords and final_signature_audit.geo_label and final_signature_audit.geo_maps_url %}
+                                <span class="wf-timeline-meta__coords">{{ final_signature_audit.geo_coords }}</span>
+                                {% endif %}
+                                {% else %}
+                                Não informada
+                                {% endif %}
+                            </dd>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <dt>Data</dt>
+                            <dd>{{ final_signature_audit.decided_at|date:"d/m/Y H:i" }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                {% endif %}
             </div>
         </aside>
 
@@ -245,6 +289,43 @@
             </section>
             {% endif %}
 
+            {% if manual_is_origin %}
+            <section class="wf-panel wf-manual-review" aria-labelledby="wf-manual-review-heading">
+                <div class="wf-panel__head wf-manual-review__head">
+                    <div>
+                        <h2 id="wf-manual-review-heading" class="wf-panel__title wf-manual-review__title">Pedido manual</h2>
+                    </div>
+                    <span class="wf-badge wf-badge--cat">Manual</span>
+                </div>
+                <div class="wf-panel__body wf-manual-review__body">
+                    {% if manual_attachments %}
+                    <div class="wf-sienge-attachments">
+                        <h3 class="wf-sienge-subhead">Documentos de referência</h3>
+                        <ul class="wf-attach-cards">
+                            {% for att in manual_attachments %}
+                            <li class="wf-attach-card">
+                                <a href="{{ att.url }}" class="wf-attach-card__link" title="{{ att.nome }}">
+                                    <span class="wf-attach-card__icon wf-attach-card__icon--{{ att.icon_tone }}" aria-hidden="true"><i class="fas {{ att.icon_class }}"></i></span>
+                                    <span class="wf-attach-card__text">
+                                        <span class="wf-attach-card__name">{{ att.nome }}</span>
+                                        <span class="wf-attach-card__meta">{{ att.meta }}</span>
+                                    </span>
+                                    <span class="wf-attach-card__action" aria-hidden="true"><i class="fas fa-download"></i></span>
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% else %}
+                    <div class="wf-sienge-attachments wf-sienge-attachments--empty">
+                        <h3 class="wf-sienge-subhead">Documentos de referência</h3>
+                        <p class="wf-help">Nenhum documento anexado na criação do pedido.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+
             {% if process.status == 'approved' or process.status == 'rejected' %}
             <section class="wf-panel" style="margin-bottom:1.25rem;">
                 <div class="wf-panel__head">
@@ -284,7 +365,12 @@
 
             {% if external_signup_requests %}
             <section class="wf-panel" style="margin-bottom:1.25rem;">
-                <div class="wf-panel__head"><h2 class="wf-panel__title">Solicitações de cadastro externo</h2></div>
+                <div class="wf-panel__head wf-panel__head--split">
+                    <h2 class="wf-panel__title">Solicitações de cadastro externo</h2>
+                    {% if workflow_show_config_nav %}
+                    <a href="{% url 'workflow_aprovacao:external_signup_requests' %}" class="wf-btn-table">Abrir fila de aprovação</a>
+                    {% endif %}
+                </div>
                 <div class="wf-panel__body">
                     {% for req in external_signup_requests %}
                     <article class="wf-backlog-card" style="margin-bottom:0.75rem;">
@@ -293,6 +379,9 @@
                             Alçada {{ req.step.sequence }} · {{ req.step.name }} · {{ req.get_status_display }}
                             {% if req.linked_user %}· usuário {{ req.linked_user.username }}{% endif %}
                         </p>
+                        {% if req.status == 'pending' and workflow_show_config_nav %}
+                        <p class="wf-help" style="margin:.35rem 0 0;">Aguarda aprovação em «Solicitações externas».</p>
+                        {% endif %}
                         {% if req.review_reason %}<p class="wf-help">Motivo: {{ req.review_reason }}</p>{% endif %}
                     </article>
                     {% endfor %}
@@ -301,10 +390,20 @@
             {% endif %}
 
             <section class="wf-panel" style="margin-bottom:1.25rem;">
-                <div class="wf-panel__head">
+                <div class="wf-panel__head wf-panel__head--split">
                     <h2 class="wf-panel__title">Linha do tempo</h2>
+                    <a href="{{ process_share.whatsapp_url }}"
+                       class="wf-btn-whatsapp"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       title="Abrir WhatsApp com link deste processo">
+                        <i class="fab fa-whatsapp" aria-hidden="true"></i> Compartilhar link
+                    </a>
                 </div>
                 <div class="wf-panel__body">
+                    <p class="wf-timeline-share-note">
+                        O link abre a tela deste processo na Central. Só quem tem acesso ao módulo e vínculo com a solicitação consegue entrar.
+                    </p>
                     {% if history %}
                     <div class="wf-timeline">
                         {% for h in history %}
@@ -316,6 +415,11 @@
                             </p>
                             {% if h.comment %}
                             <p class="wf-timeline-comment">{{ h.comment }}</p>
+                            {% endif %}
+                            {% if workflow_can_view_geolocation %}
+                            {% with geo=h|history_geo_display %}
+                            {% include 'workflow_aprovacao/includes/_geo_display.html' %}
+                            {% endwith %}
                             {% endif %}
                         </div>
                         {% endfor %}
@@ -408,6 +512,9 @@
                         <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Ação:</strong> <span id="wf-sign-modal-action">-</span></p>
                         <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Signatário:</strong> <span id="wf-sign-modal-signer">-</span></p>
                         <p style="margin:0.15rem 0;font-size:0.88rem;"><strong>Comentário:</strong> <span id="wf-sign-modal-comment">Sem comentário</span></p>
+                        {% if workflow_can_view_geolocation %}
+                        <p style="margin:0.15rem 0;font-size:0.78rem;color:#64748b;"><strong>Localização:</strong> <span id="wf-sign-modal-geo">—</span></p>
+                        {% endif %}
                     </div>
                     <div style="margin-top:0.55rem;border:1px solid #e2e8f0;border-radius:10px;padding:0.55rem;background:#fff;">
                         <p style="margin:0 0 0.35rem;font-size:0.75rem;color:#64748b;font-weight:600;">Assinatura manual</p>
@@ -434,6 +541,7 @@
 (function () {
     const form = document.querySelector('.wf-signing-card');
     if (!form) return;
+    const canViewGeo = {{ workflow_can_view_geolocation|yesno:"true,false" }};
     const modal = document.getElementById('wf-sign-modal');
     const hiddenAction = document.getElementById('id_action_hidden');
     const signer = document.getElementById('id_signer_name');
@@ -441,6 +549,7 @@
     const actionTarget = document.getElementById('wf-sign-modal-action');
     const signerTarget = document.getElementById('wf-sign-modal-signer');
     const commentTarget = document.getElementById('wf-sign-modal-comment');
+    const geoTarget = document.getElementById('wf-sign-modal-geo');
     const signaturePreview = document.getElementById('wf-sign-modal-signature');
     const geolocationData = document.getElementById('id_geolocation_data');
     const geoStatus = document.getElementById('wf-geo-status');
@@ -503,6 +612,59 @@
         });
     }
 
+    function formatGeoLabel(raw) {
+        if (!raw) return '';
+        try {
+            const parsed = JSON.parse(raw);
+            if (
+                !parsed ||
+                !Number.isFinite(Number(parsed.latitude)) ||
+                !Number.isFinite(Number(parsed.longitude))
+            ) {
+                return '';
+            }
+            if ((parsed.address || '').trim()) {
+                let label = String(parsed.address).trim();
+                if (parsed.accuracy_m) {
+                    label += ' (precisão ~' + Math.round(Number(parsed.accuracy_m)) + ' m)';
+                }
+                return label;
+            }
+            let label = Number(parsed.latitude).toFixed(6) + ', ' + Number(parsed.longitude).toFixed(6);
+            if (parsed.accuracy_m) {
+                label += ' (precisão ~' + Math.round(Number(parsed.accuracy_m)) + ' m)';
+            }
+            return label;
+        } catch (err) {
+            return '';
+        }
+    }
+
+    async function enrichGeoPayload(geo) {
+        if (!geo || !canViewGeo) return geo;
+        const params = new URLSearchParams({
+            lat: String(geo.latitude),
+            lng: String(geo.longitude),
+        });
+        if (geo.accuracy_m) params.set('accuracy_m', String(geo.accuracy_m));
+        try {
+            const resp = await fetch('{% url "workflow_aprovacao:reverse_geocode_address" %}?' + params.toString(), {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (!resp.ok) return geo;
+            const data = await resp.json();
+            if (data.address) geo.address = data.address;
+            if (data.maps_url) geo.maps_url = data.maps_url;
+        } catch (err) {
+            /* mantém coordenadas se a busca do endereço falhar */
+        }
+        if (!geo.maps_url && Number.isFinite(Number(geo.latitude)) && Number.isFinite(Number(geo.longitude))) {
+            geo.maps_url = 'https://www.google.com/maps?q=' + geo.latitude + ',' + geo.longitude;
+        }
+        return geo;
+    }
+
     function openModal(action) {
         hiddenAction.value = action;
         wfSig.save();
@@ -511,6 +673,11 @@
         }
         if (signerTarget) signerTarget.textContent = (signer && signer.value.trim()) || '-';
         if (commentTarget) commentTarget.textContent = (comment && comment.value.trim()) || 'Sem comentário';
+        if (geoTarget && canViewGeo) {
+            const geoText = formatGeoLabel(geolocationData && geolocationData.value);
+            geoTarget.textContent = geoText || 'Não capturada — ative a localização antes de confirmar';
+            geoTarget.style.color = geoText ? '#166534' : '#b45309';
+        }
         if (signaturePreview) {
             const data = document.getElementById('id_signature_data');
             signaturePreview.src = (data && data.value) ? data.value : '';
@@ -576,9 +743,21 @@
             setDecisionButtonsEnabled(false);
             return false;
         }
-        geolocationData.value = JSON.stringify(geo);
-        setGeoStatus('Localização capturada. Você já pode assinar.', true);
+        if (canViewGeo) {
+            setGeoStatus('Buscando endereço aproximado...', false);
+        }
+        const enriched = canViewGeo ? await enrichGeoPayload(geo) : geo;
+        geolocationData.value = JSON.stringify(enriched);
+        const geoText = canViewGeo ? formatGeoLabel(geolocationData.value) : '';
+        setGeoStatus(
+            geoText ? ('Localização: ' + geoText) : 'Localização capturada. Você já pode assinar.',
+            true
+        );
         setDecisionButtonsEnabled(true);
+        if (geoTarget && canViewGeo) {
+            geoTarget.textContent = geoText || '—';
+            geoTarget.style.color = geoText ? '#166534' : '#64748b';
+        }
         return true;
     }
 
@@ -619,6 +798,16 @@
                 if (!ok) {
                     confirmBtn.disabled = false;
                     return;
+                }
+            } else {
+                try {
+                    const parsed = JSON.parse(geolocationData.value);
+                    if (canViewGeo && !parsed.address) {
+                        const enriched = await enrichGeoPayload(parsed);
+                        geolocationData.value = JSON.stringify(enriched);
+                    }
+                } catch (err) {
+                    /* segue com payload existente */
                 }
             }
         } catch (e) {

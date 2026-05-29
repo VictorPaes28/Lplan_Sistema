@@ -1,3 +1,4 @@
+{% if not workflow_external_profile %}
 <div class="wf-subnav-bar">
     <nav class="wf-nav" aria-label="Central de Aprovações">
         <a href="{% url 'workflow_aprovacao:home' %}"
@@ -25,7 +26,11 @@
         <a href="{% url 'workflow_aprovacao:external_signup_requests' %}"
            class="{% if request.resolver_match.url_name == 'external_signup_requests' %}wf-nav--active{% endif %}">
             <i class="fas fa-user-clock" aria-hidden="true"></i> Solicitações externas
+            {% if workflow_external_signup_pending_count and request.resolver_match.url_name != 'external_signup_requests' %}
+            <span class="wf-nav-badge" title="Cadastros externos aguardando aprovação">{{ workflow_external_signup_pending_count }}</span>
+            {% endif %}
         </a>
         {% endif %}
     </nav>
 </div>
+{% endif %}
