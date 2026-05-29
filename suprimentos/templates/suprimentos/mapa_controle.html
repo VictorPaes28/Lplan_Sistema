@@ -212,7 +212,7 @@
                             {% else %}
                             <a class="cell-link row-link"
                                title="Ver unidades (aptos) deste pavimento na matriz"
-                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&{{ matrix_stable_qs_apto }}">{{ row.row_label }}</a>
                             {% endif %}
                             {% elif matrix.allow_row_drill and row.row_drillable and matrix.mode == 'apto' and not matrix.unit_detail_view %}
                             <a class="cell-link row-link"

@@ -267,16 +267,64 @@ def _distinct_structural_axis_values(
     return keys
 
 
+def _row_has_non_axis_cell_data(row: list, axis_map: dict) -> bool:
+    """True se há dado fora dos eixos hierárquicos (ex.: % em linha de continuação de importação)."""
+    skip = {idx for idx in axis_map.values() if isinstance(idx, int)}
+    for i, cell in enumerate(row):
+        if i in skip:
+            continue
+        if str(cell or "").strip():
+            return True
+    return False
+
+
+def _skip_hierarchy_forward_fill(
+    key: str,
+    *,
+    structural_bloco_row: bool,
+    structural_pavimento_row: bool,
+    apto_at_start: str,
+    pav_at_start: str,
+    last: dict[str, str],
+) -> bool:
+    if structural_bloco_row and key in ("pavimento", "apto"):
+        return True
+    if structural_pavimento_row and key == "apto":
+        return True
+    # apto preenchido sem pavimento: após linha estrutural de pavimento last["apto"] foi zerado —
+    # não preencher pavimento (evita grudar a2 de p1 no p2 recém-criado).
+    if key == "pavimento" and apto_at_start and not pav_at_start and not last.get("apto"):
+        return True
+    return False
+
+
 def _forward_fill_hierarchy_axes(rows: list[list], axis_map: dict) -> None:
     """
     Propaga setor/bloco/pavimento/apto para linhas de continuação (mesma unidade, várias linhas de serviço).
     Modifica as linhas in-place antes de filtrar ou consolidar percentuais.
+    Linhas estruturais do editor (bloco ou pavimento sem filhos) não recebem forward-fill nos eixos vazios.
     """
+
+    def _axis_at_start(row_vals: list, key: str) -> str:
+        idx = axis_map.get(key)
+        if not isinstance(idx, int):
+            return ""
+        return str(row_vals[idx] if idx < len(row_vals) else "").strip()
+
     chain = ["setor", "bloco", "pavimento", "apto"]
     last: dict[str, str] = {k: "" for k in chain}
     for row in rows:
         if not isinstance(row, list):
             continue
+        bloco_at_start = _axis_at_start(row, "bloco")
+        pav_at_start = _axis_at_start(row, "pavimento")
+        apto_at_start = _axis_at_start(row, "apto")
+        structural_bloco_row = bool(bloco_at_start and not pav_at_start and not apto_at_start)
+        structural_pavimento_row = bool(
+            pav_at_start
+            and not apto_at_start
+            and not _row_has_non_axis_cell_data(row, axis_map)
+        )
         for key in chain:
             idx = axis_map.get(key)
             if not isinstance(idx, int):
@@ -296,6 +344,15 @@ def _forward_fill_hierarchy_axes(rows: list[list], axis_map: dict) -> None:
                     last["apto"] = ""
                 last[key] = val
             elif last.get(key):
+                if _skip_hierarchy_forward_fill(
+                    key,
+                    structural_bloco_row=structural_bloco_row,
+                    structural_pavimento_row=structural_pavimento_row,
+                    apto_at_start=apto_at_start,
+                    pav_at_start=pav_at_start,
+                    last=last,
+                ):
+                    continue
                 row[idx] = last[key]
 
 
@@ -670,6 +727,7 @@ def _consolidated_pct_values_for_child_axis(
         scope = {**parent_scope, child_axis_key: child_key}
         child_rows = _rows_matching_axis_scope(percent_source_rows, axis_map, scope)
         if child_rows:
+            child_rows = [list(r) for r in child_rows]
             _forward_fill_hierarchy_axes(child_rows, axis_map)
         if isinstance(axis_map.get("apto"), int):
             display = _consolidated_column_across_apto_units(
@@ -1234,6 +1292,7 @@ class AmbienteProvider:
             for key in axis_keys:
                 key_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, key)
                 if key_rows:
+                    key_rows = [list(r) for r in key_rows]
                     _forward_fill_hierarchy_axes(key_rows, axis_map)
                 out = [""] * len(header)
                 out[row_axis_col] = key
@@ -1428,6 +1487,7 @@ class AmbienteProvider:
             if stable_val:
                 stable_params[stable_key] = stable_val
         matrix_stable_qs = urlencode(stable_params)
+        matrix_stable_qs_apto = urlencode({**stable_params, "matrix_mode": "apto"})
         base_qs = {
             "obra": obra.id,
             "ambiente_id": ambiente.id,
@@ -1501,6 +1561,7 @@ class AmbienteProvider:
             "coluna_filtrada_aviso": coluna_filtrada_aviso,
             "macro_pulse": None,
             "matrix_stable_qs": matrix_stable_qs,
+            "matrix_stable_qs_apto": matrix_stable_qs_apto,
             "is_area_comum": is_area_comum,
             "layer_nav": layer_nav,
             "column_groups": column_groups,

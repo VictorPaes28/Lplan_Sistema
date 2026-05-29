@@ -1177,6 +1177,7 @@
 }
 
 .matrix-table tr > :first-child {
+    min-width: 5.5rem;
     box-shadow:
         inset 1px 0 0 #e5e7eb,
         inset -1px 0 0 #e5e7eb,
@@ -1230,7 +1231,7 @@
 
 .matrix-table--col-filter .sticky-left,
 .matrix-table--col-filter .row-name {
-    min-width: 7.5rem;
+    min-width: 5.5rem;
 }
 
 .matrix-table--col-filter th.vertical {

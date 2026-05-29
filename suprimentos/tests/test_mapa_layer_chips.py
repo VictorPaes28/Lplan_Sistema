@@ -63,6 +63,39 @@ class MapaLayerChipsHelpersTests(unittest.TestCase):
         self.assertEqual(rows[1][3], "101")
         self.assertTrue(_is_percent_source_row(rows[1], axis, is_area_comum=False, is_manual_flat=False))
 
+    def test_forward_fill_nao_preenche_filhos_em_linha_estrutural(self):
+        axis = _axis_map()
+        rows = [
+            ["HAB", "B1", "P1", "101", "100%"],
+            ["HAB", "B2", "", "", ""],
+            ["HAB", "B1", "P2", "", ""],
+        ]
+        _forward_fill_hierarchy_axes(rows, axis)
+        self.assertEqual(rows[1][2], "")
+        self.assertEqual(rows[1][3], "")
+        self.assertEqual(rows[2][3], "")
+
+    def test_forward_fill_nao_gruda_apto_de_p1_no_pavimento_p2(self):
+        """a2 de p1 não deve ganhar p2 só porque uma linha estrutural p2 veio antes."""
+        axis = _axis_map()
+        rows = [
+            ["HAB", "B1", "P1", "a1", "75%"],
+            ["HAB", "B1", "P1", "a2", "50%"],
+            ["HAB", "B1", "P2", "", ""],
+            ["HAB", "B1", "", "a2", "10%"],
+        ]
+        _forward_fill_hierarchy_axes(rows, axis)
+        self.assertEqual(rows[3][2], "")
+
+    def test_forward_fill_nova_unidade_mesmo_pavimento_sem_repetir_pav(self):
+        axis = _axis_map()
+        rows = [
+            ["HAB", "B1", "P1", "a1", "75%"],
+            ["HAB", "B1", "", "a2", "50%"],
+        ]
+        _forward_fill_hierarchy_axes(rows, axis)
+        self.assertEqual(rows[1][2], "P1")
+
     def test_placeholder_nunca_vira_chip(self):
         rows = [["HAB", "B1", "Sem dados para matriz", "UND 1", ""]]
         vals = _distinct_structural_axis_values(rows, _axis_map(), "pavimento", {"bloco": "B1"})
