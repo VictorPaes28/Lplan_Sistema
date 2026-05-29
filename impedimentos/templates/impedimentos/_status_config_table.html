@@ -12,7 +12,7 @@
         </thead>
         <tbody>
             {% for st in status_rows %}
-            <tr>
+            <tr data-status-row-id="{{ st.id }}">
                 <td>
                     <div class="imp-status-config-namecell">
                         <span class="imp-status-swatch" style="background-color: {{ st.cor }};" title="{{ st.cor }}" aria-hidden="true"></span>
@@ -29,7 +29,7 @@
                 </td>
                 <td>
                     <div class="imp-status-reorder">
-                        <form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-inline-form imp-status-action-form">
+                        <form method="post" action="{% if use_status_xhr %}{% url 'impedimentos:list_impedimentos' obra_id=project.id %}{% else %}{% url 'impedimentos:list_status' obra_id=project.id %}{% endif %}" class="imp-inline-form imp-status-action-form">
                             {% csrf_token %}
                             {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
                             <input type="hidden" name="action" value="reorder">
@@ -39,7 +39,7 @@
                                 <i class="fas fa-arrow-up"></i>
                             </button>
                         </form>
-                        <form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-inline-form imp-status-action-form">
+                        <form method="post" action="{% if use_status_xhr %}{% url 'impedimentos:list_impedimentos' obra_id=project.id %}{% else %}{% url 'impedimentos:list_status' obra_id=project.id %}{% endif %}" class="imp-inline-form imp-status-action-form">
                             {% csrf_token %}
                             {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
                             <input type="hidden" name="action" value="reorder">
@@ -66,7 +66,7 @@
                         >
                             Editar
                         </button>
-                        <form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="imp-inline-form imp-status-action-form" data-status-delete-form onsubmit="return confirm('Excluir este status? Esta ação não pode ser desfeita.');">
+                        <form method="post" action="{% if use_status_xhr %}{% url 'impedimentos:list_impedimentos' obra_id=project.id %}{% else %}{% url 'impedimentos:list_status' obra_id=project.id %}{% endif %}" class="imp-inline-form imp-status-action-form" data-status-delete-form onsubmit="return confirm('Excluir este status? Esta ação não pode ser desfeita.');">
                             {% csrf_token %}
                             {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
                             <input type="hidden" name="action" value="delete">

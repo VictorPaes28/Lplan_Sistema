@@ -50,7 +50,7 @@
         </div>
         <div class="imp-header-actions">
             {% if is_admin_export %}
-            <button type="button" class="imp-btn imp-btn-secondary" id="imp-open-status-config" title="Configurar status desta obra" data-status-config-url="{% url 'impedimentos:list_status' obra_id=project.id %}">
+            <button type="button" class="imp-btn imp-btn-secondary" id="imp-open-status-config" title="Configurar status desta obra" data-status-config-url="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}">
                 <i class="fas fa-sliders-h"></i> Configurar status
             </button>
             {% endif %}
@@ -5386,16 +5386,19 @@
     var shellClose = document.getElementById('imp-status-config-shell-close');
     var inlineMsg = document.getElementById('imp-status-config-inline-msg');
     var overlayTitle = document.getElementById('imp-status-overlay-modal-title');
+    var tableHost = document.getElementById('imp-status-config-table-host');
     var statusNextOrdem = {{ status_config_next_ordem|default:1 }};
     if (!shell || !formOverlay || !openBtn || !formHost) return;
 
     function postUrl() {
-        return openBtn.getAttribute('data-status-config-url') || '';
+        return openBtn.getAttribute('data-status-config-url') || window.location.pathname;
     }
 
-    function csrfToken() {
-        var inp = document.querySelector('input[name="csrfmiddlewaretoken"]');
-        return inp ? inp.value : '';
+    function csrfToken(formEl) {
+        var inp = formEl && formEl.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (inp && inp.value) return inp.value;
+        var globalInp = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        return globalInp ? globalInp.value : '';
     }
 
     function statusForm() {
@@ -5417,6 +5420,24 @@
         inlineMsg.classList.remove('imp-status-config-banner--error', 'imp-status-config-banner--success');
         if (!text) return;
         inlineMsg.classList.add(kind === 'ok' ? 'imp-status-config-banner--success' : 'imp-status-config-banner--error');
+    }
+
+    function removeStatusRow(statusId) {
+        if (!shell || !statusId) return;
+        var row = shell.querySelector('[data-status-row-id="' + statusId + '"]');
+        if (!row) return;
+        var tbody = row.closest('tbody');
+        row.remove();
+        if (statusNextOrdem > 1) statusNextOrdem -= 1;
+        if (!tbody || tbody.querySelector('[data-status-row-id]')) return;
+        var empty = document.createElement('tr');
+        empty.innerHTML = '<td colspan="5" class="imp-table-empty">Nenhum status cadastrado. Use «Novo status» para criar o primeiro.</td>';
+        tbody.appendChild(empty);
+    }
+
+    function refreshStatusTable(tableHtml, nextOrdem) {
+        if (tableHost && tableHtml) tableHost.innerHTML = tableHtml;
+        if (typeof nextOrdem === 'number') statusNextOrdem = nextOrdem;
     }
 
     function openShell() {
@@ -5532,38 +5553,67 @@
         if (!url) return;
 
         var fd = new FormData(formEl);
-        fetch(formEl.action || url, {
+        var postTarget = formEl.getAttribute('action') || url;
+        fetch(postTarget, {
             method: 'POST',
             body: fd,
-            headers: { 'X-CSRFToken': csrfToken() },
+            headers: {
+                'X-CSRFToken': csrfToken(formEl),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
             credentials: 'same-origin',
         }).then(function(r) {
             return r.text().then(function(text) {
+                var data = null;
                 try {
-                    return { data: JSON.parse(text) };
+                    data = JSON.parse(text);
                 } catch (err) {
-                    return { data: null };
+                    data = null;
                 }
+                return { ok: r.ok, status: r.status, data: data };
             });
         }).catch(function() {
-            return { data: null };
+            return { ok: false, status: 0, data: null };
         }).then(function(res) {
-            if (!res.data) {
-                showInline('Erro de rede ou servidor indisponível.', 'err');
-                return;
-            }
-            var data = res.data;
-            if (!data.ok) {
+            if (res.data) {
+                var data = res.data;
+                if (data.ok) {
+                    if (data.deleted_status_id) {
+                        removeStatusRow(String(data.deleted_status_id));
+                        showInline(data.message || 'Status excluído.', 'ok');
+                        return;
+                    }
+                    if (data.table_html) {
+                        refreshStatusTable(data.table_html, data.next_ordem);
+                        if (formEl.id === 'imp-status-config-form') {
+                            closeFormModal();
+                            resetCreate();
+                        }
+                        showInline(data.message || 'Salvo.', 'ok');
+                        return;
+                    }
+                    if (data.reload) window.location.reload();
+                    return;
+                }
                 if (data.modal_html && formEl.id === 'imp-status-config-form') {
                     formHost.innerHTML = data.modal_html;
                     syncPreview();
                     openFormModal();
                     return;
                 }
-                showInline(data.message || 'Não foi possível concluir.', 'err');
+                showInline(data.message || data.error || 'Não foi possível concluir.', 'err');
                 return;
             }
-            if (data.reload) window.location.reload();
+            var msg = 'Erro de rede ou servidor indisponível.';
+            if (res.status === 403) {
+                msg = 'Sem permissão ou sessão expirada. Recarregue a página e tente novamente.';
+            } else if (res.status === 404) {
+                msg = 'Recurso não encontrado. Recarregue a página.';
+            } else if (res.status >= 500) {
+                msg = 'Erro interno do servidor. Tente novamente em instantes.';
+            }
+            showInline(msg, 'err');
         });
     });
 })();
