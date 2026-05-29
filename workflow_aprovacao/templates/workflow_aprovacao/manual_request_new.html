@@ -17,7 +17,7 @@
             <div class="wf-field wf-col-2"><p class="wf-help" style="margin:.2rem 0 0;">Ao selecionar obra e categoria, a seção de terceirizado é carregada automaticamente.</p></div>
             <div class="wf-field wf-col-2">{{ form.title.label_tag }}{{ form.title }}</div>
             <div class="wf-field wf-col-2">{{ form.summary.label_tag }}{{ form.summary }}</div>
-            <div class="wf-field">{{ form.vendor_name.label_tag }}{{ form.vendor_name }}</div>
+            <div class="wf-field">{{ form.vendor_name.label_tag }}{{ form.vendor_name }}<small class="wf-help" style="margin-top:.2rem;">Referência livre (opcional). O terceirizado responsável é selecionado na seção do fluxo abaixo.</small></div>
             <div class="wf-field">{{ form.amount.label_tag }}{{ form.amount }}</div>
             <div class="wf-field wf-col-2">{{ form.notes.label_tag }}{{ form.notes }}</div>
             {{ form.category_payload_json }}
@@ -57,52 +57,56 @@
             {% if required_variable_slots or implicit_external_step %}
             <div class="wf-manual-slots">
                 {% for slot in required_variable_slots %}
-                <section class="wf-manual-slot">
+                <section class="wf-manual-slot" data-terceirizado-slot="slot_{{ slot.pk }}">
                     <h3>Alçada {{ slot.step.sequence }} — {{ slot.step.name }}</h3>
-                    <p class="wf-help">{{ slot.variable_label|default:"Participante variável obrigatório" }}</p>
+                    <p class="wf-help">{{ slot.variable_label|default:"Terceirizado responsável (defina nesta criação)" }}</p>
                     <label class="wf-field">
-                        Usuário externo já cadastrado
-                        <select name="slot_{{ slot.pk }}_existing_user" class="wf-select wf-existing-select-native">
-                            <option value="__new__" selected>Novo terceirizado (pré-cadastro)</option>
-                            <option value="">Selecionar existente (opcional)</option>
+                        Terceirizado
+                        <select name="slot_{{ slot.pk }}_existing_user" class="wf-select wf-existing-select-native" data-slot="slot_{{ slot.pk }}">
+                            <option value="">Selecionar terceirizado…</option>
+                            <option value="__new__">+ Cadastrar novo terceirizado</option>
                             {% for u in existing_external_users %}
-                            <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }}){% if u.email %} · {{ u.email }}{% endif %}</option>
+                            <option value="{{ u.id }}" data-name="{{ u.name }}" data-company="{{ u.company }}" data-email="{{ u.email }}">{{ u.name }}{% if u.company %} — {{ u.company }}{% endif %}</option>
                             {% endfor %}
                         </select>
                     </label>
-                    <p class="wf-help" style="margin:.2rem 0 .4rem;">Se selecionar um usuário existente, o pré-cadastro abaixo é desativado.</p>
-                    <div class="wf-manual-slot-grid">
-                        <label class="wf-field">Nome completo<input type="text" class="wf-select" name="slot_{{ slot.pk }}_full_name"></label>
-                        <label class="wf-field">Empresa<input type="text" class="wf-select" name="slot_{{ slot.pk }}_company"></label>
-                        <label class="wf-field">E-mail<input type="email" class="wf-select" name="slot_{{ slot.pk }}_email"></label>
-                        <label class="wf-field">Telefone/WhatsApp<input type="text" class="wf-select" name="slot_{{ slot.pk }}_phone"></label>
-                        <label class="wf-field">CNPJ (opcional)<input type="text" class="wf-select" name="slot_{{ slot.pk }}_cnpj"></label>
-                        <label class="wf-field">Observação<input type="text" class="wf-select" name="slot_{{ slot.pk }}_note"></label>
+                    <div class="wf-new-terceirizado" data-new-form="slot_{{ slot.pk }}" hidden>
+                        <p class="wf-help wf-new-terceirizado__hint"><i class="fas fa-id-card" aria-hidden="true"></i> Novo terceirizado — será enviado para aprovação. Nome e empresa são obrigatórios.</p>
+                        <div class="wf-manual-slot-grid">
+                            <label class="wf-field">Nome completo *<input type="text" class="wf-select" name="slot_{{ slot.pk }}_full_name"></label>
+                            <label class="wf-field">Empresa *<input type="text" class="wf-select" name="slot_{{ slot.pk }}_company"></label>
+                            <label class="wf-field">E-mail *<input type="email" class="wf-select" name="slot_{{ slot.pk }}_email"></label>
+                            <label class="wf-field">Telefone/WhatsApp<input type="text" class="wf-select wf-mask-phone" name="slot_{{ slot.pk }}_phone"></label>
+                            <label class="wf-field">CNPJ (opcional)<input type="text" class="wf-select wf-mask-cnpj" name="slot_{{ slot.pk }}_cnpj"></label>
+                            <label class="wf-field">Observação<input type="text" class="wf-select" name="slot_{{ slot.pk }}_note"></label>
+                        </div>
                     </div>
                 </section>
                 {% endfor %}
                 {% if implicit_external_step %}
-                <section class="wf-manual-slot">
+                <section class="wf-manual-slot" data-terceirizado-slot="implicit_external">
                     <h3>Alçada {{ implicit_external_step.sequence }} — {{ implicit_external_step.name }}</h3>
                     <p class="wf-help">Terceirizado responsável (obrigatório nesta criação manual).</p>
                     <label class="wf-field">
-                        Usuário externo já cadastrado
-                        <select name="implicit_external_existing_user" class="wf-select wf-existing-select-native">
-                            <option value="__new__" selected>Novo terceirizado (pré-cadastro)</option>
-                            <option value="">Selecionar existente (opcional)</option>
+                        Terceirizado
+                        <select name="implicit_external_existing_user" class="wf-select wf-existing-select-native" data-slot="implicit_external">
+                            <option value="">Selecionar terceirizado…</option>
+                            <option value="__new__">+ Cadastrar novo terceirizado</option>
                             {% for u in existing_external_users %}
-                            <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }}){% if u.email %} · {{ u.email }}{% endif %}</option>
+                            <option value="{{ u.id }}" data-name="{{ u.name }}" data-company="{{ u.company }}" data-email="{{ u.email }}">{{ u.name }}{% if u.company %} — {{ u.company }}{% endif %}</option>
                             {% endfor %}
                         </select>
                     </label>
-                    <p class="wf-help" style="margin:.2rem 0 .4rem;">Se não existir, preencha abaixo para pré-cadastro e envio para aprovação.</p>
-                    <div class="wf-manual-slot-grid">
-                        <label class="wf-field">Nome completo<input type="text" class="wf-select" name="implicit_external_full_name"></label>
-                        <label class="wf-field">Empresa<input type="text" class="wf-select" name="implicit_external_company"></label>
-                        <label class="wf-field">E-mail<input type="email" class="wf-select" name="implicit_external_email"></label>
-                        <label class="wf-field">Telefone/WhatsApp<input type="text" class="wf-select" name="implicit_external_phone"></label>
-                        <label class="wf-field">CNPJ (opcional)<input type="text" class="wf-select" name="implicit_external_cnpj"></label>
-                        <label class="wf-field">Observação<input type="text" class="wf-select" name="implicit_external_note"></label>
+                    <div class="wf-new-terceirizado" data-new-form="implicit_external" hidden>
+                        <p class="wf-help wf-new-terceirizado__hint"><i class="fas fa-id-card" aria-hidden="true"></i> Novo terceirizado — será enviado para aprovação. Nome e empresa são obrigatórios.</p>
+                        <div class="wf-manual-slot-grid">
+                            <label class="wf-field">Nome completo *<input type="text" class="wf-select" name="implicit_external_full_name"></label>
+                            <label class="wf-field">Empresa *<input type="text" class="wf-select" name="implicit_external_company"></label>
+                            <label class="wf-field">E-mail *<input type="email" class="wf-select" name="implicit_external_email"></label>
+                            <label class="wf-field">Telefone/WhatsApp<input type="text" class="wf-select wf-mask-phone" name="implicit_external_phone"></label>
+                            <label class="wf-field">CNPJ (opcional)<input type="text" class="wf-select wf-mask-cnpj" name="implicit_external_cnpj"></label>
+                            <label class="wf-field">Observação<input type="text" class="wf-select" name="implicit_external_note"></label>
+                        </div>
                     </div>
                 </section>
                 {% endif %}
@@ -187,32 +191,51 @@
         input.addEventListener('input', syncPayload);
     });
 
-    document.querySelectorAll('select[name^="slot_"][name$="_existing_user"]').forEach((select) => {
-        const slot = (select.name || '').replace('_existing_user', '');
-        const syncSlot = () => {
-            const v = (select.value || '').trim();
-            const hasExisting = !!v && v !== '__new__';
-            document.querySelectorAll(`input[name^="${slot}_"]`).forEach((input) => {
-                input.disabled = hasExisting;
-                if (hasExisting) input.value = '';
-            });
-        };
-        select.addEventListener('change', syncSlot);
-        syncSlot();
-    });
-    const implicitExisting = document.querySelector('select[name="implicit_external_existing_user"]');
-    if (implicitExisting) {
-        const syncImplicit = () => {
-            const v = (implicitExisting.value || '').trim();
-            const hasExisting = !!v && v !== '__new__';
-            document.querySelectorAll('input[name^="implicit_external_"]').forEach((input) => {
-                input.disabled = hasExisting;
-                if (hasExisting) input.value = '';
-            });
-        };
-        implicitExisting.addEventListener('change', syncImplicit);
-        syncImplicit();
+    function syncTerceirizado(select) {
+        const slot = select.dataset.slot || (select.name || '').replace('_existing_user', '');
+        const isNew = (select.value || '').trim() === '__new__';
+        const form = document.querySelector(`.wf-new-terceirizado[data-new-form="${slot}"]`);
+        if (!form) return;
+        form.hidden = !isNew;
+        form.querySelectorAll('input').forEach((input) => {
+            input.disabled = !isNew;
+            if (!isNew) input.value = '';
+        });
     }
+    document.querySelectorAll('select.wf-existing-select-native').forEach((select) => {
+        select.addEventListener('change', () => syncTerceirizado(select));
+        syncTerceirizado(select);
+    });
+
+    function maskPhone(v) {
+        let d = (v || '').replace(/\D/g, '');
+        if (d.startsWith('55')) d = d.slice(2);
+        d = d.slice(0, 11);
+        if (!d) return '';
+        let out = '+55 ';
+        if (d.length <= 2) return out + '(' + d;
+        out += '(' + d.slice(0, 2) + ') ';
+        const rest = d.slice(2);
+        if (rest.length <= 4) return out + rest;
+        if (rest.length <= 8) return out + rest.slice(0, 4) + '-' + rest.slice(4);
+        return out + rest.slice(0, 5) + '-' + rest.slice(5);
+    }
+    function maskCnpj(v) {
+        const d = (v || '').replace(/\D/g, '').slice(0, 14);
+        let out = d;
+        if (d.length > 2) out = d.slice(0, 2) + '.' + d.slice(2);
+        if (d.length > 5) out = d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5);
+        if (d.length > 8) out = d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8);
+        if (d.length > 12) out = d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8, 12) + '-' + d.slice(12);
+        return out;
+    }
+    document.querySelectorAll('input.wf-mask-phone').forEach((input) => {
+        input.addEventListener('focus', () => { if (!(input.value || '').trim()) input.value = '+55 '; });
+        input.addEventListener('input', () => { input.value = maskPhone(input.value); });
+    });
+    document.querySelectorAll('input.wf-mask-cnpj').forEach((input) => {
+        input.addEventListener('input', () => { input.value = maskCnpj(input.value); });
+    });
 
     function mountSearchableSelect(nativeSelect) {
         if (!nativeSelect || nativeSelect.dataset.enhanced === '1') return;
@@ -233,7 +256,7 @@
         const search = document.createElement('input');
         search.type = 'search';
         search.className = 'wf-searchable-select__search';
-        search.placeholder = 'Buscar usuário...';
+        search.placeholder = 'Buscar terceirizado...';
         search.autocomplete = 'off';
 
         const list = document.createElement('ul');
@@ -242,40 +265,71 @@
         const options = Array.from(nativeSelect.options).map((opt) => ({
             value: opt.value,
             text: (opt.textContent || '').trim(),
+            name: opt.dataset.name || '',
+            company: opt.dataset.company || '',
+            email: opt.dataset.email || '',
         }));
 
         function selectedLabel() {
             const current = nativeSelect.value;
             const hit = options.find((o) => o.value === current);
-            return hit ? hit.text : 'Selecionar usuário';
+            if (!hit) return 'Selecionar terceirizado';
+            if (hit.name) {
+                return hit.name + (hit.company ? ' — ' + hit.company : '');
+            }
+            return hit.text;
         }
 
         function syncTrigger() {
             trigger.textContent = selectedLabel();
         }
 
+        function positionPanel() {
+            const r = trigger.getBoundingClientRect();
+            panel.style.position = 'fixed';
+            panel.style.left = r.left + 'px';
+            panel.style.right = 'auto';
+            panel.style.width = r.width + 'px';
+            const spaceBelow = window.innerHeight - r.bottom;
+            const panelH = panel.offsetHeight || 280;
+            if (spaceBelow < panelH && r.top > spaceBelow) {
+                panel.style.top = 'auto';
+                panel.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+            } else {
+                panel.style.bottom = 'auto';
+                panel.style.top = (r.bottom + 4) + 'px';
+            }
+        }
+
         function closePanel() {
             panel.hidden = true;
             search.value = '';
             renderList('');
+            window.removeEventListener('scroll', positionPanel, true);
+            window.removeEventListener('resize', positionPanel);
         }
 
         function openPanel() {
             panel.hidden = false;
+            renderList('');
+            positionPanel();
             search.focus();
+            window.addEventListener('scroll', positionPanel, true);
+            window.addEventListener('resize', positionPanel);
         }
 
         function renderList(query) {
             const q = (query || '').trim().toLowerCase();
             const filtered = options.filter((item) => {
                 if (item.value === '__new__' || item.value === '') return true;
-                return !q || item.text.toLowerCase().includes(q);
+                if (!q) return true;
+                return (item.text + ' ' + item.company + ' ' + item.email).toLowerCase().includes(q);
             });
             list.innerHTML = '';
             if (!filtered.length) {
                 const li = document.createElement('li');
                 li.className = 'wf-searchable-select__empty';
-                li.textContent = 'Nenhum usuário encontrado';
+                li.textContent = 'Nenhum terceirizado encontrado';
                 list.appendChild(li);
                 return;
             }
@@ -283,7 +337,19 @@
                 const li = document.createElement('li');
                 li.className = 'wf-searchable-select__item';
                 if (item.value === nativeSelect.value) li.classList.add('is-selected');
-                li.textContent = item.text;
+                if (item.name) {
+                    const top = document.createElement('div');
+                    top.className = 'wf-searchable-select__name';
+                    top.textContent = item.name;
+                    const sub = document.createElement('div');
+                    sub.className = 'wf-searchable-select__sub';
+                    sub.textContent = [item.company || 'Empresa não informada', item.email].filter(Boolean).join(' · ');
+                    li.appendChild(top);
+                    li.appendChild(sub);
+                } else {
+                    li.textContent = item.text;
+                    if (item.value === '__new__') li.classList.add('wf-searchable-select__item--new');
+                }
                 li.addEventListener('click', () => {
                     nativeSelect.value = item.value;
                     nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -330,14 +396,14 @@
     padding: .55rem .65rem; font-size: .875rem; color: #0f172a; cursor: pointer;
 }
 .wf-searchable-select__panel {
-    position: absolute; z-index: 20; left: 0; right: 0; margin-top: .3rem;
-    border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,.12);
+    position: absolute; z-index: 1000; left: 0; right: 0; margin-top: .3rem;
+    border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 12px 32px rgba(15,23,42,.18);
 }
 .wf-searchable-select__search {
     width: calc(100% - 1rem); margin: .5rem; border: 1px solid #dbe3ee; border-radius: 6px; padding: .45rem .55rem; font-size: .85rem;
 }
 .wf-searchable-select__list {
-    list-style: none; margin: 0; padding: .2rem .35rem .35rem; max-height: 220px; overflow-y: auto;
+    list-style: none; margin: 0; padding: .2rem .35rem .35rem; max-height: 40vh; overflow-y: auto;
 }
 .wf-searchable-select__item {
     padding: .42rem .5rem; border-radius: 6px; cursor: pointer; font-size: .83rem; color: #0f172a;
@@ -345,5 +411,12 @@
 .wf-searchable-select__item:hover { background: #f1f5f9; }
 .wf-searchable-select__item.is-selected { background: #ecfeff; color: #0f766e; font-weight: 600; }
 .wf-searchable-select__empty { padding: .5rem; color: #94a3b8; font-size: .8rem; }
+.wf-searchable-select__name { font-weight: 600; color: #0f172a; }
+.wf-searchable-select__sub { font-size: .76rem; color: #64748b; margin-top: .08rem; }
+.wf-searchable-select__item--new { color: #0f766e; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
+.wf-new-terceirizado {
+    margin-top: .6rem; padding: .75rem; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc;
+}
+.wf-new-terceirizado__hint { margin: 0 0 .5rem; color: #0f766e; }
 </style>
 {% endblock %}

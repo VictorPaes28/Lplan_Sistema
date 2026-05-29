@@ -1038,6 +1038,39 @@ def _external_access_url_for_user(user, process: ApprovalProcess) -> str:
     return reverse('workflow_aprovacao:process_detail', kwargs={'pk': process.pk})
 
 
+def _external_users_for_select():
+    """Terceirizados externos ativos com nome e empresa, para o seletor do pedido."""
+    users = list(
+        User.objects.filter(
+            groups__name=GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+            is_active=True,
+        )
+        .order_by('first_name', 'last_name', 'username')
+        .distinct()[:500]
+    )
+    company_by_user: dict = {}
+    if users:
+        rows = (
+            ExternalParticipantSignupRequest.objects
+            .filter(linked_user__in=users)
+            .exclude(company_name='')
+            .order_by('linked_user_id', '-created_at')
+            .values_list('linked_user_id', 'company_name')
+        )
+        for uid, company in rows:
+            company_by_user.setdefault(uid, (company or '').strip())
+    out = []
+    for u in users:
+        name = (u.get_full_name() or '').strip() or u.username
+        out.append({
+            'id': u.pk,
+            'name': name,
+            'company': company_by_user.get(u.pk, ''),
+            'email': (u.email or '').strip(),
+        })
+    return out
+
+
 @require_workflow_module_access
 def manual_request_new(request):
     if user_is_external_workflow_profile(request.user):
@@ -1106,10 +1139,10 @@ def manual_request_new(request):
                 company = (request.POST.get(f'slot_{slot.pk}_company') or '').strip()
                 cnpj = (request.POST.get(f'slot_{slot.pk}_cnpj') or '').strip()
                 note = (request.POST.get(f'slot_{slot.pk}_note') or '').strip()
-                if not full_name or not email:
+                if not full_name or not email or not company:
                     messages.error(
                         request,
-                        f'Preencha o participante variável obrigatório da alçada {slot.step.sequence}.',
+                        f'Para cadastrar um novo terceirizado na alçada {slot.step.sequence}, informe nome, empresa e e-mail.',
                     )
                     return redirect(
                         f"{reverse('workflow_aprovacao:manual_request_new')}?project={form.cleaned_data['project'].pk}&category={form.cleaned_data['category'].pk}"
@@ -1151,8 +1184,8 @@ def manual_request_new(request):
                     company = (request.POST.get('implicit_external_company') or '').strip()
                     cnpj = (request.POST.get('implicit_external_cnpj') or '').strip()
                     note = (request.POST.get('implicit_external_note') or '').strip()
-                    if not full_name or not email:
-                        messages.error(request, 'Preencha o terceirizado responsável da 1ª alçada.')
+                    if not full_name or not email or not company:
+                        messages.error(request, 'Para o terceirizado responsável da 1ª alçada, informe nome, empresa e e-mail.')
                         return redirect(
                             f"{reverse('workflow_aprovacao:manual_request_new')}?project={form.cleaned_data['project'].pk}&category={form.cleaned_data['category'].pk}"
                         )
@@ -1234,12 +1267,7 @@ def manual_request_new(request):
             str(c.pk): c.code
             for c in ProcessCategory.objects.filter(is_active=True).only('pk', 'code')
         },
-        'existing_external_users': User.objects.filter(
-            groups__name='Central Aprovacoes Externo',
-            is_active=True,
-        )
-        .order_by('first_name', 'username')
-        .distinct()[:500],
+        'existing_external_users': _external_users_for_select(),
         'page_title': 'Novo pedido de assinatura',
         'page_subtitle': 'Criação manual na Central',
     }
