@@ -282,6 +282,24 @@
             </section>
             {% endif %}
 
+            {% if external_signup_requests %}
+            <section class="wf-panel" style="margin-bottom:1.25rem;">
+                <div class="wf-panel__head"><h2 class="wf-panel__title">Solicitações de cadastro externo</h2></div>
+                <div class="wf-panel__body">
+                    {% for req in external_signup_requests %}
+                    <article class="wf-backlog-card" style="margin-bottom:0.75rem;">
+                        <p class="wf-cell-strong">{{ req.full_name }} · {{ req.email }}</p>
+                        <p class="wf-cell-sub">
+                            Alçada {{ req.step.sequence }} · {{ req.step.name }} · {{ req.get_status_display }}
+                            {% if req.linked_user %}· usuário {{ req.linked_user.username }}{% endif %}
+                        </p>
+                        {% if req.review_reason %}<p class="wf-help">Motivo: {{ req.review_reason }}</p>{% endif %}
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
             <section class="wf-panel" style="margin-bottom:1.25rem;">
                 <div class="wf-panel__head">
                     <h2 class="wf-panel__title">Linha do tempo</h2>
@@ -343,9 +361,25 @@
                     </div>
                     <canvas id="wf-signature-canvas" class="wf-manual-signature__canvas" height="160" aria-label="Quadro para desenhar assinatura manual"></canvas>
                     {{ form.signature_data }}
+                    {{ form.geolocation_data }}
+                    <div style="margin-top:0.6rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <button type="button" class="wf-btn-table" id="wf-enable-location">
+                            <i class="fas fa-location-arrow" aria-hidden="true"></i> Ativar localização
+                        </button>
+                        <span id="wf-geo-status" class="wf-help" style="margin:0;">Localização obrigatória para assinar.</span>
+                    </div>
                 </div>
                 {% if form.signature_data.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.signature_data.errors }}</p>{% endif %}
+                {% if form.geolocation_data.errors %}<p class="wf-help" style="color:#b91c1c;">{{ form.geolocation_data.errors }}</p>{% endif %}
                 <div class="wf-actions wf-signing-card__actions">
+                    <button type="button" class="wf-btn wf-btn--approve wf-btn--sign" data-sign-action="approve">
+                        <i class="fas fa-signature" aria-hidden="true"></i> Aprovar
+                    </button>
+                    <button type="button" class="wf-btn wf-btn--reject" data-sign-action="reject">
+                        <i class="fas fa-signature" aria-hidden="true"></i> Reprovar
+                    </button>
+                </div>
+                <div class="wf-mobile-sticky-actions">
                     <button type="button" class="wf-btn wf-btn--approve wf-btn--sign" data-sign-action="approve">
                         <i class="fas fa-signature" aria-hidden="true"></i> Aprovar
                     </button>
@@ -408,9 +442,13 @@
     const signerTarget = document.getElementById('wf-sign-modal-signer');
     const commentTarget = document.getElementById('wf-sign-modal-comment');
     const signaturePreview = document.getElementById('wf-sign-modal-signature');
+    const geolocationData = document.getElementById('id_geolocation_data');
+    const geoStatus = document.getElementById('wf-geo-status');
+    const geoBtn = document.getElementById('wf-enable-location');
     const confirmBtn = document.getElementById('wf-sign-confirm');
     const cancelBtn = document.getElementById('wf-sign-cancel');
     const closeBtn = document.getElementById('wf-sign-close');
+    const decisionButtons = Array.from(document.querySelectorAll('[data-sign-action]'));
     const wfSig = new WfManualSignature({
         canvasId: 'wf-signature-canvas',
         hiddenId: 'id_signature_data',
@@ -437,6 +475,34 @@
         document.body.style.overflow = '';
     }
 
+    function hasValidGeoPayload() {
+        if (!geolocationData || !geolocationData.value) return false;
+        try {
+            const parsed = JSON.parse(geolocationData.value);
+            return (
+                parsed &&
+                Number.isFinite(Number(parsed.latitude)) &&
+                Number.isFinite(Number(parsed.longitude))
+            );
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function setGeoStatus(text, ok) {
+        if (!geoStatus) return;
+        geoStatus.textContent = text;
+        geoStatus.style.color = ok ? '#166534' : '#b45309';
+    }
+
+    function setDecisionButtonsEnabled(enabled) {
+        decisionButtons.forEach(function (btn) {
+            btn.disabled = !enabled;
+            btn.style.opacity = enabled ? '1' : '0.55';
+            btn.style.cursor = enabled ? '' : 'not-allowed';
+        });
+    }
+
     function openModal(action) {
         hiddenAction.value = action;
         wfSig.save();
@@ -459,6 +525,76 @@
         document.body.style.overflow = 'hidden';
     }
 
+    function captureGeolocation() {
+        return new Promise(function (resolve) {
+            if (!geolocationData || !navigator.geolocation) {
+                resolve(null);
+                return;
+            }
+            let finished = false;
+            const finish = function (payload) {
+                if (finished) return;
+                finished = true;
+                resolve(payload);
+            };
+            try {
+                navigator.geolocation.getCurrentPosition(
+                    function (position) {
+                        finish({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy_m: position.coords.accuracy,
+                            captured_at: new Date().toISOString(),
+                            source: 'browser'
+                        });
+                    },
+                    function () { finish(null); },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 4500,
+                        maximumAge: 120000
+                    }
+                );
+            } catch (err) {
+                finish(null);
+            }
+            setTimeout(function () { finish(null); }, 5000);
+        });
+    }
+
+    async function requestAndStoreGeolocation() {
+        if (!navigator.geolocation) {
+            setGeoStatus('Seu navegador não suporta geolocalização.', false);
+            setDecisionButtonsEnabled(false);
+            return false;
+        }
+        setGeoStatus('Solicitando localização...', false);
+        const geo = await captureGeolocation();
+        if (!geo) {
+            if (geolocationData) geolocationData.value = '';
+            setGeoStatus('Localização não autorizada. Clique em "Ativar localização".', false);
+            setDecisionButtonsEnabled(false);
+            return false;
+        }
+        geolocationData.value = JSON.stringify(geo);
+        setGeoStatus('Localização capturada. Você já pode assinar.', true);
+        setDecisionButtonsEnabled(true);
+        return true;
+    }
+
+    if (hasValidGeoPayload()) {
+        setGeoStatus('Localização capturada. Você já pode assinar.', true);
+        setDecisionButtonsEnabled(true);
+    } else {
+        setGeoStatus('Localização obrigatória para assinar. Clique em "Ativar localização".', false);
+        setDecisionButtonsEnabled(false);
+    }
+    if (geoBtn) {
+        geoBtn.addEventListener('click', function () {
+            requestAndStoreGeolocation();
+        });
+    }
+
     document.querySelectorAll('[data-sign-action]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             wfSig.save();
@@ -474,8 +610,21 @@
 
     cancelBtn.addEventListener('click', closeModal);
     closeBtn.addEventListener('click', closeModal);
-    confirmBtn.addEventListener('click', function () {
+    confirmBtn.addEventListener('click', async function () {
         wfSig.save();
+        confirmBtn.disabled = true;
+        try {
+            if (!hasValidGeoPayload()) {
+                const ok = await requestAndStoreGeolocation();
+                if (!ok) {
+                    confirmBtn.disabled = false;
+                    return;
+                }
+            }
+        } catch (e) {
+            confirmBtn.disabled = false;
+            return;
+        }
         if (typeof form.requestSubmit === 'function') form.requestSubmit();
         else form.submit();
     });

@@ -12,6 +12,7 @@ from accounts.groups import (
 )
 from workflow_aprovacao.models import (
     ApprovalHistoryEntry,
+    ApprovalProcessParticipant,
     ApprovalStepParticipant,
     ParticipantRole,
     SubjectKind,
@@ -111,6 +112,22 @@ def user_is_process_participant(user, process) -> bool:
         return False
     group_ids = list(user.groups.values_list('pk', flat=True))
     roles = (ParticipantRole.APPROVER, ParticipantRole.OWNER, ParticipantRole.VIEWER)
+    effective_user_q = Q(
+        process=process,
+        subject_kind=SubjectKind.USER,
+        user=user,
+        role__in=roles,
+    )
+    effective_group_q = Q()
+    if group_ids:
+        effective_group_q = Q(
+            process=process,
+            subject_kind=SubjectKind.DJANGO_GROUP,
+            django_group_id__in=group_ids,
+            role__in=roles,
+        )
+    if ApprovalProcessParticipant.objects.filter(effective_user_q | effective_group_q).exists():
+        return True
     user_q = Q(
         step__flow_id=process.flow_definition_id,
         subject_kind=SubjectKind.USER,

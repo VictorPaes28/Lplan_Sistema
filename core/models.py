@@ -2100,3 +2100,12 @@ class DiaryOccurrence(models.Model):
 
     def __str__(self) -> str:
         return f"Ocorrência em {self.diary.date} - {self.description[:50]}"
+
+
+# Comunicação transversal (e-mail / notificações)
+from core.comunicacao_models import (  # noqa: E402, F401
+    TipoComunicacao,
+    PreferenciaComunicacao,
+    PadraoComunicacaoGrupo,
+    LogDecisaoComunicacao,
+)

@@ -10,12 +10,15 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db.models import Count
-from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponse
+from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import reverse, NoReverseMatch
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from accounts.groups import GRUPOS
+from accounts.models import UserSignupRequest
+from accounts.signup_services import create_signup_request, notify_signup_request_created
 from workflow_aprovacao.access import (
     user_can_act_on_workflow_processes,
     user_can_configure_workflow,
@@ -31,7 +34,7 @@ from workflow_aprovacao.decorators import (
     require_workflow_module_access,
 )
 from workflow_aprovacao.exceptions import InvalidTransitionError
-from workflow_aprovacao.forms import DecisionForm, NewFlowForm
+from workflow_aprovacao.forms import DecisionForm, ExternalSignupReviewForm, ManualRequestForm, NewFlowForm
 from core.models import Project
 from workflow_aprovacao.models import (
     ApprovalConfigBacklog,
@@ -39,8 +42,14 @@ from workflow_aprovacao.models import (
     ApprovalFlowDefinition,
     ApprovalIntegrationOutbox,
     ApprovalProcess,
+    ApprovalProcessParticipant,
+    ApprovalStepParticipant,
+    ExternalParticipantSignupRequest,
+    ExternalSignupStatus,
+    ParticipantRole,
     ProcessCategory,
     ProcessStatus,
+    SyncStatus,
 )
 from workflow_aprovacao.querysets import processes_pending_for_user
 from workflow_aprovacao.services.backlog import dismiss_backlog, reopen_backlog, try_start_from_backlog
@@ -59,6 +68,14 @@ from workflow_aprovacao.services.signing import (
 )
 from workflow_aprovacao.services.sienge_display import beautify_stored_summary_for_display, sienge_payload_display_rows
 from workflow_aprovacao.services.sync_trigger import trigger_sienge_sync_if_due
+from workflow_aprovacao.services.participants import VariableParticipantInput, bind_external_user_to_process_step
+from workflow_aprovacao.services.external_signup import (
+    ExternalCandidate,
+    approve_external_signup_request,
+    create_external_signup_request,
+    find_existing_external_user,
+    reject_external_signup_request,
+)
 
 User = get_user_model()
 
@@ -75,12 +92,114 @@ def _sienge_document_number_from_process(process: ApprovalProcess) -> tuple[str,
 
 
 def _workflow_select_options():
-    users_qs = User.objects.filter(is_active=True).order_by('first_name', 'last_name', 'username')
+    eligible_group_names = (
+        GRUPOS.CENTRAL_APROVACOES_APROVADOR,
+        GRUPOS.CENTRAL_APROVACOES_ADMIN,
+        GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+        GRUPOS.ADMINISTRADOR,
+    )
+    internal_group_names = {
+        GRUPOS.CENTRAL_APROVACOES_APROVADOR,
+        GRUPOS.CENTRAL_APROVACOES_ADMIN,
+        GRUPOS.ADMINISTRADOR,
+    }
+    external_group_name = GRUPOS.CENTRAL_APROVACOES_EXTERNO
+    users_qs = (
+        User.objects.filter(is_active=True, groups__name__in=eligible_group_names)
+        .distinct()
+        .prefetch_related('groups')
+        .order_by('first_name', 'last_name', 'username')
+    )
+
+    def _is_technical_account(user) -> bool:
+        username = (getattr(user, 'username', '') or '').strip().lower()
+        email = (getattr(user, 'email', '') or '').strip().lower()
+        first_name = (getattr(user, 'first_name', '') or '').strip().lower()
+        last_name = (getattr(user, 'last_name', '') or '').strip().lower()
+        full_name = f'{first_name} {last_name}'.strip()
+        token = ' '.join([username, email, first_name, last_name]).strip()
+
+        blocked_exact_usernames = {
+            'check_embed_header_user',
+            'system',
+            'sistema',
+            'noreply',
+            'bot',
+        }
+        blocked_fragments = (
+            'check_',
+            'embed_header',
+            'system',
+            'sistema',
+            'noreply',
+            'do-not-reply',
+            'donotreply',
+            'bot',
+            'daemon',
+            'service',
+            '_svc',
+            'healthcheck',
+            'monitor',
+            'dummy',
+            'fixture',
+            'seed',
+            'test',
+            'teste',
+            'qa',
+            'homolog',
+        )
+
+        if username in blocked_exact_usernames:
+            return True
+        if any(frag in token for frag in blocked_fragments):
+            return True
+        # Conta sem identificação mínima tende a ser técnica/sistema.
+        if not full_name and not email:
+            return True
+        return False
+
     users_list = []
     for u in users_qs:
-        label = (u.get_full_name() or '').strip() or u.username
-        users_list.append({'id': u.pk, 'label': f'{label} ({u.username})'})
-    groups_list = [{'id': g.pk, 'label': g.name} for g in Group.objects.order_by('name')]
+        if _is_technical_account(u):
+            continue
+        group_names = {g.name for g in u.groups.all()}
+        is_external = external_group_name in group_names
+        is_internal = bool(group_names.intersection(internal_group_names))
+        if not is_external and not is_internal:
+            continue
+
+        if is_external and not is_internal:
+            badge = 'Terceirizado'
+        elif GRUPOS.CENTRAL_APROVACOES_ADMIN in group_names or GRUPOS.ADMINISTRADOR in group_names:
+            badge = 'Admin'
+        else:
+            badge = 'Interno'
+        full_name = (u.get_full_name() or '').strip()
+        if full_name:
+            label = full_name
+        elif (u.email or '').strip():
+            local = u.email.split('@', 1)[0].replace('.', ' ').replace('_', ' ').strip()
+            label = local.title() if local else (u.username or '').strip()
+        else:
+            label = (u.username or '').strip()
+        secondary = (u.email or '').strip() or 'Sem e-mail cadastrado'
+        users_list.append(
+            {
+                'id': u.pk,
+                'label': label,
+                'secondary': secondary,
+                'badge': badge,
+                'scope': 'external' if is_external and not is_internal else 'internal',
+                'sort': (label or u.username).lower(),
+            }
+        )
+    users_list.sort(key=lambda x: x['sort'])
+    for item in users_list:
+        item.pop('sort', None)
+    groups_list = [
+        {'id': g.pk, 'label': g.name}
+        for g in Group.objects.filter(name__in=internal_group_names).order_by('name')
+    ]
     return users_list, groups_list
 
 
@@ -255,6 +374,7 @@ def process_detail(request, pk):
                 comment=comment,
                 signer_name=signer_name,
                 signature_data=form.cleaned_data.get('signature_data') or '',
+                geolocation_data=form.cleaned_data.get('geolocation_data') or '',
             )
             try:
                 if action == 'approve':
@@ -344,6 +464,11 @@ def process_detail(request, pk):
         .order_by('-created_at')
         .first()
     )
+    external_signup_requests = list(
+        ExternalParticipantSignupRequest.objects.filter(process=process)
+        .select_related('requester', 'reviewed_by', 'linked_user', 'step')
+        .order_by('-created_at')
+    )
 
     return render(
         request,
@@ -362,6 +487,7 @@ def process_detail(request, pk):
                 'sienge_is_inbound': sienge_is_inbound,
                 'sienge_resumo_exibicao': sienge_resumo_exibicao,
                 'latest_outbox': latest_outbox,
+                'external_signup_requests': external_signup_requests,
                 'gestao_is_origin': gestao_is_origin,
                 'gestao_dispatch': gestao_dispatch,
                 'gestao_snapshot': gestao_snapshot,
@@ -515,6 +641,20 @@ def flow_edit(request, pk):
                 return redirect('workflow_aprovacao:flow_edit', pk=flow.pk)
 
     initial = serialize_flow_for_editor(flow)
+    try:
+        external_signup_request_url = reverse('workflow_aprovacao:external_signup_prefill_create')
+    except NoReverseMatch:
+        try:
+            external_signup_request_url = reverse('external_signup_prefill_create')
+        except NoReverseMatch:
+            external_signup_request_url = '/aprovacoes/config/externos/pre-cadastro/'
+    try:
+        external_signup_list_url = reverse('workflow_aprovacao:external_signup_requests')
+    except NoReverseMatch:
+        try:
+            external_signup_list_url = reverse('external_signup_requests')
+        except NoReverseMatch:
+            external_signup_list_url = '/aprovacoes/config/externos/'
     return render(
         request,
         'workflow_aprovacao/flow_edit.html',
@@ -526,10 +666,122 @@ def flow_edit(request, pk):
                 'initial_config': initial,
                 'users_for_select': users_list,
                 'groups_for_select': groups_list,
+                'external_signup_request_url': external_signup_request_url,
+                'external_signup_list_url': external_signup_list_url,
                 'page_title': f'Fluxo · {flow.project.code}',
                 'page_subtitle': f'{flow.category.name} · {flow.project.name}',
             },
         ),
+    )
+
+
+@require_workflow_configure
+@require_POST
+def external_signup_prefill_create(request):
+    """
+    Pré-cadastro de terceirizado direto da configuração de fluxo.
+    Gera solicitação administrativa (sem criar acesso automático).
+    """
+    payload: dict = {}
+    if request.content_type and 'application/json' in request.content_type:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            payload = {}
+    if not isinstance(payload, dict) or not payload:
+        payload = request.POST
+
+    full_name = (payload.get('full_name') or '').strip()
+    company_name = (payload.get('company_name') or '').strip()
+    email = (payload.get('email') or '').strip().lower()
+    phone = (payload.get('phone_whatsapp') or '').strip()
+    cnpj = (payload.get('cnpj') or '').strip()
+    note = (payload.get('note') or '').strip()
+    flow_context = (payload.get('flow_context') or '').strip()
+    project_id_raw = payload.get('project_id')
+    project_code = (payload.get('project_code') or '').strip()
+    project_name = (payload.get('project_name') or '').strip()
+    category_name = (payload.get('category_name') or '').strip()
+
+    project_id = None
+    try:
+        project_id = int(project_id_raw) if str(project_id_raw).strip() else None
+    except Exception:
+        project_id = None
+    selected_project_ids: list[int] = []
+    if project_id and Project.objects.filter(pk=project_id, is_active=True).exists():
+        selected_project_ids = [project_id]
+
+    if not full_name:
+        return JsonResponse({'ok': False, 'message': 'Informe o nome completo do terceirizado.'}, status=400)
+    if not email:
+        return JsonResponse({'ok': False, 'message': 'Informe o e-mail do terceirizado.'}, status=400)
+
+    existing_external = User.objects.filter(
+        is_active=True,
+        email__iexact=email,
+        groups__name=GRUPOS.CENTRAL_APROVACOES_EXTERNO,
+    ).first()
+    if existing_external:
+        display = (existing_external.get_full_name() or existing_external.username or '').strip()
+        return JsonResponse(
+            {
+                'ok': False,
+                'message': f'Já existe terceirizado cadastrado com este e-mail: {display}.',
+            },
+            status=409,
+        )
+
+    if UserSignupRequest.objects.filter(
+        email__iexact=email,
+        status=UserSignupRequest.STATUS_PENDENTE,
+    ).exists():
+        return JsonResponse(
+            {
+                'ok': True,
+                'message': 'Já existe uma solicitação pendente para este e-mail. Aguarde a aprovação administrativa.',
+                'already_pending': True,
+            }
+        )
+
+    notes = []
+    notes.append('Tipo de solicitação: Terceirizado externo (Central de Aprovações)')
+    if project_code or project_name:
+        notes.append(f'Obra de referência: {(project_code + " - " + project_name).strip(" -")}')
+    if category_name:
+        notes.append(f'Categoria do fluxo: {category_name}')
+    if company_name:
+        notes.append(f'Empresa: {company_name}')
+    if cnpj:
+        notes.append(f'CNPJ: {cnpj}')
+    if note:
+        notes.append(f'Observação: {note}')
+    if flow_context:
+        notes.append(f'Contexto do fluxo: {flow_context}')
+
+    signup_request = create_signup_request(
+        full_name=full_name,
+        email=email,
+        phone=phone,
+        password='',
+        username_suggestion='',
+        notes='\n'.join(notes),
+        requested_groups=[GRUPOS.CENTRAL_APROVACOES_EXTERNO],
+        requested_project_ids=selected_project_ids,
+        origem=UserSignupRequest.ORIGEM_INTERNO,
+        requested_by=request.user,
+    )
+    notify_signup_request_created(signup_request)
+
+    return JsonResponse(
+        {
+            'ok': True,
+            'message': 'Solicitação enviada para a Central de Cadastros como terceirizado externo. O acesso só será liberado após aprovação administrativa.',
+            'request_id': signup_request.pk,
+            'project_id': project_id,
+            'project_code': project_code,
+            'project_name': project_name,
+        }
     )
 
 
@@ -595,7 +847,6 @@ def outbox_list(request):
                 'filter_status': status,
                 'page_title': 'Retorno para Sienge',
                 'page_subtitle': 'Retorno Sienge',
-                'outbox_shadow_mode': getattr(settings, 'SIENGE_OUTBOUND_SHADOW_MODE', True),
                 'outbox_enabled': getattr(settings, 'SIENGE_OUTBOUND_ENABLED', False),
             },
         ),
@@ -611,11 +862,7 @@ def outbox_dispatch(request, pk):
 
     status = result.get('status')
     if status == 'ok':
-        mode = result.get('mode') or 'shadow'
-        if mode == 'shadow':
-            messages.success(request, 'Envio simulado concluído (shadow mode).')
-        else:
-            messages.success(request, 'Envio para o Sienge concluído.')
+        messages.success(request, 'Envio para o Sienge concluído.')
     elif status == 'skipped_sent':
         messages.info(request, result.get('message') or 'Este item já foi enviado.')
     else:
@@ -740,3 +987,381 @@ def config_backlog_retry(request, pk):
     else:
         messages.success(request, f'Processo #{proc.pk} criado com sucesso.')
     return redirect('workflow_aprovacao:config_backlog_list')
+
+
+def _manual_payload_from_form(form: ManualRequestForm) -> dict:
+    import json
+
+    payload = {
+        'origin': 'manual_request',
+        'notes': form.cleaned_data.get('notes') or '',
+        'amount': str(form.cleaned_data.get('amount') or ''),
+        'vendor_name': form.cleaned_data.get('vendor_name') or '',
+    }
+    raw = (form.cleaned_data.get('category_payload_json') or '').strip()
+    if raw:
+        try:
+            payload['category_payload'] = json.loads(raw)
+        except Exception:
+            payload['category_payload'] = {}
+    else:
+        payload['category_payload'] = {}
+    return payload
+
+
+def _required_variable_slots(flow: ApprovalFlowDefinition):
+    return list(
+        ApprovalStepParticipant.objects.filter(
+            step__flow=flow,
+            is_variable=True,
+            required_on_create=True,
+        )
+        .select_related('step')
+        .order_by('step__sequence', 'pk')
+    )
+
+
+def _implicit_external_step_for_contract(flow: ApprovalFlowDefinition):
+    """
+    Fallback de UX: se contrato não tiver slot variável configurado,
+    usa a primeira alçada para selecionar o terceirizado manualmente.
+    """
+    try:
+        if (flow.category.code or '').strip().lower() != 'contrato':
+            return None
+    except Exception:
+        return None
+    return flow.steps.filter(is_active=True).order_by('sequence', 'pk').first()
+
+
+def _external_access_url_for_user(user, process: ApprovalProcess) -> str:
+    return reverse('workflow_aprovacao:process_detail', kwargs={'pk': process.pk})
+
+
+@require_workflow_module_access
+def manual_request_new(request):
+    if user_is_external_workflow_profile(request.user):
+        return HttpResponseForbidden('Perfil externo não pode criar pedidos manuais.')
+
+    form = ManualRequestForm(request.POST or None)
+    if request.method != 'POST':
+        project_raw = (request.GET.get('project') or '').strip()
+        category_raw = (request.GET.get('category') or '').strip()
+        initial = {}
+        if project_raw.isdigit():
+            initial['project'] = int(project_raw)
+        if category_raw.isdigit():
+            initial['category'] = int(category_raw)
+        if initial:
+            form = ManualRequestForm(initial=initial)
+    selected_flow = None
+    required_slots = []
+    if request.method == 'POST' and form.is_valid():
+        selected_flow = ApprovalFlowDefinition.objects.filter(
+            project=form.cleaned_data['project'],
+            category=form.cleaned_data['category'],
+            is_active=True,
+        ).select_related('project', 'category').first()
+    else:
+        project_raw = (request.GET.get('project') or '').strip()
+        category_raw = (request.GET.get('category') or '').strip()
+        if project_raw.isdigit() and category_raw.isdigit():
+            selected_flow = ApprovalFlowDefinition.objects.filter(
+                project_id=int(project_raw),
+                category_id=int(category_raw),
+                is_active=True,
+            ).select_related('project', 'category').first()
+    if selected_flow:
+        required_slots = _required_variable_slots(selected_flow)
+    implicit_external_step = None
+    if selected_flow and not required_slots:
+        implicit_external_step = _implicit_external_step_for_contract(selected_flow)
+
+    if request.method == 'POST':
+        if not form.is_valid():
+            messages.error(request, 'Verifique os campos do formulário.')
+        elif not selected_flow:
+            messages.error(request, 'Sem fluxo ativo para a obra e categoria selecionadas.')
+        else:
+            variable_inputs: list[VariableParticipantInput] = []
+            pending_candidates: list[tuple[ApprovalStepParticipant, ExternalCandidate]] = []
+            implicit_existing_external = None
+            implicit_pending_candidate = None
+            for slot in required_slots:
+                existing_user_raw = (request.POST.get(f'slot_{slot.pk}_existing_user') or '').strip()
+                if existing_user_raw.isdigit():
+                    user_id = int(existing_user_raw)
+                    variable_inputs.append(
+                        VariableParticipantInput(
+                            step_participant_id=slot.pk,
+                            subject_kind=slot.subject_kind,
+                            user_id=user_id if slot.subject_kind == 'user' else None,
+                            django_group_id=user_id if slot.subject_kind == 'django_group' else None,
+                        )
+                    )
+                    continue
+                full_name = (request.POST.get(f'slot_{slot.pk}_full_name') or '').strip()
+                email = (request.POST.get(f'slot_{slot.pk}_email') or '').strip().lower()
+                phone = (request.POST.get(f'slot_{slot.pk}_phone') or '').strip()
+                company = (request.POST.get(f'slot_{slot.pk}_company') or '').strip()
+                cnpj = (request.POST.get(f'slot_{slot.pk}_cnpj') or '').strip()
+                note = (request.POST.get(f'slot_{slot.pk}_note') or '').strip()
+                if not full_name or not email:
+                    messages.error(
+                        request,
+                        f'Preencha o participante variável obrigatório da alçada {slot.step.sequence}.',
+                    )
+                    return redirect(
+                        f"{reverse('workflow_aprovacao:manual_request_new')}?project={form.cleaned_data['project'].pk}&category={form.cleaned_data['category'].pk}"
+                    )
+                existing_external = find_existing_external_user(email=email, phone_whatsapp=phone)
+                if existing_external:
+                    variable_inputs.append(
+                        VariableParticipantInput(
+                            step_participant_id=slot.pk,
+                            subject_kind='user',
+                            user_id=existing_external.pk,
+                        )
+                    )
+                else:
+                    pending_candidates.append(
+                        (
+                            slot,
+                            ExternalCandidate(
+                                full_name=full_name,
+                                company_name=company,
+                                email=email,
+                                phone_whatsapp=phone,
+                                cnpj=cnpj,
+                                note=note,
+                            ),
+                        )
+                    )
+            if implicit_external_step:
+                existing_user_raw = (request.POST.get('implicit_external_existing_user') or '').strip()
+                if existing_user_raw.isdigit():
+                    implicit_existing_external = User.objects.filter(
+                        pk=int(existing_user_raw),
+                        is_active=True,
+                    ).first()
+                else:
+                    full_name = (request.POST.get('implicit_external_full_name') or '').strip()
+                    email = (request.POST.get('implicit_external_email') or '').strip().lower()
+                    phone = (request.POST.get('implicit_external_phone') or '').strip()
+                    company = (request.POST.get('implicit_external_company') or '').strip()
+                    cnpj = (request.POST.get('implicit_external_cnpj') or '').strip()
+                    note = (request.POST.get('implicit_external_note') or '').strip()
+                    if not full_name or not email:
+                        messages.error(request, 'Preencha o terceirizado responsável da 1ª alçada.')
+                        return redirect(
+                            f"{reverse('workflow_aprovacao:manual_request_new')}?project={form.cleaned_data['project'].pk}&category={form.cleaned_data['category'].pk}"
+                        )
+                    existing_external = find_existing_external_user(email=email, phone_whatsapp=phone)
+                    if existing_external:
+                        implicit_existing_external = existing_external
+                    else:
+                        implicit_pending_candidate = ExternalCandidate(
+                            full_name=full_name,
+                            company_name=company,
+                            email=email,
+                            phone_whatsapp=phone,
+                            cnpj=cnpj,
+                            note=note,
+                        )
+            try:
+                process = ApprovalEngine.start(
+                    project=form.cleaned_data['project'],
+                    category=form.cleaned_data['category'],
+                    initiated_by=request.user,
+                    title=(form.cleaned_data.get('title') or '').strip()[:300],
+                    summary=(form.cleaned_data.get('summary') or '').strip()[:2000],
+                    external_system='manual',
+                    external_entity_type='manual_request',
+                    external_id='',
+                    sync_status=SyncStatus.NOT_APPLICABLE,
+                    external_payload=_manual_payload_from_form(form),
+                    variable_inputs=variable_inputs,
+                    allow_missing_required_variables=bool(pending_candidates or implicit_pending_candidate),
+                )
+            except Exception as exc:
+                messages.error(request, str(exc))
+            else:
+                if implicit_external_step:
+                    ApprovalProcessParticipant.objects.filter(
+                        process=process,
+                        step=implicit_external_step,
+                        role=ParticipantRole.APPROVER,
+                    ).delete()
+                    if implicit_existing_external:
+                        bind_external_user_to_process_step(
+                            process=process,
+                            step=implicit_external_step,
+                            user=implicit_existing_external,
+                            label='Terceirizado responsável',
+                        )
+                    elif implicit_pending_candidate:
+                        create_external_signup_request(
+                            process=process,
+                            step=implicit_external_step,
+                            requester=request.user,
+                            variable_key=f'implicit_step_{implicit_external_step.pk}',
+                            candidate=implicit_pending_candidate,
+                        )
+                for slot, candidate in pending_candidates:
+                    create_external_signup_request(
+                        process=process,
+                        step=slot.step,
+                        requester=request.user,
+                        variable_key=(slot.variable_key or f'slot_{slot.pk}'),
+                        candidate=candidate,
+                    )
+                pending_count = len(pending_candidates) + (1 if implicit_pending_candidate else 0)
+                if pending_count:
+                    messages.warning(
+                        request,
+                        f'Pedido #{process.pk} criado. Aguarda aprovação de {pending_count} cadastro(s) externo(s).',
+                    )
+                else:
+                    messages.success(request, f'Pedido manual #{process.pk} criado com sucesso.')
+                return redirect('workflow_aprovacao:process_detail', pk=process.pk)
+
+    ctx = {
+        'form': form,
+        'selected_flow': selected_flow,
+        'required_variable_slots': required_slots,
+        'implicit_external_step': implicit_external_step,
+        'category_code_map': {
+            str(c.pk): c.code
+            for c in ProcessCategory.objects.filter(is_active=True).only('pk', 'code')
+        },
+        'existing_external_users': User.objects.filter(
+            groups__name='Central Aprovacoes Externo',
+            is_active=True,
+        )
+        .order_by('first_name', 'username')
+        .distinct()[:500],
+        'page_title': 'Novo pedido de assinatura',
+        'page_subtitle': 'Criação manual na Central',
+    }
+    return render(
+        request,
+        'workflow_aprovacao/manual_request_new.html',
+        _workflow_context(request, ctx),
+    )
+
+
+@require_workflow_configure
+def external_signup_requests_list(request):
+    status = (request.GET.get('status') or ExternalSignupStatus.PENDING).strip().lower()
+    allowed = {
+        ExternalSignupStatus.PENDING,
+        ExternalSignupStatus.APPROVED,
+        ExternalSignupStatus.REJECTED,
+        ExternalSignupStatus.CANCELLED,
+        ExternalSignupStatus.INACTIVE,
+        'all',
+    }
+    if status not in allowed:
+        status = ExternalSignupStatus.PENDING
+    qs = ExternalParticipantSignupRequest.objects.select_related(
+        'process',
+        'process__project',
+        'step',
+        'requester',
+        'reviewed_by',
+        'linked_user',
+    )
+    if status != 'all':
+        qs = qs.filter(status=status)
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        from django.db.models import Q
+
+        qs = qs.filter(
+            Q(full_name__icontains=q)
+            | Q(email__icontains=q)
+            | Q(phone_whatsapp__icontains=q)
+            | Q(cnpj__icontains=q)
+            | Q(process__title__icontains=q)
+            | Q(process__project__code__icontains=q)
+        )
+    rows = list(qs.order_by('-created_at')[:300])
+
+    signup_status_map = {
+        ExternalSignupStatus.PENDING: UserSignupRequest.STATUS_PENDENTE,
+        ExternalSignupStatus.APPROVED: UserSignupRequest.STATUS_APROVADO,
+        ExternalSignupStatus.REJECTED: UserSignupRequest.STATUS_REJEITADO,
+    }
+    prefill_qs = (
+        UserSignupRequest.objects.select_related('requested_by', 'approved_by', 'approved_user')
+        .filter(origem=UserSignupRequest.ORIGEM_INTERNO)
+        .order_by('-created_at')
+    )
+    if status in signup_status_map:
+        prefill_qs = prefill_qs.filter(status=signup_status_map[status])
+    elif status in (ExternalSignupStatus.CANCELLED, ExternalSignupStatus.INACTIVE):
+        prefill_qs = prefill_qs.none()
+
+    prefill_rows = []
+    q_norm = q.lower()
+    for req in prefill_qs[:800]:
+        groups = req.requested_groups or []
+        if GRUPOS.CENTRAL_APROVACOES_EXTERNO not in groups:
+            continue
+        if q:
+            hay = ' '.join(
+                [
+                    req.full_name or '',
+                    req.email or '',
+                    req.phone or '',
+                    req.notes or '',
+                ]
+            ).lower()
+            if q_norm not in hay:
+                continue
+        prefill_rows.append(req)
+        if len(prefill_rows) >= 300:
+            break
+
+    return render(
+        request,
+        'workflow_aprovacao/external_signup_requests.html',
+        _workflow_context(
+            request,
+            {
+                'rows': rows,
+                'prefill_rows': prefill_rows,
+                'filter_status': status,
+                'filter_q': q,
+                'review_form': ExternalSignupReviewForm(),
+                'page_title': 'Solicitações de usuários externos',
+                'page_subtitle': 'Cadastro externo para alçadas variáveis',
+            },
+        ),
+    )
+
+
+@require_workflow_configure
+@require_POST
+def external_signup_request_review(request, pk):
+    row = get_object_or_404(ExternalParticipantSignupRequest, pk=pk)
+    form = ExternalSignupReviewForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Ação inválida para solicitação externa.')
+        return redirect('workflow_aprovacao:external_signup_requests')
+    action = form.cleaned_data['action']
+    reason = (form.cleaned_data.get('reason') or '').strip()
+    try:
+        if action == 'approve':
+            linked = approve_external_signup_request(
+                request_obj=row,
+                reviewer=request.user,
+                access_url_builder=_external_access_url_for_user,
+            )
+            messages.success(request, f'Solicitação aprovada e vinculada ao usuário {linked.username}.')
+        else:
+            reject_external_signup_request(request_obj=row, reviewer=request.user, reason=reason)
+            messages.warning(request, 'Solicitação externa rejeitada.')
+    except Exception as exc:
+        messages.error(request, str(exc))
+    return redirect('workflow_aprovacao:external_signup_requests')

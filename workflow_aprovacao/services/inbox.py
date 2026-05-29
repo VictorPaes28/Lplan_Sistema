@@ -39,12 +39,22 @@ def user_involved_filter_q(user) -> Q:
         flow_definition__steps__participants__user=user,
         flow_definition__steps__participants__role__in=roles,
     )
+    participant |= Q(
+        process_participants__subject_kind=SubjectKind.USER,
+        process_participants__user=user,
+        process_participants__role__in=roles,
+    )
     group_ids = list(user.groups.values_list('pk', flat=True))
     if group_ids:
         participant |= Q(
             flow_definition__steps__participants__subject_kind=SubjectKind.DJANGO_GROUP,
             flow_definition__steps__participants__django_group_id__in=group_ids,
             flow_definition__steps__participants__role__in=roles,
+        )
+        participant |= Q(
+            process_participants__subject_kind=SubjectKind.DJANGO_GROUP,
+            process_participants__django_group_id__in=group_ids,
+            process_participants__role__in=roles,
         )
     return q | participant
 

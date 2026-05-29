@@ -2347,6 +2347,32 @@ def etapa_notificar_view(request, pk):
     if n.canal == "email":
         dest_email = (form.cleaned_data["destinatario_contato"] or "").strip()
         try:
+            from core.comunicacao_constants import TIPO_TRACKHUB_NOTIFICACAO_ETAPA_EMAIL
+            from core.comunicacao_router import ComunicacaoPreferenciasService
+
+            usuario_destino = User.objects.filter(
+                email__iexact=dest_email,
+                is_active=True,
+            ).first()
+            decisao = ComunicacaoPreferenciasService().pode_enviar_email(
+                dest_email,
+                TIPO_TRACKHUB_NOTIFICACAO_ETAPA_EMAIL,
+                usuario=usuario_destino,
+                contexto={
+                    "modulo": "trackhub",
+                    "objeto_tipo": "etapa_pendencia",
+                    "objeto_id": etapa.pk,
+                    "origem": "trackhub_notificacao_manual",
+                },
+            )
+            if not decisao.enviar:
+                return JsonResponse(
+                    {
+                        "success": True,
+                        "blocked_by_preference": True,
+                        "message": "E-mail não enviado por preferência do destinatário.",
+                    }
+                )
             send_mail(
                 subject=f"Pendência: {etapa.pendencia.titulo}",
                 message=n.mensagem,

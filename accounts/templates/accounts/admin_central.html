@@ -737,6 +737,14 @@
                 <p class="central-action-desc">Área focada em auditoria, logs do sistema e logs de e-mail.</p>
                 <span class="central-action-link">Abrir painel <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
             </a>
+            <a href="{% url 'admin_comunicacao_hub' %}" class="central-action-card" style="background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%); border: 1px solid #bae6fd;">
+                <div class="central-action-icon" style="background:#e0f2fe;color:#0369a1;">
+                    <i class="fas fa-envelope-open-text" aria-hidden="true"></i>
+                </div>
+                <h2 class="central-action-title">E-mails e notificações</h2>
+                <p class="central-action-desc">Configurar envio por e-mail e consultar histórico técnico.</p>
+                <span class="central-action-link">Abrir central <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
             <a href="{% url 'central_diary_edit_requests' %}" class="central-action-card" style="{% if pending_diary_edit_requests_count > 0 %}box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45);{% endif %}">
                 <div class="central-action-icon" style="background:#fff7ed;color:#c2410c;">
                     <i class="fas fa-file-signature" aria-hidden="true"></i>

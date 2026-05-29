@@ -394,12 +394,6 @@ SIENGE_OUTBOUND_ENABLED = os.environ.get('SIENGE_OUTBOUND_ENABLED', 'False').low
     '1',
     'yes',
 )
-# Shadow mode permite validar o fluxo de envio sem chamar API real do Sienge.
-SIENGE_OUTBOUND_SHADOW_MODE = os.environ.get('SIENGE_OUTBOUND_SHADOW_MODE', 'True').lower() in (
-    'true',
-    '1',
-    'yes',
-)
 
 # Central de Aprovações (workflow): ingestão a partir de medições Sienge (contrato/BM/medição)
 SIENGE_CENTRAL_MEASUREMENT_CATEGORY_CODE = os.environ.get(

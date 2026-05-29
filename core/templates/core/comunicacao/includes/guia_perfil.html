@@ -1,0 +1,45 @@
+{# Guia rápido — tela do usuário (perfil) #}
+<div class="comunicacao-guia" id="comunicacao-guia-perfil">
+    <button type="button" class="comunicacao-guia-toggle" aria-expanded="true" aria-controls="comunicacao-guia-perfil-body">
+        <i class="fas fa-circle-question"></i>
+        Como funciona? (leia antes de alterar)
+        <i class="fas fa-chevron-down comunicacao-guia-chevron"></i>
+    </button>
+    <div class="comunicacao-guia-body" id="comunicacao-guia-perfil-body">
+        <p class="comunicacao-guia-lead">
+            Esta página controla <strong>quais e-mails informativos</strong> você recebe.
+            Não altera seu acesso aos módulos nem as notificações do sino.
+        </p>
+
+        <div class="comunicacao-hierarquia" aria-label="Ordem de prioridade das regras">
+            <div class="comunicacao-hierarquia-item comunicacao-hierarquia-item--1">
+                <span class="comunicacao-hierarquia-num">1</span>
+                <div>
+                    <strong>Sua escolha aqui</strong>
+                    <p>Se você marcar “Quero receber” ou “Não quero”, isso vale para você.</p>
+                </div>
+            </div>
+            <div class="comunicacao-hierarquia-seta" aria-hidden="true"><i class="fas fa-arrow-down"></i></div>
+            <div class="comunicacao-hierarquia-item">
+                <span class="comunicacao-hierarquia-num">2</span>
+                <div>
+                    <strong>Regra do seu perfil</strong>
+                    <p>Ex.: grupo Administrador pode vir sem cópias de pedido aprovado.</p>
+                </div>
+            </div>
+            <div class="comunicacao-hierarquia-seta" aria-hidden="true"><i class="fas fa-arrow-down"></i></div>
+            <div class="comunicacao-hierarquia-item">
+                <span class="comunicacao-hierarquia-num">3</span>
+                <div>
+                    <strong>Regra da empresa</strong>
+                    <p>Se nada estiver configurado, o e-mail segue como hoje.</p>
+                </div>
+            </div>
+        </div>
+
+        <ul class="comunicacao-guia-lista">
+            <li><i class="fas fa-lock"></i> E-mails de <strong>senha, credenciais e diário ao cliente</strong> não aparecem aqui e sempre são enviados.</li>
+            <li><i class="fas fa-bell-slash"></i> “Não enviar e-mail” <strong>não</strong> substitui o sino — só para de mandar e-mail.</li>
+        </ul>
+    </div>
+</div>

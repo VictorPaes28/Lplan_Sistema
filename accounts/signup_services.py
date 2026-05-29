@@ -139,8 +139,27 @@ def notify_signup_request_created(signup_request):
         f'Mensagem automática do sistema LPLAN.'
     )
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or getattr(settings, 'EMAIL_HOST_USER', '')
+    try:
+        from core.comunicacao_constants import TIPO_CADASTRO_NOVA_SOLICITACAO
+        from core.comunicacao_router import ComunicacaoPreferenciasService
+
+        router = ComunicacaoPreferenciasService()
+    except Exception:
+        router = None
+
     for approver in approvers:
+        if not approver.email:
+            continue
         try:
+            if router is not None:
+                decisao = router.pode_enviar_email(
+                    approver.email,
+                    TIPO_CADASTRO_NOVA_SOLICITACAO,
+                    usuario=approver,
+                    contexto={'origem': 'nova_solicitacao_cadastro'},
+                )
+                if not decisao.enviar:
+                    continue
             msg = EmailMessage(subject=subject, body=body, from_email=from_email, to=[approver.email])
             msg.send(fail_silently=True)
         except Exception as exc:
@@ -277,6 +296,9 @@ def approve_signup_request(signup_request, approved_by, selected_groups=None, se
                     site_url=site_url,
                 )
             elif signup_request.password_hash:
+                from core.comunicacao_constants import TIPO_CADASTRO_CREDENCIAIS
+                from core.comunicacao_router import ComunicacaoPreferenciasService
+
                 from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or getattr(settings, 'EMAIL_HOST_USER', '')
                 nome = user.get_full_name() or user.username
                 body = (
@@ -287,12 +309,24 @@ def approve_signup_request(signup_request, approved_by, selected_groups=None, se
                     f'Use a senha que você definiu ao enviar a solicitação de cadastro.\n\n'
                     f'LPLAN'
                 )
-                EmailMessage(
-                    subject='Acesso ao sistema LPLAN - cadastro aprovado',
-                    body=body,
-                    from_email=from_email,
-                    to=[user.email],
-                ).send(fail_silently=True)
+                decisao = ComunicacaoPreferenciasService().pode_enviar_email(
+                    user.email,
+                    TIPO_CADASTRO_CREDENCIAIS,
+                    usuario=user,
+                    contexto={
+                        'modulo': 'cadastro',
+                        'objeto_tipo': 'signup_request',
+                        'objeto_id': signup_request.pk,
+                        'origem': 'cadastro_aprovado',
+                    },
+                )
+                if decisao.enviar:
+                    EmailMessage(
+                        subject='Acesso ao sistema LPLAN - cadastro aprovado',
+                        body=body,
+                        from_email=from_email,
+                        to=[user.email],
+                    ).send(fail_silently=True)
         except Exception as exc:
             logger.warning('Falha ao enviar e-mail de credenciais para usuário aprovado: %s', exc)
     return user

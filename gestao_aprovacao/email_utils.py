@@ -19,6 +19,25 @@ _APROVACAO_DESTINATARIOS_PADRAO = (
 )
 
 
+def _filtrar_destinatarios_router(destinatarios, tipo_codigo, contexto=None):
+    """Aplica central de comunicação; em falha mantém lista original."""
+    try:
+        from core.comunicacao_router import ComunicacaoPreferenciasService
+
+        return ComunicacaoPreferenciasService().filtrar_destinatarios_email(
+            destinatarios,
+            tipo_codigo,
+            contexto=contexto or {},
+        )
+    except Exception as exc:
+        logger.warning(
+            'Router de comunicação indisponível para %s: %s — mantém destinatários.',
+            tipo_codigo,
+            exc,
+        )
+        return _normalizar_destinatarios(destinatarios)
+
+
 def _normalizar_destinatarios(destinatarios):
     """Remove vazios/duplicados e normaliza e-mails mantendo ordem."""
     if not destinatarios:
@@ -317,6 +336,36 @@ def enviar_email_credenciais_novo_usuario(email_destino, username, senha_plana, 
             "Configure EMAIL_HOST_USER e EMAIL_HOST_PASSWORD."
         )
         return False
+    try:
+        from django.contrib.auth import get_user_model
+        from core.comunicacao_constants import TIPO_CADASTRO_CREDENCIAIS
+        from core.comunicacao_router import ComunicacaoPreferenciasService
+
+        User = get_user_model()
+        usuario_destino = User.objects.filter(email__iexact=(email_destino or '').strip(), is_active=True).first()
+        decisao = ComunicacaoPreferenciasService().pode_enviar_email(
+            email_destino,
+            TIPO_CADASTRO_CREDENCIAIS,
+            usuario=usuario_destino,
+            contexto={
+                'modulo': 'cadastro',
+                'objeto_tipo': 'usuario',
+                'objeto_id': username,
+                'origem': 'credenciais_novo_usuario',
+            },
+        )
+        if not decisao.enviar:
+            logger.info(
+                "Envio de credenciais bloqueado por preferência (%s). Destino: %s",
+                decisao.motivo,
+                email_destino,
+            )
+            return False
+    except Exception as exc:
+        logger.warning(
+            'Router de comunicação indisponível para credenciais (%s): mantém envio.',
+            exc,
+        )
     url = site_url or getattr(settings, 'SITE_URL', None) or 'http://sistema.lplan.com.br'
     nome = (nome_completo or username).strip()
     assunto = 'Acesso ao sistema LPLAN - seus dados de login'
@@ -404,6 +453,25 @@ def enviar_email_novo_pedido(workorder):
     
     if not destinatarios:
         logger.warning(f"Nenhum email de destinatário encontrado para pedido {workorder.codigo}.")
+        return False
+
+    from core.comunicacao_constants import TIPO_GESTCONTROLL_NOVO_PEDIDO
+
+    destinatarios = _filtrar_destinatarios_router(
+        destinatarios,
+        TIPO_GESTCONTROLL_NOVO_PEDIDO,
+        contexto={
+            'modulo': 'gestcontroll',
+            'objeto_tipo': 'work_order',
+            'objeto_id': workorder.pk,
+            'origem': 'novo_pedido',
+        },
+    )
+    if not destinatarios:
+        logger.info(
+            'Nenhum destinatário após preferências de comunicação para novo pedido %s.',
+            workorder.codigo,
+        )
         return False
     
     # Assunto
@@ -509,22 +577,42 @@ def _enviar_email_aprovacao_thread(workorder_id, aprovado_por_id, comentario):
         
         solicitante = workorder.criado_por
         
-        # Montar lista de destinatários
-        destinatarios = []
-        
-        # Adicionar solicitante
-        if solicitante.email:
-            destinatarios.append(solicitante.email)
-        
-        # Adicionar departamentos configurados
+        # Destinatários: solicitante (tipo próprio) + cópias administrativas (router piloto)
+        dest_solicitante = []
+        if solicitante and solicitante.email:
+            dest_solicitante.append(solicitante.email)
+
+        dest_admin = []
         if hasattr(settings, 'EMAIL_DEPARTAMENTOS_APROVACAO') and settings.EMAIL_DEPARTAMENTOS_APROVACAO:
-            destinatarios.extend(settings.EMAIL_DEPARTAMENTOS_APROVACAO)
+            dest_admin.extend(settings.EMAIL_DEPARTAMENTOS_APROVACAO)
+        dest_admin.extend(_get_destinatarios_fixos_aprovacao_para_obra(workorder.obra))
 
-        # Garantir destinatários fixos de aprovação (independente do .env)
-        destinatarios.extend(_get_destinatarios_fixos_aprovacao_para_obra(workorder.obra))
+        dest_admin = _normalizar_destinatarios(dest_admin)
+        solicitante_set = {e.lower() for e in dest_solicitante}
+        dest_admin = [e for e in dest_admin if e.lower() not in solicitante_set]
 
-        # Remover duplicatas mantendo ordem
-        destinatarios = _normalizar_destinatarios(destinatarios)
+        from core.comunicacao_constants import (
+            TIPO_GESTCONTROLL_APROVADO_SOLICITANTE,
+            TIPO_GESTCONTROLL_COPIA_ADMIN,
+        )
+
+        ctx = {
+            'modulo': 'gestcontroll',
+            'objeto_tipo': 'work_order',
+            'objeto_id': workorder.pk,
+        }
+        dest_solicitante = _filtrar_destinatarios_router(
+            dest_solicitante,
+            TIPO_GESTCONTROLL_APROVADO_SOLICITANTE,
+            contexto={**ctx, 'origem': 'aprovacao_solicitante'},
+        )
+        dest_admin = _filtrar_destinatarios_router(
+            dest_admin,
+            TIPO_GESTCONTROLL_COPIA_ADMIN,
+            contexto={**ctx, 'origem': 'copia_administrativa_aprovacao'},
+        )
+
+        destinatarios = _normalizar_destinatarios(dest_solicitante + dest_admin)
         
         if not destinatarios:
             logger.warning(f"Nenhum destinatário encontrado para email de aprovação do pedido {workorder.codigo}.")
@@ -851,6 +939,25 @@ def enviar_email_reprovacao(workorder, aprovado_por, comentario):
     if not solicitante or not getattr(solicitante, 'email', None):
         logger.warning(f"Pedido {workorder.codigo}: solicitante sem e-mail. Email de reprovação não enviado.")
         return False
+
+    from core.comunicacao_constants import TIPO_GESTCONTROLL_REPROVADO_SOLICITANTE
+
+    dest_reprov = _filtrar_destinatarios_router(
+        [solicitante.email],
+        TIPO_GESTCONTROLL_REPROVADO_SOLICITANTE,
+        contexto={
+            'modulo': 'gestcontroll',
+            'objeto_tipo': 'work_order',
+            'objeto_id': workorder.pk,
+            'origem': 'reprovacao_solicitante',
+        },
+    )
+    if not dest_reprov:
+        logger.info(
+            'E-mail de reprovação não enviado para %s (preferências de comunicação).',
+            workorder.codigo,
+        )
+        return False
     
     assunto = f'Pedido Reprovado: {workorder.codigo}'
     
@@ -902,7 +1009,7 @@ Mensagem automática. Não responda a este e-mail.
     html_content = _gerar_html_email("Pedido Reprovado", conteudo_html, workorder, url_detalhes)
     
     # Criar log de email ANTES de tentar enviar
-    email_log = _criar_log_email('reprovacao', workorder, [solicitante.email], assunto)
+    email_log = _criar_log_email('reprovacao', workorder, dest_reprov, assunto)
     
     try:
         # Usar EmailMultiAlternatives para enviar HTML + texto
@@ -910,7 +1017,7 @@ Mensagem automática. Não responda a este e-mail.
             subject=assunto,
             body=mensagem_texto,
             from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else settings.EMAIL_HOST_USER,
-            to=[solicitante.email],
+            to=dest_reprov,
         )
         email.attach_alternative(html_content, "text/html")
         

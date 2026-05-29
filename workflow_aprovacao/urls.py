@@ -7,6 +7,7 @@ app_name = 'workflow_aprovacao'
 urlpatterns = [
     path('', views.home, name='home'),
     path('painel/', views.dashboard, name='dashboard'),
+    path('novo/', views.manual_request_new, name='manual_request_new'),
     path('sincronizar/forcar/', views.force_sync, name='force_sync'),
     path('config/integracoes/', views.outbox_list, name='outbox_list'),
     path('config/integracoes/<int:pk>/enviar/', views.outbox_dispatch, name='outbox_dispatch'),
@@ -25,6 +26,17 @@ urlpatterns = [
     path('config/fluxos/', views.config_flow_list, name='config_flow_list'),
     path('config/fluxos/<int:pk>/', views.flow_edit, name='flow_edit'),
     path('config/pendencias/', views.config_backlog_list, name='config_backlog_list'),
+    path('config/externos/', views.external_signup_requests_list, name='external_signup_requests'),
+    path(
+        'config/externos/pre-cadastro/',
+        views.external_signup_prefill_create,
+        name='external_signup_prefill_create',
+    ),
+    path(
+        'config/externos/<int:pk>/revisar/',
+        views.external_signup_request_review,
+        name='external_signup_request_review',
+    ),
     path(
         'config/pendencias/<int:pk>/dispensar/',
         views.config_backlog_dismiss,

@@ -934,7 +934,31 @@ def central_signup_request_reject(request, pk):
         )
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or getattr(settings, 'EMAIL_HOST_USER', '')
         try:
-            EmailMessage(subject=subject, body=body, from_email=from_email, to=[signup_request.email]).send(fail_silently=True)
+            from core.comunicacao_constants import TIPO_CADASTRO_SOLICITACAO_REPROVADA
+            from core.comunicacao_router import ComunicacaoPreferenciasService
+
+            usuario_destino = User.objects.filter(
+                email__iexact=signup_request.email,
+                is_active=True,
+            ).first()
+            decisao = ComunicacaoPreferenciasService().pode_enviar_email(
+                signup_request.email,
+                TIPO_CADASTRO_SOLICITACAO_REPROVADA,
+                usuario=usuario_destino,
+                contexto={
+                    'modulo': 'cadastro',
+                    'objeto_tipo': 'signup_request',
+                    'objeto_id': signup_request.pk,
+                    'origem': 'cadastro_reprovado',
+                },
+            )
+            if decisao.enviar:
+                EmailMessage(
+                    subject=subject,
+                    body=body,
+                    from_email=from_email,
+                    to=[signup_request.email],
+                ).send(fail_silently=True)
         except Exception:
             pass
     if signup_request.requested_by and signup_request.requested_by != request.user:

@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/comunicacao.css' %}">
+{% endblock %}
+
+{% block page_title %}E-mails e Notificações{% endblock %}
+{% block page_subtitle %}Controle de quem recebe cada aviso por e-mail{% endblock %}
+
+{% block content %}
+<div class="com-page">
+    {% include 'core/comunicacao/includes/module_header.html' with com_header_subtitle="Ajuste regras de e-mail por pessoa/perfil e acompanhe o histórico técnico das decisões de envio." %}
+    {% include 'core/comunicacao/includes/subnav.html' with com_nav_active='hub' %}
+
+    <div class="com-kpi-strip" role="list">
+        <div class="com-kpi com-kpi--highlight" role="listitem">
+            <span class="com-kpi__value">{{ tipos_controle_ativo }}</span>
+            <span class="com-kpi__label">Avisos com controle ativo no envio</span>
+        </div>
+        <div class="com-kpi" role="listitem">
+            <span class="com-kpi__value">{{ total_tipos }}</span>
+            <span class="com-kpi__label">Tipos cadastrados (ativos)</span>
+        </div>
+        <div class="com-kpi" role="listitem">
+            <span class="com-kpi__value">{{ preferencias_personalizadas }}</span>
+            <span class="com-kpi__label">Ajustes manuais salvos</span>
+        </div>
+        <div class="com-kpi" role="listitem">
+            <span class="com-kpi__value">{{ decisoes_recentes }}</span>
+            <span class="com-kpi__label">Decisões nos últimos 30 dias</span>
+        </div>
+        <div class="com-kpi" role="listitem">
+            <span class="com-kpi__value">{{ decisoes_envio }}</span>
+            <span class="com-kpi__label">Envios permitidos (30 dias)</span>
+        </div>
+        <div class="com-kpi" role="listitem">
+            <span class="com-kpi__value">{{ decisoes_bloqueio }}</span>
+            <span class="com-kpi__label">Envios bloqueados (30 dias)</span>
+        </div>
+    </div>
+
+    <p class="com-notice com-notice--info">
+        <i class="fas fa-circle-info" aria-hidden="true"></i>
+        <span>
+            Esta central ajusta o envio por <strong>e-mail</strong>. Notificação interna (sino) e regras de produto seguem nos módulos de origem.
+        </span>
+    </p>
+
+    <div class="com-layout-split com-layout-split--hub">
+        <div>
+            <div class="com-panel">
+                <div class="com-panel__head">
+                    <h2 class="com-panel__title">Ações principais</h2>
+                </div>
+                <div class="com-panel__body">
+                    <div class="com-quick-grid">
+                        <a href="{% url 'admin_comunicacao_preferencias' %}" class="com-quick-link">
+                            <span class="com-quick-link__icon"><i class="fas fa-user-pen" aria-hidden="true"></i></span>
+                            <span class="com-quick-link__text">
+                                <strong>Ajustar uma pessoa</strong>
+                                <span>Definir rapidamente quem recebe cada aviso.</span>
+                            </span>
+                            <i class="fas fa-chevron-right com-quick-link__arrow" aria-hidden="true"></i>
+                        </a>
+                        <a href="{% url 'admin_comunicacao_padroes_grupo' %}" class="com-quick-link">
+                            <span class="com-quick-link__icon"><i class="fas fa-users-gear" aria-hidden="true"></i></span>
+                            <span class="com-quick-link__text">
+                                <strong>Padrão por perfil</strong>
+                                <span>Regra padrão por grupo (Administrador, Aprovador etc.).</span>
+                            </span>
+                            <i class="fas fa-chevron-right com-quick-link__arrow" aria-hidden="true"></i>
+                        </a>
+                        <a href="{% url 'admin_comunicacao_tipos' %}" class="com-quick-link">
+                            <span class="com-quick-link__icon"><i class="fas fa-list" aria-hidden="true"></i></span>
+                            <span class="com-quick-link__text">
+                                <strong>Catálogo de tipos</strong>
+                                <span>Lista de avisos cadastrados e status de integração.</span>
+                            </span>
+                            <i class="fas fa-chevron-right com-quick-link__arrow" aria-hidden="true"></i>
+                        </a>
+                        <a href="{% url 'admin_comunicacao_decisoes' %}" class="com-quick-link">
+                            <span class="com-quick-link__icon"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></span>
+                            <span class="com-quick-link__text">
+                                <strong>Histórico técnico</strong>
+                                <span>Logs automáticos de enviar/bloquear e motivo.</span>
+                            </span>
+                            <i class="fas fa-chevron-right com-quick-link__arrow" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if top_tipos_decisao or top_destinatarios %}
+        <div style="display: grid; gap: 1.25rem;">
+            {% if top_tipos_decisao %}
+            <div class="com-panel">
+                <div class="com-panel__head"><h2 class="com-panel__title">Tipos mais registrados (30 dias)</h2></div>
+                <div class="com-panel__body">
+                    <ul class="com-mini-list">
+                        {% for row in top_tipos_decisao %}
+                        <li>
+                            <span class="com-table__truncate" title="{{ row.tipo_codigo }}">{{ row.tipo_nome }}</span>
+                            <span class="com-mini-list__val">{{ row.c }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+            {% if top_destinatarios %}
+            <div class="com-panel">
+                <div class="com-panel__head"><h2 class="com-panel__title">Destinatários frequentes</h2></div>
+                <div class="com-panel__body">
+                    <ul class="com-mini-list">
+                        {% for row in top_destinatarios %}
+                        <li>
+                            <span>{{ row.email }}</span>
+                            <span class="com-mini-list__val">{{ row.c }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

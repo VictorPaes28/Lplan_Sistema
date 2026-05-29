@@ -84,6 +84,58 @@ def _request_ip(request) -> str:
     return (request.META.get('REMOTE_ADDR') or '').strip()
 
 
+def _parse_geolocation_data(raw: str) -> dict[str, Any]:
+    raw = (raw or '').strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+
+    lat = parsed.get('latitude')
+    lng = parsed.get('longitude')
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return {}
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return {}
+
+    geo: dict[str, Any] = {
+        'latitude': round(lat, 6),
+        'longitude': round(lng, 6),
+        'source': (parsed.get('source') or 'browser').strip()[:32],
+    }
+    try:
+        accuracy = float(parsed.get('accuracy_m'))
+        if accuracy > 0:
+            geo['accuracy_m'] = round(accuracy, 1)
+    except (TypeError, ValueError):
+        pass
+    captured_at = (parsed.get('captured_at') or '').strip()
+    if captured_at:
+        geo['captured_at'] = captured_at[:40]
+    return geo
+
+
+def _format_geolocation_label(geo: dict[str, Any]) -> str:
+    if not geo:
+        return ''
+    lat = geo.get('latitude')
+    lng = geo.get('longitude')
+    if lat is None or lng is None:
+        return ''
+    base = f'Lat {lat:.6f}, Lon {lng:.6f}'
+    acc = geo.get('accuracy_m')
+    if acc is not None:
+        return f'{base} (precisão ~{acc} m)'
+    return base
+
+
 def build_signature_evidence(
     *,
     request,
@@ -92,10 +144,13 @@ def build_signature_evidence(
     comment: str,
     signer_name: str,
     signature_data: str = '',
+    geolocation_data: str = '',
 ) -> dict[str, Any]:
     decided_at = timezone.now()
     sig = (signature_data or '').strip()
     has_manual = sig.startswith('data:image/png;base64,') and len(sig) > 500
+    geolocation = _parse_geolocation_data(geolocation_data)
+    geolocation_label = _format_geolocation_label(geolocation)
     snapshot = {
         'process_id': process.pk,
         'project_code': process.project.code,
@@ -115,6 +170,8 @@ def build_signature_evidence(
         'signer_user_id': getattr(request.user, 'pk', None),
         'decided_at': decided_at.isoformat(),
         'ip': _request_ip(request),
+        'geo_location': geolocation,
+        'geo_label': geolocation_label,
         'user_agent': (request.META.get('HTTP_USER_AGENT') or '')[:500],
         'has_manual_signature': has_manual,
     }
@@ -521,7 +578,8 @@ def render_signature_receipt_pdf(*, process: ApprovalProcess, event: ApprovalHis
     doc.gap(8)
     doc.section('Registro de auditoria (decisão final)')
     doc.row('Código de verificação', hash_value or '—')
-    doc.row('Endereço IP', snap.get('ip') or '—')
+    doc.row('Localização', snap.get('geo_label') or 'Não informada')
+    doc.row('Endereço IP (rede)', snap.get('ip') or '—')
     ua = (snap.get('user_agent') or '').strip()
     if ua:
         doc.gap(2)

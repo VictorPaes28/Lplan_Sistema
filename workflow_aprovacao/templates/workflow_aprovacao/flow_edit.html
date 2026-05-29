@@ -31,6 +31,16 @@
         {% csrf_token %}
         <textarea name="config_payload" id="wf-config-payload" hidden aria-hidden="true"></textarea>
 
+        <div class="wf-panel" style="margin-bottom:.75rem;">
+            <div class="wf-panel__body">
+                <p class="wf-help" style="margin:0;">
+                    Configure cada linha como <strong>Usuário</strong> (aprovador interno do fluxo) ou
+                    <strong>Terceirizado informado no pedido</strong> (quem abre o pedido escolhe o usuário externo).
+                    Nesta tela, a configuração é somente por usuário.
+                </p>
+            </div>
+        </div>
+
         <div id="wf-flow-editor-err"
              class="wf-alert wf-alert--error wf-flow-editor-err"
              role="alert"
@@ -39,6 +49,12 @@
         <div id="wf-flow-editor-root"
              class="wf-flow-editor-mount"
              data-locked="{% if structure_locked %}true{% else %}false{% endif %}"
+             data-external-signup-url="{{ external_signup_request_url }}"
+             data-external-signup-list-url="{{ external_signup_list_url }}"
+             data-flow-project-id="{{ flow.project.pk }}"
+             data-flow-project-code="{{ flow.project.code }}"
+             data-flow-project-name="{{ flow.project.name }}"
+             data-flow-category-name="{{ flow.category.name }}"
              role="region"
              aria-label="Editor de alçadas e participantes">
             <p class="wf-flow-editor-placeholder">

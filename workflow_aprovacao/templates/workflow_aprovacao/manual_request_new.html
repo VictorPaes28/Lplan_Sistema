@@ -1,0 +1,349 @@
+{% extends 'workflow_aprovacao/base_workflow.html' %}
+
+{% block back_url %}{% url 'workflow_aprovacao:pending' %}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block page_subtitle %}{{ page_subtitle }}{% endblock %}
+
+{% block wf_content %}
+<div class="wf-root">
+    {% include 'workflow_aprovacao/_messages.html' %}
+
+    <form method="post" class="wf-panel wf-manual-form">
+        {% csrf_token %}
+        <div class="wf-panel__head"><h2 class="wf-panel__title">Dados gerais</h2></div>
+        <div class="wf-panel__body wf-manual-grid">
+            <div class="wf-field">{{ form.project.label_tag }}{{ form.project }}</div>
+            <div class="wf-field">{{ form.category.label_tag }}{{ form.category }}</div>
+            <div class="wf-field wf-col-2"><p class="wf-help" style="margin:.2rem 0 0;">Ao selecionar obra e categoria, a seção de terceirizado é carregada automaticamente.</p></div>
+            <div class="wf-field wf-col-2">{{ form.title.label_tag }}{{ form.title }}</div>
+            <div class="wf-field wf-col-2">{{ form.summary.label_tag }}{{ form.summary }}</div>
+            <div class="wf-field">{{ form.vendor_name.label_tag }}{{ form.vendor_name }}</div>
+            <div class="wf-field">{{ form.amount.label_tag }}{{ form.amount }}</div>
+            <div class="wf-field wf-col-2">{{ form.notes.label_tag }}{{ form.notes }}</div>
+            {{ form.category_payload_json }}
+        </div>
+
+        <div class="wf-panel__head"><h2 class="wf-panel__title">Campos da categoria</h2></div>
+        <div class="wf-panel__body">
+            <div class="wf-manual-category" data-category="contrato">
+                <label class="wf-field">Vigência/escopo contratual<input type="text" class="wf-select" data-dyn-key="vigencia_escopo"></label>
+                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
+            </div>
+            <div class="wf-manual-category" data-category="medicao">
+                <label class="wf-field">Período da medição<input type="text" class="wf-select" data-dyn-key="periodo_medicao"></label>
+                <label class="wf-field">Número da medição<input type="text" class="wf-select" data-dyn-key="numero_medicao"></label>
+                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
+            </div>
+            <div class="wf-manual-category" data-category="ordem_servico">
+                <label class="wf-field">Prazo estimado<input type="text" class="wf-select" data-dyn-key="prazo_estimado"></label>
+                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
+            </div>
+            <div class="wf-manual-category" data-category="mapa_cotacao">
+                <label class="wf-field">Justificativa<input type="text" class="wf-select" data-dyn-key="justificativa"></label>
+                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
+            </div>
+            <div class="wf-manual-category" data-category="validacao_contrato">
+                <label class="wf-field">Tipo de validação<input type="text" class="wf-select" data-dyn-key="tipo_validacao"></label>
+                <label class="wf-field">Documento de referência (link ou identificação)<input type="text" class="wf-select" data-dyn-key="documento_referencia"></label>
+            </div>
+        </div>
+
+        {% if selected_flow %}
+        <div class="wf-panel__head"><h2 class="wf-panel__title">Fluxo aplicado</h2></div>
+        <div class="wf-panel__body">
+            <p class="wf-help">
+                Fluxo ativo: <strong>{{ selected_flow.project.code }}</strong> · <strong>{{ selected_flow.category.name }}</strong>.
+            </p>
+            {% if required_variable_slots or implicit_external_step %}
+            <div class="wf-manual-slots">
+                {% for slot in required_variable_slots %}
+                <section class="wf-manual-slot">
+                    <h3>Alçada {{ slot.step.sequence }} — {{ slot.step.name }}</h3>
+                    <p class="wf-help">{{ slot.variable_label|default:"Participante variável obrigatório" }}</p>
+                    <label class="wf-field">
+                        Usuário externo já cadastrado
+                        <select name="slot_{{ slot.pk }}_existing_user" class="wf-select wf-existing-select-native">
+                            <option value="__new__" selected>Novo terceirizado (pré-cadastro)</option>
+                            <option value="">Selecionar existente (opcional)</option>
+                            {% for u in existing_external_users %}
+                            <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }}){% if u.email %} · {{ u.email }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <p class="wf-help" style="margin:.2rem 0 .4rem;">Se selecionar um usuário existente, o pré-cadastro abaixo é desativado.</p>
+                    <div class="wf-manual-slot-grid">
+                        <label class="wf-field">Nome completo<input type="text" class="wf-select" name="slot_{{ slot.pk }}_full_name"></label>
+                        <label class="wf-field">Empresa<input type="text" class="wf-select" name="slot_{{ slot.pk }}_company"></label>
+                        <label class="wf-field">E-mail<input type="email" class="wf-select" name="slot_{{ slot.pk }}_email"></label>
+                        <label class="wf-field">Telefone/WhatsApp<input type="text" class="wf-select" name="slot_{{ slot.pk }}_phone"></label>
+                        <label class="wf-field">CNPJ (opcional)<input type="text" class="wf-select" name="slot_{{ slot.pk }}_cnpj"></label>
+                        <label class="wf-field">Observação<input type="text" class="wf-select" name="slot_{{ slot.pk }}_note"></label>
+                    </div>
+                </section>
+                {% endfor %}
+                {% if implicit_external_step %}
+                <section class="wf-manual-slot">
+                    <h3>Alçada {{ implicit_external_step.sequence }} — {{ implicit_external_step.name }}</h3>
+                    <p class="wf-help">Terceirizado responsável (obrigatório nesta criação manual).</p>
+                    <label class="wf-field">
+                        Usuário externo já cadastrado
+                        <select name="implicit_external_existing_user" class="wf-select wf-existing-select-native">
+                            <option value="__new__" selected>Novo terceirizado (pré-cadastro)</option>
+                            <option value="">Selecionar existente (opcional)</option>
+                            {% for u in existing_external_users %}
+                            <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }}){% if u.email %} · {{ u.email }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <p class="wf-help" style="margin:.2rem 0 .4rem;">Se não existir, preencha abaixo para pré-cadastro e envio para aprovação.</p>
+                    <div class="wf-manual-slot-grid">
+                        <label class="wf-field">Nome completo<input type="text" class="wf-select" name="implicit_external_full_name"></label>
+                        <label class="wf-field">Empresa<input type="text" class="wf-select" name="implicit_external_company"></label>
+                        <label class="wf-field">E-mail<input type="email" class="wf-select" name="implicit_external_email"></label>
+                        <label class="wf-field">Telefone/WhatsApp<input type="text" class="wf-select" name="implicit_external_phone"></label>
+                        <label class="wf-field">CNPJ (opcional)<input type="text" class="wf-select" name="implicit_external_cnpj"></label>
+                        <label class="wf-field">Observação<input type="text" class="wf-select" name="implicit_external_note"></label>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="wf-help">Nenhum participante variável obrigatório neste fluxo.</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="wf-panel__body">
+            <p class="wf-help">Selecione obra e categoria para carregar o fluxo ativo.</p>
+        </div>
+        {% endif %}
+
+        <div class="wf-panel__body">
+            <button type="submit" class="wf-btn wf-btn--approve">
+                <i class="fas fa-plus-circle" aria-hidden="true"></i> Criar pedido manual
+            </button>
+        </div>
+    </form>
+</div>
+
+{{ category_code_map|json_script:"wf-manual-category-map" }}
+<script>
+(function () {
+    const projectSelect = document.getElementById('id_project');
+    const categorySelect = document.getElementById('id_manual_category');
+    const hiddenPayload = document.getElementById('id_category_payload_json');
+    const mapNode = document.getElementById('wf-manual-category-map');
+    if (!categorySelect || !hiddenPayload) return;
+    let categoryMap = {};
+    if (mapNode && mapNode.textContent) {
+        try { categoryMap = JSON.parse(mapNode.textContent); } catch (err) {}
+    }
+    function syncCategorySections() {
+        const selected = categorySelect.value || '';
+        const code = (categoryMap[selected] || '').toLowerCase();
+        document.querySelectorAll('.wf-manual-category').forEach((node) => {
+            const shouldShow = code === (node.dataset.category || '');
+            node.style.display = shouldShow ? '' : 'none';
+        });
+    }
+    function syncPayload() {
+        const payload = {};
+        document.querySelectorAll('.wf-manual-category input[data-dyn-key]').forEach((input) => {
+            const parent = input.closest('.wf-manual-category');
+            if (parent && parent.style.display !== 'none' && (input.value || '').trim()) {
+                payload[input.dataset.dynKey] = input.value.trim();
+            }
+        });
+        hiddenPayload.value = JSON.stringify(payload);
+    }
+    function hasFlowFilters() {
+        return !!(projectSelect && projectSelect.value && categorySelect.value);
+    }
+    function currentFlowFiltersMatch() {
+        const params = new URLSearchParams(window.location.search || '');
+        return (
+            params.get('project') === String((projectSelect && projectSelect.value) || '') &&
+            params.get('category') === String(categorySelect.value || '')
+        );
+    }
+    function goLoadFlow() {
+        if (!hasFlowFilters()) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set('project', String(projectSelect.value));
+        url.searchParams.set('category', String(categorySelect.value));
+        window.location.href = url.toString();
+    }
+
+    categorySelect.addEventListener('change', () => {
+        syncCategorySections();
+        syncPayload();
+        if (hasFlowFilters() && !currentFlowFiltersMatch()) goLoadFlow();
+    });
+    if (projectSelect) {
+        projectSelect.addEventListener('change', () => {
+            if (hasFlowFilters() && !currentFlowFiltersMatch()) goLoadFlow();
+        });
+    }
+    document.querySelectorAll('.wf-manual-category input[data-dyn-key]').forEach((input) => {
+        input.addEventListener('input', syncPayload);
+    });
+
+    document.querySelectorAll('select[name^="slot_"][name$="_existing_user"]').forEach((select) => {
+        const slot = (select.name || '').replace('_existing_user', '');
+        const syncSlot = () => {
+            const v = (select.value || '').trim();
+            const hasExisting = !!v && v !== '__new__';
+            document.querySelectorAll(`input[name^="${slot}_"]`).forEach((input) => {
+                input.disabled = hasExisting;
+                if (hasExisting) input.value = '';
+            });
+        };
+        select.addEventListener('change', syncSlot);
+        syncSlot();
+    });
+    const implicitExisting = document.querySelector('select[name="implicit_external_existing_user"]');
+    if (implicitExisting) {
+        const syncImplicit = () => {
+            const v = (implicitExisting.value || '').trim();
+            const hasExisting = !!v && v !== '__new__';
+            document.querySelectorAll('input[name^="implicit_external_"]').forEach((input) => {
+                input.disabled = hasExisting;
+                if (hasExisting) input.value = '';
+            });
+        };
+        implicitExisting.addEventListener('change', syncImplicit);
+        syncImplicit();
+    }
+
+    function mountSearchableSelect(nativeSelect) {
+        if (!nativeSelect || nativeSelect.dataset.enhanced === '1') return;
+        nativeSelect.dataset.enhanced = '1';
+        nativeSelect.style.display = 'none';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'wf-searchable-select';
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'wf-searchable-select__trigger';
+
+        const panel = document.createElement('div');
+        panel.className = 'wf-searchable-select__panel';
+        panel.hidden = true;
+
+        const search = document.createElement('input');
+        search.type = 'search';
+        search.className = 'wf-searchable-select__search';
+        search.placeholder = 'Buscar usuário...';
+        search.autocomplete = 'off';
+
+        const list = document.createElement('ul');
+        list.className = 'wf-searchable-select__list';
+
+        const options = Array.from(nativeSelect.options).map((opt) => ({
+            value: opt.value,
+            text: (opt.textContent || '').trim(),
+        }));
+
+        function selectedLabel() {
+            const current = nativeSelect.value;
+            const hit = options.find((o) => o.value === current);
+            return hit ? hit.text : 'Selecionar usuário';
+        }
+
+        function syncTrigger() {
+            trigger.textContent = selectedLabel();
+        }
+
+        function closePanel() {
+            panel.hidden = true;
+            search.value = '';
+            renderList('');
+        }
+
+        function openPanel() {
+            panel.hidden = false;
+            search.focus();
+        }
+
+        function renderList(query) {
+            const q = (query || '').trim().toLowerCase();
+            const filtered = options.filter((item) => {
+                if (item.value === '__new__' || item.value === '') return true;
+                return !q || item.text.toLowerCase().includes(q);
+            });
+            list.innerHTML = '';
+            if (!filtered.length) {
+                const li = document.createElement('li');
+                li.className = 'wf-searchable-select__empty';
+                li.textContent = 'Nenhum usuário encontrado';
+                list.appendChild(li);
+                return;
+            }
+            filtered.forEach((item) => {
+                const li = document.createElement('li');
+                li.className = 'wf-searchable-select__item';
+                if (item.value === nativeSelect.value) li.classList.add('is-selected');
+                li.textContent = item.text;
+                li.addEventListener('click', () => {
+                    nativeSelect.value = item.value;
+                    nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    syncTrigger();
+                    closePanel();
+                });
+                list.appendChild(li);
+            });
+        }
+
+        trigger.addEventListener('click', () => {
+            if (panel.hidden) openPanel();
+            else closePanel();
+        });
+        search.addEventListener('input', () => renderList(search.value || ''));
+        document.addEventListener('click', (evt) => {
+            if (!wrapper.contains(evt.target)) closePanel();
+        });
+        document.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Escape') closePanel();
+        });
+
+        panel.appendChild(search);
+        panel.appendChild(list);
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(panel);
+        nativeSelect.parentNode.insertBefore(wrapper, nativeSelect.nextSibling);
+
+        syncTrigger();
+        renderList('');
+    }
+
+    document.querySelectorAll('select.wf-existing-select-native').forEach((select) => {
+        mountSearchableSelect(select);
+    });
+    syncCategorySections();
+    syncPayload();
+})();
+</script>
+<style>
+.wf-searchable-select { position: relative; margin-top: .35rem; }
+.wf-searchable-select__trigger {
+    width: 100%; text-align: left; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+    padding: .55rem .65rem; font-size: .875rem; color: #0f172a; cursor: pointer;
+}
+.wf-searchable-select__panel {
+    position: absolute; z-index: 20; left: 0; right: 0; margin-top: .3rem;
+    border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,.12);
+}
+.wf-searchable-select__search {
+    width: calc(100% - 1rem); margin: .5rem; border: 1px solid #dbe3ee; border-radius: 6px; padding: .45rem .55rem; font-size: .85rem;
+}
+.wf-searchable-select__list {
+    list-style: none; margin: 0; padding: .2rem .35rem .35rem; max-height: 220px; overflow-y: auto;
+}
+.wf-searchable-select__item {
+    padding: .42rem .5rem; border-radius: 6px; cursor: pointer; font-size: .83rem; color: #0f172a;
+}
+.wf-searchable-select__item:hover { background: #f1f5f9; }
+.wf-searchable-select__item.is-selected { background: #ecfeff; color: #0f766e; font-weight: 600; }
+.wf-searchable-select__empty { padding: .5rem; color: #94a3b8; font-size: .8rem; }
+</style>
+{% endblock %}

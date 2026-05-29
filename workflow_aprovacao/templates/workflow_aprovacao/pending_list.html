@@ -64,6 +64,13 @@
         <span class="wf-text-muted"> — mostrando os {{ inbox_processes|length }} mais recentes (limite {{ inbox_display_limit }})</span>
         {% endif %}
     </div>
+    {% if not workflow_minimal_shell %}
+    <div class="wf-mobile-only" style="margin-bottom:0.75rem;">
+        <a href="{% url 'workflow_aprovacao:manual_request_new' %}" class="wf-btn wf-btn--approve" style="width:100%;justify-content:center;">
+            <i class="fas fa-plus-circle" aria-hidden="true"></i> Novo pedido de assinatura
+        </a>
+    </div>
+    {% endif %}
 
     <section class="wf-panel" aria-labelledby="wf-inbox-heading">
         <div class="wf-panel__head">
@@ -72,6 +79,28 @@
         <div class="wf-panel__body wf-panel__body--flush">
             {% if inbox_processes %}
             {% include 'workflow_aprovacao/includes/inbox_process_table.html' %}
+            <div class="wf-mobile-only wf-inbox-mobile-cards">
+                {% for p in inbox_processes %}
+                <article class="wf-inbox-card">
+                    <div class="wf-inbox-card__head">
+                        <span class="wf-mono">#{{ p.pk }}</span>
+                        {% if p.status == 'awaiting_step' %}
+                        <span class="wf-pill wf-pill--warn">{{ p.get_status_display }}</span>
+                        {% elif p.status == 'approved' %}
+                        <span class="wf-pill wf-pill--ok">{{ p.get_status_display }}</span>
+                        {% elif p.status == 'rejected' %}
+                        <span class="wf-pill wf-pill--no">{{ p.get_status_display }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="wf-cell-strong">{{ p.project.code }} · {{ p.category.name }}</p>
+                    {% if p.current_step %}<p class="wf-cell-sub">Alçada {{ p.current_step.sequence }} · {{ p.current_step.name }}</p>{% endif %}
+                    {% if p.title %}<p class="wf-help">{{ p.title|truncatechars:100 }}</p>{% endif %}
+                    <div class="wf-inbox-card__actions">
+                        <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}" class="wf-btn-table">Abrir processo</a>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
             {% else %}
             <div class="wf-empty wf-empty--inline">
                 <p class="wf-empty__title">Nenhum processo neste filtro</p>
