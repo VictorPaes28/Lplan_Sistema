@@ -695,26 +695,14 @@ def _resolve_matrix_mode(requested: str, selected: dict) -> str:
             return "bloco"
         return "bloco"
 
-    if r == "apto":
-        if bloco and pavimento:
-            return "apto"
-        if bloco:
-            return "pavimento"
-        return "bloco"
-    if r == "pavimento":
-        if bloco:
-            return "pavimento"
-        return "bloco"
-    if r == "bloco":
-        # Dentro de um bloco (recorte), novas linhas são pavimentos — mesmo com pill "Por bloco".
-        if bloco and not pavimento:
-            return "pavimento"
-        return "bloco"
-
+    # O recorte ativo manda na camada efetiva. Evita matrix_mode residual
+    # gerar contexto errado de edição/exclusão ao descer níveis.
     if bloco and pavimento:
         return "apto"
     if bloco:
         return "pavimento"
+    if r in ("apto", "pavimento", "bloco"):
+        return "bloco"
     if setor:
         return "bloco"
     return "bloco"

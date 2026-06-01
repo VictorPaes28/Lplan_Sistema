@@ -137,6 +137,47 @@ def _append_pct_for_average(bucket: list[float], value) -> None:
         bucket.append(float(pct))
 
 
+def _append_pct_for_classic_average(bucket: list[float], value) -> None:
+    """
+    Média clássica do mapa:
+    - "-" conta como 0;
+    - N/A explícito não entra no denominador;
+    - vazio não entra;
+    - número entra em 0..100.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return
+    token = _norm_token(raw)
+    if token in {"-", "--"}:
+        bucket.append(0.0)
+        return
+    if token in {"N/A", "NA", "N A", "NAO SE APLICA", "NÃO SE APLICA"}:
+        return
+    pct = _cell_pct_for_average(value)
+    if pct is not None:
+        bucket.append(float(pct))
+
+
+def _append_pct_for_context_average(
+    bucket: list[float],
+    value,
+    *,
+    treat_empty_as_zero: bool = False,
+) -> None:
+    """
+    Agregação contextual para média:
+    - modo clássico padrão: vazio não entra;
+    - em template manual: vazio/missing entra como 0 para manter denominador das atividades.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        if treat_empty_as_zero:
+            bucket.append(0.0)
+        return
+    _append_pct_for_classic_average(bucket, value)
+
+
 def _valid_axis_label(value: object) -> bool:
     val = str(value or "").strip()
     return bool(val) and not _is_placeholder_matrix_label(val)
@@ -541,7 +582,7 @@ def _consolidated_display_for_column_rows(
         if str(raw_cell or "").strip():
             saw_launch = True
             _append_pct_for_average(bucket, raw_cell)
-        elif len(rows) > 1 and not _rows_share_single_apto(rows, axis_map):
+        elif infer_zero_for_empty and len(rows) > 1 and not _rows_share_single_apto(rows, axis_map):
             saw_launch = True
             bucket.append(0.0)
     if bucket:
@@ -549,7 +590,7 @@ def _consolidated_display_for_column_rows(
         return _fmt_pct(avg)
     if saw_na and not saw_launch:
         return "-"
-    return "0%"
+    return "0%" if infer_zero_for_empty else ""
 
 
 def _consolidated_column_across_apto_units(
@@ -735,7 +776,7 @@ def _consolidated_pct_values_for_child_axis(
                 col_idx,
                 axis_map,
                 activity_col_indices,
-                infer_zero_for_empty=True,
+                infer_zero_for_empty=False,
             )
         else:
             display = _consolidated_display_for_column_rows(
@@ -911,23 +952,13 @@ def _resolve_ambiente_matrix_mode(requested: str, selected: dict, *, is_area_com
             return r
         return "bloco"
 
-    if r == "apto":
-        if bloco and pavimento:
-            return "apto"
-        if bloco:
-            return "pavimento"
-        return "bloco"
-    if r == "pavimento":
-        return "pavimento" if bloco else "bloco"
-    if r == "bloco":
-        if bloco and not pavimento:
-            return "pavimento"
-        return "bloco"
-
+    # O recorte ativo manda na camada efetiva no modo dedicado.
     if bloco and pavimento:
         return "apto"
     if bloco:
         return "pavimento"
+    if r in {"apto", "pavimento", "bloco"}:
+        return "bloco"
     if setor:
         return "bloco"
     return "bloco"
@@ -976,6 +1007,8 @@ class AmbienteProvider:
             list(r) if isinstance(r, list) else [str(r or "")]
             for r in (rows_layout[1:] if len(rows_layout) > 1 else [])
         ]
+        # Snapshot sem forward-fill para validar associação explícita de unidade (apto).
+        body_rows_raw = [list(r) for r in body_rows]
         axis_map = _supplement_axis_map_from_header(header, _extract_axis_map_from_meta(matrix_meta))
         _forward_fill_hierarchy_axes(body_rows, axis_map)
         axis_cols = sorted({idx for idx in axis_map.values() if isinstance(idx, int)})
@@ -983,6 +1016,8 @@ class AmbienteProvider:
         activity_cols = _resolve_activity_col_indices(header, matrix_meta, axis_cols)
 
         is_manual_flat = len(axis_cols) <= 1
+        strategy = str(matrix_meta.get("strategy") or "").strip().lower()
+        treat_empty_as_zero = strategy == "manual_template"
         is_area_comum = _setor_e_area_comum(str(selected.get("setor") or ""))
         filter_selected = dict(selected)
         ativ_nav = str(filter_selected.get("atividade") or "").strip()
@@ -1028,7 +1063,8 @@ class AmbienteProvider:
                     search_matches_any_activity = True
                     break
         filtered_body = []
-        for row in body_rows:
+        filtered_body_raw = []
+        for idx, row in enumerate(body_rows):
             if not isinstance(row, list):
                 continue
             if not _row_matches_axes(row):
@@ -1038,6 +1074,7 @@ class AmbienteProvider:
                 if search_filter not in row_blob and not search_matches_any_activity:
                     continue
             filtered_body.append(row)
+            filtered_body_raw.append(body_rows_raw[idx] if idx < len(body_rows_raw) else list(row))
 
         layers = {"setores": [], "blocos": [], "pavimentos": [], "aptos": []}
 
@@ -1107,9 +1144,12 @@ class AmbienteProvider:
                     ):
                         continue
                     for col_idx, _lbl in activity_labels:
-                        if col_idx >= len(row):
-                            continue
-                        _append_pct_for_average(values_pct, row[col_idx])
+                        raw_cell = row[col_idx] if col_idx < len(row) else ""
+                        _append_pct_for_context_average(
+                            values_pct,
+                            raw_cell,
+                            treat_empty_as_zero=treat_empty_as_zero,
+                        )
 
                 total = len(
                     [
@@ -1221,17 +1261,29 @@ class AmbienteProvider:
 
         if row_mode_requested == "apto" and isinstance(row_axis_col, int):
             act_indices = [idx for idx, _ in activity_labels]
+            explicit_unit_keys: set[str] = set()
+            apto_idx = axis_map.get("apto")
+            if isinstance(apto_idx, int):
+                for raw_row in filtered_body_raw:
+                    if not isinstance(raw_row, list):
+                        continue
+                    unit = str(raw_row[apto_idx] if apto_idx < len(raw_row) else "").strip()
+                    if unit:
+                        explicit_unit_keys.add(unit)
             visible = [
                 row
                 for row in processed_rows
                 if _matrix_row_is_visible_unit(row, row_axis_col, act_indices)
             ]
-            if visible:
-                processed_rows = visible
-            elif processed_rows:
-                scaffold = [""] * len(header)
-                scaffold[row_axis_col] = "Linha 1"
-                processed_rows = [scaffold]
+            if explicit_unit_keys:
+                visible = [
+                    row
+                    for row in visible
+                    if str(row[row_axis_col] if row_axis_col < len(row) else "").strip() in explicit_unit_keys
+                ]
+            else:
+                visible = []
+            processed_rows = visible
 
         # Base numérica: só linhas com lançamento real (UND/APTO), nunca % consolidado em linha estrutural.
         percent_source_rows = [
@@ -1268,9 +1320,12 @@ class AmbienteProvider:
         activity_value_buckets = {label: [] for _idx, label in activity_labels}
         for row in percent_source_rows:
             for col_idx, label in activity_labels:
-                if col_idx >= len(row):
-                    continue
-                _append_pct_for_average(activity_value_buckets[label], row[col_idx])
+                raw_cell = row[col_idx] if col_idx < len(row) else ""
+                _append_pct_for_context_average(
+                    activity_value_buckets[label],
+                    raw_cell,
+                    treat_empty_as_zero=treat_empty_as_zero,
+                )
 
         if (
             not is_manual_flat
@@ -1316,13 +1371,13 @@ class AmbienteProvider:
                             col_idx,
                             axis_map,
                             act_col_indices,
-                            infer_zero_for_empty=(row_mode_requested != "apto"),
+                            infer_zero_for_empty=False,
                         )
                     else:
                         out[col_idx] = _consolidated_display_for_column_rows(
                             key_rows,
                             col_idx,
-                            infer_zero_for_empty=(row_mode_requested != "apto"),
+                            infer_zero_for_empty=False,
                             axis_map=axis_map,
                         )
                 aggregated_rows.append(out)
@@ -1360,25 +1415,10 @@ class AmbienteProvider:
             "apto": "Apto / und.",
         }.get(row_mode_requested, matrix.get("header_first_col"))
 
-        # Densificação (import): vazio → 0%; \"-\" permanece N/A.
-        dense_zero_enabled = str(matrix_meta.get("strategy") or "").strip() in {
-            "pivot_registros",
-            "pivot_atividade_colunas",
-            "matriz_detectada",
-        }
-        if dense_zero_enabled:
-            for row in matrix.get("rows") or []:
-                for cell in row.get("cells") or []:
-                    if cell.get("pct") is not None:
-                        continue
-                    raw_token = _norm_token(cell.get("raw"))
-                    if raw_token in _PCT_NA_TOKENS:
-                        continue
-                    if not str(cell.get("raw") or "").strip():
-                        cell["pct"] = 0
-
-        # Rodapé: média das linhas exibidas na camada atual (0% entra; N/A não).
-        if not is_manual_flat and row_mode_requested in {"bloco", "pavimento", "apto"}:
+        # Rodapé/KPIs:
+        # - manual_template: base na grade exibida (camada atual);
+        # - demais estratégias: base-fonte para evitar média de médias em pivots.
+        if strategy == "manual_template" and row_mode_requested in {"bloco", "pavimento", "apto"}:
             totais_reais, all_values = _footer_totals_from_matrix_display(
                 matrix.get("rows") or [], activity_labels
             )
@@ -1390,13 +1430,24 @@ class AmbienteProvider:
                 if not vals:
                     totais_reais.append({"atividade": label, "pct": None})
                     continue
-                pct = _avg_pct_total(vals)
+                pct = round(float(_avg_pct_total(vals) or 0.0), 1)
                 totais_reais.append({"atividade": label, "pct": pct})
                 all_values.extend(vals)
         matrix["totais"] = totais_reais
-        matrix["total_geral"] = _grand_total_from_matrix_rows(matrix.get("rows") or [])
+        matrix["total_geral"] = _avg_pct_total(all_values) if all_values else None
 
+        totals_by_activity = {
+            str(item.get("atividade") or ""): item.get("pct")
+            for item in totais_reais
+            if isinstance(item, dict)
+        }
         rows_matrix = matrix.get("rows") or []
+        for row in rows_matrix:
+            for cell in row.get("cells") or []:
+                raw_txt = str(cell.get("raw") or "").strip()
+                atividade = str(cell.get("atividade") or "")
+                if cell.get("pct") == 0 and (not raw_txt or totals_by_activity.get(atividade) is None):
+                    cell["pct"] = None
         for row in rows_matrix:
             group_key = str(row.get("row_key") or row.get("row_label") or "").strip()
             total_display = _row_total_from_display_cells(row)

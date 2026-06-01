@@ -86,22 +86,21 @@ def _parse_json_body(request):
         return {}
 
 
-def _mapa_controle_rows_canonico(colunas: int = 20, linhas: int = 1, rotulo_primeira_unidade: str = "Linha 1"):
+def _mapa_controle_rows_canonico(colunas: int = 20, linhas: int = 0):
     """
     Estrutura oficial canônica do Mapa de Controle.
     Hierarquia BLOCO → PAVIMENTO → APTO (como planilha / import Excel), depois atividades.
-    Por padrão uma única linha de unidade (evita «Linha 1»…«Linha 20» fantasma na grade).
+    Por padrão inicia vazio (sem unidades automáticas).
     """
     colunas = max(5, int(colunas))
-    linhas = max(1, int(linhas))
+    linhas = max(0, int(linhas))
     header = ["BLOCO", "PAVIMENTO", "APTO"]
     for i in range(colunas):
         header.append(f"Atividade {i + 1}")
     header.append("Total")
     rows = [header]
     for i in range(linhas):
-        apto = rotulo_primeira_unidade if linhas == 1 and i == 0 else (f"Linha {i + 1}" if linhas > 1 else "")
-        rows.append(["", "", apto] + [""] * colunas + [""])
+        rows.append(["", "", ""] + [""] * colunas + [""])
     return rows
 
 
@@ -119,7 +118,7 @@ def _mapa_controle_weights(rows: list[list], totals_row_auto: bool = True):
 
 def _preset_layout(tipo: str, obra: Obra | None = None):
     if tipo == AmbienteTipo.MAPA_CONTROLE:
-        rows = _mapa_controle_rows_canonico(20, 1)
+        rows = _mapa_controle_rows_canonico(20, 0)
         weights = _mapa_controle_weights(rows, totals_row_auto=True)
         header = rows[0] if rows else []
         activity_cols = list(range(3, max(3, len(header) - 1)))
@@ -1464,7 +1463,7 @@ def api_adicionar_secao(request, ambiente_id: int):
             section["semantica"] = semantica
         if tipo == "matrix_table":
             rows_base = (
-                _mapa_controle_rows_canonico(20, 1)
+                _mapa_controle_rows_canonico(20, 0)
                 if ambiente.tipo == AmbienteTipo.MAPA_CONTROLE
                 else [
                     ["", "Grupo A", "Grupo A", "Grupo B", "Grupo B", "Total"],

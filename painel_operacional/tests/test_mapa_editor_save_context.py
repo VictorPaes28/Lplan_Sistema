@@ -241,6 +241,23 @@ class MapaEditorSaveContextTests(unittest.TestCase):
             "pavimento",
         )
 
+    def test_matrix_mode_bloco_com_pavimento_no_recorte_vira_apto(self):
+        """Com pavimento selecionado, matrix_mode residual nunca pode subir para BLOCO."""
+        q = {
+            "setor": "HAB",
+            "bloco": "Bloco Teste",
+            "pavimento": "P2",
+            "matrix_mode": "bloco",
+        }
+        self.assertEqual(resolve_row_axis_from_query(q), "apto")
+        self.assertEqual(
+            _resolve_matrix_mode(
+                "bloco",
+                {"setor": "HAB", "bloco": "Bloco Teste", "pavimento": "P2", "apto": ""},
+            ),
+            "apto",
+        )
+
     def test_6_create_row_delta_preserva_outras_camadas(self):
         header = ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV"]
         existing = [

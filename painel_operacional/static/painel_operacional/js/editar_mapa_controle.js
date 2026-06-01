@@ -361,14 +361,23 @@
     return String(textNodeForCell(cell).textContent || "").trim() || "coluna selecionada";
   }
 
+  /**
+   * Em níveis estruturais (bloco/pavimento), inserir no meio pode deslocar vínculo implícito
+   * de linhas filhas no layout esparso. Para evitar "roubo" de aptos, sempre anexamos no fim.
+   */
+  function shouldForceRowInsertAtEnd(pageKey) {
+    return inferRowAxisKeyFromPage(pageKey) !== "apto";
+  }
+
   function syncInsertDialogPositionUi(kind) {
     const isColumn = kind === "column";
+    const forceEndRows = !isColumn && shouldForceRowInsertAtEnd();
     const ref = isColumn ? selectedColumnReferenceLabel() : selectedRowReferenceLabel();
     const hasRef = Boolean(ref);
     const { posAbove, posBelow, posEnd, posAboveLabel, posBelowLabel } = insertDialog.els;
     const endHint = posEnd ? posEnd.querySelector("small") : null;
     if (posAbove) {
-      posAbove.hidden = !hasRef;
+      posAbove.hidden = forceEndRows || !hasRef;
       if (posAboveLabel) {
         if (isColumn) {
           posAboveLabel.textContent = hasRef ? `Antes de «${ref}»` : "Antes da coluna selecionada";
@@ -378,7 +387,7 @@
       }
     }
     if (posBelow) {
-      posBelow.hidden = !hasRef;
+      posBelow.hidden = forceEndRows || !hasRef;
       if (posBelowLabel) {
         if (isColumn) {
           posBelowLabel.textContent = hasRef ? `Depois de «${ref}»` : "Depois da coluna selecionada";
@@ -391,9 +400,11 @@
     if (endHint) {
       endHint.textContent = isColumn
         ? "Última posição antes da coluna Total"
-        : "Depois de todas as linhas visíveis";
+        : forceEndRows
+          ? "Inserção no fim para preservar o vínculo dos aptos por pavimento/bloco"
+          : "Depois de todas as linhas visíveis";
     }
-    const defaultPos = hasRef ? "below" : "end";
+    const defaultPos = !isColumn && forceEndRows ? "end" : hasRef ? "below" : "end";
     insertDialogEl.querySelectorAll('input[name="poMapaInsertPos"]').forEach((input) => {
       const label = input.closest(".po-mapa-insert-dialog__pos");
       input.checked = input.value === defaultPos;
@@ -460,6 +471,37 @@
     if (!table) return 0;
     const tbody = table.querySelector("tbody");
     const bodyRows = listMatrixTbodyRows(tbody);
+    if (shouldForceRowInsertAtEnd()) {
+      const level = inferRowAxisKeyFromPage();
+      if (level === "pavimento") {
+        const ctx = getMatrixEditContext(currentPageKey());
+        const blocoAtual = String(ctx.bloco || "").trim();
+        if (blocoAtual) {
+          const readBlocoFromDomRow = (tr) => {
+            if (!tr) return "";
+            const byData = String((tr.dataset && tr.dataset.bloco) || "").trim();
+            if (byData) return byData;
+            const link = tr.querySelector("a.row-link[href]");
+            const href = link ? String(link.getAttribute("href") || "").trim() : "";
+            if (!href) return "";
+            try {
+              const url = new URL(href, window.location.origin);
+              return String(url.searchParams.get("bloco") || "").trim();
+            } catch (e) {
+              void e;
+              return "";
+            }
+          };
+          for (let i = bodyRows.length - 1; i >= 0; i -= 1) {
+            const blocoRow = readBlocoFromDomRow(bodyRows[i]);
+            if (blocoRow && blocoRow === blocoAtual) {
+              return i + 1;
+            }
+          }
+        }
+      }
+      return bodyRows.length;
+    }
     let insertAt = bodyRows.length;
     const sc = selectedCoords();
     if (!sc || sc.r <= 0) return insertAt;
@@ -1153,13 +1195,24 @@
     const header = data.rows[0];
     const meta = data.importMeta && typeof data.importMeta === "object" ? data.importMeta : {};
     const activityCols = activityColsFromMeta(meta, header ? header.length : 0);
+    const axisValue = (row, key) => {
+      const idx = axisMap[key];
+      if (!Number.isInteger(idx) || !Array.isArray(row) || idx >= row.length) return "";
+      return String(row[idx] || "").trim();
+    };
     const kept = [header];
     for (let ri = 1; ri < data.rows.length; ri += 1) {
       const row = data.rows[ri];
       if (!Array.isArray(row)) continue;
       if (layoutRowHasPlaceholderLabel(row, axisMap)) continue;
-      if (isStructuralGhostLayoutRow(row, axisMap) && !layoutRowHasActivityLaunch(row, activityCols)) {
-        continue;
+      const isGhost = isStructuralGhostLayoutRow(row, axisMap);
+      const hasActivity = layoutRowHasActivityLaunch(row, activityCols);
+      if (isGhost && !hasActivity) {
+        const blocoVal = axisValue(row, "bloco");
+        const pavVal = axisValue(row, "pavimento");
+        const aptoVal = axisValue(row, "apto");
+        const isParentStructuralRow = !aptoVal && (pavVal || blocoVal);
+        if (!isParentStructuralRow) continue;
       }
       kept.push(row);
     }
@@ -1191,6 +1244,14 @@
       if (!Array.isArray(row)) continue;
       if (String(row[aptoIdx] || "").trim()) continue;
       if (hasActivity(row)) continue;
+      // Linha estrutural de pavimento (pav preenchido, apto vazio, sem atividade) não entra nesta purge.
+      const pavIdx = axisMap.pavimento;
+      const pavVal = Number.isInteger(pavIdx) ? String(row[pavIdx] || "").trim() : "";
+      if (pavVal) continue;
+      // Linha estrutural de bloco (bloco preenchido, pavimento e apto vazios, sem atividade) não entra nesta purge.
+      const blocoIdx = axisMap.bloco;
+      const blocoVal = Number.isInteger(blocoIdx) ? String(row[blocoIdx] || "").trim() : "";
+      if (blocoVal) continue;
       const pk = parentKey(row);
       if (!pk) continue;
       let siblingWithUnit = false;
@@ -1433,22 +1494,11 @@
       return "bloco";
     }
 
-    if (r === "apto") {
-      if (s.bloco && s.pavimento) return "apto";
-      if (s.bloco) return "pavimento";
-      return "bloco";
-    }
-    if (r === "pavimento") {
-      if (s.bloco) return "pavimento";
-      return "bloco";
-    }
-    if (r === "bloco") {
-      if (String(s.bloco || "").trim() && !String(s.pavimento || "").trim()) return "pavimento";
-      return "bloco";
-    }
-
+    // O recorte ativo manda na camada efetiva. Evita matrix_mode residual
+    // causar contexto estrutural errado (ex.: deletar apto como pavimento/bloco).
     if (s.bloco && s.pavimento) return "apto";
     if (s.bloco) return "pavimento";
+    if (r === "apto" || r === "pavimento" || r === "bloco") return "bloco";
     if (s.setor) return "bloco";
     return "bloco";
   }
@@ -1536,7 +1586,15 @@
     return resolveMatrixMode(scope);
   }
 
-  function resolveLayoutRowIndexForPatch(rows, axisMap, pageFilters, rowLabel, axisKey, domBodyRowIndex) {
+  function resolveLayoutRowIndexForPatch(
+    rows,
+    axisMap,
+    pageFilters,
+    rowLabel,
+    axisKey,
+    domBodyRowIndex,
+    colIndex
+  ) {
     if (!Array.isArray(rows) || rows.length < 2) return null;
     const matchesScope = (row) => rowMatchesParentScope(row, axisMap, pageFilters, axisKey);
     const levelIdx = Number.isInteger(axisMap[axisKey]) ? axisMap[axisKey] : primaryAxisIndex(axisMap);
@@ -1549,7 +1607,15 @@
     }
     if (!scoped.length) return null;
 
-    if (Number.isInteger(domBodyRowIndex) && domBodyRowIndex >= 0 && domBodyRowIndex < scoped.length) {
+    const isStructuralCol = [axisMap.setor, axisMap.bloco, axisMap.pavimento, axisMap.apto]
+      .filter(Number.isInteger)
+      .includes(colIndex);
+    if (
+      !isStructuralCol &&
+      Number.isInteger(domBodyRowIndex) &&
+      domBodyRowIndex >= 0 &&
+      domBodyRowIndex < scoped.length
+    ) {
       return scoped[domBodyRowIndex];
     }
 
@@ -1637,6 +1703,7 @@
       label,
       axisKey,
       domBodyRowIndex,
+      colIndex,
     );
     if (layoutRi != null) {
       return writeCell(rows[layoutRi]);
@@ -1782,7 +1849,48 @@
       return false;
     }
     if (layoutHasStructuralRow(rows, axisMap, context, title)) return false;
-    rows.push(newCanonicalLayoutRow(header, axisMap, context, title));
+    const newRow = newCanonicalLayoutRow(header, axisMap, context, title);
+    let insertAt = rows.length;
+
+    if (context.level === "bloco") {
+      // Novo bloco: mantém append no fim.
+      insertAt = rows.length;
+    } else if (context.level === "pavimento") {
+      // Novo pavimento: após a última linha do bloco.
+      const blocoIdx = axisMap.bloco;
+      const blocoVal = String(context.bloco || "").trim();
+      if (Number.isInteger(blocoIdx) && blocoVal) {
+        for (let ri = rows.length - 1; ri >= 1; ri -= 1) {
+          const row = rows[ri];
+          if (!Array.isArray(row)) continue;
+          if (String(row[blocoIdx] || "").trim() === blocoVal) {
+            insertAt = ri + 1;
+            break;
+          }
+        }
+      }
+    } else if (context.level === "apto") {
+      // Novo apto: após a última linha de bloco+pavimento.
+      const blocoIdx = axisMap.bloco;
+      const pavimentoIdx = axisMap.pavimento;
+      const blocoVal = String(context.bloco || "").trim();
+      const pavimentoVal = String(context.pavimento || "").trim();
+      if (Number.isInteger(blocoIdx) && Number.isInteger(pavimentoIdx) && blocoVal && pavimentoVal) {
+        for (let ri = rows.length - 1; ri >= 1; ri -= 1) {
+          const row = rows[ri];
+          if (!Array.isArray(row)) continue;
+          if (
+            String(row[blocoIdx] || "").trim() === blocoVal &&
+            String(row[pavimentoIdx] || "").trim() === pavimentoVal
+          ) {
+            insertAt = ri + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    rows.splice(insertAt, 0, newRow);
     return true;
   }
 
@@ -1820,7 +1928,12 @@
         }
       });
       if (level === "bloco" && !blocoScope) {
-        if (String(row[levelIdx] || "").trim() === want) remove.push(ri);
+        if (
+          (!Object.keys(parentF).length || rowMatchesFilters(row, axisMap, parentF)) &&
+          String(row[levelIdx] || "").trim() === want
+        ) {
+          remove.push(ri);
+        }
         continue;
       }
       if (Object.keys(parentF).length && !rowMatchesFilters(row, axisMap, parentF)) continue;
@@ -1833,6 +1946,42 @@
       if (matches) remove.push(ri);
     }
     remove.sort((a, b) => b - a).forEach((ri) => rows.splice(ri, 1));
+
+    const blocoIdx = axisMap.bloco;
+    const hasBlocoIdx = Number.isInteger(blocoIdx);
+    const hasPavIdx = Number.isInteger(pavIdx);
+    const headerLen = Array.isArray(rows[0]) ? rows[0].length : 0;
+    if (!headerLen) return;
+
+    // Se a exclusão de apto zerou o pavimento, preserva a linha estrutural do pavimento.
+    if (level === "apto" && blocoScope && pavScope && hasBlocoIdx && hasPavIdx) {
+      const hasAnyRowInPav = rows.slice(1).some((row) => {
+        if (!Array.isArray(row)) return false;
+        return (
+          String(row[blocoIdx] || "").trim() === blocoScope &&
+          String(row[pavIdx] || "").trim() === pavScope
+        );
+      });
+      if (!hasAnyRowInPav) {
+        const structural = new Array(headerLen).fill("");
+        structural[blocoIdx] = blocoScope;
+        structural[pavIdx] = pavScope;
+        rows.push(structural);
+      }
+    }
+
+    // Se a exclusão de pavimento zerou o bloco, preserva a linha estrutural do bloco.
+    if (level === "pavimento" && blocoScope && hasBlocoIdx) {
+      const hasAnyRowInBloco = rows.slice(1).some((row) => {
+        if (!Array.isArray(row)) return false;
+        return String(row[blocoIdx] || "").trim() === blocoScope;
+      });
+      if (!hasAnyRowInBloco) {
+        const structural = new Array(headerLen).fill("");
+        structural[blocoIdx] = blocoScope;
+        rows.push(structural);
+      }
+    }
   }
 
   function applyMoveRowToLayout(rows, axisMap, context, label, fromOrder, toOrder, meta) {
@@ -1987,6 +2136,10 @@
       const c = op.context || {};
       return ["move_row", c.level, c.setor, c.bloco, c.pavimento, op.from, op.to].join("|");
     }
+    if (op.type === "delete_row") {
+      const c = op.context || {};
+      return ["delete_row", c.level, c.setor, c.bloco, c.pavimento, op.label || ""].join("|");
+    }
     if (op.type === "delete_column") return ["delete_column", op.index, op.label || ""].join("|");
     if (op.type === "create_column") return ["create_column", op.index, op.label || ""].join("|");
     return "";
@@ -2059,11 +2212,35 @@
     return null;
   }
 
+  /**
+   * Compatibilidade: converte operações legadas em structuralOps e limpa o bucket antigo.
+   * Mantém suporte a rascunhos locais antigos sem continuar proliferando "ops".
+   */
+  function migrateLegacyOpsInPage(pageKey, pageDraft) {
+    if (!pageDraft || !Array.isArray(pageDraft.ops) || !pageDraft.ops.length) return;
+    if (!Array.isArray(pageDraft.structuralOps)) pageDraft.structuralOps = [];
+    let changed = false;
+    pageDraft.ops.forEach((op) => {
+      const normalized = normalizeLegacyStructuralOp(op, pageKey);
+      if (!normalized) return;
+      const key = structuralOpDedupeKey(normalized);
+      if (!key) return;
+      const exists = pageDraft.structuralOps.some((item) => structuralOpDedupeKey(item) === key);
+      if (exists) return;
+      pageDraft.structuralOps.push(normalized);
+      changed = true;
+    });
+    if (changed) {
+      pageDraft.ops = [];
+    }
+  }
+
   function gatherStructuralOpsForMerge(pages, axisMap) {
     const seen = new Set();
     const list = [];
     Object.entries(pages || {}).forEach(([pageKey, draft]) => {
       if (!draft || !canPersistStructuralLayoutOps(pageKey)) return;
+      migrateLegacyOpsInPage(pageKey, draft);
       const push = (op) => {
         if (!op || typeof op !== "object") return;
         if (op.type === "create_row") {
@@ -2077,10 +2254,6 @@
         list.push(op);
       };
       (draft.structuralOps || []).forEach(push);
-      (draft.ops || []).forEach((op) => {
-        const normalized = normalizeLegacyStructuralOp(op, pageKey);
-        if (normalized) push(normalized);
-      });
       if (
         !(draft.structuralOps && draft.structuralOps.length) &&
         Array.isArray(draft.structuralExport) &&
@@ -2450,6 +2623,7 @@
       }
 
       const keepEditEnabled = state.enabled;
+      const hadUnpersistedStructuralOps = draftHasUnpersistedStructuralLayoutOps();
       state.dirty = false;
       state.autoSaveBlocked = false;
       state.draft = { pages: {} };
@@ -2458,7 +2632,7 @@
       } catch (e) {
         void e;
       }
-      if (draftHasUnpersistedStructuralLayoutOps()) {
+      if (hadUnpersistedStructuralOps) {
         updateStatus(
           isAuto
             ? "Texto e cores salvos. Linhas/colunas desta camada permanecem só no rascunho local."
@@ -2548,6 +2722,7 @@
     if (!Array.isArray(state.draft.pages[pageKey].structuralOps)) {
       state.draft.pages[pageKey].structuralOps = [];
     }
+    migrateLegacyOpsInPage(pageKey, state.draft.pages[pageKey]);
     return state.draft.pages[pageKey];
   }
 
@@ -2902,6 +3077,9 @@
 
   /** Recalcula coluna Total e rodapé a partir das células de % visíveis (só exibição). */
   function recalculateMatrixTotals() {
+    // Em bloco/pavimento os percentuais são consolidados no servidor.
+    // Recalcular pelo que está visível pode zerar/invalidar totais legítimos.
+    if (!isAptoUndManualEntryLayer()) return;
     const doc = frame.contentDocument;
     const table = doc && doc.querySelector(".matrix-table");
     if (!table) return;
@@ -3246,19 +3424,28 @@
       if (!op || typeof op !== "object") return;
       if (op.type === "move_column") {
         applyMoveColumn(op.from, op.to, { registerOp: false, keepSelection: false });
+      } else if (op.type === "create_column") {
+        applyInsertColumn(op.index, op.label, { registerOp: false, keepSelection: false });
+      } else if (op.type === "delete_column") {
+        applyDeleteColumn(op.index, { registerOp: false, keepSelection: false });
       } else if (op.type === "move_row") {
         applyMoveRow(op.from, op.to, { registerOp: false, keepSelection: false });
+      } else if (op.type === "create_row") {
+        const order = Number.isInteger(op.order) ? op.order : Number.isInteger(op.index) ? op.index : Number.MAX_SAFE_INTEGER;
+        applyInsertRow(order, op.label, { registerOp: false, keepSelection: false });
+      } else if (op.type === "delete_row") {
+        let rowIdx = Number.isInteger(op.index) ? op.index : -1;
+        if (rowIdx < 0 && op.label) {
+          const rows = matrixBodyRows();
+          rowIdx = rows.findIndex((tr) => {
+            const nameCell = tr.querySelector(".row-name, .sticky-left");
+            return rowDisplayLabelFromNameCell(nameCell) === String(op.label || "").trim();
+          });
+        }
+        if (rowIdx >= 0) {
+          applyDeleteRow(rowIdx, { registerOp: false, keepSelection: false });
+        }
       }
-    });
-    (page.ops || []).forEach((op) => {
-      if (!op || typeof op !== "object") return;
-      if (op.type === "insert_row" && isPlaceholderRowLabel(op.label)) return;
-      if (op.type === "move_col") applyMoveColumn(op.from, op.to, { registerOp: false, keepSelection: false });
-      else if (op.type === "move_row") applyMoveRow(op.from, op.to, { registerOp: false, keepSelection: false });
-      else if (op.type === "insert_col") applyInsertColumn(op.index, op.label, { registerOp: false, keepSelection: false });
-      else if (op.type === "insert_row") applyInsertRow(op.index, op.label, { registerOp: false, keepSelection: false });
-      else if (op.type === "delete_col") applyDeleteColumn(op.index, { registerOp: false, keepSelection: false });
-      else if (op.type === "delete_row") applyDeleteRow(op.index, { registerOp: false, keepSelection: false });
     });
     mapEditableCells();
     Object.entries(page.text || {}).forEach(([key, value]) => {
@@ -3862,7 +4049,6 @@
       }
     }
     if (cfg.registerOp !== false) {
-      ensurePageDraft(currentPageKey()).ops.push({ type: "insert_col", index: insertAt, label: title });
       afterStructuralLayoutOpCommitted({ type: "create_column", index: insertAt, label: title });
     }
     refreshMoveButtons();
@@ -3921,12 +4107,6 @@
         label: title,
         order: insertAt,
       };
-      ensurePageDraft(pageKey).ops.push({
-        type: "insert_row",
-        index: insertAt,
-        label: title,
-        mode: getMatrixEditContext().mode,
-      });
       poMapaDebug("insert_row", {
         url: pageKey,
         contexto: getMatrixEditContext(pageKey),
@@ -3972,7 +4152,6 @@
       }
     }
     if (cfg.registerOp !== false) {
-      ensurePageDraft(currentPageKey()).ops.push({ type: "delete_col", index: idx });
       afterStructuralLayoutOpCommitted({ type: "delete_column", index: idx, label: colLabel });
     }
     refreshMoveButtons();
@@ -4006,12 +4185,12 @@
       }
     }
     if (cfg.registerOp !== false) {
-      ensurePageDraft(currentPageKey()).ops.push({ type: "delete_row", index: idx });
       if (rowLabel && !isPlaceholderRowLabel(rowLabel)) {
         afterStructuralLayoutOpCommitted({
           type: "delete_row",
           context: buildStructuralRowContext(currentPageKey()),
           label: rowLabel,
+          index: idx,
         });
       }
     }
