@@ -130,18 +130,6 @@ class PreferenciaComunicacao(models.Model):
     class Meta:
         verbose_name = 'Preferência de comunicação'
         verbose_name_plural = 'Preferências de comunicação'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['tipo', 'usuario'],
-                condition=models.Q(usuario__isnull=False),
-                name='core_prefcom_unique_tipo_usuario',
-            ),
-            models.UniqueConstraint(
-                fields=['tipo', 'email'],
-                condition=models.Q(email__gt=''),
-                name='core_prefcom_unique_tipo_email',
-            ),
-        ]
         indexes = [
             models.Index(fields=['email']),
             models.Index(fields=['tipo', 'usuario']),
@@ -156,6 +144,22 @@ class PreferenciaComunicacao(models.Model):
             raise ValidationError('Informe um usuário ou um endereço de e-mail.')
         if self.usuario_id and (self.email or '').strip():
             raise ValidationError('Use usuário OU e-mail livre, não ambos na mesma preferência.')
+
+        qs = PreferenciaComunicacao.objects.filter(tipo=self.tipo)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+
+        if self.usuario_id:
+            if qs.filter(usuario_id=self.usuario_id).exists():
+                raise ValidationError(
+                    {'usuario': 'Já existe preferência para este tipo e usuário.'},
+                )
+        else:
+            email_norm = (self.email or '').strip().lower()
+            if email_norm and qs.filter(email__iexact=email_norm).exists():
+                raise ValidationError(
+                    {'email': 'Já existe preferência para este tipo e e-mail.'},
+                )
 
     def save(self, *args, **kwargs):
         if self.email:
