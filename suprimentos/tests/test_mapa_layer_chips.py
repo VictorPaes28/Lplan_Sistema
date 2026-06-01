@@ -9,6 +9,7 @@ from suprimentos.services.mapa_controle_viewmodel import (
     _distinct_structural_axis_values,
     _forward_fill_hierarchy_axes,
     _is_percent_source_row,
+    _merge_matrix_axis_keys,
     _row_matches_layer_prefilter,
 )
 
@@ -100,6 +101,41 @@ class MapaLayerChipsHelpersTests(unittest.TestCase):
         rows = [["HAB", "B1", "Sem dados para matriz", "UND 1", ""]]
         vals = _distinct_structural_axis_values(rows, _axis_map(), "pavimento", {"bloco": "B1"})
         self.assertEqual(vals, [])
+
+    def test_merge_matrix_axis_keys_inclui_bloco_estrutural_vazio(self):
+        """Bloco só estrutural (sem apto/% ) deve aparecer na grade de visualização."""
+        body = [
+            ["HAB", "b1", "", "", ""],
+            ["HAB", "b2", "p1", "101", "50%"],
+            ["HAB", "b6", "", "", ""],
+        ]
+        processed = [body[0], body[1]]
+        keys = _merge_matrix_axis_keys(
+            body_rows=body,
+            processed_rows=processed,
+            axis_map=_axis_map(),
+            row_axis_key="bloco",
+            row_axis_col=1,
+            prefilter=None,
+            row_order_pref=None,
+        )
+        self.assertEqual(keys, ["b1", "b2", "b6"])
+
+    def test_merge_matrix_axis_keys_respeita_row_order_orfa(self):
+        body = [
+            ["HAB", "b1", "", "", ""],
+            ["HAB", "b5", "", "", ""],
+        ]
+        keys = _merge_matrix_axis_keys(
+            body_rows=body,
+            processed_rows=body,
+            axis_map=_axis_map(),
+            row_axis_key="bloco",
+            row_axis_col=1,
+            prefilter=None,
+            row_order_pref=["b1", "b2", "b3", "b4", "b5", "b6"],
+        )
+        self.assertEqual(keys, ["b1", "b2", "b3", "b4", "b5", "b6"])
 
 
 if __name__ == "__main__":

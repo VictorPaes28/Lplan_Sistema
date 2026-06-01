@@ -17,6 +17,7 @@ from accounts.groups import GRUPOS
 from core.models import Project
 from mapa_obras.models import Obra
 from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
+from django.utils import timezone
 from suprimentos.services.analise_obra_service import (
     AnaliseObraFilters,
     AnaliseObraPeriodo,
@@ -196,6 +197,7 @@ def analise_obra(request):
         payload = _get_cached_payload_or_build(request, obra, ini, fim, filtros)
 
     filtros_dict = filtros.to_dict()
+    hoje = timezone.localdate()
     return render(
         request,
         "suprimentos/analise_obra.html",
@@ -203,6 +205,7 @@ def analise_obra(request):
             "obras": obras,
             "obra_selecionada": obra,
             "analise_payload": payload,
+            "restricoes_data_ontem": (hoje - timedelta(days=1)).isoformat(),
             "filtros_get": {
                 "data_inicio": ini.isoformat() if ini else "",
                 "data_fim": fim.isoformat() if fim else "",

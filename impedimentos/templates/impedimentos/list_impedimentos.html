@@ -498,12 +498,20 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="imp-filter-field">
+                <label for="filter-data-inicio">Prazo a partir de</label>
+                <input id="filter-data-inicio" name="data_inicio" type="date" value="{{ table_filters.data_inicio }}">
+            </div>
+            <div class="imp-filter-field">
+                <label for="filter-data-fim">Prazo até</label>
+                <input id="filter-data-fim" name="data_fim" type="date" value="{{ table_filters.data_fim }}">
+            </div>
             <div class="imp-filter-actions">
                 <button type="submit" class="imp-btn imp-btn-primary">Filtrar</button>
                 <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?view=tabela" class="imp-btn imp-btn-secondary">Limpar</a>
                 {% if is_admin_export %}
                 <a
-                    href="{% url 'impedimentos:export_impedimentos_pdf' obra_id=project.id %}?view=tabela&amp;q={{ table_filters.q|urlencode }}&amp;status={{ table_filters.status|urlencode }}&amp;prioridade={{ table_filters.prioridade|urlencode }}&amp;responsavel={{ table_filters.responsavel|urlencode }}&amp;sort={{ table_sort.key|urlencode }}&amp;dir={{ table_sort.dir|urlencode }}{% if cat_param %}&amp;cat={{ cat_param|urlencode }}{% endif %}"
+                    href="{% url 'impedimentos:export_impedimentos_pdf' obra_id=project.id %}?view=tabela&amp;q={{ table_filters.q|urlencode }}&amp;status={{ table_filters.status|urlencode }}&amp;prioridade={{ table_filters.prioridade|urlencode }}&amp;responsavel={{ table_filters.responsavel|urlencode }}{% if table_filter_q_extra %}&amp;{{ table_filter_q_extra }}{% endif %}&amp;sort={{ table_sort.key|urlencode }}&amp;dir={{ table_sort.dir|urlencode }}{% if cat_param %}&amp;cat={{ cat_param|urlencode }}{% endif %}"
                     class="imp-btn imp-btn-secondary"
                 >Exportar PDF</a>
                 {% endif %}
@@ -514,12 +522,12 @@
             <table class="imp-table">
                 <thead>
                     <tr>
-                        <th><a href="?view=tabela&sort=titulo&dir={% if table_sort.key == 'titulo' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Título</a></th>
-                        <th><a href="?view=tabela&sort=status&dir={% if table_sort.key == 'status' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Status</a></th>
-                        <th><a href="?view=tabela&sort=prioridade&dir={% if table_sort.key == 'prioridade' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Prioridade</a></th>
+                        <th><a href="?view=tabela&sort=titulo&dir={% if table_sort.key == 'titulo' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Título</a></th>
+                        <th><a href="?view=tabela&sort=status&dir={% if table_sort.key == 'status' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Status</a></th>
+                        <th><a href="?view=tabela&sort=prioridade&dir={% if table_sort.key == 'prioridade' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Prioridade</a></th>
                         <th class="imp-table-th--responsaveis">Responsáveis</th>
-                        <th><a href="?view=tabela&sort=prazo&dir={% if table_sort.key == 'prazo' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Prazo</a></th>
-                        <th><a href="?view=tabela&sort=criado_em&dir={% if table_sort.key == 'criado_em' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Criado em</a></th>
+                        <th><a href="?view=tabela&sort=prazo&dir={% if table_sort.key == 'prazo' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Prazo</a></th>
+                        <th><a href="?view=tabela&sort=criado_em&dir={% if table_sort.key == 'criado_em' and table_sort.dir == 'asc' %}desc{% else %}asc{% endif %}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}">Criado em</a></th>
                         <th>Comentários</th>
                         <th>Ações</th>
                     </tr>
@@ -603,11 +611,11 @@
         {% if table_page_obj.paginator.num_pages > 1 %}
         <div class="imp-pagination">
             {% if table_page_obj.has_previous %}
-            <a href="?view=tabela&page={{ table_page_obj.previous_page_number }}&sort={{ table_sort.key }}&dir={{ table_sort.dir }}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}" class="imp-btn imp-btn-secondary">Anterior</a>
+            <a href="?view=tabela&page={{ table_page_obj.previous_page_number }}&sort={{ table_sort.key }}&dir={{ table_sort.dir }}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}" class="imp-btn imp-btn-secondary">Anterior</a>
             {% endif %}
             <span class="imp-pagination-info">Página {{ table_page_obj.number }} de {{ table_page_obj.paginator.num_pages }}</span>
             {% if table_page_obj.has_next %}
-            <a href="?view=tabela&page={{ table_page_obj.next_page_number }}&sort={{ table_sort.key }}&dir={{ table_sort.dir }}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}" class="imp-btn imp-btn-secondary">Próxima</a>
+            <a href="?view=tabela&page={{ table_page_obj.next_page_number }}&sort={{ table_sort.key }}&dir={{ table_sort.dir }}&q={{ table_filters.q }}&status={{ table_filters.status }}&prioridade={{ table_filters.prioridade }}&responsavel={{ table_filters.responsavel }}{% if table_filter_q_extra %}&{{ table_filter_q_extra }}{% endif %}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}" class="imp-btn imp-btn-secondary">Próxima</a>
             {% endif %}
         </div>
         {% endif %}

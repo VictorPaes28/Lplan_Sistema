@@ -4,13 +4,17 @@ Testes do serviço e da API **Análise da Obra**.
 Rodar: python manage.py test suprimentos.tests.test_analise_obra -v 2
 """
 
-from datetime import date
+from datetime import date, timedelta
+
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
+from trackhub.models import EtapaPendencia, Pendencia
 
 from core.models import Project, ProjectMember
 from suprimentos.services import analise_obra_service as analise_obra_service_mod
@@ -48,17 +52,101 @@ class TestAnaliseObraService(TestCase):
         self.assertEqual(out["controle"]["origem"], "mapa_controle_ambiente")
         self.assertIn("ranking_progressao_meta", out["controle"])
         self.assertIn("progressao_eixos_completo", out["controle"])
+        self.assertIn("progresso_blocos", out["controle"])
+        self.assertIn("atividades_mais_criticas", out["controle"])
         c = out["controle"]
         self.assertGreaterEqual(
             len(c["progressao_eixos_completo"]),
             len(c["blocos_mais_atrasados"]),
         )
-        self.assertEqual(
-            len(c["progressao_eixos_completo"]),
-            c["ranking_progressao_meta"]["eixos_com_medicao"],
-        )
+        self.assertGreaterEqual(len(c["progresso_blocos"]), len(c["blocos_mais_atrasados"]))
+        self.assertTrue(c["atividades_mais_criticas"])
         self.assertEqual(out["suprimentos"]["origem"], "mapa_suprimentos")
         self.assertIn("celulas", out["heatmap"])
+
+    def test_payload_trackhub_pendencias(self):
+        User = get_user_model()
+        user = User.objects.create_user(username="th_bi_test", password="x")
+        hoje = date.today()
+        p_vencida = Pendencia.objects.create(
+            obra=self.obra,
+            titulo="Licença vencida",
+            status="aberta",
+            tipo="documento",
+            criado_por=user,
+            prazo=hoje - timedelta(days=10),
+        )
+        p_andamento = Pendencia.objects.create(
+            obra=self.obra,
+            titulo="Pagamento fornecedor",
+            status="em_andamento",
+            tipo="financeiro",
+            criado_por=user,
+        )
+        Pendencia.objects.create(
+            obra=self.obra,
+            titulo="Encerrada",
+            status="concluida",
+            tipo="tarefa",
+            criado_por=user,
+        )
+        p_concluida_recente = Pendencia.objects.create(
+            obra=self.obra,
+            titulo="Concluída recente",
+            status="concluida",
+            tipo="operacional",
+            criado_por=user,
+        )
+        Pendencia.objects.filter(pk=p_concluida_recente.pk).update(
+            updated_at=timezone.now() - timedelta(days=5)
+        )
+        p_concluida_antiga = Pendencia.objects.create(
+            obra=self.obra,
+            titulo="Concluída antiga",
+            status="concluida",
+            tipo="documento",
+            criado_por=user,
+        )
+        Pendencia.objects.filter(pk=p_concluida_antiga.pk).update(
+            updated_at=timezone.now() - timedelta(days=45)
+        )
+        EtapaPendencia.objects.create(
+            pendencia=p_vencida,
+            titulo="Etapa 1",
+            status="pendente",
+            responsavel_interno=user,
+            ordem=1,
+        )
+        EtapaPendencia.objects.create(
+            pendencia=p_andamento,
+            titulo="Etapa 2",
+            status="pendente",
+            responsavel_interno=user,
+            ordem=1,
+        )
+        EtapaPendencia.objects.create(
+            pendencia=p_andamento,
+            titulo="Etapa concluída",
+            status="concluida",
+            ordem=2,
+        )
+
+        p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))
+        out = AnaliseObraService(self.obra, periodo=p).build_payload()
+        self.assertIn("trackhub", out)
+        th = out["trackhub"]
+        self.assertEqual(th["resumo"]["total_aberto"], 2)
+        self.assertEqual(th["resumo"]["vencidas"], 1)
+        self.assertEqual(th["resumo"]["em_andamento"], 1)
+        self.assertEqual(th["resumo"]["concluidas_30d"], 2)
+        self.assertEqual(len(th["por_tipo"]), 2)
+        self.assertEqual(th["por_tipo"][0]["total"], 1)
+        self.assertEqual(th["responsaveis"][0]["total"], 2)
+        self.assertEqual(len(th["mais_atrasadas"]), 1)
+        self.assertEqual(th["mais_atrasadas"][0]["dias_atraso"], 10)
+
+        sec = AnaliseObraService(self.obra, periodo=p).build_section("trackhub")
+        self.assertIn("trackhub", sec)
 
     def test_filtro_bloco_reduz_itens(self):
         p = AnaliseObraPeriodo(data_inicio=date(2025, 1, 1), data_fim=date(2025, 12, 31))

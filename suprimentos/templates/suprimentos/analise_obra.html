@@ -8,6 +8,7 @@
   <title>BI da Obra — LPLAN</title>
   <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}?v={{ lplan_static_version }}">
   <link rel="stylesheet" href="{% static 'core/css/base.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}?v={{ lplan_static_version }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'core/css/notifications.css' %}">{% endif %}
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -211,11 +212,6 @@ html, body {
   padding-left: 0 !important;
   padding-right: 0 !important;
   margin-right: 0 !important;
-}
-@media (max-width: 767px) {
-  .main-content-wrapper {
-    padding-top: 4rem !important;
-  }
 }
 @media (min-width: 768px) {
   .main-content-wrapper {
@@ -536,6 +532,175 @@ html, body {
 .card:nth-child(2){animation-delay:.06s}
 .card:nth-child(3){animation-delay:.12s}
 .card:nth-child(4){animation-delay:.18s}
+
+/* Mobile: coluna única, cards 100%, texto contido, menu visível */
+@media (max-width: 768px) {
+  .main-content-wrapper {
+    padding-top: 4rem !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+
+  .page-wrapper {
+    width: 100% !important;
+    max-width: 100vw !important;
+    margin-left: 0 !important;
+  }
+
+  .bi-main {
+    padding: 12px 12px 48px !important;
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .hero-kpis {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero {
+    grid-template-columns: 1fr !important;
+    padding: 14px 16px;
+    gap: 14px;
+  }
+
+  .card {
+    padding: 12px 14px;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .card-title {
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow-wrap: anywhere;
+  }
+
+  .card > *,
+  .stat-row-label,
+  .pedido-credor,
+  .tl-content,
+  .resp-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .stat-row {
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .stat-row-value {
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .sec-header {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Linha 1: número + título (100% largura, esquerda) */
+  .sec-title,
+  .sec-left {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Linha 2: tag fonte + Abrir X (100% largura, direita) */
+  .sec-right {
+    flex: 1 1 100%;
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    align-items: center;
+    margin-left: 0;
+  }
+
+  .sec-right .sec-source {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .sec-right .nav-link {
+    margin-top: 0 !important;
+    white-space: nowrap;
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .funnel-item {
+    flex-wrap: wrap;
+  }
+
+  .funnel-label {
+    width: 100%;
+    flex-shrink: 1;
+  }
+
+  .pedido-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pedido-code,
+  .pedido-valor {
+    min-width: 0;
+    width: auto;
+  }
+
+  .tl-item {
+    flex-wrap: wrap;
+  }
+
+  .tl-date {
+    width: auto;
+  }
+
+  #mobile-app-header .mobile-menu-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 8px !important;
+  }
+
+  #mobile-app-header .mobile-menu-btn .mobile-menu-icon {
+    color: #fff !important;
+    flex-shrink: 0;
+  }
+
+  /* Ver mais (botões dentro dos cards) */
+  .card button.nav-link {
+    font-size: 10px !important;
+    padding: 3px 8px !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+
+  /* Ações dos cards (Abrir X, Ver fila, Ver vencidas, etc.) */
+  .card a.nav-link {
+    font-size: 10px !important;
+    padding: 4px 10px !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+
+}
   </style>
 </head>
 <body class="bg-slate-50">
@@ -543,7 +708,11 @@ html, body {
     <!-- Mobile Topbar -->
     <div id="mobile-app-header" class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
         <button id="mobile-sidebar-toggle" type="button" class="mobile-menu-btn text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-800 rounded-lg transition-colors" style="position:relative;" aria-label="Abrir menu de navegação" aria-expanded="false">
-            <i class="fas fa-bars" aria-hidden="true"></i>
+            <svg class="mobile-menu-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
         </button>
         <div class="mobile-brand-center flex items-center space-x-3">
             <div class="logo-white-box w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
@@ -847,6 +1016,7 @@ html, body {
       <a href="#bloco-3" class="index-item"><div class="index-dot" style="background:var(--bi-red)"></div>Restrições</a>
       <a href="#bloco-4" class="index-item"><div class="index-dot" style="background:var(--bi-green)"></div>Diário de obras</a>
       <a href="#bloco-5" class="index-item"><div class="index-dot" style="background:var(--bi-yellow)"></div>Suprimentos</a>
+      <a href="#bloco-6" class="index-item"><div class="index-dot" style="background:var(--bi-blue)"></div>Pendências</a>
     </div>
 
     <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filters-bar">
@@ -912,7 +1082,12 @@ html, body {
 
       <div class="sec-header" id="bloco-1">
         <div class="sec-title"><div class="sec-num">1</div>Execução física</div>
-        <div class="sec-right"><div class="sec-source">Mapa de Controle</div></div>
+        <div class="sec-right">
+          <div class="sec-source">Mapa de Controle</div>
+          {% if analise_payload and analise_payload.controle.ambiente_id %}
+          <a href="{% url 'engenharia:ferramenta_editor_ambiente' analise_payload.controle.ambiente_id %}?obra={{ analise_payload.meta.obra_id }}" class="nav-link">Abrir no Mapa de Controle <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% endif %}
+        </div>
       </div>
       {% if analise_payload.controle.sem_dados %}
       <div class="sem-dados-msg" style="margin-bottom:14px;padding:14px 16px;border-radius:10px;background:var(--bi-yellow-bg);border:1px solid var(--bi-yellow);color:var(--bi-text);font-size:12.5px">
@@ -925,7 +1100,7 @@ html, body {
         <div class="card">
           <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
           <div class="big-num {% if pct >= 60 %}green{% elif pct >= 30 %}yellow{% else %}red{% endif %}">{{ pct|floatformat:1 }}%</div>
-          <div class="big-sub">média das células de atividade do mapa (regra do mapa clássico)</div>
+          <div class="big-sub">média consolidada na camada bloco (Total da matriz do mapa)</div>
           <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill {% if pct >= 60 %}green{% elif pct >= 30 %}yellow{% else %}red{% endif %}" style="width:{{ pct|floatformat:1 }}%"></div></div></div>
           <div class="chips" style="margin-top:12px">
             <div class="chip chip-green">✓ {{ analise_payload.controle.kpis.concluidos|default:0 }} concluídos</div>
@@ -935,30 +1110,60 @@ html, body {
         </div>
         {% endwith %}
         <div class="card">
-          <div class="card-title">Blocos mais atrasados <span class="card-tag tag-obra">OBRA</span></div>
-          {% for bloco in analise_payload.controle.blocos_mais_atrasados %}
-          {% with p=bloco.percentual_medio|default:0 %}
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
-          {% endwith %}
-          {% empty %}
-          <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
-          {% endfor %}
+          <div class="card-title">Progresso por bloco <span class="card-tag tag-obra">OBRA</span></div>
+          <div id="blocos-resumo">
+            {% for bloco in analise_payload.controle.progresso_blocos|slice:":5" %}
+            {% with p=bloco.percentual_medio|default:0 %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            {% endwith %}
+            {% empty %}
+            <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
+            {% endfor %}
+          </div>
+          <div id="blocos-expandido" style="display:none;overflow:hidden;transition:all .3s;">
+            {% for bloco in analise_payload.controle.progresso_blocos|slice:"5:" %}
+            {% with p=bloco.percentual_medio|default:0 %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            {% endwith %}
+            {% endfor %}
+          </div>
+          {% if analise_payload.controle.progresso_blocos|length > 5 %}
+          <button type="button" id="btn-ver-mais-blocos" onclick="toggleBlocos()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
+            Ver mais
+            <svg id="icon-ver-mais-blocos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {% endif %}
         </div>
         <div class="card">
-          <div class="card-title">Progresso por eixo <span class="card-tag tag-obra">OBRA</span></div>
-          {% for eixo in analise_payload.controle.progressao_eixos_completo|slice:":12" %}
-          {% with p=eixo.percentual_medio|default:0 %}
-          <div class="prog-wrap"><div class="prog-label"><span>{{ eixo.rotulo|default:"—" }}</span><span>{{ p|floatformat:1 }}%</span></div><div class="prog-bar"><div class="prog-fill {% if p >= 60 %}green{% elif p >= 30 %}yellow{% else %}red{% endif %}" style="width:{{ p|floatformat:1 }}%"></div></div></div>
-          {% endwith %}
-          {% empty %}
-          <div class="big-sub" style="color:var(--bi-text3)">Sem agrupamento</div>
-          {% endfor %}
+          <div class="card-title">Atividades mais críticas <span class="card-tag tag-obra">OBRA</span></div>
+          <div id="atividades-resumo">
+            {% for ativ in analise_payload.controle.atividades_mais_criticas|slice:":5" %}
+            {% with p=ativ.percentual_medio|default:0 %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ ativ.atividade|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            {% endwith %}
+            {% empty %}
+            <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
+            {% endfor %}
+          </div>
+          <div id="atividades-expandido" style="display:none;overflow:hidden;transition:all .3s;">
+            {% for ativ in analise_payload.controle.atividades_mais_criticas|slice:"5:" %}
+            {% with p=ativ.percentual_medio|default:0 %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ ativ.atividade|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            {% endwith %}
+            {% endfor %}
+          </div>
+          {% if analise_payload.controle.atividades_mais_criticas|length > 5 %}
+          <button type="button" id="btn-ver-mais-atividades" onclick="toggleAtividades()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
+            Ver mais
+            <svg id="icon-ver-mais-atividades" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {% endif %}
         </div>
         {% else %}
         <div class="card">
           <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
           <div class="big-num yellow">38,5%</div>
-          <div class="big-sub">média das células de atividade do mapa (regra do mapa clássico)</div>
+          <div class="big-sub">média consolidada na camada bloco (Total da matriz do mapa)</div>
           <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill yellow" style="width:38.5%"></div></div></div>
           <div class="chips" style="margin-top:12px">
             <div class="chip chip-green">✓ 142 concluídos</div>
@@ -967,20 +1172,19 @@ html, body {
           </div>
         </div>
         <div class="card">
-          <div class="card-title">Blocos mais atrasados <span class="card-tag tag-obra">OBRA</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Bloco C — P3</div><div class="stat-row-value" style="color:var(--bi-red)">12%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco A — P2</div><div class="stat-row-value" style="color:var(--bi-yellow)">28%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco B — P4</div><div class="stat-row-value" style="color:var(--bi-yellow)">31%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Bloco D — P1</div><div class="stat-row-value" style="color:var(--bi-blue)">47%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-green)"></div>Bloco A — P1</div><div class="stat-row-value" style="color:var(--bi-green)">72%</div></div>
+          <div class="card-title">Progresso por bloco <span class="card-tag tag-obra">OBRA</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Bloco C</div><div class="stat-row-value" style="color:var(--bi-red)">12%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco A</div><div class="stat-row-value" style="color:var(--bi-yellow)">28%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco B</div><div class="stat-row-value" style="color:var(--bi-yellow)">31%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Bloco D</div><div class="stat-row-value" style="color:var(--bi-blue)">47%</div></div>
         </div>
         <div class="card">
-          <div class="card-title">Progresso por eixo <span class="card-tag tag-obra">OBRA</span></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Estrutura</span><span>61%</span></div><div class="prog-bar"><div class="prog-fill green" style="width:61%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Alvenaria</span><span>44%</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:44%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Instalações</span><span>29%</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:29%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Revestimento</span><span>15%</span></div><div class="prog-bar"><div class="prog-fill red" style="width:15%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Acabamento</span><span>8%</span></div><div class="prog-bar"><div class="prog-fill red" style="width:8%"></div></div></div>
+          <div class="card-title">Atividades mais críticas <span class="card-tag tag-obra">OBRA</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Acabamento</div><div class="stat-row-value" style="color:var(--bi-red)">8%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Revestimento</div><div class="stat-row-value" style="color:var(--bi-red)">15%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Instalações</div><div class="stat-row-value" style="color:var(--bi-yellow)">29%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Alvenaria</div><div class="stat-row-value" style="color:var(--bi-yellow)">44%</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-green)"></div>Estrutura</div><div class="stat-row-value" style="color:var(--bi-green)">61%</div></div>
         </div>
         {% endif %}
       </div>
@@ -1214,7 +1418,7 @@ html, body {
             {% endfor %}
           </div>
           {% if obra_selecionada.project_id %}
-          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?prioridade=critica" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;prioridade=CRITICA" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
           {% else %}
           <a href="{% url 'impedimentos:select_obra' %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
           {% endif %}
@@ -1236,7 +1440,7 @@ html, body {
             {% endfor %}
           </div>
           {% if obra_selecionada.project_id %}
-          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?vencidas=true" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;data_fim={{ restricoes_data_ontem }}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
           {% else %}
           <a href="{% url 'impedimentos:select_obra' %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
           {% endif %}
@@ -1285,7 +1489,7 @@ html, body {
             <div class="chip chip-blue">🔵 Normal 3</div>
             <div class="chip chip-gray">⚪ Baixa 2</div>
           </div>
-          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;prioridade=CRITICA{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
         <div class="card">
           <div class="card-title">Prazo vencido <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
@@ -1294,7 +1498,7 @@ html, body {
             <div class="tl-item"><div class="tl-date">há 8 dias</div><div class="tl-content">Licença de demolição<div class="tl-meta">Crítica · João Silva</div></div></div>
             <div class="tl-item"><div class="tl-date">há 3 dias</div><div class="tl-content">Aprovação CREA<div class="tl-meta">Alta · Maria Costa</div></div></div>
           </div>
-          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;data_fim={{ restricoes_data_ontem }}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
         <div class="card">
           <div class="card-title">Por responsável <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
@@ -1537,6 +1741,134 @@ html, body {
         {% endif %}
       </div>
 
+      <div class="sec-header" id="bloco-6">
+        <div class="sec-title"><div class="sec-num">6</div>Pendências</div>
+        <div class="sec-right">
+          <div class="sec-source">TrackHub</div>
+          {% if analise_payload %}
+          <a href="{% url 'trackhub:fila' %}?obra={{ analise_payload.meta.obra_id }}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% endif %}
+        </div>
+      </div>
+      {% if analise_payload %}
+      {% with th=analise_payload.trackhub %}
+      <div class="grid-3" style="margin-bottom:12px">
+        <div class="card">
+          <div class="card-title">Resumo geral <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="big-num {% if th.resumo.vencidas > 0 %}red{% else %}green{% endif %}">{{ th.resumo.total_aberto|default:0 }}</div>
+          <div class="big-sub">pendências abertas</div>
+          <div class="stat-row" style="margin-top:10px"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Prazo vencido</div><div class="stat-row-value" style="color:var(--bi-red)">{{ th.resumo.vencidas|default:0 }}</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Em andamento</div><div class="stat-row-value" style="color:var(--bi-blue)">{{ th.resumo.em_andamento|default:0 }}</div></div>
+          <a href="{% url 'trackhub:fila' %}?obra={{ analise_payload.meta.obra_id }}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Por tipo <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div id="tipos-resumo">
+            {% for row in th.por_tipo|slice:":7" %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if forloop.counter == 1 %}var(--bi-red){% elif forloop.counter == 2 %}var(--bi-yellow){% elif forloop.counter == 3 %}var(--bi-blue){% else %}var(--bi-text3){% endif %}"></div>{{ row.tipo|default:"—" }}</div><div class="stat-row-value">{{ row.total|default:0 }}</div></div>
+            {% empty %}
+            <div class="stat-row"><div class="stat-row-label">Sem pendências abertas</div><div class="stat-row-value">—</div></div>
+            {% endfor %}
+          </div>
+          <div id="tipos-expandido" style="display:none;overflow:hidden;transition:all .3s;">
+            {% for row in th.por_tipo|slice:"7:" %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-text3)"></div>{{ row.tipo|default:"—" }}</div><div class="stat-row-value">{{ row.total|default:0 }}</div></div>
+            {% endfor %}
+          </div>
+          {% if th.por_tipo|length > 7 %}
+          <button type="button" id="btn-ver-mais-tipos" onclick="toggleTipos()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
+            Ver mais
+            <svg id="icon-ver-mais-tipos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Concluídas recentemente <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="big-num green">{{ th.resumo.concluidas_30d|default:0 }}</div>
+          <div class="big-sub">concluídas nos últimos 30 dias</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Responsáveis com etapas pendentes <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div id="responsaveis-resumo">
+            {% for resp in th.responsaveis|slice:":7" %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if forloop.counter == 1 %}var(--bi-red){% elif forloop.counter == 2 %}var(--bi-yellow){% elif forloop.counter == 3 %}var(--bi-blue){% else %}var(--bi-text3){% endif %}"></div>{{ resp.nome }}</div><div class="stat-row-value">{{ resp.total }}</div></div>
+            {% empty %}
+            <div class="stat-row"><div class="stat-row-label">Nenhuma etapa pendente</div><div class="stat-row-value">—</div></div>
+            {% endfor %}
+          </div>
+          <div id="responsaveis-expandido" style="display:none;overflow:hidden;transition:all .3s;">
+            {% for resp in th.responsaveis|slice:"7:" %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-text3)"></div>{{ resp.nome }}</div><div class="stat-row-value">{{ resp.total }}</div></div>
+            {% endfor %}
+          </div>
+          {% if th.responsaveis|length > 7 %}
+          <button type="button" id="btn-ver-mais-responsaveis" onclick="toggleResponsaveis()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
+            Ver mais
+            <svg id="icon-ver-mais-responsaveis" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {% endif %}
+        </div>
+        <div class="card">
+          <div class="card-title">Pendências mais atrasadas <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div id="atrasadas-resumo">
+            {% for item in th.mais_atrasadas|slice:":5" %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>{{ item.titulo|truncatechars:40 }}</div><div class="stat-row-value" style="color:var(--bi-red)">{{ item.dias_atraso }} dias</div></div>
+            {% empty %}
+            <div class="stat-row"><div class="stat-row-label">Nenhuma vencida</div><div class="stat-row-value">—</div></div>
+            {% endfor %}
+          </div>
+          <div id="atrasadas-expandido" style="display:none;overflow:hidden;transition:all .3s;">
+            {% for item in th.mais_atrasadas|slice:"5:" %}
+            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>{{ item.titulo|truncatechars:40 }}</div><div class="stat-row-value" style="color:var(--bi-red)">{{ item.dias_atraso }} dias</div></div>
+            {% endfor %}
+          </div>
+          {% if th.mais_atrasadas|length > 5 %}
+          <button type="button" id="btn-ver-mais-atrasadas" onclick="toggleAtrasadas()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
+            Ver mais
+            <svg id="icon-ver-mais-atrasadas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endwith %}
+      {% else %}
+      <div class="grid-3" style="margin-bottom:12px">
+        <div class="card">
+          <div class="card-title">Resumo geral <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="big-num yellow">18</div><div class="big-sub">pendências abertas</div>
+          <div class="stat-row" style="margin-top:10px"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Prazo vencido</div><div class="stat-row-value" style="color:var(--bi-red)">5</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Em andamento</div><div class="stat-row-value" style="color:var(--bi-blue)">7</div></div>
+          <a href="{% url 'trackhub:fila' %}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="card">
+          <div class="card-title">Por tipo <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Documento</div><div class="stat-row-value">6</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Operacional</div><div class="stat-row-value">5</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Financeiro</div><div class="stat-row-value">4</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Concluídas recentemente <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="big-num green">9</div>
+          <div class="big-sub">concluídas nos últimos 30 dias</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Responsáveis com etapas pendentes <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>João Silva</div><div class="stat-row-value">8</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Maria Costa</div><div class="stat-row-value">5</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Carlos Melo</div><div class="stat-row-value">3</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Pendências mais atrasadas <span class="card-tag tag-gest">TRACKHUB</span></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Licença ambiental</div><div class="stat-row-value" style="color:var(--bi-red)">12 dias</div></div>
+          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Aprovação CREA</div><div class="stat-row-value" style="color:var(--bi-red)">7 dias</div></div>
+        </div>
+      </div>
+      {% endif %}
+
     </div>
   </div>
         </main>
@@ -1624,6 +1956,96 @@ function toggleDias() {
   }
 }
 
+function toggleBlocos() {
+  const expandido = document.getElementById('blocos-expandido');
+  const btn = document.getElementById('btn-ver-mais-blocos');
+  const icon = document.getElementById('icon-ver-mais-blocos');
+  if (!expandido || !btn || !icon) return;
+  const aberto = expandido.style.display !== 'none';
+
+  if (aberto) {
+    expandido.style.display = 'none';
+    btn.childNodes[0].textContent = 'Ver mais ';
+    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+  } else {
+    expandido.style.display = 'block';
+    btn.childNodes[0].textContent = 'Ver menos ';
+    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
+  }
+}
+
+function toggleAtividades() {
+  const expandido = document.getElementById('atividades-expandido');
+  const btn = document.getElementById('btn-ver-mais-atividades');
+  const icon = document.getElementById('icon-ver-mais-atividades');
+  if (!expandido || !btn || !icon) return;
+  const aberto = expandido.style.display !== 'none';
+
+  if (aberto) {
+    expandido.style.display = 'none';
+    btn.childNodes[0].textContent = 'Ver mais ';
+    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+  } else {
+    expandido.style.display = 'block';
+    btn.childNodes[0].textContent = 'Ver menos ';
+    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
+  }
+}
+
+function toggleTipos() {
+  const expandido = document.getElementById('tipos-expandido');
+  const btn = document.getElementById('btn-ver-mais-tipos');
+  const icon = document.getElementById('icon-ver-mais-tipos');
+  if (!expandido || !btn || !icon) return;
+  const aberto = expandido.style.display !== 'none';
+
+  if (aberto) {
+    expandido.style.display = 'none';
+    btn.childNodes[0].textContent = 'Ver mais ';
+    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+  } else {
+    expandido.style.display = 'block';
+    btn.childNodes[0].textContent = 'Ver menos ';
+    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
+  }
+}
+
+function toggleResponsaveis() {
+  const expandido = document.getElementById('responsaveis-expandido');
+  const btn = document.getElementById('btn-ver-mais-responsaveis');
+  const icon = document.getElementById('icon-ver-mais-responsaveis');
+  if (!expandido || !btn || !icon) return;
+  const aberto = expandido.style.display !== 'none';
+
+  if (aberto) {
+    expandido.style.display = 'none';
+    btn.childNodes[0].textContent = 'Ver mais ';
+    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+  } else {
+    expandido.style.display = 'block';
+    btn.childNodes[0].textContent = 'Ver menos ';
+    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
+  }
+}
+
+function toggleAtrasadas() {
+  const expandido = document.getElementById('atrasadas-expandido');
+  const btn = document.getElementById('btn-ver-mais-atrasadas');
+  const icon = document.getElementById('icon-ver-mais-atrasadas');
+  if (!expandido || !btn || !icon) return;
+  const aberto = expandido.style.display !== 'none';
+
+  if (aberto) {
+    expandido.style.display = 'none';
+    btn.childNodes[0].textContent = 'Ver mais ';
+    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+  } else {
+    expandido.style.display = 'block';
+    btn.childNodes[0].textContent = 'Ver menos ';
+    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
+  }
+}
+
 function trocarObra(select) {
   const obraId = select.value;
   // Redirecionar para a mesma URL mas com a nova obra e sem datas
@@ -1650,6 +2072,7 @@ const biSections = [
   { id: 'bloco-3', idx: 3 },
   { id: 'bloco-4', idx: 4 },
   { id: 'bloco-5', idx: 5 },
+  { id: 'bloco-6', idx: 6 },
 ];
 
 function updateActive() {

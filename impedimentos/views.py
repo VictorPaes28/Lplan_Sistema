@@ -368,6 +368,48 @@ def _list_redirect_url(request, path, view_mode):
     return u
 
 
+def _parse_table_date_param(raw):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _is_truthy_query_param(raw):
+    return (raw or "").strip().lower() in {"1", "true", "yes"}
+
+
+def _restricoes_prazo_ate_ontem_iso():
+    return (timezone.localdate() - timedelta(days=1)).isoformat()
+
+
+def _normalize_table_prioridade_filter(raw):
+    prio_raw = (raw or "").strip()
+    if not prio_raw:
+        return ""
+    prio_norm = prio_raw.upper()
+    prio_map = {
+        "CRITICA": Impedimento.PRIORIDADE_CRITICA,
+        "ALTA": Impedimento.PRIORIDADE_ALTA,
+        "NORMAL": Impedimento.PRIORIDADE_NORMAL,
+        "BAIXA": Impedimento.PRIORIDADE_BAIXA,
+    }
+    code = prio_map.get(prio_norm)
+    if code:
+        return code
+    if prio_raw in {
+        Impedimento.PRIORIDADE_BAIXA,
+        Impedimento.PRIORIDADE_NORMAL,
+        Impedimento.PRIORIDADE_ALTA,
+        Impedimento.PRIORIDADE_CRITICA,
+    }:
+        return prio_raw
+    return ""
+
+
 def _impedimentos_table_queryset(obra, get_params):
     q = (get_params.get("q") or "").strip()
     filter_status = (get_params.get("status") or "").strip()
@@ -386,24 +428,8 @@ def _impedimentos_table_queryset(obra, get_params):
         table_qs = table_qs.filter(titulo__icontains=q)
     if filter_status.isdigit():
         table_qs = table_qs.filter(status_id=int(filter_status))
-    prio_raw = (get_params.get("prioridade") or "").strip()
-    prio_norm = prio_raw.upper() if prio_raw else ""
-    prio_map = {
-        "CRITICA": Impedimento.PRIORIDADE_CRITICA,
-        "ALTA": Impedimento.PRIORIDADE_ALTA,
-        "NORMAL": Impedimento.PRIORIDADE_NORMAL,
-        "BAIXA": Impedimento.PRIORIDADE_BAIXA,
-    }
-    filter_prio_code = prio_map.get(prio_norm) or (
-        prio_raw
-        if prio_raw
-        in {
-            Impedimento.PRIORIDADE_BAIXA,
-            Impedimento.PRIORIDADE_NORMAL,
-            Impedimento.PRIORIDADE_ALTA,
-            Impedimento.PRIORIDADE_CRITICA,
-        }
-        else ""
+    filter_prio_code = _normalize_table_prioridade_filter(
+        get_params.get("prioridade")
     )
     if filter_prio_code in {
         Impedimento.PRIORIDADE_BAIXA,
@@ -415,9 +441,16 @@ def _impedimentos_table_queryset(obra, get_params):
     if filter_responsavel.isdigit():
         table_qs = table_qs.filter(responsaveis__id=int(filter_responsavel))
 
+    data_inicio = _parse_table_date_param(get_params.get("data_inicio"))
+    data_fim = _parse_table_date_param(get_params.get("data_fim"))
+    if data_inicio:
+        table_qs = table_qs.filter(prazo__isnull=False, prazo__gte=data_inicio)
+    if data_fim:
+        table_qs = table_qs.filter(prazo__isnull=False, prazo__lte=data_fim)
+
     vencidas_raw = (get_params.get("vencidas") or "").strip().lower()
-    if vencidas_raw in {"1", "true", "yes"}:
-        hoje = date.today()
+    if vencidas_raw in {"1", "true", "yes"} and not data_fim:
+        hoje = timezone.localdate()
         table_qs = table_qs.filter(prazo__isnull=False, prazo__lt=hoje)
 
     sem_resp_raw = (get_params.get("sem_responsavel") or "").strip().lower()
@@ -996,14 +1029,38 @@ def list_impedimentos(request, obra_id):
 
     q = (request.GET.get("q") or "").strip()
     filter_status = (request.GET.get("status") or "").strip()
-    filter_prioridade = (request.GET.get("prioridade") or "").strip()
+    filter_prioridade = _normalize_table_prioridade_filter(
+        request.GET.get("prioridade")
+    )
     filter_responsavel = (request.GET.get("responsavel") or "").strip()
+    vencidas_flag = _is_truthy_query_param(request.GET.get("vencidas"))
+    filter_data_inicio = (request.GET.get("data_inicio") or "").strip()
+    filter_data_fim = (request.GET.get("data_fim") or "").strip()
+    if not _parse_table_date_param(filter_data_inicio):
+        filter_data_inicio = ""
+    if not _parse_table_date_param(filter_data_fim):
+        filter_data_fim = ""
+    if not filter_data_fim and vencidas_flag:
+        filter_data_fim = _restricoes_prazo_ate_ontem_iso()
+    table_filter_q_extra = urlencode(
+        {
+            k: v
+            for k, v in (
+                ("data_inicio", filter_data_inicio),
+                ("data_fim", filter_data_fim),
+            )
+            if v
+        }
+    )
     sort_key = (request.GET.get("sort") or "criado_em").strip()
     sort_dir = (request.GET.get("dir") or "desc").strip().lower()
     if sort_dir not in {"asc", "desc"}:
         sort_dir = "desc"
 
-    table_qs = _impedimentos_table_queryset(obra, request.GET)
+    table_get = request.GET.copy()
+    if filter_data_fim and not (table_get.get("data_fim") or "").strip():
+        table_get["data_fim"] = filter_data_fim
+    table_qs = _impedimentos_table_queryset(obra, table_get)
     table_qs = _annotate_subtarefas_counts(table_qs, ultimo_status_obra)
 
     paginator = Paginator(table_qs, 15)
@@ -1123,6 +1180,22 @@ def list_impedimentos(request, obra_id):
         p = {"view": view_name, **extra}
         if cat_param:
             p["cat"] = cat_param
+        preserved = {
+            "q": q,
+            "status": filter_status,
+            "prioridade": filter_prioridade,
+            "responsavel": filter_responsavel,
+            "data_inicio": filter_data_inicio,
+            "data_fim": filter_data_fim,
+            "sort": sort_key,
+            "dir": sort_dir,
+        }
+        if vencidas_flag:
+            preserved["vencidas"] = "true"
+        for key, val in preserved.items():
+            if key in extra or not val:
+                continue
+            p[key] = val
         return urlencode(p)
 
     tab_q_lista = _tab_q("lista")
@@ -1182,7 +1255,10 @@ def list_impedimentos(request, obra_id):
             "status": filter_status,
             "prioridade": filter_prioridade,
             "responsavel": filter_responsavel,
+            "data_inicio": filter_data_inicio,
+            "data_fim": filter_data_fim,
         },
+        "table_filter_q_extra": table_filter_q_extra,
         "table_sort": {"key": sort_key, "dir": sort_dir},
         "responsaveis_choices": responsaveis_choices,
         "is_admin_export": request.user.is_staff or request.user.is_superuser,

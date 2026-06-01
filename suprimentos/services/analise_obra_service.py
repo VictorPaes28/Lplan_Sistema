@@ -275,6 +275,70 @@ def _collect_all_activity_pcts_from_rows(rows: list[dict[str, Any]]) -> list[flo
     return out
 
 
+def _progresso_pct_from_layer_progresso(progresso: object) -> float:
+    """Converte progresso da camada bloco (0–1) para % exibido no BI."""
+    if progresso is None:
+        return 0.0
+    try:
+        p = float(progresso)
+    except (TypeError, ValueError):
+        return 0.0
+    if p <= 1.0:
+        return round(p * 100.0, 1)
+    return round(p, 1)
+
+
+def _build_progresso_blocos_from_layers(layers: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Todos os blocos da camada bloco do mapa, ordenados do menor % ao maior."""
+    if not isinstance(layers, dict):
+        return []
+    blocos = layers.get("blocos")
+    if not isinstance(blocos, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in blocos:
+        if not isinstance(item, dict):
+            continue
+        bloco = str(item.get("bloco") or "").strip()
+        if not bloco:
+            continue
+        pct = _progresso_pct_from_layer_progresso(item.get("progresso"))
+        out.append(
+            {
+                "rotulo": bloco,
+                "bloco": bloco,
+                "percentual_medio": pct,
+            }
+        )
+    return sorted(out, key=lambda x: (x["percentual_medio"], str(x["bloco"]).lower()))
+
+
+def _build_atividades_mais_criticas(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Todas as atividades ordenadas por menor % médio (todas as unidades do recorte)."""
+    by_act: dict[str, list[float]] = defaultdict(list)
+    for row in rows:
+        acts = row.get("atividades") if isinstance(row.get("atividades"), dict) else {}
+        for name, val in acts.items():
+            label = str(name or "").strip()
+            if not label:
+                continue
+            bucket: list[float] = []
+            _append_pct_for_average(bucket, val)
+            by_act[label].extend(bucket)
+    scored: list[dict[str, Any]] = []
+    for name, values in by_act.items():
+        if not values:
+            continue
+        scored.append(
+            {
+                "atividade": name,
+                "percentual_medio": round(sum(values) / len(values), 1),
+            }
+        )
+    scored.sort(key=lambda x: (x["percentual_medio"], x["atividade"].lower()))
+    return scored
+
+
 def _apto_status_bucket(total_pct: float) -> str:
     if total_pct >= 100.0 or total_pct >= 99.9:
         return "concluido"
@@ -735,6 +799,8 @@ class AnaliseObraService:
             "blocos_mais_atrasados": [],
             "progressao_eixos_completo": [],
             "blocos_mais_avancados": [],
+            "progresso_blocos": [],
+            "atividades_mais_criticas": [],
         }
 
     def _build_controle_ranking_rows(
@@ -1071,6 +1137,95 @@ class AnaliseObraService:
             "por_responsavel": por_responsavel,
         }
 
+    def _build_trackhub(self) -> dict[str, Any]:
+        """Pendências TrackHub da obra (abertas / em andamento, excl. concluídas e canceladas)."""
+        from trackhub.models import EtapaPendencia, Pendencia
+
+        empty: dict[str, Any] = {
+            "resumo": {
+                "total_aberto": 0,
+                "vencidas": 0,
+                "em_andamento": 0,
+                "concluidas_30d": 0,
+            },
+            "por_tipo": [],
+            "responsaveis": [],
+            "mais_atrasadas": [],
+        }
+
+        hoje = timezone.localdate()
+        limite_30d = timezone.now() - timedelta(days=30)
+        # Pendencia não possui data_conclusao; updated_at é atualizado ao concluir
+        # (mesmo critério de concluidas_mes em trackhub/views.py).
+        concluidas_30d = Pendencia.objects.filter(
+            obra=self.obra,
+            status="concluida",
+            updated_at__gte=limite_30d,
+        ).count()
+
+        base = Pendencia.objects.filter(obra=self.obra).exclude(
+            status__in=["concluida", "cancelada"]
+        )
+        if not base.exists():
+            empty["resumo"]["concluidas_30d"] = concluidas_30d
+            return empty
+
+        total_aberto = base.count()
+        vencidas = base.filter(prazo__isnull=False, prazo__lt=hoje).count()
+        em_andamento = base.filter(status="em_andamento").count()
+
+        tipo_labels = dict(Pendencia.TIPO_CHOICES)
+        por_tipo: list[dict[str, Any]] = []
+        for row in base.values("tipo").annotate(c=Count("id")).order_by("-c"):
+            tipo_val = (row["tipo"] or "outro").strip()
+            label = tipo_labels.get(tipo_val, tipo_val.replace("_", " ").title())
+            por_tipo.append({"tipo": label, "total": int(row["c"] or 0)})
+
+        resp_ct: Counter[str] = Counter()
+        etapas_pendentes = (
+            EtapaPendencia.objects.filter(
+                pendencia__obra=self.obra,
+                status="pendente",
+            )
+            .exclude(pendencia__status__in=["concluida", "cancelada"])
+            .select_related("responsavel_interno")
+        )
+        for etapa in etapas_pendentes:
+            u = etapa.responsavel_interno
+            if u:
+                nome = (u.get_full_name() or "").strip() or u.username
+            else:
+                nome = "Sem responsável"
+            resp_ct[nome] += 1
+        responsaveis = [{"nome": n, "total": t} for n, t in resp_ct.most_common()]
+
+        mais_atrasadas: list[dict[str, Any]] = []
+        for pend in base.filter(prazo__isnull=False, prazo__lt=hoje).only(
+            "titulo", "prazo"
+        ):
+            prazo = pend.prazo
+            if not prazo:
+                continue
+            mais_atrasadas.append(
+                {
+                    "titulo": pend.titulo,
+                    "dias_atraso": int((hoje - prazo).days),
+                }
+            )
+        mais_atrasadas.sort(key=lambda x: (-x["dias_atraso"], x["titulo"].lower()))
+
+        return {
+            "resumo": {
+                "total_aberto": total_aberto,
+                "vencidas": vencidas,
+                "em_andamento": em_andamento,
+                "concluidas_30d": concluidas_30d,
+            },
+            "por_tipo": por_tipo,
+            "responsaveis": responsaveis,
+            "mais_atrasadas": mais_atrasadas,
+        }
+
     def build_filtros_payload(self) -> dict[str, Any]:
         """Opções de dropdown e valores aplicados (para UI e API)."""
         bundle = self._load_controle_bundle()
@@ -1132,6 +1287,7 @@ class AnaliseObraService:
         filtros = self.build_filtros_payload()
         gestcontroll = self._build_gestcontroll()
         restricoes = self._build_restricoes()
+        trackhub = self._build_trackhub()
         gv = gestcontroll["kpis"]["pendentes_valor"]
 
         return {
@@ -1170,6 +1326,7 @@ class AnaliseObraService:
             "heatmap": heatmap,
             "gestcontroll": gestcontroll,
             "restricoes": restricoes,
+            "trackhub": trackhub,
         }
 
     def build_section(self, secao: str) -> dict[str, Any] | None:
@@ -1236,6 +1393,8 @@ class AnaliseObraService:
             suprimentos = self._build_suprimentos()
             diario = self._build_diario(project)
             return {"cruzamento": self._build_cruzamento(controle, suprimentos, diario)}
+        if s == "trackhub":
+            return {"trackhub": self._build_trackhub()}
         return None
 
     def build_drill_down(self, bloco: str, pavimento: str, setor: str | None = None) -> dict[str, Any]:
@@ -1391,6 +1550,61 @@ class AnaliseObraService:
             "obra": raw.get("obra"),
         }
 
+    def _build_matrix_bloco_view_ctx(self, bundle: dict[str, Any]) -> dict[str, Any] | None:
+        """
+        Contexto da matriz dedicada (camada bloco na raiz) — mesma grade do Mapa de Controle.
+        """
+        from suprimentos.services.mapa_controle_viewmodel import AmbienteProvider
+        from suprimentos.views_controle import (
+            _build_matrix_payload_from_rows,
+            _extract_first_matrix_rows_from_layout,
+        )
+
+        ambiente_id = bundle.get("ambiente_id")
+        if not ambiente_id:
+            return None
+
+        f = self.filtros
+        selected = {
+            "setor": (f.setor or "").strip(),
+            "bloco": (f.bloco or "").strip(),
+            "pavimento": (f.pavimento or "").strip(),
+            "apto": (f.apto or "").strip(),
+            "atividade": (f.atividade or "").strip(),
+            "status": (f.status_servico or "").strip(),
+            "search": "",
+            "quick_find": "",
+            "matrix_mode": "bloco",
+            "column_group": "",
+        }
+        provider = AmbienteProvider(
+            extract_first_matrix_rows_from_layout=_extract_first_matrix_rows_from_layout,
+            build_matrix_payload_from_rows=_build_matrix_payload_from_rows,
+        )
+        return provider.build(
+            obra=self.obra,
+            selected=selected,
+            ambiente_id=int(ambiente_id),
+        )
+
+    def _matrix_bloco_layer_kpis(self, bundle: dict[str, Any]) -> dict[str, float | int | None] | None:
+        """KPIs de avanço físico alinhados ao total_geral da matriz (camada bloco)."""
+        view_ctx = self._build_matrix_bloco_view_ctx(bundle)
+        if not view_ctx:
+            return None
+
+        matrix = view_ctx.get("matrix") or {}
+        matrix_kpis = view_ctx.get("kpis") or {}
+        total_geral = matrix.get("total_geral")
+        pct_medio = float(total_geral) if total_geral is not None else None
+        return {
+            "percentual_medio": pct_medio,
+            "total_itens": int(matrix_kpis.get("total_itens") or 0),
+            "concluidos": int(matrix_kpis.get("concluidos") or 0),
+            "em_andamento": int(matrix_kpis.get("em_andamento") or 0),
+            "nao_iniciados": int(matrix_kpis.get("nao_iniciados") or 0),
+        }
+
     def _build_controle(self) -> dict[str, Any]:
         bundle = self._load_controle_bundle()
         if not bundle:
@@ -1402,12 +1616,21 @@ class AnaliseObraService:
                 "Nenhuma unidade no mapa de controle corresponde aos filtros aplicados."
             )
 
-        all_values = _collect_all_activity_pcts_from_rows(rows)
-        pct_medio = round(sum(all_values) / len(all_values), 2) if all_values else None
-
-        concluidos = sum(1 for v in all_values if v >= 99.5)
-        em_andamento = sum(1 for v in all_values if 0 < v < 99.5)
-        nao_iniciados = sum(1 for v in all_values if v <= 0)
+        view_ctx = self._build_matrix_bloco_view_ctx(bundle)
+        matrix_kpis = self._matrix_bloco_layer_kpis(bundle) if view_ctx else None
+        if matrix_kpis:
+            pct_medio = matrix_kpis["percentual_medio"]
+            concluidos = matrix_kpis["concluidos"]
+            em_andamento = matrix_kpis["em_andamento"]
+            nao_iniciados = matrix_kpis["nao_iniciados"]
+            total_itens_kpi = matrix_kpis["total_itens"]
+        else:
+            all_values = _collect_all_activity_pcts_from_rows(rows)
+            pct_medio = round(sum(all_values) / len(all_values), 2) if all_values else None
+            concluidos = sum(1 for v in all_values if v >= 99.5)
+            em_andamento = sum(1 for v in all_values if 0 < v < 99.5)
+            nao_iniciados = sum(1 for v in all_values if v <= 0)
+            total_itens_kpi = len(all_values)
 
         bloco_scores, use_setor_grupo = self._build_controle_ranking_rows(rows)
 
@@ -1440,18 +1663,28 @@ class AnaliseObraService:
             "lista_completa_cortada": len(bloco_scores) > _prog_max,
         }
 
+        progresso_blocos = _build_progresso_blocos_from_layers(
+            view_ctx.get("layers") if view_ctx else None
+        )
+        if not progresso_blocos:
+            progresso_blocos = sorted(
+                bloco_scores,
+                key=lambda x: (x["percentual_medio"], str(x.get("rotulo") or x.get("bloco") or "").lower()),
+            )
+        atividades_mais_criticas = _build_atividades_mais_criticas(rows)
+
         return {
             "sem_dados": False,
             "origem": "mapa_controle_ambiente",
             "ambiente_id": bundle.get("ambiente_id"),
             "descricao_curta": (
-                "Progressão física média das células de atividade do mapa de controle "
-                "(mesma regra do mapa clássico); não compara prazos nem cronograma."
+                "Progressão física média igual ao Total da matriz do mapa de controle "
+                "(grade consolidada na camada bloco); não compara prazos nem cronograma."
             ),
             "agrupamento_eixo": "setor_bloco" if use_setor_grupo else "bloco",
             "ranking_progressao_meta": ranking_meta,
             "kpis": {
-                "total_itens": len(all_values),
+                "total_itens": total_itens_kpi,
                 "percentual_medio": pct_medio,
                 "concluidos": concluidos,
                 "em_andamento": em_andamento,
@@ -1460,6 +1693,8 @@ class AnaliseObraService:
             "blocos_mais_atrasados": piores,
             "progressao_eixos_completo": progressao_eixos_completo,
             "blocos_mais_avancados": melhores,
+            "progresso_blocos": progresso_blocos,
+            "atividades_mais_criticas": atividades_mais_criticas,
         }
 
     def _build_heatmap(self) -> dict[str, Any]:

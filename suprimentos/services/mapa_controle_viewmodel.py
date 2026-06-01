@@ -251,6 +251,52 @@ def _distinct_structural_axis_keys(rows: list[list], row_axis_col: int) -> list[
     return keys
 
 
+def _matrix_display_prefilter(filter_selected: dict, row_axis_key: str) -> dict[str, str]:
+    """Recorte hierárquico dos eixos-pai para listar chaves estruturais na grade."""
+    out: dict[str, str] = {}
+    for key in ("setor", "bloco", "pavimento", "apto"):
+        if key == row_axis_key:
+            break
+        val = str(filter_selected.get(key) or "").strip()
+        if val:
+            out[key] = val
+    return out
+
+
+def _merge_matrix_axis_keys(
+    *,
+    body_rows: list[list],
+    processed_rows: list[list],
+    axis_map: dict,
+    row_axis_key: str,
+    row_axis_col: int,
+    prefilter: dict[str, str] | None,
+    row_order_pref: list | None,
+) -> list[str]:
+    """
+    Chaves do eixo na grade consolidada (camada bloco/pavimento/apto).
+    Inclui linhas estruturais do layout sem apto e sem % — mesma regra dos chips de camada
+    e da ordem gravada no editor (row_order_*).
+    """
+    keys_body = _distinct_structural_axis_values(body_rows, axis_map, row_axis_key, prefilter)
+    keys_proc = _distinct_structural_axis_keys(processed_rows, row_axis_col)
+    seen: set[str] = set()
+    merged: list[str] = []
+    for k in keys_body + keys_proc:
+        if k in seen:
+            continue
+        seen.add(k)
+        merged.append(k)
+    if isinstance(row_order_pref, list):
+        for raw in row_order_pref:
+            val = str(raw or "").strip()
+            if not val or not _valid_axis_label(val) or val in seen:
+                continue
+            seen.add(val)
+            merged.append(val)
+    return _apply_preferred_axis_order(merged, row_order_pref)
+
+
 def _clean_layer_prefilter(prefilter: dict | None) -> dict[str, str]:
     """Remove chaves vazias do recorte (evita setor=None invalidar linhas do layout)."""
     if not isinstance(prefilter, dict):
@@ -1334,9 +1380,17 @@ class AmbienteProvider:
             and not (row_mode_requested == "apto" and apto_filter)
         ):
             # Exibição: eixos estruturais (bloco/pavimento/UND); várias linhas-fonte → uma linha por chave.
-            axis_keys = _distinct_structural_axis_keys(processed_rows, row_axis_col)
             row_order_pref = matrix_meta.get(f"row_order_{row_axis_key}")
-            axis_keys = _apply_preferred_axis_order(axis_keys, row_order_pref)
+            matrix_prefilter = _matrix_display_prefilter(filter_selected, row_axis_key)
+            axis_keys = _merge_matrix_axis_keys(
+                body_rows=body_rows,
+                processed_rows=processed_rows,
+                axis_map=axis_map,
+                row_axis_key=row_axis_key,
+                row_axis_col=row_axis_col,
+                prefilter=matrix_prefilter or None,
+                row_order_pref=row_order_pref if isinstance(row_order_pref, list) else None,
+            )
             use_bloco_via_pavimentos = (
                 row_mode_requested == "bloco"
                 and isinstance(axis_map.get("pavimento"), int)
@@ -1344,8 +1398,17 @@ class AmbienteProvider:
 
             aggregated_rows = []
             act_col_indices = [idx for idx, _ in activity_labels]
+            apto_idx = axis_map.get("apto")
             for key in axis_keys:
                 key_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, key)
+                structural_only = (
+                    not any(
+                        str(row[apto_idx] if apto_idx < len(row) else "").strip()
+                        for row in key_rows
+                    )
+                    if isinstance(apto_idx, int)
+                    else not key_rows
+                )
                 if key_rows:
                     key_rows = [list(r) for r in key_rows]
                     _forward_fill_hierarchy_axes(key_rows, axis_map)
@@ -1371,13 +1434,13 @@ class AmbienteProvider:
                             col_idx,
                             axis_map,
                             act_col_indices,
-                            infer_zero_for_empty=False,
+                            infer_zero_for_empty=structural_only,
                         )
                     else:
                         out[col_idx] = _consolidated_display_for_column_rows(
                             key_rows,
                             col_idx,
-                            infer_zero_for_empty=False,
+                            infer_zero_for_empty=structural_only,
                             axis_map=axis_map,
                         )
                 aggregated_rows.append(out)
@@ -1446,7 +1509,12 @@ class AmbienteProvider:
             for cell in row.get("cells") or []:
                 raw_txt = str(cell.get("raw") or "").strip()
                 atividade = str(cell.get("atividade") or "")
-                if cell.get("pct") == 0 and (not raw_txt or totals_by_activity.get(atividade) is None):
+                explicit_zero = bool(raw_txt) and _parse_pct_loose(raw_txt) == 0
+                if (
+                    cell.get("pct") == 0
+                    and not explicit_zero
+                    and (not raw_txt or totals_by_activity.get(atividade) is None)
+                ):
                     cell["pct"] = None
         for row in rows_matrix:
             group_key = str(row.get("row_key") or row.get("row_label") or "").strip()

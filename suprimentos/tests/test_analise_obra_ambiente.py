@@ -19,12 +19,37 @@ from suprimentos.services.analise_obra_service import (
 
 
 def _layout_from_rows(rows: list[list]) -> dict:
+    header = rows[0] if rows else []
+    total_idx = None
+    for idx, cell in enumerate(header):
+        label = str(cell or "").strip().upper()
+        if label.startswith("TOTAL"):
+            total_idx = idx
+            break
+    activity_cols = []
+    for idx in range(3, len(header)):
+        if idx == total_idx:
+            continue
+        activity_cols.append(idx)
+    import_meta = {
+        "strategy": "manual_template",
+        "axis_cols_interpreted": [0, 1, 2],
+        "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+        "activity_cols_interpreted": activity_cols,
+        "row_axis_key": "bloco",
+    }
+    if total_idx is not None:
+        import_meta["total_col_interpreted"] = total_idx
     return {
         "sections": [
             {
                 "id": "matriz",
                 "kind": "matrix_table",
-                "data": {"rows": rows, "mapaControleTemplate": True},
+                "data": {
+                    "rows": rows,
+                    "mapaControleTemplate": True,
+                    "importMeta": import_meta,
+                },
             }
         ]
     }
@@ -77,16 +102,26 @@ class TestAnaliseObraAmbienteLayout(TestCase):
         )
         controle = svc._build_controle()
         self.assertFalse(controle.get("sem_dados"))
-        # 6 células de atividade (2 por apto × 3 aptos); Total do JSON é ignorado.
-        self.assertEqual(controle["kpis"]["total_itens"], 6)
-        self.assertAlmostEqual(controle["kpis"]["percentual_medio"], 50.83, places=1)
-        self.assertEqual(controle["kpis"]["concluidos"], 2)
+        # Grade bloco×atividade: B1 (62.5, 90) + B2 (0, 0) → total_geral = 38.12%
+        self.assertEqual(controle["kpis"]["total_itens"], 4)
+        self.assertAlmostEqual(controle["kpis"]["percentual_medio"], 38.12, places=2)
+        self.assertEqual(controle["kpis"]["concluidos"], 0)
         self.assertEqual(controle["kpis"]["em_andamento"], 2)
         self.assertEqual(controle["kpis"]["nao_iniciados"], 2)
         self.assertTrue(controle["blocos_mais_atrasados"])
         piores = controle["blocos_mais_atrasados"][0]
         self.assertEqual(piores["bloco"], "B2")
         self.assertEqual(piores["percentual_medio"], 0.0)
+        progresso = controle["progresso_blocos"]
+        self.assertEqual(len(progresso), 2)
+        self.assertEqual(progresso[0]["bloco"], "B2")
+        self.assertEqual(progresso[0]["percentual_medio"], 0.0)
+        self.assertEqual(progresso[1]["bloco"], "B1")
+        self.assertGreater(progresso[1]["percentual_medio"], 0.0)
+        criticas = controle["atividades_mais_criticas"]
+        self.assertTrue(criticas)
+        self.assertEqual(criticas[0]["atividade"], "Armação")
+        self.assertLess(criticas[0]["percentual_medio"], criticas[1]["percentual_medio"])
 
     def test_obra_sem_ambiente_retorna_sem_dados(self):
         obra_vazia = Obra.objects.create(codigo_sienge="AMB-VAZIA", nome="Sem mapa", ativa=True)
@@ -143,6 +178,7 @@ class TestAnaliseObraAmbienteLayout(TestCase):
 
         svc_b = AnaliseObraService(obra_b)
         controle_b = svc_b._build_controle()
+        # Células vazias na grade consolidada (bloco ZB) entram como 0% no total_geral.
         self.assertEqual(controle_b["kpis"]["total_itens"], 2)
         self.assertAlmostEqual(controle_b["kpis"]["percentual_medio"], 0.0, places=1)
 
