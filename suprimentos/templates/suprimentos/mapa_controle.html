@@ -212,16 +212,16 @@
                             {% else %}
                             <a class="cell-link row-link"
                                title="Ver unidades (aptos) deste pavimento na matriz"
-                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&{{ matrix_stable_qs_apto }}">{{ row.row_label }}</a>
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}{% if ambiente_id %}&ambiente_id={{ ambiente_id }}{% endif %}&{{ matrix_stable_qs_apto }}">{{ row.row_label }}</a>
                             {% endif %}
                             {% elif matrix.allow_row_drill and row.row_drillable and matrix.mode == 'apto' and not matrix.unit_detail_view %}
                             <a class="cell-link row-link"
                                title="Ver detalhe desta unidade na matriz"
-                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}{% if ambiente_id %}&ambiente_id={{ ambiente_id }}{% endif %}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
                             {% elif matrix.allow_row_drill and row.row_drillable %}
                             <a class="cell-link row-link"
                                title="Ver pavimentos deste bloco na matriz"
-                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}{% if ambiente_id %}&ambiente_id={{ ambiente_id }}{% endif %}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
                             {% else %}
                             <span class="row-name-txt">{{ row.row_label }}</span>
                             {% endif %}
@@ -806,6 +806,24 @@
     persistBtn.addEventListener('click', function () {
         persistGroups(true);
     });
+})();
+</script>
+<script>
+(function () {
+    document.addEventListener('click', function (event) {
+        var backLink = event.target && event.target.closest
+            ? event.target.closest('.mapa-controle-nav-back[href]')
+            : null;
+        if (!backLink) return;
+        event.preventDefault();
+        try {
+            var url = new URL(String(backLink.getAttribute('href') || ''), window.location.href);
+            url.searchParams.set('_refresh', Date.now().toString());
+            window.location.assign(url.pathname + url.search + (url.hash || ''));
+        } catch (_e) {
+            window.location.assign(backLink.getAttribute('href'));
+        }
+    }, true);
 })();
 </script>
 {% if embed_mode %}
