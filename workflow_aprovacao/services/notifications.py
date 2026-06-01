@@ -41,7 +41,15 @@ def _send_email(*, email: str, subject: str, message: str) -> tuple[bool, str]:
     return (count > 0), 'sent' if count > 0 else 'not_sent'
 
 
-def notify_external_invite(*, process, target_name: str, email: str, phone_whatsapp: str, access_url: str) -> dict:
+def notify_external_invite(
+    *,
+    process,
+    target_name: str,
+    email: str,
+    phone_whatsapp: str,
+    access_url: str,
+    skip_whatsapp: bool = False,
+) -> dict:
     body = (
         f'Olá, {target_name}. Você foi indicado como responsável externo para análise/assinatura '
         f'do pedido {process.title or f"# {process.pk}"} da obra {process.project.code}. '
@@ -50,7 +58,7 @@ def notify_external_invite(*, process, target_name: str, email: str, phone_whats
     channel = 'none'
     success = False
     detail = ''
-    if (phone_whatsapp or '').strip():
+    if not skip_whatsapp and (phone_whatsapp or '').strip():
         success, detail = _send_whatsapp(phone=phone_whatsapp, message=body)
         channel = 'whatsapp'
     if not success and (email or '').strip():

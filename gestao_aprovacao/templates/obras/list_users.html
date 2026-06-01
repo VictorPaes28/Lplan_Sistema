@@ -9,7 +9,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/list_workorders.css' %}">
-<link rel="stylesheet" href="{% static 'css/list_users.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'css/list_users.css' %}?v=9">
 {% endblock %}
 
 {% block content %}
@@ -19,7 +19,7 @@
             <h1 class="list-users-title">Usuários</h1>
             <p class="list-users-lead">Gerencie acessos, obras vinculadas e permissões dos usuários do sistema.</p>
         </div>
-        <a href="{% if use_central_urls %}{% url 'central_create_user' %}{% else %}{% url 'gestao:create_user' %}{% endif %}" class="btn list-users-btn-new">+ Novo usuário</a>
+        <a href="{{ create_user_url }}" class="btn list-users-btn-new">+ Novo usuário</a>
     </header>
 
     <!-- Filtros e Busca -->
@@ -108,7 +108,7 @@
                                 </span>
                                 {% endwith %}
                                 <div class="list-users-usercell-text">
-                                    <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="user-governance-link">{{ item.user.username }}</a>
+                                    <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}{% if list_return_query %}?list_return={{ list_return_query|urlencode }}{% endif %}" class="user-governance-link">{{ item.user.username }}</a>
                                 </div>
                             </div>
                         </td>
@@ -218,7 +218,7 @@
                         </td>
                         <td data-label="Ações">
                             <div class="list-users-actions-cell">
-                                <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}" class="list-users-btn-panel">Ver painel</a>
+                                <a href="{% if use_central_urls %}{% url 'central_user_governance' item.user.pk %}{% else %}{% url 'gestao:user_governance' item.user.pk %}{% endif %}{% if list_return_query %}?list_return={{ list_return_query|urlencode }}{% endif %}" class="list-users-btn-panel">Ver painel</a>
                                 <div class="list-users-action-menu">
                                     <button type="button"
                                             class="list-users-action-menu-trigger"
@@ -234,7 +234,7 @@
                                          hidden
                                          role="menu">
                                         <a role="menuitem" class="list-users-menu-link"
-                                           href="{% if use_central_urls %}{% url 'central_edit_user' item.user.pk %}{% else %}{% url 'gestao:edit_user' item.user.pk %}{% endif %}">Editar</a>
+                                           href="{{ item.edit_url }}">Editar</a>
                                         {% if item.can_toggle_active %}
                                         <form method="post"
                                               action=""
@@ -242,6 +242,7 @@
                                               onsubmit="return confirm('{% if item.user.is_active %}Desativar o acesso deste usuário ao sistema? Os dados e histórico permanecem; ele não poderá mais fazer login.{% else %}Reativar o acesso deste usuário ao sistema?{% endif %}');">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="toggle_active">
+                                            {% if list_return_query %}<input type="hidden" name="list_return" value="{{ list_return_query }}">{% endif %}
                                             <input type="hidden" name="user_id" value="{{ item.user.pk }}">
                                             <button type="submit"
                                                     role="menuitem"
@@ -251,10 +252,17 @@
                                         </form>
                                         {% endif %}
                                         {% if is_admin %}
-                                        <a role="menuitem"
-                                           href="{% if use_central_urls %}{% url 'central_delete_user' item.user.pk %}{% else %}{% url 'gestao:delete_user' item.user.pk %}{% endif %}"
-                                           class="list-users-menu-link list-users-menu-link--danger"
-                                           onclick="return confirm('Tem certeza que deseja excluir o usuário {{ item.user.username|escapejs }}? Esta ação não pode ser desfeita.');">Excluir</a>
+                                        <button type="button"
+                                                role="menuitem"
+                                                class="list-users-menu-submit list-users-menu-submit--danger"
+                                                data-list-users-delete-open
+                                                data-user-id="{{ item.user.pk }}"
+                                                data-delete-url="{{ item.delete_post_url }}"
+                                                data-username="{{ item.user.username }}"
+                                                data-full-name="{{ item.user.get_full_name|default:'' }}"
+                                                data-email="{{ item.user.email|default:'' }}"
+                                                data-groups="{{ item.group_names_display }}"
+                                                data-bloqueios="{{ item.delete_bloqueios|join:'|' }}">Excluir</button>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -287,8 +295,56 @@
         {% endif %}
     </div>
 </div>
+
+{% if is_admin %}
+<div id="list-users-delete-modal"
+     class="list-users-modal-overlay"
+     hidden
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="list-users-delete-modal-title">
+    <div class="list-users-modal">
+        <form method="post" id="list-users-delete-form" action="">
+            {% csrf_token %}
+            {% if list_return_query %}<input type="hidden" name="list_return" value="{{ list_return_query }}">{% endif %}
+            <header class="list-users-modal-header">
+                <h2 id="list-users-delete-modal-title" class="list-users-modal-title">Confirmar exclusão</h2>
+                <button type="button" class="list-users-modal-close" data-list-users-delete-close aria-label="Fechar">&times;</button>
+            </header>
+            <div class="list-users-modal-body">
+                <p class="list-users-modal-lead">Você está prestes a excluir permanentemente este usuário e os vínculos associados.</p>
+                <dl class="list-users-modal-dl">
+                    <div><dt>Nome</dt><dd id="list-users-delete-name">—</dd></div>
+                    <div><dt>Login</dt><dd id="list-users-delete-username">—</dd></div>
+                    <div><dt>E-mail</dt><dd id="list-users-delete-email">—</dd></div>
+                    <div><dt>Grupos / perfis</dt><dd id="list-users-delete-groups">—</dd></div>
+                </dl>
+                <div id="list-users-delete-blocked" class="list-users-modal-blocked" hidden>
+                    <p class="list-users-modal-blocked-title">Não é possível excluir:</p>
+                    <ul id="list-users-delete-blocked-list" class="list-users-modal-blocked-list"></ul>
+                </div>
+                <p id="list-users-delete-warning" class="list-users-modal-warning">
+                    Esta ação não pode ser desfeita. Confirme apenas se tiver certeza.
+                </p>
+            </div>
+            <footer class="list-users-modal-footer">
+                <button type="button" class="btn btn-secondary" data-list-users-delete-close>Cancelar</button>
+                <button type="submit" class="btn list-users-modal-btn-danger" id="list-users-delete-submit">Confirmar exclusão</button>
+            </footer>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/list_users.js' %}?v=3"></script>
+<script src="{% static 'js/list_users.js' %}?v=6"></script>
+{% if is_admin %}
+<script>
+window.LIST_USERS_PAGE = {
+    openDeleteUserId: {% if open_delete_user_id %}{{ open_delete_user_id }}{% else %}null{% endif %},
+    previewSuffix: '?preview=1'
+};
+</script>
+{% endif %}
 {% endblock %}

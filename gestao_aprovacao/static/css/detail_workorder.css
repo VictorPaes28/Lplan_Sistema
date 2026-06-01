@@ -795,6 +795,17 @@
     margin-top: var(--dw-space-sm);
 }
 
+.attachments-locked-hint {
+    margin: 0.65rem 0 0.85rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
 .btn-aprovar-exclusao {
     background: var(--dw-success);
     color: #fff;

@@ -1,5 +1,5 @@
 {# form, project, obra, use_status_xhr #}
-<form method="post" action="{% url 'impedimentos:list_status' obra_id=project.id %}" class="app-form imp-form" id="imp-status-config-form">
+<form method="post" action="{% if use_status_xhr %}{% url 'impedimentos:list_impedimentos' obra_id=project.id %}{% else %}{% url 'impedimentos:list_status' obra_id=project.id %}{% endif %}" class="app-form imp-form" id="imp-status-config-form">
     {% csrf_token %}
     {% if use_status_xhr %}<input type="hidden" name="_xhr" value="1">{% endif %}
     <input type="hidden" name="action" id="imp-status-form-action" value="{% if form.instance.pk %}update{% else %}create{% endif %}">

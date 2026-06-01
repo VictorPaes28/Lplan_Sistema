@@ -151,6 +151,8 @@
                 if (e.target.closest('.list-users-popover-panel')) return;
                 if (e.target.closest('[data-list-users-menu-toggle]')) return;
                 if (e.target.closest('.list-users-action-menu-panel')) return;
+                if (e.target.closest('[data-list-users-delete-open]')) return;
+                if (e.target.closest('#list-users-delete-modal')) return;
                 closeOpenPopover();
                 closeOpenMenu();
             },
@@ -168,6 +170,154 @@
             closeOpenPopover();
             closeOpenMenu();
         });
+
+        initDeleteModal(root);
+    }
+
+    function initDeleteModal(root) {
+        var modal = document.getElementById('list-users-delete-modal');
+        if (!modal) return;
+
+        var form = document.getElementById('list-users-delete-form');
+        var elName = document.getElementById('list-users-delete-name');
+        var elUser = document.getElementById('list-users-delete-username');
+        var elEmail = document.getElementById('list-users-delete-email');
+        var elGroups = document.getElementById('list-users-delete-groups');
+        var elBlocked = document.getElementById('list-users-delete-blocked');
+        var elBlockedList = document.getElementById('list-users-delete-blocked-list');
+        var elWarning = document.getElementById('list-users-delete-warning');
+        var elSubmit = document.getElementById('list-users-delete-submit');
+        var pageCfg = window.LIST_USERS_PAGE || {};
+
+        function displayValue(val, fallback) {
+            var s = (val || '').trim();
+            return s || fallback || '—';
+        }
+
+        function setBloqueios(raw) {
+            var items = [];
+            if (raw) {
+                items = String(raw)
+                    .split('|')
+                    .map(function (s) {
+                        return s.trim();
+                    })
+                    .filter(Boolean);
+            }
+            elBlockedList.innerHTML = '';
+            var seen = {};
+            items.forEach(function (text) {
+                if (seen[text]) return;
+                seen[text] = true;
+                var li = document.createElement('li');
+                li.textContent = text;
+                elBlockedList.appendChild(li);
+            });
+            var blocked = items.length > 0;
+            elBlocked.hidden = !blocked;
+            elWarning.hidden = blocked;
+            elSubmit.disabled = blocked;
+        }
+
+        function openFromTrigger(btn) {
+            if (!btn || !form) return;
+            closeOpenPopover();
+            closeOpenMenu();
+            form.action = btn.getAttribute('data-delete-url') || '';
+            elName.textContent = displayValue(btn.getAttribute('data-full-name'), btn.getAttribute('data-username'));
+            elUser.textContent = displayValue(btn.getAttribute('data-username'), '—');
+            elEmail.textContent = displayValue(btn.getAttribute('data-email'), '—');
+            elGroups.textContent = displayValue(btn.getAttribute('data-groups'), 'Sem grupo');
+            setBloqueios(btn.getAttribute('data-bloqueios'));
+            modal.hidden = false;
+            document.body.style.overflow = 'hidden';
+            elSubmit.focus();
+        }
+
+        function closeModal() {
+            modal.hidden = true;
+            document.body.style.overflow = '';
+        }
+
+        /* Abrir exclusão: menu pode estar em document.body */
+        document.addEventListener('click', function (e) {
+            var openBtn = e.target.closest('[data-list-users-delete-open]');
+            if (!openBtn) return;
+            e.preventDefault();
+            closeOpenMenu();
+            closeOpenPopover();
+            openFromTrigger(openBtn);
+        });
+
+        /* Fechar: botões ficam dentro do painel — listener no próprio modal */
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) {
+                closeModal();
+                return;
+            }
+            if (e.target.closest('[data-list-users-delete-close]')) {
+                e.preventDefault();
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !modal.hidden) {
+                closeModal();
+            }
+        });
+
+        function stripOpenDeleteFromUrl() {
+            try {
+                var u = new URL(window.location.href);
+                if (!u.searchParams.has('open_delete')) return;
+                u.searchParams.delete('open_delete');
+                var qs = u.searchParams.toString();
+                window.history.replaceState({}, '', u.pathname + (qs ? '?' + qs : ''));
+            } catch (err) {
+                /* ignore */
+            }
+        }
+
+        function openByUserId(userId) {
+            var btn = root.querySelector('[data-list-users-delete-open][data-user-id="' + userId + '"]');
+            if (btn) {
+                openFromTrigger(btn);
+                stripOpenDeleteFromUrl();
+                return;
+            }
+            var previewBase = root.querySelector('[data-list-users-delete-open]');
+            if (!previewBase) return;
+            var sampleUrl = previewBase.getAttribute('data-delete-url') || '';
+            var deleteUrl = sampleUrl.replace(/(\/usuarios\/)\d+(\/)/, '$1' + userId + '$2');
+            var previewUrl = deleteUrl + (pageCfg.previewSuffix || '?preview=1');
+            fetch(previewUrl, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            })
+                .then(function (r) {
+                    return r.json();
+                })
+                .then(function (data) {
+                    if (!data || !data.ok) return;
+                    var fake = document.createElement('button');
+                    fake.setAttribute('data-delete-url', deleteUrl);
+                    fake.setAttribute('data-username', data.username || '');
+                    fake.setAttribute('data-full-name', data.full_name || '');
+                    fake.setAttribute('data-email', data.email || '');
+                    fake.setAttribute('data-groups', (data.groups || []).join(', '));
+                    fake.setAttribute('data-bloqueios', (data.bloqueios || []).join('|'));
+                    openFromTrigger(fake);
+                    stripOpenDeleteFromUrl();
+                })
+                .catch(function () {
+                    stripOpenDeleteFromUrl();
+                });
+        }
+
+        if (pageCfg.openDeleteUserId) {
+            openByUserId(String(pageCfg.openDeleteUserId));
+        }
     }
 
     if (document.readyState === 'loading') {

@@ -516,6 +516,26 @@
 
     }
 
+    .signup-whatsapp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.5rem;
+        padding: 0.45rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #bbf7d0;
+        background: #ecfdf5;
+        color: #15803d;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .signup-whatsapp-btn:hover {
+        background: #dcfce7;
+        color: #166534;
+        text-decoration: none;
+    }
+
 </style>
 
 {% endblock %}
@@ -571,6 +591,15 @@
                 <div class="signup-meta-line">{{ req.email }}</div>
 
                 {% if req.phone %}<div class="signup-meta-line">Tel: {{ req.phone }}</div>{% endif %}
+
+                {% if req.workflow_external_signup %}
+                <div class="signup-meta-line">
+                    Pedido workflow:
+                    <a href="{% url 'workflow_aprovacao:process_detail' req.workflow_external_signup.process_id %}">
+                        #{{ req.workflow_external_signup.process_id }} · {{ req.workflow_external_signup.process.project.code }}
+                    </a>
+                </div>
+                {% endif %}
 
                 {% if req.username_suggestion %}
 
@@ -651,6 +680,18 @@
                 {% if req.status == 'aprovado' and req.approved_user %}
 
                     <p class="mt-2"><strong>Usuário criado:</strong> {{ req.approved_user.username }}</p>
+                    {% if req.whatsapp_credentials_url %}
+                    <a href="{{ req.whatsapp_credentials_url }}"
+                       class="signup-whatsapp-btn"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       title="Abrir WhatsApp com login e link do pedido (se houver)">
+                        Enviar login por WhatsApp
+                    </a>
+                    {% if not req.phone %}
+                    <p class="text-sm text-slate-500 mt-1">Telefone não informado — escolha o contato no WhatsApp.</p>
+                    {% endif %}
+                    {% endif %}
 
                 {% endif %}
 

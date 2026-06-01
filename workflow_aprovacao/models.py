@@ -4,6 +4,7 @@ Modelos da Central de Aprovações.
 Obra canónica: core.Project (alinhado a core.sync_obras).
 """
 import json
+import os
 
 from django.conf import settings
 from django.contrib.auth.models import Group
@@ -666,9 +667,21 @@ class ExternalParticipantSignupRequest(models.Model):
         db_index=True,
     )
     review_reason = models.TextField(blank=True)
+    created_linked_user = models.BooleanField(
+        default=False,
+        help_text='True quando a aprovação criou um novo usuário (senha padrão gerada).',
+    )
     approved_at = models.DateTimeField(null=True, blank=True)
     rejected_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
+    central_signup_request = models.OneToOneField(
+        'accounts.UserSignupRequest',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='workflow_external_signup',
+        help_text='Espelho na Central de Cadastros (/central/cadastros/).',
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -684,3 +697,39 @@ class ExternalParticipantSignupRequest(models.Model):
 
     def __str__(self):
         return f'{self.full_name} · {self.email} · {self.get_status_display()}'
+
+
+def approval_process_attachment_upload_path(instance, filename):
+    from django.utils.text import get_valid_filename
+
+    safe = get_valid_filename(filename) or 'anexo'
+    process_id = instance.process_id or 'pending'
+    return os.path.join('workflow_aprovacao', 'processos', str(process_id), safe)
+
+
+class ApprovalProcessAttachment(models.Model):
+    """Anexo enviado na criação manual de pedidos na Central."""
+
+    process = models.ForeignKey(
+        ApprovalProcess,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+    )
+    file = models.FileField(upload_to=approval_process_attachment_upload_path)
+    original_name = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_process_attachments_uploaded',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'pk']
+        verbose_name = 'Anexo de processo (Central)'
+        verbose_name_plural = 'Anexos de processo (Central)'
+
+    def __str__(self):
+        return self.original_name or (self.file.name if self.file else f'Anexo #{self.pk}')

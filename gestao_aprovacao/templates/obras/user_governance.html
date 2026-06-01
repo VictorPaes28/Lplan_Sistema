@@ -25,7 +25,7 @@
         </div>
         <div class="ug-hero-actions">
             <a href="{{ list_users_url }}" class="btn btn-secondary">Utilizadores</a>
-            <a href="{% if use_central_urls %}{% url 'central_edit_user' target_user.pk %}{% else %}{% url 'gestao:edit_user' target_user.pk %}{% endif %}" class="btn btn-primary-cta">Editar cadastro</a>
+            <a href="{{ edit_user_url }}" class="btn btn-primary-cta">Editar cadastro</a>
         </div>
     </header>
 

@@ -25,15 +25,19 @@ def csrf_failure_json(request, reason=''):
     is_ajax = (
         request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         or 'application/json' in request.headers.get('Accept', '')
+        or request.POST.get('_xhr') == '1'
     )
     if is_ajax:
+        msg = (
+            'Sessão expirada ou token de segurança inválido. '
+            'Recarregue a página e tente novamente.'
+        )
         return JsonResponse(
             {
+                'ok': False,
                 'success': False,
-                'error': (
-                    'Sessão expirada ou token de segurança inválido. '
-                    'Recarregue a página e tente novamente.'
-                ),
+                'error': msg,
+                'message': msg,
             },
             status=403,
             content_type='application/json',

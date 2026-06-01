@@ -1,13 +1,17 @@
 from datetime import date
 
 from django.contrib.auth.models import Group, User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from accounts.groups import GRUPOS
+from accounts.models import UserSignupRequest
 from core.models import Project
 from workflow_aprovacao.models import (
     ApprovalFlowDefinition,
+    ApprovalProcess,
+    ApprovalProcessAttachment,
     ApprovalProcessParticipant,
     ApprovalStep,
     ApprovalStepParticipant,
@@ -146,6 +150,10 @@ class ManualRequestWorkflowTests(TestCase):
         req = ExternalParticipantSignupRequest.objects.filter(process=process).first()
         self.assertIsNotNone(req)
         self.assertEqual(req.status, ExternalSignupStatus.PENDING)
+        self.assertIsNotNone(req.central_signup_request_id)
+        central = req.central_signup_request
+        self.assertEqual(central.status, UserSignupRequest.STATUS_PENDENTE)
+        self.assertIn(GRUPOS.CENTRAL_APROVACOES_EXTERNO, central.requested_groups or [])
         self.assertFalse(
             ApprovalProcessParticipant.objects.filter(process=process, step=self.step1).exists()
         )
@@ -181,6 +189,11 @@ class ManualRequestWorkflowTests(TestCase):
         req.refresh_from_db()
         self.assertEqual(req.status, ExternalSignupStatus.APPROVED)
         self.assertEqual(req.linked_user_id, linked.pk)
+        self.assertTrue(req.created_linked_user)
+        self.assertIsNotNone(req.central_signup_request_id)
+        req.central_signup_request.refresh_from_db()
+        self.assertEqual(req.central_signup_request.status, UserSignupRequest.STATUS_APROVADO)
+        self.assertEqual(req.central_signup_request.approved_user_id, linked.pk)
         self.assertTrue(
             ApprovalProcessParticipant.objects.filter(
                 process=process, step=self.step1, user_id=req.linked_user_id
@@ -305,3 +318,77 @@ class ManualRequestWorkflowTests(TestCase):
             email='novo.fallback@example.com',
         ).first()
         self.assertIsNotNone(req)
+        self.assertIsNotNone(req.central_signup_request_id)
+        self.assertEqual(req.central_signup_request.status, UserSignupRequest.STATUS_PENDENTE)
+
+    def test_manual_request_new_terceirizado_always_creates_signup_even_if_email_exists(self):
+        """Cadastro via '+ novo terceirizado' deve ir para fila externa, sem vínculo silencioso."""
+        self.client.login(username='creator_manual', password='x')
+        resp = self.client.post(
+            reverse('workflow_aprovacao:manual_request_new'),
+            {
+                'project': str(self.project.pk),
+                'category': str(self.category.pk),
+                'title': 'Pedido novo ext existente',
+                'summary': 'Resumo',
+                'notes': '',
+                'amount': '',
+                'vendor_name': '',
+                'category_payload_json': '{"vigencia_escopo":"12 meses"}',
+                f'slot_{self.slot.pk}_existing_user': '__new__',
+                f'slot_{self.slot.pk}_full_name': 'Outro Nome',
+                f'slot_{self.slot.pk}_company': 'Empresa Nova',
+                f'slot_{self.slot.pk}_email': self.external_existing.email,
+                f'slot_{self.slot.pk}_phone': '',
+                f'slot_{self.slot.pk}_cnpj': '',
+                f'slot_{self.slot.pk}_note': '',
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        req = ExternalParticipantSignupRequest.objects.filter(
+            email__iexact=self.external_existing.email,
+            status=ExternalSignupStatus.PENDING,
+            process__title='Pedido novo ext existente',
+        ).first()
+        self.assertIsNotNone(req)
+        self.assertEqual(req.full_name, 'Outro Nome')
+
+    def test_manual_request_saves_reference_documents(self):
+        self.client.login(username='creator_manual', password='x')
+        pdf = SimpleUploadedFile('contrato-ref.pdf', b'%PDF-1.4 test', content_type='application/pdf')
+        resp = self.client.post(
+            reverse('workflow_aprovacao:manual_request_new'),
+            {
+                'project': str(self.project.pk),
+                'category': str(self.category.pk),
+                'title': 'Pedido com anexo',
+                'summary': 'Resumo',
+                'notes': 'obs',
+                'amount': '500.00',
+                'vendor_name': 'Fornecedor',
+                'category_payload_json': '{"vigencia_escopo":"6 meses"}',
+                f'slot_{self.slot.pk}_existing_user': str(self.external_existing.pk),
+                'documento_referencia_files': pdf,
+            },
+            format='multipart',
+        )
+        self.assertEqual(resp.status_code, 302)
+        process = ApprovalProcess.objects.filter(title='Pedido com anexo').first()
+        self.assertIsNotNone(process)
+        self.assertEqual(process.attachments.count(), 1)
+        att = process.attachments.first()
+        self.assertEqual(att.original_name, 'contrato-ref.pdf')
+
+        detail = self.client.get(reverse('workflow_aprovacao:process_detail', args=[process.pk]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, 'contrato-ref.pdf')
+
+        download = self.client.get(
+            reverse(
+                'workflow_aprovacao:manual_process_attachment',
+                kwargs={'pk': process.pk, 'attachment_pk': att.pk},
+            )
+        )
+        self.assertEqual(download.status_code, 200)
+        body = b''.join(download.streaming_content)
+        self.assertIn(b'%PDF', body)

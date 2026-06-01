@@ -19,9 +19,19 @@ urlpatterns = [
         name='process_signature_receipt_pdf',
     ),
     path(
+        'processo/<int:pk>/anexo/<int:attachment_pk>/',
+        views.manual_process_attachment_download,
+        name='manual_process_attachment',
+    ),
+    path(
         'processo/<int:pk>/sienge/anexo/',
         views.sienge_process_attachment_download,
         name='sienge_process_attachment',
+    ),
+    path(
+        'api/geolocalizacao/endereco/',
+        views.reverse_geocode_address,
+        name='reverse_geocode_address',
     ),
     path('config/fluxos/', views.config_flow_list, name='config_flow_list'),
     path('config/fluxos/<int:pk>/', views.flow_edit, name='flow_edit'),

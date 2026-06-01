@@ -436,6 +436,13 @@ class WorkOrder(models.Model):
         """
         return self.status in ['pendente', 'reaprovacao']
 
+    def bloqueia_alteracao_anexos(self):
+        """
+        Anexos não podem ser alterados em análise nem após aprovado/cancelado.
+        Permite alteração apenas em rascunho ou reprovado (reenvio pelo solicitante).
+        """
+        return self.status in ('pendente', 'reaprovacao', 'aprovado', 'cancelado')
+
 
 class Approval(models.Model):
     """

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -119,21 +120,58 @@ def _parse_geolocation_data(raw: str) -> dict[str, Any]:
     captured_at = (parsed.get('captured_at') or '').strip()
     if captured_at:
         geo['captured_at'] = captured_at[:40]
+    address = (parsed.get('address') or '').strip()
+    if address:
+        geo['address'] = address[:240]
+    maps_url = (parsed.get('maps_url') or '').strip()
+    if maps_url:
+        geo['maps_url'] = maps_url[:500]
     return geo
 
 
 def _format_geolocation_label(geo: dict[str, Any]) -> str:
     if not geo:
         return ''
+    acc = geo.get('accuracy_m')
+    acc_suffix = f' (precisão ~{acc} m)' if acc is not None else ''
+    address = (geo.get('address') or '').strip()
+    if address:
+        return f'{address}{acc_suffix}'
     lat = geo.get('latitude')
     lng = geo.get('longitude')
     if lat is None or lng is None:
         return ''
-    base = f'Lat {lat:.6f}, Lon {lng:.6f}'
-    acc = geo.get('accuracy_m')
-    if acc is not None:
-        return f'{base} (precisão ~{acc} m)'
-    return base
+    return f'{lat:.6f}, {lng:.6f}{acc_suffix}'
+
+
+def geolocation_display_from_geo(geo: dict[str, Any]) -> dict[str, str]:
+    if not geo:
+        return {}
+    lat = geo.get('latitude')
+    lng = geo.get('longitude')
+    coords = ''
+    maps_url = (geo.get('maps_url') or '').strip()
+    if lat is not None and lng is not None:
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+            coords = f'{lat_f:.6f}, {lng_f:.6f}'
+            if not maps_url:
+                from workflow_aprovacao.services.geocoding import google_maps_url
+
+                maps_url = google_maps_url(latitude=lat_f, longitude=lng_f)
+        except (TypeError, ValueError):
+            pass
+    label = _format_geolocation_label(geo)
+    if not label:
+        return {}
+    address = (geo.get('address') or '').strip()
+    return {
+        'label': label,
+        'address': address,
+        'coords': coords,
+        'maps_url': maps_url,
+    }
 
 
 def build_signature_evidence(
@@ -150,6 +188,10 @@ def build_signature_evidence(
     sig = (signature_data or '').strip()
     has_manual = sig.startswith('data:image/png;base64,') and len(sig) > 500
     geolocation = _parse_geolocation_data(geolocation_data)
+    if geolocation:
+        from workflow_aprovacao.services.geocoding import enrich_geolocation
+
+        geolocation = enrich_geolocation(geolocation)
     geolocation_label = _format_geolocation_label(geolocation)
     snapshot = {
         'process_id': process.pk,
@@ -251,6 +293,93 @@ def _history_step_label(entry: ApprovalHistoryEntry) -> str:
     if name:
         return name
     return ''
+
+
+_LEGACY_GEO_LABEL_RE = re.compile(
+    r'Lat\s+([-\d.]+)\s*,\s*Lon\s+([-\d.]+)',
+    re.IGNORECASE,
+)
+
+
+def _coords_from_legacy_geo_label(label: str) -> tuple[float, float] | None:
+    match = _LEGACY_GEO_LABEL_RE.search(label or '')
+    if not match:
+        return None
+    try:
+        lat = float(match.group(1))
+        lng = float(match.group(2))
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return None
+    return lat, lng
+
+
+def history_geolocation_label(entry: ApprovalHistoryEntry) -> str:
+    display = history_geolocation_display(entry)
+    return display.get('label', '')
+
+
+def _history_geolocation_raw(entry: ApprovalHistoryEntry) -> dict[str, Any]:
+    payload = entry.payload or {}
+    evidence = payload.get('signature_evidence') or {}
+    if not evidence:
+        return {}
+    snap = evidence.get('signed_snapshot') or {}
+    geo = snap.get('geo_location') or {}
+    if isinstance(geo, dict) and geo:
+        return geo
+    return {}
+
+
+def history_geolocation_display(entry: ApprovalHistoryEntry) -> dict[str, str]:
+    geo = _history_geolocation_raw(entry)
+    if geo:
+        return geolocation_display_from_geo(geo)
+    payload = entry.payload or {}
+    evidence = payload.get('signature_evidence') or {}
+    snap = evidence.get('signed_snapshot') or {}
+    label = (snap.get('geo_label') or '').strip()
+    if not label:
+        return {}
+    coords = ''
+    maps_url = ''
+    parsed = _coords_from_legacy_geo_label(label)
+    if parsed:
+        from workflow_aprovacao.services.geocoding import google_maps_url
+
+        lat, lng = parsed
+        coords = f'{lat:.6f}, {lng:.6f}'
+        maps_url = google_maps_url(latitude=lat, longitude=lng)
+    return {'label': label, 'address': '', 'coords': coords, 'maps_url': maps_url}
+
+
+def build_final_signature_audit(
+    event: ApprovalHistoryEntry | None,
+) -> dict[str, Any] | None:
+    if not event:
+        return None
+    payload = event.payload or {}
+    evidence = payload.get('signature_evidence') or {}
+    snap = evidence.get('signed_snapshot') or {}
+    digest = (evidence.get('signature_hash_sha256') or '').strip()
+    geo_label = history_geolocation_label(event)
+    geo_display = history_geolocation_display(event)
+    if not digest and not geo_label:
+        return None
+    signer = (snap.get('signer_name') or '').strip()
+    actor = _actor_label(event)
+    return {
+        'actor': actor,
+        'signer_name': signer if signer and signer.lower() != actor.lower() else '',
+        'signed_by': signer or actor,
+        'geo_label': geo_label,
+        'geo_maps_url': geo_display.get('maps_url', ''),
+        'geo_coords': geo_display.get('coords', ''),
+        'decided_at': event.created_at,
+        'action_display': event.get_action_display(),
+        'hash_short': digest[:16] if digest else '',
+    }
 
 
 def _history_signature_note(entry: ApprovalHistoryEntry) -> str:
@@ -410,6 +539,7 @@ class _ReceiptLayout:
         entry: ApprovalHistoryEntry,
         *,
         highlight: bool = False,
+        include_geolocation: bool = False,
     ) -> None:
         when = timezone.localtime(entry.created_at).strftime('%d/%m/%Y %H:%M:%S')
         summary = _history_event_summary(entry)
@@ -419,6 +549,7 @@ class _ReceiptLayout:
         actor = _actor_label(entry)
         comment = (entry.comment or '').strip()
         sig_note = _history_signature_note(entry)
+        geo_label = history_geolocation_label(entry) if include_geolocation else ''
 
         self._ensure_space(48)
 
@@ -451,6 +582,13 @@ class _ReceiptLayout:
                 self.c.drawString(_MARGIN_X + 16, self.y, line)
                 self.y -= 11
             self.c.setFillColorRGB(0, 0, 0)
+
+        if geo_label:
+            self.c.setFont('Helvetica', 8)
+            self.c.setFillColorRGB(0.45, 0.48, 0.55)
+            self.c.drawString(_MARGIN_X + 16, self.y, f'Localização: {geo_label}')
+            self.c.setFillColorRGB(0, 0, 0)
+            self.y -= 11
 
         if sig_note:
             self.c.setFont('Helvetica', 8)
@@ -515,7 +653,12 @@ def _wrap_text(text: str, max_width: float, c: canvas.Canvas, font: str, size: i
     return lines
 
 
-def render_signature_receipt_pdf(*, process: ApprovalProcess, event: ApprovalHistoryEntry) -> bytes:
+def render_signature_receipt_pdf(
+    *,
+    process: ApprovalProcess,
+    event: ApprovalHistoryEntry,
+    include_geolocation: bool = False,
+) -> bytes:
     if not REPORTLAB_AVAILABLE:
         raise RuntimeError('ReportLab não disponível para gerar comprovante PDF.')
 
@@ -553,7 +696,12 @@ def render_signature_receipt_pdf(*, process: ApprovalProcess, event: ApprovalHis
     doc.gap(6)
     doc.section('Histórico do fluxo')
     for i, entry in enumerate(history, start=1):
-        doc.timeline_entry(i, entry, highlight=(entry.pk == event.pk))
+        doc.timeline_entry(
+            i,
+            entry,
+            highlight=(entry.pk == event.pk),
+            include_geolocation=include_geolocation,
+        )
 
     doc.gap(6)
     doc.section('Assinatura da decisão final')
@@ -578,7 +726,16 @@ def render_signature_receipt_pdf(*, process: ApprovalProcess, event: ApprovalHis
     doc.gap(8)
     doc.section('Registro de auditoria (decisão final)')
     doc.row('Código de verificação', hash_value or '—')
-    doc.row('Localização', snap.get('geo_label') or 'Não informada')
+    if include_geolocation:
+        geo_location = snap.get('geo_location') or {}
+        geo_display = (
+            geolocation_display_from_geo(geo_location)
+            if isinstance(geo_location, dict)
+            else {}
+        )
+        doc.row('Localização', snap.get('geo_label') or geo_display.get('label') or 'Não informada')
+        if geo_display.get('maps_url'):
+            doc.row('Abrir no Maps', geo_display['maps_url'])
     doc.row('Endereço IP (rede)', snap.get('ip') or '—')
     ua = (snap.get('user_agent') or '').strip()
     if ua:

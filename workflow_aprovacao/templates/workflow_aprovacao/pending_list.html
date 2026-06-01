@@ -1,14 +1,23 @@
 {% extends 'workflow_aprovacao/base_workflow.html' %}
 
-{% block back_url %}{% url 'select-system' %}{% endblock %}
+{% block back_url %}{% if workflow_external_profile %}#{% else %}{% url 'select-system' %}{% endif %}{% endblock %}
 
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block page_subtitle %}{{ page_subtitle }}{% endblock %}
 
 {% block wf_content %}
-<div class="wf-root">
+<div class="wf-root{% if workflow_external_profile %} wf-root--external{% endif %}">
     {% include 'workflow_aprovacao/_messages.html' %}
 
+    {% if workflow_external_profile %}
+    <div class="wf-external-inbox-head">
+        <p class="wf-external-inbox-head__count">
+            <strong>{{ inbox_filtered_total }}</strong>
+            {% if inbox_filtered_total == 1 %}pedido aguardando assinatura{% else %}pedidos aguardando assinatura{% endif %}
+        </p>
+        <p class="wf-external-inbox-head__hint">Toque no pedido para revisar e assinar.</p>
+    </div>
+    {% else %}
     <nav class="wf-inbox-tabs" aria-label="Filtrar por situação">
         {% for t in inbox_tabs %}
         <a href="{% url 'workflow_aprovacao:pending' %}?aba={{ t.key }}{% if filter_project_id %}&amp;project={{ filter_project_id }}{% endif %}{% if filter_category_id %}&amp;category={{ filter_category_id }}{% endif %}{% if filter_origin %}&amp;origem={{ filter_origin }}{% endif %}{% if filter_q %}&amp;q={{ filter_q|urlencode }}{% endif %}"
@@ -19,7 +28,7 @@
         {% endfor %}
     </nav>
 
-    <form method="get" class="wf-backlog-toolbar wf-inbox-toolbar" action="">
+    <form method="get" class="wf-backlog-toolbar wf-inbox-toolbar wf-inbox-toolbar--desktop" action="">
         <input type="hidden" name="aba" value="{{ inbox_tab }}">
         <label>
             Obra
@@ -57,7 +66,19 @@
         {% endif %}
     </form>
 
-    <div class="wf-inbox-summary">
+    <form method="get" class="wf-inbox-toolbar-mobile wf-mobile-only" action="">
+        <input type="hidden" name="aba" value="{{ inbox_tab }}">
+        <label class="wf-inbox-toolbar-mobile__search">
+            <span class="wf-inbox-toolbar-mobile__label">Buscar</span>
+            <input type="search" name="q" value="{{ filter_q|default:'' }}" placeholder="ID ou título…" maxlength="200" enterkeyhint="search">
+        </label>
+        <button type="submit" class="wf-inbox-toolbar-mobile__btn">Buscar</button>
+        {% if filter_q %}
+        <a href="{% url 'workflow_aprovacao:pending' %}?aba={{ inbox_tab }}" class="wf-inbox-toolbar-mobile__clear">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="wf-inbox-summary wf-desktop-only">
         <strong>{{ inbox_filtered_total }}</strong>
         {% if inbox_filtered_total == 1 %}processo{% else %}processos{% endif %}
         {% if inbox_filtered_total > inbox_display_limit %}
@@ -71,17 +92,24 @@
         </a>
     </div>
     {% endif %}
+    {% endif %}
 
     <section class="wf-panel" aria-labelledby="wf-inbox-heading">
+        {% if not workflow_external_profile %}
         <div class="wf-panel__head">
             <h2 id="wf-inbox-heading" class="wf-panel__title">{{ page_subtitle }}</h2>
         </div>
-        <div class="wf-panel__body wf-panel__body--flush">
+        {% endif %}
+        <div class="wf-panel__body wf-panel__body--flush{% if workflow_external_profile %} wf-panel__body--external{% endif %}">
             {% if inbox_processes %}
+            {% if not workflow_external_profile %}
             {% include 'workflow_aprovacao/includes/inbox_process_table.html' %}
-            <div class="wf-mobile-only wf-inbox-mobile-cards">
+            {% endif %}
+            <div class="wf-mobile-only wf-inbox-mobile-cards{% if workflow_external_profile %} wf-inbox-mobile-cards--external{% endif %}">
                 {% for p in inbox_processes %}
-                <article class="wf-inbox-card">
+                <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}"
+                   class="wf-inbox-card wf-inbox-card--link{% if workflow_external_profile %} wf-inbox-card--external{% endif %}"
+                   aria-label="Abrir processo #{{ p.pk }}{% if p.title %}: {{ p.title|truncatechars:60 }}{% endif %}">
                     <div class="wf-inbox-card__head">
                         <span class="wf-mono">#{{ p.pk }}</span>
                         {% if p.status == 'awaiting_step' %}
@@ -96,15 +124,26 @@
                     {% if p.current_step %}<p class="wf-cell-sub">Alçada {{ p.current_step.sequence }} · {{ p.current_step.name }}</p>{% endif %}
                     {% if p.title %}<p class="wf-help">{{ p.title|truncatechars:100 }}</p>{% endif %}
                     <div class="wf-inbox-card__actions">
-                        <a href="{% url 'workflow_aprovacao:process_detail' p.pk %}" class="wf-btn-table">Abrir processo</a>
+                        {% if workflow_external_profile and p.status == 'awaiting_step' %}
+                        <span class="wf-btn wf-btn--approve wf-inbox-card__sign-btn">
+                            <i class="fas fa-signature" aria-hidden="true"></i> Assinar agora
+                        </span>
+                        {% else %}
+                        <span class="wf-btn-table wf-inbox-card__open-label">Abrir processo</span>
+                        {% endif %}
                     </div>
-                </article>
+                </a>
                 {% endfor %}
             </div>
+            {% if workflow_external_profile %}
+            <div class="wf-desktop-only">
+                {% include 'workflow_aprovacao/includes/inbox_process_table.html' %}
+            </div>
+            {% endif %}
             {% else %}
             <div class="wf-empty wf-empty--inline">
-                <p class="wf-empty__title">Nenhum processo neste filtro</p>
-                <p class="wf-empty__text">Altere a aba ou os filtros acima.</p>
+                <p class="wf-empty__title">{% if workflow_external_profile %}Nenhum pedido para assinar{% else %}Nenhum processo neste filtro{% endif %}</p>
+                <p class="wf-empty__text">{% if workflow_external_profile %}Quando houver uma solicitação para você, ela aparecerá aqui.{% else %}Altere a aba ou os filtros acima.{% endif %}</p>
             </div>
             {% endif %}
         </div>

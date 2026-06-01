@@ -151,11 +151,13 @@
                             <strong style="color: #2c3e50; display: block; margin-bottom: 0.75rem;">Anexos Existentes:</strong>
                             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                                 {% for anexo in anexos_existentes %}
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background-color: white; border-radius: 4px; {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}opacity: 0.6; cursor: not-allowed;{% else %}cursor: pointer; transition: background-color 0.2s;{% endif %}">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background-color: white; border-radius: 4px; {% if anexos_bloqueados_fluxo or is_solicitante and workorder.status != 'rascunho' and workorder.status != 'reprovado' %}opacity: 0.6; cursor: not-allowed;{% else %}cursor: pointer; transition: background-color 0.2s;{% endif %}">
                                         <input type="checkbox" name="excluir_anexos" value="{{ anexo.id }}"
-                                               {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}disabled title="Você não pode excluir anexos de um pedido que já foi aprovado ou reprovado"{% else %}style="cursor: pointer;"{% endif %}>
+                                               {% if anexos_bloqueados_fluxo or is_solicitante and workorder.status != 'rascunho' and workorder.status != 'reprovado' %}disabled title="Anexos não podem ser alterados neste status"{% else %}style="cursor: pointer;"{% endif %}>
                                         <span style="flex: 1; color: #555;">{{ anexo.nome }}</span>
-                                        {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}
+                                        {% if anexos_bloqueados_fluxo %}
+                                            <span style="color: #6c757d; font-size: 0.85rem;">Bloqueado</span>
+                                        {% elif is_solicitante and workorder.status != 'rascunho' and workorder.status != 'reprovado' %}
                                             <span style="color: #6c757d; font-size: 0.85rem;">Não pode excluir</span>
                                         {% else %}
                                             <span style="color: #dc3545; font-size: 0.85rem; font-weight: 500;">Excluir</span>
@@ -164,7 +166,9 @@
                                 {% endfor %}
                             </div>
                             <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #6c757d;">
-                                {% if is_solicitante and workorder.status != 'rascunho' and workorder.status != 'pendente' %}
+                                {% if anexos_bloqueados_fluxo %}
+                                    <em>{{ anexos_bloqueados_mensagem }}</em>
+                                {% elif is_solicitante and workorder.status != 'rascunho' and workorder.status != 'reprovado' %}
                                     <em style="color: #dc3545;">Você não pode excluir anexos de um pedido que já foi aprovado ou reprovado.</em>
                                 {% else %}
                                     <em>Marque os anexos que deseja excluir</em>
@@ -174,6 +178,11 @@
                     {% endif %}
                 {% endwith %}
             {% endif %}
+            {% if anexos_bloqueados_fluxo %}
+                <p style="margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #64748b; font-size: 0.85rem;">
+                    {{ anexos_bloqueados_mensagem }}
+                </p>
+            {% else %}
             <label for="anexos" class="form-label">
                 Adicionar Anexos <span style="color: #6c757d;">(Opcional)</span>
             </label>
@@ -189,6 +198,7 @@
                 {% endif %}
                 Você pode selecionar múltiplos arquivos mantendo Ctrl (ou Cmd no Mac) pressionado.
             </div>
+            {% endif %}
         </div>
     {% endif %}
 

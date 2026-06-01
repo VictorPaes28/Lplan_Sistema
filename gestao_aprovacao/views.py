@@ -6,7 +6,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q, Min, Value, Prefetch
+from django.db.models import Q, Min, Value, Prefetch, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
@@ -15,7 +15,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
 import re
 from datetime import timedelta, datetime, time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote, parse_qs, urlparse
 import os
 import csv
 import io
@@ -152,6 +152,154 @@ def _no_cache_form_response(response):
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
     return response
+
+
+# --- Listagem de usuários: preservar busca/filtros/página nos redirects ---
+_LIST_USERS_QUERY_KEYS = ('search', 'grupo', 'obra', 'page')
+
+
+def _list_users_sanitize_query(query_dict):
+    """Mantém apenas parâmetros de listagem conhecidos e seguros."""
+    if not query_dict:
+        return {}
+    out = {}
+    for key in _LIST_USERS_QUERY_KEYS:
+        raw = query_dict.get(key)
+        if raw is None:
+            continue
+        val = str(raw).strip()
+        if not val:
+            continue
+        if key == 'page':
+            if val.isdigit() and int(val) > 0:
+                out[key] = val
+        else:
+            out[key] = val
+    return out
+
+
+def _list_users_query_from_request(request):
+    """
+    Extrai query da listagem a partir de list_return/next (formulários) ou do GET atual.
+    """
+    raw = (
+        (request.POST.get('list_return') or request.POST.get('next') or '').strip()
+        or (request.GET.get('list_return') or request.GET.get('next') or '').strip()
+    )
+    if raw:
+        if raw.startswith('http://') or raw.startswith('https://'):
+            raw = urlparse(raw).query
+        elif raw.startswith('?'):
+            raw = raw[1:]
+        elif '?' in raw:
+            raw = urlparse(raw).query
+        parsed = parse_qs(raw, keep_blank_values=False)
+        flat = {k: (v[0] if v else '') for k, v in parsed.items() if k in _LIST_USERS_QUERY_KEYS}
+        return _list_users_sanitize_query(flat)
+    url_name = getattr(getattr(request, 'resolver_match', None), 'url_name', None)
+    if request.method == 'GET' and url_name in ('central_list_users', 'list_users'):
+        return _list_users_sanitize_query(request.GET)
+    return {}
+
+
+def _list_users_return_querystring(request):
+    q = _list_users_query_from_request(request)
+    return urlencode(q) if q else ''
+
+
+def _list_users_redirect(request, url_name=None, **extra_query):
+    """Redireciona para a listagem preservando busca, filtros e paginação."""
+    _central = getattr(request, '_central_redirect', False)
+    name = url_name or ('central_list_users' if _central else 'gestao:list_users')
+    q = _list_users_query_from_request(request)
+    for key, val in extra_query.items():
+        if val is None or val == '':
+            if key in q:
+                del q[key]
+        else:
+            q[key] = str(val)
+    url = reverse(name)
+    if q:
+        url += '?' + urlencode(q)
+    return redirect(url)
+
+
+def _list_users_url_with_return(base_url, return_querystring):
+    if not return_querystring:
+        return base_url
+    sep = '&' if '?' in base_url else '?'
+    return base_url + sep + 'list_return=' + quote(return_querystring, safe='')
+
+
+def _user_delete_bloqueios(user):
+    """Motivos que impedem exclusão (mesmas regras da confirmação)."""
+    bloqueios = []
+    if Empresa.objects.filter(responsavel=user, ativo=True).exists():
+        bloqueios.append('É responsável por uma ou mais empresas')
+    if WorkOrder.objects.filter(criado_por=user).exists():
+        bloqueios.append('Criou pedidos de obra')
+    if Approval.objects.filter(aprovado_por=user).exists():
+        bloqueios.append('Aprovou/reprovou pedidos')
+    if Attachment.objects.filter(enviado_por=user).exists():
+        bloqueios.append('Enviou anexos')
+    if StatusHistory.objects.filter(alterado_por=user).exists():
+        bloqueios.append('Alterou status de pedidos')
+    if Comment.objects.filter(autor=user).exists():
+        bloqueios.append('Fez comentários em pedidos')
+    return bloqueios
+
+
+def _batch_user_delete_bloqueios(user_ids):
+    """Mapa user_id -> lista de bloqueios (consultas em lote para a página atual)."""
+    if not user_ids:
+        return {}
+    result = {uid: [] for uid in user_ids}
+    uid_set = set(user_ids)
+
+    def _add(field, label):
+        for uid in field.filter(pk__in=uid_set).values_list('pk', flat=True):
+            if uid in result:
+                result[uid].append(label)
+
+    for uid in Empresa.objects.filter(
+        responsavel_id__in=uid_set, ativo=True
+    ).values_list('responsavel_id', flat=True).distinct():
+        if uid in result:
+            result[uid].append('É responsável por uma ou mais empresas')
+    for uid in WorkOrder.objects.filter(criado_por_id__in=uid_set).values_list(
+        'criado_por_id', flat=True
+    ).distinct():
+        if uid in result:
+            result[uid].append('Criou pedidos de obra')
+    for uid in Approval.objects.filter(aprovado_por_id__in=uid_set).values_list(
+        'aprovado_por_id', flat=True
+    ).distinct():
+        if uid in result:
+            result[uid].append('Aprovou/reprovou pedidos')
+    for uid in Attachment.objects.filter(enviado_por_id__in=uid_set).values_list(
+        'enviado_por_id', flat=True
+    ).distinct():
+        if uid in result:
+            result[uid].append('Enviou anexos')
+    for uid in StatusHistory.objects.filter(alterado_por_id__in=uid_set).values_list(
+        'alterado_por_id', flat=True
+    ).distinct():
+        if uid in result:
+            result[uid].append('Alterou status de pedidos')
+    for uid in Comment.objects.filter(autor_id__in=uid_set).values_list(
+        'autor_id', flat=True
+    ).distinct():
+        if uid in result:
+            result[uid].append('Fez comentários em pedidos')
+    for uid in result:
+        deduped = []
+        for label in result[uid]:
+            if label not in deduped:
+                deduped.append(label)
+        result[uid] = deduped
+    return result
+
+
 from core.models import ConstructionDiary, Project, ProjectMember
 
 logger = logging.getLogger(__name__)
@@ -169,6 +317,12 @@ EXTENSOES_PERMITIDAS = [
     '.jpg', '.jpeg', '.png', '.gif',
     '.zip', '.rar', '.7z'
 ]
+
+ANEXOS_BLOQUEADOS_FLUXO_MSG = (
+    'Anexos não podem ser adicionados, alterados ou removidos '
+    'enquanto o pedido estiver em análise (pendente ou reaprovação), '
+    'após aprovado ou se estiver cancelado.'
+)
 
 
 def validar_extensao_arquivo(nome_arquivo):
@@ -1471,18 +1625,16 @@ def detail_workorder(request, pk):
     # Na tela de detalhes, solicitantes só podem adicionar/deletar se o pedido está em rascunho
     can_add_attachment = False
     can_delete_attachment = False
-    
-    if is_admin(user):
-        # Admins podem sempre adicionar/deletar
-        can_add_attachment = True
-        can_delete_attachment = True
-    elif is_engenheiro(user) and not (is_aprovador(user) or is_admin(user)):
-        # É solicitante (não é aprovador nem admin)
-        # Na tela de detalhes, só pode adicionar/deletar anexos se o pedido está em rascunho
-        # Para reaprovação, deve usar a tela de EDIÇÃO
-        if workorder.criado_por == user and workorder.status == 'rascunho':
+    anexos_bloqueados_fluxo = workorder.bloqueia_alteracao_anexos()
+
+    if not anexos_bloqueados_fluxo:
+        if is_admin(user):
             can_add_attachment = True
             can_delete_attachment = True
+        elif is_engenheiro(user) and not (is_aprovador(user) or is_admin(user)):
+            if workorder.criado_por == user and workorder.status == 'rascunho':
+                can_add_attachment = True
+                can_delete_attachment = True
     # Aprovadores não podem adicionar/deletar anexos (já está False por padrão)
     
     # Verificar se pode solicitar exclusão (criador ou admin da plataforma)
@@ -1559,6 +1711,8 @@ def detail_workorder(request, pk):
         'can_approve': can_approve,
         'can_add_attachment': can_add_attachment,
         'can_delete_attachment': can_delete_attachment,
+        'anexos_bloqueados_fluxo': anexos_bloqueados_fluxo,
+        'anexos_bloqueados_mensagem': ANEXOS_BLOQUEADOS_FLUXO_MSG if anexos_bloqueados_fluxo else '',
         'can_solicitar_exclusao': can_solicitar_exclusao,
         'can_aprovar_exclusao': can_aprovar_exclusao,
         'can_comment': can_comment,
@@ -1667,7 +1821,8 @@ def _workorder_ajax_permission_flags(workorder, user):
 
     can_add_attachment = False
     can_delete_attachment = False
-    if tem_permissao:
+    anexos_bloqueados_fluxo = workorder.bloqueia_alteracao_anexos()
+    if tem_permissao and not anexos_bloqueados_fluxo:
         if is_admin(user):
             can_add_attachment = True
             can_delete_attachment = True
@@ -1713,6 +1868,7 @@ def _workorder_ajax_permission_flags(workorder, user):
         'can_approve': can_approve,
         'can_add_attachment': can_add_attachment,
         'can_delete_attachment': can_delete_attachment,
+        'anexos_bloqueados_fluxo': anexos_bloqueados_fluxo,
         'can_solicitar_exclusao': can_solicitar_exclusao,
         'can_aprovar_exclusao': can_aprovar_exclusao,
         'can_comment': can_comment,
@@ -1871,7 +2027,12 @@ def workorder_detail_ajax(request, pk):
     """JSON para o modal de detalhe do pedido na listagem (GestControll)."""
     workorder = get_object_or_404(
         WorkOrder.objects.select_related(
-            'obra', 'obra__empresa', 'criado_por', 'solicitado_exclusao_por', 'central_dispatch__approval_process'
+            'obra',
+            'obra__empresa',
+            'criado_por',
+            'solicitado_exclusao_por',
+            'central_dispatch__approval_process',
+            'central_dispatch__sent_by',
         ),
         pk=pk,
     )
@@ -1994,6 +2155,10 @@ def workorder_detail_ajax(request, pk):
         'pode_solicitar_exclusao': perm['can_solicitar_exclusao'],
         'pode_comentar': perm['can_comment'],
         'pode_adicionar_anexo': perm['can_add_attachment'],
+        'anexos_bloqueados_fluxo': perm['anexos_bloqueados_fluxo'],
+        'anexos_bloqueados_mensagem': (
+            ANEXOS_BLOQUEADOS_FLUXO_MSG if perm['anexos_bloqueados_fluxo'] else ''
+        ),
         'exclusao_pendente': exclusao_pendente,
         'pode_aprovar_exclusao': perm['can_aprovar_exclusao'],
         'obra_consulta_apenas': perm['obra_consulta_apenas'],
@@ -2009,6 +2174,20 @@ def workorder_detail_ajax(request, pk):
         'can_send_to_central': can_send_central,
         'central_dispatch_id': central_dispatch.approval_process_id if central_dispatch else None,
         'central_process_url': central_url,
+        'central_dispatch': (
+            {
+                'process_id': central_dispatch.approval_process_id,
+                'sent_at': _fmt_dt_ajax(central_dispatch.sent_at),
+                'sent_by': (
+                    central_dispatch.sent_by.get_full_name()
+                    or central_dispatch.sent_by.username
+                    if central_dispatch.sent_by
+                    else '—'
+                ),
+            }
+            if central_dispatch
+            else None
+        ),
         'urls': {
             'detalhe': reverse('gestao:detail_workorder', args=[workorder.pk]),
             'exportar_pdf': reverse('gestao:exportar_snapshot_workorder_pdf', args=[workorder.pk]),
@@ -2477,15 +2656,20 @@ def edit_workorder(request, pk):
             
             # Salvar o pedido
             workorder.save()
+
+            anexos_bloqueados_no_envio = status_anterior in ('pendente', 'reaprovacao')
             
             # Processar exclusão de anexos existentes
-            # Solicitantes podem excluir anexos se o pedido estiver em rascunho ou pendente
+            # Solicitantes podem excluir anexos apenas em rascunho ou reprovado (antes de reenviar)
             anexos_excluidos_ids = request.POST.getlist('excluir_anexos')
             anexos_excluidos = []
             if anexos_excluidos_ids:
-                # Verificar permissão: solicitantes podem excluir se status = 'rascunho' ou 'pendente'
+                if anexos_bloqueados_no_envio:
+                    messages.error(request, ANEXOS_BLOQUEADOS_FLUXO_MSG)
+                    return redirect('gestao:edit_workorder', pk=workorder.pk)
+
                 pode_excluir = True
-                if is_solicitante_only and workorder.status not in ['rascunho', 'pendente']:
+                if is_solicitante_only and workorder.status not in ['rascunho', 'reprovado']:
                     pode_excluir = False
                     messages.warning(request, 'Você não tem permissão para excluir anexos de um pedido que já foi aprovado ou reprovado.')
                 
@@ -2537,6 +2721,10 @@ def edit_workorder(request, pk):
             # Processar novos anexos (adicionar aos existentes, não substituir)
             anexos_files = request.FILES.getlist('anexos')
             novos_anexos = []
+
+            if anexos_files and anexos_bloqueados_no_envio:
+                messages.error(request, ANEXOS_BLOQUEADOS_FLUXO_MSG)
+                return redirect('gestao:edit_workorder', pk=workorder.pk)
             
             # Determinar se estamos em contexto de reaprovação
             # IMPORTANTE: usar o status ANTES de salvar, pois pode ter mudado
@@ -2748,6 +2936,10 @@ def edit_workorder(request, pk):
         'title': f'Editar Pedido: {workorder.codigo}',
         'user_profile': get_user_profile(user),
         'is_solicitante': is_solicitante_only,
+        'anexos_bloqueados_fluxo': workorder.bloqueia_alteracao_anexos(),
+        'anexos_bloqueados_mensagem': (
+            ANEXOS_BLOQUEADOS_FLUXO_MSG if workorder.bloqueia_alteracao_anexos() else ''
+        ),
     }
     response = render(request, 'obras/workorder_form.html', context)
     return _no_cache_form_response(response)
@@ -2762,10 +2954,13 @@ def approve_workorder(request, pk):
     Aprova um pedido de obra.
     Apenas gestores e admins podem aprovar.
     """
+    want_json = _request_accepts_json_response(request)
     workorder = get_object_or_404(WorkOrder, pk=pk)
     
     # Verificar se pode aprovar (status pendente E gestor da obra)
     if not workorder.pode_aprovar(request.user):
+        if want_json:
+            return _reject_workorder_json_error('gestao.approval.not_allowed_now')
         flash_message(request, "error", "gestao.approval.not_allowed_now")
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
@@ -2783,11 +2978,15 @@ def approve_workorder(request, pk):
             ).values_list('id', flat=True).distinct()
             tem_permissao = workorder.obra.empresa_id in empresas_ids
         if not tem_permissao:
+            if want_json:
+                return _reject_workorder_json_error('gestao.approval.no_scope')
             flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
 
     blocked = redirect_if_gestao_obra_readonly(request, workorder)
     if blocked:
+        if want_json:
+            return JsonResponse({'ok': False, 'error': OBRA_INATIVA_CONSULTA_MSG}, status=403)
         return blocked
     
     if request.method == 'POST':
@@ -2801,10 +3000,14 @@ def approve_workorder(request, pk):
             
             # Re-verificar status dentro da transação
             if not workorder.pode_aprovar(request.user):
+                if want_json:
+                    return _reject_workorder_json_error('gestao.approval.race_conflict')
                 flash_message(request, "error", "gestao.approval.race_conflict")
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
 
             if gestao_obra_requires_readonly(workorder.obra):
+                if want_json:
+                    return JsonResponse({'ok': False, 'error': OBRA_INATIVA_CONSULTA_MSG}, status=403)
                 messages.error(request, OBRA_INATIVA_CONSULTA_MSG)
                 return redirect('gestao:detail_workorder', pk=workorder.pk)
             
@@ -2863,6 +3066,14 @@ def approve_workorder(request, pk):
             pass
 
         messages.success(request, f'Pedido "{workorder.codigo}" aprovado com sucesso!')
+        if want_json:
+            return JsonResponse(
+                {
+                    'ok': True,
+                    'message': f'Pedido "{workorder.codigo}" aprovado com sucesso!',
+                    'codigo': workorder.codigo,
+                }
+            )
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # GET - mostrar formulário de confirmação
@@ -3152,18 +3363,21 @@ def upload_attachment(request, pk):
     """
     workorder = get_object_or_404(WorkOrder, pk=pk)
     user = request.user
+
+    if workorder.bloqueia_alteracao_anexos():
+        messages.error(request, ANEXOS_BLOQUEADOS_FLUXO_MSG)
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se é solicitante (não é aprovador nem admin)
     is_solicitante_only = is_engenheiro(user) and not (is_aprovador(user) or is_admin(user))
     
     # Solicitantes só podem adicionar anexos via upload_attachment se o pedido está em rascunho
-    # Para reaprovação, devem usar a tela de EDIÇÃO do pedido
+    # Para reaprovação, devem usar a tela de EDIÇÃO do pedido (status reprovado)
     if is_solicitante_only and workorder.status != 'rascunho':
         messages.error(request, 'Você não pode adicionar anexos a um pedido que já foi enviado. Use a opção de editar o pedido para adicionar novos anexos.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
-    # Verificar permissão de visualização do pedido
-    # Aprovadores NÃO podem adicionar anexos
+    # Apenas admin ou criador do pedido (fora dos status bloqueados acima)
     if not (is_admin(user) or workorder.criado_por == user):
         messages.error(request, 'Você não tem permissão para anexar arquivos a este pedido.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
@@ -3223,6 +3437,10 @@ def delete_attachment(request, pk):
     attachment = get_object_or_404(Attachment, pk=pk)
     workorder = attachment.work_order
     user = request.user
+
+    if workorder.bloqueia_alteracao_anexos():
+        messages.error(request, ANEXOS_BLOQUEADOS_FLUXO_MSG)
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar se é solicitante (não é aprovador nem admin)
     is_solicitante_only = is_engenheiro(user) and not (is_aprovador(user) or is_admin(user))
@@ -3496,7 +3714,7 @@ def user_governance_panel(request, pk):
     )
     if not viewer_can_see_target_user(request.user, target):
         messages.error(request, 'Você não tem permissão para visualizar este usuário.')
-        return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+        return _list_users_redirect(request)
 
     period_raw = (request.GET.get('period') or '90').strip()
     try:
@@ -3555,7 +3773,12 @@ def user_governance_panel(request, pk):
     strategic_insights = build_strategic_insights(target, kpis, audit_insights)
 
     _central = getattr(request, '_central_redirect', False)
+    list_qs = _list_users_return_querystring(request)
     list_url = reverse('central_list_users' if _central else 'gestao:list_users')
+    if list_qs:
+        list_url += '?' + list_qs
+    edit_url = reverse('central_edit_user' if _central else 'gestao:edit_user', kwargs={'pk': target.pk})
+    edit_url = _list_users_url_with_return(edit_url, list_qs)
 
     context = {
         'target_user': target,
@@ -3576,6 +3799,8 @@ def user_governance_panel(request, pk):
         'obra_usage': obra_usage,
         'use_central_urls': _central,
         'list_users_url': list_url,
+        'edit_user_url': edit_url,
+        'list_return_query': list_qs,
     }
     return render(request, 'obras/user_governance.html', context)
 
@@ -3591,33 +3816,29 @@ def list_users(request):
         messages.error(request, 'Você não tem permissão para acessar esta página.')
         return redirect('gestao:home')
 
-    _list_redirect = (
-        'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
-    )
-
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'toggle_active':
             uid_raw = (request.POST.get('user_id') or '').strip()
             if not uid_raw.isdigit():
                 messages.error(request, 'Requisição inválida.')
-                return redirect(_list_redirect)
+                return _list_users_redirect(request)
             target = get_object_or_404(User, pk=int(uid_raw))
 
             if target == request.user:
                 messages.error(request, 'Você não pode desativar seu próprio usuário.')
-                return redirect(_list_redirect)
+                return _list_users_redirect(request)
 
             if target.is_superuser and not request.user.is_superuser:
                 messages.error(request, 'Apenas superusuário pode alterar outro superusuário.')
-                return redirect(_list_redirect)
+                return _list_users_redirect(request)
 
             if target.is_staff and not request.user.is_superuser:
                 messages.error(
                     request,
                     'Apenas superusuário pode desativar ou reativar usuários da equipe interna (staff).',
                 )
-                return redirect(_list_redirect)
+                return _list_users_redirect(request)
 
             if is_responsavel_empresa(request.user) and not is_admin(request.user):
                 empresas_responsavel = Empresa.objects.filter(responsavel=request.user, ativo=True)
@@ -3627,7 +3848,7 @@ def list_users(request):
                     empresas_vinculadas__ativo=True,
                 ).exists():
                     messages.error(request, 'Sem permissão para alterar este usuário.')
-                    return redirect(_list_redirect)
+                    return _list_users_redirect(request)
 
             target.is_active = not target.is_active
             target.save(update_fields=['is_active'])
@@ -3636,7 +3857,7 @@ def list_users(request):
                 request,
                 f'Usuário "{target.get_full_name() or target.username}" foi {status}.',
             )
-            return redirect(_list_redirect)
+            return _list_users_redirect(request)
 
     # Se for responsável por empresa (não admin), mostrar apenas usuários de suas empresas
     if is_responsavel_empresa(request.user) and not is_admin(request.user):
@@ -3695,21 +3916,39 @@ def list_users(request):
     ).order_by(Coalesce('_obra_sort', Value('ZZZZZZZZZZ')), 'username')
 
     users = users.select_related('perfil').prefetch_related(
+        'groups',
         Prefetch(
             'permissoes_obra',
             queryset=WorkOrderPermission.objects.filter(ativo=True).select_related('obra'),
-        )
+        ),
     )
 
     # Paginação
     paginator = Paginator(users, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
+
+    page_user_ids = [u.pk for u in page_obj]
+    delete_bloqueios_map = (
+        _batch_user_delete_bloqueios(page_user_ids) if is_admin(request.user) else {}
+    )
+
+    toggle_allowed_ids = None
+    if is_responsavel_empresa(request.user) and not is_admin(request.user):
+        _emp_resp = Empresa.objects.filter(responsavel=request.user, ativo=True)
+        toggle_allowed_ids = set(
+            User.objects.filter(
+                pk__in=page_user_ids,
+                empresas_vinculadas__empresa__in=_emp_resp,
+                empresas_vinculadas__ativo=True,
+            ).values_list('pk', flat=True)
+        )
+
     # Obter grupos e obras (GestControll) para cada usuário
     users_with_groups = []
     for user in page_obj:
-        grupos = user.groups.all()
+        grupos = list(user.groups.all())
+        group_names = {g.name for g in grupos}
         obras_vistas = []
         _seen = set()
         for p in user.permissoes_obra.all():
@@ -3726,13 +3965,8 @@ def list_users(request):
             can_toggle_active = False
         elif user.is_staff and not request.user.is_superuser:
             can_toggle_active = False
-        elif is_responsavel_empresa(request.user) and not is_admin(request.user):
-            _emp_resp = Empresa.objects.filter(responsavel=request.user, ativo=True)
-            can_toggle_active = User.objects.filter(
-                pk=user.pk,
-                empresas_vinculadas__empresa__in=_emp_resp,
-                empresas_vinculadas__ativo=True,
-            ).exists()
+        elif toggle_allowed_ids is not None:
+            can_toggle_active = user.pk in toggle_allowed_ids
 
         try:
             perfil_inst = user.perfil
@@ -3743,11 +3977,13 @@ def list_users(request):
             'user': user,
             'perfil': perfil_inst,
             'groups': grupos,
-            'is_engenheiro': grupos.filter(name='Solicitante').exists(),
-            'is_gestor': grupos.filter(name='Gestor').exists(),
-            'is_admin': grupos.filter(name='Administrador').exists() or user.is_superuser,
+            'group_names_display': ', '.join(sorted(group_names)) if group_names else '',
+            'is_engenheiro': 'Solicitante' in group_names,
+            'is_gestor': 'Gestor' in group_names,
+            'is_admin': 'Administrador' in group_names or user.is_superuser,
             'obras_list': obras_vistas,
             'can_toggle_active': can_toggle_active,
+            'delete_bloqueios': delete_bloqueios_map.get(user.pk, []),
         })
     
     # Verificar se é responsável por empresa para mostrar apenas empresas dele
@@ -3760,15 +3996,34 @@ def list_users(request):
     # Grupos oficiais para o filtro (ordem por módulo; sem perfis ocultos na UI)
     grupos_filtro = grupos_ordenados_atribuivel()
     _central = getattr(request, '_central_redirect', False)
-    # Resumo (mesmo recorte dos filtros, antes da paginação)
+    # Resumo (mesmo recorte dos filtros, uma consulta agregada)
+    stats_row = users.aggregate(
+        total=Count('pk'),
+        active=Count('pk', filter=Q(is_active=True)),
+        inactive=Count('pk', filter=Q(is_active=False)),
+        admins=Count(
+            'pk',
+            filter=Q(is_superuser=True) | Q(groups__name='Administrador'),
+            distinct=True,
+        ),
+    )
     list_users_stats = {
-        'total': users.count(),
-        'active': users.filter(is_active=True).count(),
-        'inactive': users.filter(is_active=False).count(),
-        'admins': users.filter(Q(is_superuser=True) | Q(groups__name='Administrador'))
-        .distinct()
-        .count(),
+        'total': stats_row['total'] or 0,
+        'active': stats_row['active'] or 0,
+        'inactive': stats_row['inactive'] or 0,
+        'admins': stats_row['admins'] or 0,
     }
+    list_return_query = _list_users_return_querystring(request)
+    open_delete_raw = (request.GET.get('open_delete') or '').strip()
+    open_delete_id = int(open_delete_raw) if open_delete_raw.isdigit() else None
+    edit_url_name = 'central_edit_user' if _central else 'gestao:edit_user'
+    delete_url_name = 'central_delete_user' if _central else 'gestao:delete_user'
+    for row in users_with_groups:
+        uid = row['user'].pk
+        row['edit_url'] = _list_users_url_with_return(
+            reverse(edit_url_name, kwargs={'pk': uid}), list_return_query
+        )
+        row['delete_post_url'] = reverse(delete_url_name, kwargs={'pk': uid})
     context = {
         'page_obj': page_obj,
         'users_with_groups': users_with_groups,
@@ -3783,6 +4038,12 @@ def list_users(request):
         'obras_filtro': obras_queryset.order_by('nome', 'codigo'),
         'obra_filter': str(obra_filter_id) if obra_filter_id is not None else '',
         'list_users_stats': list_users_stats,
+        'list_return_query': list_return_query,
+        'open_delete_user_id': open_delete_id,
+        'create_user_url': _list_users_url_with_return(
+            reverse('central_create_user' if _central else 'gestao:create_user'),
+            list_return_query,
+        ),
     }
     return render(request, 'obras/list_users.html', context)
 
@@ -3824,7 +4085,7 @@ def create_user(request):
             if create_as_pending:
                 if UserSignupRequest.objects.filter(email__iexact=(email or '').strip(), status=UserSignupRequest.STATUS_PENDENTE).exists():
                     messages.info(request, 'Já existe uma solicitação pendente para este e-mail.')
-                    return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+                    return _list_users_redirect(request)
 
                 full_name = f"{first_name} {last_name}".strip() or username or (email or '').split('@')[0]
                 signup_req = create_signup_request(
@@ -3846,7 +4107,7 @@ def create_user(request):
                     request, '_prevent_back_create_user',
                     'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
                 )
-                return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+                return _list_users_redirect(request)
 
             user = User.objects.create_user(
                 username=username,
@@ -3941,13 +4202,13 @@ def create_user(request):
                 request, '_prevent_back_create_user',
                 'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
             )
-            return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+            return _list_users_redirect(request)
     
     # GET: evitar que Voltar do navegador retorne ao formulário já submetido
     if request.method == 'GET':
         r = _redirect_if_back_after_post(request, '_prevent_back_create_user', 'gestao:list_users')
         if r:
-            return r
+            return _list_users_redirect(request)
     
     # Filtrar empresas baseado no usuário
     if is_responsavel_empresa(request.user) and not is_admin(request.user):
@@ -3959,13 +4220,18 @@ def create_user(request):
 
     # Lista única de obras do sistema = core.Project (ativas e inativas)
     projects = projects_disponiveis_para_vinculo_usuario()
+    list_qs = _list_users_return_querystring(request)
+    _central_cu = getattr(request, '_central_redirect', False)
+    cancel_base = reverse('central_list_users' if _central_cu else 'gestao:list_users')
     context = {
         'grupos_secoes': grupos_secoes,
         'empresas': empresas_disponiveis,
         'projects': projects,
         'user_profile': get_user_profile(request.user),
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
-        'use_central_urls': getattr(request, '_central_redirect', False),
+        'use_central_urls': _central_cu,
+        'list_return_query': list_qs,
+        'list_users_cancel_url': cancel_base + ('?' + list_qs if list_qs else ''),
     }
     response = render(request, 'obras/create_user.html', context)
     return _no_cache_form_response(response)
@@ -3993,10 +4259,10 @@ def edit_user(request, pk):
         )
         if user not in usuarios_permitidos:
             messages.error(request, 'Você não tem permissão para editar este usuário.')
-            return redirect('gestao:list_users')
+            return _list_users_redirect(request)
     else:
         messages.error(request, 'Você não tem permissão para editar usuários.')
-        return redirect('gestao:list_users')
+        return _list_users_redirect(request)
     
     if request.method == 'POST':
         from gestao_aprovacao.services.user_admin_audit import (
@@ -4089,11 +4355,11 @@ def edit_user(request, pk):
             password_changed,
         )
         request.session['_prevent_back_edit_user_pk'] = str(user.pk)
-        return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+        return _list_users_redirect(request)
     
     # GET: evitar que Voltar do navegador retorne ao formulário já submetido
     if request.session.pop('_prevent_back_edit_user_pk', None) == str(user.pk):
-        return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+        return _list_users_redirect(request)
     
     # Obter empresas disponíveis baseado no usuário
     if is_responsavel_empresa(request.user) and not is_admin(request.user):
@@ -4129,6 +4395,9 @@ def edit_user(request, pk):
         if project_ids_from_obras:
             user_project_ids = list(ProjectMember.objects.filter(user=user).values_list('project_id', flat=True))
     
+    list_qs = _list_users_return_querystring(request)
+    _central_ed = getattr(request, '_central_redirect', False)
+    cancel_base = reverse('central_list_users' if _central_ed else 'gestao:list_users')
     context = {
         'user_obj': user,
         'user_perfil': user_perfil,
@@ -4140,7 +4409,9 @@ def edit_user(request, pk):
         'user_project_ids': user_project_ids,
         'user_profile': get_user_profile(request.user),
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
-        'use_central_urls': getattr(request, '_central_redirect', False),
+        'use_central_urls': _central_ed,
+        'list_return_query': list_qs,
+        'list_users_cancel_url': cancel_base + ('?' + list_qs if list_qs else ''),
     }
     response = render(request, 'obras/edit_user.html', context)
     return _no_cache_form_response(response)
@@ -4154,49 +4425,35 @@ def delete_user(request, pk):
     """
     if not is_admin(request.user):
         messages.error(request, 'Você não tem permissão para excluir usuários.')
-        _r = 'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
-        return redirect(_r)
+        return _list_users_redirect(request)
     
-    user = get_object_or_404(User, pk=pk)
+    user = get_object_or_404(User.objects.prefetch_related('groups'), pk=pk)
     
     # Não permitir excluir a si mesmo
     if user == request.user:
         messages.error(request, 'Você não pode excluir seu próprio usuário.')
-        _r = 'central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users'
-        return redirect(_r)
+        return _list_users_redirect(request)
     
-    # Verificar se há relacionamentos que impedem a exclusão (PROTECT)
-    bloqueios = []
-    
-    # Verificar se é responsável por alguma empresa
-    if Empresa.objects.filter(responsavel=user, ativo=True).exists():
-        bloqueios.append('É responsável por uma ou mais empresas')
-    
-    # Verificar se criou pedidos
-    if WorkOrder.objects.filter(criado_por=user).exists():
-        bloqueios.append('Criou pedidos de obra')
-    
-    # Verificar se aprovou pedidos
-    if Approval.objects.filter(aprovado_por=user).exists():
-        bloqueios.append('Aprovou/reprovou pedidos')
-    
-    # Verificar se enviou anexos
-    if Attachment.objects.filter(enviado_por=user).exists():
-        bloqueios.append('Enviou anexos')
-    
-    # Verificar se alterou status
-    if StatusHistory.objects.filter(alterado_por=user).exists():
-        bloqueios.append('Alterou status de pedidos')
-    
-    # Verificar se fez comentários
-    if Comment.objects.filter(autor=user).exists():
-        bloqueios.append('Fez comentários em pedidos')
+    bloqueios = _user_delete_bloqueios(user)
+
+    if request.method == 'GET' and request.GET.get('preview') == '1':
+        group_names = list(user.groups.values_list('name', flat=True))
+        return JsonResponse({
+            'ok': True,
+            'user_id': user.pk,
+            'username': user.username,
+            'full_name': user.get_full_name() or '',
+            'email': user.email or '',
+            'groups': group_names,
+            'bloqueios': bloqueios,
+            'can_delete': not bloqueios,
+        })
     
     if request.method == 'POST':
         # Confirmar exclusão
         if bloqueios:
             messages.error(request, f'Não é possível excluir este usuário porque: {", ".join(bloqueios)}. Remova esses dados primeiro.')
-            return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+            return _list_users_redirect(request)
         
         username = user.username
         from gestao_aprovacao.services.user_admin_audit import record_user_deleted
@@ -4240,16 +4497,10 @@ def delete_user(request, pk):
         user.delete()
         
         messages.success(request, f'Usuário "{username}" e todos os seus dados foram excluídos com sucesso!')
-        return redirect('central_list_users' if getattr(request, '_central_redirect', False) else 'gestao:list_users')
+        return _list_users_redirect(request)
     
-    # GET - mostrar página de confirmação
-    context = {
-        'user': user,
-        'bloqueios': bloqueios,
-        'user_profile': get_user_profile(request.user),
-        'use_central_urls': getattr(request, '_central_redirect', False),
-    }
-    return render(request, 'obras/delete_user_confirm.html', context)
+    # GET legado: voltar à listagem e abrir modal de confirmação
+    return _list_users_redirect(request, open_delete=str(pk))
 
 
 @login_required

@@ -189,14 +189,54 @@ def build_default_password(first_name, last_name):
     return f'@#{ini_1}{ini_2}{ano}'
 
 
+def apply_signup_access_bindings(user, *, requested_groups=None, requested_project_ids=None):
+    """Aplica grupos, obras e perfil ao usuário (mesma regra da Central de Cadastros)."""
+    from core.models import Project, ProjectMember
+    from gestao_aprovacao.models import Obra, UserEmpresa, UserProfile, WorkOrderPermission
+
+    groups = _normalize_groups(requested_groups)
+    for group_name in groups:
+        group = Group.objects.filter(name=group_name).first()
+        if group:
+            user.groups.add(group)
+
+    project_ids = _normalize_project_ids(requested_project_ids)
+    active_projects = Project.objects.filter(pk__in=project_ids, is_active=True)
+    for project in active_projects:
+        ProjectMember.objects.get_or_create(user=user, project=project)
+        obra = Obra.objects.filter(project_id=project.id, ativo=True).first()
+        if not obra:
+            continue
+        if GRUPOS.SOLICITANTE in groups:
+            WorkOrderPermission.objects.get_or_create(
+                usuario=user,
+                obra=obra,
+                tipo_permissao='solicitante',
+                defaults={'ativo': True},
+            )
+        if GRUPOS.APROVADOR in groups:
+            WorkOrderPermission.objects.get_or_create(
+                usuario=user,
+                obra=obra,
+                tipo_permissao='aprovador',
+                defaults={'ativo': True},
+            )
+        if obra.empresa_id:
+            UserEmpresa.objects.update_or_create(
+                usuario=user,
+                empresa=obra.empresa,
+                defaults={'ativo': True},
+            )
+
+    UserProfile.objects.get_or_create(usuario=user)
+
+
 @transaction.atomic
 def approve_signup_request(signup_request, approved_by, selected_groups=None, selected_project_ids=None):
     """Aprova solicitação pendente, cria usuário e vínculos de acesso."""
     if signup_request.status != UserSignupRequest.STATUS_PENDENTE:
         raise ValueError('A solicitação não está pendente.')
 
-    from core.models import Project, ProjectMember
-    from gestao_aprovacao.models import Obra, WorkOrderPermission, UserEmpresa, UserProfile
     from gestao_aprovacao.email_utils import enviar_email_credenciais_novo_usuario
 
     username = build_unique_username(signup_request.username_suggestion, signup_request.email)
@@ -229,42 +269,14 @@ def approve_signup_request(signup_request, approved_by, selected_groups=None, se
         )
 
     requested_groups = _normalize_groups(selected_groups if selected_groups is not None else signup_request.requested_groups)
-    for group_name in requested_groups:
-        group = Group.objects.filter(name=group_name).first()
-        if group:
-            user.groups.add(group)
-
     requested_project_ids = _normalize_project_ids(
         selected_project_ids if selected_project_ids is not None else signup_request.requested_project_ids
     )
-    active_projects = Project.objects.filter(pk__in=requested_project_ids, is_active=True)
-    for project in active_projects:
-        ProjectMember.objects.get_or_create(user=user, project=project)
-        obra = Obra.objects.filter(project_id=project.id, ativo=True).first()
-        if not obra:
-            continue
-        if GRUPOS.SOLICITANTE in requested_groups:
-            WorkOrderPermission.objects.get_or_create(
-                usuario=user,
-                obra=obra,
-                tipo_permissao='solicitante',
-                defaults={'ativo': True},
-            )
-        if GRUPOS.APROVADOR in requested_groups:
-            WorkOrderPermission.objects.get_or_create(
-                usuario=user,
-                obra=obra,
-                tipo_permissao='aprovador',
-                defaults={'ativo': True},
-            )
-        if obra.empresa_id:
-            UserEmpresa.objects.update_or_create(
-                usuario=user,
-                empresa=obra.empresa,
-                defaults={'ativo': True},
-            )
-
-    UserProfile.objects.get_or_create(usuario=user)
+    apply_signup_access_bindings(
+        user,
+        requested_groups=requested_groups,
+        requested_project_ids=requested_project_ids,
+    )
 
     signup_request.status = UserSignupRequest.STATUS_APROVADO
     signup_request.approved_by = approved_by
