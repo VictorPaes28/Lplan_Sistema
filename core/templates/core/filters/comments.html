@@ -1,92 +1,157 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block page_title %}Filtro de Comentários{% endblock %}
+{% block back_url %}{% url 'dashboard' %}{% endblock %}
+{% block page_title %}Comentários{% endblock %}
+{% block page_subtitle %}{% if project %}{{ project.name }}{% else %}Observações dos relatórios{% endif %}{% endblock %}
 
 {% block content %}
-<div class="filter-page-header">
-    <h1 class="filter-page-title">Comentários e Observações</h1>
-    <p class="filter-page-total">Total: {{ total_comments }} comentário{{ total_comments|pluralize }}</p>
-</div>
+<div class="comments-explorer" data-comments-explorer>
+    <div class="comments-explorer__toolbar">
+        <div class="comments-explorer__stats" aria-live="polite">
+            <span class="comments-stat">
+                <strong>{{ total_comments }}</strong>
+                {% if has_active_filters %}encontrado{{ total_comments|pluralize }}{% else %}com observações{% endif %}
+            </span>
+            {% if has_active_filters and total_comments != total_project_comments %}
+            <span class="comments-stat comments-stat--muted">de {{ total_project_comments }} na obra</span>
+            {% endif %}
+        </div>
 
-<div class="filter-form-card">
-    <form method="get" class="filter-form">
-        <div>
-            <label for="filter-comments-search">Buscar</label>
-            <input type="text" id="filter-comments-search" name="search" value="{{ search }}" placeholder="Buscar em comentários...">
-        </div>
-        <div>
-            <label for="filter-comments-date-start">Data início</label>
-            <input type="date" id="filter-comments-date-start" name="date_start" value="{{ date_start }}">
-        </div>
-        <div>
-            <label for="filter-comments-date-end">Data fim</label>
-            <input type="date" id="filter-comments-date-end" name="date_end" value="{{ date_end }}">
-        </div>
-        <div class="filter-submit-wrap">
-            <button type="submit" class="filter-submit">
-                <i class="fas fa-search"></i> Filtrar
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Lista de Comentários -->
-{% if diaries %}
-<div class="space-y-4">
-    {% for diary in diaries %}
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <div class="flex items-start justify-between mb-4">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-800 mb-1">
-                    <i class="fas fa-comments text-blue-500 mr-2"></i>
-                    Comentário - {{ diary.date|date:"d/m/Y" }}
-                </h3>
-                <p class="text-sm text-gray-600">
-                    Relatório n° {{ diary.report_number|default:"-" }} - {{ diary.project.code }}
-                </p>
+        <form method="get" class="comments-explorer__form" role="search">
+            {% if period %}<input type="hidden" name="period" value="{{ period }}">{% endif %}
+            <div class="comments-explorer__search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search"
+                       name="search"
+                       value="{{ search }}"
+                       placeholder="Buscar no texto…"
+                       autocomplete="off"
+                       aria-label="Buscar no texto do comentário">
             </div>
-            <a href="{% url 'diary-detail' diary.id %}" 
-               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                Ver relatório
-            </a>
+            <div class="comments-explorer__dates">
+                <input type="date" name="date_start" value="{{ date_start }}" aria-label="Data início" title="Data início">
+                <span class="comments-explorer__dates-sep" aria-hidden="true">até</span>
+                <input type="date" name="date_end" value="{{ date_end }}" aria-label="Data fim" title="Data fim">
+            </div>
+            <button type="submit" class="comments-explorer__submit">Buscar</button>
+            {% if has_active_filters %}
+            <a href="{% url 'filter-comments' %}" class="comments-explorer__clear">Limpar</a>
+            {% endif %}
+        </form>
+
+        <nav class="comments-explorer__periods" aria-label="Atalhos de período">
+            <a href="{% url 'filter-comments' %}{% if search %}?search={{ search|urlencode }}{% endif %}"
+               class="comments-period-chip{% if not period and not date_start and not date_end %} is-active{% endif %}">Todos</a>
+            <a href="?period=30d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+               class="comments-period-chip{% if period == '30d' %} is-active{% endif %}">30 dias</a>
+            <a href="?period=90d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+               class="comments-period-chip{% if period == '90d' %} is-active{% endif %}">90 dias</a>
+        </nav>
+    </div>
+
+    {% if diaries %}
+    <div class="comments-explorer__workspace">
+        <div class="comments-explorer__list-panel">
+            <div class="comments-explorer__list-head">
+                <span>Relatórios</span>
+                <span class="comments-explorer__list-count">{{ diaries|length }} no total</span>
+            </div>
+            <div class="comments-explorer__list" role="listbox" aria-label="Lista de comentários">
+                {% for diary in diaries %}
+                <a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}id={{ diary.id }}"
+                   class="comments-explorer__row{% if selected_diary and selected_diary.id == diary.id %} is-active{% endif %}"
+                   role="option"
+                   {% if selected_diary and selected_diary.id == diary.id %}aria-selected="true"{% endif %}
+                   data-diary-id="{{ diary.id }}">
+                    <div class="comments-explorer__row-top">
+                        <time datetime="{{ diary.date|date:'Y-m-d' }}">{{ diary.date|date:"d/m/Y" }}</time>
+                        <span class="comments-explorer__row-report">
+                            {% if diary.report_number %}nº {{ diary.report_number }}{% else %}—{% endif %}
+                        </span>
+                    </div>
+                    <p class="comments-explorer__row-excerpt">{{ diary.general_notes|truncatechars:140 }}</p>
+                </a>
+                {% endfor %}
+            </div>
+
         </div>
-        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <p class="text-gray-800 whitespace-pre-wrap">{{ diary.general_notes|linebreaks }}</p>
+
+        <div class="comments-explorer__detail-panel" id="comments-detail-panel">
+            {% if selected_diary %}
+            <article class="comments-explorer__detail">
+                <header class="comments-explorer__detail-head">
+                    <div>
+                        <h2 class="comments-explorer__detail-title">
+                            {{ selected_diary.date|date:"d/m/Y" }}
+                            {% if selected_diary.report_number %}
+                            <span class="comments-explorer__detail-report">Relatório nº {{ selected_diary.report_number }}</span>
+                            {% endif %}
+                        </h2>
+                        {% if selected_diary.project.code %}
+                        <p class="comments-explorer__detail-meta">Obra {{ selected_diary.project.code }}</p>
+                        {% endif %}
+                    </div>
+                    <a href="{% url 'diary-detail' selected_diary.id %}" class="comments-explorer__detail-open">
+                        Abrir relatório <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                    </a>
+                </header>
+                <div class="comments-explorer__detail-body">
+                    <p class="comments-explorer__detail-text">{{ selected_diary.general_notes }}</p>
+                </div>
+                <footer class="comments-explorer__detail-foot">
+                    <span>{{ selected_diary.general_notes|length }} caracteres</span>
+                    <a href="{% url 'report-list' %}?date_start={{ selected_diary.date|date:'Y-m-d' }}&amp;date_end={{ selected_diary.date|date:'Y-m-d' }}">Ver na lista de relatórios</a>
+                </footer>
+            </article>
+            {% else %}
+            <div class="comments-explorer__detail-empty">
+                <p>Selecione um item na lista para ler o comentário completo.</p>
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endfor %}
-</div>
-
-<!-- Paginação -->
-{% if diaries.has_other_pages %}
-<div class="flex justify-center items-center space-x-2 mt-6">
-    {% if diaries.has_previous %}
-    <a href="?page={{ diaries.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}" 
-       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-        <i class="fas fa-chevron-left"></i>
-    </a>
-    {% endif %}
-    
-    <span class="px-4 py-2 bg-blue-600 text-white rounded-lg">
-        Página {{ diaries.number }} de {{ diaries.paginator.num_pages }}
-    </span>
-    
-    {% if diaries.has_next %}
-    <a href="?page={{ diaries.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}" 
-       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-        <i class="fas fa-chevron-right"></i>
-    </a>
+    {% else %}
+    <div class="filter-empty comments-explorer__empty">
+        <i class="fas fa-comments filter-empty-icon" aria-hidden="true"></i>
+        <p class="filter-empty-title">Nenhum comentário encontrado</p>
+        <p class="filter-empty-desc">
+            {% if has_active_filters %}
+            Ajuste a busca, o período ou as datas.
+            {% else %}
+            Nenhum relatório desta obra tem observações gerais preenchidas.
+            {% endif %}
+        </p>
+        {% if has_active_filters %}
+        <a href="{% url 'filter-comments' %}" class="filter-comment-empty-cta">Limpar filtros</a>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
-{% endif %}
-
-{% else %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-    <i class="fas fa-comments text-gray-300 text-6xl mb-4"></i>
-    <p class="text-gray-600 text-lg">Nenhum comentário encontrado</p>
-    <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de busca</p>
-</div>
-{% endif %}
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+    var root = document.querySelector('[data-comments-explorer]');
+    if (!root) return;
+    var rows = root.querySelectorAll('.comments-explorer__row');
+    if (!rows.length) return;
+
+    root.addEventListener('keydown', function (e) {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+        var active = root.querySelector('.comments-explorer__row.is-active');
+        if (!active && e.key !== 'Home' && e.key !== 'End') return;
+        var list = Array.prototype.slice.call(rows);
+        var idx = active ? list.indexOf(active) : -1;
+        if (e.key === 'ArrowDown') idx = Math.min(idx + 1, list.length - 1);
+        if (e.key === 'ArrowUp') idx = Math.max(idx - 1, 0);
+        if (e.key === 'Home') idx = 0;
+        if (e.key === 'End') idx = list.length - 1;
+        if (idx >= 0 && list[idx]) {
+            e.preventDefault();
+            window.location.href = list[idx].href;
+        }
+    });
+})();
+</script>
+{% endblock %}

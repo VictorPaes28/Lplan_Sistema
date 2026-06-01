@@ -1,114 +1,199 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block page_title %}Filtro de Ocorrências{% endblock %}
+{% block back_url %}{% url 'dashboard' %}{% endblock %}
+{% block page_title %}Ocorrências{% endblock %}
+{% block page_subtitle %}{% if project %}{{ project.name }}{% else %}Incidentes dos relatórios{% endif %}{% endblock %}
 
 {% block content %}
-<div class="filter-page-header">
-    <h1 class="filter-page-title">Ocorrências e Incidentes</h1>
-    <p class="filter-page-total">Total: {{ total_occurrences }} ocorrência{{ total_occurrences|pluralize }}</p>
-</div>
+<div class="comments-explorer occurrences-explorer" data-occurrences-explorer>
+    <div class="comments-explorer__toolbar">
+        <div class="comments-explorer__stats" aria-live="polite">
+            <span class="comments-stat">
+                <strong>{{ total_occurrences }}</strong> ocorrência{{ total_occurrences|pluralize }}
+            </span>
+            <span class="comments-stat comments-stat--muted">
+                em <strong>{{ total_diaries }}</strong> relatório{{ total_diaries|pluralize }}
+            </span>
+        </div>
 
-<div class="filter-form-card">
-    <form method="get" class="filter-form">
-        <div>
-            <label for="filter-occurrences-search">Buscar</label>
-            <input type="text" id="filter-occurrences-search" name="search" value="{{ search }}" placeholder="Descrição da ocorrência...">
-        </div>
-        <div>
-            <label for="filter-occurrences-date-start">Data início</label>
-            <input type="date" id="filter-occurrences-date-start" name="date_start" value="{{ date_start }}">
-        </div>
-        <div>
-            <label for="filter-occurrences-date-end">Data fim</label>
-            <input type="date" id="filter-occurrences-date-end" name="date_end" value="{{ date_end }}">
-        </div>
-        <div class="filter-submit-wrap">
-            <button type="submit" class="filter-submit">
-                <i class="fas fa-search"></i> Filtrar
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Lista de Ocorrências (DiaryOccurrence) -->
-{% if occurrences %}
-<div class="space-y-4">
-    {% for occurrence in occurrences %}
-    <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-        <div class="flex items-start justify-between mb-4">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-800 mb-1">
-                    <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
-                    Ocorrência - {{ occurrence.diary.date|date:"d/m/Y" }}
-                </h3>
-                <p class="text-sm text-gray-600">
-                    Relatório n° {{ occurrence.diary.report_number|default:"-" }} - {{ occurrence.diary.project.code }}
-                </p>
+        <form method="get" class="comments-explorer__form" role="search">
+            {% if period %}<input type="hidden" name="period" value="{{ period }}">{% endif %}
+            <div class="comments-explorer__search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search"
+                       name="search"
+                       value="{{ search }}"
+                       placeholder="Buscar na descrição…"
+                       autocomplete="off"
+                       aria-label="Buscar ocorrência">
             </div>
-            <a href="{% url 'diary-detail' occurrence.diary.id %}" 
-               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                Ver relatório
-            </a>
+            <div class="comments-explorer__dates">
+                <input type="date" name="date_start" value="{{ date_start }}" aria-label="Data início" title="Data início">
+                <span class="comments-explorer__dates-sep" aria-hidden="true">até</span>
+                <input type="date" name="date_end" value="{{ date_end }}" aria-label="Data fim" title="Data fim">
+            </div>
+            <button type="submit" class="comments-explorer__submit">Buscar</button>
+            {% if has_active_filters %}
+            <a href="{% url 'filter-occurrences' %}" class="comments-explorer__clear">Limpar</a>
+            {% endif %}
+        </form>
+
+        <nav class="comments-explorer__periods" aria-label="Atalhos de período">
+            <a href="{% url 'filter-occurrences' %}{% if search %}?search={{ search|urlencode }}{% endif %}"
+               class="comments-period-chip{% if not period and not date_start and not date_end %} is-active{% endif %}">Todos</a>
+            <a href="?period=30d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+               class="comments-period-chip{% if period == '30d' %} is-active{% endif %}">30 dias</a>
+            <a href="?period=90d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+               class="comments-period-chip{% if period == '90d' %} is-active{% endif %}">90 dias</a>
+        </nav>
+    </div>
+
+    {% if has_active_filters %}
+    <div class="occurrences-explorer__filter-banner" role="status">
+        <span class="occurrences-explorer__filter-banner-text">
+            Filtros ativos
+            {% if search %} · busca “{{ search }}”{% endif %}
+            {% if date_start and date_end and date_start == date_end %} · dia {{ date_start|date:"d/m/Y" }}{% elif date_start or date_end %} · período{% if date_start %} de {{ date_start|date:"d/m/Y" }}{% endif %}{% if date_end %} até {{ date_end|date:"d/m/Y" }}{% endif %}{% endif %}
+            {% if period == '30d' %} · últimos 30 dias{% elif period == '90d' %} · últimos 90 dias{% endif %}
+        </span>
+        <a href="{% url 'filter-occurrences' %}" class="occurrences-explorer__filter-banner-clear">Ver todos os relatórios</a>
+    </div>
+    {% endif %}
+
+    {% if diary_list %}
+    <div class="comments-explorer__workspace">
+        <div class="comments-explorer__list-panel">
+            <div class="comments-explorer__list-head">
+                <span>Relatórios (RDO)</span>
+                <span class="comments-explorer__list-count">{{ diary_list|length }} no total</span>
+            </div>
+            <div class="comments-explorer__list" role="listbox" aria-label="Relatórios com ocorrências">
+                {% for diary in diary_list %}
+                {% with occ_list=diary.filtered_occurrences_list %}
+                <a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}diary={{ diary.id }}"
+                   class="comments-explorer__row occurrences-explorer__row{% if selected_diary and selected_diary.id == diary.id %} is-active{% endif %}"
+                   role="option"
+                   {% if selected_diary and selected_diary.id == diary.id %}aria-selected="true"{% endif %}
+                   data-diary-id="{{ diary.id }}">
+                    <div class="comments-explorer__row-top">
+                        <time datetime="{{ diary.date|date:'Y-m-d' }}">{{ diary.date|date:"d/m/Y" }}</time>
+                        <span class="occurrences-explorer__count-badge">
+                            {{ occ_list|length }} ocorrência{{ occ_list|length|pluralize }}
+                        </span>
+                    </div>
+                    <p class="comments-explorer__row-report" style="margin:0 0 0.2rem;font-size:0.75rem;color:#64748b;">
+                        {% if diary.report_number %}Relatório nº {{ diary.report_number }}{% else %}Sem número de relatório{% endif %}
+                    </p>
+                    {% if occ_list %}
+                    <p class="comments-explorer__row-excerpt">{{ occ_list.0.description|truncatechars:120 }}</p>
+                    {% if occ_list|length > 1 %}
+                    <p class="occurrences-explorer__more-hint">+ {{ occ_list|length|add:"-1" }} outra{% if occ_list|length > 2 %}s{% endif %} no mesmo RDO</p>
+                    {% endif %}
+                    {% endif %}
+                </a>
+                {% endwith %}
+                {% endfor %}
+            </div>
+
         </div>
-        <div class="bg-red-50 rounded-lg p-4 border border-red-200">
-            <p class="text-gray-800 whitespace-pre-wrap">{{ occurrence.description|linebreaks }}</p>
+
+        <div class="comments-explorer__detail-panel" id="occurrences-detail-panel">
+            {% if selected_diary %}
+            {% with occ_list=selected_diary.filtered_occurrences_list %}
+            <article class="comments-explorer__detail occurrences-explorer__detail occurrences-explorer__detail--grouped">
+                <header class="occurrences-explorer__panel-head">
+                    <div class="occurrences-explorer__panel-head-text">
+                        <h2 class="occurrences-explorer__panel-title">
+                            {{ selected_diary.date|date:"d/m/Y" }}
+                            {% if selected_diary.report_number %}· Relatório nº {{ selected_diary.report_number }}{% endif %}
+                        </h2>
+                        <p class="occurrences-explorer__panel-sub">{{ occ_list|length }} ocorrência{{ occ_list|length|pluralize }} neste RDO</p>
+                    </div>
+                    <a href="{% url 'diary-detail' selected_diary.id %}" class="occurrences-explorer__panel-link">
+                        Abrir relatório <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                    </a>
+                </header>
+
+                <div class="occurrences-explorer__stack">
+                    {% for occurrence in occ_list %}
+                    <a href="{% url 'diary-detail' selected_diary.id %}#occurrence-{{ occurrence.id }}"
+                       class="occurrences-explorer__entry occurrences-explorer__entry--link{% if highlight_occurrence_id == occurrence.id %} is-highlight{% endif %}"
+                       id="occurrence-{{ occurrence.id }}">
+                        <div class="occurrences-explorer__entry-line">
+                            <span class="occurrences-explorer__entry-num">{{ forloop.counter }}</span>
+                            {% if occurrence.tags.all %}
+                            <span class="occurrences-explorer__entry-tags">
+                                {% for tag in occurrence.tags.all %}<span class="occurrence-tag occurrence-tag--soft">{{ tag.name }}</span>{% endfor %}
+                            </span>
+                            {% endif %}
+                            <span class="occurrences-explorer__entry-meta">
+                                {% if occurrence.created_by %}{{ occurrence.created_by.get_full_name|default:occurrence.created_by.username }} · {% endif %}{{ occurrence.created_at|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+                        <p class="occurrences-explorer__entry-text">{{ occurrence.description }}</p>
+                    </a>
+                    {% empty %}
+                    <p class="occurrences-explorer__no-desc">Nenhuma ocorrência neste relatório para os filtros atuais.</p>
+                    {% endfor %}
+                </div>
+
+                <footer class="comments-explorer__detail-foot">
+                    <a href="{% url 'report-list' %}?date_start={{ selected_diary.date|date:'Y-m-d' }}&amp;date_end={{ selected_diary.date|date:'Y-m-d' }}">Ver na lista de relatórios</a>
+                </footer>
+            </article>
+            {% endwith %}
+            {% else %}
+            <div class="comments-explorer__detail-empty">
+                <p>Selecione um relatório na lista para ver todas as ocorrências daquele RDO.</p>
+            </div>
+            {% endif %}
         </div>
-        {% if occurrence.tags.all %}
-        <div class="mt-3 flex flex-wrap gap-2">
-            {% for tag in occurrence.tags.all %}
-            <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-200 text-slate-700">{{ tag.name }}</span>
-            {% endfor %}
-        </div>
+    </div>
+    {% else %}
+    <div class="filter-empty comments-explorer__empty">
+        <i class="fas fa-exclamation-triangle filter-empty-icon" aria-hidden="true"></i>
+        <p class="filter-empty-title">Nenhuma ocorrência encontrada</p>
+        <p class="filter-empty-desc">
+            {% if has_active_filters %}
+            Ajuste a busca, o período ou as datas.
+            {% else %}
+            Nenhum relatório desta obra registrou ocorrências ainda.
+            {% endif %}
+        </p>
+        {% if has_active_filters %}
+        <a href="{% url 'filter-occurrences' %}" class="filter-comment-empty-cta">Limpar filtros</a>
         {% endif %}
     </div>
-    {% endfor %}
-</div>
-
-<!-- Paginação -->
-{% if occurrences.has_other_pages %}
-<div class="flex justify-center items-center space-x-2 mt-6">
-    {% if occurrences.has_previous %}
-    <a href="?page={{ occurrences.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}" 
-       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-        <i class="fas fa-chevron-left"></i>
-    </a>
-    {% endif %}
-    
-    <span class="px-4 py-2 bg-blue-600 text-white rounded-lg">
-        Página {{ occurrences.number }} de {{ occurrences.paginator.num_pages }}
-    </span>
-    
-    {% if occurrences.has_next %}
-    <a href="?page={{ occurrences.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}" 
-       class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-        <i class="fas fa-chevron-right"></i>
-    </a>
     {% endif %}
 </div>
-{% endif %}
-
-{% else %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-    <i class="fas fa-exclamation-triangle text-gray-300 text-6xl mb-4"></i>
-    <p class="text-gray-600 text-lg">Nenhuma ocorrência encontrada</p>
-    <p class="text-gray-500 text-sm mt-2">Tente ajustar os filtros de busca</p>
-</div>
-{% endif %}
-
-<!-- Estatísticas -->
-{% if occurrences_by_date %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mt-6">
-    <h3 class="text-lg font-semibold text-slate-800 mb-4">Ocorrências por Data</h3>
-    <div class="space-y-2">
-        {% for item in occurrences_by_date %}
-        <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-700">{{ item.diary__date|date:"d/m/Y" }}</span>
-            <span class="text-sm font-semibold text-red-600">{{ item.count }} ocorrência{{ item.count|pluralize }}</span>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+    var root = document.querySelector('[data-occurrences-explorer]');
+    if (!root) return;
+    var rows = root.querySelectorAll('.comments-explorer__row');
+    if (!rows.length) return;
+    root.addEventListener('keydown', function (e) {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+        var active = root.querySelector('.comments-explorer__row.is-active');
+        var list = Array.prototype.slice.call(rows);
+        var idx = active ? list.indexOf(active) : -1;
+        if (e.key === 'ArrowDown') idx = Math.min(idx + 1, list.length - 1);
+        if (e.key === 'ArrowUp') idx = Math.max(idx - 1, 0);
+        if (e.key === 'Home') idx = 0;
+        if (e.key === 'End') idx = list.length - 1;
+        if (idx >= 0 && list[idx]) {
+            e.preventDefault();
+            window.location.href = list[idx].href;
+        }
+    });
+    var hash = window.location.hash;
+    if (hash && hash.indexOf('occurrence-') === 1) {
+        var el = document.querySelector(hash);
+        if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+})();
+</script>
+{% endblock %}

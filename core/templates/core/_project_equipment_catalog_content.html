@@ -1,0 +1,270 @@
+{% load static %}
+<div class="equip-catalog-detail">
+    {% if not embedded %}
+    <nav class="admin-breadcrumb" aria-label="Navegação">
+        <a href="{% url 'central_project_list' %}">Obras</a>
+        <span class="sep">/</span>
+        <span>{{ project.name }}</span>
+        <span class="sep">/</span>
+        <span>Equipamentos RDO</span>
+    </nav>
+    {% else %}
+    <div class="equip-embedded-bar">
+        <button type="button" class="equip-embedded-back" onclick="closeEmbeddedEquipmentCatalog()">
+            <span class="equip-icon" aria-hidden="true">←</span> Voltar ao RDO
+        </button>
+        <span class="equip-embedded-title">{{ project.name }}</span>
+    </div>
+    {% endif %}
+
+    <div class="equip-head">
+        <div>
+            <h2>{% if embedded %}Equipamentos desta obra{% else %}Catálogo de equipamentos do RDO{% endif %}</h2>
+            {% if embedded %}
+            <p class="equip-meta">Ajuste o que aparece na lista do diário. Diários já salvos não são alterados.</p>
+            {% else %}
+            <p class="equip-meta">Obra {{ project.code }} — personalização da lista exibida no formulário diário.</p>
+            <p class="equip-scope-note">
+                Renomeie categorias, oculte itens que não se aplicam à obra ou adicione novos equipamentos.
+                Diários já salvos e PDFs antigos <strong>não são alterados</strong> — apenas a lista do formulário muda.
+            </p>
+            {% endif %}
+        </div>
+        <div class="equip-kpis">
+            {% if embedded %}
+            <div class="equip-kpi">
+                <div class="v">{{ n_active }}</div>
+                <div class="l">Visíveis no RDO</div>
+            </div>
+            {% else %}
+            <div class="equip-kpi">
+                <div class="v">{{ categories|length }}</div>
+                <div class="l">Categorias</div>
+            </div>
+            <div class="equip-kpi">
+                <div class="v">{{ n_active }}</div>
+                <div class="l">Itens visíveis</div>
+            </div>
+            <div class="equip-kpi">
+                <div class="v">{{ n_items }}</div>
+                <div class="l">Itens total</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if embedded %}
+    <details class="equip-guide">
+        <summary>Como usar</summary>
+        <ol>
+            <li><strong>Ocultar</strong> tira da lista do RDO sem apagar histórico.</li>
+            <li><strong>Alterar</strong> renomeia ou move de categoria.</li>
+            <li>Novos itens: <strong>Adicionar equipamento ou categoria</strong> abaixo.</li>
+        </ol>
+    </details>
+    {% else %}
+    <div class="equip-guide" role="note">
+        <strong>Dica:</strong> «Ocultar» remove da lista do RDO sem apagar histórico. Registros pontuais ficam em «Só neste RDO» no formulário.
+    </div>
+    {% endif %}
+
+    <div class="equip-main-grid{% if not embedded %} equip-main-grid--standalone{% endif %}">
+        <div class="equip-col-wide">
+            {% for category in categories %}
+            <section
+                id="equip-cat-{{ category.pk }}"
+                class="cat-block{% if not category.is_active %} is-inactive{% endif %}"
+            >
+                <div class="cat-block-head">
+                    <div>
+                        <h4>{{ category.name }}</h4>
+                        <p class="cat-block-meta">
+                            {% if category.is_active %}
+                            <span class="badge-muted badge-on">Visível no RDO</span>
+                            {% else %}
+                            <span class="badge-muted badge-off">Categoria oculta</span>
+                            {% endif %}
+                            {% if not embedded %}
+                            · {{ category.items.all|length }} equipamento{{ category.items.all|length|pluralize }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="cat-block-actions">
+                        <form method="post" class="equip-inline-form">
+                            {% csrf_token %}
+                            {% if embedded %}<input type="hidden" name="embedded" value="1">{% endif %}
+                            <input type="hidden" name="action" value="toggle_category">
+                            <input type="hidden" name="category_id" value="{{ category.pk }}">
+                            {% if category.is_active %}
+                            <button type="submit" class="btn-soft btn-soft--hide">Ocultar categoria</button>
+                            {% else %}
+                            <button type="submit" class="btn-soft btn-soft--show">Mostrar categoria</button>
+                            {% endif %}
+                        </form>
+                        {% if editing_category and editing_category.pk == category.pk %}
+                        <a href="{{ manage_url }}" class="btn-link">Fechar</a>
+                        {% else %}
+                        <a
+                            href="{{ manage_url }}{% if embedded %}&{% else %}?{% endif %}edit_category={{ category.pk }}"
+                            class="btn-soft btn-soft--edit"
+                        >Alterar nome</a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if editing_category and editing_category.pk == category.pk and form_category_edit %}
+                <div class="edit-panel">
+                    <h3>Alterar categoria</h3>
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if embedded %}<input type="hidden" name="embedded" value="1">{% endif %}
+                        <input type="hidden" name="action" value="update_category">
+                        <input type="hidden" name="category_id" value="{{ editing_category.pk }}">
+                        <div class="form-grid">
+                            <div class="form-row">{{ form_category_edit.name.label_tag }}{{ form_category_edit.name }}</div>
+                            {% if not embedded %}
+                            <div class="form-row">{{ form_category_edit.order.label_tag }}{{ form_category_edit.order }}</div>
+                            {% endif %}
+                            <div class="form-row">
+                                <label>{{ form_category_edit.is_active.label }}</label>
+                                {{ form_category_edit.is_active }}
+                                {% if form_category_edit.is_active.help_text %}<p class="helptext">{{ form_category_edit.is_active.help_text }}</p>{% endif %}
+                            </div>
+                        </div>
+                        <div class="edit-panel-actions">
+                            <button type="submit" class="btn-primary">Salvar</button>
+                            <a href="{{ manage_url }}" class="btn-link">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% if category.items.all %}
+                <ul class="items-list">
+                    {% for item in category.items.all %}
+                    <li
+                        id="equip-item-{{ item.pk }}"
+                        class="equip-item-row{% if not item.is_active %} is-inactive{% endif %}"
+                    >
+                        <span class="equip-item-name">{{ item.name }}</span>
+                        <div class="equip-item-actions">
+                            {% if item.is_active %}
+                            <span class="badge-muted badge-on">Visível</span>
+                            {% else %}
+                            <span class="badge-muted badge-off">Oculto</span>
+                            {% endif %}
+                            <form method="post" class="equip-inline-form">
+                                {% csrf_token %}
+                                {% if embedded %}<input type="hidden" name="embedded" value="1">{% endif %}
+                                <input type="hidden" name="action" value="toggle_item">
+                                <input type="hidden" name="item_id" value="{{ item.pk }}">
+                                {% if item.is_active %}
+                                <button type="submit" class="btn-soft btn-soft--hide">Ocultar</button>
+                                {% else %}
+                                <button type="submit" class="btn-soft btn-soft--show">Mostrar</button>
+                                {% endif %}
+                            </form>
+                            {% if editing_item and editing_item.pk == item.pk %}
+                            <a href="{{ manage_url }}" class="btn-link">Fechar</a>
+                            {% else %}
+                            <a
+                                href="{{ manage_url }}{% if embedded %}&{% else %}?{% endif %}edit_item={{ item.pk }}"
+                                class="btn-soft btn-soft--edit"
+                            >Alterar</a>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% if editing_item and editing_item.pk == item.pk and form_item_edit %}
+                    <li class="equip-item-row equip-item-row--edit">
+                        <div class="edit-panel" style="width:100%;margin:0;">
+                            <h3>Alterar equipamento</h3>
+                            <form method="post">
+                                {% csrf_token %}
+                                {% if embedded %}<input type="hidden" name="embedded" value="1">{% endif %}
+                                <input type="hidden" name="action" value="update_item">
+                                <input type="hidden" name="item_id" value="{{ editing_item.pk }}">
+                                <div class="form-grid">
+                                    <div class="form-row">{{ form_item_edit.name.label_tag }}{{ form_item_edit.name }}</div>
+                                    <div class="form-row">{{ form_item_edit.category.label_tag }}{{ form_item_edit.category }}</div>
+                                    {% if not embedded %}
+                                    <div class="form-row">{{ form_item_edit.order.label_tag }}{{ form_item_edit.order }}</div>
+                                    {% endif %}
+                                    <div class="form-row">
+                                        <label>{{ form_item_edit.is_active.label }}</label>
+                                        {{ form_item_edit.is_active }}
+                                        {% if form_item_edit.is_active.help_text %}<p class="helptext">{{ form_item_edit.is_active.help_text }}</p>{% endif %}
+                                    </div>
+                                </div>
+                                <div class="edit-panel-actions">
+                                    <button type="submit" class="btn-primary">Salvar</button>
+                                    <a href="{{ manage_url }}" class="btn-link">Cancelar</a>
+                                </div>
+                            </form>
+                        </div>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="equip-empty">Nenhum equipamento nesta categoria.</p>
+                {% endif %}
+            </section>
+            {% empty %}
+            <p class="equip-empty">Nenhuma categoria configurada.</p>
+            {% endfor %}
+        </div>
+
+        {% if embedded %}
+        <details class="equip-add-panel">
+            <summary>Adicionar equipamento ou categoria</summary>
+            <div class="equip-add-panel__body">
+                <div class="form-card">
+                    <h3><span class="equip-icon" aria-hidden="true">+</span> Novo equipamento</h3>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="embedded" value="1">
+                        <input type="hidden" name="action" value="create_item">
+                        <div class="form-row" style="margin-bottom:0.75rem;">{{ form_item_create.name.label_tag }}{{ form_item_create.name }}</div>
+                        <div class="form-row" style="margin-bottom:0.85rem;">{{ form_item_create.category.label_tag }}{{ form_item_create.category }}</div>
+                        <button type="submit" class="btn-primary">Adicionar à lista</button>
+                    </form>
+                </div>
+                <div class="form-card">
+                    <h3><span class="equip-icon" aria-hidden="true">▤</span> Nova categoria</h3>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="embedded" value="1">
+                        <input type="hidden" name="action" value="create_category">
+                        <div class="form-row" style="margin-bottom:0.85rem;">{{ form_category_create.name.label_tag }}{{ form_category_create.name }}</div>
+                        <button type="submit" class="btn-primary">Criar categoria</button>
+                    </form>
+                </div>
+            </div>
+        </details>
+        {% else %}
+        <aside class="equip-col-side">
+            <div class="form-card">
+                <h3><span class="equip-icon" aria-hidden="true">▤</span> Nova categoria</h3>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_category">
+                    <div class="form-row" style="margin-bottom:0.75rem;">{{ form_category_create.name.label_tag }}{{ form_category_create.name }}</div>
+                    <div class="form-row" style="margin-bottom:0.85rem;">{{ form_category_create.order.label_tag }}{{ form_category_create.order }}</div>
+                    <button type="submit" class="btn-primary">Criar categoria</button>
+                </form>
+            </div>
+            <div class="form-card">
+                <h3><span class="equip-icon" aria-hidden="true">+</span> Novo equipamento</h3>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_item">
+                    <div class="form-row" style="margin-bottom:0.75rem;">{{ form_item_create.name.label_tag }}{{ form_item_create.name }}</div>
+                    <div class="form-row" style="margin-bottom:0.75rem;">{{ form_item_create.category.label_tag }}{{ form_item_create.category }}</div>
+                    <div class="form-row" style="margin-bottom:0.85rem;">{{ form_item_create.order.label_tag }}{{ form_item_create.order }}</div>
+                    <button type="submit" class="btn-primary">Adicionar ao catálogo</button>
+                </form>
+            </div>
+        </aside>
+        {% endif %}
+    </div>
+</div>

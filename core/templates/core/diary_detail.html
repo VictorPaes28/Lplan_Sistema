@@ -697,7 +697,7 @@
         {% if diary.occurrences.all or diary.accidents or diary.stoppages or diary.imminent_risks or diary.incidents %}
         <div class="diary-detail-stack">
             {% for occ in diary.occurrences.all %}
-            <div class="diary-detail-stack__item diary-detail-occurrence">
+            <div id="occurrence-{{ occ.id }}" class="diary-detail-stack__item diary-detail-occurrence">
                 <div class="diary-detail-occurrence__text">{{ occ.description|linebreaks }}</div>
                 {% if occ.tags.exists %}
                 <div class="diary-detail-occurrence__tags">

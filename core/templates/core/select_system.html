@@ -595,6 +595,39 @@
         flex-shrink: 0;
     }
 
+    /* Mobile: atalhos discretos (pílulas compactas; rótulo acima evita indentação em escada) */
+    @media (max-width: 640px) {
+        .select-system-quick-strip {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.3rem;
+            margin-top: 0.65rem;
+        }
+        .select-system-quick-label {
+            font-size: 0.625rem;
+            letter-spacing: 0.05em;
+        }
+        .select-system-quick-links {
+            flex: none;
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.32rem;
+            align-items: center;
+        }
+        .select-system-quick-link {
+            width: auto;
+            padding: 0.22rem 0.52rem;
+            font-size: 0.71875rem;
+            font-weight: 600;
+            gap: 0.28rem;
+            justify-content: flex-start;
+        }
+        .select-system-quick-link i {
+            font-size: 0.625rem;
+        }
+    }
+
     /* Busca discreta (filtra os cards por título/descrição) */
     .select-system-search-wrap {
         position: relative;

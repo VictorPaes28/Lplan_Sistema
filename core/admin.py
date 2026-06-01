@@ -22,6 +22,10 @@ from .models import (
     DiaryLaborEntry,
     EquipmentCategory,
     StandardEquipment,
+    ProjectEquipmentCategory,
+    ProjectEquipmentItem,
+    ProjectLaborCategory,
+    ProjectLaborItem,
     Equipment,
     DiaryComment,
     DiaryEditLog,
@@ -188,6 +192,52 @@ class StandardEquipmentAdmin(admin.ModelAdmin):
     list_filter = ['category']
     search_fields = ['name', 'category__name']
     ordering = ['category', 'order', 'name']
+
+
+class ProjectEquipmentItemInline(admin.TabularInline):
+    model = ProjectEquipmentItem
+    extra = 0
+    fields = ['name', 'order', 'is_active', 'source_standard_equipment']
+
+
+@admin.register(ProjectEquipmentCategory)
+class ProjectEquipmentCategoryAdmin(admin.ModelAdmin):
+    list_display = ['project', 'name', 'slug', 'order', 'is_active']
+    list_filter = ['project', 'is_active']
+    search_fields = ['name', 'slug', 'project__name', 'project__code']
+    inlines = [ProjectEquipmentItemInline]
+    ordering = ['project', 'order', 'name']
+
+
+@admin.register(ProjectEquipmentItem)
+class ProjectEquipmentItemAdmin(admin.ModelAdmin):
+    list_display = ['name', 'project', 'category', 'order', 'is_active']
+    list_filter = ['project', 'category', 'is_active']
+    search_fields = ['name', 'project__name', 'category__name']
+    ordering = ['project', 'category__order', 'order', 'name']
+
+
+class ProjectLaborItemInline(admin.TabularInline):
+    model = ProjectLaborItem
+    extra = 0
+    fields = ['name', 'order', 'is_active', 'source_labor_cargo']
+
+
+@admin.register(ProjectLaborCategory)
+class ProjectLaborCategoryAdmin(admin.ModelAdmin):
+    list_display = ['project', 'name', 'slug', 'order', 'is_active']
+    list_filter = ['project', 'is_active']
+    search_fields = ['name', 'slug', 'project__name', 'project__code']
+    inlines = [ProjectLaborItemInline]
+    ordering = ['project', 'order', 'name']
+
+
+@admin.register(ProjectLaborItem)
+class ProjectLaborItemAdmin(admin.ModelAdmin):
+    list_display = ['name', 'project', 'category', 'order', 'is_active']
+    list_filter = ['project', 'category', 'is_active']
+    search_fields = ['name', 'project__name', 'category__name']
+    ordering = ['project', 'category__order', 'order', 'name']
 
 
 @admin.register(Equipment)

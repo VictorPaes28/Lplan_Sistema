@@ -1,0 +1,22 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR" class="equip-catalog-embedded-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Equipamentos — {{ project.name }}</title>
+    <link rel="stylesheet" href="{% static 'core/css/project_equipment_catalog.css' %}">
+</head>
+<body class="equip-catalog-page equip-catalog-page--embedded">
+    <div class="equip-catalog-scroll" id="equip-catalog-scroll">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="flash-msg {{ message.tags }} equip-catalog-flash-inline">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% include 'core/_project_equipment_catalog_content.html' %}
+    </div>
+    <script src="{% static 'core/js/project_equipment_catalog.js' %}"></script>
+</body>
+</html>

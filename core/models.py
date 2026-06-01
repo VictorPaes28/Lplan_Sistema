@@ -594,6 +594,152 @@ class StandardEquipment(models.Model):
         return self.name
 
 
+class ProjectEquipmentCategory(models.Model):
+    """Categoria de equipamentos configurável por obra (catálogo do RDO)."""
+    project = models.ForeignKey(
+        'Project',
+        on_delete=models.CASCADE,
+        related_name='equipment_catalog_categories',
+        verbose_name='Obra',
+    )
+    slug = models.SlugField(max_length=48, verbose_name='Identificador')
+    name = models.CharField(max_length=100, verbose_name='Nome')
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem de exibição')
+    is_active = models.BooleanField(default=True, verbose_name='Ativa no RDO')
+
+    class Meta:
+        verbose_name = 'Categoria de equipamento (obra)'
+        verbose_name_plural = 'Categorias de equipamento (obra)'
+        ordering = ['order', 'pk']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'slug'],
+                name='core_projectequipcat_project_slug_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.project_id} · {self.name}'
+
+
+class ProjectEquipmentItem(models.Model):
+    """Item do catálogo de equipamentos de uma obra (lista do RDO)."""
+    project = models.ForeignKey(
+        'Project',
+        on_delete=models.CASCADE,
+        related_name='equipment_catalog_items',
+        verbose_name='Obra',
+    )
+    category = models.ForeignKey(
+        ProjectEquipmentCategory,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='Categoria',
+    )
+    name = models.CharField(max_length=120, verbose_name='Nome')
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem de exibição')
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Visível no RDO',
+        help_text='Desmarque para ocultar equipamentos que não se aplicam a esta obra.',
+    )
+    source_standard_equipment = models.ForeignKey(
+        StandardEquipment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_copies',
+        verbose_name='Origem (catálogo global)',
+    )
+
+    class Meta:
+        verbose_name = 'Equipamento da obra (RDO)'
+        verbose_name_plural = 'Equipamentos da obra (RDO)'
+        ordering = ['category', 'order', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['category', 'name'],
+                name='core_projectequipitem_category_name_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class ProjectLaborCategory(models.Model):
+    """Categoria de mão de obra configurável por obra (catálogo do RDO)."""
+    project = models.ForeignKey(
+        'Project',
+        on_delete=models.CASCADE,
+        related_name='labor_catalog_categories',
+        verbose_name='Obra',
+    )
+    slug = models.SlugField(max_length=48, verbose_name='Identificador')
+    name = models.CharField(max_length=100, verbose_name='Nome')
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem de exibição')
+    is_active = models.BooleanField(default=True, verbose_name='Ativa no RDO')
+
+    class Meta:
+        verbose_name = 'Categoria de mão de obra (obra)'
+        verbose_name_plural = 'Categorias de mão de obra (obra)'
+        ordering = ['order', 'pk']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'slug'],
+                name='core_projectlaborcat_project_slug_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.project_id} · {self.name}'
+
+
+class ProjectLaborItem(models.Model):
+    """Cargo/item do catálogo de mão de obra de uma obra (lista do RDO)."""
+    project = models.ForeignKey(
+        'Project',
+        on_delete=models.CASCADE,
+        related_name='labor_catalog_items',
+        verbose_name='Obra',
+    )
+    category = models.ForeignKey(
+        ProjectLaborCategory,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='Categoria',
+    )
+    name = models.CharField(max_length=120, verbose_name='Nome do cargo')
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem de exibição')
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Visível no RDO',
+        help_text='Desmarque para ocultar cargos que não se aplicam a esta obra.',
+    )
+    source_labor_cargo = models.ForeignKey(
+        LaborCargo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_copies',
+        verbose_name='Origem (catálogo global)',
+    )
+
+    class Meta:
+        verbose_name = 'Cargo da obra (RDO)'
+        verbose_name_plural = 'Cargos da obra (RDO)'
+        ordering = ['category', 'order', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['category', 'name'],
+                name='core_projectlaboritem_category_name_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class Equipment(models.Model):
     """
     Modelo para representar recursos de equipamentos.

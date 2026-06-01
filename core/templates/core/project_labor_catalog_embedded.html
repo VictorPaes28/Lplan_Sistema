@@ -1,0 +1,23 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR" class="labor-catalog-embedded-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Cargos — {{ project.name }}</title>
+    <link rel="stylesheet" href="{% static 'core/css/project_labor_catalog.css' %}">
+</head>
+<body class="labor-catalog-page labor-catalog-page--embedded">
+    <div class="labor-catalog-scroll" id="labor-catalog-scroll">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="flash-msg {{ message.tags }} labor-catalog-flash-inline">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% include 'core/_project_labor_catalog_content.html' %}
+    </div>
+    <script src="{% static 'core/js/project_labor_catalog.js' %}"></script>
+</body>
+</html>
+

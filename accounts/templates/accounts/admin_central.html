@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block page_title %}Painel do sistema{% endblock %}
-{% block page_subtitle %}Hub único: obras, usuários, ajuda e dados do LPLAN{% endblock %}
+{% block page_subtitle %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
@@ -26,94 +26,229 @@
     .anim-5 { animation: fadeInUp 0.35s ease 0.24s both; }
     .anim-6 { animation: fadeInUp 0.35s ease 0.3s both; }
 
-    /* ═══ KPI Cards ═══ */
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1rem;
+    /* Paleta por módulo (ícones e faixas — não misturar azul genérico) */
+    .admin-page {
+        --hub-border: #e2e8f0;
+        --hub-surface: #fff;
+        --mod-admin: #475569;
+        --mod-admin-soft: #f1f5f9;
+        --mod-diario: #b45309;
+        --mod-diario-soft: #fffbeb;
+        --mod-gestao: #6d28d9;
+        --mod-gestao-soft: #f5f3ff;
+        --mod-mapa: #15803d;
+        --mod-mapa-soft: #f0fdf4;
+        --mod-workflow: #0f766e;
+        --mod-workflow-soft: #f0fdfa;
+        --mod-trackhub: #c2410c;
+        --mod-trackhub-soft: #fff7ed;
+        --mod-imped: #a16207;
+        --mod-imped-soft: #fefce8;
+        --mod-comms: #0369a1;
+        --mod-comms-soft: #e0f2fe;
+    }
+
+    .admin-hub-block {
         margin-bottom: 1.75rem;
     }
-    .kpi-card {
-        background: white;
-        border-radius: 14px;
-        padding: 1.25rem 1.35rem;
-        border: 1px solid #e2e8f0;
-        transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
-        position: relative;
-        overflow: hidden;
+    .hub-config-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.35rem;
+        width: 100%;
     }
-    a.kpi-card {
-        display: block;
-        text-decoration: none;
-        color: inherit;
-        cursor: pointer;
+    .hub-group-block { min-width: 0; }
+    .hub-group-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin: 0 0 0.65rem 0.1rem;
     }
-    a.kpi-card:focus-visible {
-        outline: 2px solid #3b82f6;
-        outline-offset: 2px;
+    .hub-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
     }
-    .kpi-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        border-radius: 14px 14px 0 0;
-        opacity: 0;
-        transition: opacity 0.25s;
-    }
-    .kpi-card:hover {
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-        transform: translateY(-3px);
-    }
-    .kpi-card:hover::before { opacity: 1; }
-    .kpi-card.blue::before { background: linear-gradient(135deg, #3b82f6, #6366f1); }
-    .kpi-card.green::before { background: linear-gradient(135deg, #22c55e, #10b981); }
-    .kpi-card.amber::before { background: linear-gradient(135deg, #f59e0b, #f97316); }
-    .kpi-card.purple::before { background: linear-gradient(135deg, #a855f7, #8b5cf6); }
-    
-    .kpi-top {
+    /* Linhas: largura total, altura confortável sem virar cards gigantes */
+    .admin-page a.hub-row {
         display: flex;
         align-items: center;
         gap: 1rem;
-        margin-bottom: 0.75rem;
-    }
-    .kpi-icon {
-        width: 48px;
-        height: 48px;
+        padding: 1rem 1.2rem;
+        min-height: 4.5rem;
+        background: var(--hub-surface);
+        border: 1px solid var(--hub-border);
         border-radius: 12px;
+        text-decoration: none;
+        color: inherit;
+        transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+    .admin-page a.hub-row:hover {
+        border-color: #cbd5e1;
+        background: #fafbfc;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        text-decoration: none;
+        color: inherit;
+    }
+    .admin-page a.hub-row--attention {
+        border-color: #fcd34d;
+        background: #fffbeb;
+    }
+    .admin-page a.hub-row--attention:hover {
+        background: #fff7ed;
+    }
+    .hub-row-icon {
+        width: 2.875rem;
+        height: 2.875rem;
+        border-radius: 11px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.2rem;
+        font-size: 1.125rem;
         flex-shrink: 0;
-        transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
     }
-    .kpi-card:hover .kpi-icon { transform: scale(1.1) rotate(4deg); }
-    .kpi-value {
-        font-size: 1.85rem;
-        font-weight: 800;
-        line-height: 1;
+    .hub-row-text {
+        flex: 1;
+        min-width: 0;
+        line-height: 1.45;
+        padding: 0.15rem 0;
+    }
+    .hub-row-title {
+        display: block;
+        font-size: 1rem;
+        font-weight: 600;
         color: #1e293b;
-        letter-spacing: -0.03em;
+    }
+    .hub-row-desc {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 0.875rem;
+        color: #64748b;
+        margin-top: 0.3rem;
+        line-height: 1.45;
+    }
+    .hub-row-chevron {
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        color: #cbd5e1;
+        padding-left: 0.35rem;
+    }
+    .admin-page a.hub-row:hover .hub-row-chevron { color: #94a3b8; }
+    @media (min-width: 1100px) {
+        .hub-config-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.25rem 1.5rem;
+            align-items: start;
+        }
+    }
+    .icon-admin { background: var(--mod-admin-soft) !important; color: var(--mod-admin) !important; }
+    .icon-diario { background: var(--mod-diario-soft) !important; color: var(--mod-diario) !important; }
+    .icon-gestao { background: var(--mod-gestao-soft) !important; color: var(--mod-gestao) !important; }
+    .icon-comms { background: var(--mod-comms-soft) !important; color: var(--mod-comms) !important; }
+    .icon-attention { background: #fef3c7 !important; color: #b45309 !important; }
+    .icon-imped { background: var(--mod-imped-soft) !important; color: var(--mod-imped) !important; }
+    .icon-workflow { background: var(--mod-workflow-soft) !important; color: var(--mod-workflow) !important; }
+    .icon-mapa { background: var(--mod-mapa-soft) !important; color: var(--mod-mapa) !important; }
+
+    /* ═══ KPI Cards (visão geral — clean com hierarquia) ═══ */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.65rem;
+        margin-bottom: 0;
+    }
+    @media (max-width: 900px) {
+        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .kpi-card {
+        background: var(--hub-surface);
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        border: 1px solid var(--hub-border);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+    }
+    a.kpi-card {
+        display: grid;
+        grid-template-columns: 3.25rem 1fr;
+        align-items: center;
+        column-gap: 0.75rem;
+        text-decoration: none !important;
+        color: inherit;
+        cursor: pointer;
+    }
+    a.kpi-card:hover,
+    a.kpi-card:focus,
+    a.kpi-card:active,
+    a.kpi-card * {
+        text-decoration: none !important;
+        border-bottom: none !important;
+    }
+    a.kpi-card:focus-visible {
+        outline: 2px solid #64748b;
+        outline-offset: 2px;
+    }
+    .kpi-card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+        transform: translateY(-1px);
+    }
+    .admin-page .kpi-card .kpi-icon {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 10px;
+        background: #f1f5f9 !important;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.125rem;
+        justify-self: center;
+        align-self: center;
+    }
+    .kpi-body {
+        min-width: 0;
     }
     .kpi-label {
-        font-size: 0.8rem;
-        color: #64748b;
-        font-weight: 500;
-        margin-top: 3px;
-    }
-    .kpi-badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-    }
-    .kpi-badge {
-        font-size: 0.7rem;
-        padding: 2px 10px;
-        border-radius: 9999px;
+        display: block;
+        font-size: 0.8125rem;
         font-weight: 600;
+        color: #475569;
+        line-height: 1.25;
+        margin-bottom: 0.35rem;
+    }
+    .admin-page .kpi-card .kpi-value {
+        display: block;
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #0f172a;
+        letter-spacing: -0.03em;
+        margin-bottom: 0.3rem;
+        text-decoration: none !important;
+        border-bottom: none !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+    .admin-page .kpi-card:hover .kpi-value {
+        transform: none !important;
+        text-decoration: none !important;
+        border-bottom: none !important;
+    }
+    .kpi-meta {
+        display: block;
+        font-size: 0.75rem;
+        color: #64748b;
+        line-height: 1.4;
+    }
+    .kpi-meta-em {
+        font-weight: 600;
+        color: #334155;
     }
 
     /* ═══ Two-Column Layout ═══ */
@@ -131,7 +266,7 @@
     .section-title {
         font-size: 0.82rem;
         font-weight: 700;
-        color: #64748b;
+        color: #475569;
         text-transform: uppercase;
         letter-spacing: 0.06em;
         margin-bottom: 0.85rem;
@@ -139,7 +274,21 @@
         align-items: center;
         gap: 0.5rem;
     }
-    .section-title i { font-size: 0.9rem; }
+    .section-title i { font-size: 0.9rem; color: #94a3b8; }
+    .section-block {
+        background: #fafbfc;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 1.1rem 1.15rem 1.2rem;
+        margin-bottom: 1.75rem;
+    }
+    .section-block .section-title { margin-top: 0; }
+    .section-block-intro {
+        font-size: 0.875rem;
+        color: #64748b;
+        margin: -0.35rem 0 1rem;
+        line-height: 1.5;
+    }
 
     /* ═══ Action Cards ═══ */
     .action-grid {
@@ -160,8 +309,8 @@
         transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
     }
     .action-card:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 4px 16px rgba(59,130,246,0.12);
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
         color: inherit;
         text-decoration: none;
         transform: translateX(3px);
@@ -195,14 +344,14 @@
         transition: all 0.2s;
     }
     .action-card:hover .action-arrow {
-        color: #3b82f6;
+        color: #475569;
         transform: translateX(3px);
     }
 
     /* ═══ System Cards ═══ */
     .system-grid {
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
         gap: 0.75rem;
     }
     .system-card {
@@ -248,7 +397,7 @@
     }
     .system-link {
         font-size: 0.75rem;
-        color: #3b82f6;
+        color: #475569;
         text-decoration: none;
         font-weight: 600;
         display: flex;
@@ -256,7 +405,14 @@
         gap: 0.3rem;
         transition: color 0.2s;
     }
-    .system-link:hover { color: #1d4ed8; }
+    .system-link:hover { color: #0f172a; }
+    .system-card { border-left: 3px solid var(--sys-accent, #e2e8f0); }
+    .system-card--diario { --sys-accent: var(--mod-diario); }
+    .system-card--gestao { --sys-accent: var(--mod-gestao); }
+    .system-card--mapa { --sys-accent: var(--mod-mapa); }
+    .system-card--workflow { --sys-accent: var(--mod-workflow); }
+    .system-card--trackhub { --sys-accent: var(--mod-trackhub); }
+    .system-card--imped { --sys-accent: var(--mod-imped); }
     .system-card-body {
         padding: 0.6rem 1.15rem 0.75rem;
     }
@@ -305,14 +461,14 @@
     .admin-section-header h3 i { font-size: 0.9rem; }
     .admin-section-link {
         font-size: 0.78rem;
-        color: #3b82f6;
+        color: #475569;
         text-decoration: none;
         font-weight: 600;
         display: flex;
         align-items: center;
         gap: 0.3rem;
     }
-    .admin-section-link:hover { color: #1d4ed8; }
+    .admin-section-link:hover { color: #0f172a; }
 
     /* Group rows */
     .group-system-label {
@@ -609,14 +765,216 @@
         flex-shrink: 0;
     }
     .admin-rdo-pending-cta i { font-size: 0.65rem; opacity: 0.95; }
+
+    /* Ajuda: atalho discreto (não banner azul) */
+    .admin-page .admin-help-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin-bottom: 0.85rem;
+        padding: 0.52rem 0.75rem;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        text-decoration: none;
+        color: #64748b;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        line-height: 1.3;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .admin-page .admin-help-row:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #475569;
+        text-decoration: none;
+    }
+    .admin-page .admin-help-row > i:first-of-type {
+        flex-shrink: 0;
+        font-size: 0.8rem;
+        color: #94a3b8;
+    }
+    .admin-page .admin-help-row span {
+        flex: 1;
+        min-width: 0;
+    }
+    .admin-page .admin-help-row .admin-help-chevron {
+        flex-shrink: 0;
+        font-size: 0.625rem;
+        color: #cbd5e1;
+    }
+
+    /* ═══ Mobile: hub de navegação compacto (não cards gigantes empilhados) ═══ */
+    @media (max-width: 640px) {
+        .admin-page .kpi-grid {
+            gap: 0.5rem;
+            margin-bottom: 0.85rem;
+        }
+        .admin-page .kpi-card {
+            padding: 0.75rem 0.85rem;
+            grid-template-columns: 2.85rem 1fr;
+            column-gap: 0.6rem;
+        }
+        .admin-page .kpi-card:hover {
+            transform: none;
+        }
+        .admin-page .kpi-icon {
+            width: 2.75rem;
+            height: 2.75rem;
+            font-size: 1rem;
+        }
+        .admin-page .kpi-value {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .admin-page .kpi-meta {
+            font-size: 0.6875rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .admin-page .admin-p-intro {
+            font-size: 0.8125rem !important;
+            margin-bottom: 0.65rem !important;
+            line-height: 1.4 !important;
+        }
+
+        .admin-page .admin-help-row {
+            margin-bottom: 0.5rem;
+            padding: 0.48rem 0.7rem;
+            font-size: 0.78125rem;
+        }
+
+        .hub-config-list {
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        .admin-page a.hub-row {
+            min-height: 4rem;
+            padding: 0.85rem 1rem;
+            gap: 0.85rem;
+        }
+        .hub-row-icon {
+            width: 2.625rem;
+            height: 2.625rem;
+            font-size: 1.05rem;
+        }
+        .hub-row-title { font-size: 0.9375rem; }
+        .hub-row-desc { font-size: 0.8125rem; }
+
+        .admin-page .two-col {
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .admin-page .section-title {
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .admin-page .two-col > div > .admin-p-intro {
+            display: none;
+        }
+        .admin-page .action-card {
+            padding: 0.65rem 0.8rem;
+            gap: 0.65rem;
+            border-radius: 10px;
+        }
+        .admin-page .action-card:hover {
+            transform: none;
+        }
+        .admin-page .action-icon {
+            width: 34px;
+            height: 34px;
+            font-size: 0.9rem;
+        }
+        .admin-page .action-title {
+            font-size: 0.8125rem;
+        }
+        .admin-page .action-desc {
+            font-size: 0.7rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Stats dos sistemas: só cabeçalho clicável (evita 3 blocos altos) */
+        .admin-page .system-card-body {
+            display: none;
+        }
+        .admin-page .system-card-header {
+            padding: 0.65rem 0.8rem;
+            border-bottom: none;
+        }
+        .admin-page .system-icon {
+            width: 32px;
+            height: 32px;
+            font-size: 0.85rem;
+        }
+        .admin-page .system-card-header .system-name {
+            font-size: 0.8125rem;
+        }
+        .admin-page .system-card-header .system-desc {
+            display: none;
+        }
+
+        .admin-page .admin-rdo-pending-banner {
+            padding: 0.7rem 0.85rem;
+        }
+        .admin-page .admin-rdo-pending-desc {
+            display: none;
+        }
+        .admin-page .admin-rdo-pending-cta {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8125rem;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="admin-page">
-    <!-- ═══ Pedidos de correção (RDO) — atalho visível ═══ -->
+    <!-- ═══ 1. Visão geral (topo — números do sistema) ═══ -->
+    <section class="admin-hub-block anim-1" style="margin-bottom: 1.5rem;">
+        <h2 class="section-title"><i class="fas fa-chart-bar" aria-hidden="true"></i> Visão geral</h2>
+        <div class="kpi-grid">
+            <a href="{% url 'accounts:user_panel' %}" class="kpi-card">
+                <span class="kpi-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+                <div class="kpi-body">
+                    <span class="kpi-label">Usuários</span>
+                    <span class="kpi-value">{{ total_usuarios }}</span>
+                    <span class="kpi-meta"><span class="kpi-meta-em">{{ usuarios_ativos }}</span> ativos{% if novos_usuarios_30d > 0 %} · +{{ novos_usuarios_30d }} novos (30d){% endif %}</span>
+                </div>
+            </a>
+            <a href="{% url 'central_project_list' %}" class="kpi-card">
+                <span class="kpi-icon" aria-hidden="true"><i class="fas fa-building"></i></span>
+                <div class="kpi-body">
+                    <span class="kpi-label">Obras ativas</span>
+                    <span class="kpi-value">{{ stats_mapa.obras_ativas }}</span>
+                    <span class="kpi-meta"><span class="kpi-meta-em">{{ stats_mapa.obras }}</span> no cadastro total</span>
+                </div>
+            </a>
+            <a href="{{ pendencias_acao_url }}" class="kpi-card">
+                <span class="kpi-icon" aria-hidden="true"><i class="fas fa-bell"></i></span>
+                <div class="kpi-body">
+                    <span class="kpi-label">Notificações</span>
+                    <span class="kpi-value">{{ pendencias_acao_total }}</span>
+                    <span class="kpi-meta">{% if pendencias_acao_total %}{% if signup_pendentes_count %}<span class="kpi-meta-em">{{ signup_pendentes_count }}</span> cadastro{% if signup_pendentes_count != 1 %}s{% endif %}{% endif %}{% if signup_pendentes_count and pending_diary_edit_requests_count %} · {% endif %}{% if pending_diary_edit_requests_count %}<span class="kpi-meta-em">{{ pending_diary_edit_requests_count }}</span> RDO{% endif %}{% else %}Nada aguardando ação{% endif %}</span>
+                </div>
+            </a>
+            <a href="{% url 'accounts:admin_analise_usuarios' %}?uso=sem_producao&amp;status=ativos" class="kpi-card">
+                <span class="kpi-icon" aria-hidden="true"><i class="fas fa-user-clock"></i></span>
+                <div class="kpi-body">
+                    <span class="kpi-label">Sem atividade</span>
+                    <span class="kpi-value">{{ usuarios_sem_atividade_30d }}</span>
+                    <span class="kpi-meta">ativos sem uso em 30 dias</span>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- ═══ Alerta RDO (se houver pendências) ═══ -->
     {% if pending_diary_edit_requests_count > 0 %}
-    <section class="anim-1" style="margin-bottom: 1rem;">
+    <section class="anim-2" style="margin-bottom: 1rem;">
         <a href="{% url 'central_diary_edit_requests' %}" class="admin-rdo-pending-banner">
             <div class="admin-rdo-pending-inner">
                 <div class="admin-rdo-pending-left">
@@ -639,231 +997,94 @@
     </section>
     {% endif %}
 
-    <!-- ═══ KPI Cards (links para cada área) ═══ -->
-    <div class="kpi-grid">
-        <a href="{% url 'central_list_users' %}" class="kpi-card blue anim-1">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background: #eff6ff; color: #3b82f6;">
-                    <i class="fas fa-users" aria-hidden="true"></i>
-                </div>
-                <div>
-                    <div class="kpi-value">{{ total_usuarios }}</div>
-                    <div class="kpi-label">Usuários</div>
-                </div>
-            </div>
-            <div class="kpi-badges">
-                <span class="kpi-badge" style="background: #dcfce7; color: #16a34a;">{{ usuarios_ativos }} ativos</span>
-                {% if novos_usuarios_30d > 0 %}
-                <span class="kpi-badge" style="background: #dbeafe; color: #2563eb;">+{{ novos_usuarios_30d }} este mês</span>
-                {% endif %}
-            </div>
-        </a>
-        
-        <a href="{% url 'central_project_list' %}" class="kpi-card green anim-2">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background: #f0fdf4; color: #22c55e;">
-                    <i class="fas fa-hard-hat" aria-hidden="true"></i>
-                </div>
-                <div>
-                    <div class="kpi-value">{{ stats_diario.projetos_ativos }}</div>
-                    <div class="kpi-label">Projetos ativos</div>
+    <!-- ═══ 2. Configuração central ═══ -->
+    <section class="admin-hub-block anim-3 section-block">
+        <h2 class="section-title">
+            <i class="fas fa-cogs" aria-hidden="true"></i> Configuração central
+        </h2>
+        <div class="hub-config-list">
+            <div class="hub-group-block">
+                <p class="hub-group-title">Cadastro e acesso</p>
+                <div class="hub-rows">
+                    <a href="{% url 'central_project_list' %}" class="hub-row">
+                        <span class="hub-row-icon icon-admin"><i class="fas fa-building" aria-hidden="true"></i></span>
+                        <span class="hub-row-text">
+                            <span class="hub-row-title">Obras</span>
+                            <span class="hub-row-desc">Criar e editar — sincroniza Diário, pedidos e Mapa</span>
+                        </span>
+                        <i class="fas fa-chevron-right hub-row-chevron" aria-hidden="true"></i>
+                    </a>
+                    <a href="{% url 'accounts:user_panel' %}" class="hub-row">
+                        <span class="hub-row-icon icon-admin"><i class="fas fa-id-card" aria-hidden="true"></i></span>
+                        <span class="hub-row-text">
+                            <span class="hub-row-title">Painel do usuário</span>
+                            <span class="hub-row-desc">Lista, cadastros, clientes e uso · {{ total_usuarios }} usuários</span>
+                        </span>
+                        <i class="fas fa-chevron-right hub-row-chevron" aria-hidden="true"></i>
+                    </a>
                 </div>
             </div>
-            <div class="kpi-badges">
-                <span class="kpi-badge" style="background: #f0fdf4; color: #16a34a;">{{ stats_diario.projetos }} total</span>
-            </div>
-        </a>
-        
-        <a href="{% url 'report-list' %}" class="kpi-card amber anim-3">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background: #fef3c7; color: #f59e0b;">
-                    <i class="fas fa-file-alt" aria-hidden="true"></i>
-                </div>
-                <div>
-                    <div class="kpi-value">{{ stats_diario.diarios }}</div>
-                    <div class="kpi-label">Diários de obra</div>
-                </div>
-            </div>
-            <div class="kpi-badges">
-                {% if stats_diario.diarios_30d > 0 %}
-                <span class="kpi-badge" style="background: #fef3c7; color: #92400e;">+{{ stats_diario.diarios_30d }} últimos 30d</span>
-                {% endif %}
-            </div>
-        </a>
-        
-        <a href="{% url 'gestao:home' %}" class="kpi-card purple anim-4">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background: #fae8ff; color: #a855f7;">
-                    <i class="fas fa-clipboard-check" aria-hidden="true"></i>
-                </div>
-                <div>
-                    <div class="kpi-value">{{ stats_gestao.ordens }}</div>
-                    <div class="kpi-label">GestControll</div>
-                </div>
-            </div>
-            <div class="kpi-badges">
-                <span class="kpi-badge" style="background: #fae8ff; color: #7e22ce;">{{ stats_gestao.aprovacoes }} aprovações</span>
-            </div>
-        </a>
-    </div>
 
-    <!-- ═══ Obras e usuários (hub único) ═══ -->
-    <div class="anim-5" style="margin-bottom: 1.75rem;">
-        <div class="section-title">
-            <i class="fas fa-cogs" style="color: #1e40af;"></i> Obras e usuários
-        </div>
-        <p class="admin-p-intro" style="font-size: 0.9rem; color: #64748b; margin-bottom: 1rem; line-height: 1.5;">Cadastre obras (projetos) e usuários aqui. As mesmas obras e vínculos valem para o Diário de Obra, o sistema de Pedidos e o Mapa.</p>
-        <div class="central-help-card" style="margin-bottom: 1.25rem;">
-            <p class="central-help-title">Algo deu errado ou alguém reclamou de um problema?</p>
-            <p class="central-help-desc">Use a página de Ajuda: passo a passo em linguagem simples e botões que levam ao lugar certo para resolver.</p>
-            <a href="{% url 'central_ajuda' %}" class="central-help-btn">
-                <i class="fas fa-question-circle" aria-hidden="true"></i> Ajuda — Quando algo der errado
-            </a>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-            <a href="/accounts/admin-central/painel-usuario/" class="central-action-card" style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #bfdbfe;">
-                <div class="central-action-icon" style="background:#dbeafe;color:#1d4ed8;">
-                    <i class="fas fa-id-card" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Painel do usuário</h2>
-                <p class="central-action-desc">Área focada em usuários, solicitações de cadastro e clientes.</p>
-                <span class="central-action-link">Abrir painel <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="/central/painel-logs/" class="central-action-card" style="background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); border: 1px solid #cbd5e1;">
-                <div class="central-action-icon" style="background:#e2e8f0;color:#334155;">
-                    <i class="fas fa-file-waveform" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Painel de logs</h2>
-                <p class="central-action-desc">Área focada em auditoria, logs do sistema e logs de e-mail.</p>
-                <span class="central-action-link">Abrir painel <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'admin_comunicacao_hub' %}" class="central-action-card" style="background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%); border: 1px solid #bae6fd;">
-                <div class="central-action-icon" style="background:#e0f2fe;color:#0369a1;">
-                    <i class="fas fa-envelope-open-text" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">E-mails e notificações</h2>
-                <p class="central-action-desc">Configurar envio por e-mail e consultar histórico técnico.</p>
-                <span class="central-action-link">Abrir central <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_diary_edit_requests' %}" class="central-action-card" style="{% if pending_diary_edit_requests_count > 0 %}box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45);{% endif %}">
-                <div class="central-action-icon" style="background:#fff7ed;color:#c2410c;">
-                    <i class="fas fa-file-signature" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Correção de RDO</h2>
-                <p class="central-action-desc">
-                    {% if pending_diary_edit_requests_count > 0 %}
-                    <strong style="color:#c2410c;">{{ pending_diary_edit_requests_count }} pendente{% if pending_diary_edit_requests_count != 1 %}s{% endif %}</strong> —
+            <div class="hub-group-block">
+                <p class="hub-group-title">Operação</p>
+                <div class="hub-rows">
+                    <a href="{% url 'central_diary_edit_requests' %}" class="hub-row{% if pending_diary_edit_requests_count > 0 %} hub-row--attention{% endif %}">
+                        <span class="hub-row-icon icon-attention"><i class="fas fa-file-signature" aria-hidden="true"></i></span>
+                        <span class="hub-row-text">
+                            <span class="hub-row-title">Correção de RDO</span>
+                            <span class="hub-row-desc">{% if pending_diary_edit_requests_count > 0 %}<strong style="color:#b45309;">{{ pending_diary_edit_requests_count }} pendente{% if pending_diary_edit_requests_count != 1 %}s{% endif %}</strong> · {% endif %}Liberar edição em relatórios aprovados</span>
+                        </span>
+                        <i class="fas fa-chevron-right hub-row-chevron" aria-hidden="true"></i>
+                    </a>
+                    {% if painel_comunicados %}
+                    <a href="{% url 'comunicados_painel_lista' %}" class="hub-row">
+                        <span class="hub-row-icon icon-comms"><i class="fas fa-bullhorn" aria-hidden="true"></i></span>
+                        <span class="hub-row-text">
+                            <span class="hub-row-title">Comunicados</span>
+                            <span class="hub-row-desc">Anúncios e avisos para os usuários</span>
+                        </span>
+                        <i class="fas fa-chevron-right hub-row-chevron" aria-hidden="true"></i>
+                    </a>
                     {% endif %}
-                    Liberar edição em relatórios aprovados.
-                </p>
-                <span class="central-action-link">Abrir pedidos <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_project_list' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#eff6ff;color:#2563eb;">
-                    <i class="fas fa-building" aria-hidden="true"></i>
                 </div>
-                <h2 class="central-action-title">Obras</h2>
-                <p class="central-action-desc">Criar e editar obras. Aparecem no Diário, Pedidos e Mapa.</p>
-                <span class="central-action-link">Ver obras <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <a href="{% url 'central_manutencao' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#fef3c7;color:#d97706;">
-                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
+            </div>
+
+            <div class="hub-group-block">
+                <p class="hub-group-title">Auditoria e comunicação</p>
+                <div class="hub-rows">
+                    <a href="{% url 'central_logs_panel' %}" class="hub-row">
+                        <span class="hub-row-icon icon-admin"><i class="fas fa-file-waveform" aria-hidden="true"></i></span>
+                        <span class="hub-row-text">
+                            <span class="hub-row-title">Painel de logs</span>
+                            <span class="hub-row-desc">Auditoria, logs do sistema e histórico de e-mail</span>
+                        </span>
+                        <i class="fas fa-chevron-right hub-row-chevron" aria-hidden="true"></i>
+                    </a>
+                    <a href="{% url 'admin_comunicacao_hub' %}" class="hub-row">
+                        <span class="hub-row-icon icon-comms"><i class="fas fa-envelope-open-text" aria-hidden="true"></i></span>
+                        <span class="hub-row-text">
+                            <span class="hub-row-title">E-mails e notificações</span>
+                            <span class="hub-row-desc">Configurar envio e consultar falhas</span>
+                        </span>
+                        <i class="fas fa-chevron-right hub-row-chevron" aria-hidden="true"></i>
+                    </a>
                 </div>
-                <h2 class="central-action-title">Atualizar listas</h2>
-                <p class="central-action-desc">Fazer obras aparecerem no Pedidos e no Mapa.</p>
-                <span class="central-action-link">Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            {% if painel_comunicados %}
-            <a href="{% url 'comunicados_painel_lista' %}" class="central-action-card">
-                <div class="central-action-icon" style="background:#e0f2fe;color:#0369a1;">
-                    <i class="fas fa-bullhorn" aria-hidden="true"></i>
-                </div>
-                <h2 class="central-action-title">Comunicados</h2>
-                <p class="central-action-desc">Anúncios e avisos administrativos para os usuários.</p>
-                <span class="central-action-link">Gerenciar <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            {% endif %}
+            </div>
         </div>
-    </div>
+    </section>
     
-    <!-- ═══ Mais ações + Sistemas ═══ -->
-    <div class="two-col anim-5">
-        <!-- Mapa, análise e navegação (sem duplicar Obras/Usuários já acima) -->
-        <div>
-            <div class="section-title">
-                <i class="fas fa-bolt" style="color: #f59e0b;"></i> Mapa, análise e navegação
-            </div>
-            <p class="admin-p-intro" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.85rem; line-height: 1.4;">Cadastro único de obras (Diário + Mapa), locais do suprimentos e métricas de uso.</p>
-            <div class="action-grid">
-                <a href="{% url 'central_project_list' %}" class="action-card">
-                    <div class="action-icon" style="background: #e0e7ff; color: #4338ca;">
-                        <i class="fas fa-building" aria-hidden="true"></i>
-                    </div>
-                    <div>
-                        <div class="action-title">Obras e locais do mapa</div>
-                        <div class="action-desc">Lista em /projects/: cadastro, locais (blocos/pavimentos), e-mails e aprovadores do RDO</div>
-                    </div>
-                    <i class="fas fa-chevron-right action-arrow" aria-hidden="true"></i>
-                </a>
-                {% if painel_comunicados %}
-                <a href="{% url 'comunicados_painel_lista' %}" class="action-card">
-                    <div class="action-icon" style="background: #e0f2fe; color: #0369a1;">
-                        <i class="fas fa-bullhorn" aria-hidden="true"></i>
-                    </div>
-                    <div>
-                        <div class="action-title">Comunicados</div>
-                        <div class="action-desc">Anúncios administrativos no sistema</div>
-                    </div>
-                    <i class="fas fa-chevron-right action-arrow" aria-hidden="true"></i>
-                </a>
-                {% endif %}
-                <a href="{% url 'accounts:admin_analise_usuarios' %}" class="action-card">
-                    <div class="action-icon" style="background: #e0e7ff; color: #4f46e5;">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div>
-                        <div class="action-title">Análise de Usuários</div>
-                        <div class="action-desc">Métricas, por grupo e filtros de uso</div>
-                    </div>
-                    <i class="fas fa-chevron-right action-arrow"></i>
-                </a>
-                <a href="{% url 'select-system' %}" class="action-card">
-                    <div class="action-icon" style="background: #f1f5f9; color: #475569;">
-                        <i class="fas fa-th-large"></i>
-                    </div>
-                    <div>
-                        <div class="action-title">Selecionar Sistema</div>
-                        <div class="action-desc">Ir para Diário, GestControll ou Mapa</div>
-                    </div>
-                    <i class="fas fa-chevron-right action-arrow"></i>
-                </a>
-                {% comment %}Pausado — descomentar quando ativar Teams/Azure
-                <a href="{% url 'teams-chat-embed' %}" class="action-card">
-                    <div class="action-icon" style="background: #ede9fe; color: #5b21b6;">
-                        <i class="fas fa-comments"></i>
-                    </div>
-                    <div>
-                        <div class="action-title">Teams Chat no LPLAN</div>
-                        <div class="action-desc">Abrir chat embutido sem sair do sistema</div>
-                    </div>
-                    <i class="fas fa-chevron-right action-arrow"></i>
-                </a>
-                {% endcomment %}
-            </div>
-        </div>
-        
-        <!-- Sistemas Integrados -->
-        <div>
-            <div class="section-title">
-                <i class="fas fa-th-large" style="color: #3b82f6;"></i> Sistemas Integrados
-            </div>
+    <!-- ═══ 3. Sistemas integrados (entrar nos módulos) ═══ -->
+    <section class="admin-hub-block anim-4">
+            <h2 class="section-title">
+                <i class="fas fa-th-large" aria-hidden="true"></i> Sistemas integrados
+            </h2>
+            <p class="section-block-intro" style="margin-bottom: 0.85rem;">Acesso direto a cada módulo. A cor da faixa identifica o sistema.</p>
             <div class="system-grid">
                 <!-- Diário de Obra -->
-                <div class="system-card">
+                <div class="system-card system-card--diario">
                     <div class="system-card-header">
                         <div class="system-card-header-left">
-                            <div class="system-icon" style="background: #eff6ff; color: #3b82f6;">
+                            <div class="system-icon icon-diario">
                                 <i class="fas fa-book"></i>
                             </div>
                             <div>
@@ -888,10 +1109,10 @@
                 </div>
                 
                 <!-- GestControll -->
-                <div class="system-card">
+                <div class="system-card system-card--gestao">
                     <div class="system-card-header">
                         <div class="system-card-header-left">
-                            <div class="system-icon" style="background: #fae8ff; color: #a855f7;">
+                            <div class="system-icon icon-gestao">
                                 <i class="fas fa-clipboard-check"></i>
                             </div>
                             <div>
@@ -916,10 +1137,10 @@
                 </div>
                 
                 <!-- Mapa de Suprimentos -->
-                <div class="system-card">
+                <div class="system-card system-card--mapa">
                     <div class="system-card-header">
                         <div class="system-card-header-left">
-                            <div class="system-icon" style="background: #f0fdf4; color: #22c55e;">
+                            <div class="system-icon icon-mapa">
                                 <i class="fas fa-map"></i>
                             </div>
                             <div>
@@ -927,8 +1148,8 @@
                                 <div class="system-desc">Suprimentos e insumos</div>
                             </div>
                         </div>
-                        <a href="{% url 'central_project_list' %}" class="system-link">
-                            Obras <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        <a href="{% url 'mapa_obras:home' %}" class="system-link">
+                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
                         </a>
                     </div>
                     <div class="system-card-body">
@@ -946,9 +1167,98 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Central de Aprovações -->
+                <div class="system-card system-card--workflow">
+                    <div class="system-card-header">
+                        <div class="system-card-header-left">
+                            <div class="system-icon icon-workflow">
+                                <i class="fas fa-check-double"></i>
+                            </div>
+                            <div>
+                                <div class="system-name">Central de Aprovações</div>
+                                <div class="system-desc">Fluxos e filas de aprovação por obra</div>
+                            </div>
+                        </div>
+                        <a href="{% url 'workflow_aprovacao:home' %}" class="system-link">
+                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        </a>
+                    </div>
+                    <div class="system-card-body">
+                        <div class="system-stat">
+                            <span class="system-stat-label">Processos</span>
+                            <span class="system-stat-value">{{ stats_workflow.processos }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Aguardando alçada</span>
+                            <span class="system-stat-value">{{ stats_workflow.aguardando }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TrackHub -->
+                <div class="system-card system-card--trackhub">
+                    <div class="system-card-header">
+                        <div class="system-card-header-left">
+                            <div class="system-icon icon-attention">
+                                <i class="fas fa-compass"></i>
+                            </div>
+                            <div>
+                                <div class="system-name">TrackHub</div>
+                                <div class="system-desc">Etapas, prazos e pendências da obra</div>
+                            </div>
+                        </div>
+                        <a href="{% url 'trackhub:fila' %}" class="system-link">
+                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        </a>
+                    </div>
+                    <div class="system-card-body">
+                        <div class="system-stat">
+                            <span class="system-stat-label">Pendências</span>
+                            <span class="system-stat-value">{{ stats_trackhub.pendencias }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Em aberto</span>
+                            <span class="system-stat-value">{{ stats_trackhub.em_aberto }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Restrições (Impedimentos) -->
+                <div class="system-card system-card--imped">
+                    <div class="system-card-header">
+                        <div class="system-card-header-left">
+                            <div class="system-icon icon-imped">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div>
+                                <div class="system-name">Restrições</div>
+                                <div class="system-desc">Bloqueios e pendências por obra</div>
+                            </div>
+                        </div>
+                        <a href="{% url 'impedimentos:select_obra' %}" class="system-link">
+                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+                        </a>
+                    </div>
+                    <div class="system-card-body">
+                        <div class="system-stat">
+                            <span class="system-stat-label">Registros</span>
+                            <span class="system-stat-value">{{ stats_impedimentos.total }}</span>
+                        </div>
+                        <div class="system-stat">
+                            <span class="system-stat-label">Sem conclusão</span>
+                            <span class="system-stat-value">{{ stats_impedimentos.em_aberto }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
+    </section>
+
+    <a href="{% url 'central_ajuda' %}" class="admin-help-row" style="margin-top: 0.5rem;">
+        <i class="fas fa-question-circle" aria-hidden="true"></i>
+        <span>Ajuda — quando algo der errado</span>
+        <i class="fas fa-chevron-right admin-help-chevron" aria-hidden="true"></i>
+    </a>
     
 </div>
 {% endblock %}

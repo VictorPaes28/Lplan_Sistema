@@ -234,17 +234,30 @@ def _resolve_equipment_from_payload_item(equipment_item):
     payload_name = _normalize_equipment_name(equipment_item.get('name', ''))
     payload_name_key = _normalized_name_key(payload_name)
 
-    # Payload novo do formulário: id de StandardEquipment (não é Equipment.pk).
-    standard_equipment_id = equipment_item.get('standard_equipment_id')
-    if standard_equipment_id:
+    # Catálogo por obra: id de ProjectEquipmentItem (nome canónico do item da obra).
+    project_equipment_item_id = equipment_item.get('project_equipment_item_id')
+    if project_equipment_item_id:
         try:
-            from .models import StandardEquipment
-            std = StandardEquipment.objects.filter(pk=int(standard_equipment_id)).only('name').first()
-            if std and getattr(std, 'name', None):
-                payload_name = _normalize_equipment_name(std.name)
+            from .models import ProjectEquipmentItem
+            pei = ProjectEquipmentItem.objects.filter(pk=int(project_equipment_item_id)).only('name').first()
+            if pei and getattr(pei, 'name', None):
+                payload_name = _normalize_equipment_name(pei.name)
                 payload_name_key = _normalized_name_key(payload_name)
         except (ValueError, TypeError):
             pass
+
+    # Legado: id de StandardEquipment (não é Equipment.pk).
+    if not project_equipment_item_id:
+        standard_equipment_id = equipment_item.get('standard_equipment_id')
+        if standard_equipment_id:
+            try:
+                from .models import StandardEquipment
+                std = StandardEquipment.objects.filter(pk=int(standard_equipment_id)).only('name').first()
+                if std and getattr(std, 'name', None):
+                    payload_name = _normalize_equipment_name(std.name)
+                    payload_name_key = _normalized_name_key(payload_name)
+            except (ValueError, TypeError):
+                pass
 
     equipment_id = equipment_item.get('equipment_id')
     if equipment_id:
@@ -274,6 +287,157 @@ def _resolve_equipment_from_payload_item(equipment_item):
         is_active=True,
     )
     return equipment, payload_name
+
+
+def _resolve_labor_cargo_from_payload_item(labor_item, project=None):
+    """
+    Resolve LaborCargo.pk a partir do item do payload de mão de obra.
+    DiaryLaborEntry continua FK para LaborCargo global (PDF/detalhe intactos).
+    """
+    from .models import LaborCargo, LaborCategory, ProjectLaborItem
+    from .project_labor_catalog import (
+        ensure_project_labor_catalog,
+        find_project_labor_item_for_name,
+    )
+
+    cargo_name = (labor_item.get('cargo_name') or labor_item.get('cargoName') or '').strip()
+    category_slug = (labor_item.get('category_slug') or labor_item.get('categorySlug') or '').strip()
+
+    project_labor_item_id = labor_item.get('project_labor_item_id')
+    if project_labor_item_id and project:
+        try:
+            pli = ProjectLaborItem.objects.select_related(
+                'source_labor_cargo',
+                'source_labor_cargo__category',
+                'category',
+            ).filter(pk=int(project_labor_item_id), project=project).first()
+            if pli:
+                cargo_name = pli.name or cargo_name
+                if pli.source_labor_cargo_id:
+                    return pli.source_labor_cargo_id, cargo_name
+                slug = pli.category.slug if pli.category_id else category_slug
+                gcat = LaborCategory.objects.filter(slug=slug).first()
+                if gcat:
+                    cargo, _ = LaborCargo.objects.get_or_create(
+                        category=gcat,
+                        name=pli.name,
+                        defaults={'order': pli.order},
+                    )
+                    return cargo.id, cargo_name
+        except (ValueError, TypeError):
+            pass
+
+    cargo_id = labor_item.get('cargo_id') or labor_item.get('cargoId')
+    if cargo_id:
+        try:
+            cid = int(cargo_id)
+            if LaborCargo.objects.filter(pk=cid).exists():
+                return cid, cargo_name
+        except (ValueError, TypeError):
+            pass
+
+    if project and cargo_name:
+        ensure_project_labor_catalog(project)
+        pli = None
+        if category_slug:
+            pli = ProjectLaborItem.objects.filter(
+                project=project,
+                category__slug=category_slug,
+                name__iexact=cargo_name,
+            ).select_related('source_labor_cargo', 'category').first()
+        if not pli:
+            pli = find_project_labor_item_for_name(project, cargo_name)
+        if pli:
+            return _resolve_labor_cargo_from_payload_item(
+                {
+                    'project_labor_item_id': pli.pk,
+                    'cargo_name': cargo_name,
+                    'category_slug': category_slug or (pli.category.slug if pli.category_id else ''),
+                },
+                project,
+            )
+
+    terceirizada_category = LaborCategory.objects.filter(slug='terceirizada').first()
+    target_category = LaborCategory.objects.filter(slug=category_slug).first() if category_slug else None
+    if target_category is None:
+        target_category = terceirizada_category
+    if target_category is None or not cargo_name:
+        return None, cargo_name
+
+    existing_cargo = LaborCargo.objects.filter(
+        category=target_category,
+        name__iexact=cargo_name,
+    ).only('id').first()
+    if existing_cargo:
+        return existing_cargo.id, cargo_name
+    return LaborCargo.objects.create(
+        category=target_category,
+        name=cargo_name,
+        order=0,
+    ).id, cargo_name
+
+
+def _project_activities_picker_data(project, exclude_diary_pk=None):
+    """
+    Atividades distintas já registradas em RDOs desta obra (para reutilizar no seletor).
+
+    Fonte: registros ``DailyWorkLog`` (work_logs) dos diários da obra — o mesmo vínculo
+    usado ao salvar o RDO. Não é a listagem da EAP (tela Atividades), que inclui agrupadoras
+    e itens nunca lançados em diário.
+
+    ``name`` = texto exato no banco (obrigatório para o save resolver o FK).
+    ``label`` = mesmo critério visual da tela Atividades (``display_name``).
+    """
+    if not project or not getattr(project, 'pk', None):
+        return []
+    try:
+        from core.models import DailyWorkLog
+        from core.utils.activity_display import activity_name_for_display
+
+        qs = (
+            DailyWorkLog.objects.filter(diary__project=project)
+            .select_related('activity', 'diary')
+            .order_by('-diary__date', '-diary_id', '-id')
+        )
+        if exclude_diary_pk:
+            qs = qs.exclude(diary_id=exclude_diary_pk)
+
+        seen = {}
+        for wl in qs.iterator():
+            act = wl.activity
+            if not act or act.pk in seen:
+                continue
+            name = (act.name or '').strip()
+            if not name:
+                continue
+            last_used = ''
+            if wl.diary and wl.diary.date:
+                try:
+                    last_used = wl.diary.date.strftime('%d/%m/%Y')
+                except Exception:
+                    last_used = str(wl.diary.date)
+            seen[act.pk] = {
+                'id': act.pk,
+                'name': name,
+                'label': activity_name_for_display(name),
+                'last_used': last_used,
+            }
+
+        return sorted(seen.values(), key=lambda x: (x['label'] or x['name']).lower())
+    except Exception:
+        return []
+
+
+def _project_eap_activities_count(project):
+    """Total de nós na EAP da obra (tela Atividades) — apenas para contexto no formulário."""
+    if not project or not getattr(project, 'pk', None):
+        return 0
+    try:
+        from .models import Activity
+
+        return Activity.objects.filter(project=project).count()
+    except Exception:
+        return 0
 
 
 def _build_diary_equipment_list(diary):
@@ -2699,100 +2863,225 @@ def filter_videos_view(request):
 @login_required
 @project_required
 def filter_activities_view(request):
-    """View para filtro de atividades."""
+    """Consulta da EAP — lista compacta + painel de detalhe da atividade."""
+    from urllib.parse import urlencode
+    from .services import ProgressService
+
     project = get_selected_project(request)
-    
-    # Busca todas as atividades do projeto
+
     activities = Activity.objects.filter(project=project).order_by('path')
-    
-    # Filtros
-    search = request.GET.get('search', '')
-    status_filter = request.GET.get('status')
-    progress_min = request.GET.get('progress_min')
-    progress_max = request.GET.get('progress_max')
-    
+
+    search = (request.GET.get('search') or '').strip()
+    status_filter = (request.GET.get('status') or '').strip()
+
     if search:
         activities = activities.filter(
-            Q(name__icontains=search) |
-            Q(code__icontains=search) |
-            Q(description__icontains=search)
+            Q(name__icontains=search)
+            | Q(code__icontains=search)
+            | Q(description__icontains=search),
         )
-    
     if status_filter:
         activities = activities.filter(status=status_filter)
-    
-    # Filtro por progresso (se implementado)
-    # TODO: Implementar filtro por progresso quando o campo estiver disponível
-    
-    # Estatísticas
+
     total_activities = activities.count()
-    activities_by_status = activities.values('status').annotate(count=Count('id'))
-    
+    total_project_activities = Activity.objects.filter(project=project).count()
+    activities_by_status = list(
+        activities.values('status').annotate(count=Count('id')).order_by('status'),
+    )
+
+    def attach_progress(activity):
+        return {
+            'activity': activity,
+            'progress': float(ProgressService.get_activity_progress(activity)),
+        }
+
+    activity_rows = [attach_progress(a) for a in activities]
+
+    selected_row = None
+    selected_id = request.GET.get('id')
+    if selected_id:
+        try:
+            sid = int(selected_id)
+            for row in activity_rows:
+                if row['activity'].id == sid:
+                    selected_row = row
+                    break
+            if selected_row is None:
+                found = activities.filter(pk=sid).first()
+                if found:
+                    selected_row = attach_progress(found)
+        except (ValueError, TypeError):
+            pass
+    if selected_row is None and activity_rows:
+        selected_row = activity_rows[0]
+
+    selected_ancestors = []
+    if selected_row:
+        selected_ancestors = list(
+            selected_row['activity'].get_ancestors().order_by('path'),
+        )
+
+    def filter_params(extra=None):
+        params = {}
+        if search:
+            params['search'] = search
+        if status_filter:
+            params['status'] = status_filter
+        if extra:
+            params.update({k: v for k, v in extra.items() if v})
+        return params
+
+    has_active_filters = bool(search or status_filter)
+    status_choices = ActivityStatus.choices
+
     context = {
-        'activities': activities,
+        'activity_rows': activity_rows,
+        'selected_row': selected_row,
+        'selected_ancestors': selected_ancestors,
         'total_activities': total_activities,
+        'total_project_activities': total_project_activities,
         'activities_by_status': activities_by_status,
         'search': search,
         'status_filter': status_filter,
-        'progress_min': progress_min,
-        'progress_max': progress_max,
+        'project': project,
+        'has_active_filters': has_active_filters,
+        'filter_query': urlencode(filter_params()),
+        'status_choices': status_choices,
     }
-    
+
     return render(request, 'core/filters/activities.html', context)
 
 
 @login_required
 @project_required
 def filter_occurrences_view(request):
-    """View para filtro de ocorrências (modelo DiaryOccurrence + campo incidents)."""
+    """Consulta de ocorrências agrupadas por RDO (relatório/diário)."""
+    from django.db.models import Prefetch
+    from urllib.parse import urlencode
     from .models import DiaryOccurrence
-    from django.core.paginator import Paginator
 
     project = get_selected_project(request)
 
-    # Ocorrências do formulário (DiaryOccurrence) – mesma fonte que o dashboard
-    occurrences = DiaryOccurrence.objects.filter(
-        diary__project=project
-    ).select_related('diary', 'diary__project').prefetch_related('tags').order_by('-diary__date', '-created_at')
+    filtered_occurrences = (
+        DiaryOccurrence.objects.filter(diary__project=project)
+        .select_related('created_by')
+        .prefetch_related('tags')
+        .order_by('-created_at')
+    )
 
-    # Filtros
-    search = request.GET.get('search', '')
-    date_start = request.GET.get('date_start')
-    date_end = request.GET.get('date_end')
+    search = (request.GET.get('search') or '').strip()
+    date_start = (request.GET.get('date_start') or '').strip()
+    date_end = (request.GET.get('date_end') or '').strip()
+    period = (request.GET.get('period') or '').strip()
 
     if search:
-        occurrences = occurrences.filter(description__icontains=search)
+        filtered_occurrences = filtered_occurrences.filter(description__icontains=search)
     if date_start:
         try:
-            occurrences = occurrences.filter(diary__date__gte=date_start)
+            filtered_occurrences = filtered_occurrences.filter(diary__date__gte=date_start)
         except ValueError:
             pass
     if date_end:
         try:
-            occurrences = occurrences.filter(diary__date__lte=date_end)
+            filtered_occurrences = filtered_occurrences.filter(diary__date__lte=date_end)
         except ValueError:
             pass
 
-    # Estatísticas (total e por data, com os mesmos filtros)
-    total_occurrences = occurrences.count()
-    occurrences_by_date = list(
-        occurrences.values('diary__date')
-        .annotate(count=Count('id'))
-        .order_by('-diary__date')[:10]
+    today = timezone.localdate()
+    if period == '30d' and not date_start:
+        filtered_occurrences = filtered_occurrences.filter(diary__date__gte=today - timedelta(days=30))
+    elif period == '90d' and not date_start:
+        filtered_occurrences = filtered_occurrences.filter(diary__date__gte=today - timedelta(days=90))
+
+    total_occurrences = filtered_occurrences.count()
+    total_project_occurrences = DiaryOccurrence.objects.filter(diary__project=project).count()
+
+    occurrence_prefetch = Prefetch(
+        'occurrences',
+        queryset=filtered_occurrences,
+        to_attr='filtered_occurrences_list',
     )
 
-    # Paginação
-    paginator = Paginator(occurrences, 20)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
+    diaries = (
+        ConstructionDiary.objects.filter(
+            project=project,
+            occurrences__in=filtered_occurrences,
+        )
+        .select_related('project')
+        .prefetch_related(occurrence_prefetch)
+        .distinct()
+        .order_by('-date', '-id')
+    )
+
+    diary_list = list(diaries)
+    total_diaries = len(diary_list)
+
+    selected_diary_id = None
+    highlight_occurrence_id = None
+    diary_param = request.GET.get('diary')
+    legacy_occ_id = request.GET.get('id')
+
+    if diary_param:
+        try:
+            selected_diary_id = int(diary_param)
+        except (ValueError, TypeError):
+            pass
+    elif legacy_occ_id:
+        try:
+            occ = filtered_occurrences.filter(pk=int(legacy_occ_id)).first()
+            if occ:
+                selected_diary_id = occ.diary_id
+                highlight_occurrence_id = occ.id
+        except (ValueError, TypeError):
+            pass
+
+    if selected_diary_id is None and diary_list:
+        first = diary_list[0]
+        selected_diary_id = first.id
+        if first.filtered_occurrences_list:
+            highlight_occurrence_id = first.filtered_occurrences_list[0].id
+
+    selected_diary = None
+    if selected_diary_id:
+        selected_diary = (
+            ConstructionDiary.objects.filter(pk=selected_diary_id, project=project)
+            .select_related('project')
+            .prefetch_related(occurrence_prefetch)
+            .first()
+        )
+        if selected_diary and highlight_occurrence_id is None and selected_diary.filtered_occurrences_list:
+            highlight_occurrence_id = selected_diary.filtered_occurrences_list[0].id
+
+    def filter_params(extra=None):
+        params = {}
+        for key, val in (
+            ('search', search),
+            ('date_start', date_start),
+            ('date_end', date_end),
+            ('period', period),
+        ):
+            if val:
+                params[key] = val
+        if extra:
+            params.update({k: v for k, v in extra.items() if v})
+        return params
+
+    has_active_filters = bool(search or date_start or date_end or period)
 
     context = {
-        'occurrences': page_obj,
+        'diary_list': diary_list,
+        'selected_diary': selected_diary,
+        'highlight_occurrence_id': highlight_occurrence_id,
         'total_occurrences': total_occurrences,
-        'occurrences_by_date': occurrences_by_date,
+        'total_diaries': total_diaries,
+        'total_project_occurrences': total_project_occurrences,
         'search': search,
         'date_start': date_start,
         'date_end': date_end,
+        'period': period,
+        'project': project,
+        'has_active_filters': has_active_filters,
+        'filter_query': urlencode(filter_params()),
     }
 
     return render(request, 'core/filters/occurrences.html', context)
@@ -2801,51 +3090,100 @@ def filter_occurrences_view(request):
 @login_required
 @project_required
 def filter_comments_view(request):
-    """View para filtro de comentários."""
+    """Consulta de observações gerais (general_notes) — lista + painel de leitura."""
+    from urllib.parse import urlencode
+
     project = get_selected_project(request)
-    
-    # Busca comentários (general_notes) de todos os diários do projeto
-    diaries = ConstructionDiary.objects.filter(
-        project=project
-    ).exclude(general_notes='').exclude(general_notes__isnull=True)
-    
-    # Filtros
-    search = request.GET.get('search', '')
-    date_start = request.GET.get('date_start')
-    date_end = request.GET.get('date_end')
-    
+
+    diaries = (
+        ConstructionDiary.objects.filter(project=project)
+        .exclude(general_notes='')
+        .exclude(general_notes__isnull=True)
+        .select_related('project')
+    )
+
+    search = (request.GET.get('search') or '').strip()
+    date_start = (request.GET.get('date_start') or '').strip()
+    date_end = (request.GET.get('date_end') or '').strip()
+    period = (request.GET.get('period') or '').strip()
+
     if search:
         diaries = diaries.filter(general_notes__icontains=search)
-    
     if date_start:
         try:
             diaries = diaries.filter(date__gte=date_start)
         except ValueError:
             pass
-    
     if date_end:
         try:
             diaries = diaries.filter(date__lte=date_end)
         except ValueError:
             pass
-    
-    # Paginação
-    from django.core.paginator import Paginator
-    paginator = Paginator(diaries, 20)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-    
-    # Estatísticas
+
+    today = timezone.localdate()
+    if period == '30d' and not date_start:
+        diaries = diaries.filter(date__gte=today - timedelta(days=30))
+    elif period == '90d' and not date_start:
+        diaries = diaries.filter(date__gte=today - timedelta(days=90))
+
+    diaries = diaries.order_by('-date', '-id')
     total_comments = diaries.count()
-    
+    total_project_comments = (
+        ConstructionDiary.objects.filter(project=project)
+        .exclude(general_notes='')
+        .exclude(general_notes__isnull=True)
+        .count()
+    )
+
+    diary_list = list(diaries)
+
+    selected_diary = None
+    selected_id = request.GET.get('id')
+    if selected_id:
+        try:
+            sid = int(selected_id)
+            for item in diary_list:
+                if item.id == sid:
+                    selected_diary = item
+                    break
+            if selected_diary is None:
+                selected_diary = diaries.filter(pk=sid).first()
+        except (ValueError, TypeError):
+            pass
+    if selected_diary is None and diary_list:
+        selected_diary = diary_list[0]
+
+    def filter_params(extra=None):
+        params = {}
+        for key, val in (
+            ('search', search),
+            ('date_start', date_start),
+            ('date_end', date_end),
+            ('period', period),
+        ):
+            if not val:
+                continue
+            params[key] = val
+        if extra:
+            params.update({k: v for k, v in extra.items() if v is not None and v != ''})
+        return params
+
+    has_active_filters = bool(search or date_start or date_end or period)
+
     context = {
-        'diaries': page_obj,
+        'diaries': diary_list,
+        'selected_diary': selected_diary,
         'total_comments': total_comments,
+        'total_project_comments': total_project_comments,
         'search': search,
         'date_start': date_start,
         'date_end': date_end,
+        'period': period,
+        'project': project,
+        'has_active_filters': has_active_filters,
+        'filter_query': urlencode(filter_params()),
     }
-    
+
     return render(request, 'core/filters/comments.html', context)
 
 
@@ -3187,6 +3525,7 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
                             'cargo_name': (item.get('cargo_name') or item.get('cargoName') or '').strip(),
                             'quantity': int(item.get('quantity') or 1),
                             'company': (item.get('company') or '').strip(),
+                            'project_labor_item_id': item.get('project_labor_item_id'),
                         })
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
@@ -3203,26 +3542,46 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
                             'quantity': int(item.get('quantity') or 1),
                             'equipment_id': item.get('equipment_id'),
                             'standard_equipment_id': item.get('standard_equipment_id'),
+                            'project_equipment_item_id': item.get('project_equipment_item_id'),
                         })
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
-    from .models import OccurrenceTag, LaborCategory, EquipmentCategory
+    from .models import OccurrenceTag, LaborCategory
+    from .project_equipment_catalog import (
+        diary_equipment_catalog_url_context,
+        enrich_existing_diary_equipment,
+        get_equipment_categories_for_diary,
+    )
+    from .project_labor_catalog import (
+        diary_labor_catalog_url_context,
+        enrich_existing_diary_labor,
+        get_labor_categories_for_diary,
+    )
     try:
         occurrence_tags = OccurrenceTag.objects.filter(is_active=True)
     except Exception:
         occurrence_tags = []
     try:
-        labor_categories = LaborCategory.objects.prefetch_related('cargos').order_by('order')
+        labor_categories = get_labor_categories_for_diary(project) if project else []
         labor_terceirizada_cargos = []
         for cat in labor_categories:
             if cat.slug == 'terceirizada':
-                labor_terceirizada_cargos = [{'id': c.id, 'name': c.name} for c in cat.cargos.all()]
+                labor_terceirizada_cargos = [
+                    {
+                        'id': item.source_labor_cargo_id or item.pk,
+                        'project_labor_item_id': item.pk,
+                        'name': item.name,
+                    }
+                    for item in cat.items.all()
+                ]
                 break
+        existing_diary_labor = enrich_existing_diary_labor(project, existing_diary_labor)
     except Exception:
         labor_categories = []
         labor_terceirizada_cargos = []
     try:
-        equipment_categories = EquipmentCategory.objects.prefetch_related('items').order_by('order')
+        equipment_categories = get_equipment_categories_for_diary(project) if project else []
+        existing_diary_equipment = enrich_existing_diary_equipment(project, existing_diary_equipment)
     except Exception:
         equipment_categories = []
     next_report_number = None
@@ -3266,12 +3625,18 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
         'existing_diary_equipment': existing_diary_equipment,
         'equipment_categories': equipment_categories,
         'project': project,
+        **diary_equipment_catalog_url_context(project),
+        **diary_labor_catalog_url_context(project),
         'next_report_number': next_report_number,
         'initial_contractante': request.POST.get('project_client_name') or (get_contractante_for_project(project) if project else ''),
         'last_diary_for_copy': last_diary_for_copy,
         'copy_from_id': '',
         'copy_options': '',
         'copy_source_diary': None,
+        'project_activities_picker': _project_activities_picker_data(
+            project, exclude_diary_pk=getattr(diary, 'pk', None)
+        ) or [],
+        'project_eap_activities_count': _project_eap_activities_count(project),
         'signature_inspection_value': signature_inspection_value,
         'signature_production_value': signature_production_value,
     }
@@ -4051,7 +4416,30 @@ def diary_form_view(request, pk=None):
                     
                     # Catálogo de novos cargos informados no front (sem depender de quantidade).
                     labor_catalog_json = request.POST.get('diary_labor_catalog_data', '')
-                    if labor_catalog_json:
+                    if labor_catalog_json and project:
+                        try:
+                            from .project_labor_catalog import (
+                                add_or_reactivate_project_labor_item,
+                                ensure_project_labor_catalog,
+                            )
+                            labor_catalog_data = json.loads(labor_catalog_json) if labor_catalog_json else []
+                            if not isinstance(labor_catalog_data, list):
+                                labor_catalog_data = []
+                            ensure_project_labor_catalog(project)
+                            for item in labor_catalog_data:
+                                if not isinstance(item, dict):
+                                    continue
+                                cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
+                                category_slug = (item.get('category_slug') or item.get('categorySlug') or '').strip()
+                                if not cargo_name or not category_slug:
+                                    continue
+                                try:
+                                    add_or_reactivate_project_labor_item(project, category_slug, cargo_name)
+                                except ValueError:
+                                    continue
+                        except (json.JSONDecodeError, TypeError):
+                            logger.debug("Erro ao processar diary_labor_catalog_data", exc_info=True)
+                    elif labor_catalog_json:
                         try:
                             labor_catalog_data = json.loads(labor_catalog_json) if labor_catalog_json else []
                             if not isinstance(labor_catalog_data, list):
@@ -4080,38 +4468,13 @@ def diary_form_view(request, pk=None):
                         try:
                             diary_labor_data = json.loads(diary_labor_json) if diary_labor_json else []
                             DiaryLaborEntry.objects.filter(diary=diary).delete()
-                            terceirizada_category = LaborCategory.objects.filter(slug='terceirizada').first()
                             for item in diary_labor_data:
-                                cargo_id = item.get('cargo_id')
-                                cargo_name = (item.get('cargo_name') or item.get('cargoName') or '').strip()
                                 quantity = max(1, int(item.get('quantity') or 1))
                                 company = (item.get('company') or '').strip()
-                                category_slug = (item.get('category_slug') or item.get('categorySlug') or '').strip()
-
-                                selected_cargo_id = None
-                                if cargo_id and LaborCargo.objects.filter(pk=cargo_id).exists():
-                                    selected_cargo_id = int(cargo_id)
-                                elif cargo_name:
-                                    target_category = None
-                                    if category_slug:
-                                        target_category = LaborCategory.objects.filter(slug=category_slug).first()
-                                    if target_category is None:
-                                        target_category = terceirizada_category
-                                    if target_category is None:
-                                        continue
-                                    existing_cargo = LaborCargo.objects.filter(
-                                        category=target_category,
-                                        name__iexact=cargo_name
-                                    ).only('id').first()
-                                    if existing_cargo:
-                                        selected_cargo_id = existing_cargo.id
-                                    else:
-                                        selected_cargo_id = LaborCargo.objects.create(
-                                            category=target_category,
-                                            name=cargo_name,
-                                            order=0
-                                        ).id
-
+                                selected_cargo_id, _cargo_name = _resolve_labor_cargo_from_payload_item(
+                                    item,
+                                    project,
+                                )
                                 if not selected_cargo_id:
                                     continue
                                 DiaryLaborEntry.objects.create(
@@ -4793,22 +5156,37 @@ def diary_form_view(request, pk=None):
         # Se as tabelas ainda não existirem (migration não aplicada)
         occurrence_tags = []
 
-    # Categorias e cargos para seleção de mão de obra por blocos
+    # Categorias e cargos para seleção de mão de obra por blocos (catálogo da obra)
     try:
-        labor_categories = LaborCategory.objects.prefetch_related('cargos').order_by('order')
+        from .project_labor_catalog import (
+            diary_labor_catalog_url_context,
+            enrich_existing_diary_labor,
+            get_labor_categories_for_diary,
+        )
+        labor_categories = get_labor_categories_for_diary(project) if project else []
         labor_terceirizada_cargos = []
         for cat in labor_categories:
             if cat.slug == 'terceirizada':
-                labor_terceirizada_cargos = [{'id': c.id, 'name': c.name} for c in cat.cargos.all()]
+                labor_terceirizada_cargos = [
+                    {
+                        'id': item.source_labor_cargo_id or item.pk,
+                        'project_labor_item_id': item.pk,
+                        'name': item.name,
+                    }
+                    for item in cat.items.all()
+                ]
                 break
     except Exception:
         labor_categories = []
         labor_terceirizada_cargos = []
 
-    # Categorias e equipamentos padrão para seleção no diário
+    # Catálogo de equipamentos da obra para seleção no diário
     try:
-        from .models import EquipmentCategory
-        equipment_categories = EquipmentCategory.objects.prefetch_related('items').order_by('order')
+        from .project_equipment_catalog import (
+            diary_equipment_catalog_url_context,
+            get_equipment_categories_for_diary,
+        )
+        equipment_categories = get_equipment_categories_for_diary(project) if project else []
     except Exception:
         equipment_categories = []
 
@@ -4825,6 +5203,8 @@ def diary_form_view(request, pk=None):
                     'quantity': e.quantity,
                     'company': e.company or '',
                 })
+            from .project_labor_catalog import enrich_existing_diary_labor
+            existing_diary_labor = enrich_existing_diary_labor(project, existing_diary_labor)
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_labor (cópia): %s", e, exc_info=True)
     
@@ -4842,6 +5222,8 @@ def diary_form_view(request, pk=None):
                     'quantity': r['quantity'],
                     'equipment_id': r['equipment_id'],
                 })
+            from .project_equipment_catalog import enrich_existing_diary_equipment
+            existing_diary_equipment = enrich_existing_diary_equipment(project, existing_diary_equipment)
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_equipment (cópia): %s", e, exc_info=True)
     
@@ -4888,6 +5270,8 @@ def diary_form_view(request, pk=None):
         'existing_diary_equipment': existing_diary_equipment,
         'equipment_categories': equipment_categories,
         'project': project,  # Adiciona projeto ao contexto
+        **diary_equipment_catalog_url_context(project),
+        **diary_labor_catalog_url_context(project),
         'next_report_number': next_report_number,  # Próximo número do relatório
         'initial_contractante': get_contractante_for_project(project),
         'project_responsible_initial': getattr(project, 'responsible', '') if project else '',
@@ -4895,6 +5279,10 @@ def diary_form_view(request, pk=None):
         'copy_from_id': copy_from_id,
         'copy_options': copy_options_raw if copy_source_diary else '',
         'copy_source_diary': copy_source_diary,
+        'project_activities_picker': _project_activities_picker_data(
+            project, exclude_diary_pk=getattr(diary, 'pk', None)
+        ) or [],
+        'project_eap_activities_count': _project_eap_activities_count(project),
         # Data e dia da semana: para novo diário preenchidos automaticamente (hoje ou GET ?date=)
         'initial_date': initial_date_obj,
         'diary_date_display': (diary.date if diary and diary.pk else initial_date_obj),
@@ -5370,23 +5758,24 @@ def profile_view(request):
     from .forms import ProfileEditForm
     
     user = request.user
-    
-    # Estatísticas do usuário
-    from .models import ConstructionDiary, DiaryImage
-    
+
+    from .context_processors import _get_system_access
+
     project = get_selected_project(request)
     user_diaries_count = 0
     user_photos_count = 0
-    
-    if project:
+
+    has_diario, *_ = _get_system_access(user)
+    if has_diario and project:
+        from .models import ConstructionDiary, DiaryImage
+
         user_diaries_count = ConstructionDiary.objects.filter(
             project=project,
-            created_by=user
+            created_by=user,
         ).count()
-        
         user_photos_count = DiaryImage.objects.filter(
             diary__project=project,
-            diary__created_by=user
+            diary__created_by=user,
         ).count()
     
     # Processa o formulário se for POST
@@ -6045,7 +6434,7 @@ def project_list_view(request):
     """
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from django.core.exceptions import PermissionDenied
-    from django.db.models import Count, IntegerField, OuterRef, Subquery
+    from django.db.models import Count, IntegerField, OuterRef, Subquery, Q
     from django.db.models.functions import Coalesce
     from mapa_obras.models import LocalObra
 
@@ -6070,6 +6459,8 @@ def project_list_view(request):
         diaries_count=Count('diaries', distinct=True),
         activities_count=Count('activities', distinct=True),
         n_locais_mapa=Coalesce(_locais_sq, 0),
+        n_equip_rdo=Count('equipment_catalog_items', filter=Q(equipment_catalog_items__is_active=True), distinct=True),
+        n_labor_rdo=Count('labor_catalog_items', filter=Q(labor_catalog_items__is_active=True), distinct=True),
     ).order_by('-created_at')
 
     context = {

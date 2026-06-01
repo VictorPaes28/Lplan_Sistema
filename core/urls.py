@@ -8,6 +8,16 @@ from . import central_views
 from . import comunicacao_views
 from .offline_views import rdo_offline_service_worker
 from .project_locais_views import project_locais_manage_view
+from .project_equipment_views import (
+    project_equipment_catalog_json_view,
+    project_equipment_catalog_manage_view,
+    project_equipment_item_add_api_view,
+)
+from .project_labor_views import (
+    project_labor_catalog_json_view,
+    project_labor_catalog_manage_view,
+    project_labor_item_add_api_view,
+)
 from .frontend_views import (
     login_view,
     logout_view,
@@ -137,7 +147,11 @@ urlpatterns = [
     path('central/diarios/pedidos-edicao/', central_views.central_diary_edit_requests_view, name='central_diary_edit_requests'),
     path('central/diarios/<int:pk>/liberar-edicao/', central_views.central_diary_grant_provisional_edit, name='central_diary_grant_provisional_edit'),
     path('central/diarios/aprovadores/abrir/', central_views.central_diary_approvers_entry_view, name='central_diary_approvers_entry'),
-    path('central/manutencao/', central_views.central_manutencao_view, name='central_manutencao'),
+    path(
+        'central/manutencao/',
+        RedirectView.as_view(pattern_name='central_project_list', permanent=True),
+        name='central_manutencao',
+    ),
     path('central/clientes/', central_views.central_clients_view, name='central_clients'),
     path('central/clientes/<int:pk>/remover-vinculo/', central_views.central_client_remove_owner, name='central_client_remove_owner'),
     path('projects/<int:project_id>/diario-emails/', central_views.central_diary_emails_view, name='central_diary_emails'),
@@ -165,6 +179,36 @@ urlpatterns = [
         'projects/<int:project_id>/locais/',
         project_locais_manage_view,
         name='project-locais-manage',
+    ),
+    path(
+        'projects/<int:project_id>/equipamentos-rdo/lista.json',
+        project_equipment_catalog_json_view,
+        name='project-equipment-catalog-json',
+    ),
+    path(
+        'projects/<int:project_id>/equipamentos-rdo/adicionar/',
+        project_equipment_item_add_api_view,
+        name='project-equipment-item-add',
+    ),
+    path(
+        'projects/<int:project_id>/equipamentos-rdo/',
+        project_equipment_catalog_manage_view,
+        name='project-equipment-catalog-manage',
+    ),
+    path(
+        'projects/<int:project_id>/mao-de-obra-rdo/lista.json',
+        project_labor_catalog_json_view,
+        name='project-labor-catalog-json',
+    ),
+    path(
+        'projects/<int:project_id>/mao-de-obra-rdo/adicionar/',
+        project_labor_item_add_api_view,
+        name='project-labor-item-add',
+    ),
+    path(
+        'projects/<int:project_id>/mao-de-obra-rdo/',
+        project_labor_catalog_manage_view,
+        name='project-labor-catalog-manage',
     ),
     path('projects/<int:pk>/edit/', project_form_view, name='project-edit'),
     path('projects/<int:pk>/toggle-active/', project_toggle_active_view, name='project-toggle-active'),

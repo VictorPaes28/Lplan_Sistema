@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cargos do RDO — {{ project.name }}{% endblock %}
+{% block page_title %}Catálogo de Cargos (RDO){% endblock %}
+{% block page_subtitle %}{{ project.name }} · {{ project.code }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/project_labor_catalog.css' %}">
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+    {% for message in messages %}
+    <div class="flash-msg {{ message.tags }} labor-catalog-flash-inline">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+{% include 'core/_project_labor_catalog_content.html' %}
+<script src="{% static 'core/js/project_labor_catalog.js' %}"></script>
+{% endblock %}
+

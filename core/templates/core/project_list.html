@@ -47,11 +47,25 @@
                 <span>Locais (mapa)</span>
                 <strong>{{ project.n_locais_mapa|default:0 }}</strong>
             </div>
+            <div class="flex items-center justify-between central-project-stat">
+                <span>Equip. RDO</span>
+                <strong>{{ project.n_equip_rdo|default:0 }}</strong>
+            </div>
+            <div class="flex items-center justify-between central-project-stat">
+                <span>Mão de obra RDO</span>
+                <strong>{{ project.n_labor_rdo|default:0 }}</strong>
+            </div>
         </div>
 
         <div class="central-project-actions">
             <a href="{% url 'project-locais-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);color:#047857;border:1px solid #6ee7b7;" title="Hierarquia de locais para o Mapa de Suprimentos">
                 <i class="fas fa-map-pin" aria-hidden="true"></i> Locais do mapa
+            </a>
+            <a href="{% url 'project-equipment-catalog-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#6d28d9;border:1px solid #c4b5fd;" title="Lista de equipamentos exibida no formulário do RDO">
+                <i class="fas fa-tools" aria-hidden="true"></i> Equip. RDO
+            </a>
+            <a href="{% url 'project-labor-catalog-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#fff7ed,#ffedd5);color:#c2410c;border:1px solid #fdba74;" title="Lista de cargos exibida no formulário do RDO">
+                <i class="fas fa-users" aria-hidden="true"></i> Mão de obra RDO
             </a>
             <a href="{% url 'central_diary_emails' project.id %}" class="central-project-btn central-project-btn-email" title="E-mails que recebem o PDF do diário por e-mail, todo dia">
                 <i class="fas fa-envelope" aria-hidden="true"></i> E-mails do diário

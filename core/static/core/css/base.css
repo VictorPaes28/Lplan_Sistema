@@ -1197,6 +1197,32 @@ button[data-sidebar-close] {
         width: 0;
         height: 0;
     }
+
+    /* Recolhida: sem barra de rolagem no nav nem no aside */
+    #sidebar.is-collapsed,
+    body.sidebar-collapsed #sidebar {
+        overflow: hidden;
+    }
+
+    #sidebar.is-collapsed .sidebar-nav,
+    body.sidebar-collapsed #sidebar .sidebar-nav {
+        overflow-y: hidden !important;
+        overflow-x: hidden !important;
+        scrollbar-width: none;
+    }
+
+    #sidebar.is-collapsed .sidebar-nav::-webkit-scrollbar,
+    body.sidebar-collapsed #sidebar .sidebar-nav::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+
+    /* Expandida: rolagem só no nav principal */
+    #sidebar:not(.is-collapsed) .sidebar-nav {
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
 }
 
 /* Sidebar Scrollbar */

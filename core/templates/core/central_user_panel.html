@@ -11,17 +11,26 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <p class="text-slate-600 mb-6 text-[0.9375rem] leading-relaxed">
-        Acesse os recursos de gestão de usuários, solicitações de cadastro e clientes.
+        Gestão de pessoas: lista e permissões, adoção no sistema, solicitações de cadastro e clientes.
     </p>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <a href="{% url 'central_list_users' %}" class="central-action-card">
-            <div class="central-action-icon" style="background:#f0fdf4;color:#059669;">
+            <div class="central-action-icon" style="background:#f1f5f9;color:#475569;">
                 <i class="fas fa-users" aria-hidden="true"></i>
             </div>
             <h2 class="central-action-title">Usuários</h2>
             <p class="central-action-desc">Criar, editar e organizar os usuários vinculados às obras.</p>
-            <span class="central-action-link">Abrir usuários <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+            <span class="central-action-link">Abrir lista <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+
+        <a href="{% url 'accounts:admin_analise_usuarios' %}" class="central-action-card">
+            <div class="central-action-icon" style="background:#f1f5f9;color:#475569;">
+                <i class="fas fa-chart-line" aria-hidden="true"></i>
+            </div>
+            <h2 class="central-action-title">Uso dos usuários</h2>
+            <p class="central-action-desc">Quem usa o sistema, quem parou de produzir e reprovações no GestControll (30 dias).</p>
+            <span class="central-action-link">Abrir análise <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
         </a>
 
         <a href="{% url 'central_signup_requests' %}" class="central-action-card">

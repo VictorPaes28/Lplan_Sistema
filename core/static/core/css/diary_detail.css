@@ -587,6 +587,12 @@
     background-color: #f1f5f9;
 }
 
+.diary-detail-occurrence:target {
+    background-color: #eff6ff;
+    box-shadow: inset 3px 0 0 #2563eb;
+    scroll-margin-top: 5rem;
+}
+
 /* Estados vazios — sem “caixão” cinza */
 .diary-detail-empty {
     font-size: 0.8125rem;

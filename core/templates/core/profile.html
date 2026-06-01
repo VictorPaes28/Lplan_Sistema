@@ -224,13 +224,11 @@
                 <a href="{% url 'perfil_comunicacao' %}" class="perfil-btn-ghost">Meus e-mails</a>
             </section>
 
+            {% if has_diario %}
             <section class="card perfil-card" aria-labelledby="perfil-stats-heading-core">
-                <div class="perfil-card__head perfil-stats-head-row">
-                    <div>
-                        <h2 id="perfil-stats-heading-core" class="perfil-card__title">Minhas estatísticas</h2>
-                        <p class="perfil-card__subtitle">Acompanhe sua atividade no sistema.</p>
-                    </div>
-                    <a href="{% url 'report-list' %}" class="perfil-btn-ghost perfil-stats-link">Ver meus relatórios</a>
+                <div class="perfil-card__head">
+                    <h2 id="perfil-stats-heading-core" class="perfil-card__title">Diário de obra</h2>
+                    <p class="perfil-card__subtitle">Suas contribuições no módulo de relatórios diários (RDO).</p>
                 </div>
 
                 <div class="perfil-stats-row">
@@ -241,7 +239,7 @@
                         <div>
                             <span class="perfil-stat-tile__value tabular-nums">{{ user_diaries_count }}</span>
                             <span class="perfil-stat-tile__label">Relatórios criados</span>
-                            <p class="perfil-stat-tile__hint">Neste projeto</p>
+                            <p class="perfil-stat-tile__hint">{% if project %}Neste projeto{% else %}Selecione um projeto na obra{% endif %}</p>
                         </div>
                     </div>
                     <div class="perfil-stat-tile">
@@ -251,15 +249,16 @@
                         <div>
                             <span class="perfil-stat-tile__value tabular-nums">{{ user_photos_count }}</span>
                             <span class="perfil-stat-tile__label">Fotos enviadas</span>
-                            <p class="perfil-stat-tile__hint">Neste projeto</p>
+                            <p class="perfil-stat-tile__hint">{% if project %}Neste projeto{% else %}Selecione um projeto na obra{% endif %}</p>
                         </div>
                     </div>
                 </div>
 
                 {% if not project %}
-                    <p class="perfil-photo-hint">Selecione um projeto para atualizar contagens do diário.</p>
+                    <p class="perfil-photo-hint">Abra o módulo Diário de obra e escolha um projeto para ver as contagens atualizadas.</p>
                 {% endif %}
             </section>
+            {% endif %}
         </div>
     </div>
 </div>

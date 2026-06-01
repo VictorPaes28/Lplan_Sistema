@@ -298,7 +298,22 @@
 
     .search-input {
         height: 44px;
+        padding-left: 2.875rem;
         font-size: 16px;
+    }
+
+    .search-icon {
+        left: 15px;
+        width: 1rem;
+        text-align: center;
+    }
+
+    .select-project-toolbar-search-inner .search-input {
+        padding-left: 2.875rem;
+    }
+
+    .select-project-toolbar-search-inner .search-icon {
+        left: 15px;
     }
 
     .select-project-grid {

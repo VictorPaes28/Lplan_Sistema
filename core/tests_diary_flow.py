@@ -437,6 +437,31 @@ class DiaryFlowTestCase(TestCase):
         self.assertIsNotNone(item, 'Equipamento copiado não encontrado por equipment_id')
         self.assertEqual(item.get('quantity'), 3)
 
+    def test_copy_labor_preserves_quantity_and_enriches_project_item(self):
+        """Copy de mão de obra deve manter quantity e enriquecer com project_labor_item_id."""
+        from core.project_labor_catalog import ensure_project_labor_catalog
+
+        if not getattr(self, 'labor_cargo', None):
+            self.skipTest('Sem LaborCargo seed para teste de cópia de mão de obra.')
+
+        self._login_and_select_project()
+        ensure_project_labor_catalog(self.project)
+
+        url = reverse('diary-new')
+        resp = self.client.get(url, {
+            'copy_from': str(self.source_diary.pk),
+            'copy': 'labor',
+        })
+        self.assertEqual(resp.status_code, 200)
+        existing_labor = resp.context.get('existing_diary_labor') or []
+        item = next((x for x in existing_labor if x.get('cargo_id') == self.labor_cargo.id), None)
+        self.assertIsNotNone(item, 'Mão de obra copiada não encontrada por cargo_id')
+        self.assertEqual(item.get('quantity'), 2)
+        self.assertTrue(
+            item.get('project_labor_item_id'),
+            'Cópia de mão de obra deveria enriquecer com project_labor_item_id do catálogo da obra.',
+        )
+
     def test_save_with_duplicate_equipment_payload_aggregates_quantity(self):
         """Payload duplicado de equipamentos deve ser agregado sem distorcer quantidade."""
         self._login_and_select_project()
@@ -552,6 +577,153 @@ class DiaryFlowTestCase(TestCase):
         row = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=expected).first()
         self.assertIsNotNone(row)
         self.assertEqual(row.quantity, 4)
+
+    def test_equipment_payload_project_item_id_uses_catalog_name(self):
+        """Payload com project_equipment_item_id deve resolver pelo nome do item da obra."""
+        from core.models import ProjectEquipmentItem
+        from core.project_equipment_catalog import ensure_project_equipment_catalog
+
+        self._login_and_select_project()
+        category = EquipmentCategory.objects.create(slug='teste-proj-equip', name='Teste Proj Equip', order=99)
+        std = StandardEquipment.objects.create(category=category, name='Guindaste', order=1)
+        ensure_project_equipment_catalog(self.project)
+        proj_item = ProjectEquipmentItem.objects.filter(
+            project=self.project,
+            source_standard_equipment=std,
+        ).first()
+        self.assertIsNotNone(proj_item)
+
+        expected = Equipment.objects.create(
+            code='EQ-GUIN-01',
+            name='Guindaste',
+            equipment_type='Teste',
+            is_active=True,
+        )
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['equipment_data'] = json.dumps([
+            {
+                'project_equipment_item_id': proj_item.id,
+                'name': 'Nome Errado No Payload',
+                'quantity': 2,
+            },
+        ])
+        url = reverse('diary-new')
+        resp = self.client.post(url, post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:500] if resp.status_code != 302 else '')
+
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        row = DailyWorkLogEquipment.objects.filter(work_log__diary=diary, equipment=expected).first()
+        self.assertIsNotNone(row)
+        self.assertEqual(row.quantity, 2)
+
+    def test_project_equipment_catalog_manage_page(self):
+        """Tela de gestão do catálogo por obra deve carregar após cópia do template global."""
+        from core.project_equipment_catalog import ensure_project_equipment_catalog
+
+        self._login_and_select_project()
+        category = EquipmentCategory.objects.create(slug='cat-manage-test', name='Cat Manage', order=98)
+        StandardEquipment.objects.create(category=category, name='Item Manage', order=1)
+        ensure_project_equipment_catalog(self.project)
+        url = reverse('project-equipment-catalog-manage', kwargs={'project_id': self.project.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Item Manage')
+        self.assertContains(resp, 'Cat Manage')
+
+    def test_project_equipment_catalog_toggle_item_ajax(self):
+        """Ocultar/mostrar item via AJAX deve retornar JSON sem recarregar a página."""
+        from core.models import ProjectEquipmentItem
+        from core.project_equipment_catalog import ensure_project_equipment_catalog
+
+        self._login_and_select_project()
+        category = EquipmentCategory.objects.create(slug='cat-toggle-test', name='Cat Toggle', order=95)
+        StandardEquipment.objects.create(category=category, name='Item Toggle', order=1)
+        ensure_project_equipment_catalog(self.project)
+        item = ProjectEquipmentItem.objects.filter(project=self.project, name='Item Toggle').first()
+        self.assertIsNotNone(item)
+        self.assertTrue(item.is_active)
+
+        url = reverse('project-equipment-catalog-manage', kwargs={'project_id': self.project.pk})
+        resp = self.client.post(
+            url,
+            {
+                'action': 'toggle_item',
+                'item_id': item.pk,
+                'ajax': '1',
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_ACCEPT='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('kind'), 'item')
+        self.assertFalse(payload.get('is_active'))
+        item.refresh_from_db()
+        self.assertFalse(item.is_active)
+
+    def test_hidden_project_equipment_item_not_in_diary_form(self):
+        """Item oculto no catálogo da obra não deve aparecer no formulário RDO."""
+        from core.models import ProjectEquipmentItem
+        from core.project_equipment_catalog import ensure_project_equipment_catalog
+
+        self._login_and_select_project()
+        category = EquipmentCategory.objects.create(slug='cat-hidden-test', name='Cat Hidden', order=97)
+        StandardEquipment.objects.create(category=category, name='Equip Oculto', order=1)
+        ensure_project_equipment_catalog(self.project)
+        ProjectEquipmentItem.objects.filter(
+            project=self.project,
+            name='Equip Oculto',
+        ).update(is_active=False)
+
+        url = reverse('diary-new')
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertNotIn('Equip Oculto', content)
+
+    def test_add_equipment_to_catalog_from_diary_api(self):
+        """API do RDO deve criar item no catálogo da obra e retornar id para o formulário."""
+        from core.models import ProjectEquipmentCategory, ProjectEquipmentItem
+        from core.project_equipment_catalog import ensure_project_equipment_catalog
+
+        self._login_and_select_project()
+        gcat = EquipmentCategory.objects.create(slug='cat-api-test', name='Cat API', order=96)
+        StandardEquipment.objects.create(category=gcat, name='Base Item', order=1)
+        ensure_project_equipment_catalog(self.project)
+        pcat = ProjectEquipmentCategory.objects.filter(project=self.project, slug='cat-api-test').first()
+        self.assertIsNotNone(pcat)
+
+        url = reverse('project-equipment-item-add', kwargs={'project_id': self.project.pk})
+        resp = self.client.post(
+            url,
+            data=json.dumps({'category_slug': 'cat-api-test', 'name': 'Guindaste Móvel'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content.decode())
+        payload = resp.json()
+        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('created'))
+        item_id = payload['item']['id']
+        self.assertTrue(
+            ProjectEquipmentItem.objects.filter(
+                pk=item_id,
+                project=self.project,
+                name='Guindaste Móvel',
+                is_active=True,
+            ).exists()
+        )
+
+        resp_dup = self.client.post(
+            url,
+            data=json.dumps({'category_slug': 'cat-api-test', 'name': 'Guindaste Móvel'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp_dup.status_code, 200)
+        self.assertFalse(resp_dup.json().get('created'))
+        self.assertEqual(resp_dup.json()['item']['id'], item_id)
 
     def test_aggregate_equipment_matches_form_totals(self):
         """PDF e formulário usam aggregate_equipment_for_diary: totais e IDs batem."""
@@ -763,11 +935,15 @@ class DiaryFlowTestCase(TestCase):
         self.assertEqual(diary.status, DiaryStatus.SALVAMENTO_PARCIAL)
 
     def test_save_draft_persists_new_labor_cargo_catalog_without_quantity(self):
-        """Novo cargo cadastrado sem quantidade deve persistir após salvar rascunho."""
+        """Novo cargo cadastrado sem quantidade deve persistir no catálogo da obra após salvar rascunho."""
+        from core.models import ProjectLaborItem
+        from core.project_labor_catalog import ensure_project_labor_catalog
+
         self._login_and_select_project()
         new_date = date.today()
         category = LaborCategory.objects.exclude(slug='terceirizada').order_by('pk').first()
         self.assertIsNotNone(category, "É necessário ao menos uma categoria não-terceirizada para o teste.")
+        ensure_project_labor_catalog(self.project)
 
         cargo_name = 'Cargo Novo Sem Quantidade'
         post = _minimal_diary_post(
@@ -786,8 +962,13 @@ class DiaryFlowTestCase(TestCase):
             form_errors = resp.context['form'].errors.as_text()
         self.assertEqual(resp.status_code, 302, form_errors)
         self.assertTrue(
-            LaborCargo.objects.filter(category=category, name=cargo_name).exists(),
-            "Cargo novo não foi persistido no catálogo após salvar rascunho.",
+            ProjectLaborItem.objects.filter(
+                project=self.project,
+                category__slug=category.slug,
+                name=cargo_name,
+                is_active=True,
+            ).exists(),
+            "Cargo novo não foi persistido no catálogo da obra após salvar rascunho.",
         )
 
         get_resp = self.client.get(reverse('diary-new'))
@@ -796,8 +977,99 @@ class DiaryFlowTestCase(TestCase):
         category_refreshed = next((c for c in labor_categories if c.slug == category.slug), None)
         self.assertIsNotNone(category_refreshed)
         self.assertTrue(
-            any(c.name == cargo_name for c in category_refreshed.cargos.all()),
+            any(item.name == cargo_name for item in category_refreshed.items.all()),
             "Cargo novo não apareceu na listagem de mão de obra ao abrir novo diário.",
+        )
+
+    def test_labor_payload_project_item_id_resolves_cargo(self):
+        """Payload com project_labor_item_id deve resolver para DiaryLaborEntry."""
+        from core.models import ProjectLaborItem
+        from core.project_labor_catalog import ensure_project_labor_catalog
+
+        self._login_and_select_project()
+        category = LaborCategory.objects.exclude(slug='terceirizada').order_by('pk').first()
+        self.assertIsNotNone(category)
+        cargo = LaborCargo.objects.filter(category=category).first()
+        self.assertIsNotNone(cargo)
+        ensure_project_labor_catalog(self.project)
+        proj_item = ProjectLaborItem.objects.filter(
+            project=self.project,
+            source_labor_cargo=cargo,
+        ).first()
+        self.assertIsNotNone(proj_item)
+
+        new_date = date.today()
+        post = _minimal_diary_post(self.project, new_date, partial_save=True)
+        post['diary_labor_data'] = json.dumps([
+            {
+                'project_labor_item_id': proj_item.id,
+                'cargo_name': 'Nome Errado No Payload',
+                'category_slug': category.slug,
+                'quantity': 2,
+                'company': '',
+            },
+        ])
+        resp = self.client.post(reverse('diary-new'), post)
+        self.assertEqual(resp.status_code, 302, resp.content.decode()[:500] if resp.status_code != 302 else '')
+
+        diary = ConstructionDiary.objects.filter(project=self.project, date=new_date).first()
+        self.assertIsNotNone(diary)
+        entry = DiaryLaborEntry.objects.filter(diary=diary, cargo=cargo).first()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.quantity, 2)
+
+    def test_project_labor_catalog_manage_page(self):
+        from core.project_labor_catalog import ensure_project_labor_catalog
+
+        self._login_and_select_project()
+        ensure_project_labor_catalog(self.project)
+        url = reverse('project-labor-catalog-manage', kwargs={'project_id': self.project.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Catálogo')
+
+    def test_hidden_project_labor_item_not_in_diary_form(self):
+        from core.models import ProjectLaborItem
+        from core.project_labor_catalog import ensure_project_labor_catalog
+
+        self._login_and_select_project()
+        ensure_project_labor_catalog(self.project)
+        item = ProjectLaborItem.objects.filter(project=self.project, is_active=True).first()
+        self.assertIsNotNone(item)
+        hidden_name = item.name
+        item.is_active = False
+        item.save(update_fields=['is_active'])
+
+        resp = self.client.get(reverse('diary-new'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(hidden_name, resp.content.decode())
+
+    def test_add_labor_to_catalog_from_diary_api(self):
+        from core.models import ProjectLaborCategory, ProjectLaborItem
+        from core.project_labor_catalog import ensure_project_labor_catalog
+
+        self._login_and_select_project()
+        ensure_project_labor_catalog(self.project)
+        pcat = ProjectLaborCategory.objects.filter(project=self.project).exclude(slug='terceirizada').first()
+        self.assertIsNotNone(pcat)
+
+        url = reverse('project-labor-item-add', kwargs={'project_id': self.project.pk})
+        resp = self.client.post(
+            url,
+            data=json.dumps({'category_slug': pcat.slug, 'name': 'Montador Especial'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content.decode())
+        payload = resp.json()
+        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('created'))
+        self.assertTrue(
+            ProjectLaborItem.objects.filter(
+                pk=payload['item']['id'],
+                project=self.project,
+                name='Montador Especial',
+                is_active=True,
+            ).exists()
         )
 
     def test_signature_value_is_preserved_on_validation_error(self):
@@ -1051,6 +1323,32 @@ class DiaryFlowTestCase(TestCase):
         # Dinâmicos renderizados na edição (não apenas no banco)
         self.assertContains(resp, 'Alvenaria executada')
         self.assertContains(resp, 'Ocorrência render teste')
+
+    def test_project_activities_picker_uses_rdo_history_not_full_eap(self):
+        """Seletor do RDO lista só atividades já usadas em diários, não a EAP inteira."""
+        from core.frontend_views import _project_activities_picker_data
+
+        Activity.add_root(
+            project=self.project,
+            name='Atividade só na EAP',
+            code='9.9',
+            weight=Decimal('1.00'),
+        )
+        picker = _project_activities_picker_data(self.project)
+        names = [row['name'] for row in picker]
+        labels = [row.get('label') for row in picker]
+        self.assertIn('Atividade Teste', names)
+        self.assertNotIn('Atividade só na EAP', names)
+        self.assertTrue(all('label' in row for row in picker))
+        self.assertIn('Atividade Teste', labels)
+
+    def test_project_activities_picker_excludes_current_diary(self):
+        from core.frontend_views import _project_activities_picker_data
+
+        picker = _project_activities_picker_data(
+            self.project, exclude_diary_pk=self.source_diary.pk
+        )
+        self.assertEqual(picker, [])
 
 
 class DiaryApprovalFlowByManagerTestCase(TestCase):

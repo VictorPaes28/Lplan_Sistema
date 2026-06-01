@@ -6,14 +6,14 @@
 {% block page_subtitle %}Selecionar obra para gerenciar{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/select_project.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'core/css/select_project.css' %}?v=6">
 <style>
 /* Toolbar dentro da mesma coluna centralizada dos cards */
 .select-project-toolbar-wrap {
     margin-bottom: 24px;
     width: 100%;
 }
-/* Toolbar — esquerda: título + subtítulo (uma linha); direita: busca + Criar Obra */
+/* Toolbar — esquerda: título + subtítulo; direita: busca */
 .select-project-toolbar {
     display: flex;
     align-items: center;
@@ -57,18 +57,22 @@
 }
 .select-project-toolbar-search-inner .search-icon {
     position: absolute;
-    left: 12px;
+    left: 14px;
     top: 50%;
     transform: translateY(-50%);
     color: #94a3b8;
     pointer-events: none;
+    font-size: 0.875rem;
+    width: 1rem;
+    text-align: center;
+    z-index: 1;
 }
 .select-project-toolbar-search-inner .search-input {
     width: 100%;
     box-sizing: border-box;
     height: auto;
     min-height: 42px;
-    padding: 10px 14px 10px 36px;
+    padding: 10px 14px 10px 2.75rem;
     border: 1.5px solid #e2e8f0;
     border-radius: 10px;
     font-size: 0.8125rem;
@@ -80,34 +84,6 @@
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.08);
-}
-/* Botão Criar Obra — mesmo degradê do mock diario_select_obra_v2 */
-a.select-project-create-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 9px 18px;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: #fff !important;
-    text-decoration: none;
-    font-size: 13px;
-    font-weight: 700;
-    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
-    transition: opacity 0.2s ease, box-shadow 0.2s ease;
-    min-height: auto;
-    flex-shrink: 0;
-}
-a.select-project-create-btn:hover {
-    opacity: 0.88;
-    color: #fff !important;
-    border: none;
-    box-shadow: 0 4px 18px rgba(102, 126, 234, 0.38);
-}
-a.select-project-create-btn .fa-plus,
-a.select-project-create-btn .fas.fa-plus {
-    margin: 0 !important;
 }
 .select-project-body {
     width: 100%;
@@ -131,7 +107,21 @@ a.select-project-create-btn .fas.fa-plus {
     }
     .select-project-toolbar-search-inner {
         max-width: none;
-        flex: 1 1 200px;
+        flex: 1 1 100%;
+        width: 100%;
+    }
+}
+@media (max-width: 768px) {
+    .select-project-toolbar-left .select-project-subtitle {
+        white-space: normal;
+    }
+    .select-project-toolbar-search-inner .search-input {
+        min-height: 44px;
+        padding-left: 2.875rem;
+        font-size: 16px;
+    }
+    .select-project-toolbar-search-inner .search-icon {
+        left: 15px;
     }
 }
 /* Meta do card: local e responsável alinhados, ícones compactos (mesma cor/tamanho) */
@@ -201,12 +191,6 @@ a.select-project-create-btn .fas.fa-plus {
                                autocomplete="off">
                     </div>
                 </div>
-                {% endif %}
-                {% if user.is_staff or user.is_superuser %}
-                <a href="{% url 'project-new' %}" class="select-project-create-btn">
-                    <i class="fas fa-plus" aria-hidden="true"></i>
-                    Criar Obra
-                </a>
                 {% endif %}
             </div>
         </div>
@@ -287,11 +271,7 @@ a.select-project-create-btn .fas.fa-plus {
         </div>
         <h3 class="text-xl font-semibold text-slate-900 mb-2">Nenhuma obra disponível</h3>
         {% if user.is_staff or user.is_superuser %}
-        <p class="text-gray-600 mb-6">Não há obras às quais você tenha vínculo (nem ativas nem inativas).</p>
-        <a href="{% url 'project-new' %}" class="select-project-create-btn">
-            <i class="fas fa-plus" aria-hidden="true"></i>
-            Criar Nova Obra
-        </a>
+        <p class="text-gray-600 mb-6">Não há obras às quais você tenha vínculo (nem ativas nem inativas). Cadastre obras no painel central do sistema.</p>
         {% else %}
         <p class="text-gray-600 mb-6">Você não está vinculado a nenhuma obra. Acesso ao Diário de Obra é por vínculo: só aparecem as obras às quais você foi vinculado. Entre em contato com o administrador para ser vinculado a uma ou mais obras.</p>
         <p class="text-sm text-gray-500">Volte à <a href="{% url 'select-system' %}" class="text-blue-600 hover:underline">seleção de app</a> para acessar outros módulos.</p>

@@ -21,10 +21,10 @@
         </div>
 
         <div class="central-ajuda-card">
-            <h2 class="central-ajuda-heading">Criei uma obra aqui mas ela não aparece no sistema de Pedidos ou no Mapa</h2>
-            <p class="central-ajuda-text">Você cadastrou uma obra nova no Central, mas quando a pessoa abre o sistema de Pedidos (GestControll) ou o Mapa, a obra não está na lista.</p>
-            <p class="central-ajuda-cta"><strong>O que fazer:</strong> O sistema precisa “atualizar” a lista. Abra a tela abaixo e clique no botão <strong>Atualizar listas de obras</strong>. Em poucos segundos as obras passam a aparecer nos outros sistemas.</p>
-            <a href="{% url 'central_manutencao' %}" class="central-btn-primary"><i class="fas fa-sync-alt" aria-hidden="true"></i> Atualizar listas de obras</a>
+            <h2 class="central-ajuda-heading">Criei uma obra aqui mas ela não aparece no GestControll ou no Mapa</h2>
+            <p class="central-ajuda-text">Você cadastrou uma obra nova no Central, mas quando a pessoa abre o GestControll ou o Mapa, a obra não está na lista.</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Abra a obra na lista abaixo, confira os dados e salve de novo — o sistema sincroniza automaticamente com GestControll e Mapa. Se ainda faltar, verifique se o usuário tem permissão na obra.</p>
+            <a href="{% url 'central_project_list' %}" class="central-btn-primary"><i class="fas fa-building" aria-hidden="true"></i> Ir para a lista de obras</a>
         </div>
 
         <div class="central-ajuda-card">
@@ -44,7 +44,7 @@
         <div class="central-ajuda-card">
             <h2 class="central-ajuda-heading">Preciso cadastrar uma obra nova</h2>
             <p class="central-ajuda-text">Toda obra nova deve ser criada aqui no Central. Depois ela aparece no Diário de Obra, no sistema de Pedidos e no Mapa.</p>
-            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Abra a lista de obras, clique em nova obra e preencha. Depois use “Atualizar listas de obras” (acima) para ela aparecer nos outros sistemas.</p>
+            <p class="central-ajuda-cta"><strong>O que fazer:</strong> Abra a lista de obras, clique em nova obra e preencha. Ao salvar, ela já é sincronizada com GestControll e Mapa.</p>
             <a href="{% url 'central_project_list' %}" class="central-btn-primary"><i class="fas fa-building" aria-hidden="true"></i> Ver e cadastrar obras</a>
         </div>
 
