@@ -320,7 +320,8 @@ EXTENSOES_PERMITIDAS = [
 
 ANEXOS_BLOQUEADOS_FLUXO_MSG = (
     'Anexos não podem ser adicionados, alterados ou removidos '
-    'enquanto o pedido estiver em análise (pendente ou reaprovação).'
+    'enquanto o pedido estiver em análise (pendente ou reaprovação), '
+    'após aprovado ou se estiver cancelado.'
 )
 
 
@@ -3376,8 +3377,7 @@ def upload_attachment(request, pk):
         messages.error(request, 'Você não pode adicionar anexos a um pedido que já foi enviado. Use a opção de editar o pedido para adicionar novos anexos.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
-    # Verificar permissão de visualização do pedido
-    # Aprovadores NÃO podem adicionar anexos
+    # Apenas admin ou criador do pedido (fora dos status bloqueados acima)
     if not (is_admin(user) or workorder.criado_por == user):
         messages.error(request, 'Você não tem permissão para anexar arquivos a este pedido.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
