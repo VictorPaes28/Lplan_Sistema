@@ -53,6 +53,83 @@ def build_axis_map() -> dict[str, int]:
     return {"setor": 0, "bloco": 1, "pavimento": 2, "apto": 3}
 
 
+def axis_key_from_header_label(label: str) -> str | None:
+    """Espelha axisKeyFromHeaderLabel em editar_mapa_controle.js."""
+    token = str(label or "").upper()
+    if not token:
+        return None
+    if "SETOR" in token or "REGIAO" in token:
+        return "setor"
+    if "BLOCO" in token or "TORRE" in token or "LOCAL" in token:
+        return "bloco"
+    if (
+        "APTO" in token
+        or "UNIDADE" in token
+        or "APARTAMENT" in token
+        or token == "UND"
+        or token == "UH"
+        or "UNID" in token
+    ):
+        return "apto"
+    if "PAV" in token or "ANDAR" in token or "NIVEL" in token:
+        return "pavimento"
+    return None
+
+
+def build_axis_map_from_meta(meta: dict, header: list[str]) -> dict[str, int]:
+    """Espelha buildAxisMapFromMeta no JS."""
+    axis_map: dict[str, int] = {}
+    cols = meta.get("axis_cols_interpreted") if isinstance(meta.get("axis_cols_interpreted"), list) else []
+    headers = meta.get("axis_headers_interpreted") if isinstance(meta.get("axis_headers_interpreted"), list) else []
+    for idx, col in enumerate(cols):
+        if not isinstance(col, int):
+            continue
+        label = str(headers[idx] if idx < len(headers) else (header[col] if col < len(header) else ""))
+        key = axis_key_from_header_label(label)
+        if key and key not in axis_map:
+            axis_map[key] = col
+    for col_idx, raw in enumerate(header or []):
+        key = axis_key_from_header_label(raw)
+        if key and key not in axis_map:
+            axis_map[key] = col_idx
+    if not axis_map and header:
+        axis_map["bloco"] = 0
+    return axis_map
+
+
+def apply_create_row_to_layout(
+    rows: list[list[str]],
+    axis_map: dict[str, int],
+    context: dict,
+    label: str,
+) -> bool:
+    """Espelha applyCreateRowToLayout (retorna False se eixo inválido)."""
+    if not rows or not isinstance(rows[0], list):
+        return False
+    title = str(label or "").strip()
+    level = str(context.get("level") or "").strip()
+    level_idx = axis_map.get(level)
+    if not isinstance(level_idx, int):
+        return False
+    parent_f = parent_filters_for_level(context)
+    for row in rows[1:]:
+        if not isinstance(row, list):
+            continue
+        if parent_f and not row_matches_filters(row, axis_map, parent_f):
+            continue
+        if str(row[level_idx] or "").strip() == title:
+            return False
+    new_row = [""] * len(rows[0])
+    for key in ("setor", "bloco", "pavimento", "apto"):
+        idx = axis_map.get(key)
+        val = context.get(key)
+        if isinstance(idx, int) and val:
+            new_row[idx] = val
+    new_row[level_idx] = title
+    rows.append(new_row)
+    return True
+
+
 def build_export_row(
     *,
     filters: dict[str, str],
@@ -366,6 +443,37 @@ class MapaEditorSaveContextTests(unittest.TestCase):
         )
         self.assertTrue(ok)
         self.assertEqual(rows[1][4], "10%")
+
+    def test_apartamento_no_import_meta_mapeia_eixo_apto(self):
+        meta = {
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APARTAMENTO"],
+        }
+        header = ["BLOCO", "PAVIMENTO", "APARTAMENTO", "ATV1"]
+        axis = build_axis_map_from_meta(meta, header)
+        self.assertEqual(axis.get("bloco"), 0)
+        self.assertEqual(axis.get("pavimento"), 1)
+        self.assertEqual(axis.get("apto"), 2)
+
+    def test_create_row_apto_com_header_apartamento(self):
+        meta = {
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APARTAMENTO"],
+            "activity_cols_interpreted": [3],
+        }
+        header = ["BLOCO", "PAVIMENTO", "APARTAMENTO", "ATV1"]
+        rows = [
+            header,
+            ["A1", "TÉRREO", "101", "50%"],
+        ]
+        axis = build_axis_map_from_meta(meta, header)
+        context = {"level": "apto", "bloco": "A1", "pavimento": "TÉRREO"}
+        ok = apply_create_row_to_layout(rows, axis, context, "999")
+        self.assertTrue(ok)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[2][0], "A1")
+        self.assertEqual(rows[2][1], "TÉRREO")
+        self.assertEqual(rows[2][2], "999")
 
 
 if __name__ == "__main__":

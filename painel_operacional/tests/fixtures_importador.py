@@ -108,6 +108,17 @@ def workbook_tabular_colunas_reordenadas() -> bytes:
     return _xlsx_from_sheets({"QualquerNome": rows})
 
 
+def workbook_tabular_com_coluna_apartamento() -> bytes:
+    """Modelo DBG: BLOCO, PAVIMENTO, APARTAMENTO, ATIVIDADE, STATUS."""
+    rows = [
+        ["BLOCO", "PAVIMENTO", "APARTAMENTO", "ATIVIDADE", "STATUS"],
+        ["C1", "TÉRREO", "101", "CORTE DO PISO", "50%"],
+        ["C1", "TÉRREO", "102", "CORTE DO PISO", "100%"],
+        ["C1", "1º", "201", "CORTE DO PISO", "33%"],
+    ]
+    return _xlsx_from_sheets({"DADOS": rows})
+
+
 def workbook_grande_com_atividades_apos_linha_2500() -> bytes:
     rows = [["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATIVIDADE", "STATUS"]]
     base_atividades = [f"ATV_BASE_{i}" for i in range(1, 11)]

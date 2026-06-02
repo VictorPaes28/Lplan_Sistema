@@ -494,6 +494,39 @@ class MapaControleIsolamentoRegressaoTests(TestCase):
         self.assertEqual(totais.get("ATV2"), 0)
         self.assertEqual(resp.context["kpis"]["total_itens"], 6)
 
+    def test_rodape_pavimento_media_linhas_exibidas_nao_apto_bruto(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa rodape pavimento")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "ATV1"],
+            ["A1", "TÉRREO", "101", "30%"],
+            ["A1", "TÉRREO", "102", "30%"],
+            ["A1", "1º", "201", "0%"],
+            ["A1", "1º", "202", "0%"],
+            ["A1", "2º", "301", "0%"],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "pivot_registros",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3],
+            "activity_headers_interpreted": ["ATV1"],
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_rodape_pav")
+
+        resp = self._abrir_mapa_dedicado(ambiente_id, bloco="A1")
+        matrix = resp.context["matrix"]
+        self.assertEqual(matrix.get("mode"), "pavimento")
+        by_label = {str(r.get("row_label") or ""): r for r in matrix.get("rows") or []}
+        self.assertEqual(by_label["TÉRREO"]["cells"][0].get("pct"), 30.0)
+        self.assertEqual(by_label["1º"]["cells"][0].get("pct"), 0)
+        self.assertEqual(by_label["2º"]["cells"][0].get("pct"), 0)
+        totais = {str(t.get("atividade") or ""): t.get("pct") for t in matrix.get("totais", [])}
+        self.assertEqual(totais.get("ATV1"), 10.0)
+
     def test_total_trata_hifen_como_zero_e_na_como_ausente(self):
         ambiente_id = self._criar_ambiente_mapa("Mapa hifen zero")
         detalhe = self._detalhe(ambiente_id)
@@ -553,6 +586,95 @@ class MapaControleIsolamentoRegressaoTests(TestCase):
         self.assertIsNone(cells[1].get("pct"))
         totais = {str(t.get("atividade") or ""): t.get("pct") for t in matrix.get("totais", [])}
         self.assertIsNone(totais.get("ATV2"))
+
+    def test_importacao_com_percentual_direto_no_bloco_exibe_na_matriz(self):
+        """Planilha importada com % no bloco (sem pavimento/UND) não deve zerar a grade."""
+        ambiente_id = self._criar_ambiente_mapa("Mapa import bloco")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["SETOR", "BLOCO", "PAVIMENTO", "APTO", "ATV1", "ATV2"],
+            ["HAB", "C1", "", "", "17%", "33%"],
+            ["HAB", "A1", "", "", "50%", "83%"],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "matriz_detectada",
+            "axis_cols_interpreted": [0, 1, 2, 3],
+            "axis_headers_interpreted": ["SETOR", "BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [4, 5],
+            "activity_headers_interpreted": ["ATV1", "ATV2"],
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_import_bloco")
+
+        resp = self._abrir_mapa_dedicado(ambiente_id, setor="HAB")
+        matrix = resp.context["matrix"]
+        by_label = {str(r.get("row_label") or ""): r for r in matrix.get("rows") or []}
+        self.assertEqual(by_label["C1"]["cells"][0].get("pct"), 17.0)
+        self.assertEqual(by_label["A1"]["cells"][0].get("pct"), 50.0)
+        totais = {str(t.get("atividade") or ""): t.get("pct") for t in matrix.get("totais", [])}
+        self.assertEqual(totais.get("ATV1"), 33.5)
+
+    def test_importacao_bloco_pavimento_sem_apto_exibe_na_matriz(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa bloco pav")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "ATV1", "ATV2"],
+            ["C1", "TÉRREO", "50%", "0%"],
+            ["C1", "1º", "0%", "33%"],
+            ["A1", "TÉRREO", "10%", "20%"],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "pivot_registros",
+            "axis_cols_interpreted": [0, 1],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO"],
+            "activity_cols_interpreted": [2, 3],
+            "activity_headers_interpreted": ["ATV1", "ATV2"],
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_bloco_pav")
+
+        resp = self._abrir_mapa_dedicado(ambiente_id)
+        matrix = resp.context["matrix"]
+        by_label = {str(r.get("row_label") or ""): r for r in matrix.get("rows") or []}
+        self.assertEqual(by_label["C1"]["cells"][0].get("pct"), 25.0)
+        self.assertEqual(by_label["A1"]["cells"][0].get("pct"), 10.0)
+
+    def test_pavimento_leaf_import_permite_drill_e_detalhe(self):
+        ambiente_id = self._criar_ambiente_mapa("Mapa pav leaf")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "ATV1", "ATV2"],
+            ["C1", "TÉRREO", "50%", "0%"],
+            ["C1", "1º", "0%", "33%"],
+        ]
+        section["data"]["importMeta"] = {
+            "strategy": "pivot_registros",
+            "axis_cols_interpreted": [0, 1],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO"],
+            "activity_cols_interpreted": [2, 3],
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_pav_leaf")
+
+        resp_lista = self._abrir_mapa_dedicado(ambiente_id, bloco="C1")
+        matrix_lista = resp_lista.context["matrix"]
+        self.assertEqual(matrix_lista.get("mode"), "pavimento")
+        self.assertTrue(matrix_lista.get("pavimento_leaf_drill"))
+        self.assertEqual(len(matrix_lista.get("rows") or []), 2)
+
+        resp_det = self._abrir_mapa_dedicado(ambiente_id, bloco="C1", pavimento="TÉRREO")
+        matrix_det = resp_det.context["matrix"]
+        self.assertEqual(matrix_det.get("mode"), "pavimento")
+        self.assertTrue(matrix_det.get("unit_detail_view"))
+        rows = matrix_det.get("rows") or []
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["cells"][0].get("pct"), 50.0)
 
     def test_template_manual_preset_guarda_import_meta(self):
         ambiente_id = self._criar_ambiente_mapa("Mapa Manual Meta")
@@ -650,3 +772,40 @@ class MapaControleIsolamentoRegressaoTests(TestCase):
 
         rows = self._primeira_matriz_rows(self._detalhe(ambiente_id).get("versao", {}).get("layout") or {})
         self.assertEqual(rows[1][3], "75%")
+
+    def test_cores_manuais_aparecem_na_visualizacao(self):
+        from suprimentos.services.mapa_controle_viewmodel import _stable_cell_color_key
+
+        ambiente_id = self._criar_ambiente_mapa("Mapa Cores View")
+        detalhe = self._detalhe(ambiente_id)
+        layout = detalhe.get("versao", {}).get("layout") or {}
+        section = self._primeira_matriz_section(layout)
+        section.setdefault("data", {})
+        section["data"]["rows"] = [
+            ["BLOCO", "PAVIMENTO", "APTO", "ATV1"],
+            ["Bloco A", "Térreo", "101", "50%"],
+        ]
+        color_key = _stable_cell_color_key(
+            bloco="",
+            pavimento="",
+            row_label="Bloco A",
+            activity="ATV1",
+        )
+        section["data"]["importMeta"] = {
+            "strategy": "manual_template",
+            "axis_cols_interpreted": [0, 1, 2],
+            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+            "activity_cols_interpreted": [3],
+            "cellColors": {color_key: "#ea580c"},
+        }
+        self._salvar_layout(ambiente_id, layout, source="teste_cores_view")
+
+        resp = self._abrir_mapa_dedicado(ambiente_id)
+        matrix = resp.context["matrix"]
+        rows = matrix.get("rows") or []
+        self.assertTrue(rows)
+        self.assertEqual(rows[0]["cells"][0].get("manual_color"), "#ea580c")
+        html = resp.content.decode("utf-8")
+        self.assertIn("po-mapa-manual-color", html)
+        self.assertIn("#ea580c", html)
+        self.assertIn("poMapaSavedCellColors", html)

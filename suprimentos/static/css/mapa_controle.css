@@ -1347,6 +1347,20 @@
     color: #64748b;
 }
 
+/* Cor manual salva no editor — sobrescreve faixas automáticas de % */
+.matrix-table td.po-mapa-manual-color,
+.matrix-table td.po-mapa-manual-color.cell-90,
+.matrix-table td.po-mapa-manual-color.cell-70,
+.matrix-table td.po-mapa-manual-color.cell-40,
+.matrix-table td.po-mapa-manual-color.cell-10,
+.matrix-table td.po-mapa-manual-color.cell-0 {
+    color: #ffffff !important;
+}
+
+.matrix-table td.po-mapa-manual-color .cell-link {
+    color: #ffffff !important;
+}
+
 .path-pill {
     border: 1px solid #d1d5db;
     background: #f8fafc;

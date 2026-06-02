@@ -64,6 +64,31 @@ class MapaLayerChipsHelpersTests(unittest.TestCase):
         self.assertEqual(rows[1][3], "101")
         self.assertTrue(_is_percent_source_row(rows[1], axis, is_area_comum=False, is_manual_flat=False))
 
+    def test_percent_source_aceita_lancamento_direto_no_bloco_importado(self):
+        """Planilha com colunas hierárquicas mas % preenchido só no bloco (sem pav/UND)."""
+        axis = _axis_map()
+        rows = [
+            ["HAB", "C1", "", "", "17%", "33%"],
+            ["HAB", "A1", "", "", "50%", "83%"],
+            ["HAB", "B1", "", "", "", ""],
+        ]
+        _forward_fill_hierarchy_axes(rows, axis)
+        self.assertTrue(_is_percent_source_row(rows[0], axis, is_area_comum=False, is_manual_flat=False))
+        self.assertTrue(_is_percent_source_row(rows[1], axis, is_area_comum=False, is_manual_flat=False))
+        self.assertFalse(_is_percent_source_row(rows[2], axis, is_area_comum=False, is_manual_flat=False))
+
+    def test_percent_source_aceita_bloco_pavimento_sem_apto(self):
+        """Import pivot_registros com eixos BLOCO + PAVIMENTO (sem coluna UND)."""
+        axis = {"bloco": 0, "pavimento": 1}
+        rows = [
+            ["C1", "TÉRREO", "50%", "0%"],
+            ["C1", "1º", "0%", "33%"],
+            ["C1", "", ""],
+        ]
+        self.assertTrue(_is_percent_source_row(rows[0], axis, is_area_comum=False, is_manual_flat=False))
+        self.assertTrue(_is_percent_source_row(rows[1], axis, is_area_comum=False, is_manual_flat=False))
+        self.assertFalse(_is_percent_source_row(rows[2], axis, is_area_comum=False, is_manual_flat=False))
+
     def test_forward_fill_nao_preenche_filhos_em_linha_estrutural(self):
         axis = _axis_map()
         rows = [

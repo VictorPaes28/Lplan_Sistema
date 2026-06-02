@@ -94,19 +94,15 @@
                         {% endfor %}
                     </select>
                 </div>
-                {# TODO: reativar importação — funcionalidade desativada temporariamente #}
-                <div id="poCreateImportWrap" class="alert alert-light border small py-2 px-3 d-none mb-0" style="opacity: 0.5;">
+                <div id="poCreateImportWrap" class="alert alert-light border small py-2 px-3 d-none mb-0">
                     <div class="fw-semibold mb-1">Importar planilha nesta ferramenta (opcional)</div>
                     <div class="row g-2">
                         <div class="col-8">
-                            <input id="poCreateImportFile" type="file" class="form-control form-control-sm" accept=".xlsx,.xls,.csv" disabled>
+                            <input id="poCreateImportFile" type="file" class="form-control form-control-sm" accept=".xlsx,.xls,.csv">
                         </div>
                         <div class="col-4">
-                            <input id="poCreateImportSheet" type="text" class="form-control form-control-sm" placeholder="Aba (opcional)" disabled>
+                            <input id="poCreateImportSheet" type="text" class="form-control form-control-sm" placeholder="Aba (opcional)">
                         </div>
-                    </div>
-                    <div class="mt-2 text-warning-emphasis" style="color: #b45309;">
-                        ⚠️ Importação temporariamente indisponível. Em breve esta funcionalidade estará disponível.
                     </div>
                 </div>
             </div>

@@ -90,9 +90,15 @@
                 <span class="mapa-controle-crumb-sep"> · </span>
                 {% endif %}
                 {% if matrix.unit_detail_view %}
+                {% if matrix.mode == 'pavimento' and matrix.pavimento_leaf_drill %}
+                Detalhe do pavimento «{{ selected.pavimento }}». Para listar unidades, reimporte a planilha com coluna APTO/APARTAMENTO.
+                {% else %}
                 Unidade «{{ selected.apto }}».
+                {% endif %}
                 {% elif matrix.allow_row_drill and matrix.mode == 'bloco' %}
                 Clique no bloco para ver pavimentos.
+                {% elif matrix.allow_row_drill and matrix.mode == 'pavimento' and matrix.pavimento_leaf_drill %}
+                Clique no pavimento para ver o detalhe das atividades.
                 {% elif matrix.allow_row_drill and matrix.mode == 'pavimento' %}
                 Clique no pavimento para ver unidades.
                 {% elif matrix.mode == 'apto' and selected.bloco and selected.pavimento and not matrix.unit_detail_view %}
@@ -162,12 +168,12 @@
                     <a class="matrix-chip {% if not selected.pavimento %}active{% endif %}" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&{{ matrix_stable_qs }}">Todos</a>
                     {% for row in layers.pavimentos %}
                     <a class="matrix-chip {% if selected.pavimento == row.pavimento %}active{% endif %}"
-                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&{{ matrix_stable_qs }}">{{ row.pavimento|default:"Sem pav." }}</a>
+                       href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.pavimento|urlencode }}&{% if matrix.pavimento_leaf_drill %}{{ matrix_stable_qs }}{% else %}{{ matrix_stable_qs_apto }}{% endif %}">{{ row.pavimento|default:"Sem pav." }}</a>
                     {% endfor %}
                 </div>
             </div>
             {% endif %}
-            {% if selected.pavimento and not is_area_comum %}
+            {% if selected.pavimento and not is_area_comum and layers.aptos %}
             <div class="matrix-chip-row">
                 <span class="matrix-chip-label">Unidade</span>
                 <div class="matrix-chip-scroll">
@@ -189,7 +195,9 @@
         {% endif %}
 
         <div class="matrix-wrap{% if coluna_filtrada_aviso %} matrix-wrap--col-filter{% endif %}">
-            <table class="matrix-table{% if coluna_filtrada_aviso %} matrix-table--col-filter{% endif %}">
+            <table class="matrix-table{% if coluna_filtrada_aviso %} matrix-table--col-filter{% endif %}"
+                   data-po-bloco="{{ selected.bloco|default:'' }}"
+                   data-po-pavimento="{{ selected.pavimento|default:'' }}">
                 <thead>
                     <tr>
                         <th class="sticky-left">{{ matrix.header_first_col|default:"Bloco" }}</th>
@@ -209,6 +217,10 @@
                             {% if matrix.allow_row_drill and row.row_drillable and matrix.mode == 'pavimento' %}
                             {% if is_area_comum %}
                             <span class="row-name-txt" title="Área comum: sem camada de unidade">{{ row.row_label }}</span>
+                            {% elif matrix.pavimento_leaf_drill %}
+                            <a class="cell-link row-link"
+                               title="Ver detalhe das atividades deste pavimento"
+                               href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}{% if ambiente_id %}&ambiente_id={{ ambiente_id }}{% endif %}&{{ matrix_stable_qs }}">{{ row.row_label }}</a>
                             {% else %}
                             <a class="cell-link row-link"
                                title="Ver unidades (aptos) deste pavimento na matriz"
@@ -228,7 +240,11 @@
                         </td>
                         {% for cell in row.cells %}
                             {% if matrix.mode == 'pavimento' %}
-                                {% if cell.pct == None %}
+                                {% if cell.manual_color %}
+                                <td class="cell-pct po-mapa-manual-color" style="background-color: {{ cell.manual_color }} !important; color: #ffffff !important;">
+                                    <a class="cell-link" style="background-color: {{ cell.manual_color }} !important; color: #ffffff !important;" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct|default:0 }}#detalhe-celula">{% if cell.pct != None %}{{ cell.pct }}%{% elif cell.raw == "-" or cell.raw == "—" %}-{% else %}0%{% endif %}</a>
+                                </td>
+                                {% elif cell.pct == None %}
                                 {% if cell.raw == "-" or cell.raw == "—" %}
                                 <td class="cell-empty">-</td>
                                 {% else %}
@@ -246,7 +262,11 @@
                                 <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
                                 {% endif %}
                             {% elif matrix.mode == 'apto' %}
-                                {% if cell.pct == None %}
+                                {% if cell.manual_color %}
+                                <td class="cell-pct po-mapa-manual-color" style="background-color: {{ cell.manual_color }} !important; color: #ffffff !important;">
+                                    <a class="cell-link" style="background-color: {{ cell.manual_color }} !important; color: #ffffff !important;" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct|default:0 }}#detalhe-celula">{% if cell.pct != None %}{{ cell.pct }}%{% elif cell.raw == "-" or cell.raw == "—" %}-{% else %}0%{% endif %}</a>
+                                </td>
+                                {% elif cell.pct == None %}
                                 {% if cell.raw == "-" or cell.raw == "—" %}
                                 <td class="cell-empty">-</td>
                                 {% else %}
@@ -264,7 +284,11 @@
                                 <td class="cell-pct cell-0"><a class="cell-link" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ row.row_key|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct }}#detalhe-celula">{{ cell.pct }}%</a></td>
                                 {% endif %}
                             {% else %}
-                                {% if cell.pct == None %}
+                                {% if cell.manual_color %}
+                                <td class="cell-pct po-mapa-manual-color" style="background-color: {{ cell.manual_color }} !important; color: #ffffff !important;">
+                                    <a class="cell-link" style="background-color: {{ cell.manual_color }} !important; color: #ffffff !important;" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ row.row_key|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&atividade={{ cell.atividade|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ cell.pct|default:0 }}#detalhe-celula">{% if cell.pct != None %}{{ cell.pct }}%{% elif cell.raw == "-" or cell.raw == "—" %}-{% else %}0%{% endif %}</a>
+                                </td>
+                                {% elif cell.pct == None %}
                                 {% if cell.raw == "-" or cell.raw == "—" %}
                                 <td class="cell-empty">-</td>
                                 {% else %}
@@ -585,6 +609,10 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if matrix_cell_colors %}
+{{ matrix_cell_colors|json_script:"poMapaSavedCellColors" }}
+<script src="{% static 'js/mapa_controle_cell_colors.js' %}"></script>
+{% endif %}
 <script>
 (function () {
     var filtForm = document.getElementById('mapaControleFilterForm');

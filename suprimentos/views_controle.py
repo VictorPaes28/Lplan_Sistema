@@ -1065,6 +1065,7 @@ def mapa_controle(request):
                         "column_group_selected": "",
                         "column_group_save_url": "",
                         "layer_nav": {"has_scope": False, "depth": 0, "root_url": "", "prev_url": "", "current_path": "Mapa geral", "breadcrumbs": []},
+                        "matrix_cell_colors": {},
                         "erro_mapa_ambiente": "Ambiente de mapa não encontrado para esta obra.",
                     },
                     status=404,
@@ -1124,6 +1125,7 @@ def mapa_controle(request):
                 if ambiente_id_ctx
                 else ""
             ),
+            "matrix_cell_colors": view_ctx.get("matrix_cell_colors") or {},
         },
     )
 

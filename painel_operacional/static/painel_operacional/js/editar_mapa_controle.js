@@ -1516,20 +1516,43 @@
     }
   }
 
+  function axisKeyFromHeaderLabel(label) {
+    const token = String(label || "").toUpperCase();
+    if (!token) return null;
+    if (token.includes("SETOR") || token.includes("REGIAO")) return "setor";
+    if (token.includes("BLOCO") || token.includes("TORRE") || token.includes("LOCAL")) return "bloco";
+    if (
+      token.includes("APTO") ||
+      token.includes("UNIDADE") ||
+      token.includes("APARTAMENT") ||
+      token === "UND" ||
+      token === "UH" ||
+      token.includes("UNID")
+    ) {
+      return "apto";
+    }
+    if (token.includes("PAV") || token.includes("ANDAR") || token.includes("NIVEL")) return "pavimento";
+    return null;
+  }
+
   function buildAxisMapFromMeta(meta, header) {
     const axisMap = {};
     const cols = meta && Array.isArray(meta.axis_cols_interpreted) ? meta.axis_cols_interpreted : [];
     const headers =
       meta && Array.isArray(meta.axis_headers_interpreted) ? meta.axis_headers_interpreted : [];
-    const keys = ["setor", "bloco", "pavimento", "apto"];
     cols.forEach((col, idx) => {
       if (!Number.isInteger(col)) return;
-      const label = String(headers[idx] || (header[col] || "")).toUpperCase();
-      if (label.includes("SETOR") || label.includes("REGIAO")) axisMap.setor = col;
-      else if (label.includes("BLOCO") || label.includes("LOCAL") || label.includes("TORRE")) axisMap.bloco = col;
-      else if (label.includes("PAV") || label.includes("ANDAR") || label.includes("NIVEL")) axisMap.pavimento = col;
-      else if (label.includes("APTO") || label.includes("UNIDADE")) axisMap.apto = col;
+      const label = String(headers[idx] || (header[col] || ""));
+      const key = axisKeyFromHeaderLabel(label);
+      if (key && axisMap[key] == null) axisMap[key] = col;
     });
+    if (Array.isArray(header)) {
+      header.forEach((raw, colIdx) => {
+        if (!Number.isInteger(colIdx)) return;
+        const key = axisKeyFromHeaderLabel(raw);
+        if (key && axisMap[key] == null) axisMap[key] = colIdx;
+      });
+    }
     if (!Object.keys(axisMap).length && header.length) {
       axisMap.bloco = 0;
     }
@@ -2367,6 +2390,8 @@
       purgeRedundantEmptyUnitSlots(data, axisMap);
       purgeDuplicateAptoRowsWithoutActivity(data, axisMap);
 
+      mergeCellColorsIntoLayoutData(data, pages);
+
       poMapaDebug("merge layout seção", {
         rowsAntes: rowsBefore,
         rowsDepois: data.rows.length,
@@ -2433,8 +2458,15 @@
 
     if (!canPercent && !canStructural) {
       if (rawInput.trim() && isMatrixPercentDataCell(state.selectedCell)) {
-        showBlockedPercentEditMessage();
-        return false;
+        const currentDisplay = normalizeCellText(
+          state.selectedCell,
+          String(textNodeForCell(state.selectedCell).textContent || ""),
+        );
+        const pending = normalizeCellText(state.selectedCell, rawInput);
+        if (pending !== currentDisplay) {
+          showBlockedPercentEditMessage();
+          return false;
+        }
       }
       return true;
     }
@@ -2528,6 +2560,7 @@
       const structuralOpsSnapshot = gatherStructuralOpsForMerge(pagesSnapshot, axisMapIn);
 
       const layout = mergeAllDraftsIntoLayout(layoutIn);
+      cacheLayoutFromExtracted(extractLayoutMatrixFromLayout(layout));
       const cellPatchStats = layout.__poCellPatchStats || {
         applied: 0,
         missed: 0,
@@ -2716,7 +2749,7 @@
   function ensurePageDraft(pageKey) {
     if (!state.draft.pages || typeof state.draft.pages !== "object") state.draft.pages = {};
     if (!state.draft.pages[pageKey]) {
-      state.draft.pages[pageKey] = { text: {}, color: {}, ops: [], structuralOps: [] };
+      state.draft.pages[pageKey] = { text: {}, color: {}, colorKeys: {}, ops: [], structuralOps: [] };
     }
     if (!Array.isArray(state.draft.pages[pageKey].ops)) state.draft.pages[pageKey].ops = [];
     if (!Array.isArray(state.draft.pages[pageKey].structuralOps)) {
@@ -2776,15 +2809,28 @@
   const EDIT_PERCENT_BLOCKED_MSG =
     "Edição de percentuais permitida apenas na camada de apartamentos/unidades. Abra um pavimento para editar as unidades.";
 
+  const EDIT_COLOR_ONLY_LAYER_MSG =
+    "Percentual consolidado nesta camada: use a cor para destacar. Para alterar o valor, abra o pavimento e edite na lista de apartamentos.";
+
+  function showBlockedPercentEditMessage() {
+    updateStatus(EDIT_PERCENT_BLOCKED_MSG);
+  }
+
+  function matrixLayerStatusForSelection(cell) {
+    if (canEditPercentCell(cell, { silent: true })) {
+      return "Célula selecionada. Texto e cor são salvos automaticamente.";
+    }
+    if (canColorPercentCell(cell, { silent: true })) {
+      return EDIT_COLOR_ONLY_LAYER_MSG;
+    }
+    return "Célula selecionada.";
+  }
+
   const STRUCTURAL_LAYOUT_OPS_BLOCKED_MSG =
     "Não é possível alterar a estrutura de linhas/colunas nesta camada. Abra a matriz na raiz (blocos), dentro de um bloco (pavimentos) ou de um pavimento (unidades).";
 
   const STRUCTURAL_OPS_SAVE_WARN_MSG =
     "Há alterações estruturais de linhas/colunas em telas onde o cadastro não pode ser gravado. Elas não serão enviadas ao servidor. Deseja continuar?";
-
-  function showBlockedPercentEditMessage() {
-    updateStatus(EDIT_PERCENT_BLOCKED_MSG);
-  }
 
   function poMapaDebug(label, payload) {
     if (!window.PO_MAPA_EDIT_DEBUG) return;
@@ -2855,6 +2901,26 @@
     if (!String(ctx.bloco || "").trim()) return false;
     if (!String(ctx.pavimento || "").trim()) return false;
     return true;
+  }
+
+  /**
+   * Cor manual em células de % — bloco, pavimento ou apartamento (habitação).
+   * Não altera o valor do percentual nas camadas consolidadas.
+   */
+  function canColorPercentCell(cell, options) {
+    if (!state.enabled || !isMatrixPercentDataCell(cell)) return false;
+    const ctx = getMatrixEditContext();
+    if (ctx.isAreaComum) return false;
+    if (ctx.mode === "bloco") return true;
+    if (ctx.mode === "pavimento" && String(ctx.bloco || "").trim()) return true;
+    if (
+      ctx.mode === "apto" &&
+      String(ctx.bloco || "").trim() &&
+      String(ctx.pavimento || "").trim()
+    ) {
+      return true;
+    }
+    return false;
   }
 
   function isPercentEligibleCell(cell) {
@@ -2962,6 +3028,83 @@
     return "";
   }
 
+  function activityLabelForMatrixCol(domCol) {
+    const table = tableRef();
+    if (!table || !Number.isInteger(domCol) || domCol <= 0) return "";
+    const headerRow = table.querySelector("thead tr");
+    if (!headerRow) return "";
+    const cell = headerRow.children[domCol];
+    if (!cell) return "";
+    return String(textNodeForCell(cell).textContent || "").trim();
+  }
+
+  function stableCellColorKey(cell, pageKey) {
+    const filters = parsePageFilters(pageKey || currentPageKey());
+    const coords = cellCoordsFromKey(cell);
+    const activity = coords ? activityLabelForMatrixCol(coords.c) : "";
+    const row = rowLabelForCell(cell);
+    return [filters.bloco || "", filters.pavimento || "", row, activity].join("\u001f");
+  }
+
+  function applyManualCellColor(cell, color) {
+    if (!cell) return;
+    const hex = cssColorToHex(color) || String(color || "").trim();
+    if (!hex) return;
+    stripPercentBucketClasses(cell);
+    cell.classList.add("po-mapa-manual-color");
+    cell.style.setProperty("background-color", hex, "important");
+    cell.style.setProperty("color", "#ffffff", "important");
+    const link = cell.querySelector("a.cell-link");
+    if (link) {
+      link.style.setProperty("background-color", hex, "important");
+      link.style.setProperty("color", "#ffffff", "important");
+    }
+  }
+
+  function mergeCellColorsIntoLayoutData(data, pages) {
+    if (!data || typeof data !== "object") return;
+    const meta = data.importMeta && typeof data.importMeta === "object" ? data.importMeta : {};
+    const out = { ...(meta.cellColors || {}) };
+    Object.entries(pages || {}).forEach(([pageKey, pageDraft]) => {
+      if (!pageDraft || getMatrixEditContext(pageKey).isAreaComum) return;
+      const colors = pageDraft.color || {};
+      const keys = pageDraft.colorKeys || {};
+      Object.entries(colors).forEach(([cellKey, hex]) => {
+        const stable = keys[cellKey] || cellKey;
+        const norm = cssColorToHex(hex) || String(hex || "").trim();
+        if (stable && norm) out[stable] = norm;
+      });
+    });
+    if (Object.keys(out).length) {
+      data.importMeta = meta;
+      data.importMeta.cellColors = out;
+    }
+  }
+
+  function applyLayoutCellColorsToDoc(doc, meta, pageKey) {
+    const map = meta && meta.cellColors;
+    if (!doc || !map || typeof map !== "object") return;
+    const table = doc.querySelector(".matrix-table");
+    if (!table) return;
+    const headerRow = table.querySelector("thead tr");
+    const tbody = table.querySelector("tbody");
+    if (!headerRow || !tbody) return;
+    const colCount = headerRow.children.length;
+    const totalColIdx = colCount - 1;
+    const filters = parsePageFilters(pageKey || currentPageKey());
+    listMatrixTbodyRows(tbody).forEach((tr) => {
+      const nameCell = tr.querySelector(".row-name, .sticky-left");
+      const row = rowDisplayLabelFromNameCell(nameCell);
+      tr.querySelectorAll("td").forEach((cell, cIdx) => {
+        if (!isMatrixPercentDataCell(cell, cIdx, totalColIdx)) return;
+        const activity = activityLabelForMatrixCol(cIdx);
+        const stable = [filters.bloco || "", filters.pavimento || "", row, activity].join("\u001f");
+        const hex = map[stable];
+        if (hex) applyManualCellColor(cell, hex);
+      });
+    });
+  }
+
   function cssColorToHex(color) {
     const raw = String(color || "").trim();
     if (!raw) return "";
@@ -2987,7 +3130,13 @@
 
   function syncColorPickerFromCell(cell) {
     if (!inpColor || !cell) return;
-    const hex = cssColorToHex(cell.style.backgroundColor);
+    const page = ensurePageDraft(currentPageKey());
+    const key = String(cell.getAttribute("data-po-edit-key") || "");
+    const fromDraft = key && page.color && page.color[key];
+    const hex =
+      cssColorToHex(fromDraft) ||
+      cssColorToHex(cell.style.backgroundColor) ||
+      cssColorToHex(frame.contentWindow.getComputedStyle(cell).backgroundColor);
     if (hex) inpColor.value = hex;
     syncColorToolSwatch();
   }
@@ -2997,7 +3146,7 @@
     const canPercent = cell && canEditPercentCell(cell, { silent: true });
     const canStructural = cell && canEditStructuralCell(cell);
     const canText = state.enabled && (canPercent || canStructural);
-    const canColor = state.enabled && canPercent;
+    const canColor = state.enabled && cell && canColorPercentCell(cell, { silent: true });
     if (inpText) inpText.disabled = !canText;
     if (inpColor) inpColor.disabled = !canColor;
     if (btnColorPicker) btnColorPicker.disabled = !canColor;
@@ -3055,13 +3204,22 @@
     if (!cell || !isMatrixPercentDataCell(cell)) return;
     const key = String(cell.getAttribute("data-po-edit-key") || "");
     const page = ensurePageDraft(currentPageKey());
-    if (key && page.color && page.color[key]) return;
+    if (key && page.color && page.color[key]) {
+      applyManualCellColor(cell, page.color[key]);
+      return;
+    }
+    cell.classList.remove("po-mapa-manual-color");
 
     stripPercentBucketClasses(cell);
     const classes = percentBucketClassesForDisplay(displayText);
     classes.forEach((cls) => cell.classList.add(cls));
-    cell.style.backgroundColor = "";
-    cell.style.color = "";
+    cell.style.removeProperty("background-color");
+    cell.style.removeProperty("color");
+    const link = cell.querySelector("a.cell-link");
+    if (link) {
+      link.style.removeProperty("background-color");
+      link.style.removeProperty("color");
+    }
   }
 
   function refreshPercentCellAfterValueChange(cell, displayText) {
@@ -3459,10 +3617,12 @@
     });
     Object.entries(page.color || {}).forEach(([key, value]) => {
       const cell = doc.querySelector(`[data-po-edit-key="${escapeSelectorValue(key)}"]`);
-      if (!cell || !canEditPercentCell(cell, { silent: true })) return;
-      cell.style.backgroundColor = String(value || "");
-      cell.style.color = "#ffffff";
+      if (!cell || !canColorPercentCell(cell, { silent: true })) return;
+      applyManualCellColor(cell, value);
     });
+    const sectionMeta =
+      (state.layoutMeta && typeof state.layoutMeta === "object" && state.layoutMeta) || {};
+    applyLayoutCellColorsToDoc(doc, sectionMeta, pageKey);
     refreshAllMatrixRowDrillLinks();
     refreshAllMatrixColumnHeadLinks();
     refreshMatrixTotalsDisplay();
@@ -3766,6 +3926,9 @@
       handle.removeEventListener("pointercancel", matrixDnD.onPointerEnd);
       handle.removeEventListener("lostpointercapture", matrixDnD.onPointerEnd);
     }
+    if (doc && matrixDnD.onPointerMove) {
+      doc.removeEventListener("pointermove", matrixDnD.onPointerMove, true);
+    }
     if (doc && matrixDnD.onPointerEnd) {
       doc.removeEventListener("pointerup", matrixDnD.onPointerEnd, true);
       doc.removeEventListener("pointercancel", matrixDnD.onPointerEnd, true);
@@ -3796,11 +3959,58 @@
     clearMatrixDnDHighlights();
   }
 
+  function matrixScrollContainer() {
+    const doc = frame.contentDocument;
+    return doc ? doc.querySelector(".matrix-wrap") : null;
+  }
+
+  /** Rola `.matrix-wrap` quando o ponteiro encosta nas bordas durante drag-and-drop. */
+  function autoScrollMatrixWrapDuringDrag(clientX, clientY, axis) {
+    const wrap = matrixScrollContainer();
+    if (!wrap) return;
+    const zone = 72;
+    const maxStep = 28;
+    const rect = wrap.getBoundingClientRect();
+    const inWrapX = clientX >= rect.left && clientX <= rect.right;
+    const inWrapY = clientY >= rect.top && clientY <= rect.bottom;
+    if (!inWrapX && !inWrapY) return;
+
+    let deltaX = 0;
+    let deltaY = 0;
+    if (axis === "col" && inWrapY) {
+      if (clientX < rect.left + zone) {
+        deltaX = -Math.ceil(maxStep * Math.min(1, (rect.left + zone - clientX) / zone));
+      } else if (clientX > rect.right - zone) {
+        deltaX = Math.ceil(maxStep * Math.min(1, (clientX - (rect.right - zone)) / zone));
+      }
+    }
+    if (axis === "row" && inWrapX) {
+      if (clientY < rect.top + zone) {
+        deltaY = -Math.ceil(maxStep * Math.min(1, (rect.top + zone - clientY) / zone));
+      } else if (clientY > rect.bottom - zone) {
+        deltaY = Math.ceil(maxStep * Math.min(1, (clientY - (rect.bottom - zone)) / zone));
+      }
+    }
+    if (deltaX !== 0 && wrap.scrollWidth > wrap.clientWidth + 1) {
+      wrap.scrollLeft = Math.max(
+        0,
+        Math.min(wrap.scrollWidth - wrap.clientWidth, wrap.scrollLeft + deltaX)
+      );
+    }
+    if (deltaY !== 0 && wrap.scrollHeight > wrap.clientHeight + 1) {
+      wrap.scrollTop = Math.max(
+        0,
+        Math.min(wrap.scrollHeight - wrap.clientHeight, wrap.scrollTop + deltaY)
+      );
+    }
+  }
+
   /** Coluna cujo campo inteiro (faixa vertical da tabela × largura do cabeçalho) contém o ponteiro. */
   function colTargetIndexFromPointer(clientX, clientY) {
     const bounds = movableColumnBounds();
     const table = tableRef();
-    if (!bounds || !table) return null;
+    const wrap = matrixScrollContainer();
+    if (!bounds || !table || !wrap) return null;
     const headerRow = table.querySelector("thead tr");
     if (!headerRow) return null;
     const tableRect = table.getBoundingClientRect();
@@ -3812,15 +4022,74 @@
       const rect = cell.getBoundingClientRect();
       if (clientX >= rect.left && clientX <= rect.right) return c;
     }
+
+    const wrapRect = wrap.getBoundingClientRect();
+    if (clientX < wrapRect.left || clientX > wrapRect.right) return null;
+    if (clientY < wrapRect.top || clientY > wrapRect.bottom) return null;
+
+    const sticky = headerRow.children[0];
+    const activityLeft = sticky
+      ? Math.max(wrapRect.left, sticky.getBoundingClientRect().right)
+      : wrapRect.left;
+
+    let firstVisible = null;
+    let lastVisible = null;
+    for (let c = bounds.min; c <= bounds.max; c += 1) {
+      const cell = headerRow.children[c];
+      if (!cell) continue;
+      const rect = cell.getBoundingClientRect();
+      if (rect.right <= activityLeft || rect.left >= wrapRect.right) continue;
+      if (firstVisible == null) firstVisible = c;
+      lastVisible = c;
+    }
+
+    const edgeZone = 56;
+    if (clientX < activityLeft + edgeZone) {
+      if (firstVisible == null) return bounds.min;
+      const firstRect = headerRow.children[firstVisible].getBoundingClientRect();
+      if (clientX < firstRect.left) return Math.max(bounds.min, firstVisible - 1);
+      return firstVisible;
+    }
+    if (clientX > wrapRect.right - edgeZone) {
+      if (lastVisible == null) return bounds.max;
+      const lastRect = headerRow.children[lastVisible].getBoundingClientRect();
+      if (clientX > lastRect.right) return Math.min(bounds.max, lastVisible + 1);
+      return lastVisible;
+    }
     return null;
   }
 
   /** Linha cujo campo inteiro (altura da linha) contém clientY. */
   function rowTargetIndexFromY(clientY) {
     const rows = matrixBodyRows();
+    const wrap = matrixScrollContainer();
     for (let i = 0; i < rows.length; i += 1) {
       const rect = rows[i].getBoundingClientRect();
       if (clientY >= rect.top && clientY <= rect.bottom) return i;
+    }
+    if (!wrap || !rows.length) return null;
+    const wrapRect = wrap.getBoundingClientRect();
+    if (clientY < wrapRect.top || clientY > wrapRect.bottom) return null;
+    let firstVisible = null;
+    let lastVisible = null;
+    for (let i = 0; i < rows.length; i += 1) {
+      const rect = rows[i].getBoundingClientRect();
+      if (rect.bottom <= wrapRect.top || rect.top >= wrapRect.bottom) continue;
+      if (firstVisible == null) firstVisible = i;
+      lastVisible = i;
+    }
+    const edgeZone = 56;
+    if (clientY < wrapRect.top + edgeZone) {
+      if (firstVisible == null) return 0;
+      const firstRect = rows[firstVisible].getBoundingClientRect();
+      if (clientY < firstRect.top) return Math.max(0, firstVisible - 1);
+      return firstVisible;
+    }
+    if (clientY > wrapRect.bottom - edgeZone) {
+      if (lastVisible == null) return rows.length - 1;
+      const lastRect = rows[lastVisible].getBoundingClientRect();
+      if (clientY > lastRect.bottom) return Math.min(rows.length - 1, lastVisible + 1);
+      return lastVisible;
     }
     return null;
   }
@@ -3853,6 +4122,7 @@
   function onMatrixDnDPointerMove(event) {
     if (!matrixDnD.active || event.pointerId !== matrixDnD.pointerId) return;
     event.preventDefault();
+    autoScrollMatrixWrapDuringDrag(event.clientX, event.clientY, matrixDnD.axis);
     if (matrixDnD.axis === "col") {
       const t = colTargetIndexFromPointer(event.clientX, event.clientY);
       if (t != null) matrixDnD.dropTarget = t;
@@ -3931,6 +4201,7 @@
 
     const doc = frame.contentDocument;
     if (doc) {
+      doc.addEventListener("pointermove", matrixDnD.onPointerMove, true);
       doc.addEventListener("pointerup", matrixDnD.onPointerEnd, true);
       doc.addEventListener("pointercancel", matrixDnD.onPointerEnd, true);
     }
@@ -4253,7 +4524,7 @@
 
   function applyQuickColor(color) {
     if (!state.enabled || !state.selectedCell || !state.selectedKey) return;
-    if (!canEditPercentCell(state.selectedCell, { silent: true })) return;
+    if (!canColorPercentCell(state.selectedCell, { silent: true })) return;
     if (inpColor) inpColor.value = color;
     syncColorToolSwatch();
     applyColorChange();
@@ -4277,7 +4548,7 @@
 
     const canDirectEdit =
       canEditPercentCell(cell, { silent: true }) || canEditStructuralCell(cell);
-    const canPercentDirect = canEditPercentCell(cell, { silent: true });
+    const canColorCell = canColorPercentCell(cell, { silent: true });
     contextMenuEl.appendChild(
       menuItem(
         state.enabled ? "Iniciar edição direta" : "Ativar edição",
@@ -4315,19 +4586,19 @@
 
     contextMenuEl.appendChild(menuSeparator());
     contextMenuEl.appendChild(
-      menuItem("Cor: azul", "", { disabled: !canPercentDirect, onClick: () => applyQuickColor("#2563eb") }),
+      menuItem("Cor: azul", "", { disabled: !canColorCell, onClick: () => applyQuickColor("#2563eb") }),
     );
     contextMenuEl.appendChild(
-      menuItem("Cor: verde", "", { disabled: !canPercentDirect, onClick: () => applyQuickColor("#16a34a") }),
+      menuItem("Cor: verde", "", { disabled: !canColorCell, onClick: () => applyQuickColor("#16a34a") }),
     );
     contextMenuEl.appendChild(
-      menuItem("Cor: laranja", "", { disabled: !canPercentDirect, onClick: () => applyQuickColor("#ea580c") }),
+      menuItem("Cor: laranja", "", { disabled: !canColorCell, onClick: () => applyQuickColor("#ea580c") }),
     );
     contextMenuEl.appendChild(
       menuItem(
         "Cor personalizada",
         "",
-        { disabled: !canPercentDirect, onClick: () => inpColor && inpColor.click() },
+        { disabled: !canColorCell, onClick: () => inpColor && inpColor.click() },
       ),
     );
 
@@ -4381,8 +4652,9 @@
     if (isMatrixStructuralCell(cell)) {
       return;
     }
-    const canPercent = canEditPercentCell(cell, { silent: true });
-    if (!canPercent) {
+    const canEditValue = canEditPercentCell(cell, { silent: true });
+    const canColor = canColorPercentCell(cell, { silent: true });
+    if (!canEditValue && !canColor) {
       if (isMatrixPercentDataCell(cell)) {
         event.preventDefault();
         event.stopPropagation();
@@ -4393,7 +4665,7 @@
     event.preventDefault();
     event.stopPropagation();
     setSelectedCell(cell);
-    updateStatus("Célula selecionada. Texto e cor são salvos automaticamente.");
+    updateStatus(matrixLayerStatusForSelection(cell));
   }
 
   function onDocDoubleClick(event) {
@@ -4418,12 +4690,23 @@
 
     const cell = target.closest(".matrix-table td, .matrix-table th");
     if (!cell) return;
-    if (!canEditPercentCell(cell, { silent: true }) && !canEditStructuralCell(cell)) {
+    const canEditValue =
+      canEditPercentCell(cell, { silent: true }) || canEditStructuralCell(cell);
+    const canColorOnly =
+      !canEditValue && canColorPercentCell(cell, { silent: true });
+    if (!canEditValue && !canColorOnly) {
       if (isMatrixPercentDataCell(cell)) {
         event.preventDefault();
         event.stopPropagation();
         showBlockedPercentEditMessage();
       }
+      return;
+    }
+    if (canColorOnly) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedCell(cell);
+      updateStatus(EDIT_COLOR_ONLY_LAYER_MSG);
       return;
     }
     event.preventDefault();
@@ -4612,13 +4895,14 @@
 
   function applyColorChange() {
     if (!state.enabled || !state.selectedCell || !state.selectedKey) return;
-    if (!canEditPercentCell(state.selectedCell)) return;
+    if (!canColorPercentCell(state.selectedCell)) return;
     finishInlineEdit({ commit: true });
     const page = ensurePageDraft(currentPageKey());
     const color = inpColor ? inpColor.value : "";
-    state.selectedCell.style.backgroundColor = color;
-    state.selectedCell.style.color = "#ffffff";
+    applyManualCellColor(state.selectedCell, color);
     page.color[state.selectedKey] = color;
+    page.colorKeys = page.colorKeys || {};
+    page.colorKeys[state.selectedKey] = stableCellColorKey(state.selectedCell, currentPageKey());
     markDirty();
   }
 
@@ -4788,6 +5072,11 @@
   }
   if (inpColor) {
     inpColor.addEventListener("input", () => {
+      syncColorToolSwatch();
+      if (!state.enabled || !state.selectedCell) return;
+      applyColorChange();
+    });
+    inpColor.addEventListener("change", () => {
       syncColorToolSwatch();
       if (!state.enabled || !state.selectedCell) return;
       applyColorChange();

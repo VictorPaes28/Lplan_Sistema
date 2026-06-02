@@ -467,7 +467,7 @@ def _find_header_and_map(rows: list[list[str]]) -> tuple[int | None, dict]:
         "setor": {"SETOR", "AREA", "ZONA", "TORRE", "REGIAO"},
         "bloco": {"BLOCO", "BL", "BLC"},
         "pavimento": {"PAVIMENTO", "PAV", "ANDAR", "NIVEL"},
-        "unidade": {"APTO", "UNIDADE", "LOCAL", "AMBIENTE", "SALA"},
+        "unidade": {"APTO", "UNIDADE", "LOCAL", "AMBIENTE", "SALA", "APARTAMENTO", "APART", "UND", "UH", "UNID"},
         "atividade": {"ATIVIDADE", "SERVICO", "SERVICOS", "ITEM", "ETAPA"},
         "grupo_servicos": {"GRUPO DE SERVICO", "GRUPO DE SERVICOS", "GRUPO SERVICO", "GRUPO SERVICOS"},
         "status": {"STATUS", "AVANCO", "PROGRESSO", "PERCENTUAL", "%", "MEDICAO"},
@@ -518,7 +518,12 @@ def _find_header_and_map(rows: list[list[str]]) -> tuple[int | None, dict]:
         "ANDAR",
         "NIVEL",
         "APTO",
+        "APARTAMENTO",
+        "APART",
         "UNIDADE",
+        "UNID",
+        "UND",
+        "UH",
         "LOCAL",
         "TORRE",
         "ALA",
@@ -783,7 +788,7 @@ def _is_already_matrix_shape(rows: list[list[str]]) -> bool:
     if len(rows) < 2:
         return False
     head = [_norm_token(c) for c in rows[0][:12]]
-    tabular_markers = {"SETOR", "BLOCO", "PAVIMENTO", "APTO", "UNIDADE", "ATIVIDADE", "STATUS", "SERVICO"}
+    tabular_markers = {"SETOR", "BLOCO", "PAVIMENTO", "APTO", "APARTAMENTO", "UNIDADE", "ATIVIDADE", "STATUS", "SERVICO"}
     if any(token in tabular_markers for token in head):
         return False
     semantic_tokens = [

@@ -192,17 +192,37 @@ def _is_percent_source_row(row: list, axis_map: dict, *, is_area_comum: bool, is
         apto_val = str(row[apto_idx] if apto_idx < len(row) else "").strip()
         if _is_placeholder_matrix_label(apto_val):
             return False
-        return bool(apto_val)
-    if is_area_comum:
+        if apto_val:
+            return True
         pav_idx = axis_map.get("pavimento")
-        if isinstance(pav_idx, int):
-            pav_val = str(row[pav_idx] if pav_idx < len(row) else "").strip()
-            return bool(pav_val) and not _is_placeholder_matrix_label(pav_val)
-    if is_manual_flat:
         bloco_idx = axis_map.get("bloco")
-        if isinstance(bloco_idx, int):
-            bloco_val = str(row[bloco_idx] if bloco_idx < len(row) else "").strip()
-            return bool(bloco_val) and not _is_placeholder_matrix_label(bloco_val)
+        pav_val = str(row[pav_idx] if isinstance(pav_idx, int) and pav_idx < len(row) else "").strip()
+        bloco_val = str(row[bloco_idx] if isinstance(bloco_idx, int) and bloco_idx < len(row) else "").strip()
+        if pav_val and not _is_placeholder_matrix_label(pav_val):
+            return _row_has_non_axis_cell_data(row, axis_map)
+        if bloco_val and not pav_val and not _is_placeholder_matrix_label(bloco_val):
+            # Importação / planilha com % direto no bloco (sem pavimento/UND preenchidos).
+            return _row_has_non_axis_cell_data(row, axis_map)
+        return False
+    pav_idx = axis_map.get("pavimento")
+    bloco_idx = axis_map.get("bloco")
+    pav_val = str(row[pav_idx] if isinstance(pav_idx, int) and pav_idx < len(row) else "").strip()
+    bloco_val = str(row[bloco_idx] if isinstance(bloco_idx, int) and bloco_idx < len(row) else "").strip()
+
+    # Layout sem coluna APTO (ex.: import BLOCO + PAVIMENTO).
+    if isinstance(pav_idx, int):
+        if _is_placeholder_matrix_label(pav_val):
+            return False
+        if pav_val:
+            if is_area_comum:
+                return True
+            return _row_has_non_axis_cell_data(row, axis_map)
+    if is_manual_flat and isinstance(bloco_idx, int):
+        if _is_placeholder_matrix_label(bloco_val):
+            return False
+        return bool(bloco_val) and _row_has_non_axis_cell_data(row, axis_map)
+    if isinstance(bloco_idx, int) and bloco_val and not pav_val and not _is_placeholder_matrix_label(bloco_val):
+        return _row_has_non_axis_cell_data(row, axis_map)
     return False
 
 
@@ -460,6 +480,58 @@ def _pct_for_matrix_average(cell: dict) -> float | None:
     if pct is not None:
         return float(pct)
     return 0.0
+
+
+_STABLE_CELL_COLOR_SEP = "\u001f"
+
+
+def _stable_cell_color_key(
+    *,
+    bloco: str = "",
+    pavimento: str = "",
+    row_label: str = "",
+    activity: str = "",
+) -> str:
+    """Chave estável das cores manuais (espelha editar_mapa_controle.js stableCellColorKey)."""
+    return _STABLE_CELL_COLOR_SEP.join(
+        [
+            str(bloco or "").strip(),
+            str(pavimento or "").strip(),
+            str(row_label or "").strip(),
+            str(activity or "").strip(),
+        ]
+    )
+
+
+def _apply_matrix_cell_colors(
+    matrix: dict,
+    cell_colors: dict,
+    *,
+    bloco: str = "",
+    pavimento: str = "",
+) -> None:
+    """Anexa manual_color nas células da grade para exibição fora do modo edição."""
+    if not isinstance(matrix, dict) or not isinstance(cell_colors, dict) or not cell_colors:
+        return
+    bloco_s = str(bloco or "").strip()
+    pav_s = str(pavimento or "").strip()
+    for row in matrix.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        row_label = str(row.get("row_label") or row.get("row_key") or "").strip()
+        for cell in row.get("cells") or []:
+            if not isinstance(cell, dict):
+                continue
+            activity = str(cell.get("atividade") or "").strip()
+            key = _stable_cell_color_key(
+                bloco=bloco_s,
+                pavimento=pav_s,
+                row_label=row_label,
+                activity=activity,
+            )
+            hex_color = cell_colors.get(key)
+            if hex_color:
+                cell["manual_color"] = str(hex_color).strip()
 
 
 def _row_total_from_display_cells(matrix_row: dict) -> int | float | None:
@@ -858,7 +930,7 @@ def _extract_axis_map_from_meta(matrix_meta: dict) -> dict:
         elif ("PAV" in token or "ANDAR" in token or "NIVEL" in token) and "pavimento" not in axis_map:
             axis_map["pavimento"] = col
             used.add(col)
-        elif ("APTO" in token or "UNIDADE" in token or "LOCAL" in token) and "apto" not in axis_map:
+        elif ("APTO" in token or "UNIDADE" in token or "LOCAL" in token or "APARTAMENT" in token) and "apto" not in axis_map:
             axis_map["apto"] = col
             used.add(col)
     return axis_map
@@ -874,7 +946,7 @@ def _header_is_axis_label(value: str) -> bool:
         return True
     if "PAV" in token or "ANDAR" in token or "NIVEL" in token:
         return True
-    if "APTO" in token or "UNIDADE" in token:
+    if "APTO" in token or "UNIDADE" in token or "APARTAMENT" in token:
         return True
     return False
 
@@ -892,7 +964,7 @@ def _supplement_axis_map_from_header(header: list, axis_map: dict) -> dict:
             out["bloco"] = idx
         elif ("PAV" in token or "ANDAR" in token or "NIVEL" in token) and "pavimento" not in out:
             out["pavimento"] = idx
-        elif ("APTO" in token or "UNIDADE" in token) and "apto" not in out:
+        elif ("APTO" in token or "UNIDADE" in token or "APARTAMENT" in token) and "apto" not in out:
             out["apto"] = idx
     return out
 
@@ -977,7 +1049,13 @@ def _extract_layout_column_groups(layout: dict, available_labels: list[str]) -> 
     return []
 
 
-def _resolve_ambiente_matrix_mode(requested: str, selected: dict, *, is_area_comum: bool) -> str:
+def _resolve_ambiente_matrix_mode(
+    requested: str,
+    selected: dict,
+    *,
+    is_area_comum: bool,
+    has_apto_axis: bool = True,
+) -> str:
     """Mantém a mesma semântica de camada do legado para o modo dedicado."""
     r = str(requested or "").strip().lower()
     if r not in {"bloco", "pavimento", "apto"}:
@@ -1000,7 +1078,7 @@ def _resolve_ambiente_matrix_mode(requested: str, selected: dict, *, is_area_com
 
     # O recorte ativo manda na camada efetiva no modo dedicado.
     if bloco and pavimento:
-        return "apto"
+        return "apto" if has_apto_axis else "pavimento"
     if bloco:
         return "pavimento"
     if r in {"apto", "pavimento", "bloco"}:
@@ -1062,6 +1140,8 @@ class AmbienteProvider:
         activity_cols = _resolve_activity_col_indices(header, matrix_meta, axis_cols)
 
         is_manual_flat = len(axis_cols) <= 1
+        has_apto_axis = isinstance(axis_map.get("apto"), int)
+        pavimento_is_leaf = isinstance(axis_map.get("pavimento"), int) and not has_apto_axis
         strategy = str(matrix_meta.get("strategy") or "").strip().lower()
         treat_empty_as_zero = strategy == "manual_template"
         is_area_comum = _setor_e_area_comum(str(selected.get("setor") or ""))
@@ -1255,6 +1335,7 @@ class AmbienteProvider:
             str(filter_selected.get("matrix_mode") or "").strip(),
             filter_selected,
             is_area_comum=is_area_comum,
+            has_apto_axis=has_apto_axis,
         )
         if is_manual_flat:
             row_mode_requested = "bloco"
@@ -1341,6 +1422,7 @@ class AmbienteProvider:
         ]
 
         apto_filter = str(filter_selected.get("apto") or "").strip()
+        pavimento_filter = str(filter_selected.get("pavimento") or "").strip()
         # Recorte por unidade (chip): detalhe da UND — uma linha consolidada, mesma regra do pavimento.
         if (
             apto_filter
@@ -1361,6 +1443,26 @@ class AmbienteProvider:
                     unit_rows, col_idx, axis_map=axis_map
                 )
             processed_rows = [out]
+        elif (
+            pavimento_filter
+            and pavimento_is_leaf
+            and not is_manual_flat
+            and row_mode_requested == "pavimento"
+            and isinstance(row_axis_col, int)
+            and not apto_filter
+        ):
+            # Import BLOCO + PAVIMENTO (sem UND): chip/linha abre detalhe do pavimento, não camada apto vazia.
+            pav_rows = _percent_rows_for_axis_key(percent_source_rows, row_axis_col, pavimento_filter)
+            out = [""] * len(header)
+            out[row_axis_col] = pavimento_filter
+            bloco_idx = axis_map.get("bloco")
+            if isinstance(bloco_idx, int):
+                out[bloco_idx] = str(filter_selected.get("bloco") or "").strip()
+            for col_idx, _label in activity_labels:
+                out[col_idx] = _consolidated_display_for_column_rows(
+                    pav_rows, col_idx, axis_map=axis_map
+                )
+            processed_rows = [out]
 
         # Totais/KPIs: média simples de todas as células de atividade das unidades no recorte (Opção A).
         activity_value_buckets = {label: [] for _idx, label in activity_labels}
@@ -1378,6 +1480,7 @@ class AmbienteProvider:
             and row_mode_requested in {"bloco", "pavimento", "apto"}
             and isinstance(row_axis_col, int)
             and not (row_mode_requested == "apto" and apto_filter)
+            and not (row_mode_requested == "pavimento" and pavimento_filter and pavimento_is_leaf)
         ):
             # Exibição: eixos estruturais (bloco/pavimento/UND); várias linhas-fonte → uma linha por chave.
             row_order_pref = matrix_meta.get(f"row_order_{row_axis_key}")
@@ -1424,10 +1527,18 @@ class AmbienteProvider:
                             col_idx,
                             act_col_indices,
                         )
-                        out[col_idx] = _consolidated_activity_cell_display(
-                            values,
-                            has_percent_units=bool(key_rows),
-                        )
+                        if not values and key_rows:
+                            out[col_idx] = _consolidated_display_for_column_rows(
+                                key_rows,
+                                col_idx,
+                                infer_zero_for_empty=structural_only,
+                                axis_map=axis_map,
+                            )
+                        else:
+                            out[col_idx] = _consolidated_activity_cell_display(
+                                values,
+                                has_percent_units=bool(key_rows),
+                            )
                     elif isinstance(axis_map.get("apto"), int):
                         out[col_idx] = _consolidated_column_across_apto_units(
                             key_rows,
@@ -1457,10 +1568,17 @@ class AmbienteProvider:
         row_meta["row_axis_cols_interpreted"] = [row_axis_col]
         matrix, kpis = self._build_matrix_payload_from_rows(effective_rows, row_meta)
         matrix["mode"] = row_mode_requested
-        matrix["unit_detail_view"] = bool(apto_filter and row_mode_requested == "apto")
+        matrix["unit_detail_view"] = bool(
+            (apto_filter and row_mode_requested == "apto")
+            or (pavimento_filter and pavimento_is_leaf and row_mode_requested == "pavimento")
+        )
+        matrix["pavimento_leaf_drill"] = bool(
+            pavimento_is_leaf and row_mode_requested == "pavimento" and not pavimento_filter
+        )
         matrix["allow_row_drill"] = (
             (row_mode_requested == "bloco" and isinstance(axis_map.get("pavimento"), int))
             or (row_mode_requested == "pavimento" and isinstance(axis_map.get("apto"), int))
+            or matrix["pavimento_leaf_drill"]
             or (
                 row_mode_requested == "apto"
                 and not apto_filter
@@ -1470,7 +1588,7 @@ class AmbienteProvider:
         matrix["drill_axis_key"] = (
             "pavimento"
             if row_mode_requested == "bloco"
-            else ("apto" if row_mode_requested == "pavimento" else "")
+            else ("apto" if row_mode_requested == "pavimento" and has_apto_axis else "")
         )
         matrix["header_first_col"] = {
             "bloco": "Bloco",
@@ -1480,8 +1598,12 @@ class AmbienteProvider:
 
         # Rodapé/KPIs:
         # - manual_template: base na grade exibida (camada atual);
-        # - demais estratégias: base-fonte para evitar média de médias em pivots.
-        if strategy == "manual_template" and row_mode_requested in {"bloco", "pavimento", "apto"}:
+        # - pavimento (pivot etc.): média das linhas visíveis — igual ao que o bloco mostra por filho;
+        # - bloco (demais estratégias): base-fonte para evitar média de médias em pivots.
+        use_display_footer = (
+            strategy == "manual_template" and row_mode_requested in {"bloco", "pavimento", "apto"}
+        ) or (strategy != "manual_template" and row_mode_requested == "pavimento")
+        if use_display_footer:
             totais_reais, all_values = _footer_totals_from_matrix_display(
                 matrix.get("rows") or [], activity_labels
             )
@@ -1659,6 +1781,15 @@ class AmbienteProvider:
             "current_path": f"Ambiente: {ambiente.nome}",
             "breadcrumbs": breadcrumbs,
         }
+        cell_colors_raw = matrix_meta.get("cellColors")
+        cell_colors = cell_colors_raw if isinstance(cell_colors_raw, dict) else {}
+        if cell_colors:
+            _apply_matrix_cell_colors(
+                matrix,
+                cell_colors,
+                bloco=str(selected.get("bloco") or "").strip(),
+                pavimento=str(selected.get("pavimento") or "").strip(),
+            )
         return {
             "selected": selected,
             "layers": layers,
@@ -1686,6 +1817,7 @@ class AmbienteProvider:
             "column_groups": column_groups,
             "matrix_all_atividades": all_activity_labels,
             "column_group_selected": selected_group_id,
+            "matrix_cell_colors": cell_colors,
         }
 
 

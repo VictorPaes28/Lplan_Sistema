@@ -12,6 +12,7 @@ from painel_operacional.tests.fixtures_importador import (
     workbook_multiabas_operacional_nome_nao_padrao,
     workbook_resort_multieixo,
     workbook_tabular_colunas_reordenadas,
+    workbook_tabular_com_coluna_apartamento,
     workbook_tabular_sem_grupo_com_auxiliares,
 )
 from painel_operacional.views import _interpret_import_rows, _parse_percent_value, _read_excel_rows
@@ -151,4 +152,16 @@ class ImportadorInteligenteRegressaoTests(SimpleTestCase):
         self.assertIn("ATV_BASE_1", header)
         self.assertIn("ATV_EXTRA_1", header)
         self.assertIn("ATV_EXTRA_5", header)
+
+    def test_coluna_apartamento_entra_no_eixo_und(self):
+        arquivo = _as_uploaded(workbook_tabular_com_coluna_apartamento(), "dbg.xlsx")
+        rows, _sheet, _diag = _read_excel_rows(arquivo, sheet_name="DADOS")
+        out, strategy, report = _interpret_import_rows(rows, mode="auto")
+        self.assertEqual(strategy, "pivot_registros")
+        header = [str(c).upper() for c in out[0][:4]]
+        self.assertEqual(header[:3], ["BLOCO", "PAVIMENTO", "APARTAMENTO"])
+        labels = {str(r[2]) for r in out[1:] if len(r) > 2}
+        self.assertIn("101", labels)
+        self.assertIn("102", labels)
+        self.assertIn("201", labels)
 
