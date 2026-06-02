@@ -1618,7 +1618,12 @@ class AnaliseObraService:
 
         view_ctx = self._build_matrix_bloco_view_ctx(bundle)
         matrix_kpis = self._matrix_bloco_layer_kpis(bundle) if view_ctx else None
-        if matrix_kpis:
+        status_servico_ativo = self.filtros.status_servico in {
+            "concluido",
+            "em_andamento",
+            "nao_iniciado",
+        }
+        if matrix_kpis and not status_servico_ativo:
             pct_medio = matrix_kpis["percentual_medio"]
             concluidos = matrix_kpis["concluidos"]
             em_andamento = matrix_kpis["em_andamento"]
