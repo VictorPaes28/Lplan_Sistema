@@ -156,6 +156,10 @@
                     <i class="fas fa-book-reader" aria-hidden="true"></i>
                     Modo leitura
                 </a>
+                <button type="button" id="gc-ft-pdf-assinatura" class="gc-footer-btn gc-footer-btn--zapsign" style="display:none;" title="Baixa PDF com anexos e assinatura da aprovação">
+                    <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                    PDF para assinatura
+                </button>
                 <a id="gc-ft-central" href="#" class="gc-footer-btn gc-footer-btn--central" style="display:none;" title="Enviar para tramitação na Central de Aprovações">
                     Enviar para Central de Aprovações
                 </a>
@@ -245,6 +249,10 @@
     };
 </script>
 {% if debug %}{% now "U" as lplan_modal_pedido_js_cb %}{% endif %}
+<script>
+    window._gcSignatureUserId = {{ request.user.pk|default:"0" }};
+</script>
+<script src="{% static 'workflow_aprovacao/js/wf_manual_signature.js' %}"></script>
 <script src="{% static 'gestao_aprovacao/js/modal_pedido.js' %}{% if debug %}?cb={{ lplan_modal_pedido_js_cb }}{% endif %}"></script>
 <script>
     (function () {

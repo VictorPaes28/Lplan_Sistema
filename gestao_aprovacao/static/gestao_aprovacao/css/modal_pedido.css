@@ -826,6 +826,25 @@ a.gc-btn-reprovar:hover,
     color: #fff;
 }
 
+.gc-footer-btn--zapsign {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    color: #0f766e;
+    font-size: 0.78rem;
+    padding: 0.38rem 0.65rem;
+}
+
+.gc-footer-btn--zapsign:hover:not(:disabled) {
+    background: #f0fdfa;
+    border-color: #5eead4;
+    color: #0d9488;
+}
+
+.gc-footer-btn--zapsign:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .gc-footer-btn--primary {
     border: 1px solid #93c5fd;
     background: #fff;
@@ -1258,8 +1277,8 @@ a.gc-btn-reprovar:hover,
 }
 
 .gc-aprovar-panel {
-    width: min(480px, 100%);
-    max-height: min(90vh, 640px);
+    width: min(520px, 100%);
+    max-height: min(92vh, 720px);
     overflow-y: auto;
     background: #fff;
     border-radius: 14px;
@@ -1319,6 +1338,63 @@ a.gc-btn-reprovar:hover,
 .gc-aprovar-optional {
     font-weight: 400;
     color: #64748b;
+}
+
+.gc-aprovar-required {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+.gc-aprovar-signature {
+    margin-bottom: 0.85rem;
+}
+
+.gc-aprovar-signature-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.45rem;
+}
+
+.gc-aprovar-signature-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.gc-aprovar-signature-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.gc-aprovar-signature-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.gc-aprovar-signature-canvas {
+    display: block;
+    width: 100%;
+    height: 160px;
+    border: 1px dashed #94a3b8;
+    border-radius: 10px;
+    background: #fff;
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.gc-aprovar-signature-canvas:focus {
+    outline: none;
+    border-color: #475569;
+    box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.12);
 }
 
 .gc-aprovar-textarea {
