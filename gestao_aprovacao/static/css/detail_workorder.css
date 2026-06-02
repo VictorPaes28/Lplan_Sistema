@@ -149,6 +149,16 @@
     font-weight: 500;
 }
 
+.btn-pdf-zapsign {
+    font-size: 0.8125rem;
+}
+
+.btn-pdf-zapsign--disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: auto;
+}
+
 /* ----- Cards e seções ----- */
 .detail-section {
     margin-bottom: var(--dw-space-lg);

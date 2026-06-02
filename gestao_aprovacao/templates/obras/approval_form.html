@@ -145,6 +145,46 @@
         padding: 0 .05rem;
     }
     .approval-new-tag-empty { color: #64748b; font-size: .83rem; }
+    .approval-signature {
+        margin-bottom: 1rem;
+    }
+    .approval-signature-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.45rem;
+    }
+    .approval-signature-actions {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+    .approval-signature-btn {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #334155;
+        border-radius: 8px;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .approval-signature-btn:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+    }
+    .approval-signature-canvas {
+        display: block;
+        width: 100%;
+        height: 160px;
+        border: 1px dashed #94a3b8;
+        border-radius: 10px;
+        background: #fff;
+        touch-action: none;
+        cursor: crosshair;
+    }
 </style>
 {% endblock %}
 
@@ -263,6 +303,28 @@
                 </div>
             {% endif %}
             
+            {% if action == 'aprovar' %}
+            <div class="approval-form-group approval-signature">
+                <div class="approval-signature-head">
+                    <label class="approval-section-label" style="margin:0;">
+                        Assinatura manual <span class="approval-required">*</span>
+                    </label>
+                    <div class="approval-signature-actions">
+                        <button type="button" class="approval-signature-btn" id="approval-use-last-sig">Usar última assinatura</button>
+                        <button type="button" class="approval-signature-btn" id="approval-clear-sig">Limpar</button>
+                    </div>
+                </div>
+                <canvas
+                    id="approval-signature-canvas"
+                    class="approval-signature-canvas"
+                    height="160"
+                    aria-label="Quadro para desenhar assinatura manual"
+                ></canvas>
+                <input type="hidden" id="approval-signature-data" name="signature_data" value="">
+                <p class="approval-help-modern">Desenhe sua assinatura para confirmar a aprovação.</p>
+            </div>
+            {% endif %}
+            
             <div class="approval-form-group">
                 <label for="comentario" class="approval-label">
                     Comentário {% if action == 'reprovar' %}(opcional - complemento das tags){% else %}(opcional){% endif %}:
@@ -304,6 +366,39 @@
 
 {% block extra_js %}
 {{ block.super }}
+{% if action == 'aprovar' %}
+<script src="{% static 'workflow_aprovacao/js/wf_manual_signature.js' %}"></script>
+<script>
+(function () {
+    var uid = {{ request.user.pk|default:"0" }};
+    var approvalSig = new WfManualSignature({
+        canvasId: 'approval-signature-canvas',
+        hiddenId: 'approval-signature-data',
+        storageKey: 'lplan_gestao_last_signature_u' + uid,
+        fallbackKeys: [
+            'lplan_workflow_last_signature_u' + uid,
+            'lplan_trackhub_last_signature_u' + uid,
+            'lplan_diary_last_signature_inspection_v1_u' + uid,
+        ],
+    });
+    var useLast = document.getElementById('approval-use-last-sig');
+    if (useLast) useLast.addEventListener('click', function () { approvalSig.useLast(); });
+    var clearBtn = document.getElementById('approval-clear-sig');
+    if (clearBtn) clearBtn.addEventListener('click', function () { approvalSig.clear(); });
+    var form = document.querySelector('.approval-container form');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            if (!approvalSig.hasSignature()) {
+                e.preventDefault();
+                alert('Desenhe sua assinatura no quadro ou use «Usar última assinatura» antes de confirmar.');
+                var canvas = document.getElementById('approval-signature-canvas');
+                if (canvas) canvas.focus();
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
 <script>
 (function () {
     const input = document.getElementById('nova_tag_input');

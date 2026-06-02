@@ -1,18 +1,34 @@
 <div id="gc-aprovar-overlay" class="gc-aprovar-overlay" aria-hidden="true">
     <div class="gc-aprovar-panel" role="dialog" aria-modal="true" aria-labelledby="gc-aprovar-title">
         <div class="gc-aprovar-panel-head">
-            <h2 id="gc-aprovar-title" class="gc-aprovar-title">Confirmar aprovação</h2>
+            <h2 id="gc-aprovar-title" class="gc-aprovar-title">Assinatura de aprovação</h2>
             <button type="button" class="gc-aprovar-close" id="gc-aprovar-close" aria-label="Fechar">✕</button>
         </div>
         <p class="gc-aprovar-intro">
-            Você está prestes a aprovar o pedido <strong id="gc-aprovar-codigo"></strong>.
+            Para aprovar o pedido <strong id="gc-aprovar-codigo"></strong>, desenhe sua assinatura abaixo.
             O pedido será marcado como aprovado e não poderá mais ser editado.
         </p>
+        <div class="gc-aprovar-signature">
+            <div class="gc-aprovar-signature-head">
+                <span class="gc-aprovar-label">Assinatura manual <span class="gc-aprovar-required">*</span></span>
+                <div class="gc-aprovar-signature-actions">
+                    <button type="button" class="gc-aprovar-signature-btn" id="gc-aprovar-use-last">Usar última assinatura</button>
+                    <button type="button" class="gc-aprovar-signature-btn" id="gc-aprovar-clear-sig">Limpar</button>
+                </div>
+            </div>
+            <canvas
+                id="gc-aprovar-signature-canvas"
+                class="gc-aprovar-signature-canvas"
+                height="160"
+                aria-label="Quadro para desenhar assinatura manual"
+            ></canvas>
+            <input type="hidden" id="gc-aprovar-signature-data" name="signature_data" value="">
+        </div>
         <div class="gc-aprovar-field">
             <label class="gc-aprovar-label" for="gc-aprovar-comentario">
                 Observação <span class="gc-aprovar-optional">(opcional)</span>
             </label>
-            <textarea id="gc-aprovar-comentario" class="gc-aprovar-textarea" rows="4" placeholder="Adicione observações sobre a aprovação…"></textarea>
+            <textarea id="gc-aprovar-comentario" class="gc-aprovar-textarea" rows="3" placeholder="Adicione observações sobre a aprovação…"></textarea>
         </div>
         <p id="gc-aprovar-error" class="gc-aprovar-error" style="display:none;" role="alert"></p>
         <div class="gc-aprovar-actions">

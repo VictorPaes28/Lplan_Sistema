@@ -24,6 +24,7 @@ urlpatterns = [
     path('pedidos/<int:pk>/', views.detail_workorder, name='detail_workorder'),
     path('pedidos/<int:pk>/exportar-pdf/', views.exportar_snapshot_workorder_pdf, name='exportar_snapshot_workorder_pdf'),
     path('pedidos/<int:pk>/leitura-pdf/', views.leitura_pedido_pdf, name='leitura_pedido_pdf'),
+    path('pedidos/<int:pk>/pdf-assinatura/', views.gerar_pdf_assinatura_workorder, name='gerar_pdf_assinatura_workorder'),
     path('pedidos/<int:pk>/editar/', views.edit_workorder, name='edit_workorder'),
     
     # Aprovação

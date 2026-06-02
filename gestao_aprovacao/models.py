@@ -500,6 +500,13 @@ class Approval(models.Model):
         verbose_name='Tags de Erro',
         help_text='Tags/motivos de erro selecionados para esta reprovação'
     )
+
+    signature_data = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Assinatura manual',
+        help_text='Imagem PNG em base64 da assinatura do aprovador',
+    )
     
     class Meta:
         verbose_name = 'Aprovação'

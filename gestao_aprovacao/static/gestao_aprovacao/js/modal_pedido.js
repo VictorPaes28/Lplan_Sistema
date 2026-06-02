@@ -21,6 +21,41 @@
     window._gcModalRejectData = null;
     window._gcModalApproveData = null;
     window._gcListaPedidosAlterada = false;
+    var gcAprovarSig = null;
+
+    function gcAprovarSignatureStorageKey() {
+        var uid = window._gcSignatureUserId;
+        return 'lplan_gestao_last_signature_u' + (uid != null ? String(uid) : '0');
+    }
+
+    function gcAprovarSignatureFallbackKeys() {
+        var uid = window._gcSignatureUserId;
+        var u = uid != null ? String(uid) : '0';
+        return [
+            'lplan_workflow_last_signature_u' + u,
+            'lplan_trackhub_last_signature_u' + u,
+            'lplan_diary_last_signature_inspection_v1_u' + u,
+        ];
+    }
+
+    function initGcAprovarSignature() {
+        if (typeof globalThis.WfManualSignature !== 'function') return null;
+        if (gcAprovarSig) return gcAprovarSig;
+        gcAprovarSig = new WfManualSignature({
+            canvasId: 'gc-aprovar-signature-canvas',
+            hiddenId: 'gc-aprovar-signature-data',
+            storageKey: gcAprovarSignatureStorageKey(),
+            fallbackKeys: gcAprovarSignatureFallbackKeys(),
+        });
+        return gcAprovarSig;
+    }
+
+    function resizeGcAprovarSignatureCanvas() {
+        var canvas = document.getElementById('gc-aprovar-signature-canvas');
+        if (canvas && typeof canvas.__signatureResize === 'function') {
+            canvas.__signatureResize();
+        }
+    }
 
     function getAprovarOverlayEl() {
         return document.getElementById('gc-aprovar-overlay');
@@ -49,6 +84,8 @@
         hideAprovarInlineError();
         var ta = document.getElementById('gc-aprovar-comentario');
         if (ta) ta.value = '';
+        var sig = initGcAprovarSignature();
+        if (sig && typeof sig.clear === 'function') sig.clear();
         var sub = document.getElementById('gc-aprovar-submit');
         if (sub) {
             sub.disabled = false;
@@ -80,8 +117,10 @@
             ov.classList.add('is-open');
             ov.setAttribute('aria-hidden', 'false');
         }
-        var ta = document.getElementById('gc-aprovar-comentario');
-        if (ta) ta.focus();
+        initGcAprovarSignature();
+        resizeGcAprovarSignatureCanvas();
+        var canvas = document.getElementById('gc-aprovar-signature-canvas');
+        if (canvas) canvas.focus();
     };
 
     function hideReprovarInlineError() {
@@ -638,6 +677,30 @@
         setHref('gc-ft-leitura', u.leitura_pdf);
         var ftLeitura = document.getElementById('gc-ft-leitura');
         if (ftLeitura) ftLeitura.style.display = u.leitura_pdf ? 'inline-flex' : 'none';
+        var ftPdfSig = document.getElementById('gc-ft-pdf-assinatura');
+        if (ftPdfSig) {
+            var prePdf = d.pdf_assinatura_precheck || {};
+            var temAnexos = d.anexos && d.anexos.length;
+            if (d.pdf_assinatura_pronto && u.gerar_pdf_assinatura) {
+                ftPdfSig.style.display = 'inline-flex';
+                ftPdfSig.disabled = false;
+                ftPdfSig.title = 'Baixa PDF com anexos e assinatura registrada na aprovação';
+                ftPdfSig.onclick = function (e) {
+                    e.preventDefault();
+                    window.location.href = u.gerar_pdf_assinatura;
+                };
+            } else if (temAnexos && prePdf.message) {
+                ftPdfSig.style.display = 'inline-flex';
+                ftPdfSig.disabled = true;
+                ftPdfSig.title = prePdf.message;
+                ftPdfSig.onclick = function (e) {
+                    e.preventDefault();
+                    alert(prePdf.message);
+                };
+            } else {
+                ftPdfSig.style.display = 'none';
+            }
+        }
         setHref('gc-ft-editar', u.editar);
         var ftEdit = document.getElementById('gc-ft-editar');
         if (ftEdit) ftEdit.style.display = d.pode_editar ? 'inline-flex' : 'none';
@@ -750,10 +813,21 @@
         var data = window._gcModalApproveData;
         if (!pk || !data || !data.aprovarUrl) return;
         hideAprovarInlineError();
+        var sig = initGcAprovarSignature();
+        if (!sig || typeof sig.hasSignature !== 'function' || !sig.hasSignature()) {
+            showAprovarInlineError(
+                'Desenhe sua assinatura no quadro ou use «Usar última assinatura» antes de confirmar.'
+            );
+            var canvas = document.getElementById('gc-aprovar-signature-canvas');
+            if (canvas) canvas.focus();
+            return;
+        }
         var fd = new FormData();
         fd.append('csrfmiddlewaretoken', getCsrfToken());
         var com = document.getElementById('gc-aprovar-comentario');
         fd.append('comentario', com ? com.value.trim() : '');
+        var sigHidden = document.getElementById('gc-aprovar-signature-data');
+        fd.append('signature_data', sigHidden && sigHidden.value ? sigHidden.value : '');
         var sub = document.getElementById('gc-aprovar-submit');
         if (sub) {
             sub.disabled = true;
@@ -921,6 +995,23 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         gcReprovarNovasRender();
+        initGcAprovarSignature();
+
+        var useLastSig = document.getElementById('gc-aprovar-use-last');
+        if (useLastSig) {
+            useLastSig.addEventListener('click', function () {
+                var sig = initGcAprovarSignature();
+                if (sig && typeof sig.useLast === 'function') sig.useLast();
+            });
+        }
+
+        var clearSig = document.getElementById('gc-aprovar-clear-sig');
+        if (clearSig) {
+            clearSig.addEventListener('click', function () {
+                var sig = initGcAprovarSignature();
+                if (sig && typeof sig.clear === 'function') sig.clear();
+            });
+        }
 
         var aprovarBtn = document.getElementById('gc-aprov-btn');
         if (aprovarBtn) {

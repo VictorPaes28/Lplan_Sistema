@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 # auth import removido - autenticação centralizada no app 'accounts'
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_http_methods
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -66,6 +67,13 @@ from gestao_aprovacao.services.home_dashboard import (
     queryset_workorders_home_scope,
 )
 from gestao_aprovacao.services.fila_atraso_pdf import build_fila_atraso_pdf
+from gestao_aprovacao.signature_utils import validate_signature_data
+from gestao_aprovacao.services.consolidated_signature_pdf import (
+    ConsolidationError,
+    build_consolidated_signature_pdf,
+    consolidation_precheck,
+    latest_approval_signature,
+)
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from .services.user_governance import (
     TimelineOptions,
@@ -1702,6 +1710,26 @@ def detail_workorder(request, pk):
     central_process_url = None
     if central_dispatch:
         central_process_url = central_process_url_for_user(user, central_dispatch.approval_process_id)
+
+    pdf_assinatura_precheck = consolidation_precheck(workorder)
+    latest_sig_aprovacao = (
+        latest_approval_signature(workorder) if pdf_assinatura_precheck.get('ok') else None
+    )
+    pdf_assinatura_pronto = bool(
+        pdf_assinatura_precheck.get('ok')
+        and latest_sig_aprovacao
+        and latest_sig_aprovacao.signature_data
+    )
+    if pdf_assinatura_precheck.get('ok') and not pdf_assinatura_pronto:
+        pdf_assinatura_precheck = {
+            **pdf_assinatura_precheck,
+            'ok': False,
+            'reason': 'needs_approval',
+            'message': (
+                'Aprove o pedido com assinatura para gerar o PDF consolidado. '
+                'A assinatura do aprovador será incluída automaticamente ao final.'
+            ),
+        }
     
     context = {
         'workorder': workorder,
@@ -1730,6 +1758,9 @@ def detail_workorder(request, pk):
         'central_dispatch': central_dispatch,
         'central_process_url': central_process_url,
         'central_dispatch_block_reason': workorder_dispatch_block_reason(workorder),
+        'pdf_assinatura_precheck': pdf_assinatura_precheck,
+        'pdf_assinatura_pronto': pdf_assinatura_pronto,
+        'tem_assinatura_aprovacao': pdf_assinatura_pronto,
     }
     return render(request, 'obras/detail_workorder.html', context)
 
@@ -2125,6 +2156,22 @@ def workorder_detail_ajax(request, pk):
     if central_dispatch:
         central_url = central_process_url_for_user(user, central_dispatch.approval_process_id)
 
+    pdf_precheck = consolidation_precheck(workorder) if perm['tem_permissao'] else {'ok': False}
+    latest_sig = latest_approval_signature(workorder) if pdf_precheck.get('ok') else None
+    pdf_assinatura_pronto = bool(
+        pdf_precheck.get('ok') and latest_sig and latest_sig.signature_data
+    )
+    if pdf_precheck.get('ok') and not pdf_assinatura_pronto:
+        pdf_precheck = {
+            **pdf_precheck,
+            'ok': False,
+            'reason': 'needs_approval',
+            'message': (
+                'Aprove o pedido com assinatura para gerar o PDF consolidado. '
+                'A assinatura do aprovador será incluída automaticamente ao final.'
+            ),
+        }
+
     payload = {
         'pk': workorder.pk,
         'codigo': workorder.codigo,
@@ -2168,6 +2215,9 @@ def workorder_detail_ajax(request, pk):
         'historico_status': historico_status,
         'aprovacoes_fluxo': aprovacoes_fluxo,
         'anexos': anexos,
+        'pdf_assinatura_precheck': pdf_precheck,
+        'pdf_assinatura_pronto': pdf_assinatura_pronto,
+        'tem_assinatura_aprovacao': pdf_assinatura_pronto,
         'url_detalhe_completo': request.build_absolute_uri(
             reverse('gestao:detail_workorder', args=[workorder.pk])
         ),
@@ -2201,6 +2251,7 @@ def workorder_detail_ajax(request, pk):
             'comentar': reverse('gestao:add_comment', args=[workorder.pk]),
             'upload_anexo': reverse('gestao:upload_attachment', args=[workorder.pk]),
             'enviar_central': reverse('gestao:send_workorder_to_central', args=[workorder.pk]),
+            'gerar_pdf_assinatura': reverse('gestao:gerar_pdf_assinatura_workorder', args=[workorder.pk]),
         },
         'tags_erro_reprovacao': (
             [
@@ -2564,6 +2615,66 @@ def leitura_pedido_pdf(request, pk):
     return render(request, 'obras/pdf_reader_pedido.html', {
         'workorder': workorder,
     })
+
+
+def _gerar_pdf_assinatura_response(request, workorder, *, signature_data, signer_name, signed_at=None):
+    try:
+        pdf_bytes = build_consolidated_signature_pdf(
+            work_order=workorder,
+            signature_data=signature_data,
+            signer_name=signer_name,
+            signed_at=signed_at,
+        )
+    except ConsolidationError as exc:
+        msg = str(exc)
+        if _request_accepts_json_response(request):
+            return JsonResponse({'ok': False, 'error': msg}, status=400)
+        messages.error(request, msg)
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    nome_arquivo = f'{workorder.codigo}_zapsign.pdf'.replace('/', '-').replace('\\', '-')
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def gerar_pdf_assinatura_workorder(request, pk):
+    """
+    Unifica anexos do pedido em um PDF e acrescenta a página de assinatura
+    já registrada na aprovação do pedido (sem pedir assinatura novamente).
+    """
+    workorder = get_object_or_404(WorkOrder, pk=pk)
+    perm = _workorder_ajax_permission_flags(workorder, request.user)
+    if not perm['tem_permissao']:
+        messages.error(request, 'Você não tem permissão para acessar este pedido.')
+        return redirect('gestao:list_workorders')
+
+    pre = consolidation_precheck(workorder)
+    if not pre['ok']:
+        messages.error(request, pre['message'])
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    approval = latest_approval_signature(workorder)
+    if not approval or not approval.signature_data:
+        messages.error(
+            request,
+            'Este pedido ainda não foi aprovado com assinatura. '
+            'Use o botão «Aprovar», desenhe sua assinatura e confirme; '
+            'depois volte aqui para baixar o PDF consolidado.',
+        )
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+    signer = approval.aprovado_por
+    signer_name = (signer.get_full_name() or signer.username) if signer else '—'
+    return _gerar_pdf_assinatura_response(
+        request,
+        workorder,
+        signature_data=approval.signature_data,
+        signer_name=signer_name,
+        signed_at=approval.created_at,
+    )
 
 
 @login_required
@@ -2991,6 +3102,13 @@ def approve_workorder(request, pk):
     
     if request.method == 'POST':
         comentario = request.POST.get('comentario', '').strip()
+        try:
+            signature_data = validate_signature_data(request.POST.get('signature_data', ''))
+        except ValueError as exc:
+            if want_json:
+                return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+            flash_message(request, "error", str(exc))
+            return redirect('gestao:detail_workorder', pk=workorder.pk)
         
         # Usar transaction.atomic + select_for_update para evitar race condition
         # (dois aprovadores aprovando ao mesmo tempo)
@@ -3018,7 +3136,8 @@ def approve_workorder(request, pk):
                 work_order=workorder,
                 aprovado_por=request.user,
                 decisao='aprovado',
-                comentario=comentario if comentario else None
+                comentario=comentario if comentario else None,
+                signature_data=signature_data,
             )
             
             # Atualizar status do pedido
