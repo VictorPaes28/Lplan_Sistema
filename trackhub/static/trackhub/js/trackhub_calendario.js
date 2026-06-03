@@ -133,8 +133,14 @@
     var container = document.querySelector('.th-cal-filters');
     var params = new URLSearchParams();
     if (container) {
-      if (container.dataset.year)  params.set('year',  container.dataset.year);
-      if (container.dataset.month) params.set('month', container.dataset.month);
+      var view = container.dataset.view || 'mensal';
+      params.set('view', view);
+      if (view === 'mensal') {
+        if (container.dataset.year)  params.set('year',  container.dataset.year);
+        if (container.dataset.month) params.set('month', container.dataset.month);
+      } else if (container.dataset.date) {
+        params.set('date', container.dataset.date);
+      }
     }
     document.querySelectorAll('.th-cf-wrap').forEach(function (w) {
       var name = w.getAttribute('data-filter') || '';

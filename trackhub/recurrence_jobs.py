@@ -78,6 +78,8 @@ def sync_recorrencia_etapas_snapshot_if_linked(pendencia_id: int) -> None:
     rec.etapas_snapshot = snap
     rec.prazo_original = p.prazo
     rec.data_inicio_original = p.data_inicio_efetiva
+    rec.hora_inicio_original = p.hora_inicio
+    rec.hora_fim_original = p.hora_fim
     if p.created_at:
         rec.data_criacao_original = timezone.localtime(p.created_at).date()
     rec.save(
@@ -86,6 +88,8 @@ def sync_recorrencia_etapas_snapshot_if_linked(pendencia_id: int) -> None:
             "prazo_original",
             "data_inicio_original",
             "data_criacao_original",
+            "hora_inicio_original",
+            "hora_fim_original",
             "updated_at",
         ]
     )
@@ -126,6 +130,8 @@ def criar_ocorrencia_e_avancar(rec: PendenciaRecorrente, dia_execucao, notificar
         prioridade=rec.prioridade,
         data_inicio=data_inicio,
         prazo=prazo,
+        hora_inicio=rec.hora_inicio_original,
+        hora_fim=rec.hora_fim_original,
         criado_por=rec.criado_por,
         origem="manual",
         status="aberta",

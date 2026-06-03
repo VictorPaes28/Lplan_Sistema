@@ -1,0 +1,55 @@
+{# Grid mensal — lógica e markup inalterados em relação ao calendário original #}
+<div class="th-cal-grid">
+  <div class="th-cal-days-header">
+    <div class="th-cal-day-name">Dom</div>
+    <div class="th-cal-day-name">Seg</div>
+    <div class="th-cal-day-name">Ter</div>
+    <div class="th-cal-day-name">Qua</div>
+    <div class="th-cal-day-name">Qui</div>
+    <div class="th-cal-day-name">Sex</div>
+    <div class="th-cal-day-name">Sáb</div>
+  </div>
+  {% for week in calendar_weeks %}
+  <div class="th-cal-week">
+    {% for day in week.days %}
+    <div class="th-cal-day-col {% if not day.current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}" style="grid-column: {{ forloop.counter }}; grid-row: 1 / -1;">
+      <div class="th-cal-cell-num" data-date="{{ day.date|date:'Y-m-d' }}">{{ day.date.day }}</div>
+    </div>
+    {% endfor %}
+    <div class="th-cal-week-events">
+      {% for day in week.days %}<div class="th-cal-day-click-zone" style="grid-column:{{ forloop.counter }};" data-date="{{ day.date|date:'Y-m-d' }}"></div>{% endfor %}
+      {% for ev in week.events %}
+      {% if not ev.hidden %}
+      {% with p=ev.pendencia %}
+      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}"
+        class="th-cal-event th-cal-event-span {{ p.prioridade }}{% if p.status == 'concluida' %} th-cal-event--concluida{% elif p.status == 'cancelada' %} th-cal-event--cancelada{% endif %}{% if ev.continues_before %} th-cal-event-span--cont-left{% endif %}{% if ev.continues_after %} th-cal-event-span--cont-right{% endif %}"
+        style="grid-column: {{ ev.col_start|add:1 }} / span {{ ev.span }}; grid-row: {{ ev.lane|add:1 }};"
+        data-pk="{{ p.pk }}"
+        title="{{ p.get_prioridade_display }} — {{ p.titulo }} ({{ p.data_inicio_efetiva|date:'d/m/Y' }}{% if p.prazo %} → {{ p.prazo|date:'d/m/Y' }}{% endif %})"
+        role="button">
+        {% if p.status == 'concluida' %}
+        <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        {% elif p.status == 'cancelada' %}
+        <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        {% endif %}
+        <span class="th-cal-event-text">{{ p.titulo|truncatechars:28 }}</span>
+      </a>
+      {% endwith %}
+      {% endif %}
+      {% endfor %}
+      {% if week.has_more_row %}
+      {% for day in week.days %}
+      {% if day.more_count %}
+      <button type="button" class="th-cal-more cal-mais"
+        style="grid-column: {{ forloop.counter }}; grid-row: {{ week.more_row }};"
+        data-day-iso="{{ day.date|date:'Y-m-d' }}"
+        aria-label="Ver todas as pendências do dia {{ day.date|date:'d/m/Y' }}">
+        Mais {{ day.more_count }}
+      </button>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>

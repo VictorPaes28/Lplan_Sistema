@@ -1,0 +1,43 @@
+<div class="th-cal-time-scroll">
+  <div class="th-cal-time-view th-cal-time-view--week" style="--th-cal-cols: {{ cal_time_cols }};">
+    <div class="th-cal-time-head">
+      <div class="th-cal-time-gutter"></div>
+      {% for day in cal_time_days %}
+      <div class="th-cal-time-day-head {% if day.is_today %}today{% endif %}">
+        <span class="th-cal-time-day-wd">{{ day.weekday_short }}</span>
+        <button type="button" class="th-cal-time-day-num th-cal-cell-num" data-date="{{ day.iso }}">{{ day.day_num }}</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="th-cal-time-nodate">
+      <div class="th-cal-time-gutter th-cal-time-nodate-label">Sem horário</div>
+      <div class="th-cal-time-nodate-grid" style="--th-cal-cols: {{ cal_time_cols }}; --th-cal-nodate-rows: {{ cal_nodate_rows }};">
+        {% for day in cal_time_days %}<div class="th-cal-day-click-zone th-cal-nodate-click-zone" style="grid-column:{{ forloop.counter }};" data-date="{{ day.iso }}"></div>{% endfor %}
+        {% for ev in cal_span_events %}
+        {% include "trackhub/includes/calendario_event_span.html" with ev=ev %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="th-cal-time-body">
+      <div class="th-cal-time-hours">
+        {% for slot in cal_hour_slots %}
+        <div class="th-cal-time-hour-label">{{ slot.label }}</div>
+        {% endfor %}
+      </div>
+      <div class="th-cal-time-cols">
+        {% for day in cal_time_days %}
+        <div class="th-cal-time-col {% if day.is_today %}today{% endif %}" data-date="{{ day.iso }}">
+          {% for slot in cal_hour_slots %}
+          <div class="th-cal-time-slot th-cal-time-click-zone" data-date="{{ day.iso }}" data-hour="{{ slot.value }}" title="Nova pendência — {{ day.iso }} {{ slot.label }}"></div>
+          {% endfor %}
+          {% for item in day.timed_events %}
+          {% include "trackhub/includes/calendario_event_timed.html" with item=item %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>

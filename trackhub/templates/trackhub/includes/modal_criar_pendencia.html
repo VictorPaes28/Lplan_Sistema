@@ -97,6 +97,19 @@
             </div>
           </div>
 
+          {# Horário início + Horário fim #}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;" for="{{ modal_form.hora_inicio.id_for_label }}">Horário início</label>
+              {{ modal_form.hora_inicio }}
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block;" for="{{ modal_form.hora_fim.id_for_label }}">Horário fim</label>
+              {{ modal_form.hora_fim }}
+            </div>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Opcional — deixe em branco se não houver horário definido</div>
+
           {# Repetir #}
           <div style="margin-top:18px;padding-top:18px;border-top:1px solid #f1f5f9;">
             <div class="th-recorrencia" id="th-rec-root">

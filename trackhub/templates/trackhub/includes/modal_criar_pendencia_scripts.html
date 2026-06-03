@@ -12,6 +12,8 @@
   var submitBtn = document.getElementById('th-cal-criar-submit-btn');
   var inpInicio = form && form.querySelector('input[name="data_inicio"]');
   var inpFim    = form && form.querySelector('input[name="prazo"]');
+  var inpHoraInicio = form && form.querySelector('input[name="hora_inicio"]');
+  var inpHoraFim    = form && form.querySelector('input[name="hora_fim"]');
   var AJAX_URL  = '{% url "trackhub:pendencia_criar_ajax" %}';
   var TIPO_CUSTOM_URL = '{% url "trackhub:tipo_custom_criar" %}';
 
@@ -65,7 +67,20 @@
     inpInicio.addEventListener('input',  syncMinFim);
   }
 
-  window.thCalAbrirModalCriar = function (isoDate) {
+  function normalizarHoraModal(val) {
+    if (!val) return '';
+    var t = String(val).trim();
+    if (/^\d{1,2}$/.test(t)) {
+      return String(parseInt(t, 10)).padStart(2, '0') + ':00';
+    }
+    var m = t.match(/^(\d{1,2}):(\d{2})/);
+    if (m) {
+      return String(parseInt(m[1], 10)).padStart(2, '0') + ':' + m[2];
+    }
+    return '';
+  }
+
+  window.thCalAbrirModalCriar = function (isoDate, horaInicio) {
     if (!overlay || !form) return;
     form.reset();
     var row = document.getElementById('th-cal-modal-tipo-custom-row');
@@ -88,11 +103,17 @@
       var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
       if (totalInput) totalInput.value = '0';
     }
+    if (inpHoraInicio) inpHoraInicio.value = '';
+    if (inpHoraFim) inpHoraFim.value = '';
     if (isoDate && inpInicio) {
       inpInicio.value = isoDate;
       syncMinFim();
     } else {
       syncMinFim();
+    }
+    var horaNorm = normalizarHoraModal(horaInicio);
+    if (horaNorm && inpHoraInicio) {
+      inpHoraInicio.value = horaNorm;
     }
     overlay.removeAttribute('hidden');
     overlay.classList.add('is-open');

@@ -64,6 +64,14 @@
         <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span id="th-det-pill-prazo-val"></span>
       </button>
+      <button type="button" class="th-detalhe-pill th-pill th-pill--hora" id="th-det-pill-hora-inicio" aria-label="Horário início">
+        <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="th-det-pill-hora-inicio-val">—</span>
+      </button>
+      <button type="button" class="th-detalhe-pill th-pill th-pill--hora" id="th-det-pill-hora-fim" aria-label="Horário fim">
+        <svg class="th-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="th-det-pill-hora-fim-val">—</span>
+      </button>
       <div class="th-modal-meta-created" id="th-det-meta-created"></div>
     </div>
 
@@ -155,4 +163,4 @@
 {% include "trackhub/includes/modal_notificar.html" %}
 
 <script src="{% static 'trackhub/js/trackhub_responsavel_picker.js' %}?v=7"></script>
-<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=34"></script>
+<script src="{% static 'trackhub/js/trackhub_detalhe.js' %}?v=38"></script>

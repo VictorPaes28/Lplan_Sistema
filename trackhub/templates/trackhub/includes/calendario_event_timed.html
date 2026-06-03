@@ -1,0 +1,15 @@
+{% with p=item.pendencia %}
+<a href="{% url 'trackhub:pendencia_detalhe' p.pk %}"
+  class="th-cal-event th-cal-timed-event {{ p.prioridade }}{% if p.status == 'concluida' %} th-cal-event--concluida{% elif p.status == 'cancelada' %} th-cal-event--cancelada{% endif %}"
+  style="top: {{ item.top_pct }}%; height: {{ item.height_pct }}%;"
+  data-pk="{{ p.pk }}"
+  title="{{ p.get_prioridade_display }} — {{ p.titulo }}{% if p.hora_inicio %} ({{ p.hora_inicio|time:'H:i' }}{% if p.hora_fim %} – {{ p.hora_fim|time:'H:i' }}{% endif %}){% endif %}"
+  role="button">
+  {% if p.status == 'concluida' %}
+  <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+  {% elif p.status == 'cancelada' %}
+  <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  {% endif %}
+  <span class="th-cal-event-text">{{ p.titulo|truncatechars:32 }}</span>
+</a>
+{% endwith %}

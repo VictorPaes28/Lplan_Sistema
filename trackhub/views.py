@@ -1,7 +1,7 @@
 import calendar
 import json
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -88,9 +88,32 @@ ALLOWED_PENDENCIA_UPDATE_FIELDS = frozenset(
         "tipo",
         "data_inicio",
         "prazo",
+        "hora_inicio",
+        "hora_fim",
         "responsavel_interno",
     }
 )
+
+
+def _hora_pendencia_para_str(valor) -> str:
+    if not valor:
+        return ""
+    return valor.strftime("%H:%M")
+
+
+def _parse_hora_pendencia(value):
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError("formato inválido")
+    s = value.strip()
+    if not s:
+        return None
+    parts = s.split(":")
+    if len(parts) < 2:
+        raise ValueError("formato inválido")
+    h, m = int(parts[0]), int(parts[1])
+    return time(h, m)
 
 
 def _wants_json_response(request):
@@ -362,6 +385,8 @@ def _pendencia_detail_payload(pendencia, request):
         "data_inicio": pendencia.data_inicio.isoformat() if pendencia.data_inicio else "",
         "data_inicio_efetiva": pendencia.data_inicio_efetiva.isoformat(),
         "prazo": pendencia.prazo.isoformat() if pendencia.prazo else "",
+        "hora_inicio": _hora_pendencia_para_str(pendencia.hora_inicio),
+        "hora_fim": _hora_pendencia_para_str(pendencia.hora_fim),
         "responsavel_interno_id": pendencia.responsavel_interno_id,
         "responsavel_nome": pendencia.responsavel_nome,
         "responsavel_email": pendencia.responsavel_email,
@@ -1376,73 +1401,194 @@ def _calendario_aplicar_visibilidade_semana(week_events, day_metas):
     return linhas_totais, linhas_eventos + 1 if tem_mais else 0, tem_mais
 
 
-@login_required
-@require_trackhub
-def calendario_view(request):
-    today = timezone.localdate()
-    year = today.year
-    month = today.month
+CAL_TIME_GRID_START = 6
+CAL_TIME_GRID_END = 22
+_CALENDARIO_WEEKDAY_FULL = (
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+    "Domingo",
+)
 
-    raw_y = request.GET.get("year")
-    raw_m = request.GET.get("month")
-    if raw_y and str(raw_y).isdigit():
-        year = int(raw_y)
-    if raw_m and str(raw_m).isdigit():
-        m = int(raw_m)
-        if 1 <= m <= 12:
-            month = m
 
-    prev_year, prev_month, next_year, next_month = _prev_next_month(year, month)
+def _parse_cal_view(request):
+    v = (request.GET.get("view") or "mensal").strip().lower()
+    return v if v in ("mensal", "semanal", "diario") else "mensal"
 
-    _, last_day = calendar.monthrange(year, month)
-    mes_inicio = date(year, month, 1)
-    mes_fim = date(year, month, last_day)
 
-    obras_qs = _obras_queryset_for_user(request.user)
-    obra_id = request.GET.get("obra", "")
-    tipo_val = request.GET.get("tipo", "")
-    status_val = request.GET.get("status", "")
-    responsavel_id = request.GET.get("responsavel", "")
-    prioridade_raw = request.GET.get("prioridade", "")
-    _valid_prioridades = {"urgente", "alta", "normal", "baixa"}
-    prioridade_vals = [
-        v.strip() for v in prioridade_raw.split(",")
-        if v.strip() in _valid_prioridades
-    ] if prioridade_raw else []
-    qs = (
-        _pendencias_qs_for_user(request.user)
-        .select_related("obra")
-        .order_by("titulo")
+def _parse_cal_anchor_date(request, today):
+    raw = (request.GET.get("date") or "").strip()
+    if raw:
+        try:
+            return date.fromisoformat(raw[:10])
+        except ValueError:
+            pass
+    return today
+
+
+def _week_start_sunday(d):
+    return d - timedelta(days=(d.weekday() + 1) % 7)
+
+
+def _calendario_filter_query_dict(request):
+    q = {}
+    for key in ("obra", "tipo", "status", "responsavel", "prioridade"):
+        val = (request.GET.get(key) or "").strip()
+        if val:
+            q[key] = val
+    return q
+
+
+def _calendario_nav_url(request, view, *, year=None, month=None, anchor=None):
+    params = {"view": view, **_calendario_filter_query_dict(request)}
+    if view == "mensal":
+        params["year"] = str(year)
+        params["month"] = str(month)
+    else:
+        params["date"] = anchor.isoformat()
+    return "?" + urlencode(params)
+
+
+def _calendario_period_label_semanal(week_start, week_end):
+    if week_start.month == week_end.month:
+        return f"{week_start.day} – {week_end.day} de {_MONTHS_PT[week_end.month]} {week_end.year}"
+    return (
+        f"{week_start.day} de {_MONTHS_PT[week_start.month]} – "
+        f"{week_end.day} de {_MONTHS_PT[week_end.month]} {week_end.year}"
     )
-    if obra_id and str(obra_id).isdigit():
-        qs = qs.filter(obra_id=int(obra_id))
-    if tipo_val:
-        qs = qs.filter(tipo=tipo_val)
-    if status_val:
-        if status_val == 'em_aberto':
-            qs = qs.filter(status__in=['aberta', 'em_andamento'])
-        elif status_val == 'vencida':
-            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=today)
-        elif status_val == 'concluida':
-            qs = qs.filter(status='concluida')
-        elif status_val == 'cancelada':
-            qs = qs.filter(status='cancelada')
-    if responsavel_id and str(responsavel_id).isdigit():
-        qs = qs.filter(responsavel_interno_id=int(responsavel_id))
-    if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
-        qs = qs.filter(prioridade__in=prioridade_vals)
 
-    if status_val == 'vencida':
-        pendencias_mes = []
+
+def _calendario_period_label_diario(d):
+    wd = _CALENDARIO_WEEKDAY_FULL[d.weekday()]
+    return f"{wd}, {d.day} de {_MONTHS_PT[d.month]} {d.year}"
+
+
+def _cal_timed_layout(pendencia):
+    if not pendencia.hora_inicio:
+        return None
+    start = pendencia.hora_inicio.hour * 60 + pendencia.hora_inicio.minute
+    if pendencia.hora_fim:
+        end = pendencia.hora_fim.hour * 60 + pendencia.hora_fim.minute
+        if end <= start:
+            end = start + 60
+    else:
+        end = start + 60
+    grid_start = CAL_TIME_GRID_START * 60
+    grid_end = CAL_TIME_GRID_END * 60
+    start = max(start, grid_start)
+    end = min(end, grid_end)
+    if start >= grid_end:
+        return None
+    total = grid_end - grid_start
+    top_pct = (start - grid_start) / total * 100
+    height_pct = max((end - start) / total * 100, 100 / 16)
+    return {"top_pct": round(top_pct, 2), "height_pct": round(height_pct, 2)}
+
+
+def _pendencias_intervalo_periodo(qs, period_start, period_end, today, status_val):
+    if status_val == "vencida":
+        out = []
         for p in qs:
             di, df = _pendencia_intervalo_calendario(p)
             df_efetivo = max(df, today)
-            if di <= mes_fim and df_efetivo >= mes_inicio:
-                pendencias_mes.append((p, di, df_efetivo))
-        pendencias_mes.sort(key=lambda x: (x[1], x[2], x[0].titulo or ""))
-    else:
-        pendencias_mes = _pendencias_intervalo_no_mes(qs, mes_inicio, mes_fim)
+            if di <= period_end and df_efetivo >= period_start:
+                out.append((p, di, df_efetivo))
+        out.sort(key=lambda x: (x[1], x[2], x[0].titulo or ""))
+        return out
+    return _pendencias_intervalo_no_mes(qs, period_start, period_end)
 
+
+def _calendario_popover_pendencias_dia(pendencias_periodo, day_date):
+    items = []
+    seen = set()
+    for p, di, df in pendencias_periodo:
+        if p.pk in seen:
+            continue
+        if di <= day_date <= df:
+            seen.add(p.pk)
+            items.append(
+                {
+                    "id": p.pk,
+                    "titulo": p.titulo or "",
+                    "prioridade": p.prioridade,
+                    "status": p.status,
+                    "continues_before": di < day_date,
+                    "continues_after": df > day_date,
+                }
+            )
+    return items
+
+
+def _calendario_build_time_view(
+    pendencias_periodo, range_start, range_end, num_cols, col_for_date, today
+):
+    span_raw = []
+    chips_by_col = [[] for _ in range(num_cols)]
+    timed_by_col = [[] for _ in range(num_cols)]
+
+    for p, di, df in pendencias_periodo:
+        seg_start = max(di, range_start)
+        seg_end = min(df, range_end)
+        if seg_start > seg_end:
+            continue
+        span_days = (seg_end - seg_start).days + 1
+        if span_days > 1:
+            col_start = col_for_date(seg_start)
+            if col_start < 0 or col_start >= num_cols:
+                continue
+            span = min(span_days, num_cols - col_start)
+            span_raw.append(
+                {
+                    "pendencia": p,
+                    "col_start": col_start,
+                    "span": span,
+                    "lane": 0,
+                    "continues_before": di < range_start,
+                    "continues_after": df > range_end,
+                }
+            )
+        elif p.hora_inicio:
+            layout = _cal_timed_layout(p)
+            if layout:
+                col = col_for_date(seg_start)
+                if 0 <= col < num_cols:
+                    timed_by_col[col].append({"pendencia": p, **layout})
+        else:
+            col = col_for_date(seg_start)
+            if 0 <= col < num_cols:
+                chips_by_col[col].append(p)
+
+    span_events, _ = _assign_calendario_lanes(span_raw)
+    max_span_lane = max((e["lane"] for e in span_events), default=-1)
+    lane_base = max_span_lane + 1
+
+    nodate_events = list(span_events)
+    for col_idx, chip_list in enumerate(chips_by_col):
+        for lane_offset, p in enumerate(chip_list):
+            nodate_events.append(
+                {
+                    "pendencia": p,
+                    "col_start": col_idx,
+                    "span": 1,
+                    "lane": lane_base + lane_offset,
+                    "continues_before": False,
+                    "continues_after": False,
+                }
+            )
+
+    hour_slots = [
+        {"label": f"{h:02d}:00", "value": f"{h:02d}:00"}
+        for h in range(CAL_TIME_GRID_START, CAL_TIME_GRID_END)
+    ]
+    nodate_rows = max((e["lane"] for e in nodate_events), default=-1) + 1
+    nodate_rows = max(nodate_rows, 1)
+    return nodate_events, timed_by_col, hour_slots, nodate_rows
+
+
+def _calendario_build_mensal(year, month, pendencias_mes, today):
     cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
     calendar_weeks = []
     calendar_day_data = {}
@@ -1504,8 +1650,192 @@ def calendario_view(request):
                 "has_more_row": has_more_row,
             }
         )
+    return {
+        "calendar_weeks": calendar_weeks,
+        "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+    }
 
-    month_label = f"{_MONTHS_PT[month]} {year}"
+
+def _calendario_build_semanal(pendencias_periodo, week_start, today):
+    week_end = week_start + timedelta(days=6)
+    num_cols = 7
+
+    def col_for(d):
+        return (d - week_start).days
+
+    nodate_events, timed_by_col, hour_slots, nodate_rows = _calendario_build_time_view(
+        pendencias_periodo, week_start, week_end, num_cols, col_for, today
+    )
+
+    cal_time_days = []
+    calendar_day_data = {}
+    for i in range(7):
+        d = week_start + timedelta(days=i)
+        timed_sorted = sorted(timed_by_col[i], key=lambda x: x["top_pct"])
+        cal_time_days.append(
+            {
+                "iso": d.isoformat(),
+                "date": d,
+                "is_today": d == today,
+                "day_num": d.day,
+                "weekday_short": _CALENDARIO_WEEKDAY_SHORT[i],
+                "timed_events": timed_sorted,
+            }
+        )
+        calendar_day_data[d.isoformat()] = {
+            "weekday": _CALENDARIO_WEEKDAY_SHORT[i],
+            "day": d.day,
+            "pendencias": _calendario_popover_pendencias_dia(pendencias_periodo, d),
+        }
+
+    return {
+        "cal_time_days": cal_time_days,
+        "cal_time_cols": num_cols,
+        "cal_span_events": nodate_events,
+        "cal_hour_slots": hour_slots,
+        "cal_nodate_rows": nodate_rows,
+        "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+    }
+
+
+def _calendario_build_diario(pendencias_periodo, day_date, today):
+    num_cols = 1
+
+    def col_for(_d):
+        return 0
+
+    nodate_events, timed_by_col, hour_slots, nodate_rows = _calendario_build_time_view(
+        pendencias_periodo, day_date, day_date, num_cols, col_for, today
+    )
+
+    timed_sorted = sorted(timed_by_col[0], key=lambda x: x["top_pct"])
+    wd_idx = day_date.weekday()
+    cal_time_days = [
+        {
+            "iso": day_date.isoformat(),
+            "date": day_date,
+            "is_today": day_date == today,
+            "day_num": day_date.day,
+            "weekday_full": _CALENDARIO_WEEKDAY_FULL[wd_idx],
+            "timed_events": timed_sorted,
+        }
+    ]
+    calendar_day_data = {
+        day_date.isoformat(): {
+            "weekday": _CALENDARIO_WEEKDAY_SHORT[(day_date.weekday() + 1) % 7],
+            "day": day_date.day,
+            "pendencias": _calendario_popover_pendencias_dia(pendencias_periodo, day_date),
+        }
+    }
+
+    return {
+        "cal_time_days": cal_time_days,
+        "cal_time_cols": num_cols,
+        "cal_span_events": nodate_events,
+        "cal_hour_slots": hour_slots,
+        "cal_nodate_rows": nodate_rows,
+        "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+    }
+
+
+@login_required
+@require_trackhub
+def calendario_view(request):
+    today = timezone.localdate()
+    cal_view = _parse_cal_view(request)
+    anchor = _parse_cal_anchor_date(request, today)
+
+    year = today.year
+    month = today.month
+    raw_y = request.GET.get("year")
+    raw_m = request.GET.get("month")
+    if raw_y and str(raw_y).isdigit():
+        year = int(raw_y)
+    if raw_m and str(raw_m).isdigit():
+        m = int(raw_m)
+        if 1 <= m <= 12:
+            month = m
+
+    if cal_view in ("semanal", "diario"):
+        year, month = anchor.year, anchor.month
+
+    prev_year, prev_month, next_year, next_month = _prev_next_month(year, month)
+
+    obras_qs = _obras_queryset_for_user(request.user)
+    obra_id = request.GET.get("obra", "")
+    tipo_val = request.GET.get("tipo", "")
+    status_val = request.GET.get("status", "")
+    responsavel_id = request.GET.get("responsavel", "")
+    prioridade_raw = request.GET.get("prioridade", "")
+    _valid_prioridades = {"urgente", "alta", "normal", "baixa"}
+    prioridade_vals = [
+        v.strip() for v in prioridade_raw.split(",")
+        if v.strip() in _valid_prioridades
+    ] if prioridade_raw else []
+    qs = (
+        _pendencias_qs_for_user(request.user)
+        .select_related("obra")
+        .order_by("titulo")
+    )
+    if obra_id and str(obra_id).isdigit():
+        qs = qs.filter(obra_id=int(obra_id))
+    if tipo_val:
+        qs = qs.filter(tipo=tipo_val)
+    if status_val:
+        if status_val == 'em_aberto':
+            qs = qs.filter(status__in=['aberta', 'em_andamento'])
+        elif status_val == 'vencida':
+            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=today)
+        elif status_val == 'concluida':
+            qs = qs.filter(status='concluida')
+        elif status_val == 'cancelada':
+            qs = qs.filter(status='cancelada')
+    if responsavel_id and str(responsavel_id).isdigit():
+        qs = qs.filter(responsavel_interno_id=int(responsavel_id))
+    if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
+        qs = qs.filter(prioridade__in=prioridade_vals)
+
+    if cal_view == "semanal":
+        week_start = _week_start_sunday(anchor)
+        week_end = week_start + timedelta(days=6)
+        period_start, period_end = week_start, week_end
+        period_label = _calendario_period_label_semanal(week_start, week_end)
+        nav_prev_url = _calendario_nav_url(
+            request, cal_view, anchor=week_start - timedelta(days=7)
+        )
+        nav_next_url = _calendario_nav_url(
+            request, cal_view, anchor=week_start + timedelta(days=7)
+        )
+    elif cal_view == "diario":
+        period_start = period_end = anchor
+        period_label = _calendario_period_label_diario(anchor)
+        nav_prev_url = _calendario_nav_url(request, cal_view, anchor=anchor - timedelta(days=1))
+        nav_next_url = _calendario_nav_url(request, cal_view, anchor=anchor + timedelta(days=1))
+    else:
+        _, last_day = calendar.monthrange(year, month)
+        period_start = date(year, month, 1)
+        period_end = date(year, month, last_day)
+        period_label = f"{_MONTHS_PT[month]} {year}"
+        nav_prev_url = _calendario_nav_url(
+            request, "mensal", year=prev_year, month=prev_month
+        )
+        nav_next_url = _calendario_nav_url(
+            request, "mensal", year=next_year, month=next_month
+        )
+
+    pendencias_periodo = _pendencias_intervalo_periodo(
+        qs, period_start, period_end, today, status_val
+    )
+
+    view_ctx = {}
+    if cal_view == "semanal":
+        view_ctx = _calendario_build_semanal(pendencias_periodo, week_start, today)
+    elif cal_view == "diario":
+        view_ctx = _calendario_build_diario(pendencias_periodo, anchor, today)
+    else:
+        view_ctx = _calendario_build_mensal(year, month, pendencias_periodo, today)
+
+    month_label = period_label
 
     tipo_labels = dict(Pendencia.TIPO_CHOICES)
     status_labels = dict(Pendencia.STATUS_CHOICES)
@@ -1562,9 +1892,25 @@ def calendario_view(request):
     tipos_custom_nomes = list(TipoCustom.objects.order_by("nome").values_list("nome", flat=True))
     tipos = [(v, l) for v, l in Pendencia.TIPO_CHOICES if v != "outro"] + [(n, n) for n in tipos_custom_nomes]
 
+    filtros_clear_url = _calendario_nav_url(
+        request,
+        cal_view,
+        year=year,
+        month=month,
+        anchor=anchor if cal_view != "mensal" else today,
+    )
+
     ctx = {
-        "calendar_weeks": calendar_weeks,
-        "calendar_day_data_json": json.dumps(calendar_day_data, ensure_ascii=False),
+        "cal_view": cal_view,
+        "cal_anchor_date": anchor.isoformat(),
+        "nav_prev_url": nav_prev_url,
+        "nav_next_url": nav_next_url,
+        "url_view_mensal": _calendario_nav_url(request, "mensal", year=year, month=month),
+        "url_view_semanal": _calendario_nav_url(
+            request, "semanal", anchor=_week_start_sunday(anchor)
+        ),
+        "url_view_diario": _calendario_nav_url(request, "diario", anchor=anchor),
+        "filtros_clear_url": filtros_clear_url,
         "responsaveis_json": json.dumps(responsaveis_payload, ensure_ascii=False),
         "pendencia_detalhe_url_pattern": reverse(
             "trackhub:pendencia_detalhe", kwargs={"pk": 0}
@@ -1580,6 +1926,7 @@ def calendario_view(request):
         "filtros": filtros,
         "tipos": tipos,
     }
+    ctx.update(view_ctx)
     ctx.update(_modal_criar_pendencia_context(obras_qs))
     ctx.update(_nav_tab_context(request.user))
     return render(request, "trackhub/calendario.html", ctx)
@@ -1664,6 +2011,8 @@ def pendencia_criar_ajax_view(request):
                     prazo_original=p.prazo,
                     data_inicio_original=di,
                     data_criacao_original=dc,
+                    hora_inicio_original=p.hora_inicio,
+                    hora_fim_original=p.hora_fim,
                     regra=regra,
                     dia_semana=leg_wd,
                     dia_mes=leg_dm,
@@ -1751,6 +2100,8 @@ def pendencia_criar_view(request):
                             prazo_original=p.prazo,
                             data_inicio_original=di,
                             data_criacao_original=dc,
+                            hora_inicio_original=p.hora_inicio,
+                            hora_fim_original=p.hora_fim,
                             regra=regra,
                             dia_semana=leg_wd,
                             dia_mes=leg_dm,
@@ -2668,6 +3019,61 @@ def pendencia_update_field(request, pk):
             _registrar_atividade_pendencia(
                 pendencia, actor, txt, AtividadePendencia.TIPO_PRAZO
             )
+        sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+
+    elif field == "hora_inicio":
+        old_h = pendencia.hora_inicio
+        try:
+            new_h = _parse_hora_pendencia(value)
+        except (ValueError, TypeError):
+            return _json_no_cache(
+                {"ok": False, "error": "Horário início inválido. Use HH:MM."},
+                status=400,
+            )
+
+        def _fmt_h(t):
+            return _hora_pendencia_para_str(t) if t else "—"
+
+        pendencia.hora_inicio = new_h
+        pendencia.save(update_fields=["hora_inicio", "updated_at"])
+        if old_h != new_h:
+            if new_h:
+                txt = f"Alterou horário início de {_fmt_h(old_h)} → {_fmt_h(new_h)}"
+            else:
+                txt = f"Removeu horário início (era {_fmt_h(old_h)})"
+            _registrar_atividade_pendencia(
+                pendencia, actor, txt, AtividadePendencia.TIPO_PRAZO
+            )
+        sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
+
+    elif field == "hora_fim":
+        old_h = pendencia.hora_fim
+        try:
+            new_h = _parse_hora_pendencia(value)
+        except (ValueError, TypeError):
+            return _json_no_cache(
+                {"ok": False, "error": "Horário fim inválido. Use HH:MM."},
+                status=400,
+            )
+
+        def _fmt_hf(t):
+            return _hora_pendencia_para_str(t) if t else "—"
+
+        pendencia.hora_fim = new_h
+        pendencia.save(update_fields=["hora_fim", "updated_at"])
+        if old_h != new_h:
+            if old_h and new_h:
+                txt = f"Alterou horário fim de {_fmt_hf(old_h)} → {_fmt_hf(new_h)}"
+            elif not old_h and new_h:
+                txt = f"Definiu horário fim para {_fmt_hf(new_h)}"
+            elif old_h and not new_h:
+                txt = "Removeu o horário fim"
+            else:
+                txt = None
+            if txt:
+                _registrar_atividade_pendencia(
+                    pendencia, actor, txt, AtividadePendencia.TIPO_PRAZO
+                )
         sync_recorrencia_etapas_snapshot_if_linked(pendencia.pk)
 
     elif field == "responsavel_interno":

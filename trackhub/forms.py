@@ -77,16 +77,22 @@ class PendenciaForm(forms.ModelForm):
             "prioridade",
             "data_inicio",
             "prazo",
+            "hora_inicio",
+            "hora_fim",
             "responsavel_interno",
         ]
         widgets = {
             "data_inicio": forms.DateInput(attrs={"type": "date"}),
             "prazo": forms.DateInput(attrs={"type": "date"}),
+            "hora_inicio": forms.TimeInput(attrs={"type": "time"}),
+            "hora_fim": forms.TimeInput(attrs={"type": "time"}),
             "descricao": RichTextWidget(toolbar="top", attrs={"rows": 3}),
         }
         labels = {
             "data_inicio": "Data início",
             "prazo": "Data fim",
+            "hora_inicio": "Horário início",
+            "hora_fim": "Horário fim",
         }
 
     def __init__(self, *args, obras_queryset=None, **kwargs):
@@ -96,6 +102,9 @@ class PendenciaForm(forms.ModelForm):
         self.fields["obra"].label = "Local"
         self.fields["obra"].widget.attrs.setdefault("class", "th-filter-select")
         self.fields["responsavel_interno"].widget.attrs.setdefault("class", "th-filter-select")
+        for fname in ("hora_inicio", "hora_fim"):
+            self.fields[fname].required = False
+            self.fields[fname].widget.attrs.setdefault("class", "th-filter-select")
 
     def _get_validation_exclusions(self):
         # Exclude 'tipo' from model-level field validation so Django's choices

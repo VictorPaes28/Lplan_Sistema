@@ -5,16 +5,21 @@
 
 <div class="th-cal-header">
   <div class="th-cal-nav">
-    <a href="?year={{ prev_year }}&month={{ prev_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}{% if filtros.tipo %}&tipo={{ filtros.tipo }}{% endif %}{% if filtros.status %}&status={{ filtros.status }}{% endif %}{% if filtros.responsavel %}&responsavel={{ filtros.responsavel }}{% endif %}{% if filtros.prioridade %}&prioridade={{ filtros.prioridade }}{% endif %}" class="th-cal-btn">
+    <a href="{{ nav_prev_url }}" class="th-cal-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
     <span class="th-cal-month">{{ month_label }}</span>
-    <a href="?year={{ next_year }}&month={{ next_month }}{% if filtros.obra %}&obra={{ filtros.obra }}{% endif %}{% if filtros.tipo %}&tipo={{ filtros.tipo }}{% endif %}{% if filtros.status %}&status={{ filtros.status }}{% endif %}{% if filtros.responsavel %}&responsavel={{ filtros.responsavel }}{% endif %}{% if filtros.prioridade %}&prioridade={{ filtros.prioridade }}{% endif %}" class="th-cal-btn">
+    <a href="{{ nav_next_url }}" class="th-cal-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
+    <div class="th-cal-view-switch" role="group" aria-label="Visualização do calendário">
+      <a href="{{ url_view_diario }}" class="th-cal-view-btn{% if cal_view == 'diario' %} is-active{% endif %}">Diário</a>
+      <a href="{{ url_view_semanal }}" class="th-cal-view-btn{% if cal_view == 'semanal' %} is-active{% endif %}">Semanal</a>
+      <a href="{{ url_view_mensal }}" class="th-cal-view-btn{% if cal_view == 'mensal' %} is-active{% endif %}">Mensal</a>
+    </div>
   </div>
   <div class="th-cal-header-right">
-    <div class="th-cal-filters" data-year="{{ year }}" data-month="{{ month }}">
+    <div class="th-cal-filters" data-year="{{ year }}" data-month="{{ month }}" data-view="{{ cal_view }}" data-date="{{ cal_anchor_date }}">
 
       {# Prioridade (multi) #}
       <div class="th-cf-wrap" data-filter="prioridade" data-current="{{ filtros.prioridade }}" data-multi="true">
@@ -92,67 +97,20 @@
       </div>
 
       {% if filtros.obra or filtros.tipo or filtros.status or filtros.responsavel or filtros.prioridade_label %}
-      <a href="?year={{ year }}&month={{ month }}" class="th-cf-clear">Limpar filtros</a>
+      <a href="{{ filtros_clear_url }}" class="th-cf-clear">Limpar filtros</a>
       {% endif %}
 
     </div>
   </div>
 </div>
 
-<div class="th-cal-grid">
-  <div class="th-cal-days-header">
-    <div class="th-cal-day-name">Dom</div>
-    <div class="th-cal-day-name">Seg</div>
-    <div class="th-cal-day-name">Ter</div>
-    <div class="th-cal-day-name">Qua</div>
-    <div class="th-cal-day-name">Qui</div>
-    <div class="th-cal-day-name">Sex</div>
-    <div class="th-cal-day-name">Sáb</div>
-  </div>
-  {% for week in calendar_weeks %}
-  <div class="th-cal-week">
-    {% for day in week.days %}
-    <div class="th-cal-day-col {% if not day.current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}" style="grid-column: {{ forloop.counter }}; grid-row: 1 / -1;">
-      <div class="th-cal-cell-num" data-date="{{ day.date|date:'Y-m-d' }}">{{ day.date.day }}</div>
-    </div>
-    {% endfor %}
-    <div class="th-cal-week-events">
-      {% for day in week.days %}<div class="th-cal-day-click-zone" style="grid-column:{{ forloop.counter }};" data-date="{{ day.date|date:'Y-m-d' }}"></div>{% endfor %}
-      {% for ev in week.events %}
-      {% if not ev.hidden %}
-      {% with p=ev.pendencia %}
-      <a href="{% url 'trackhub:pendencia_detalhe' p.pk %}"
-        class="th-cal-event th-cal-event-span {{ p.prioridade }}{% if p.status == 'concluida' %} th-cal-event--concluida{% elif p.status == 'cancelada' %} th-cal-event--cancelada{% endif %}{% if ev.continues_before %} th-cal-event-span--cont-left{% endif %}{% if ev.continues_after %} th-cal-event-span--cont-right{% endif %}"
-        style="grid-column: {{ ev.col_start|add:1 }} / span {{ ev.span }}; grid-row: {{ ev.lane|add:1 }};"
-        data-pk="{{ p.pk }}"
-        title="{{ p.get_prioridade_display }} — {{ p.titulo }} ({{ p.data_inicio_efetiva|date:'d/m/Y' }}{% if p.prazo %} → {{ p.prazo|date:'d/m/Y' }}{% endif %})"
-        role="button">
-        {% if p.status == 'concluida' %}
-        <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-        {% elif p.status == 'cancelada' %}
-        <svg class="th-cal-event-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        {% endif %}
-        <span class="th-cal-event-text">{{ p.titulo|truncatechars:28 }}</span>
-      </a>
-      {% endwith %}
-      {% endif %}
-      {% endfor %}
-      {% if week.has_more_row %}
-      {% for day in week.days %}
-      {% if day.more_count %}
-      <button type="button" class="th-cal-more cal-mais"
-        style="grid-column: {{ forloop.counter }}; grid-row: {{ week.more_row }};"
-        data-day-iso="{{ day.date|date:'Y-m-d' }}"
-        aria-label="Ver todas as pendências do dia {{ day.date|date:'d/m/Y' }}">
-        Mais {{ day.more_count }}
-      </button>
-      {% endif %}
-      {% endfor %}
-      {% endif %}
-    </div>
-  </div>
-  {% endfor %}
-</div>
+{% if cal_view == 'mensal' %}
+  {% include "trackhub/includes/calendario_mensal.html" %}
+{% elif cal_view == 'semanal' %}
+  {% include "trackhub/includes/calendario_semanal.html" %}
+{% else %}
+  {% include "trackhub/includes/calendario_diario.html" %}
+{% endif %}
 
 {% include "trackhub/includes/modal_detalhe.html" %}
 {% include "trackhub/includes/modal_cal_dia.html" %}
@@ -164,13 +122,12 @@
 
 {% block extra_js %}
 {{ block.super }}
-<script src="{% static 'trackhub/js/trackhub_calendario.js' %}?v=5"></script>
+<script src="{% static 'trackhub/js/trackhub_calendario.js' %}?v=6"></script>
 {% include "trackhub/includes/modal_criar_pendencia_scripts.html" %}
 <script>
 (function () {
   'use strict';
 
-  /* Cliques no calendário: dia vazio / número → nova pendência (cards → trackhub_calendario.js) */
   document.addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('.th-cal-more, .cal-mais, .th-cal-event')) return;
     var num = e.target.closest && e.target.closest('.th-cal-cell-num');
@@ -179,6 +136,15 @@
       e.stopPropagation();
       var date = num.getAttribute('data-date');
       if (date) window.thCalAbrirModalCriar(date);
+      return;
+    }
+    var timeSlot = e.target.closest && e.target.closest('.th-cal-time-click-zone[data-hour]');
+    if (timeSlot) {
+      e.preventDefault();
+      e.stopPropagation();
+      var tDate = timeSlot.getAttribute('data-date');
+      var tHour = timeSlot.getAttribute('data-hour');
+      if (tDate) window.thCalAbrirModalCriar(tDate, tHour);
       return;
     }
     var zone = e.target.closest && e.target.closest('.th-cal-day-click-zone');

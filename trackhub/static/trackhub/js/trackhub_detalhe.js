@@ -79,6 +79,10 @@
   var valTipo = document.getElementById('th-det-pill-tipo-val');
   var valDataInicio = document.getElementById('th-det-pill-data-inicio-val');
   var valPrazo = document.getElementById('th-det-pill-prazo-val');
+  var valHoraInicio = document.getElementById('th-det-pill-hora-inicio-val');
+  var valHoraFim = document.getElementById('th-det-pill-hora-fim-val');
+  var pillHoraInicio = document.getElementById('th-det-pill-hora-inicio');
+  var pillHoraFim = document.getElementById('th-det-pill-hora-fim');
   var pillResponsavel = document.getElementById('th-det-pill-responsavel');
   var valResponsavel = document.getElementById('th-det-pill-responsavel-val');
   var selResponsavel = document.getElementById('th-det-responsavel-select');
@@ -126,6 +130,13 @@
     var p = String(iso).split('T')[0].split('-');
     if (p.length !== 3) return iso;
     return p[2] + '/' + p[1] + '/' + p[0];
+  }
+
+  function formatHora(v) {
+    if (!v) return '—';
+    var parts = String(v).split(':');
+    if (parts.length < 2) return '—';
+    return parts[0] + ':' + parts[1];
   }
 
   function shortCommentDate(s) {
@@ -348,6 +359,8 @@
     var diIso = p.data_inicio_efetiva || p.data_inicio || '';
     if (valDataInicio) valDataInicio.textContent = formatPrazo(diIso);
     if (valPrazo) valPrazo.textContent = formatPrazo(p.prazo);
+    if (valHoraInicio) valHoraInicio.textContent = formatHora(p.hora_inicio);
+    if (valHoraFim) valHoraFim.textContent = formatHora(p.hora_fim);
 
     var pode = p.pode_editar;
     var podeComentar = p.pode_comentar !== false;
@@ -357,10 +370,12 @@
     rebuildPillClass(pillTipo, ['th-detalhe-pill', 'th-pill', 'th-pill--tipo', 'tipo-' + (p.tipo || 'outro')]);
     rebuildPillClass(pillDataInicio, ['th-detalhe-pill', 'th-pill', 'th-pill--data-inicio']);
     rebuildPillClass(pillPrazo, ['th-detalhe-pill', 'th-pill', 'th-pill--prazo', 'prazo-pill'].concat(prazoPillExtras(p.prazo, p.esta_vencida, p.status)));
+    rebuildPillClass(pillHoraInicio, ['th-detalhe-pill', 'th-pill', 'th-pill--hora']);
+    rebuildPillClass(pillHoraFim, ['th-detalhe-pill', 'th-pill', 'th-pill--hora']);
 
     setEditable(elTitulo, pode);
     setEditable(elDesc, pode);
-    [pillStatus, pillPrio, pillTipo, pillResponsavel, pillDataInicio, pillPrazo].forEach(function (pill) {
+    [pillStatus, pillPrio, pillTipo, pillResponsavel, pillDataInicio, pillPrazo, pillHoraInicio, pillHoraFim].forEach(function (pill) {
       if (pill) {
         pill.disabled = !pode;
         pill.classList.toggle('is-disabled', !pode);
@@ -1458,6 +1473,59 @@
   });
   bindDatePill(pillPrazo, 'prazo', function () {
     return currentData && (currentData.prazo || '');
+  });
+
+  function bindTimePill(pill, field, getValue) {
+    if (!pill) return;
+    pill.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!currentData || !currentData.pode_editar) return;
+      var pickerId = 'th-time-picker-native-' + field;
+      var old = document.getElementById(pickerId);
+      if (old) old.remove();
+      var rect = pill.getBoundingClientRect();
+      var inp = document.createElement('input');
+      inp.type = 'time';
+      inp.id = pickerId;
+      inp.setAttribute('aria-hidden', 'true');
+      inp.tabIndex = -1;
+      var raw = getValue() || '';
+      inp.value = raw ? formatHora(raw) : '';
+      inp.style.position = 'fixed';
+      inp.style.left = Math.max(8, rect.left) + 'px';
+      inp.style.top = Math.max(8, rect.bottom + 6) + 'px';
+      inp.style.width = '1px';
+      inp.style.height = '1px';
+      inp.style.opacity = '0';
+      inp.style.border = 'none';
+      inp.style.padding = '0';
+      inp.style.pointerEvents = 'none';
+      inp.style.zIndex = '12000';
+      document.body.appendChild(inp);
+      inp.addEventListener('change', function () {
+        salvarCampo(field, inp.value || null);
+        inp.remove();
+      });
+      inp.addEventListener('blur', function () {
+        setTimeout(function () { if (inp.parentNode) inp.remove(); }, 200);
+      });
+      setTimeout(function () {
+        inp.style.pointerEvents = 'auto';
+        try {
+          if (typeof inp.showPicker === 'function') inp.showPicker();
+          else inp.click();
+        } catch (err) {
+          inp.click();
+        }
+      }, 50);
+    });
+  }
+
+  bindTimePill(pillHoraInicio, 'hora_inicio', function () {
+    return currentData && currentData.hora_inicio;
+  });
+  bindTimePill(pillHoraFim, 'hora_fim', function () {
+    return currentData && currentData.hora_fim;
   });
 
     if (pillResponsavel && selResponsavel) {

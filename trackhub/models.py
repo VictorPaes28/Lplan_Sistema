@@ -39,6 +39,8 @@ class Pendencia(models.Model):
     prioridade = models.CharField(max_length=10, choices=PRIORIDADE_CHOICES, default="normal")
     data_inicio = models.DateField(null=True, blank=True)
     prazo = models.DateField(null=True, blank=True, verbose_name="Data fim")
+    hora_inicio = models.TimeField(null=True, blank=True)
+    hora_fim = models.TimeField(null=True, blank=True)
     # Série recorrente à qual esta pendência pertence (template de etapas em PendenciaRecorrente.etapas_snapshot).
     recorrencia_serie = models.ForeignKey(
         "PendenciaRecorrente",
@@ -512,6 +514,8 @@ class PendenciaRecorrente(models.Model):
     prazo_original = models.DateField(null=True, blank=True)
     data_inicio_original = models.DateField(null=True, blank=True)
     data_criacao_original = models.DateField(null=True, blank=True)
+    hora_inicio_original = models.TimeField(null=True, blank=True)
+    hora_fim_original = models.TimeField(null=True, blank=True)
 
     regra = models.CharField(max_length=20, choices=REGRA_CHOICES, default=REGRA_NONE)
     dia_semana = models.SmallIntegerField(
