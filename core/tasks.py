@@ -53,7 +53,7 @@ def run_send_approved_diary_emails(diary_id: int) -> None:
         close_old_connections()
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=120)
+@shared_task(bind=True, max_retries=3, default_retry_delay=120, ignore_result=True)
 def send_approved_diary_emails_task(self, diary_id: int):
     """Fila Celery: e-mails de RDO aprovado (evita bloquear a resposta HTTP)."""
     if not CELERY_AVAILABLE:
@@ -69,6 +69,31 @@ def send_approved_diary_emails_task(self, diary_id: int):
         raise self.retry(exc=exc)
 
 
+def _celery_broker_reachable(timeout: float = 0.5) -> bool:
+    """Ping rápido no broker Redis; evita delay() bloquear ~40s quando Redis está offline."""
+    from django.conf import settings
+    from urllib.parse import urlparse
+
+    broker_url = getattr(settings, 'CELERY_BROKER_URL', '') or ''
+    if not broker_url.startswith('redis://'):
+        return False
+    try:
+        import redis
+
+        parsed = urlparse(broker_url)
+        db_path = (parsed.path or '/0').strip('/') or '0'
+        client = redis.Redis(
+            host=parsed.hostname or 'localhost',
+            port=parsed.port or 6379,
+            db=int(db_path),
+            socket_connect_timeout=timeout,
+            socket_timeout=timeout,
+        )
+        return bool(client.ping())
+    except Exception:
+        return False
+
+
 def enqueue_send_approved_diary_emails(diary_id: int) -> None:
     """
     Agenda envio assíncrono. Com Celery ativo usa a fila; senão usa thread daemon
@@ -76,15 +101,23 @@ def enqueue_send_approved_diary_emails(diary_id: int) -> None:
     """
     import threading
 
-    if CELERY_AVAILABLE:
+    if CELERY_AVAILABLE and _celery_broker_reachable():
         try:
-            send_approved_diary_emails_task.delay(diary_id)
+            send_approved_diary_emails_task.apply_async(
+                args=[diary_id],
+                ignore_result=True,
+            )
             return
         except Exception:
             logger.exception(
-                "enqueue_send_approved_diary_emails: delay() falhou, usando thread diary_id=%s",
+                "enqueue_send_approved_diary_emails: apply_async() falhou, usando thread diary_id=%s",
                 diary_id,
             )
+    elif CELERY_AVAILABLE:
+        logger.info(
+            "enqueue_send_approved_diary_emails: broker indisponível, thread diary_id=%s",
+            diary_id,
+        )
 
     def _runner() -> None:
         try:

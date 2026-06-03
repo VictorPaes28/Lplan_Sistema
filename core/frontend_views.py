@@ -304,27 +304,29 @@ def _resolve_labor_cargo_from_payload_item(labor_item, project=None):
     category_slug = (labor_item.get('category_slug') or labor_item.get('categorySlug') or '').strip()
 
     project_labor_item_id = labor_item.get('project_labor_item_id')
-    if project_labor_item_id and project:
+    if project_labor_item_id:
         try:
-            pli = ProjectLaborItem.objects.select_related(
+            pli_qs = ProjectLaborItem.objects.select_related(
                 'source_labor_cargo',
                 'source_labor_cargo__category',
                 'category',
-            ).filter(pk=int(project_labor_item_id), project=project).first()
-            if pli:
-                cargo_name = pli.name or cargo_name
-                if pli.source_labor_cargo_id:
-                    return pli.source_labor_cargo_id, cargo_name
-                slug = pli.category.slug if pli.category_id else category_slug
-                gcat = LaborCategory.objects.filter(slug=slug).first()
-                if gcat:
-                    cargo, _ = LaborCargo.objects.get_or_create(
-                        category=gcat,
-                        name=pli.name,
-                        defaults={'order': pli.order},
-                    )
-                    return cargo.id, cargo_name
-        except (ValueError, TypeError):
+            ).filter(pk=int(project_labor_item_id))
+            if project:
+                pli_qs = pli_qs.filter(project=project)
+            pli = pli_qs.get()
+            cargo_name = pli.name or cargo_name
+            if pli.source_labor_cargo_id:
+                return pli.source_labor_cargo_id, cargo_name
+            slug = pli.category.slug if pli.category_id else category_slug
+            gcat = LaborCategory.objects.filter(slug=slug).first()
+            if gcat:
+                cargo, _ = LaborCargo.objects.get_or_create(
+                    category=gcat,
+                    name=pli.name,
+                    defaults={'order': pli.order},
+                )
+                return cargo.id, cargo_name
+        except (ProjectLaborItem.DoesNotExist, ValueError, TypeError):
             pass
 
     cargo_id = labor_item.get('cargo_id') or labor_item.get('cargoId')
@@ -4467,23 +4469,24 @@ def diary_form_view(request, pk=None):
                     if diary_labor_json:
                         try:
                             diary_labor_data = json.loads(diary_labor_json) if diary_labor_json else []
-                            DiaryLaborEntry.objects.filter(diary=diary).delete()
-                            for item in diary_labor_data:
-                                quantity = max(1, int(item.get('quantity') or 1))
-                                company = (item.get('company') or '').strip()
-                                selected_cargo_id, _cargo_name = _resolve_labor_cargo_from_payload_item(
-                                    item,
-                                    project,
-                                )
-                                if not selected_cargo_id:
-                                    continue
-                                DiaryLaborEntry.objects.create(
-                                    diary=diary,
-                                    cargo_id=selected_cargo_id,
-                                    quantity=quantity,
-                                    company=company
-                                )
-                            logger.info(f"DiaryLaborEntry: {len(diary_labor_data)} itens salvos")
+                            if diary_labor_data:  # só apaga se tiver itens
+                                DiaryLaborEntry.objects.filter(diary=diary).delete()
+                                for item in diary_labor_data:
+                                    quantity = max(1, int(item.get('quantity') or 1))
+                                    company = (item.get('company') or '').strip()
+                                    selected_cargo_id, _cargo_name = _resolve_labor_cargo_from_payload_item(
+                                        item,
+                                        project,
+                                    )
+                                    if not selected_cargo_id:
+                                        continue
+                                    DiaryLaborEntry.objects.create(
+                                        diary=diary,
+                                        cargo_id=selected_cargo_id,
+                                        quantity=quantity,
+                                        company=company
+                                    )
+                                logger.info(f"DiaryLaborEntry: {len(diary_labor_data)} itens salvos")
                             request._labor_objects = []
                         except (json.JSONDecodeError, ValueError, TypeError) as e:
                             logger.debug(f"Erro ao processar diary_labor_data: {e}")

@@ -2593,7 +2593,7 @@ window.updateLaborQuantity = updateLaborQuantity;
                 var inputCategorySlug = sourceInput.getAttribute('data-category-slug') || '';
                 if (inputCategorySlug) row.category_slug = inputCategorySlug;
             }
-            if (row.cargo_id || row.cargo_name) out.push(row);
+            if (row.cargo_id || row.cargo_name || row.project_labor_item_id) out.push(row);
         }
         return out;
     }
