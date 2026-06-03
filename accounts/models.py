@@ -130,3 +130,41 @@ class UserSignupRequest(models.Model):
 
     def __str__(self):
         return f"{self.full_name} ({self.email}) - {self.status}"
+
+
+class ModuloIntegradoStatus(models.Model):
+    """
+    Estado operacional de um módulo listado em Sistemas integrados (Painel do sistema).
+    Quando inativo, usuários comuns veem aviso e não entram no módulo; o card permanece visível.
+    """
+
+    codigo = models.CharField(max_length=40, primary_key=True, verbose_name='Código')
+    nome = models.CharField(max_length=120, verbose_name='Nome')
+    ativo = models.BooleanField(default=True, verbose_name='Ativo')
+    mensagem = models.TextField(
+        blank=True,
+        verbose_name='Mensagem ao usuário',
+        help_text='Exibida quando o módulo está temporariamente indisponível.',
+    )
+    previsao_retorno = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='Previsão de retorno',
+    )
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='modulos_integrados_atualizados',
+        verbose_name='Atualizado por',
+    )
+
+    class Meta:
+        verbose_name = 'Status de módulo integrado'
+        verbose_name_plural = 'Status de módulos integrados'
+
+    def __str__(self):
+        estado = 'ativo' if self.ativo else 'inativo'
+        return f'{self.nome} ({estado})'

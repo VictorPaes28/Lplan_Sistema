@@ -73,6 +73,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.csrf_middleware.CsrfViewMiddleware',  # Aceita origem quando host está em ALLOWED_HOSTS (cPanel)
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.middleware.ModuloIntegradoManutencaoMiddleware',
     'core.middleware.NoCacheForAuthenticatedUsersMiddleware',  # HTML autenticado: no-store + Expires (evita flash de documento em cache)
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.middleware.ClearLegacyMessagesCookieMiddleware',  # Limpa cookie "messages" legado para evitar header/cookie grande
@@ -96,6 +97,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 # Context processors dos apps
+                'accounts.context_processors.modulos_integrados_manutencao',
                 'core.context_processors.sidebar_systems',
                 'core.context_processors.sidebar_counters',
                 'core.context_processors.obra_inativa_sessao',

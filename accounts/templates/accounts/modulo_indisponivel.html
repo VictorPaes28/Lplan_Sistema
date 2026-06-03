@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}{{ modulo.nome }} — indisponível{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}">
+<style>
+    .modulo-off-wrap {
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+    .modulo-off-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 1.75rem 1.5rem;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    }
+    .modulo-off-card h1 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.5rem;
+    }
+    .modulo-off-badge {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #b45309;
+        background: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-radius: 6px;
+        padding: 0.2rem 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .modulo-off-msg {
+        color: #334155;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        margin: 0 0 1rem;
+    }
+    .modulo-off-meta {
+        font-size: 0.88rem;
+        color: #64748b;
+        margin: 0.25rem 0;
+    }
+    .modulo-off-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-top: 1.35rem;
+    }
+    .modulo-off-actions a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.55rem 1rem;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .modulo-off-actions .btn-back {
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+    }
+    .modulo-off-actions .btn-hub {
+        background: #0f172a;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="modulo-off-wrap">
+    <div class="modulo-off-card">
+        <span class="modulo-off-badge">Módulo temporariamente indisponível</span>
+        <h1>{{ modulo.nome }}</h1>
+        {% if status.mensagem %}
+        <p class="modulo-off-msg">{{ status.mensagem }}</p>
+        {% else %}
+        <p class="modulo-off-msg">Este módulo está temporariamente indisponível. Entre em contato com o suporte ou com a administração da plataforma.</p>
+        {% endif %}
+        {% if status.previsao_retorno_label %}
+        <p class="modulo-off-meta">Previsão de retorno: <strong>{{ status.previsao_retorno_label }}</strong></p>
+        {% endif %}
+        <div class="modulo-off-actions">
+            <a href="{% url 'select-system' %}" class="btn-back"><i class="fas fa-th-large" aria-hidden="true"></i> Escolher outro módulo</a>
+            <a href="{% url 'support-home' %}?abrir_chamado=1" class="btn-hub"><i class="fas fa-headset" aria-hidden="true"></i> Abrir chamado</a>
+            {% if pode_gerenciar %}
+            <a href="{% url 'accounts:admin_central' %}" class="btn-hub" style="background:#475569;"><i class="fas fa-cog" aria-hidden="true"></i> Painel do sistema</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

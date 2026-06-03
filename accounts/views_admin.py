@@ -1,11 +1,13 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q, Max
 from django.db.models.functions import TruncDate
 from django.utils import timezone
+from django.views.decorators.http import require_http_methods
 from datetime import timedelta, date
 from django.http import HttpResponse
 import csv
@@ -232,8 +234,109 @@ def admin_central(request):
         'usuarios_sem_atividade_30d': usuarios_sem_atividade_30d,
         'painel_comunicados': usuario_tem_administracao_global_na_plataforma(request.user),
     }
+    from accounts.modulos_integrados import build_modulos_cards_for_admin
+
+    context['modulos_integrados_cards'] = build_modulos_cards_for_admin(
+        {
+            'stats_diario': stats_diario,
+            'stats_gestao': stats_gestao,
+            'stats_mapa': stats_mapa,
+            'stats_workflow': stats_workflow,
+            'stats_trackhub': stats_trackhub,
+            'stats_impedimentos': stats_impedimentos,
+        }
+    )
 
     return render(request, 'accounts/admin_central.html', context)
+
+
+@login_required
+def modulo_indisponivel(request, codigo):
+    """Página exibida quando o módulo está temporariamente inativo."""
+    from accounts.modulos_integrados import MODULO_BY_CODIGO, load_modulos_status_map
+
+    meta = MODULO_BY_CODIGO.get(codigo)
+    if not meta:
+        return redirect('select-system')
+    status = load_modulos_status_map().get(codigo, {})
+    if status.get('ativo', True) and not user_is_painel_sistema_admin(request.user):
+        try:
+            return redirect(reverse(meta.url_name))
+        except Exception:
+            return redirect('select-system')
+    return render(
+        request,
+        'accounts/modulo_indisponivel.html',
+        {
+            'modulo': meta,
+            'status': status,
+            'pode_gerenciar': user_is_painel_sistema_admin(request.user),
+        },
+    )
+
+
+@login_required
+@user_passes_test(user_is_painel_sistema_admin)
+@require_http_methods(['POST'])
+def modulo_integrado_inativar(request, codigo):
+    from accounts.models import ModuloIntegradoStatus
+    from accounts.modulos_integrados import MODULO_BY_CODIGO, invalidate_modulos_cache
+
+    if codigo not in MODULO_BY_CODIGO:
+        raise PermissionDenied
+    mensagem = (request.POST.get('mensagem') or '').strip()
+    if len(mensagem) < 10:
+        messages.error(request, 'Informe uma justificativa com pelo menos 10 caracteres.')
+        return redirect('accounts:admin_central')
+
+    previsao_raw = (request.POST.get('previsao_retorno') or '').strip()
+    previsao = None
+    if previsao_raw:
+        try:
+            previsao = date.fromisoformat(previsao_raw)
+        except ValueError:
+            messages.error(request, 'Data de previsão de retorno inválida.')
+            return redirect('accounts:admin_central')
+        if previsao < timezone.localdate():
+            messages.error(request, 'A previsão de retorno não pode ser anterior a hoje.')
+            return redirect('accounts:admin_central')
+
+    meta = MODULO_BY_CODIGO[codigo]
+    row, _ = ModuloIntegradoStatus.objects.get_or_create(
+        codigo=codigo,
+        defaults={'nome': meta.nome, 'ativo': True},
+    )
+    row.nome = meta.nome
+    row.ativo = False
+    row.mensagem = mensagem
+    row.previsao_retorno = previsao
+    row.atualizado_por = request.user
+    row.save()
+    invalidate_modulos_cache()
+    messages.warning(request, f'«{meta.nome}» foi inativado. Usuários verão o aviso ao tentar acessar.')
+    return redirect('accounts:admin_central')
+
+
+@login_required
+@user_passes_test(user_is_painel_sistema_admin)
+@require_http_methods(['POST'])
+def modulo_integrado_reativar(request, codigo):
+    from accounts.models import ModuloIntegradoStatus
+    from accounts.modulos_integrados import MODULO_BY_CODIGO, invalidate_modulos_cache
+
+    if codigo not in MODULO_BY_CODIGO:
+        raise PermissionDenied
+    meta = MODULO_BY_CODIGO[codigo]
+    row = get_object_or_404(ModuloIntegradoStatus, codigo=codigo)
+    row.nome = meta.nome
+    row.ativo = True
+    row.mensagem = ''
+    row.previsao_retorno = None
+    row.atualizado_por = request.user
+    row.save()
+    invalidate_modulos_cache()
+    messages.success(request, f'«{meta.nome}» foi reativado.')
+    return redirect('accounts:admin_central')
 
 
 @login_required

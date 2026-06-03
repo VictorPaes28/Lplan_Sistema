@@ -642,8 +642,16 @@ def select_system_view(request):
     else:
         time_greeting = 'Boa noite'
 
+    from accounts.modulos_integrados import load_modulos_status_map
+    from django.urls import reverse
+
     context = {
         'time_greeting': time_greeting,
+        'modulos_manutencao': load_modulos_status_map(),
+        'workflow_access_url': reverse('workflow_aprovacao:home'),
+        'diario_access_url': reverse('select-project'),
+        'gestao_access_url': reverse('gestao:home'),
+        'mapa_access_url': reverse('mapa_obras:home'),
         'has_diario': has_diario,
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,

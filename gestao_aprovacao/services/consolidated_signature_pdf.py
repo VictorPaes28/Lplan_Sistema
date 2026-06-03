@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import os
 from typing import Iterable
+
+logger = logging.getLogger(__name__)
 
 from django.utils import timezone
 from reportlab.lib.pagesizes import A4
@@ -199,7 +202,9 @@ def build_signature_page_pdf(
         sub_parts.append(credor)
     obra = work_order.obra
     if obra:
-        sub_parts.append(f'{obra.codigo} · {obra.nome}')
+        nome_obra = (obra.nome or '').strip()
+        if nome_obra:
+            sub_parts.append(nome_obra)
     if sub_parts:
         c.setFillColorRGB(*muted)
         c.setFont('Helvetica', 8)
@@ -296,6 +301,49 @@ def latest_approval_signature(work_order: WorkOrder):
         .order_by('-created_at')
         .first()
     )
+
+
+def try_build_consolidated_approval_email_pdf(work_order: WorkOrder) -> tuple[bytes, str] | None:
+    """
+    Monta o PDF único (anexos do pedido + página de assinatura) para o e-mail de aprovação.
+    Retorna (bytes, nome_arquivo) ou None quando não for possível gerar.
+    """
+    approval = latest_approval_signature(work_order)
+    if not approval or not approval.signature_data:
+        logger.info(
+            'PDF consolidado não gerado para e-mail do pedido %s: aprovação sem assinatura.',
+            work_order.codigo,
+        )
+        return None
+
+    pre = consolidation_precheck(work_order)
+    if not pre.get('ok'):
+        logger.warning(
+            'PDF consolidado não gerado para e-mail do pedido %s: %s',
+            work_order.codigo,
+            pre.get('message', 'pré-validação falhou'),
+        )
+        return None
+
+    try:
+        signer = approval.aprovado_por
+        signer_name = (signer.get_full_name() or signer.username) if signer else '—'
+        pdf_bytes = build_consolidated_signature_pdf(
+            work_order=work_order,
+            signature_data=approval.signature_data,
+            signer_name=signer_name,
+            signed_at=approval.created_at,
+        )
+    except ConsolidationError as exc:
+        logger.warning(
+            'PDF consolidado não gerado para e-mail do pedido %s: %s',
+            work_order.codigo,
+            exc,
+        )
+        return None
+
+    safe_codigo = work_order.codigo.replace('/', '-').replace('\\', '-')
+    return pdf_bytes, f'{safe_codigo}_aprovado_consolidado.pdf'
 
 
 def build_consolidated_signature_pdf(

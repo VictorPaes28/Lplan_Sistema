@@ -12,6 +12,21 @@ urlpatterns = [
     
     # Admin Central (dashboard + gestão de obras do Mapa de Suprimentos)
     path('admin-central/', views_admin.admin_central, name='admin_central'),
+    path(
+        'modulo-indisponivel/<slug:codigo>/',
+        views_admin.modulo_indisponivel,
+        name='modulo_indisponivel',
+    ),
+    path(
+        'admin-central/modulo/<slug:codigo>/inativar/',
+        views_admin.modulo_integrado_inativar,
+        name='modulo_integrado_inativar',
+    ),
+    path(
+        'admin-central/modulo/<slug:codigo>/reativar/',
+        views_admin.modulo_integrado_reativar,
+        name='modulo_integrado_reativar',
+    ),
     path('admin-central/painel-usuario/', views_admin.user_panel, name='user_panel'),
     path('admin-central/painel-logs/', views_admin.logs_panel, name='logs_panel'),
     path('admin-central/analise-usuarios/', views_admin.analise_usuarios, name='admin_analise_usuarios'),

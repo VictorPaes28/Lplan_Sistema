@@ -153,6 +153,7 @@
     .icon-attention { background: #fef3c7 !important; color: #b45309 !important; }
     .icon-imped { background: var(--mod-imped-soft) !important; color: var(--mod-imped) !important; }
     .icon-workflow { background: var(--mod-workflow-soft) !important; color: var(--mod-workflow) !important; }
+    .icon-trackhub { background: var(--mod-trackhub-soft) !important; color: var(--mod-trackhub) !important; }
     .icon-mapa { background: var(--mod-mapa-soft) !important; color: var(--mod-mapa) !important; }
 
     /* ═══ KPI Cards (visão geral — clean com hierarquia) ═══ */
@@ -406,6 +407,144 @@
         transition: color 0.2s;
     }
     .system-link:hover { color: #0f172a; }
+    .system-link--muted {
+        color: #94a3b8;
+        cursor: default;
+        pointer-events: none;
+    }
+    .system-card-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.35rem;
+    }
+    .system-toggle-form { margin: 0; }
+    .btn-modulo {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 600;
+        border-radius: 7px;
+        padding: 0.28rem 0.55rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .btn-modulo:hover { background: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+    .btn-modulo--inativar:hover { border-color: #fcd34d; color: #b45309; background: #fffbeb; }
+    .btn-modulo--reativar { border-color: #86efac; color: #15803d; }
+    .btn-modulo--reativar:hover { background: #f0fdf4; }
+    .system-badge-inativo {
+        display: inline-block;
+        margin-left: 0.35rem;
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #b45309;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 4px;
+        padding: 0.1rem 0.35rem;
+        vertical-align: middle;
+    }
+    .system-card--inativo {
+        background: #fffbeb;
+        border-color: #fde68a;
+    }
+    .system-card--inativo .system-card-header {
+        border-bottom-color: #fef3c7;
+    }
+    .system-card-alert {
+        padding: 0.65rem 1.15rem;
+        background: #fff7ed;
+        border-bottom: 1px solid #ffedd5;
+    }
+    .system-card-alert-text {
+        margin: 0;
+        font-size: 0.8rem;
+        color: #9a3412;
+        line-height: 1.45;
+        white-space: pre-wrap;
+    }
+    .system-card-alert-meta {
+        margin: 0.35rem 0 0;
+        font-size: 0.72rem;
+        color: #c2410c;
+    }
+    .modulo-modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        background: rgba(15, 23, 42, 0.45);
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+    .modulo-modal-backdrop.is-open { display: flex; }
+    .modulo-modal {
+        width: 100%;
+        max-width: 28rem;
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+        padding: 1.25rem 1.35rem 1.1rem;
+    }
+    .modulo-modal h3 {
+        margin: 0 0 0.35rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .modulo-modal p.modulo-modal-hint {
+        margin: 0 0 1rem;
+        font-size: 0.82rem;
+        color: #64748b;
+        line-height: 1.45;
+    }
+    .modulo-modal label {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 0.3rem;
+    }
+    .modulo-modal textarea,
+    .modulo-modal input[type="date"] {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.55rem 0.65rem;
+        font-size: 0.88rem;
+        margin-bottom: 0.85rem;
+    }
+    .modulo-modal textarea { min-height: 5.5rem; resize: vertical; }
+    .modulo-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    .modulo-modal-actions button {
+        border-radius: 8px;
+        padding: 0.5rem 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+    }
+    .modulo-modal-actions .btn-confirm-inativar {
+        background: #b45309;
+        border-color: #b45309;
+        color: #fff;
+    }
     .system-card { border-left: 3px solid var(--sys-accent, #e2e8f0); }
     .system-card--diario { --sys-accent: var(--mod-diario); }
     .system-card--gestao { --sys-accent: var(--mod-gestao); }
@@ -1078,181 +1217,33 @@
             <h2 class="section-title">
                 <i class="fas fa-th-large" aria-hidden="true"></i> Sistemas integrados
             </h2>
-            <p class="section-block-intro" style="margin-bottom: 0.85rem;">Acesso direto a cada módulo. A cor da faixa identifica o sistema.</p>
+            <p class="section-block-intro" style="margin-bottom: 0.85rem;">
+                Acesso direto a cada módulo. Use <strong>Inativar</strong> para bloquear entradas durante correções; o card permanece visível com a justificativa informada.
+            </p>
             <div class="system-grid">
-                <!-- Diário de Obra -->
-                <div class="system-card system-card--diario">
-                    <div class="system-card-header">
-                        <div class="system-card-header-left">
-                            <div class="system-icon icon-diario">
-                                <i class="fas fa-book"></i>
-                            </div>
-                            <div>
-                                <div class="system-name">Diário de Obra</div>
-                                <div class="system-desc">Relatórios diários de obra</div>
-                            </div>
-                        </div>
-                        <a href="{% url 'select-project' %}" class="system-link">
-                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                        </a>
-                    </div>
-                    <div class="system-card-body">
-                        <div class="system-stat">
-                            <span class="system-stat-label">Projetos ativos</span>
-                            <span class="system-stat-value">{{ stats_diario.projetos_ativos }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Diários registrados</span>
-                            <span class="system-stat-value">{{ stats_diario.diarios }}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- GestControll -->
-                <div class="system-card system-card--gestao">
-                    <div class="system-card-header">
-                        <div class="system-card-header-left">
-                            <div class="system-icon icon-gestao">
-                                <i class="fas fa-clipboard-check"></i>
-                            </div>
-                            <div>
-                                <div class="system-name">GestControll</div>
-                                <div class="system-desc">Ordens de serviço e aprovações</div>
-                            </div>
-                        </div>
-                        <a href="{% url 'gestao:home' %}" class="system-link">
-                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                        </a>
-                    </div>
-                    <div class="system-card-body">
-                        <div class="system-stat">
-                            <span class="system-stat-label">Ordens de serviço</span>
-                            <span class="system-stat-value">{{ stats_gestao.ordens }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Aprovações</span>
-                            <span class="system-stat-value">{{ stats_gestao.aprovacoes }}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Mapa de Suprimentos -->
-                <div class="system-card system-card--mapa">
-                    <div class="system-card-header">
-                        <div class="system-card-header-left">
-                            <div class="system-icon icon-mapa">
-                                <i class="fas fa-map"></i>
-                            </div>
-                            <div>
-                                <div class="system-name">Mapa de Suprimentos</div>
-                                <div class="system-desc">Suprimentos e insumos</div>
-                            </div>
-                        </div>
-                        <a href="{% url 'mapa_obras:home' %}" class="system-link">
-                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                        </a>
-                    </div>
-                    <div class="system-card-body">
-                        <div class="system-stat">
-                            <span class="system-stat-label">Obras ativas</span>
-                            <span class="system-stat-value">{{ stats_mapa.obras_ativas }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Insumos cadastrados</span>
-                            <span class="system-stat-value">{{ stats_mapa.insumos }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Itens no mapa</span>
-                            <span class="system-stat-value">{{ stats_mapa.itens_mapa }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Central de Aprovações -->
-                <div class="system-card system-card--workflow">
-                    <div class="system-card-header">
-                        <div class="system-card-header-left">
-                            <div class="system-icon icon-workflow">
-                                <i class="fas fa-check-double"></i>
-                            </div>
-                            <div>
-                                <div class="system-name">Central de Aprovações</div>
-                                <div class="system-desc">Fluxos e filas de aprovação por obra</div>
-                            </div>
-                        </div>
-                        <a href="{% url 'workflow_aprovacao:home' %}" class="system-link">
-                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                        </a>
-                    </div>
-                    <div class="system-card-body">
-                        <div class="system-stat">
-                            <span class="system-stat-label">Processos</span>
-                            <span class="system-stat-value">{{ stats_workflow.processos }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Aguardando alçada</span>
-                            <span class="system-stat-value">{{ stats_workflow.aguardando }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TrackHub -->
-                <div class="system-card system-card--trackhub">
-                    <div class="system-card-header">
-                        <div class="system-card-header-left">
-                            <div class="system-icon icon-attention">
-                                <i class="fas fa-compass"></i>
-                            </div>
-                            <div>
-                                <div class="system-name">TrackHub</div>
-                                <div class="system-desc">Etapas, prazos e pendências da obra</div>
-                            </div>
-                        </div>
-                        <a href="{% url 'trackhub:fila' %}" class="system-link">
-                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                        </a>
-                    </div>
-                    <div class="system-card-body">
-                        <div class="system-stat">
-                            <span class="system-stat-label">Pendências</span>
-                            <span class="system-stat-value">{{ stats_trackhub.pendencias }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Em aberto</span>
-                            <span class="system-stat-value">{{ stats_trackhub.em_aberto }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Restrições (Impedimentos) -->
-                <div class="system-card system-card--imped">
-                    <div class="system-card-header">
-                        <div class="system-card-header-left">
-                            <div class="system-icon icon-imped">
-                                <i class="fas fa-shield-alt"></i>
-                            </div>
-                            <div>
-                                <div class="system-name">Restrições</div>
-                                <div class="system-desc">Bloqueios e pendências por obra</div>
-                            </div>
-                        </div>
-                        <a href="{% url 'impedimentos:select_obra' %}" class="system-link">
-                            Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
-                        </a>
-                    </div>
-                    <div class="system-card-body">
-                        <div class="system-stat">
-                            <span class="system-stat-label">Registros</span>
-                            <span class="system-stat-value">{{ stats_impedimentos.total }}</span>
-                        </div>
-                        <div class="system-stat">
-                            <span class="system-stat-label">Sem conclusão</span>
-                            <span class="system-stat-value">{{ stats_impedimentos.em_aberto }}</span>
-                        </div>
-                    </div>
-                </div>
+                {% for card in modulos_integrados_cards %}
+                {% include 'accounts/includes/system_card_integrado.html' %}
+                {% endfor %}
             </div>
     </section>
+
+    <div id="moduloInativarModal" class="modulo-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="moduloInativarTitulo" hidden>
+        <div class="modulo-modal">
+            <h3 id="moduloInativarTitulo">Inativar módulo</h3>
+            <p class="modulo-modal-hint">Usuários continuarão vendo o módulo, mas não poderão entrar até você reativar. Administradores do painel mantêm acesso para correção.</p>
+            <form id="moduloInativarForm" method="post" action="">
+                {% csrf_token %}
+                <label for="moduloInativarMensagem">Justificativa (obrigatória)</label>
+                <textarea id="moduloInativarMensagem" name="mensagem" required minlength="10" maxlength="2000" placeholder="Ex.: Erro crítico identificado. Entre em contato com o suporte para mais informações."></textarea>
+                <label for="moduloInativarPrevisao">Previsão de retorno (opcional)</label>
+                <input type="date" id="moduloInativarPrevisao" name="previsao_retorno">
+                <div class="modulo-modal-actions">
+                    <button type="button" id="moduloInativarCancelar">Cancelar</button>
+                    <button type="submit" class="btn-confirm-inativar">Confirmar inativação</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <a href="{% url 'central_ajuda' %}" class="admin-help-row" style="margin-top: 0.5rem;">
         <i class="fas fa-question-circle" aria-hidden="true"></i>
@@ -1261,4 +1252,45 @@
     </a>
     
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var modal = document.getElementById('moduloInativarModal');
+    var form = document.getElementById('moduloInativarForm');
+    var titulo = document.getElementById('moduloInativarTitulo');
+    var mensagem = document.getElementById('moduloInativarMensagem');
+    var previsao = document.getElementById('moduloInativarPrevisao');
+    var cancelar = document.getElementById('moduloInativarCancelar');
+    if (!modal || !form) return;
+
+    function fechar() {
+        modal.classList.remove('is-open');
+        modal.setAttribute('hidden', 'hidden');
+    }
+    function abrir(codigo, nome) {
+        form.action = '{% url "accounts:modulo_integrado_inativar" "__codigo__" %}'.replace('__codigo__', codigo);
+        titulo.textContent = 'Inativar «' + nome + '»';
+        mensagem.value = '';
+        previsao.value = '';
+        modal.classList.add('is-open');
+        modal.removeAttribute('hidden');
+        mensagem.focus();
+    }
+
+    document.querySelectorAll('.btn-modulo--inativar').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            abrir(btn.getAttribute('data-modulo-codigo'), btn.getAttribute('data-modulo-nome'));
+        });
+    });
+    cancelar.addEventListener('click', fechar);
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) fechar();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) fechar();
+    });
+})();
+</script>
 {% endblock %}

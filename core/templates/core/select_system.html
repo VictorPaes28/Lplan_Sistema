@@ -458,6 +458,14 @@
         flex-shrink: 0;
     }
     .system-card.ferramenta .system-icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); }
+    .system-card.workflow-central .system-icon {
+        background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+        box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+    }
+    .system-card.central .system-icon {
+        background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+        box-shadow: 0 4px 14px rgba(51, 65, 85, 0.35);
+    }
     .system-card.suporte .system-icon {
         background: linear-gradient(135deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
         box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
@@ -925,7 +933,7 @@
         <a href="{% url 'accounts:admin_central' %}" class="system-card central" aria-label="Painel do sistema">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon" style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%);"><i class="fas fa-cog"></i></div>
+                    <div class="system-icon"><i class="fas fa-cog"></i></div>
                     <span class="access-badge granted"><i class="fas fa-check"></i> Admin</span>
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Painel do sistema</h3>
@@ -938,69 +946,35 @@
         {% endif %}
 
         {% if has_workflow %}
-        <a href="{% url 'workflow_aprovacao:home' %}" class="system-card workflow-central" aria-label="Central de Aprovações">
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);"><i class="fas fa-check-double"></i></div>
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Central de Aprovações</h3>
-                <p class="text-sm text-slate-500 mb-0">Fila do que falta aprovar ou devolver, conforme fluxo e papel de cada obra.</p>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
+        {% include 'core/includes/select_system_modulo_card.html' with st=modulos_manutencao.workflow codigo='workflow' css_class='workflow-central' icon_class='fa-check-double' title='Central de Aprovações' description='Fila do que falta aprovar ou devolver, conforme fluxo e papel de cada obra.' access_url=workflow_access_url aria_label='Central de Aprovações' only %}
         {% endif %}
         {% if has_diario %}
-        <a href="{% url 'select-project' %}" class="system-card diario" aria-label="Acessar Diário de Obra">
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-book"></i></div>
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Diário de Obra</h3>
-                <p class="text-sm text-slate-500 mb-0">Registro e acompanhamento dos relatórios diários da obra.</p>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
+        {% include 'core/includes/select_system_modulo_card.html' with st=modulos_manutencao.diario codigo='diario' css_class='diario' icon_class='fa-book' title='Diário de Obra' description='Registro e acompanhamento dos relatórios diários da obra.' access_url=diario_access_url aria_label='Acessar Diário de Obra' only %}
         {% endif %}
 
         {% if has_gestao %}
-        <a href="{% url 'gestao:home' %}" class="system-card gestao" aria-label="Acessar GestControll">
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-clipboard-check"></i></div>
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">GestControll</h3>
-                <p class="text-sm text-slate-500 mb-0">Aprovação e acompanhamento dos pedidos de compra ou serviço da obra.</p>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
+        {% include 'core/includes/select_system_modulo_card.html' with st=modulos_manutencao.gestao codigo='gestao' css_class='gestao' icon_class='fa-clipboard-check' title='GestControll' description='Aprovação e acompanhamento dos pedidos de compra ou serviço da obra.' access_url=gestao_access_url aria_label='Acessar GestControll' only %}
         {% endif %}
 
         {% if has_mapa %}
-        <a href="{% url 'mapa_obras:home' %}" class="system-card mapa" aria-label="Acessar Mapa de Suprimentos">
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-map-marked-alt"></i></div>
-                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Mapa de Suprimentos</h3>
-                <p class="text-sm text-slate-500 mb-0">Suprimentos, engenharia e pendências ligadas ao avanço da obra.</p>
-                <div class="mt-4 text-right">
-                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
-                </div>
-            </div>
-        </a>
+        {% include 'core/includes/select_system_modulo_card.html' with st=modulos_manutencao.mapa codigo='mapa' css_class='mapa' icon_class='fa-map-marked-alt' title='Mapa de Suprimentos' description='Suprimentos, engenharia e pendências ligadas ao avanço da obra.' access_url=mapa_access_url aria_label='Acessar Mapa de Suprimentos' only %}
         {% endif %}
 
         {% if has_ferramenta_ambientes %}
+        {% with st=modulos_manutencao.mapa %}
+        {% if st.indisponivel %}
+        <a href="{% url 'accounts:modulo_indisponivel' 'mapa' %}" class="system-card ferramenta disabled" aria-label="Ferramenta de ambientes — indisponível">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-border-all"></i></div>
+                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Ferramenta de ambientes</h3>
+                <p class="text-sm text-slate-500 mb-0">Montagem de painéis e mapas operacionais por obra, para uso no campo.</p>
+                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
+            </div>
+        </a>
+        {% else %}
         <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta" aria-label="Acessar Ferramenta de ambientes">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
@@ -1015,8 +989,24 @@
             </div>
         </a>
         {% endif %}
+        {% endwith %}
+        {% endif %}
 
         {% if has_bi_obra %}
+        {% with st=modulos_manutencao.mapa %}
+        {% if st.indisponivel %}
+        <a href="{% url 'accounts:modulo_indisponivel' 'mapa' %}" class="system-card biobra disabled" aria-label="BI da Obra — indisponível">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-chart-pie"></i></div>
+                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">BI da Obra</h3>
+                <p class="text-sm text-slate-500 mb-0">Indicadores consolidados sobre andamento físico e suprimento da obra.</p>
+                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
+            </div>
+        </a>
+        {% else %}
         <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra" aria-label="Acessar BI da Obra">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
@@ -1031,8 +1021,24 @@
             </div>
         </a>
         {% endif %}
+        {% endwith %}
+        {% endif %}
 
         {% if has_impedimentos %}
+        {% with st=modulos_manutencao.impedimentos %}
+        {% if st.indisponivel %}
+        <a href="{% url 'accounts:modulo_indisponivel' 'impedimentos' %}" class="system-card impedimentos disabled" aria-label="Restrições — indisponível">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-shield-alt"></i></div>
+                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Restrições</h3>
+                <p class="text-sm text-slate-500 mb-0">Pendências e bloqueios que impactam obra, cronograma e responsáveis.</p>
+                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
+            </div>
+        </a>
+        {% else %}
         <a href="{% url 'impedimentos:select_obra' %}" class="system-card impedimentos" aria-label="Acessar Restrições">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
@@ -1052,7 +1058,24 @@
             </div>
         </a>
         {% endif %}
+        {% endwith %}
+        {% endif %}
+
         {% if has_trackhub %}
+        {% with st=modulos_manutencao.trackhub %}
+        {% if st.indisponivel %}
+        <a href="{% url 'accounts:modulo_indisponivel' 'trackhub' %}" class="system-card trackhub disabled" aria-label="TrackHub — indisponível">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-compass"></i></div>
+                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">TrackHub</h3>
+                <p class="text-sm text-slate-500 mb-0">Etapas, responsáveis e avisos — o que está parado ou avançando na obra.</p>
+                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
+            </div>
+        </a>
+        {% else %}
         <a href="{% url 'trackhub:fila' %}" class="system-card trackhub" aria-label="Acessar TrackHub">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
@@ -1075,6 +1098,8 @@
                 </div>
             </div>
         </a>
+        {% endif %}
+        {% endwith %}
         {% endif %}
 
         <a href="{% url 'support-home' %}" class="system-card suporte" aria-label="Acessar central de Suporte">

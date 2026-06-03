@@ -1338,7 +1338,7 @@ class AprovacaoEmailDestinatario(models.Model):
     email = models.EmailField(
         unique=True,
         verbose_name='E-mail',
-        help_text='Recebe cópia do e-mail de pedido aprovado (com anexos PDF quando houver).',
+        help_text='Recebe cópia do e-mail de pedido aprovado (PDF consolidado com anexos e assinatura).',
     )
     nome = models.CharField(
         max_length=120,

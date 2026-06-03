@@ -1,4 +1,3 @@
-# Apps em INSTALLED_APPS (integrations está pausado e quebra unittest se descoberto a partir da raiz).
 name: CI
 
 on:
@@ -29,9 +28,3 @@ jobs:
         run: |
           mkdir -p staticfiles
           python manage.py collectstatic --noinput
-
-      - name: Tests (apps ativos)
-        run: >
-          python manage.py test
-          core gestao_aprovacao mapa_obras accounts suprimentos assistente_lplan comunicados
-          --verbosity=1

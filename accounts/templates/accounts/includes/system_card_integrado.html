@@ -1,0 +1,64 @@
+{% with meta=card.meta st=card.status %}
+<div class="system-card system-card--{{ meta.css }}{% if st.indisponivel %} system-card--inativo{% endif %}">
+    <div class="system-card-header">
+        <div class="system-card-header-left">
+            <div class="system-icon {{ meta.icon_class }}">
+                <i class="fas {{ meta.icon }}"></i>
+            </div>
+            <div>
+                <div class="system-name">
+                    {{ meta.nome }}
+                    {% if st.indisponivel %}
+                    <span class="system-badge-inativo">Inativo</span>
+                    {% endif %}
+                </div>
+                <div class="system-desc">{{ meta.descricao }}</div>
+            </div>
+        </div>
+        <div class="system-card-actions">
+            {% if st.indisponivel %}
+            <span class="system-link system-link--muted" aria-disabled="true">Indisponível</span>
+            {% else %}
+            <a href="{{ card.access_url }}" class="system-link">
+                Acessar <i class="fas fa-arrow-right" style="font-size: 0.65rem;"></i>
+            </a>
+            {% endif %}
+            {% if st.indisponivel %}
+            <form method="post" action="{% url 'accounts:modulo_integrado_reativar' meta.codigo %}" class="system-toggle-form">
+                {% csrf_token %}
+                <button type="submit" class="btn-modulo btn-modulo--reativar" title="Reativar módulo">
+                    <i class="fas fa-play-circle" aria-hidden="true"></i> Reativar
+                </button>
+            </form>
+            {% else %}
+            <button type="button"
+                    class="btn-modulo btn-modulo--inativar"
+                    data-modulo-codigo="{{ meta.codigo }}"
+                    data-modulo-nome="{{ meta.nome }}"
+                    title="Inativar módulo temporariamente">
+                <i class="fas fa-pause-circle" aria-hidden="true"></i> Inativar
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% if st.indisponivel and st.mensagem %}
+    <div class="system-card-alert">
+        <p class="system-card-alert-text">{{ st.mensagem }}</p>
+        {% if st.previsao_retorno_label %}
+        <p class="system-card-alert-meta">Previsão de retorno: <strong>{{ st.previsao_retorno_label }}</strong></p>
+        {% endif %}
+        {% if st.atualizado_por_nome %}
+        <p class="system-card-alert-meta">Atualizado por {{ st.atualizado_por_nome }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="system-card-body">
+        {% for label, value in card.stats_rows %}
+        <div class="system-stat">
+            <span class="system-stat-label">{{ label }}</span>
+            <span class="system-stat-value">{{ value }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endwith %}

@@ -554,13 +554,111 @@ Mensagem automática. Não responda a este e-mail.
         return False
 
 
+def _anexar_pdfs_individuais_email_aprovacao(email, workorder):
+    """
+    Fallback legado: anexa PDFs soltos do pedido (comportamento anterior ao PDF consolidado).
+    Retorna (anexados, falhados).
+    """
+    from .models import Approval, Attachment
+
+    ultima_aprovacao = Approval.objects.filter(
+        work_order=workorder,
+        decisao='aprovado',
+    ).order_by('-created_at').first()
+
+    ultima_reprovacao = Approval.objects.filter(
+        work_order=workorder,
+        decisao='reprovado',
+    ).order_by('-created_at').first()
+
+    attachments_query = Attachment.objects.filter(work_order=workorder)
+
+    if ultima_reprovacao and ultima_aprovacao:
+        if ultima_reprovacao.created_at < ultima_aprovacao.created_at:
+            attachments_query = attachments_query.filter(
+                created_at__gte=ultima_reprovacao.created_at,
+            )
+    elif ultima_reprovacao and not ultima_aprovacao:
+        attachments_query = Attachment.objects.none()
+
+    extensoes_imagem = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp']
+    attachments = []
+    for att in attachments_query:
+        if not att.arquivo:
+            continue
+        try:
+            nome_arquivo = att.arquivo.name.lower()
+            extensao = os.path.splitext(nome_arquivo)[1].lower()
+            if extensao == '.pdf':
+                attachments.append(att)
+        except Exception as e:
+            logger.warning(
+                'Erro ao processar anexo %s do pedido %s (fallback e-mail): %s',
+                att.pk,
+                workorder.codigo,
+                e,
+            )
+
+    anexos_anexados = 0
+    anexos_falhados = 0
+
+    for attachment in attachments:
+        try:
+            if not attachment.arquivo:
+                anexos_falhados += 1
+                continue
+            try:
+                arquivo_path = attachment.arquivo.path
+            except ValueError:
+                try:
+                    arquivo_content = attachment.arquivo.read()
+                    nome_arquivo = os.path.basename(attachment.arquivo.name)
+                    email.attach(nome_arquivo, arquivo_content)
+                    anexos_anexados += 1
+                    continue
+                except Exception as read_error:
+                    logger.warning(
+                        'Erro ao ler anexo remoto %s: %s',
+                        attachment.arquivo.name,
+                        read_error,
+                    )
+                    anexos_falhados += 1
+                    continue
+
+            if not os.path.exists(arquivo_path):
+                anexos_falhados += 1
+                continue
+
+            with open(arquivo_path, 'rb') as f:
+                arquivo_content = f.read()
+                nome_arquivo = os.path.basename(arquivo_path)
+                nome_arquivo_sanitizado = ''.join(
+                    char for char in nome_arquivo
+                    if ord(char) >= 32 or char in ['\n', '\r', '\t']
+                )
+                if not nome_arquivo_sanitizado.strip():
+                    nome_arquivo_sanitizado = f'anexo_{attachment.pk}.pdf'
+                email.attach(nome_arquivo_sanitizado, arquivo_content)
+                anexos_anexados += 1
+        except Exception as e:
+            logger.warning(
+                'Erro ao anexar PDF %s no fallback do pedido %s: %s',
+                attachment.arquivo.name if attachment.arquivo else 'N/A',
+                workorder.codigo,
+                e,
+            )
+            anexos_falhados += 1
+
+    return anexos_anexados, anexos_falhados
+
+
 def _enviar_email_aprovacao_thread(workorder_id, aprovado_por_id, comentario):
     """
     Função interna que roda em thread para enviar email de aprovação com anexos.
     Não deve ser chamada diretamente - use enviar_email_aprovacao().
     """
-    from .models import WorkOrder, Attachment
-    
+    from .models import WorkOrder
+
     try:
         # Recarregar objetos do banco (necessário em threads)
         from django.contrib.auth.models import User
@@ -641,7 +739,7 @@ Data de aprovação: {data_aprovacao_str}
 """
         if comentario:
             mensagem_texto += f"\nComentário do aprovador:\n{comentario}\n\n"
-        mensagem_texto += f"""Os documentos aprovados estão anexados a este e-mail.
+        mensagem_texto += f"""O PDF consolidado com todos os anexos do pedido e a assinatura do aprovador está anexo a este e-mail.
 
 Ver detalhes no sistema: {url_detalhes}
 
@@ -663,7 +761,7 @@ Mensagem automática. Não responda a este e-mail.
         conteudo_html = f"""
                 <p>O pedido <strong>{workorder.codigo}</strong> foi aprovado por <strong>{aprovador_nome}</strong> em {data_aprovacao_str}.</p>
                 {comentario_html}
-                <p>Os documentos aprovados estão anexados a este e-mail. Use o botão abaixo para abrir o pedido no sistema.</p>
+                <p>O PDF consolidado com todos os anexos do pedido e a assinatura do aprovador está anexo a este e-mail. Use o botão abaixo para abrir o pedido no sistema.</p>
                 <div class="info-box">
                     <div class="info-row">
                         <span class="info-label">Aprovado por</span>
@@ -689,159 +787,47 @@ Mensagem automática. Não responda a este e-mail.
             to=destinatarios,
         )
         email.attach_alternative(html_content, "text/html")
-        
-        # Buscar a última aprovação para filtrar apenas anexos da versão aprovada
-        from .models import Approval
-        ultima_aprovacao = Approval.objects.filter(
-            work_order=workorder,
-            decisao='aprovado'
-        ).order_by('-created_at').first()
-        
-        # Buscar a última reprovação (se houver) para excluir anexos de versões reprovadas
-        ultima_reprovacao = Approval.objects.filter(
-            work_order=workorder,
-            decisao='reprovado'
-        ).order_by('-created_at').first()
-        
-        # Filtrar anexos:
-        # 1. Apenas PDFs (não imagens)
-        # 2. Apenas anexos da versão aprovada (criados após a última reprovação, se houver)
-        attachments_query = Attachment.objects.filter(work_order=workorder)
-        
-        # Lógica de filtragem por data:
-        # - Se houver reprovação E ela for anterior à aprovação: enviar apenas anexos após a reprovação
-        # - Se não houver reprovação OU reprovação for posterior à aprovação: enviar todos os anexos
-        if ultima_reprovacao and ultima_aprovacao:
-            # Se a reprovação foi antes da aprovação, filtrar anexos após a reprovação
-            if ultima_reprovacao.created_at < ultima_aprovacao.created_at:
-                attachments_query = attachments_query.filter(created_at__gte=ultima_reprovacao.created_at)
-                logger.debug(
-                    f"Filtrando anexos após reprovação ({ultima_reprovacao.created_at}) "
-                    f"para pedido {workorder.codigo}"
-                )
-        elif ultima_reprovacao and not ultima_aprovacao:
-            # Caso estranho: há reprovação mas não há aprovação (não deveria acontecer, mas tratamos)
-            logger.warning(
-                f"Pedido {workorder.codigo} tem reprovação mas não tem aprovação. "
-                f"Não enviando anexos por segurança."
-            )
-            attachments_query = Attachment.objects.none()
-        
-        # Filtrar apenas PDFs (extensões de imagem serão excluídas)
-        # Extensões de imagem que NÃO queremos: .jpg, .jpeg, .png, .gif
-        extensoes_imagem = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp']
-        attachments = []
-        for att in attachments_query:
-            if not att.arquivo:
-                continue
-            try:
-                # Obter extensão do arquivo de forma segura
-                nome_arquivo = att.arquivo.name.lower()
-                extensao = os.path.splitext(nome_arquivo)[1].lower()
-                
-                # Incluir apenas PDFs (excluir imagens e outros tipos)
-                if extensao == '.pdf':
-                    attachments.append(att)
-                    logger.debug(f"PDF incluído no email: {nome_arquivo}")
-                elif extensao in extensoes_imagem:
-                    logger.debug(f"Imagem excluída do email: {nome_arquivo} (apenas PDFs são enviados)")
-                else:
-                    logger.debug(f"Arquivo excluído do email: {nome_arquivo} (tipo {extensao} não é PDF)")
-            except Exception as e:
-                logger.warning(f"Erro ao processar anexo {att.pk} do pedido {workorder.codigo}: {e}")
-                continue
-        
+
+        from gestao_aprovacao.services.consolidated_signature_pdf import (
+            try_build_consolidated_approval_email_pdf,
+        )
+
         anexos_anexados = 0
         anexos_falhados = 0
-        
-        # Processar anexos PDFs
-        for attachment in attachments:
-            try:
-                # Verificar se o arquivo existe no campo
-                if not attachment.arquivo:
-                    logger.warning(f"Anexo {attachment.pk} não tem arquivo associado")
-                    anexos_falhados += 1
-                    continue
-                
-                # Obter caminho completo do arquivo
-                try:
-                    arquivo_path = attachment.arquivo.path
-                except ValueError as e:
-                    # Arquivo pode estar em storage remoto (S3, etc)
-                    logger.warning(f"Não foi possível obter path local do arquivo {attachment.arquivo.name}: {e}")
-                    # Tentar ler diretamente do campo arquivo
-                    try:
-                        arquivo_content = attachment.arquivo.read()
-                        nome_arquivo = os.path.basename(attachment.arquivo.name)
-                        email.attach(nome_arquivo, arquivo_content)
-                        anexos_anexados += 1
-                        logger.debug(f"PDF anexado (storage remoto): {nome_arquivo} ({len(arquivo_content)} bytes)")
-                        continue
-                    except Exception as read_error:
-                        logger.warning(f"Erro ao ler arquivo remoto {attachment.arquivo.name}: {read_error}")
-                        anexos_falhados += 1
-                        continue
-                
-                # Verificar se arquivo existe no sistema de arquivos
-                if not os.path.exists(arquivo_path):
-                    logger.warning(f"Arquivo não encontrado no sistema: {arquivo_path} - Anexo ID: {attachment.pk}")
-                    anexos_falhados += 1
-                    continue
-                
-                # Verificar tamanho do arquivo (evitar arquivos muito grandes)
-                tamanho_arquivo = os.path.getsize(arquivo_path)
-                if tamanho_arquivo > 25 * 1024 * 1024:  # 25MB (limite recomendado para email)
-                    logger.warning(
-                        f"Arquivo muito grande ({tamanho_arquivo / 1024 / 1024:.2f}MB): {arquivo_path}. "
-                        f"Pode causar problemas no envio do email."
-                    )
-                
-                # Ler arquivo e anexar
-                with open(arquivo_path, 'rb') as f:
-                    arquivo_content = f.read()
-                    nome_arquivo = os.path.basename(arquivo_path)
-                    # Sanitizar nome do arquivo removendo apenas caracteres problemáticos
-                    # Manter acentos e caracteres especiais comuns, mas remover caracteres de controle
-                    nome_arquivo_sanitizado = ''.join(
-                        char for char in nome_arquivo 
-                        if ord(char) >= 32 or char in ['\n', '\r', '\t']
-                    )
-                    # Se a sanitização removeu tudo, usar nome padrão
-                    if not nome_arquivo_sanitizado.strip():
-                        nome_arquivo_sanitizado = f"anexo_{attachment.pk}.pdf"
-                    email.attach(nome_arquivo_sanitizado, arquivo_content)
-                    anexos_anexados += 1
-                    logger.debug(f"PDF anexado: {nome_arquivo_sanitizado} ({len(arquivo_content)} bytes)")
-                    
-            except OSError as e:
-                # Erro de sistema de arquivos
+        consolidated = try_build_consolidated_approval_email_pdf(workorder)
+
+        if consolidated:
+            pdf_bytes, nome_arquivo = consolidated
+            tamanho = len(pdf_bytes)
+            if tamanho > 25 * 1024 * 1024:
                 logger.warning(
-                    f"Erro de sistema ao acessar arquivo {attachment.arquivo.name if attachment.arquivo else 'N/A'} "
-                    f"do pedido {workorder.codigo}: {e}. Continuando envio do email sem este anexo."
+                    'PDF consolidado do pedido %s muito grande (%.2f MB); '
+                    'e-mail pode falhar no envio.',
+                    workorder.codigo,
+                    tamanho / 1024 / 1024,
                 )
-                anexos_falhados += 1
-                continue
-            except Exception as e:
-                # Outros erros
-                logger.warning(
-                    f"Erro ao anexar arquivo {attachment.arquivo.name if attachment.arquivo else 'N/A'} "
-                    f"do pedido {workorder.codigo}: {e}. Continuando envio do email sem este anexo."
-                )
-                anexos_falhados += 1
-                continue
-        
-        # Log informativo sobre anexos
+            email.attach(nome_arquivo, pdf_bytes, 'application/pdf')
+            anexos_anexados = 1
+            logger.info(
+                'E-mail de aprovação do pedido %s: anexo PDF consolidado %s (%d bytes).',
+                workorder.codigo,
+                nome_arquivo,
+                tamanho,
+            )
+        else:
+            logger.warning(
+                'PDF consolidado indisponível para pedido %s; usando fallback de PDFs individuais.',
+                workorder.codigo,
+            )
+            anexos_anexados, anexos_falhados = _anexar_pdfs_individuais_email_aprovacao(
+                email, workorder
+            )
+
         if anexos_anexados == 0:
-            if len(attachments) > 0:
-                logger.info(
-                    f"Nenhum PDF foi anexado ao email do pedido {workorder.codigo} "
-                    f"(todos falharam ou não foram encontrados). Email será enviado sem anexos."
-                )
-            else:
-                logger.info(
-                    f"Nenhum PDF encontrado para anexar ao email do pedido {workorder.codigo}. "
-                    f"Email será enviado sem anexos."
-                )
+            logger.info(
+                'Nenhum anexo no e-mail de aprovação do pedido %s (consolidado e fallback vazios).',
+                workorder.codigo,
+            )
         
         # Enviar email com retry
         try:
@@ -877,7 +863,8 @@ Mensagem automática. Não responda a este e-mail.
 def enviar_email_aprovacao(workorder, aprovado_por, comentario=None):
     """
     Envia e-mail para o solicitante e departamentos quando o pedido é aprovado.
-    Inclui todos os anexos do pedido.
+    Anexa o PDF consolidado (todos os anexos + assinatura do aprovador), com fallback
+    para PDFs individuais apenas se a consolidação não for possível.
     Roda em thread separada para não travar a interface.
     
     Args:

@@ -6,7 +6,7 @@ A configuração de admin customizada está em views_admin.py (Admin Central).
 """
 
 from django.contrib import admin
-from .models import UserLoginLog, UserSignupRequest
+from .models import ModuloIntegradoStatus, UserLoginLog, UserSignupRequest
 
 
 @admin.register(UserLoginLog)
@@ -23,6 +23,13 @@ class UserLoginLogAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ModuloIntegradoStatus)
+class ModuloIntegradoStatusAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nome', 'ativo', 'previsao_retorno', 'atualizado_em', 'atualizado_por')
+    list_filter = ('ativo',)
+    readonly_fields = ('atualizado_em',)
 
 
 @admin.register(UserSignupRequest)

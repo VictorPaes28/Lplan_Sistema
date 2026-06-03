@@ -1,0 +1,35 @@
+{% if st.indisponivel %}
+<a href="{% url 'accounts:modulo_indisponivel' codigo %}" class="system-card {{ css_class }} disabled" aria-label="{{ title }} — indisponível">
+    <div class="card-inner">
+        <div class="flex items-start justify-between mb-3">
+            <div class="system-icon"><i class="fas {{ icon_class }}"></i></div>
+            <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">{{ title }}</h3>
+        <p class="text-sm text-slate-500 mb-0">{{ description }}</p>
+        {% if st.mensagem %}
+        <p class="text-sm mt-2 mb-0" style="color:#9a3412;line-height:1.45;">{{ st.mensagem|truncatechars:160 }}</p>
+        {% endif %}
+        {% if st.previsao_retorno_label %}
+        <p class="text-xs mt-2 mb-0 text-amber-800">Previsão de retorno: {{ st.previsao_retorno_label }}</p>
+        {% endif %}
+        <div class="mt-4 text-right">
+            <span class="card-arrow">Ver detalhes <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+        </div>
+    </div>
+</a>
+{% else %}
+<a href="{{ access_url }}" class="system-card {{ css_class }}" aria-label="{{ aria_label }}">
+    <div class="card-inner">
+        <div class="flex items-start justify-between mb-3">
+            <div class="system-icon"><i class="fas {{ icon_class }}"></i></div>
+            <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">{{ title }}</h3>
+        <p class="text-sm text-slate-500 mb-0">{{ description }}</p>
+        <div class="mt-4 text-right">
+            <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+        </div>
+    </div>
+</a>
+{% endif %}
