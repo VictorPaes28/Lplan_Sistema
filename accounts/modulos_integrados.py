@@ -135,18 +135,30 @@ def _row_to_status(row) -> dict[str, Any]:
     }
 
 
+def default_modulos_status_map() -> dict[str, dict[str, Any]]:
+    """Mapa com todos os módulos ativos (fallback seguro para templates e middleware)."""
+    return {meta.codigo: _row_to_status(None) for meta in MODULOS_INTEGRADOS}
+
+
 def load_modulos_status_map() -> dict[str, dict[str, Any]]:
     cached = cache.get(CACHE_KEY)
     if cached is not None:
         return cached
 
-    from accounts.models import ModuloIntegradoStatus
+    from django.db.utils import OperationalError, ProgrammingError
 
-    rows = {
-        r.codigo: r
-        for r in ModuloIntegradoStatus.objects.select_related('atualizado_por').all()
-    }
-    result = {meta.codigo: _row_to_status(rows.get(meta.codigo)) for meta in MODULOS_INTEGRADOS}
+    try:
+        from accounts.models import ModuloIntegradoStatus
+
+        rows = {
+            r.codigo: r
+            for r in ModuloIntegradoStatus.objects.select_related('atualizado_por').all()
+        }
+        result = {meta.codigo: _row_to_status(rows.get(meta.codigo)) for meta in MODULOS_INTEGRADOS}
+    except (ProgrammingError, OperationalError):
+        # Migration ainda não aplicada ou tabela indisponível — não derruba o site.
+        result = default_modulos_status_map()
+
     cache.set(CACHE_KEY, result, CACHE_TTL)
     return result
 
@@ -173,6 +185,7 @@ def resolve_modulo_from_path(path: str) -> str | None:
         if path.startswith(prefix):
             return codigo
 
+    # Infraestrutura, painel, auth e cadastro central — nunca bloquear por módulo inativo.
     global_exempt = (
         '/accounts/',
         '/admin/',
@@ -185,16 +198,40 @@ def resolve_modulo_from_path(path: str) -> str | None:
         '/login',
         '/logout',
         '/signup',
+        '/cadastro/',
+        '/password-reset',
         '/central/',
+        '/projects/',
         '/support',
         '/notifications',
         '/profile',
         '/central-ajuda',
+        '/sw-rdo-offline.js',
     )
     if path.startswith(global_exempt):
         return None
 
-    return 'diario'
+    # Só URLs operacionais do Diário entram no bloqueio de manutenção do módulo.
+    # (Antes: qualquer path desconhecido caía como «diario» e bloqueava senha, cadastro, etc.)
+    diario_operational = (
+        '/select-project/',
+        '/dashboard/',
+        '/reports/',
+        '/diaries/',
+        '/diaries',
+        '/labor/',
+        '/equipment/',
+        '/filters/',
+        '/analytics/',
+        '/calendar-events/',
+        '/cliente/diarios/',
+        '/htmx/projects/',
+        '/htmx/activities/',
+    )
+    if path.startswith(diario_operational):
+        return 'diario'
+
+    return None
 
 
 def build_modulos_cards_for_admin(context: dict) -> list[dict[str, Any]]:

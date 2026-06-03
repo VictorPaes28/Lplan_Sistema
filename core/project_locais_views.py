@@ -9,7 +9,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError
-from django.db.models import Count, ProtectedError
+from django.db.models import ProtectedError
+
+from core.db_annotations import coalesced_correlated_count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
@@ -29,8 +31,8 @@ def _require_central_projects(user):
 
 def _flat_tree_rows(obra: Obra):
     locals_qs = LocalObra.objects.filter(obra=obra).annotate(
-        n_itens=Count('itens_mapa', distinct=True),
-        n_aloc=Count('alocacoes', distinct=True),
+        n_itens=coalesced_correlated_count(ItemMapa, fk_field='local_aplicacao_id'),
+        n_aloc=coalesced_correlated_count(AlocacaoRecebimento, fk_field='local_aplicacao_id'),
     )
     by_parent: dict[int | None, list] = {}
     for loc in locals_qs:

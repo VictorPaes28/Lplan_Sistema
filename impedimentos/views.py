@@ -78,14 +78,18 @@ def _ultimo_status_obra(obra):
 
 
 def _annotate_subtarefas_counts(queryset, ultimo_status):
-    qs = queryset.annotate(subtarefas_count=Count("subtarefas", distinct=True))
+    from core.db_annotations import coalesced_correlated_count
+
+    qs = queryset.annotate(
+        subtarefas_count=coalesced_correlated_count(Impedimento, fk_field='parent_id'),
+    )
     if ultimo_status:
         return qs.annotate(
-            subtarefas_concluidas=Count(
-                "subtarefas",
-                filter=Q(subtarefas__status_id=ultimo_status.id),
-                distinct=True,
-            )
+            subtarefas_concluidas=coalesced_correlated_count(
+                Impedimento,
+                fk_field='parent_id',
+                status_id=ultimo_status.id,
+            ),
         )
     return qs.annotate(subtarefas_concluidas=Value(0, output_field=IntegerField()))
 

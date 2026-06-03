@@ -47,10 +47,16 @@ class ProjectSerializer(serializers.ModelSerializer):
     
     def get_activities_count(self, obj):
         """Retorna número de atividades do projeto."""
+        annotated = getattr(obj, 'activities_count', None)
+        if annotated is not None:
+            return annotated
         return obj.activities.count()
-    
+
     def get_diaries_count(self, obj):
         """Retorna número de diários do projeto."""
+        annotated = getattr(obj, 'diaries_count', None)
+        if annotated is not None:
+            return annotated
         return obj.diaries.count()
 
 

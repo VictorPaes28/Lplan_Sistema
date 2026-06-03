@@ -434,6 +434,37 @@
         }
     })();
 
+    // Remove ?next= da barra de endereço; o destino pós-login fica no campo hidden do formulário.
+    (function() {
+        try {
+            var params = new URLSearchParams(window.location.search || '');
+            if (!params.has('next')) {
+                return;
+            }
+            var nextValue = (params.get('next') || '').trim();
+            var form = document.getElementById('loginForm');
+            if (form && nextValue) {
+                var field = form.querySelector('input[name="next"]');
+                if (!field) {
+                    field = document.createElement('input');
+                    field.type = 'hidden';
+                    field.name = 'next';
+                    field.value = nextValue;
+                    form.insertBefore(field, form.firstChild);
+                } else if (!field.value.trim()) {
+                    field.value = nextValue;
+                }
+            }
+            if (window.history && typeof window.history.replaceState === 'function') {
+                params.delete('next');
+                var cleanedQuery = params.toString();
+                var cleanedUrl = window.location.pathname + (cleanedQuery ? ('?' + cleanedQuery) : '') + window.location.hash;
+                window.history.replaceState({}, '', cleanedUrl);
+            }
+        } catch (_e) {
+        }
+    })();
+
     // Login button loading state
     document.getElementById('loginForm').addEventListener('submit', function() {
         const btn = document.getElementById('btnLogin');

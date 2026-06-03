@@ -52,6 +52,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['created_at', 'name', 'code']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        from core.db_annotations import coalesced_correlated_count
+
+        return Project.objects.annotate(
+            activities_count=coalesced_correlated_count(Activity, fk_field='project_id'),
+            diaries_count=coalesced_correlated_count(ConstructionDiary, fk_field='project_id'),
+        )
     
     @action(detail=True, methods=['get'])
     def activities_tree(self, request, pk=None):

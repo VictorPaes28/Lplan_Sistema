@@ -534,7 +534,6 @@ def _labor_histogram_bucket_from_category_slug(slug):
 def login_view(request):
     """View de login."""
     if request.user.is_authenticated:
-        # Sempre redireciona para seleção de sistema (não redireciona automaticamente)
         return redirect('select-system')
 
     next_url = (request.POST.get('next') or request.GET.get('next') or '').strip()
@@ -546,7 +545,6 @@ def login_view(request):
 
         if user is not None:
             login(request, user)
-            # Limpa obra selecionada anterior (se houver) para forçar nova seleção
             if 'selected_project_id' in request.session:
                 del request.session['selected_project_id']
             if 'selected_project_name' in request.session:
@@ -560,8 +558,7 @@ def login_view(request):
             ):
                 return redirect(next_url)
             return redirect('select-system')
-        else:
-            return render(request, 'core/login.html', {'error': 'Credenciais inválidas', 'next': next_url})
+        return render(request, 'core/login.html', {'error': 'Credenciais inválidas', 'next': next_url})
 
     return render(request, 'core/login.html', {'next': next_url})
 
@@ -6444,10 +6441,12 @@ def project_list_view(request):
     Staff/superuser ou grupo Administrador (mesmo critério do antigo «Gerenciar obras»).
     """
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
+    from core.db_annotations import coalesced_correlated_count
     from django.core.exceptions import PermissionDenied
     from django.db.models import Count, IntegerField, OuterRef, Subquery, Q
     from django.db.models.functions import Coalesce
     from mapa_obras.models import LocalObra
+    from .models import ProjectEquipmentItem, ProjectLaborItem
 
     if not getattr(request.user, 'is_authenticated', False):
         from django.contrib.auth.views import redirect_to_login
@@ -6455,11 +6454,10 @@ def project_list_view(request):
     if not user_can_central_obras_diario_e_mapa(request.user):
         raise PermissionDenied('Você não tem permissão para acessar esta página.')
 
-    # Contagem de locais em subconsulta: evita JOIN cartesiano com diaries/activities
-    # (vários Count em relações diferentes na mesma query podem distorcer resultados).
-    # Usa codigo_sienge da obra mapa = project.code (válido com ou sem FK project preenchida).
     _locais_sq = Subquery(
-        LocalObra.objects.filter(obra__codigo_sienge=OuterRef('code'))
+        LocalObra.objects.filter(
+            Q(obra__project_id=OuterRef('pk')) | Q(obra__codigo_sienge=OuterRef('code'))
+        )
         .values('obra')
         .annotate(_n=Count('id'))
         .values('_n')[:1],
@@ -6467,11 +6465,15 @@ def project_list_view(request):
     )
 
     projects = Project.objects.annotate(
-        diaries_count=Count('diaries', distinct=True),
-        activities_count=Count('activities', distinct=True),
+        diaries_count=coalesced_correlated_count(ConstructionDiary, fk_field='project_id'),
+        activities_count=coalesced_correlated_count(Activity, fk_field='project_id'),
         n_locais_mapa=Coalesce(_locais_sq, 0),
-        n_equip_rdo=Count('equipment_catalog_items', filter=Q(equipment_catalog_items__is_active=True), distinct=True),
-        n_labor_rdo=Count('labor_catalog_items', filter=Q(labor_catalog_items__is_active=True), distinct=True),
+        n_equip_rdo=coalesced_correlated_count(
+            ProjectEquipmentItem, fk_field='project_id', is_active=True
+        ),
+        n_labor_rdo=coalesced_correlated_count(
+            ProjectLaborItem, fk_field='project_id', is_active=True
+        ),
     ).order_by('-created_at')
 
     context = {

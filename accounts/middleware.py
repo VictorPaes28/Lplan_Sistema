@@ -27,7 +27,13 @@ class ModuloIntegradoManutencaoMiddleware:
             return None
 
         codigo = resolve_modulo_from_path(request.path)
-        if not codigo or modulo_esta_ativo(codigo):
+        if not codigo:
+            return None
+        try:
+            if modulo_esta_ativo(codigo):
+                return None
+        except Exception:
+            # Falha ao ler status (ex.: migration pendente) — não bloqueia o site inteiro.
             return None
 
         unavailable = reverse('accounts:modulo_indisponivel', kwargs={'codigo': codigo})

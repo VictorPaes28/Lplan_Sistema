@@ -131,84 +131,66 @@ def sidebar_counters(request):
     """
     Context processor para adicionar contadores da sidebar em todas as páginas.
     """
-    # Se não houver projeto selecionado, retorna contadores zerados
+    zeros = {
+        'total_reports_count': 0,
+        'total_photos_count': 0,
+        'total_videos_count': 0,
+        'total_activities_count': 0,
+        'total_occurrences_count': 0,
+        'total_comments_count': 0,
+        'total_attachments_count': 0,
+    }
     if not request.user.is_authenticated:
-        return {
-            'total_reports_count': 0,
-            'total_photos_count': 0,
-            'total_videos_count': 0,
-            'total_activities_count': 0,
-            'total_occurrences_count': 0,
-            'total_comments_count': 0,
-            'total_attachments_count': 0,
-        }
-    
+        return zeros
+
     project_id = request.session.get('selected_project_id')
-    
     if not project_id:
-        return {
-            'total_reports_count': 0,
-            'total_photos_count': 0,
-            'total_videos_count': 0,
-            'total_activities_count': 0,
-            'total_occurrences_count': 0,
-            'total_comments_count': 0,
-            'total_attachments_count': 0,
-        }
-    
+        return zeros
+
+    from django.core.cache import cache
+    from django.db.models import Count, Q
+
+    cache_key = f'core:sidebar_counters:v1:{project_id}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
-        # Total de relatórios
-        total_reports = ConstructionDiary.objects.filter(project_id=project_id).count()
-        
-        # Total de fotos
+        diary_agg = ConstructionDiary.objects.filter(project_id=project_id).aggregate(
+            total_reports=Count('id'),
+            total_comments=Count(
+                'id',
+                filter=~Q(general_notes='') & ~Q(general_notes__isnull=True),
+            ),
+        )
         total_photos = DiaryImage.objects.filter(
             diary__project_id=project_id,
-            is_approved_for_report=True
+            is_approved_for_report=True,
         ).count()
-        
-        # Total de vídeos
         total_videos = DiaryVideo.objects.filter(
-            diary__project_id=project_id
+            diary__project_id=project_id,
         ).count()
-        
-        # Total de atividades
         total_activities = Activity.objects.filter(project_id=project_id).count()
-        
-        # Total de ocorrências (modelo DiaryOccurrence – mesmo do dashboard e aba Ocorrências)
         total_occurrences = DiaryOccurrence.objects.filter(
-            diary__project_id=project_id
+            diary__project_id=project_id,
         ).count()
-        
-        # Total de comentários (diários com general_notes)
-        total_comments = ConstructionDiary.objects.filter(
-            project_id=project_id
-        ).exclude(general_notes='').exclude(general_notes__isnull=True).count()
-        
-        # Total de anexos
         total_attachments = DiaryAttachment.objects.filter(
-            diary__project_id=project_id
+            diary__project_id=project_id,
         ).count()
-        
-        return {
-            'total_reports_count': total_reports,
+
+        result = {
+            'total_reports_count': diary_agg['total_reports'] or 0,
             'total_photos_count': total_photos,
             'total_videos_count': total_videos,
             'total_activities_count': total_activities,
             'total_occurrences_count': total_occurrences,
-            'total_comments_count': total_comments,
+            'total_comments_count': diary_agg['total_comments'] or 0,
             'total_attachments_count': total_attachments,
         }
+        cache.set(cache_key, result, 60)
+        return result
     except Exception:
-        # Em caso de erro, retorna contadores zerados
-        return {
-            'total_reports_count': 0,
-            'total_photos_count': 0,
-            'total_videos_count': 0,
-            'total_activities_count': 0,
-            'total_occurrences_count': 0,
-            'total_comments_count': 0,
-            'total_attachments_count': 0,
-        }
+        return zeros
 
 
 def obra_inativa_sessao(request):
