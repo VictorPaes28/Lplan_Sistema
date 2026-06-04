@@ -438,10 +438,20 @@ class WorkOrder(models.Model):
 
     def bloqueia_alteracao_anexos(self):
         """
-        Anexos não podem ser alterados em análise nem após aprovado/cancelado.
-        Permite alteração apenas em rascunho ou reprovado (reenvio pelo solicitante).
+        Anexos não podem ser alterados em reaprovação nem após aprovado/cancelado.
+        Em pendente, rascunho e reprovado o criador pode alterar (ver criador_pode_alterar_anexos).
         """
-        return self.status in ('pendente', 'reaprovacao', 'aprovado', 'cancelado')
+        return self.status in ('reaprovacao', 'aprovado', 'cancelado')
+
+    def criador_pode_alterar_anexos(self, user) -> bool:
+        """Criador do pedido pode adicionar/remover anexos nestes status."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if not self.criado_por_id or self.criado_por_id != user.pk:
+            return False
+        if self.bloqueia_alteracao_anexos():
+            return False
+        return self.status in ('rascunho', 'pendente', 'reprovado')
 
 
 class Approval(models.Model):

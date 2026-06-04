@@ -328,9 +328,12 @@ EXTENSOES_PERMITIDAS = [
 
 ANEXOS_BLOQUEADOS_FLUXO_MSG = (
     'Anexos não podem ser adicionados, alterados ou removidos '
-    'enquanto o pedido estiver em análise (pendente ou reaprovação), '
-    'após aprovado ou se estiver cancelado.'
+    'enquanto o pedido estiver em reaprovação, após aprovado ou se estiver cancelado.'
 )
+
+
+def _status_bloqueia_alteracao_anexos(status: str) -> bool:
+    return status in ('reaprovacao', 'aprovado', 'cancelado')
 
 
 def validar_extensao_arquivo(nome_arquivo):
@@ -1630,7 +1633,7 @@ def detail_workorder(request, pk):
     # Verificar se pode adicionar anexos
     # Aprovadores NÃO podem adicionar/deletar anexos
     # Solicitantes só podem adicionar/deletar anexos na tela de EDIÇÃO, não na tela de detalhes
-    # Na tela de detalhes, solicitantes só podem adicionar/deletar se o pedido está em rascunho
+    # Na tela de detalhes, criador pode anexos em rascunho, pendente ou reprovado
     can_add_attachment = False
     can_delete_attachment = False
     anexos_bloqueados_fluxo = workorder.bloqueia_alteracao_anexos()
@@ -1639,8 +1642,8 @@ def detail_workorder(request, pk):
         if is_admin(user):
             can_add_attachment = True
             can_delete_attachment = True
-        elif is_engenheiro(user) and not (is_aprovador(user) or is_admin(user)):
-            if workorder.criado_por == user and workorder.status == 'rascunho':
+        elif not (is_aprovador(user) or is_admin(user)):
+            if workorder.criador_pode_alterar_anexos(user):
                 can_add_attachment = True
                 can_delete_attachment = True
     # Aprovadores não podem adicionar/deletar anexos (já está False por padrão)
@@ -1857,8 +1860,8 @@ def _workorder_ajax_permission_flags(workorder, user):
         if is_admin(user):
             can_add_attachment = True
             can_delete_attachment = True
-        elif is_engenheiro(user) and not (is_aprovador(user) or is_admin(user)):
-            if workorder.criado_por == user and workorder.status == 'rascunho':
+        elif not (is_aprovador(user) or is_admin(user)):
+            if workorder.criador_pode_alterar_anexos(user):
                 can_add_attachment = True
                 can_delete_attachment = True
 
@@ -2768,10 +2771,9 @@ def edit_workorder(request, pk):
             # Salvar o pedido
             workorder.save()
 
-            anexos_bloqueados_no_envio = status_anterior in ('pendente', 'reaprovacao')
+            anexos_bloqueados_no_envio = _status_bloqueia_alteracao_anexos(status_anterior)
             
-            # Processar exclusão de anexos existentes
-            # Solicitantes podem excluir anexos apenas em rascunho ou reprovado (antes de reenviar)
+            # Processar exclusão de anexos existentes (usa status antes do save)
             anexos_excluidos_ids = request.POST.getlist('excluir_anexos')
             anexos_excluidos = []
             if anexos_excluidos_ids:
@@ -2780,9 +2782,16 @@ def edit_workorder(request, pk):
                     return redirect('gestao:edit_workorder', pk=workorder.pk)
 
                 pode_excluir = True
-                if is_solicitante_only and workorder.status not in ['rascunho', 'reprovado']:
-                    pode_excluir = False
-                    messages.warning(request, 'Você não tem permissão para excluir anexos de um pedido que já foi aprovado ou reprovado.')
+                if is_solicitante_only:
+                    pode_excluir = (
+                        workorder.criado_por == user
+                        and status_anterior in ('rascunho', 'pendente', 'reprovado')
+                    )
+                    if not pode_excluir:
+                        messages.warning(
+                            request,
+                            'Você não tem permissão para excluir anexos neste status do pedido.',
+                        )
                 
                 if pode_excluir:
                     for anexo_id in anexos_excluidos_ids:
@@ -3490,10 +3499,12 @@ def upload_attachment(request, pk):
     # Verificar se é solicitante (não é aprovador nem admin)
     is_solicitante_only = is_engenheiro(user) and not (is_aprovador(user) or is_admin(user))
     
-    # Solicitantes só podem adicionar anexos via upload_attachment se o pedido está em rascunho
-    # Para reaprovação, devem usar a tela de EDIÇÃO do pedido (status reprovado)
-    if is_solicitante_only and workorder.status != 'rascunho':
-        messages.error(request, 'Você não pode adicionar anexos a um pedido que já foi enviado. Use a opção de editar o pedido para adicionar novos anexos.')
+    if is_solicitante_only and not workorder.criador_pode_alterar_anexos(user):
+        messages.error(
+            request,
+            'Você só pode adicionar anexos a pedidos que você criou, em rascunho, '
+            'pendente ou reprovado (para reenvio).',
+        )
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Apenas admin ou criador do pedido (fora dos status bloqueados acima)
@@ -3564,9 +3575,12 @@ def delete_attachment(request, pk):
     # Verificar se é solicitante (não é aprovador nem admin)
     is_solicitante_only = is_engenheiro(user) and not (is_aprovador(user) or is_admin(user))
     
-    # Solicitantes NÃO podem deletar anexos após enviar o pedido
-    if is_solicitante_only and workorder.status != 'rascunho':
-        messages.error(request, 'Você não pode deletar anexos de um pedido que já foi enviado.')
+    if is_solicitante_only and not workorder.criador_pode_alterar_anexos(user):
+        messages.error(
+            request,
+            'Você só pode remover anexos de pedidos que você criou, em rascunho, '
+            'pendente ou reprovado (para reenvio).',
+        )
         return redirect('gestao:detail_workorder', pk=workorder.pk)
     
     # Verificar permissão de deleção
