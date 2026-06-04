@@ -22,7 +22,7 @@ class IaMensagemLogAdmin(admin.ModelAdmin):
         'funcao_chamada',
         'status',
     )
-    list_filter = ('status', 'intencao_detectada', 'funcao_chamada', 'criado_em')
+    list_filter = ('status', 'intencao_detectada', 'funcao_chamada')
     search_fields = ('telefone', 'mensagem_recebida', 'resposta_enviada')
     readonly_fields = (
         'usuario',
@@ -34,7 +34,6 @@ class IaMensagemLogAdmin(admin.ModelAdmin):
         'status',
         'criado_em',
     )
-    date_hierarchy = 'criado_em'
 
     def has_add_permission(self, request):
         return False
@@ -46,10 +45,8 @@ class IaMensagemLogAdmin(admin.ModelAdmin):
 @admin.register(IaErroLog)
 class IaErroLogAdmin(admin.ModelAdmin):
     list_display = ('criado_em', 'usuario', 'erro_resumo')
-    list_filter = ('criado_em',)
     search_fields = ('erro', 'payload_resumido', 'usuario__telefone')
     readonly_fields = ('usuario', 'erro', 'payload_resumido', 'criado_em')
-    date_hierarchy = 'criado_em'
 
     @admin.display(description='Erro')
     def erro_resumo(self, obj):
