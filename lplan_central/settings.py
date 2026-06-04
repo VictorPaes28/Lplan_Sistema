@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'audit',
     'workflow_aprovacao',
     'painel_operacional',
+    'whatsapp_ia',
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 
@@ -493,6 +494,14 @@ CSRF_FAILURE_VIEW = 'core.csrf_views.csrf_failure_json'
 
 # Assistente LPLAN / narrativa inteligência obra: variáveis via .env (lidas em assistente_lplan.services.llm_provider)
 # ASSISTENTE_LPLAN_AI_ENABLED=True | OPENAI_API_KEY=sk-... | ASSISTENTE_LPLAN_AI_MODEL=gpt-4o-mini
+
+# WhatsApp IA (Meta Cloud API + OpenAI)
+WHATSAPP_VERIFY_TOKEN = os.environ.get('WHATSAPP_VERIFY_TOKEN', '')
+WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN', '')
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID', '')
+WHATSAPP_BUSINESS_ACCOUNT_ID = os.environ.get('WHATSAPP_BUSINESS_ACCOUNT_ID', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 
 # Logging: arquivo + console para quem for dar suporte conseguir diagnosticar sem o desenvolvedor
 LOG_DIR = BASE_DIR / 'logs'
