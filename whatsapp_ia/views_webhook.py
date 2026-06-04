@@ -26,6 +26,36 @@ MSG_NAO_AUTORIZADO = (
 )
 
 
+def normalizar_telefone(telefone: str) -> list[str]:
+    """
+    Retorna variantes do número para busca no banco.
+    A Meta omite o '+' e às vezes o 9º dígito de celulares BR.
+    """
+    variantes = set()
+
+    # Garante que tem só dígitos para manipular
+    numero = telefone.lstrip('+')
+
+    # Variante com + na frente
+    variantes.add(f'+{numero}')
+
+    # Se for número brasileiro (começa com 55) e tiver 12 dígitos
+    # (55 + DDD 2 dígitos + número 8 dígitos = sem o 9)
+    # inserir o 9 após o DDD
+    if numero.startswith('55') and len(numero) == 12:
+        ddd = numero[2:4]
+        restante = numero[4:]
+        variantes.add(f'+55{ddd}9{restante}')
+
+    # Se tiver 13 dígitos (já tem o 9), também tentar sem o 9
+    if numero.startswith('55') and len(numero) == 13:
+        ddd = numero[2:4]
+        restante = numero[5:]  # pula o 9
+        variantes.add(f'+55{ddd}{restante}')
+
+    return list(variantes)
+
+
 def _enviar_mensagem_whatsapp(telefone, texto):
     """Envia mensagem de texto via Meta Graph API. Não propaga exceções."""
     phone_number_id = getattr(settings, 'WHATSAPP_PHONE_NUMBER_ID', '').strip()
@@ -146,13 +176,10 @@ def _webhook_receber(request):
         if not telefone:
             return HttpResponse(status=200)
 
+        variantes = normalizar_telefone(telefone)
         usuario_wa = UsuarioWhatsApp.objects.filter(
-            telefone=telefone, ativo=True
+            telefone__in=variantes, ativo=True
         ).first()
-        if not usuario_wa and not telefone.startswith('+'):
-            usuario_wa = UsuarioWhatsApp.objects.filter(
-                telefone=f'+{telefone}', ativo=True
-            ).first()
 
         if not usuario_wa:
             enviado = _enviar_mensagem_whatsapp(telefone, MSG_NAO_AUTORIZADO)
