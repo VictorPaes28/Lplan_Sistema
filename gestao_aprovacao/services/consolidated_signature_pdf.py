@@ -10,6 +10,7 @@ from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
+from django.db.models import Max
 from django.utils import timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -51,13 +52,31 @@ class UnsupportedAttachmentsError(ConsolidationError):
         )
 
 
-def ordered_attachments_for_consolidation(work_order: WorkOrder) -> list[Attachment]:
-    """Ordem de exibição: versão original, depois reaprovações; dentro de cada versão, upload cronológico."""
-    return list(
-        Attachment.objects.filter(work_order=work_order).order_by(
-            'versao_reaprovacao', 'created_at'
-        )
+def _latest_reapproval_version(work_order: WorkOrder) -> int:
+    """Maior versao_reaprovacao do pedido (0 = só anexos originais)."""
+    agg = Attachment.objects.filter(work_order=work_order).aggregate(
+        max_versao=Max('versao_reaprovacao')
     )
+    return int(agg['max_versao'] or 0)
+
+
+def ordered_attachments_for_consolidation(work_order: WorkOrder) -> list[Attachment]:
+    """
+    Anexos que compõem o pacote aprovado.
+
+    Pedidos que passaram por reprovação mantêm anexos antigos em versao_reaprovacao=0
+    (e versões intermediárias v1, v2…). O PDF/e-mail deve levar só a última versão
+    enviada para aprovação — não o histórico de versões reprovadas.
+
+    Ordem: upload cronológico dentro da versão vigente.
+    """
+    latest = _latest_reapproval_version(work_order)
+    qs = Attachment.objects.filter(work_order=work_order)
+    if latest > 0:
+        qs = qs.filter(versao_reaprovacao=latest)
+    else:
+        qs = qs.filter(versao_reaprovacao=0)
+    return list(qs.order_by('created_at'))
 
 
 def _attachment_ext(attachment: Attachment) -> str:

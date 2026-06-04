@@ -556,48 +556,21 @@ Mensagem automática. Não responda a este e-mail.
 
 def _anexar_pdfs_individuais_email_aprovacao(email, workorder):
     """
-    Fallback legado: anexa PDFs soltos do pedido (comportamento anterior ao PDF consolidado).
-    Retorna (anexados, falhados).
+    Fallback quando o PDF consolidado não pôde ser gerado.
+    Mesma seleção e ordem do pacote aprovado (versão vigente, sem histórico reprovado).
+    Anexa apenas arquivos PDF individuais.
     """
-    from .models import Approval, Attachment
+    from gestao_aprovacao.services.consolidated_signature_pdf import (
+        PDF_EXT,
+        _attachment_ext,
+        ordered_attachments_for_consolidation,
+    )
 
-    ultima_aprovacao = Approval.objects.filter(
-        work_order=workorder,
-        decisao='aprovado',
-    ).order_by('-created_at').first()
-
-    ultima_reprovacao = Approval.objects.filter(
-        work_order=workorder,
-        decisao='reprovado',
-    ).order_by('-created_at').first()
-
-    attachments_query = Attachment.objects.filter(work_order=workorder)
-
-    if ultima_reprovacao and ultima_aprovacao:
-        if ultima_reprovacao.created_at < ultima_aprovacao.created_at:
-            attachments_query = attachments_query.filter(
-                created_at__gte=ultima_reprovacao.created_at,
-            )
-    elif ultima_reprovacao and not ultima_aprovacao:
-        attachments_query = Attachment.objects.none()
-
-    extensoes_imagem = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp']
-    attachments = []
-    for att in attachments_query:
-        if not att.arquivo:
-            continue
-        try:
-            nome_arquivo = att.arquivo.name.lower()
-            extensao = os.path.splitext(nome_arquivo)[1].lower()
-            if extensao == '.pdf':
-                attachments.append(att)
-        except Exception as e:
-            logger.warning(
-                'Erro ao processar anexo %s do pedido %s (fallback e-mail): %s',
-                att.pk,
-                workorder.codigo,
-                e,
-            )
+    attachments = [
+        att
+        for att in ordered_attachments_for_consolidation(workorder)
+        if att.arquivo and _attachment_ext(att) == PDF_EXT
+    ]
 
     anexos_anexados = 0
     anexos_falhados = 0

@@ -2743,25 +2743,22 @@ def edit_workorder(request, pk):
                 else:
                     versao_reaprovacao_atual = 0  # Ainda não há versões de reaprovação
             
-            if is_solicitante_only:
-                # Se o pedido estava reprovado e o solicitante está editando, mudar para "reaprovação"
-                if status_anterior == 'reprovado':
-                    # Se já existe versão, incrementar. Senão, criar versão 1
-                    if versao_reaprovacao_atual > 0:
-                        versao_reaprovacao_atual = versao_reaprovacao_atual + 1
-                    else:
-                        versao_reaprovacao_atual = 1
-                    
-                    workorder.status = 'reaprovacao'
-                    # Atualizar data_envio para a nova submissão
-                    workorder.data_envio = timezone.now()
+            is_criador = workorder.criado_por_id == user.pk
+
+            # Reenvio após reprovação: criador salva o formulário → volta para a fila (reaprovação).
+            # Vale para qualquer perfil (solicitante, aprovador ou admin que criou o pedido).
+            if status_anterior == 'reprovado' and is_criador:
+                if versao_reaprovacao_atual > 0:
+                    versao_reaprovacao_atual = versao_reaprovacao_atual + 1
                 else:
-                    # Para outros status, preservar o status atual
-                    workorder.status = status_anterior
-                    # Se já está em reaprovação, usar a versão atual (não criar nova)
-                    if workorder.status == 'reaprovacao':
-                        # versao_reaprovacao_atual já foi definida acima
-                        pass
+                    versao_reaprovacao_atual = 1
+                workorder.status = 'reaprovacao'
+                workorder.data_envio = timezone.now()
+            elif is_solicitante_only:
+                # Demais edições do solicitante: preservar status atual
+                workorder.status = status_anterior
+                if workorder.status == 'reaprovacao':
+                    pass
             
             # Se status mudou para "pendente" ou "reaprovação", preencher/atualizar data_envio
             if workorder.status in ['pendente', 'reaprovacao']:
@@ -2847,8 +2844,10 @@ def edit_workorder(request, pk):
                 return redirect('gestao:edit_workorder', pk=workorder.pk)
             
             # Determinar se estamos em contexto de reaprovação
-            # IMPORTANTE: usar o status ANTES de salvar, pois pode ter mudado
-            is_reaprovacao = (workorder.status == 'reaprovacao' or status_anterior == 'reaprovacao')
+            is_reaprovacao = workorder.status == 'reaprovacao' or status_anterior in (
+                'reaprovacao',
+                'reprovado',
+            )
             
             # Se está em reaprovação mas versao_reaprovacao_atual não foi definida ou é 0, buscar a versão atual
             if is_reaprovacao:
@@ -3041,7 +3040,16 @@ def edit_workorder(request, pk):
                             event_key=f'gestao:wo:{workorder.pk}',
                         )
             
-            messages.success(request, f'Pedido de obra "{workorder.codigo}" atualizado com sucesso!')
+            if workorder.status == 'reaprovacao' and status_anterior == 'reprovado':
+                messages.success(
+                    request,
+                    f'Pedido "{workorder.codigo}" reenviado para reaprovação.',
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Pedido de obra "{workorder.codigo}" atualizado com sucesso!',
+                )
             request.session['_prevent_back_edit_workorder_pk'] = str(workorder.pk)
             return redirect('gestao:detail_workorder', pk=workorder.pk)
     else:

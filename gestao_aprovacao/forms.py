@@ -285,6 +285,12 @@ class WorkOrderForm(forms.ModelForm):
                 # Aprovadores e admins veem todas as obras ativas
                 self.fields['obra'].queryset = Obra.objects.filter(ativo=True).order_by('empresa', 'codigo')
             
+            # Admin/aprovador que também é criador: status fica no POST como "reprovado" e
+            # impedia o reenvio — o save abaixo trata reprovado → reaprovação.
+            if self.instance.pk and getattr(self.instance, 'status', None) == 'reprovado':
+                if 'status' in self.fields:
+                    del self.fields['status']
+
             # Solicitantes: esconder status, código, prazo, valor estimado e local (preenchidos na view ou N/A).
             if is_solicitante_only:
                 if 'status' in self.fields:
