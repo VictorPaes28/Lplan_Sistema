@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 WHATSAPP_API_VERSION = 'v19.0'
 RESPOSTA_FIXA = 'Olá! Recebi sua mensagem. Em breve responderei.'
+MSG_NAO_AUTORIZADO = (
+    'Este número não está autorizado a consultar '
+    'informações do sistema. Procure o administrador '
+    'para liberar o acesso.'
+)
 
 
 def _enviar_mensagem_whatsapp(telefone, texto):
@@ -59,17 +64,6 @@ def _enviar_mensagem_whatsapp(telefone, texto):
     except requests.RequestException as exc:
         logger.exception('WhatsApp API falhou ao enviar mensagem: %s', exc)
         return False
-
-
-def _buscar_usuario_whatsapp(telefone):
-    if not telefone:
-        return None
-    normalizado = telefone.lstrip('+')
-    return (
-        UsuarioWhatsApp.objects.filter(ativo=True, telefone=telefone).first()
-        or UsuarioWhatsApp.objects.filter(ativo=True, telefone=f'+{normalizado}').first()
-        or UsuarioWhatsApp.objects.filter(ativo=True, telefone=normalizado).first()
-    )
 
 
 def _extrair_mensagem_texto(payload):
@@ -132,7 +126,6 @@ def _webhook_verificar(request):
 
 def _webhook_receber(request):
     usuario_whatsapp = None
-    telefone_log = ''
     payload_raw = request.body.decode('utf-8', errors='replace')
 
     try:
@@ -142,36 +135,51 @@ def _webhook_receber(request):
         return HttpResponse(status=200)
 
     try:
-        telefone_log, _ = _extrair_mensagem_texto(payload)
-        telefone_log = telefone_log or ''
-        usuario_whatsapp = _buscar_usuario_whatsapp(telefone_log)
+        telefone, texto = _extrair_mensagem_texto(payload)
 
         log = IaMensagemLog.objects.create(
-            usuario=usuario_whatsapp,
-            telefone=telefone_log,
+            usuario=None,
+            telefone=telefone or '',
             mensagem_recebida=json.dumps(payload, ensure_ascii=False),
         )
 
-        telefone, texto = _extrair_mensagem_texto(payload)
         if not telefone:
             return HttpResponse(status=200)
 
-        if usuario_whatsapp is None:
-            usuario_whatsapp = _buscar_usuario_whatsapp(telefone)
+        usuario_wa = UsuarioWhatsApp.objects.filter(
+            telefone=telefone, ativo=True
+        ).first()
+        if not usuario_wa and not telefone.startswith('+'):
+            usuario_wa = UsuarioWhatsApp.objects.filter(
+                telefone=f'+{telefone}', ativo=True
+            ).first()
 
+        if not usuario_wa:
+            enviado = _enviar_mensagem_whatsapp(telefone, MSG_NAO_AUTORIZADO)
+            log.resposta_enviada = MSG_NAO_AUTORIZADO
+            log.status = 'nao_autorizado'
+            log.save(update_fields=['resposta_enviada', 'status'])
+
+            if not enviado:
+                _registrar_erro(
+                    'Falha ao enviar resposta de não autorizado via API Meta',
+                    payload_resumido=f'telefone={telefone}',
+                )
+            return HttpResponse(status=200)
+
+        usuario_whatsapp = usuario_wa
         enviado = _enviar_mensagem_whatsapp(telefone, RESPOSTA_FIXA)
 
-        log.telefone = telefone
-        log.usuario = usuario_whatsapp
+        log.usuario = usuario_wa
         log.resposta_enviada = RESPOSTA_FIXA
         log.status = 'ok' if enviado else 'erro_envio'
-        log.save(update_fields=['telefone', 'usuario', 'resposta_enviada', 'status'])
+        log.save(update_fields=['usuario', 'resposta_enviada', 'status'])
 
         if not enviado:
             _registrar_erro(
                 'Falha ao enviar resposta via API Meta',
                 payload_resumido=f'telefone={telefone}, texto={texto[:200]}',
-                usuario=usuario_whatsapp,
+                usuario=usuario_wa,
             )
 
     except Exception as exc:
