@@ -14,6 +14,7 @@ from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 import re
 from datetime import timedelta, datetime, time
 from urllib.parse import urlencode, quote, parse_qs, urlparse
@@ -73,6 +74,13 @@ from gestao_aprovacao.services.consolidated_signature_pdf import (
     build_consolidated_signature_pdf,
     consolidation_precheck,
     latest_approval_signature,
+)
+from gestao_aprovacao.services.attachment_versions import (
+    assign_new_attachment_version,
+    attachment_pode_excluir,
+    attachments_ativos_queryset,
+    build_attachment_display_groups,
+    mark_submission_attachments_recusados,
 )
 from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
 from .services.user_governance import (
@@ -343,6 +351,39 @@ def validar_extensao_arquivo(nome_arquivo):
     """
     nome_arquivo = nome_arquivo.lower()
     return any(nome_arquivo.endswith(ext) for ext in EXTENSOES_PERMITIDAS)
+
+
+def _attachment_ajax_dict(att, request):
+    try:
+        url = att.arquivo.url
+    except Exception:
+        url = ''
+    if url and not url.startswith('http'):
+        url = request.build_absolute_uri(url)
+    return {
+        'id': att.pk,
+        'nome': att.get_nome_display(),
+        'url': url,
+        'eh_imagem': _attachment_eh_imagem(att.arquivo.name if att.arquivo else ''),
+        'recusado': att.recusado,
+        'versao_reaprovacao': att.versao_reaprovacao,
+        'pode_excluir': attachment_pode_excluir(att),
+    }
+
+
+def _anexos_grupos_ajax(workorder, request):
+    display = build_attachment_display_groups(workorder)
+    grupos = []
+    for grupo in display['grupos']:
+        grupos.append({
+            'key': grupo['key'],
+            'label': grupo['label'],
+            'hint': grupo['hint'],
+            'readonly': grupo['readonly'],
+            'versao': grupo['versao'],
+            'items': [_attachment_ajax_dict(att, request) for att in grupo['items']],
+        })
+    return {'modo': display['modo'], 'grupos': grupos}
 
 
 def _get_approvers_for_exclusion(workorder):
@@ -1614,21 +1655,8 @@ def detail_workorder(request, pk):
     for h in status_history:
         h.observacao_exibicao = _format_observacao_historico(h)
     
-    # Buscar anexos - separar por versão de reaprovação
-    attachments = Attachment.objects.filter(work_order=workorder).order_by('versao_reaprovacao', '-created_at')
-    attachments_originais = attachments.filter(versao_reaprovacao=0)
-    attachments_reaprovacao = attachments.filter(versao_reaprovacao__gt=0)
-    
-    # Agrupar anexos de reaprovação por versão
-    anexos_por_versao = {}
-    for att in attachments_reaprovacao:
-        versao = att.versao_reaprovacao
-        if versao not in anexos_por_versao:
-            anexos_por_versao[versao] = []
-        anexos_por_versao[versao].append(att)
-    
-    # Criar lista de tuplas (versao, anexos) ordenada por versão para facilitar iteração no template
-    anexos_por_versao_ordenado = sorted(anexos_por_versao.items()) if anexos_por_versao else []
+    # Buscar anexos — grupos histórico (recusados) vs. corrigidos (novo envio)
+    anexos_display = build_attachment_display_groups(workorder)
     
     # Verificar se pode adicionar anexos
     # Aprovadores NÃO podem adicionar/deletar anexos
@@ -1642,11 +1670,10 @@ def detail_workorder(request, pk):
         if is_admin(user):
             can_add_attachment = True
             can_delete_attachment = True
-        elif not (is_aprovador(user) or is_admin(user)):
-            if workorder.criador_pode_alterar_anexos(user):
-                can_add_attachment = True
-                can_delete_attachment = True
-    # Aprovadores não podem adicionar/deletar anexos (já está False por padrão)
+        elif workorder.criador_pode_alterar_anexos(user):
+            can_add_attachment = True
+            can_delete_attachment = True
+    # Aprovadores que não são o criador não podem adicionar/deletar anexos
     
     # Verificar se pode solicitar exclusão (criador ou admin da plataforma)
     can_solicitar_exclusao = _can_solicitar_exclusao(workorder, user, tem_permissao=tem_permissao)
@@ -1749,10 +1776,7 @@ def detail_workorder(request, pk):
         'can_comment': can_comment,
         'approvals': approvals,
         'status_history': status_history,
-        'attachments': attachments,
-        'attachments_originais': attachments_originais,
-        'anexos_por_versao': anexos_por_versao,
-        'anexos_por_versao_ordenado': anexos_por_versao_ordenado,
+        'anexos_display': anexos_display,
         'comments': comments,
         'can_create_workorder': can_create_workorder,
         'obra_consulta_apenas': obra_consulta_apenas,
@@ -1860,10 +1884,9 @@ def _workorder_ajax_permission_flags(workorder, user):
         if is_admin(user):
             can_add_attachment = True
             can_delete_attachment = True
-        elif not (is_aprovador(user) or is_admin(user)):
-            if workorder.criador_pode_alterar_anexos(user):
-                can_add_attachment = True
-                can_delete_attachment = True
+        elif workorder.criador_pode_alterar_anexos(user):
+            can_add_attachment = True
+            can_delete_attachment = True
 
     can_solicitar_exclusao = _can_solicitar_exclusao(workorder, user, tem_permissao=tem_permissao)
 
@@ -2131,20 +2154,13 @@ def workorder_detail_ajax(request, pk):
             'data': _fmt_dt_ajax(ap.created_at),
         })
 
-    anexos = []
-    for att in Attachment.objects.filter(work_order=workorder).order_by('-created_at'):
-        try:
-            url = att.arquivo.url
-        except Exception:
-            url = ''
-        if url and not url.startswith('http'):
-            url = request.build_absolute_uri(url)
-        nome_arq = att.get_nome_display()
-        anexos.append({
-            'nome': nome_arq,
-            'url': url,
-            'eh_imagem': _attachment_eh_imagem(att.arquivo.name if att.arquivo else ''),
-        })
+    anexos_grupos = _anexos_grupos_ajax(workorder, request)
+    anexos_ativos = [
+        item
+        for grupo in anexos_grupos['grupos']
+        if grupo['key'] in ('ativos', 'corrigidos')
+        for item in grupo['items']
+    ]
 
     valor_med_fmt = None
     if workorder.tipo_solicitacao == 'medicao' and workorder.valor_medicao is not None:
@@ -2217,7 +2233,8 @@ def workorder_detail_ajax(request, pk):
         'atividades': atividades,
         'historico_status': historico_status,
         'aprovacoes_fluxo': aprovacoes_fluxo,
-        'anexos': anexos,
+        'anexos_grupos': anexos_grupos,
+        'anexos': anexos_ativos,
         'pdf_assinatura_precheck': pdf_precheck,
         'pdf_assinatura_pronto': pdf_assinatura_pronto,
         'tem_assinatura_aprovacao': pdf_assinatura_pronto,
@@ -2252,7 +2269,11 @@ def workorder_detail_ajax(request, pk):
             'aprovar': reverse('gestao:approve_workorder', args=[workorder.pk]),
             'reprovar': reverse('gestao:reject_workorder', args=[workorder.pk]),
             'comentar': reverse('gestao:add_comment', args=[workorder.pk]),
-            'upload_anexo': reverse('gestao:upload_attachment', args=[workorder.pk]),
+            'upload_anexo': (
+                _edit_workorder_anexos_url(workorder.pk)
+                if perm['can_edit']
+                else reverse('gestao:upload_attachment', args=[workorder.pk])
+            ),
             'enviar_central': reverse('gestao:send_workorder_to_central', args=[workorder.pk]),
             'gerar_pdf_assinatura': reverse('gestao:gerar_pdf_assinatura_workorder', args=[workorder.pk]),
         },
@@ -2727,31 +2748,21 @@ def edit_workorder(request, pk):
             # Preservar obra se estava disabled
             if obra_id:
                 workorder.obra_id = obra_id
-            
-            # Lógica especial para pedidos reprovados sendo reenviados por solicitantes
-            # Contar quantas vezes este pedido já foi reenviado (contar quantas vezes mudou de reprovado para reaprovacao)
-            versao_reaprovacao_atual = 0
-            
-            # Se o pedido está ou vai estar em reaprovação, buscar a versão atual
-            if status_anterior == 'reaprovacao' or status_anterior == 'reprovado':
-                versao_existente = Attachment.objects.filter(
-                    work_order=workorder,
-                    versao_reaprovacao__gt=0
-                ).values_list('versao_reaprovacao', flat=True)
-                if versao_existente:
-                    versao_reaprovacao_atual = max(versao_existente)
-                else:
-                    versao_reaprovacao_atual = 0  # Ainda não há versões de reaprovação
-            
-            is_criador = workorder.criado_por_id == user.pk
 
+            is_criador = workorder.criado_por_id == user.pk
+            anexos_files_incoming = request.FILES.getlist('anexos')
+            
             # Reenvio após reprovação: criador salva o formulário → volta para a fila (reaprovação).
-            # Vale para qualquer perfil (solicitante, aprovador ou admin que criou o pedido).
             if status_anterior == 'reprovado' and is_criador:
-                if versao_reaprovacao_atual > 0:
-                    versao_reaprovacao_atual = versao_reaprovacao_atual + 1
-                else:
-                    versao_reaprovacao_atual = 1
+                if (
+                    not attachments_ativos_queryset(workorder).exists()
+                    and not anexos_files_incoming
+                ):
+                    messages.error(
+                        request,
+                        'Adicione pelo menos um documento corrigido antes de reenviar para reavaliação.',
+                    )
+                    return redirect('gestao:edit_workorder', pk=workorder.pk)
                 workorder.status = 'reaprovacao'
                 workorder.data_envio = timezone.now()
             elif is_solicitante_only:
@@ -2801,7 +2812,7 @@ def edit_workorder(request, pk):
                                 is_aprovador(user) or
                                 is_admin(user)
                             )
-                            if can_delete_anexo:
+                            if can_delete_anexo and attachment_pode_excluir(anexo):
                                 nome_anexo = anexo.nome or anexo.arquivo.name.split('/')[-1]
                                 anexos_excluidos.append(nome_anexo)
                                 # Deletar o arquivo físico também
@@ -2832,6 +2843,11 @@ def edit_workorder(request, pk):
                                             mensagem=f'O anexo "{nome_anexo}" foi removido do pedido {workorder.codigo} por {user.get_full_name() or user.username}.',
                                             work_order=workorder
                                         )
+                            elif can_delete_anexo and anexo.recusado:
+                                messages.warning(
+                                    request,
+                                    f'O documento "{anexo.get_nome_display()}" foi recusado e permanece apenas para consulta.',
+                                )
                         except (Attachment.DoesNotExist, ValueError):
                             pass
             
@@ -2842,33 +2858,18 @@ def edit_workorder(request, pk):
             if anexos_files and anexos_bloqueados_no_envio:
                 messages.error(request, ANEXOS_BLOQUEADOS_FLUXO_MSG)
                 return redirect('gestao:edit_workorder', pk=workorder.pk)
-            
-            # Determinar se estamos em contexto de reaprovação
-            is_reaprovacao = workorder.status == 'reaprovacao' or status_anterior in (
-                'reaprovacao',
-                'reprovado',
-            )
-            
-            # Se está em reaprovação mas versao_reaprovacao_atual não foi definida ou é 0, buscar a versão atual
-            if is_reaprovacao:
-                if versao_reaprovacao_atual == 0:
-                    versao_existente = Attachment.objects.filter(
-                        work_order=workorder,
-                        versao_reaprovacao__gt=0
-                    ).values_list('versao_reaprovacao', flat=True)
-                    if versao_existente:
-                        versao_reaprovacao_atual = max(versao_existente)
-                    else:
-                        # Se não há versões ainda, mas está em reaprovação, criar versão 1
-                        versao_reaprovacao_atual = 1
-            
+
+            versao_novos = assign_new_attachment_version(workorder)
+            tem_recusados = Attachment.objects.filter(work_order=workorder, recusado=True).exists()
+
             for arquivo in anexos_files:
                 # Validar extensão permitida
                 if validar_extensao_arquivo(arquivo.name):
-                    # Determinar descrição e versão de reaprovação
-                    if is_reaprovacao and versao_reaprovacao_atual > 0:
-                        descricao = f'Anexo adicionado na reaprovação v{versao_reaprovacao_atual} por {user.username}'
-                        versao = versao_reaprovacao_atual
+                    if tem_recusados and versao_novos > 0:
+                        descricao = (
+                            f'Documento corrigido (v{versao_novos}) adicionado por {user.username}'
+                        )
+                        versao = versao_novos
                     else:
                         descricao = f'Anexo adicionado durante edição por {user.username}'
                         versao = 0
@@ -2880,7 +2881,8 @@ def edit_workorder(request, pk):
                             nome=arquivo.name,
                             descricao=descricao,
                             enviado_por=user,
-                            versao_reaprovacao=versao
+                            versao_reaprovacao=versao,
+                            recusado=False,
                         )
                         novos_anexos.append(arquivo.name)
                     except Exception as e:
@@ -2937,7 +2939,8 @@ def edit_workorder(request, pk):
                 
                 # Mensagem especial para reaprovação
                 if workorder.status == 'reaprovacao' and status_anterior == 'reprovado':
-                    observacao = f'Pedido reenviado para reaprovação (versão {versao_reaprovacao_atual}) por {user.get_full_name() or user.username}'
+                    versao_envio = assign_new_attachment_version(workorder)
+                    observacao = f'Pedido reenviado para reaprovação (versão {versao_envio}) por {user.get_full_name() or user.username}'
                     if alteracoes:
                         observacao += f'. Alterações realizadas: {"; ".join(alteracoes)}'
                 else:
@@ -2957,6 +2960,7 @@ def edit_workorder(request, pk):
                 if workorder.status == 'pendente':
                     enviar_email_novo_pedido(workorder)
                 elif workorder.status == 'reaprovacao':
+                    versao_envio = assign_new_attachment_version(workorder)
                     # Notificar apenas quem está no âmbito operacional da empresa/obra
                     usuarios_notificar = [u for u in usuarios_escopo_pedido_para_notificar(workorder) if u != user]
                     
@@ -2965,7 +2969,7 @@ def edit_workorder(request, pk):
                             usuario=usuario,
                             tipo='pedido_atualizado',
                             titulo=f'Pedido {workorder.codigo} Enviado para Reaprovação',
-                            mensagem=f'O pedido {workorder.codigo} foi reenviado para reaprovação (versão {versao_reaprovacao_atual}) por {user.get_full_name() or user.username}.',
+                            mensagem=f'O pedido {workorder.codigo} foi reenviado para reaprovação (versão {versao_envio}) por {user.get_full_name() or user.username}.',
                             work_order=workorder,
                         )
                     detail_url = reverse('gestao:detail_workorder', args=[workorder.pk])
@@ -2976,7 +2980,7 @@ def edit_workorder(request, pk):
                         else '—'
                     )
                     msg_core = (
-                        f'Ajustado após reprovação (versão {versao_reaprovacao_atual}). '
+                        f'Ajustado após reprovação (versão {versao_envio}). '
                         f'{workorder.nome_credor} · {workorder.get_tipo_solicitacao_display()} · {valor_txt}'
                     )
                     core_users = list(usuarios_notificar)
@@ -3064,6 +3068,7 @@ def edit_workorder(request, pk):
         'title': f'Editar Pedido: {workorder.codigo}',
         'user_profile': get_user_profile(user),
         'is_solicitante': is_solicitante_only,
+        'anexos_display': build_attachment_display_groups(workorder),
         'anexos_bloqueados_fluxo': workorder.bloqueia_alteracao_anexos(),
         'anexos_bloqueados_mensagem': (
             ANEXOS_BLOQUEADOS_FLUXO_MSG if workorder.bloqueia_alteracao_anexos() else ''
@@ -3427,6 +3432,8 @@ def reject_workorder(request, pk):
                 observacao=observacao
             )
 
+            mark_submission_attachments_recusados(workorder)
+
         # Enviar e-mail FORA da transação
         enviar_email_reprovacao(workorder, request.user, comentario)
         
@@ -3490,15 +3497,20 @@ def reject_workorder(request, pk):
 
 # ========== Anexos ==========
 
+def _edit_workorder_anexos_url(workorder_pk):
+    return reverse('gestao:edit_workorder', args=[workorder_pk]) + '#anexos-pedido'
+
+
 @login_required
 def upload_attachment(request, pk):
     """
-    Faz upload de um anexo para um pedido de obra.
-    Apenas usuários autenticados podem fazer upload.
-    Solicitantes só podem adicionar anexos se o pedido ainda estiver em rascunho.
+    Upload legado — pedidos editáveis pelo criador usam o formulário de edição (#anexos-pedido).
     """
     workorder = get_object_or_404(WorkOrder, pk=pk)
     user = request.user
+
+    if workorder.pode_editar(user):
+        return redirect(_edit_workorder_anexos_url(workorder.pk))
 
     if workorder.bloqueia_alteracao_anexos():
         messages.error(request, ANEXOS_BLOQUEADOS_FLUXO_MSG)
@@ -3523,46 +3535,90 @@ def upload_attachment(request, pk):
     blocked = redirect_if_gestao_obra_readonly(request, workorder)
     if blocked:
         return blocked
-    
+
     if request.method == 'POST':
-        form = AttachmentForm(request.POST, request.FILES)
-        if form.is_valid():
-            attachment = form.save(commit=False)
-            attachment.work_order = workorder
-            attachment.enviado_por = user
-            
-            # Se não informou nome, usar o nome do arquivo
-            if not attachment.nome:
-                attachment.nome = os.path.basename(attachment.arquivo.name)
-            
-            # Se o pedido está em reaprovação, marcar o anexo com a versão atual
-            if workorder.status == 'reaprovacao':
-                # Buscar a versão atual de reaprovação
-                versao_atual = Attachment.objects.filter(
-                    work_order=workorder,
-                    versao_reaprovacao__gt=0
-                ).values_list('versao_reaprovacao', flat=True)
-                if versao_atual:
-                    versao = max(versao_atual)
+        arquivos = request.FILES.getlist('arquivo')
+        if not arquivos:
+            messages.error(request, 'Selecione pelo menos um arquivo.')
+            form = AttachmentForm(request.POST, request.FILES)
+        else:
+            versao = assign_new_attachment_version(workorder)
+            descricao_unica = (request.POST.get('descricao') or '').strip()
+            nome_unico = (request.POST.get('nome') or '').strip()
+            criados = []
+            erros = []
+
+            for arquivo in arquivos:
+                if arquivo.size > 50 * 1024 * 1024:
+                    erros.append(f'"{arquivo.name}" excede 50MB.')
+                    continue
+                if not validar_extensao_arquivo(arquivo.name):
+                    erros.append(f'"{arquivo.name}" tem extensão não permitida.')
+                    continue
+                nome = nome_unico if len(arquivos) == 1 and nome_unico else os.path.basename(arquivo.name)
+                descricao = descricao_unica if len(arquivos) == 1 and descricao_unica else ''
+                if not descricao and versao > 0:
+                    descricao = f'Documento corrigido (v{versao}) adicionado por {user.username}'
+                elif not descricao:
+                    descricao = f'Anexo adicionado por {user.username}'
+
+                try:
+                    Attachment.objects.create(
+                        work_order=workorder,
+                        arquivo=arquivo,
+                        nome=nome,
+                        descricao=descricao,
+                        enviado_por=user,
+                        versao_reaprovacao=versao,
+                        recusado=False,
+                    )
+                    criados.append(nome)
+                except Exception as exc:
+                    erros.append(f'Erro ao salvar "{arquivo.name}": {exc}')
+
+            for msg in erros:
+                messages.warning(request, msg)
+
+            if criados:
+                if len(criados) == 1:
+                    messages.success(request, f'Anexo "{criados[0]}" enviado com sucesso!')
                 else:
-                    versao = 1
-                attachment.versao_reaprovacao = versao
-                attachment.descricao = f'Anexo adicionado na reaprovação v{versao} por {user.username}'
+                    messages.success(request, f'{len(criados)} anexos enviados com sucesso!')
+                return redirect('gestao:detail_workorder', pk=workorder.pk)
+
+            if erros:
+                form = AttachmentForm(request.POST, request.FILES)
             else:
-                attachment.versao_reaprovacao = 0
-            
-            attachment.save()
-            messages.success(request, f'Anexo "{attachment.get_nome_display()}" enviado com sucesso!')
-            return redirect('gestao:detail_workorder', pk=workorder.pk)
+                messages.error(request, 'Nenhum arquivo pôde ser enviado.')
+                form = AttachmentForm(request.POST, request.FILES)
     else:
         form = AttachmentForm()
     
+    anexos_ativos = list(attachments_ativos_queryset(workorder))
+    can_delete_attachment = False
+    if not workorder.bloqueia_alteracao_anexos():
+        if is_admin(user) or workorder.criador_pode_alterar_anexos(user):
+            can_delete_attachment = True
+
     context = {
         'form': form,
         'workorder': workorder,
         'user_profile': get_user_profile(user),
+        'anexos_ativos': anexos_ativos,
+        'can_delete_attachment': can_delete_attachment,
     }
     return render(request, 'obras/upload_attachment.html', context)
+
+
+def _redirect_after_attachment_delete(request, workorder):
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect('gestao:detail_workorder', pk=workorder.pk)
 
 
 @login_required
@@ -3603,6 +3659,13 @@ def delete_attachment(request, pk):
         messages.error(request, 'Você não tem permissão para deletar este anexo.')
         return redirect('gestao:detail_workorder', pk=workorder.pk)
 
+    if not attachment_pode_excluir(attachment):
+        messages.error(
+            request,
+            'Este documento foi recusado e permanece no pedido apenas para consulta e histórico.',
+        )
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
+
     blocked = redirect_if_gestao_obra_readonly(request, workorder)
     if blocked:
         return blocked
@@ -3622,13 +3685,14 @@ def delete_attachment(request, pk):
         # Deletar registro
         attachment.delete()
         messages.success(request, f'Anexo "{nome_arquivo}" deletado com sucesso!')
-        return redirect('gestao:detail_workorder', pk=workorder.pk)
+        return _redirect_after_attachment_delete(request, workorder)
     
     # GET - mostrar confirmação
     context = {
         'attachment': attachment,
         'workorder': workorder,
         'user_profile': get_user_profile(user),
+        'delete_next': request.GET.get('next', ''),
     }
     return render(request, 'obras/delete_attachment.html', context)
 

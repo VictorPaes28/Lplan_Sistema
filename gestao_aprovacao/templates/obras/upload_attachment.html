@@ -1,167 +1,699 @@
 {% extends 'base.html' %}
+
 {% load static %}
 
-{% block title %}Adicionar Anexo - {{ workorder.codigo }}{% endblock %}
 
-{% block page_title %}Anexar Arquivo{% endblock %}
-{% block page_subtitle %}GestControll{% endblock %}
+
+{% block title %}Anexos — {{ workorder.codigo }}{% endblock %}
+
+
+
+{% block page_title %}Anexos do pedido{% endblock %}
+
+{% block page_subtitle %}{{ workorder.codigo }}{% endblock %}
+
+
 
 {% block extra_css %}
+
 <link rel="stylesheet" href="{% static 'css/upload_attachment.css' %}">
+
 {% endblock %}
+
+
 
 {% block content %}
-<div class="upload-container">
-    <div class="card">
-        <h1 class="upload-title">
-            Adicionar Anexo
-        </h1>
-        
-        <div class="upload-info-box">
-            <p><strong>Pedido:</strong> {{ workorder.codigo }}</p>
-            <p><strong>Obra:</strong> {{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
-            <p><strong>Credor:</strong> {{ workorder.nome_credor }}</p>
+
+<div class="upload-page">
+
+    <header class="upload-page-header">
+
+        <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="upload-back-link">
+
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+
+            Voltar ao pedido
+
+        </a>
+
+        <div class="upload-page-heading">
+
+            <h1 class="upload-title">
+
+                {% if workorder.status == 'reprovado' %}Documentos corrigidos{% else %}Adicionar anexos{% endif %}
+
+            </h1>
+
+            <p class="upload-subtitle">
+
+                {% if workorder.status == 'reprovado' %}
+
+                    Envie os arquivos do novo envio. Os recusados permanecem no pedido só para consulta.
+
+                {% else %}
+
+                    Selecione um ou vários arquivos e envie quando estiver pronto.
+
+                {% endif %}
+
+            </p>
+
         </div>
-        
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            
-            {% if form.non_field_errors %}
-                <div class="upload-error-box">
-                    {{ form.non_field_errors }}
-                </div>
-            {% endif %}
-            
-            <div class="upload-form-group">
-                <label for="{{ form.arquivo.id_for_label }}" class="upload-label">
-                    {{ form.arquivo.label }} <span class="upload-required">*</span>
-                </label>
-                <div class="upload-dropzone-wrapper">
-                    <div class="upload-dropzone" id="upload-dropzone">
-                        <svg class="upload-dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="17 8 12 3 7 8"></polyline>
-                            <line x1="12" y1="3" x2="12" y2="15"></line>
-                        </svg>
-                        <p class="upload-dropzone-text">Arraste o arquivo aqui ou clique para selecionar</p>
-                        <p class="upload-dropzone-hint">PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB)</p>
-                        {{ form.arquivo }}
-                    </div>
-                    <div class="upload-file-selected" id="upload-file-selected" style="display: none;">
-                        <svg class="upload-file-selected-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                            <polyline points="10 9 9 9 8 9"></polyline>
-                        </svg>
-                        <span class="upload-file-selected-name" id="upload-file-name"></span>
-                    </div>
-                </div>
-                {% if form.arquivo.help_text %}
-                    <div class="upload-help">
-                        {{ form.arquivo.help_text }}
-                    </div>
-                {% endif %}
-                {% if form.arquivo.errors %}
-                    <div class="upload-error">
-                        {{ form.arquivo.errors }}
-                    </div>
-                {% endif %}
+
+    </header>
+
+
+
+    <div class="upload-context card">
+
+        <dl class="upload-context-grid">
+
+            <div class="upload-context-item">
+
+                <dt>Pedido</dt>
+
+                <dd>{{ workorder.codigo }}</dd>
+
             </div>
-            
-            <div class="upload-form-group">
-                <label for="{{ form.nome.id_for_label }}" class="upload-label">
-                    {{ form.nome.label }}
-                </label>
-                {{ form.nome }}
-                {% if form.nome.help_text %}
-                    <div class="upload-help">
-                        {{ form.nome.help_text }}
-                    </div>
-                {% endif %}
-                {% if form.nome.errors %}
-                    <div class="upload-error">
-                        {{ form.nome.errors }}
-                    </div>
-                {% endif %}
+
+            <div class="upload-context-item">
+
+                <dt>Obra</dt>
+
+                <dd>{{ workorder.obra.codigo }} — {{ workorder.obra.nome }}</dd>
+
             </div>
-            
-            <div class="upload-form-group">
-                <label for="{{ form.descricao.id_for_label }}" class="upload-label">
-                    {{ form.descricao.label }}
-                </label>
-                {{ form.descricao }}
-                {% if form.descricao.help_text %}
-                    <div class="upload-help">
-                        {{ form.descricao.help_text }}
-                    </div>
-                {% endif %}
-                {% if form.descricao.errors %}
-                    <div class="upload-error">
-                        {{ form.descricao.errors }}
-                    </div>
-                {% endif %}
+
+            <div class="upload-context-item">
+
+                <dt>Credor</dt>
+
+                <dd>{{ workorder.nome_credor }}</dd>
+
             </div>
-            
-            <div class="upload-actions">
-                <button type="submit" class="btn upload-submit">
-                    Enviar Anexo
-                </button>
-                <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-secondary upload-cancel">
-                    Cancelar
-                </a>
+
+            <div class="upload-context-item">
+
+                <dt>Status</dt>
+
+                <dd><span class="upload-status-badge upload-status-badge--{{ workorder.status }}">{{ workorder.get_status_display }}</span></dd>
+
             </div>
-        </form>
+
+        </dl>
+
     </div>
+
+
+
+    {% if anexos_ativos %}
+
+    <section class="upload-section card" aria-labelledby="upload-sent-heading">
+
+        <div class="upload-section-header">
+
+            <div>
+
+                <h2 id="upload-sent-heading" class="upload-section-title">
+
+                    {% if workorder.status == 'reprovado' %}Já adicionados neste envio{% else %}Anexos no pedido{% endif %}
+
+                </h2>
+
+                <p class="upload-section-desc">{{ anexos_ativos|length }} arquivo{{ anexos_ativos|length|pluralize }} — você pode incluir mais abaixo.</p>
+
+            </div>
+
+            <span class="upload-count-badge upload-count-badge--success">{{ anexos_ativos|length }}</span>
+
+        </div>
+
+        <ul class="upload-file-list upload-file-list--saved">
+
+            {% for attachment in anexos_ativos %}
+
+            <li class="upload-file-card upload-file-card--saved">
+
+                <div class="upload-file-card-icon upload-file-card-icon--{{ attachment.get_extensao|lower|default:'file' }}" aria-hidden="true">
+
+                    <span>{{ attachment.get_extensao|default:'?' }}</span>
+
+                </div>
+
+                <div class="upload-file-card-body">
+
+                    <p class="upload-file-card-name" title="{{ attachment.get_nome_display }}">{{ attachment.get_nome_display }}</p>
+
+                    <p class="upload-file-card-meta">
+
+                        {{ attachment.created_at|date:"d/m/Y H:i" }}
+
+                        <span class="upload-file-card-sep">·</span>
+
+                        {{ attachment.get_tamanho_display }}
+
+                    </p>
+
+                </div>
+
+                <div class="upload-file-card-actions">
+
+                    <a href="{{ attachment.arquivo.url }}" target="_blank" rel="noopener" class="upload-file-card-btn upload-file-card-btn--view">
+
+                        Ver
+
+                    </a>
+
+                    {% if can_delete_attachment %}
+
+                    <a href="{% url 'gestao:delete_attachment' attachment.pk %}?next={% url 'gestao:upload_attachment' workorder.pk %}"
+                       class="upload-file-card-btn upload-file-card-btn--danger">
+                        Remover
+                    </a>
+
+                    {% endif %}
+
+                </div>
+
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+        {% if pode_reenviar %}
+        <div class="upload-reenviar-box">
+            <p class="upload-reenviar-text">
+                Enviar os arquivos <strong>não</strong> coloca o pedido na fila do aprovador.
+                Quando terminar de anexar, confirme abaixo para mudar o status para <strong>Reaprovação</strong>.
+            </p>
+            <form method="post" class="upload-reenviar-form">
+                {% csrf_token %}
+                <input type="hidden" name="acao" value="reenviar_reaprovacao">
+                <button type="submit" class="btn upload-reenviar-btn">Reenviar para reavaliação</button>
+            </form>
+        </div>
+        {% endif %}
+
+    </section>
+
+    {% endif %}
+
+
+
+    <section class="upload-section card" aria-labelledby="upload-new-heading">
+
+        <div class="upload-section-header">
+
+            <div>
+
+                <h2 id="upload-new-heading" class="upload-section-title">
+
+                    {% if anexos_ativos %}Adicionar mais arquivos{% else %}Selecionar arquivos{% endif %}
+
+                </h2>
+
+                <p class="upload-section-desc">Arraste, clique ou use Ctrl+clique para escolher vários de uma vez.</p>
+
+            </div>
+
+            <span class="upload-count-badge" id="upload-pending-count" hidden>0</span>
+
+        </div>
+
+
+
+        <form method="post" enctype="multipart/form-data" id="upload-form" class="upload-form">
+
+            {% csrf_token %}
+
+
+
+            {% if form.non_field_errors %}
+
+            <div class="upload-error-box" role="alert">
+
+                {{ form.non_field_errors }}
+
+            </div>
+
+            {% endif %}
+
+
+
+            <div class="upload-dropzone-wrapper">
+
+                <div class="upload-dropzone" id="upload-dropzone" tabindex="0" role="button" aria-label="Selecionar arquivos para envio">
+
+                    <svg class="upload-dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+
+                        <polyline points="17 8 12 3 7 8"></polyline>
+
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+
+                    </svg>
+
+                    <p class="upload-dropzone-text">Clique ou arraste arquivos aqui</p>
+
+                    <p class="upload-dropzone-hint">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, GIF, ZIP, RAR, 7Z · máx. 50 MB cada</p>
+
+                    {{ form.arquivo }}
+
+                </div>
+
+            </div>
+
+            {% if form.arquivo.errors %}
+
+            <div class="upload-error" role="alert">{{ form.arquivo.errors }}</div>
+
+            {% endif %}
+
+
+
+            <div class="upload-queue" id="upload-queue" hidden>
+
+                <div class="upload-queue-header">
+
+                    <h3 class="upload-queue-title">Prontos para enviar</h3>
+
+                    <button type="button" class="upload-queue-clear" id="upload-queue-clear">Limpar tudo</button>
+
+                </div>
+
+                <ul class="upload-file-list upload-file-list--pending" id="upload-queue-list"></ul>
+
+            </div>
+
+
+
+            <div class="upload-optional" id="upload-optional-fields">
+
+                <p class="upload-optional-note" id="upload-optional-note">
+
+                    Nome e descrição opcionais — aplicados somente quando enviar <strong>um</strong> arquivo por vez.
+
+                </p>
+
+                <div class="upload-optional-grid">
+
+                    <div class="upload-form-group">
+
+                        <label for="{{ form.nome.id_for_label }}" class="upload-label">{{ form.nome.label }}</label>
+
+                        {{ form.nome }}
+
+                        {% if form.nome.errors %}<div class="upload-error">{{ form.nome.errors }}</div>{% endif %}
+
+                    </div>
+
+                    <div class="upload-form-group">
+
+                        <label for="{{ form.descricao.id_for_label }}" class="upload-label">{{ form.descricao.label }}</label>
+
+                        {{ form.descricao }}
+
+                        {% if form.descricao.errors %}<div class="upload-error">{{ form.descricao.errors }}</div>{% endif %}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+
+            <div class="upload-actions">
+
+                <button type="submit" class="btn upload-submit" id="upload-submit" disabled>
+
+                    <span id="upload-submit-label">{% if anexos_ativos %}Enviar arquivos selecionados{% else %}Enviar arquivos{% endif %}</span>
+
+                </button>
+
+                <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn upload-cancel">
+                    Voltar ao pedido
+                </a>
+
+            </div>
+
+        </form>
+
+    </section>
+
 </div>
 
+
+
 <script>
+
 document.addEventListener('DOMContentLoaded', function() {
-    const dropzone = document.getElementById('upload-dropzone');
-    const fileInput = dropzone.querySelector('input[type="file"]');
-    const fileSelected = document.getElementById('upload-file-selected');
-    const fileName = document.getElementById('upload-file-name');
-    
-    // Atualizar visual quando arquivo é selecionado
-    if (fileInput) {
-        fileInput.addEventListener('change', function(e) {
-            if (e.target.files && e.target.files.length > 0) {
-                const file = e.target.files[0];
-                fileName.textContent = file.name;
-                fileSelected.style.display = 'flex';
-                dropzone.style.display = 'none';
-            }
-        });
-        
-        // Drag and Drop
-        dropzone.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            dropzone.classList.add('dragover');
-        });
-        
-        dropzone.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-        });
-        
-        dropzone.addEventListener('drop', function(e) {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                fileInput.files = e.dataTransfer.files;
-                const file = e.dataTransfer.files[0];
-                fileName.textContent = file.name;
-                fileSelected.style.display = 'flex';
-                dropzone.style.display = 'none';
-                
-                // Disparar evento change para validação
-                const event = new Event('change', { bubbles: true });
-                fileInput.dispatchEvent(event);
-            }
-        });
+
+    var dropzone = document.getElementById('upload-dropzone');
+
+    var fileInput = dropzone && dropzone.querySelector('input[type="file"]');
+
+    var queueWrap = document.getElementById('upload-queue');
+
+    var queueList = document.getElementById('upload-queue-list');
+
+    var queueClear = document.getElementById('upload-queue-clear');
+
+    var pendingCount = document.getElementById('upload-pending-count');
+
+    var submitBtn = document.getElementById('upload-submit');
+
+    var submitLabel = document.getElementById('upload-submit-label');
+
+    var optionalFields = document.getElementById('upload-optional-fields');
+
+    var optionalNote = document.getElementById('upload-optional-note');
+
+    var selectedFiles = [];
+
+
+
+    var EXT_LABELS = {
+
+        pdf: 'PDF', doc: 'DOC', docx: 'DOCX', xls: 'XLS', xlsx: 'XLSX',
+
+        jpg: 'JPG', jpeg: 'JPG', png: 'PNG', gif: 'GIF',
+
+        zip: 'ZIP', rar: 'RAR', '7z': '7Z'
+
+    };
+
+
+
+    function formatBytes(bytes) {
+
+        if (!bytes && bytes !== 0) return '—';
+
+        if (bytes < 1024) return bytes + ' B';
+
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+
+        return (bytes / 1048576).toFixed(1) + ' MB';
+
     }
+
+
+
+    function fileExt(name) {
+
+        var parts = (name || '').split('.');
+
+        return parts.length > 1 ? parts.pop().toLowerCase() : 'file';
+
+    }
+
+
+
+    function fileKey(f) {
+
+        return [f.name, f.size, f.lastModified].join('|');
+
+    }
+
+
+
+    function syncInputFiles() {
+
+        if (!fileInput) return;
+
+        var dt = new DataTransfer();
+
+        selectedFiles.forEach(function(f) { dt.items.add(f); });
+
+        fileInput.files = dt.files;
+
+    }
+
+
+
+    function updateOptionalFields() {
+
+        var n = selectedFiles.length;
+
+        if (!optionalFields) return;
+
+        if (n === 1) {
+
+            optionalFields.classList.remove('upload-optional--hidden');
+
+            if (optionalNote) optionalNote.hidden = false;
+
+        } else if (n > 1) {
+
+            optionalFields.classList.add('upload-optional--hidden');
+
+        } else {
+
+            optionalFields.classList.remove('upload-optional--hidden');
+
+            if (optionalNote) optionalNote.hidden = false;
+
+        }
+
+    }
+
+
+
+    function updateSubmitState() {
+
+        var n = selectedFiles.length;
+
+        if (submitBtn) submitBtn.disabled = n === 0;
+
+        if (pendingCount) {
+
+            pendingCount.textContent = String(n);
+
+            pendingCount.hidden = n === 0;
+
+        }
+
+        if (submitLabel) {
+
+            if (n === 0) {
+
+                submitLabel.textContent = 'Selecione arquivos para enviar';
+
+            } else if (n === 1) {
+
+                submitLabel.textContent = 'Enviar 1 arquivo';
+
+            } else {
+
+                submitLabel.textContent = 'Enviar ' + n + ' arquivos';
+
+            }
+
+        }
+
+        if (queueWrap) queueWrap.hidden = n === 0;
+
+        if (dropzone) dropzone.classList.toggle('upload-dropzone--compact', n > 0);
+
+    }
+
+
+
+    function removeFile(index) {
+
+        selectedFiles.splice(index, 1);
+
+        syncInputFiles();
+
+        renderQueue();
+
+    }
+
+
+
+    function clearAll() {
+
+        selectedFiles = [];
+
+        syncInputFiles();
+
+        renderQueue();
+
+    }
+
+
+
+    function addFilesFromList(fileList) {
+
+        if (!fileList || !fileList.length) return;
+
+        var keys = {};
+
+        selectedFiles.forEach(function(f) { keys[fileKey(f)] = true; });
+
+        for (var i = 0; i < fileList.length; i++) {
+
+            var f = fileList[i];
+
+            var k = fileKey(f);
+
+            if (!keys[k]) {
+
+                selectedFiles.push(f);
+
+                keys[k] = true;
+
+            }
+
+        }
+
+        syncInputFiles();
+
+        renderQueue();
+
+    }
+
+
+
+    function renderQueue() {
+
+        if (!queueList) return;
+
+        queueList.innerHTML = '';
+
+        selectedFiles.forEach(function(file, index) {
+
+            var ext = fileExt(file.name);
+
+            var li = document.createElement('li');
+
+            li.className = 'upload-file-card upload-file-card--pending';
+
+            li.innerHTML =
+
+                '<div class="upload-file-card-icon upload-file-card-icon--' + ext + '" aria-hidden="true">' +
+
+                    '<span>' + (EXT_LABELS[ext] || ext.toUpperCase().slice(0, 4) || '?') + '</span>' +
+
+                '</div>' +
+
+                '<div class="upload-file-card-body">' +
+
+                    '<p class="upload-file-card-name" title="' + file.name.replace(/"/g, '&quot;') + '">' + file.name + '</p>' +
+
+                    '<p class="upload-file-card-meta">' + formatBytes(file.size) + '</p>' +
+
+                '</div>' +
+
+                '<div class="upload-file-card-actions">' +
+
+                    '<button type="button" class="upload-file-card-btn upload-file-card-btn--danger" data-index="' + index + '" aria-label="Remover ' + file.name.replace(/"/g, '') + '">Remover</button>' +
+
+                '</div>';
+
+            queueList.appendChild(li);
+
+        });
+
+        queueList.querySelectorAll('[data-index]').forEach(function(btn) {
+
+            btn.addEventListener('click', function() {
+
+                removeFile(parseInt(btn.getAttribute('data-index'), 10));
+
+            });
+
+        });
+
+        updateOptionalFields();
+
+        updateSubmitState();
+
+    }
+
+
+
+    if (fileInput) {
+
+        fileInput.setAttribute('multiple', 'multiple');
+
+        fileInput.addEventListener('change', function(e) {
+
+            if (e.target.files && e.target.files.length) {
+
+                addFilesFromList(e.target.files);
+
+            }
+
+        });
+
+    }
+
+
+
+    if (queueClear) {
+
+        queueClear.addEventListener('click', clearAll);
+
+    }
+
+
+
+    if (dropzone) {
+
+        dropzone.addEventListener('keydown', function(e) {
+
+            if (e.key === 'Enter' || e.key === ' ') {
+
+                e.preventDefault();
+
+                fileInput && fileInput.click();
+
+            }
+
+        });
+
+        dropzone.addEventListener('dragover', function(e) {
+
+            e.preventDefault();
+
+            dropzone.classList.add('dragover');
+
+        });
+
+        dropzone.addEventListener('dragleave', function(e) {
+
+            e.preventDefault();
+
+            dropzone.classList.remove('dragover');
+
+        });
+
+        dropzone.addEventListener('drop', function(e) {
+
+            e.preventDefault();
+
+            dropzone.classList.remove('dragover');
+
+            if (e.dataTransfer.files && e.dataTransfer.files.length) {
+
+                addFilesFromList(e.dataTransfer.files);
+
+            }
+
+        });
+
+    }
+
+
+
+    updateSubmitState();
+
 });
+
 </script>
+
 {% endblock %}
+

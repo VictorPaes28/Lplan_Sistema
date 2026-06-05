@@ -6,6 +6,12 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 
+# Evita explosão de threads OpenBLAS/NumPy em ambientes restritos (Passenger/cPanel).
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+os.environ.setdefault('MKL_NUM_THREADS', '1')
+os.environ.setdefault('NUMEXPR_NUM_THREADS', '1')
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

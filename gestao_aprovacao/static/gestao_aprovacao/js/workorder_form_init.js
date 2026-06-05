@@ -62,6 +62,7 @@
         var form = scope.querySelector('#workorder-create-form');
         var btn = scope.querySelector('#workorder-submit-btn');
         if (!form || !btn) return;
+        var defaultLabel = btn.getAttribute('data-default-label') || btn.textContent;
         var submitted = false;
         form.addEventListener('submit', function (e) {
             if (submitted) {
@@ -78,10 +79,16 @@
             if (!e.persisted) return;
             submitted = false;
             btn.disabled = false;
-            btn.textContent = 'Salvar';
+            btn.textContent = defaultLabel;
             btn.style.opacity = '';
             btn.style.cursor = '';
         });
+    }
+
+    function bindAnexosFileQueue(scope) {
+        if (!global.LplanAnexosFileQueue) return;
+        if (!scope.querySelector('#anexos')) return;
+        global.LplanAnexosFileQueue(scope);
     }
 
     /**
@@ -91,6 +98,7 @@
     global.LplanWorkorderFormInit = function (scope, opts) {
         if (!scope || !scope.querySelector) return;
         bindValorMedicao(scope);
+        bindAnexosFileQueue(scope);
         if (!opts || !opts.skipSubmitLock) bindSubmitLock(scope);
     };
 })(typeof window !== 'undefined' ? window : this);
