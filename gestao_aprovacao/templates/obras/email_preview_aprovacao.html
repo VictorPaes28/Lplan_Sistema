@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview local de e-mails{% endblock %}
+{% block page_title %}Preview local de e-mails{% endblock %}
+{% block page_subtitle %}Todos os tipos principais sem envio real{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 1400px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <a href="{% url 'admin_comunicacao_hub' %}">← Voltar para E-mails e Notificações</a>
+        <span style="font-size:.85rem;color:#64748b;">Use esta tela para validar layout, logo e conteúdo sem deploy.</span>
+    </div>
+
+    <form method="get" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:1rem;">
+        <input type="hidden" name="gerar" value="1">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(240px,1fr));gap:.75rem;align-items:end;">
+            <div>
+                <label for="tipo" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Tipo de e-mail</label>
+                <select id="tipo" name="tipo" class="form-control">
+                    {% for value, label in preview_types %}
+                    <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="field-workorder">
+                <label for="workorder" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Pedido</label>
+                <select id="workorder" name="workorder" class="form-control">
+                    <option value="">Selecione...</option>
+                    {% for w in workorders %}
+                    <option value="{{ w.pk }}" {% if selected_workorder and selected_workorder.pk == w.pk %}selected{% endif %}>
+                        {{ w.codigo }} · {{ w.obra.codigo }} · {{ w.get_status_display }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="field-diario">
+                <label for="diario" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Diário</label>
+                <select id="diario" name="diario" class="form-control">
+                    <option value="">Selecione...</option>
+                    {% for d in diarios %}
+                    <option value="{{ d.pk }}" {% if selected_diario and selected_diario.pk == d.pk %}selected{% endif %}>
+                        #{{ d.pk }} · {{ d.project.code }} · {{ d.date|date:"d/m/Y" }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="field-usuario">
+                <label for="usuario" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Usuário</label>
+                <select id="usuario" name="usuario" class="form-control">
+                    <option value="">Selecione...</option>
+                    {% for u in usuarios %}
+                    <option value="{{ u.pk }}" {% if selected_user and selected_user.pk == u.pk %}selected{% endif %}>
+                        {{ u.get_full_name|default:u.username }} · {{ u.email }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <details style="margin-top:.9rem;">
+            <summary style="cursor:pointer;color:#334155;font-size:.9rem;">Opções avançadas</summary>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:.75rem;align-items:end;margin-top:.65rem;">
+                <div id="field-approver">
+                    <label for="approver" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Aprovador/Reprovador (opcional)</label>
+                    <select id="approver" name="approver" class="form-control">
+                        <option value="">Automático</option>
+                        {% for u in usuarios %}
+                        <option value="{{ u.pk }}" {% if selected_approver and selected_approver.pk == u.pk %}selected{% endif %}>
+                            {{ u.get_full_name|default:u.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="field-comentario">
+                    <label for="comentario" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Comentário/Motivo</label>
+                    <input id="comentario" type="text" name="comentario" value="{{ comentario }}" class="form-control" placeholder="Ex.: Aprovado conforme análise">
+                </div>
+
+                <div id="field-senha">
+                    <label for="senha_preview" style="display:block;font-weight:600;font-size:.85rem;margin-bottom:.35rem;">Senha temporária (credenciais)</label>
+                    <input id="senha_preview" type="text" name="senha_preview" value="{{ senha_preview }}" class="form-control" placeholder="Ex.: Senha@123">
+                </div>
+            </div>
+        </details>
+
+        <div style="margin-top:.9rem;">
+            <button type="submit" class="btn btn-primary">Gerar preview</button>
+        </div>
+    </form>
+
+    {% if error_message %}
+    <div class="alert alert-danger">{{ error_message }}</div>
+    {% endif %}
+
+    {% if preview_payload %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <section style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;">
+            <h3 style="margin:0 0 .6rem 0;font-size:1rem;">Dados do envio</h3>
+            <p style="margin:0 0 .45rem;"><strong>Assunto:</strong> {{ preview_payload.assunto }}</p>
+            {% if selected_approver %}
+            <p style="margin:0 0 .45rem;"><strong>Aprovador/Revisor usado:</strong> {{ selected_approver.get_full_name|default:selected_approver.username }}</p>
+            {% endif %}
+            <p style="margin:0 0 .45rem;"><strong>Destinatários finais:</strong></p>
+            <ul style="margin:.25rem 0 .75rem 1rem;">
+                {% for email in preview_payload.destinatarios %}
+                <li>{{ email }}</li>
+                {% empty %}
+                <li>Nenhum destinatário após filtros de comunicação.</li>
+                {% endfor %}
+            </ul>
+            <h4 style="font-size:.95rem;margin:.5rem 0 .35rem;">Versão texto</h4>
+            <pre style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem;max-height:420px;overflow:auto;">{{ preview_payload.mensagem_texto }}</pre>
+        </section>
+
+        <section style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;">
+            <h3 style="margin:0 0 .6rem 0;font-size:1rem;">Preview HTML</h3>
+            <iframe
+                title="Preview do e-mail"
+                style="width:100%;height:720px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;"
+                srcdoc="{{ preview_payload.html_content|escape }}"
+            ></iframe>
+        </section>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Selecione o tipo de e-mail, preencha o campo principal e clique em gerar preview.</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const tipo = document.getElementById('tipo');
+  const fieldWorkorder = document.getElementById('field-workorder');
+  const fieldDiario = document.getElementById('field-diario');
+  const fieldUsuario = document.getElementById('field-usuario');
+  const fieldApprover = document.getElementById('field-approver');
+  const fieldComentario = document.getElementById('field-comentario');
+  const fieldSenha = document.getElementById('field-senha');
+
+  const isWorkorderType = (value) => ['aprovacao', 'novo_pedido', 'reprovacao'].includes(value);
+  const isDiarioType = (value) => ['diario_obra', 'diario_dono_obra'].includes(value);
+  const isCredencialType = (value) => value === 'credenciais_usuario';
+
+  function toggle(el, show) {
+    if (!el) return;
+    el.style.display = show ? '' : 'none';
+  }
+
+  function syncFields() {
+    const selected = tipo ? tipo.value : '';
+    toggle(fieldWorkorder, isWorkorderType(selected));
+    toggle(fieldDiario, isDiarioType(selected));
+    toggle(fieldUsuario, isCredencialType(selected));
+    toggle(fieldApprover, selected === 'aprovacao' || selected === 'reprovacao');
+    toggle(fieldComentario, selected === 'aprovacao' || selected === 'reprovacao');
+    toggle(fieldSenha, isCredencialType(selected));
+  }
+
+  if (tipo) {
+    tipo.addEventListener('change', syncFields);
+    syncFields();
+  }
+})();
+</script>
+{% endblock %}
+

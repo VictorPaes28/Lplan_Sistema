@@ -82,7 +82,18 @@ from gestao_aprovacao.services.attachment_versions import (
     build_attachment_display_groups,
     mark_submission_attachments_recusados,
 )
-from .email_utils import enviar_email_novo_pedido, enviar_email_aprovacao, enviar_email_reprovacao, enviar_email_credenciais_novo_usuario
+from .email_utils import (
+    build_email_aprovacao_payload,
+    build_email_credenciais_payload,
+    build_email_diario_dono_obra_payload,
+    build_email_diario_obra_payload,
+    build_email_novo_pedido_payload,
+    build_email_reprovacao_payload,
+    enviar_email_aprovacao,
+    enviar_email_credenciais_novo_usuario,
+    enviar_email_novo_pedido,
+    enviar_email_reprovacao,
+)
 from .services.user_governance import (
     TimelineOptions,
     build_audit_insights,
@@ -2166,11 +2177,19 @@ def workorder_detail_ajax(request, pk):
     if workorder.tipo_solicitacao == 'medicao' and workorder.valor_medicao is not None:
         valor_med_fmt = _fmt_brl_ajax(workorder.valor_medicao)
 
-    from gestao_aprovacao.gestao_central_access import workorder_can_offer_central_dispatch
-    from gestao_aprovacao.services.central_dispatch import central_process_url_for_user
+    from gestao_aprovacao.gestao_central_access import (
+        user_can_send_workorder_to_central,
+        workorder_can_offer_central_dispatch,
+    )
+    from gestao_aprovacao.services.central_dispatch import (
+        central_process_url_for_user,
+        workorder_dispatch_block_reason,
+    )
 
     central_dispatch = getattr(workorder, 'central_dispatch', None)
+    user_can_send_central = user_can_send_workorder_to_central(user) if perm['tem_permissao'] else False
     can_send_central = workorder_can_offer_central_dispatch(workorder, user) if perm['tem_permissao'] else False
+    central_block_reason = workorder_dispatch_block_reason(workorder) if perm['tem_permissao'] else ''
     central_url = None
     if central_dispatch:
         central_url = central_process_url_for_user(user, central_dispatch.approval_process_id)
@@ -2241,7 +2260,9 @@ def workorder_detail_ajax(request, pk):
         'url_detalhe_completo': request.build_absolute_uri(
             reverse('gestao:detail_workorder', args=[workorder.pk])
         ),
+        'user_can_send_to_central': user_can_send_central,
         'can_send_to_central': can_send_central,
+        'central_dispatch_block_reason': central_block_reason,
         'central_dispatch_id': central_dispatch.approval_process_id if central_dispatch else None,
         'central_process_url': central_url,
         'central_dispatch': (
@@ -7166,6 +7187,188 @@ def manage_aprovacao_destinatarios(request):
             'form': form,
             'destinatarios': destinatarios,
             'edit_instance': edit_instance,
+        },
+    )
+
+
+@admin_required
+def preview_email_aprovacao(request):
+    """Preview local para todos os tipos principais de e-mail do sistema."""
+    workorders = list(
+        WorkOrder.objects.select_related('obra', 'criado_por')
+        .order_by('-created_at')[:250]
+    )
+    diarios = list(
+        ConstructionDiary.objects.select_related('project')
+        .order_by('-date', '-id')[:200]
+    )
+    usuarios = list(
+        User.objects.filter(is_active=True)
+        .exclude(email='')
+        .order_by('first_name', 'username')[:250]
+    )
+    preview_types = [
+        ('aprovacao', 'Pedido aprovado'),
+        ('novo_pedido', 'Novo pedido'),
+        ('reprovacao', 'Pedido reprovado'),
+        ('credenciais_usuario', 'Credenciais de novo usuário'),
+        ('diario_obra', 'Diário de obra (lista interna)'),
+        ('diario_dono_obra', 'Diário de obra (cliente/dono)'),
+    ]
+    valid_types = {k for k, _ in preview_types}
+
+    def _safe_int(raw_value):
+        try:
+            return int((raw_value or '').strip())
+        except (TypeError, ValueError):
+            return None
+
+    selected_type = (request.GET.get('tipo') or 'aprovacao').strip()
+    if selected_type not in valid_types:
+        selected_type = 'aprovacao'
+
+    selected_workorder = None
+    selected_diario = None
+    selected_user = None
+    selected_approver = None
+    preview_payload = None
+    error_message = ''
+
+    workorder_id = _safe_int(request.GET.get('workorder'))
+    diario_id = _safe_int(request.GET.get('diario'))
+    user_id = _safe_int(request.GET.get('usuario'))
+    approver_id = _safe_int(request.GET.get('approver'))
+    comentario = (request.GET.get('comentario') or '').strip()
+    senha_preview = (request.GET.get('senha_preview') or 'Senha@123').strip() or 'Senha@123'
+    should_generate = request.GET.get('gerar') == '1'
+
+    if should_generate and selected_type in {'aprovacao', 'novo_pedido', 'reprovacao'} and workorder_id:
+        try:
+            selected_workorder = WorkOrder.objects.select_related('obra', 'criado_por').get(pk=workorder_id)
+        except WorkOrder.DoesNotExist:
+            error_message = 'Pedido inválido para preview.'
+
+    if should_generate and selected_type == 'aprovacao' and selected_workorder:
+        last_approval = (
+            Approval.objects.filter(work_order=selected_workorder, decisao='aprovado')
+            .select_related('aprovado_por')
+            .order_by('-created_at')
+            .first()
+        )
+        if approver_id:
+            try:
+                selected_approver = User.objects.get(pk=approver_id)
+            except User.DoesNotExist:
+                error_message = 'Aprovador inválido para preview.'
+        elif last_approval and last_approval.aprovado_por:
+            selected_approver = last_approval.aprovado_por
+        else:
+            selected_approver = request.user
+
+    if should_generate and selected_type == 'reprovacao' and selected_workorder:
+        if approver_id:
+            try:
+                selected_approver = User.objects.get(pk=approver_id)
+            except User.DoesNotExist:
+                error_message = 'Reprovador inválido para preview.'
+        else:
+            last_reprovacao = (
+                Approval.objects.filter(work_order=selected_workorder, decisao='reprovado')
+                .select_related('aprovado_por')
+                .order_by('-created_at')
+                .first()
+            )
+            selected_approver = (
+                last_reprovacao.aprovado_por
+                if last_reprovacao and last_reprovacao.aprovado_por
+                else request.user
+            )
+
+    if should_generate and selected_type in {'diario_obra', 'diario_dono_obra'} and diario_id:
+        try:
+            selected_diario = ConstructionDiary.objects.select_related('project').get(pk=diario_id)
+        except ConstructionDiary.DoesNotExist:
+            error_message = 'Diário inválido para preview.'
+
+    if should_generate and selected_type == 'credenciais_usuario' and user_id:
+        try:
+            selected_user = User.objects.get(pk=user_id, is_active=True)
+        except User.DoesNotExist:
+            error_message = 'Usuário inválido para preview.'
+
+    if should_generate and not error_message:
+        try:
+            if selected_type == 'aprovacao':
+                if not selected_workorder:
+                    error_message = 'Selecione um pedido para o preview.'
+                elif not selected_approver:
+                    error_message = 'Não foi possível determinar o aprovador.'
+                else:
+                    preview_payload = build_email_aprovacao_payload(
+                        selected_workorder,
+                        selected_approver,
+                        comentario,
+                    )
+            elif selected_type == 'novo_pedido':
+                if not selected_workorder:
+                    error_message = 'Selecione um pedido para o preview.'
+                else:
+                    preview_payload = build_email_novo_pedido_payload(selected_workorder)
+            elif selected_type == 'reprovacao':
+                if not selected_workorder:
+                    error_message = 'Selecione um pedido para o preview.'
+                elif not selected_approver:
+                    error_message = 'Não foi possível determinar quem reprovou.'
+                elif not comentario:
+                    error_message = 'Informe o motivo da reprovação para o preview.'
+                else:
+                    preview_payload = build_email_reprovacao_payload(
+                        selected_workorder,
+                        selected_approver,
+                        comentario,
+                    )
+            elif selected_type == 'credenciais_usuario':
+                if not selected_user:
+                    error_message = 'Selecione um usuário para o preview.'
+                else:
+                    preview_payload = build_email_credenciais_payload(
+                        email_destino=selected_user.email,
+                        username=selected_user.username,
+                        senha_plana=senha_preview,
+                        nome_completo=selected_user.get_full_name() or selected_user.username,
+                        site_url=(getattr(settings, 'SITE_URL', '') or '').rstrip('/'),
+                    )
+            elif selected_type == 'diario_obra':
+                if not selected_diario:
+                    error_message = 'Selecione um diário para o preview.'
+                else:
+                    preview_payload = build_email_diario_obra_payload(selected_diario)
+            elif selected_type == 'diario_dono_obra':
+                if not selected_diario:
+                    error_message = 'Selecione um diário para o preview.'
+                else:
+                    preview_payload = build_email_diario_dono_obra_payload(selected_diario)
+        except Exception as exc:
+            logger.exception('Falha ao montar preview do e-mail (%s)', selected_type)
+            error_message = f'Não foi possível gerar o preview: {exc}'
+
+    return render(
+        request,
+        'obras/email_preview_aprovacao.html',
+        {
+            'preview_types': preview_types,
+            'selected_type': selected_type,
+            'workorders': workorders,
+            'diarios': diarios,
+            'usuarios': usuarios,
+            'selected_workorder': selected_workorder,
+            'selected_diario': selected_diario,
+            'selected_user': selected_user,
+            'selected_approver': selected_approver,
+            'preview_payload': preview_payload,
+            'error_message': error_message,
+            'comentario': comentario,
+            'senha_preview': senha_preview,
         },
     )
 

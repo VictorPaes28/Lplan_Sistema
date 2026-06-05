@@ -916,6 +916,22 @@
             var showCentralSend = !!(d.can_send_to_central && u.enviar_central);
             ftCentral.style.display = showCentralSend ? 'inline-flex' : 'none';
             setHref('gc-ft-central', u.enviar_central);
+            ftCentral.removeAttribute('aria-disabled');
+            ftCentral.classList.remove('gc-footer-btn--disabled');
+            ftCentral.onclick = null;
+            ftCentral.title = 'Enviar para tramitação na Central de Aprovações';
+            if (!showCentralSend && d.user_can_send_to_central && !d.central_dispatch_id) {
+                var motivo = d.central_dispatch_block_reason || 'Envio não permitido para este pedido.';
+                ftCentral.style.display = 'inline-flex';
+                ftCentral.href = '#';
+                ftCentral.title = motivo;
+                ftCentral.setAttribute('aria-disabled', 'true');
+                ftCentral.classList.add('gc-footer-btn--disabled');
+                ftCentral.onclick = function (e) {
+                    e.preventDefault();
+                    alert(motivo);
+                };
+            }
         }
 
         var ftCentralVer = document.getElementById('gc-ft-central-ver');

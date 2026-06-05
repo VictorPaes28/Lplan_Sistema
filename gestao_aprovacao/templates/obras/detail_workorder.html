@@ -52,6 +52,10 @@
             <a href="{% url 'gestao:send_workorder_to_central' workorder.pk %}" class="btn btn-primary">Enviar à Central</a>
             {% elif central_dispatch and central_process_url %}
             <a href="{{ central_process_url }}" class="btn btn-secondary">Ver na Central</a>
+            {% elif user_can_send_to_central and central_dispatch_block_reason %}
+            <span class="btn btn-secondary btn-pdf-zapsign--disabled" title="{{ central_dispatch_block_reason }}">
+                Enviar à Central
+            </span>
             {% endif %}
             <a href="{% url 'gestao:exportar_snapshot_workorder_pdf' workorder.pk %}" class="btn btn-export-pdf">Exportar PDF</a>
             <a href="{% url 'gestao:leitura_pedido_pdf' workorder.pk %}" class="btn btn-secondary">Leitura</a>

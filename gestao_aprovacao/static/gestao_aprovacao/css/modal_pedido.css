@@ -894,6 +894,12 @@ a.gc-btn-reprovar:hover,
     cursor: not-allowed;
 }
 
+.gc-footer-btn--disabled,
+.gc-footer-btn[aria-disabled='true'] {
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
 .gc-footer-btn--primary {
     border: 1px solid #93c5fd;
     background: #fff;

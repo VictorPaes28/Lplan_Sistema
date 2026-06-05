@@ -115,7 +115,7 @@
                             <td class="gc-dest-email">{{ d.email }}</td>
                             <td>{{ d.nome|default:"—" }}</td>
                             <td class="gc-dest-obras-cell">
-                                {% if d.obras.all %}
+                                {% if d.obras.exists %}
                                     {% for o in d.obras.all %}
                                         <span class="gc-dest-pill gc-dest-pill--obra">{{ o.codigo }}</span>
                                     {% endfor %}

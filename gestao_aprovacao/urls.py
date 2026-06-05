@@ -84,9 +84,9 @@ urlpatterns = [
     
     # Logs de Email (apenas admin)
     path('emails/destinatarios-aprovacao/', views.manage_aprovacao_destinatarios, name='manage_aprovacao_destinatarios'),
+    path('emails/preview-aprovacao/', views.preview_email_aprovacao, name='preview_email_aprovacao'),
     path('emails/logs/', views.list_email_logs, name='list_email_logs'),
     path('emails/logs/<int:log_id>/reenviar/', views.reenviar_email, name='reenviar_email'),
-    path('emails/destinatarios-aprovacao/', views.manage_aprovacao_destinatarios, name='manage_aprovacao_destinatarios'),
     
     # Marcar pedido como analisado (destinatários de e-mail de aprovação + admins)
     path('pedidos/<int:pk>/marcar-analisado/', views.marcar_pedido_analisado, name='marcar_pedido_analisado'),
