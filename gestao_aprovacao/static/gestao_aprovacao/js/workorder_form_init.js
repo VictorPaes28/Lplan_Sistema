@@ -8,6 +8,65 @@
         return scope.querySelector('#id_valor_medicao');
     }
 
+    function fieldValorEstimado(scope) {
+        return scope.querySelector('#id_valor_estimado');
+    }
+
+    function parseMoneyInput(rawValue) {
+        var raw = String(rawValue || '').trim();
+        if (!raw) return null;
+
+        raw = raw.replace(/\s+/g, '').replace(/^R\$\s?/, '');
+        if (raw.indexOf(',') !== -1) {
+            raw = raw.replace(/\./g, '').replace(',', '.');
+        } else if ((raw.match(/\./g) || []).length > 1) {
+            raw = raw.replace(/\./g, '');
+        }
+
+        var num = Number(raw);
+        return Number.isFinite(num) ? num : null;
+    }
+
+    function formatMoneyPtBr(value) {
+        return value.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function normalizeMoneyField(el) {
+        if (!el) return true;
+        var raw = (el.value || '').trim();
+        if (!raw) {
+            el.value = '';
+            return true;
+        }
+        var parsed = parseMoneyInput(raw);
+        if (parsed === null) return false;
+        el.value = parsed.toFixed(2);
+        return true;
+    }
+
+    function bindMoneyFieldDisplay(el) {
+        if (!el) return;
+        var initialParsed = parseMoneyInput(el.value);
+        if (initialParsed !== null) {
+            el.value = formatMoneyPtBr(initialParsed);
+        }
+        el.addEventListener('focus', function () {
+            var parsed = parseMoneyInput(el.value);
+            if (parsed === null) return;
+            el.value = parsed.toString().replace('.', ',');
+        });
+        el.addEventListener('blur', function () {
+            var raw = (el.value || '').trim();
+            if (!raw) return;
+            var parsed = parseMoneyInput(raw);
+            if (parsed === null) return;
+            el.value = formatMoneyPtBr(parsed);
+        });
+    }
+
     function syncValorMed(scope) {
         var tipo = scope.querySelector('#id_tipo_solicitacao');
         var box = scope.querySelector('#valor-medicao-group');
@@ -35,18 +94,26 @@
         var woForm = scope.querySelector('#workorder-create-form');
         if (woForm && tipo) {
             woForm.addEventListener('submit', function (ev) {
+                var valorEstimado = fieldValorEstimado(scope);
+                if (valorEstimado && !normalizeMoneyField(valorEstimado)) {
+                    valorEstimado.setCustomValidity('Informe um valor estimado válido.');
+                    ev.preventDefault();
+                    ev.stopImmediatePropagation();
+                    valorEstimado.reportValidity();
+                    return;
+                }
                 if (tipo.value !== 'medicao') return;
                 var el = fieldValorMed(scope);
                 if (!el) return;
-                var raw = (el.value || '').trim().replace(',', '.');
-                var n = parseFloat(raw);
-                if (!raw || isNaN(n) || n <= 0) {
+                var n = parseMoneyInput(el.value);
+                if (n === null || n <= 0) {
                     el.setCustomValidity('Informe o valor de medição (maior que zero).');
                     ev.preventDefault();
                     ev.stopImmediatePropagation();
                     el.reportValidity();
                 } else {
                     el.setCustomValidity('');
+                    el.value = n.toFixed(2);
                 }
             });
         }
@@ -55,6 +122,14 @@
             elVm.addEventListener('input', function () {
                 elVm.setCustomValidity('');
             });
+            bindMoneyFieldDisplay(elVm);
+        }
+        var elVe = fieldValorEstimado(scope);
+        if (elVe) {
+            elVe.addEventListener('input', function () {
+                elVe.setCustomValidity('');
+            });
+            bindMoneyFieldDisplay(elVe);
         }
     }
 

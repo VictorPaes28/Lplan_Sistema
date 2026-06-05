@@ -1058,7 +1058,7 @@ html, body {
         <div class="hero-kpis">
           <div class="hkpi"><div class="hkpi-source obra">Mapa de Controle</div><div class="hkpi-value">{% firstof analise_payload.meta.kpis_hero.avanco_fisico_pct analise_payload.controle.kpis.percentual_medio "—" %}{% if analise_payload.controle.kpis.percentual_medio or analise_payload.meta.kpis_hero.avanco_fisico_pct %}%{% endif %}</div><div class="hkpi-label">Avanço físico médio</div></div>
           <div class="hkpi"><div class="hkpi-source restricoes">Restrições</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.restricoes_abertas|default_if_none:"—" }}</div><div class="hkpi-label">Restrições abertas</div></div>
-          <div class="hkpi"><div class="hkpi-source gestcontroll">GestControll</div><div class="hkpi-value">R$&nbsp;{{ analise_payload.meta.kpis_hero.valor_em_aprovacao|default_if_none:0|floatformat:2 }}</div><div class="hkpi-label">Em aprovação</div></div>
+          <div class="hkpi"><div class="hkpi-source gestcontroll">GestControll</div><div class="hkpi-value">R$&nbsp;{{ analise_payload.meta.kpis_hero.valor_em_aprovacao|default_if_none:0|format_brl }}</div><div class="hkpi-label">Em aprovação</div></div>
           <div class="hkpi"><div class="hkpi-source diario">Diário de Obras</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.rdos_pendentes|default_if_none:"—" }}</div><div class="hkpi-label">RDOs pendentes</div></div>
         </div>
       </div>
@@ -1202,7 +1202,7 @@ html, body {
           <div class="big-sub">aguardando aprovação</div>
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
             <div style="font-size:10px;color:var(--bi-text3);margin-bottom:3px">Valor em análise</div>
-            <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">R$&nbsp;{{ g.kpis.pendentes_valor|default_if_none:0|floatformat:2 }}</div>
+            <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">R$&nbsp;{{ g.kpis.pendentes_valor|default_if_none:0|format_brl }}</div>
           </div>
           <a href="{% url 'gestao:list_workorders' %}?status=pendente{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">Ver fila <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
         </div>
@@ -1306,7 +1306,7 @@ html, body {
                 {% if pedido.dias_pendente|default:0 > 7 %}⚠️{% endif %}
               </div>
             </div>
-            <div class="pedido-valor">{% if pedido.valor_estimado != None %}R$ {{ pedido.valor_estimado|floatformat:2 }}{% elif pedido.valor_medicao != None %}R$ {{ pedido.valor_medicao|floatformat:2 }}{% else %}—{% endif %}</div>
+            <div class="pedido-valor">{% if pedido.valor_estimado != None %}R$ {{ pedido.valor_estimado|format_brl }}{% elif pedido.valor_medicao != None %}R$ {{ pedido.valor_medicao|format_brl }}{% else %}—{% endif %}</div>
             <div class="pedido-badge pend">Pendente</div>
             <div class="pedido-arrow">›</div>
           </div>

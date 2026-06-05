@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
+from decimal import Decimal, InvalidOperation
 from accounts.groups import ADMINISTRADOR_GLOBAL_GROUP_NAMES, GRUPOS
 from core.obras_readonly import OBRA_INATIVA_CONSULTA_MSG, gestao_obra_requires_readonly
 from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission, AprovacaoEmailDestinatario
@@ -220,18 +221,24 @@ class WorkOrderForm(forms.ModelForm):
             'codigo': forms.TextInput(attrs={'class': 'form-control'}),
             'nome_credor': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_solicitacao': forms.Select(attrs={'class': 'form-control'}),
-            'valor_medicao': forms.NumberInput(
+            'valor_medicao': forms.TextInput(
                 attrs={
                     'class': 'form-control',
-                    'step': '0.01',
-                    'min': '0',
                     'placeholder': '0,00',
                     'inputmode': 'decimal',
+                    'autocomplete': 'off',
                 }
             ),
             'observacoes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'status': forms.Select(attrs={'class': 'form-control'}),
-            'valor_estimado': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'valor_estimado': forms.TextInput(
+                attrs={
+                    'class': 'form-control',
+                    'placeholder': '0,00',
+                    'inputmode': 'decimal',
+                    'autocomplete': 'off',
+                }
+            ),
             'prazo_estimado': forms.NumberInput(attrs={'class': 'form-control'}),
             'local': forms.TextInput(attrs={'class': 'form-control'}),
         }
@@ -377,6 +384,48 @@ class WorkOrderForm(forms.ModelForm):
                 'O valor de medição deve ser maior que zero.',
             )
         return cleaned_data
+
+    @staticmethod
+    def _parse_decimal_ptbr(value):
+        """
+        Aceita formatos numéricos comuns no formulário:
+        - 1234.56
+        - 1.234,56
+        - 1234,56
+        """
+        if value in (None, ''):
+            return None
+        if isinstance(value, Decimal):
+            return value
+
+        raw = str(value).strip().replace('R$', '').replace(' ', '')
+        if not raw:
+            return None
+
+        if ',' in raw:
+            raw = raw.replace('.', '').replace(',', '.')
+        elif raw.count('.') > 1:
+            raw = raw.replace('.', '')
+
+        return Decimal(raw)
+
+    def clean_valor_medicao(self):
+        valor = self.cleaned_data.get('valor_medicao')
+        if valor in (None, ''):
+            return None
+        try:
+            return self._parse_decimal_ptbr(valor)
+        except (InvalidOperation, ValueError, TypeError):
+            raise forms.ValidationError('Informe um valor de medição válido.')
+
+    def clean_valor_estimado(self):
+        valor = self.cleaned_data.get('valor_estimado')
+        if valor in (None, ''):
+            return None
+        try:
+            return self._parse_decimal_ptbr(valor)
+        except (InvalidOperation, ValueError, TypeError):
+            raise forms.ValidationError('Informe um valor estimado válido.')
 
 
 class AttachmentForm(forms.ModelForm):

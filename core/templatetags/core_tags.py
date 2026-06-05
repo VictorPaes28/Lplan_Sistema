@@ -3,10 +3,42 @@ Template tags customizados para o app core.
 """
 import math
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django import template
 
 register = template.Library()
+
+
+@register.filter
+def format_brl(value):
+    """
+    Formata valor numérico no padrão brasileiro (milhar com ponto e decimal com vírgula).
+    Ex.: 1234.5 -> 1.234,50
+    """
+    if value is None or value == "":
+        return "0,00"
+
+    try:
+        decimal_value = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        integer_part, decimal_part = f"{decimal_value:.2f}".split(".")
+
+        negative = integer_part.startswith("-")
+        if negative:
+            integer_part = integer_part[1:]
+
+        grouped = []
+        while integer_part:
+            grouped.append(integer_part[-3:])
+            integer_part = integer_part[:-3]
+        integer_grouped = ".".join(reversed(grouped)) if grouped else "0"
+
+        if negative:
+            integer_grouped = f"-{integer_grouped}"
+
+        return f"{integer_grouped},{decimal_part}"
+    except (InvalidOperation, ValueError, TypeError):
+        return "0,00"
 
 
 def _balanced_partition(seq: list, k: int) -> list:

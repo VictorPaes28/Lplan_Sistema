@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load core_tags %}
 
 {% block title %}Pedido: {{ workorder.codigo }}{% endblock %}
 
@@ -125,13 +126,13 @@
             {% if workorder.tipo_solicitacao == 'medicao' %}
             <div>
                 <div class="detail-field-label">Valor medição</div>
-                <p class="detail-field-value">{% if workorder.valor_medicao is not None %}R$ {{ workorder.valor_medicao|floatformat:2 }}{% else %}—{% endif %}</p>
+                <p class="detail-field-value">{% if workorder.valor_medicao is not None %}R$ {{ workorder.valor_medicao|format_brl }}{% else %}—{% endif %}</p>
             </div>
             {% endif %}
             {% if workorder.valor_estimado %}
             <div>
                 <div class="detail-field-label">Valor estimado</div>
-                <p class="detail-field-value">R$ {{ workorder.valor_estimado|floatformat:2 }}</p>
+                <p class="detail-field-value">R$ {{ workorder.valor_estimado|format_brl }}</p>
             </div>
             {% endif %}
             {% if workorder.prazo_estimado %}

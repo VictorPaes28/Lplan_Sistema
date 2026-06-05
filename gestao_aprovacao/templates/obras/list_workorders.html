@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load core_tags %}
 
 {% block title %}Pedidos de Obra{% endblock %}
 
@@ -419,7 +420,7 @@
                         </td>
                         <td class="text-end" data-label="Valor medição" style="font-variant-numeric: tabular-nums;">
                             {% if workorder.tipo_solicitacao == 'medicao' and workorder.valor_medicao is not None %}
-                                R$ {{ workorder.valor_medicao|floatformat:2 }}
+                                R$ {{ workorder.valor_medicao|format_brl }}
                             {% else %}
                                 <span style="color:#94a3b8;">—</span>
                             {% endif %}
