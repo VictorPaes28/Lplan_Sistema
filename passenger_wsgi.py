@@ -1,6 +1,13 @@
 import os
 import sys
 
+# Mitigação para ambientes cPanel/Passenger com limites de processos/threads.
+# Evita estouro de threads de OpenBLAS/NumPy durante import de pandas/numpy.
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+os.environ.setdefault('MKL_NUM_THREADS', '1')
+os.environ.setdefault('NUMEXPR_NUM_THREADS', '1')
+
 # Raiz do projeto (onde estão manage.py e lplan_central)
 project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
