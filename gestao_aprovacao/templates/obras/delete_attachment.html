@@ -35,14 +35,11 @@
         
         <form method="post">
             {% csrf_token %}
-            {% if delete_next %}
-            <input type="hidden" name="next" value="{{ delete_next }}">
-            {% endif %}
             <div class="delete-actions">
                 <button type="submit" class="btn delete-submit">
                     🗑️ Confirmar Deleção
                 </button>
-                <a href="{% if delete_next %}{{ delete_next }}{% else %}{% url 'gestao:detail_workorder' workorder.pk %}{% endif %}" class="btn btn-secondary delete-cancel">
+                <a href="{% url 'gestao:detail_workorder' workorder.pk %}" class="btn btn-secondary delete-cancel">
                     Cancelar
                 </a>
             </div>

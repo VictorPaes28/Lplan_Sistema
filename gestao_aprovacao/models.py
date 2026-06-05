@@ -656,15 +656,6 @@ class Attachment(models.Model):
         verbose_name='Versão de Reaprovação',
         help_text='Número da versão de reaprovação quando o anexo foi adicionado (0 = versão original)'
     )
-
-    recusado = models.BooleanField(
-        default=False,
-        verbose_name='Recusado',
-        help_text=(
-            'Documento recusado na reprovação — permanece para consulta '
-            'e não entra no PDF do novo envio.'
-        ),
-    )
     
     class Meta:
         verbose_name = 'Anexo'

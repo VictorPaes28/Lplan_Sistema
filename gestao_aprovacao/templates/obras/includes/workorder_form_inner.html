@@ -130,41 +130,21 @@
     {% endif %}
 
     {% if is_solicitante and not workorder %}
-        <div class="form-group" id="anexos-pedido">
-            {% include "obras/includes/anexos_file_picker.html" with picker_required=True picker_label="Anexos" picker_help="<strong>Obrigatório:</strong> Selecione um ou mais arquivos. Você pode adicionar vários e revisar a lista antes de salvar — remova os errados com «Remover»." %}
+        <div class="form-group">
+            <label for="anexos" class="form-label">
+                Anexos <span class="form-required">*</span>
+            </label>
+            <input type="file" id="anexos" name="anexos" class="form-control"
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.rar,.7z" multiple required>
+            <div class="form-help">
+                <strong>Obrigatório:</strong> Selecione um ou mais arquivos para anexar ao pedido.
+                Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB cada).
+                Você pode selecionar múltiplos arquivos mantendo Ctrl (ou Cmd no Mac) pressionado.
+            </div>
         </div>
     {% else %}
-        <div class="form-group" id="anexos-pedido">
-            {% if workorder and anexos_display and anexos_display.grupos %}
-                {% for grupo in anexos_display.grupos %}
-                    {% if grupo.items %}
-                        <div class="form-anexos-grupo {% if grupo.readonly %}form-anexos-grupo--historico{% else %}form-anexos-grupo--ativos{% endif %}" style="margin-bottom: 1rem; padding: 1rem; border-radius: 8px; {% if grupo.readonly %}background-color: #fef2f2; border-left: 4px solid #dc2626;{% else %}background-color: #f0fdf4; border-left: 4px solid #16a34a;{% endif %}">
-                            <strong style="color: #2c3e50; display: block; margin-bottom: 0.35rem;">{{ grupo.label }}</strong>
-                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                {% for anexo in grupo.items %}
-                                    {% if grupo.readonly %}
-                                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background-color: white; border-radius: 4px; opacity: 0.85;">
-                                            <span style="flex: 1; color: #555;">{{ anexo.get_nome_display }}</span>
-                                            <span style="color: #b91c1c; font-size: 0.85rem; font-weight: 500;">Somente consulta</span>
-                                        </div>
-                                    {% else %}
-                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background-color: white; border-radius: 4px; {% if anexos_bloqueados_fluxo %}opacity: 0.6; cursor: not-allowed;{% else %}cursor: pointer;{% endif %}">
-                                            <input type="checkbox" name="excluir_anexos" value="{{ anexo.id }}"
-                                                   {% if anexos_bloqueados_fluxo %}disabled title="Anexos não podem ser alterados neste status"{% else %}style="cursor: pointer;"{% endif %}>
-                                            <span style="flex: 1; color: #555;">{{ anexo.get_nome_display }}</span>
-                                            {% if anexos_bloqueados_fluxo %}
-                                                <span style="color: #6c757d; font-size: 0.85rem;">Bloqueado</span>
-                                            {% else %}
-                                                <span style="color: #dc3545; font-size: 0.85rem; font-weight: 500;">Excluir</span>
-                                            {% endif %}
-                                        </label>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            {% elif workorder %}
+        <div class="form-group">
+            {% if workorder %}
                 {% with workorder.attachments.all as anexos_existentes %}
                     {% if anexos_existentes %}
                         <div style="margin-bottom: 1rem; padding: 1rem; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
@@ -183,6 +163,13 @@
                                     </label>
                                 {% endfor %}
                             </div>
+                            <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #6c757d;">
+                                {% if anexos_bloqueados_fluxo %}
+                                    <em>{{ anexos_bloqueados_mensagem }}</em>
+                                {% else %}
+                                    <em>Marque os anexos que deseja excluir</em>
+                                {% endif %}
+                            </div>
                         </div>
                     {% endif %}
                 {% endwith %}
@@ -192,11 +179,21 @@
                     {{ anexos_bloqueados_mensagem }}
                 </p>
             {% else %}
-            {% if anexos_display and anexos_display.modo == 'reprovacao' %}
-                {% include "obras/includes/anexos_file_picker.html" with picker_required=False picker_label="Adicionar documentos corrigidos" picker_hint="(obrigatório para reenvio)" picker_help="<strong>Envie aqui apenas os arquivos corrigidos.</strong> Os recusados permanecem só para consulta. Revise cada arquivo na lista abaixo e remova os errados antes de reenviar." %}
-            {% else %}
-                {% include "obras/includes/anexos_file_picker.html" with picker_required=False picker_label="Adicionar anexos" picker_hint="(opcional)" picker_help="<strong>Novos arquivos serão adicionados aos existentes.</strong> Revise a lista e remova os selecionados por engano antes de salvar." %}
-            {% endif %}
+            <label for="anexos" class="form-label">
+                Adicionar Anexos <span style="color: #6c757d;">(Opcional)</span>
+            </label>
+            <input type="file" id="anexos" name="anexos" class="form-control"
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.rar,.7z" multiple>
+            <div class="form-help">
+                {% if workorder %}
+                    <strong>Novos arquivos serão adicionados aos existentes.</strong> Selecione um ou mais arquivos para adicionar ao pedido.
+                    Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB cada).
+                {% else %}
+                    Selecione um ou mais arquivos para anexar ao pedido.
+                    Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, ZIP, RAR, 7Z (máx. 50MB cada).
+                {% endif %}
+                Você pode selecionar múltiplos arquivos mantendo Ctrl (ou Cmd no Mac) pressionado.
+            </div>
             {% endif %}
         </div>
     {% endif %}
@@ -257,10 +254,7 @@
     {% endif %}
 
     <div class="form-actions">
-        <button type="submit" class="btn btn-submit" id="workorder-submit-btn"
-                data-default-label="{% if workorder and workorder.status == 'reprovado' %}Reenviar para reavaliação{% else %}Salvar{% endif %}">
-            {% if workorder and workorder.status == 'reprovado' %}Reenviar para reavaliação{% else %}Salvar{% endif %}
-        </button>
+        <button type="submit" class="btn btn-submit" id="workorder-submit-btn">Salvar</button>
         {% if modal_mode %}
             <button type="button" class="btn btn-cancel wc-modal-cancel">{{ modal_cancel_label|default:"Fechar" }}</button>
         {% elif workorder %}

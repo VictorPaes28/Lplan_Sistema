@@ -1,7 +1,6 @@
 {% load static %}
 {# Quando {% if pode_criar_pedido %} no contexto — incluído no base ou nas telas GestControll. #}
 <link rel="stylesheet" href="{% static 'css/workorder_form.css' %}">
-<link rel="stylesheet" href="{% static 'css/upload_attachment.css' %}">
 <link rel="stylesheet" href="{% static 'gestao_aprovacao/css/modal_criar_pedido.css' %}">
 
 <script>
@@ -18,6 +17,5 @@ window.LPLAN_CREATE_WORKORDER_URL = "{% url 'gestao:create_workorder' %}";
     </div>
 </div>
 
-<script src="{% static 'gestao_aprovacao/js/anexos_file_queue.js' %}"></script>
 <script src="{% static 'gestao_aprovacao/js/workorder_form_init.js' %}"></script>
 <script src="{% static 'gestao_aprovacao/js/modal_criar_pedido.js' %}"></script>

@@ -4,7 +4,7 @@
 {% block title %}Pedido: {{ workorder.codigo }}{% endblock %}
 
 {% block page_title %}Detalhes do Pedido{% endblock %}
-{% block page_subtitle %}{{ workorder.codigo }}{% endblock %}
+{% block page_subtitle %}GestControll{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/detail_workorder.css' %}">
@@ -12,316 +12,482 @@
 
 {% block content %}
 <div class="detail-container">
-    <div class="detail-top">
-        <div class="detail-header">
-            <div>
-                <h1 class="detail-title">{{ workorder.codigo }}</h1>
-                <p class="detail-subtitle">{{ workorder.nome_credor }} · {{ workorder.obra.codigo }}</p>
-            </div>
-            <div class="detail-status-container">
-                <span class="status-badge-large {{ workorder.status }}">{{ workorder.get_status_display }}</span>
-                {% if central_dispatch %}
-                <span class="status-badge-large status-badge-large--central">Central</span>
-                {% endif %}
-            </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.25rem;">
+    </div>
+    <!-- Cabeçalho -->
+    <div class="detail-header">
+        <div>
+            <h1 class="detail-title">
+                {{ workorder.codigo }}
+            </h1>
+            <p class="detail-subtitle">{{ workorder.nome_credor }}</p>
         </div>
-
-        <div class="detail-actions">
-            {% if can_approve %}
-            <button type="button" id="gc-detail-aprov-btn" class="btn approval-btn-approve">Aprovar</button>
-            <a href="{% url 'gestao:reject_workorder' workorder.pk %}" class="btn approval-btn-reject">Reprovar</a>
-            {% endif %}
-            {% if can_edit %}
-                {% if workorder.status == 'reprovado' %}
-                <a href="{% url 'gestao:edit_workorder' workorder.pk %}#anexos-pedido" class="btn btn-reenviar">Corrigir e reenviar</a>
-                {% else %}
-                <a href="{% url 'gestao:edit_workorder' workorder.pk %}" class="btn">Editar</a>
-                {% endif %}
-            {% endif %}
-            {% if can_send_to_central %}
-            <a href="{% url 'gestao:send_workorder_to_central' workorder.pk %}" class="btn btn-primary">Enviar à Central</a>
-            {% elif central_dispatch and central_process_url %}
-            <a href="{{ central_process_url }}" class="btn btn-secondary">Ver na Central</a>
-            {% endif %}
-            <a href="{% url 'gestao:exportar_snapshot_workorder_pdf' workorder.pk %}" class="btn btn-export-pdf">Exportar PDF</a>
-            <a href="{% url 'gestao:leitura_pedido_pdf' workorder.pk %}" class="btn btn-secondary">Leitura</a>
-            {% if pdf_assinatura_pronto %}
-            <a href="{% url 'gestao:gerar_pdf_assinatura_workorder' workorder.pk %}" class="btn btn-secondary" title="PDF com documentos vigentes e assinatura">PDF assinatura</a>
-            {% elif pdf_assinatura_precheck.message %}
-            <span class="btn btn-secondary btn-pdf-zapsign--disabled" title="{{ pdf_assinatura_precheck.message }}">PDF assinatura</span>
-            {% endif %}
-            {% if can_create_workorder %}
-            <a href="{% url 'gestao:create_workorder' %}" class="btn btn-secondary gc-open-create-modal">Novo</a>
-            {% endif %}
-            {% if can_solicitar_exclusao %}
-            <a href="{% url 'gestao:solicitar_exclusao' workorder.pk %}" class="btn btn-exclusao">Excluir</a>
+        <div class="detail-status-container">
+            <span class="status-badge-large {{ workorder.status }}">
+                {{ workorder.get_status_display }}
+            </span>
+            {% if central_dispatch %}
+            <span class="status-badge-large" style="margin-left:.5rem;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;">
+                Na Central
+            </span>
             {% endif %}
         </div>
     </div>
-
-    {% if workorder.status == 'reprovado' and can_edit %}
-    <p class="detail-inline-alert detail-inline-alert--reprovado">
-        Reprovado — adicione documentos corrigidos em <a href="{% url 'gestao:edit_workorder' workorder.pk %}#anexos-pedido">Editar anexos</a> e reenvie.
-    </p>
-    {% endif %}
+    
+    <!-- Ações -->
+    <div class="detail-actions">
+        <a href="{% url 'gestao:exportar_snapshot_workorder_pdf' workorder.pk %}" class="btn btn-export-pdf">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:0.35rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 11v6"></path><path d="M9.5 14.5L12 17l2.5-2.5"></path></svg>
+            Exportar PDF
+        </a>
+        {% if can_create_workorder %}
+        <a href="{% url 'gestao:create_workorder' %}" class="btn btn-secondary gc-open-create-modal" title="Criar um novo relatório em seguida">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:0.35rem;"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            Criar novo relatório
+        </a>
+        {% endif %}
+        <a href="{% url 'gestao:leitura_pedido_pdf' workorder.pk %}" class="btn btn-secondary" title="Visualizar o PDF no navegador">
+            <i class="fas fa-file-signature" style="margin-right:0.35rem;"></i>Modo leitura
+        </a>
+        {% if pdf_assinatura_pronto %}
+        <a href="{% url 'gestao:gerar_pdf_assinatura_workorder' workorder.pk %}" class="btn btn-secondary btn-pdf-zapsign" title="Baixa um PDF com todos os anexos e a assinatura registrada na aprovação">
+            <i class="fas fa-file-pdf" style="margin-right:0.35rem;"></i>Gerar PDF para assinatura
+        </a>
+        {% elif pdf_assinatura_precheck.message %}
+        <span class="btn btn-secondary btn-pdf-zapsign btn-pdf-zapsign--disabled" title="{{ pdf_assinatura_precheck.message }}">
+            <i class="fas fa-file-pdf" style="margin-right:0.35rem;"></i>Gerar PDF para assinatura
+        </span>
+        {% endif %}
+        {% if can_edit %}
+            {% if workorder.status == 'reprovado' %}
+                <a href="{% url 'gestao:edit_workorder' workorder.pk %}" class="btn btn-reenviar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:0.375rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    Reenviar para Reavaliação
+                </a>
+            {% else %}
+                <a href="{% url 'gestao:edit_workorder' workorder.pk %}" class="btn">Editar</a>
+            {% endif %}
+        {% endif %}
+        {% if can_solicitar_exclusao %}
+            <a href="{% url 'gestao:solicitar_exclusao' workorder.pk %}" class="btn btn-exclusao">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:0.25rem;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                Solicitar Exclusão
+            </a>
+        {% endif %}
+        {% if can_send_to_central %}
+        <a href="{% url 'gestao:send_workorder_to_central' workorder.pk %}" class="btn btn-primary" title="Concluir envio na Central de Aprovações">
+            Enviar para Central de Aprovações
+        </a>
+        {% elif central_dispatch %}
+        {% if central_process_url %}
+        <a href="{{ central_process_url }}" class="btn btn-secondary">Ver processo na Central</a>
+        {% else %}
+        <span class="btn btn-secondary" style="opacity:.85;cursor:default;" title="Processo #{{ central_dispatch.approval_process_id }} na Central">
+            Enviado à Central (#{{ central_dispatch.approval_process_id }})
+        </span>
+        {% endif %}
+        {% endif %}
+    </div>
 
     {% if central_dispatch %}
-    <p class="detail-inline-alert detail-inline-alert--central">
-        Central · {{ central_dispatch.sent_at|date:"d/m/Y H:i" }}
-        {% if central_process_url %}· <a href="{{ central_process_url }}">Processo #{{ central_dispatch.approval_process_id }}</a>{% endif %}
-    </p>
+    <div class="detail-section" style="margin-bottom:1.25rem;background:#eff6ff;border-color:#bfdbfe;">
+        <p style="margin:0;color:#1e3a8a;font-size:.92rem;">
+            Este pedido foi encaminhado à Central de Aprovações
+            em {{ central_dispatch.sent_at|date:"d/m/Y H:i" }}
+            por {{ central_dispatch.sent_by.get_full_name|default:central_dispatch.sent_by.username }}.
+            {% if central_process_url %}
+            <a href="{{ central_process_url }}">Abrir processo #{{ central_dispatch.approval_process_id }}</a>
+            {% endif %}
+        </p>
+    </div>
     {% endif %}
 
     {% if workorder.solicitado_exclusao %}
     {% if workorder.status == 'pendente' or workorder.status == 'reprovado' %}
-    <div class="detail-inline-alert detail-inline-alert--exclusao">
-        <span>Exclusão solicitada · {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}</span>
-        {% if can_aprovar_exclusao %}
-        <span class="detail-inline-alert-actions">
-            <a href="{% url 'gestao:aprovar_exclusao' workorder.pk %}" class="btn approval-btn-approve">Aprovar</a>
-            <a href="{% url 'gestao:rejeitar_exclusao' workorder.pk %}" class="btn approval-btn-reject">Rejeitar</a>
-        </span>
-        {% endif %}
+    <div class="detail-section" style="margin-bottom: 1.5rem; background: var(--dw-warning-bg); border-color: #fde68a; border-left: 3px solid #ca8a04;">
+        <div style="display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start; justify-content: space-between;">
+            <div style="flex: 1; min-width: 220px;">
+                <div class="alert-exclusao-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <strong>Exclusão Solicitada</strong>
+                </div>
+                <p class="alert-exclusao-text">
+                    Solicitado por {{ workorder.solicitado_exclusao_por.get_full_name|default:workorder.solicitado_exclusao_por.username }}
+                    em {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}. Aguardando aprovação.
+                </p>
+                {% if workorder.motivo_exclusao %}
+                    <div class="alert-exclusao-motivo">
+                        <strong>Motivo:</strong>
+                        <p>{{ workorder.motivo_exclusao }}</p>
+                    </div>
+                {% endif %}
+            </div>
+            {% if can_aprovar_exclusao %}
+            <div class="approval-actions" style="flex-shrink: 0;">
+                <a href="{% url 'gestao:aprovar_exclusao' workorder.pk %}" class="btn approval-btn-approve">Aprovar Exclusão</a>
+                <a href="{% url 'gestao:rejeitar_exclusao' workorder.pk %}" class="btn approval-btn-reject">Rejeitar Exclusão</a>
+            </div>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
     {% endif %}
-
+    
+    <!-- Informações Principais -->
     <div class="detail-section">
-        <h2 class="detail-section-title">Informações</h2>
+        <h2 class="detail-section-title">Informações do Pedido</h2>
+        
         <div class="detail-grid">
             <div>
-                <div class="detail-field-label">Obra</div>
-                <p class="detail-field-value">{{ workorder.obra.codigo }} — {{ workorder.obra.nome }}</p>
+                <div class="detail-field-label">Obra:</div>
+                <p class="detail-field-value">{{ workorder.obra.codigo }} - {{ workorder.obra.nome }}</p>
             </div>
+            
             <div>
-                <div class="detail-field-label">Credor</div>
+                <div class="detail-field-label">Código:</div>
+                <p class="detail-field-value">{{ workorder.codigo }}</p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Nome do Credor:</div>
                 <p class="detail-field-value">{{ workorder.nome_credor }}</p>
             </div>
+            
             <div>
-                <div class="detail-field-label">Tipo</div>
+                <div class="detail-field-label">Tipo de Solicitação:</div>
                 <p class="detail-field-value">{{ workorder.get_tipo_solicitacao_display }}</p>
             </div>
+
             {% if workorder.tipo_solicitacao == 'medicao' %}
             <div>
-                <div class="detail-field-label">Valor medição</div>
-                <p class="detail-field-value">{% if workorder.valor_medicao is not None %}R$ {{ workorder.valor_medicao|floatformat:2 }}{% else %}—{% endif %}</p>
+                <div class="detail-field-label">Valor de medição (R$):</div>
+                <p class="detail-field-value detail-field-value-large">
+                    {% if workorder.valor_medicao is not None %}
+                        R$ {{ workorder.valor_medicao|floatformat:2 }}
+                    {% else %}
+                        <span class="detail-field-value" style="font-weight:400;color:#64748b;">Não informado</span>
+                    {% endif %}
+                </p>
+                <p class="detail-field-label" style="margin-top:0.35rem;font-size:0.7rem;font-weight:400;color:#64748b;">
+                    Controle do valor fora do Sienge (passivo).
+                </p>
             </div>
             {% endif %}
+            
             {% if workorder.valor_estimado %}
             <div>
-                <div class="detail-field-label">Valor estimado</div>
-                <p class="detail-field-value">R$ {{ workorder.valor_estimado|floatformat:2 }}</p>
+                <div class="detail-field-label">Valor Estimado:</div>
+                <p class="detail-field-value detail-field-value-large">
+                    R$ {{ workorder.valor_estimado|floatformat:2 }}
+                </p>
             </div>
             {% endif %}
+            
             {% if workorder.prazo_estimado %}
             <div>
-                <div class="detail-field-label">Prazo</div>
-                <p class="detail-field-value">{{ workorder.prazo_estimado }} dia{{ workorder.prazo_estimado|pluralize }}</p>
+                <div class="detail-field-label">Prazo Estimado:</div>
+                <p class="detail-field-value">
+                    {{ workorder.prazo_estimado }} dia{% if workorder.prazo_estimado != 1 %}s{% endif %}
+                </p>
             </div>
             {% endif %}
+            
             {% if workorder.local %}
             <div>
-                <div class="detail-field-label">Local</div>
+                <div class="detail-field-label">Local:</div>
                 <p class="detail-field-value">{{ workorder.local }}</p>
             </div>
             {% endif %}
-            <div>
-                <div class="detail-field-label">Solicitante</div>
-                <p class="detail-field-value">{% if workorder.criado_por %}{{ workorder.criado_por.get_full_name|default:workorder.criado_por.username }}{% else %}—{% endif %}</p>
-            </div>
-            <div>
-                <div class="detail-field-label">Criado</div>
-                <p class="detail-field-value">{{ workorder.created_at|date:"d/m/Y H:i" }}</p>
-            </div>
-            <div>
-                <div class="detail-field-label">Enviado</div>
-                <p class="detail-field-value">{{ workorder.data_envio|date:"d/m/Y H:i"|default:"—" }}</p>
-            </div>
-            <div>
-                <div class="detail-field-label">Atualizado</div>
-                <p class="detail-field-value">{{ workorder.updated_at|date:"d/m/Y H:i" }}</p>
-            </div>
-            {% if workorder.data_aprovacao %}
-            <div>
-                <div class="detail-field-label">Decisão</div>
-                <p class="detail-field-value">{{ workorder.data_aprovacao|date:"d/m/Y H:i" }}</p>
-            </div>
-            {% endif %}
         </div>
+        
         {% if workorder.observacoes %}
-        <div class="detail-description">
-            <div class="detail-field-label">Observações</div>
-            <p class="detail-field-value detail-description-text">{{ workorder.observacoes }}</p>
-        </div>
+            <div class="detail-description">
+                <div class="detail-field-label">Observações:</div>
+                <p class="detail-field-value detail-description-text">{{ workorder.observacoes }}</p>
+            </div>
         {% endif %}
     </div>
-
-    <div class="detail-section" id="anexos-pedido-view">
-        <div class="attachments-header">
-            <h2 class="detail-section-title detail-section-title--inline">Anexos</h2>
-            {% if can_add_attachment and can_edit %}
-            <a href="{% url 'gestao:edit_workorder' workorder.pk %}#anexos-pedido" class="btn btn-sm">{% if workorder.status == 'reprovado' %}+ Corrigido{% else %}+ Anexo{% endif %}</a>
-            {% elif can_add_attachment %}
-            <a href="{% url 'gestao:upload_attachment' workorder.pk %}" class="btn btn-sm">+ Anexo</a>
+    
+    <!-- Informações de Controle -->
+    <div class="detail-section">
+        <h2 class="detail-section-title">Controle</h2>
+        
+        <div class="detail-grid">
+            <div>
+                <div class="detail-field-label">Solicitante:</div>
+                <p class="detail-field-value">
+                    {% if workorder.criado_por %}{{ workorder.criado_por.get_full_name|default:workorder.criado_por.username }}{% else %}—{% endif %}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">E-mail do Solicitante:</div>
+                <p class="detail-field-value">
+                    {% if workorder.criado_por %}{{ workorder.criado_por.email|default:"Não informado" }}{% else %}—{% endif %}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Criação:</div>
+                <p class="detail-field-value">
+                    {{ workorder.created_at|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Data de Envio:</div>
+                <p class="detail-field-value">
+                    {{ workorder.data_envio|date:"d/m/Y H:i"|default:"Ainda não enviado" }}
+                </p>
+            </div>
+            
+            <div>
+                <div class="detail-field-label">Última Atualização:</div>
+                <p class="detail-field-value">
+                    {{ workorder.updated_at|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            
+            {% if workorder.data_aprovacao %}
+                <div>
+                    <div class="detail-field-label">Data de Aprovação/Reprovação:</div>
+                    <p class="detail-field-value">
+                        {{ workorder.data_aprovacao|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
             {% endif %}
         </div>
-        {% if anexos_bloqueados_fluxo %}
-        <p class="attachments-locked-hint">{{ anexos_bloqueados_mensagem }}</p>
-        {% endif %}
-        {% if anexos_display.modo == 'reprovacao' %}
-        <p class="attachments-legend">
-            <span class="attachment-badge attachment-badge--recusado">Recusados</span> apenas para histórico
-            ·
-            <span class="attachment-badge attachment-badge--corrigido">Novo envio</span> usados no PDF de assinatura
-        </p>
-        {% endif %}
-        {% if anexos_display.grupos %}
-            {% for grupo in anexos_display.grupos %}
-            <div class="attachments-block {% if grupo.readonly %}attachments-block--historico{% endif %}">
-                <h3 class="attachments-subtitle">{{ grupo.label }}</h3>
-                {% if grupo.items %}
-                <div class="attachments-list attachments-list--compact">
-                    {% for attachment in grupo.items %}
-                    <div class="attachment-item attachment-item--clickable {% if grupo.readonly %}attachment-item--readonly{% endif %}" data-open-url="{{ attachment.arquivo.url }}" tabindex="0" role="link" aria-label="Abrir anexo {{ attachment.get_nome_display }}">
-                        <div class="attachment-info">
-                            <div class="attachment-name">
-                                <strong title="{{ attachment.get_nome_display }}">{{ attachment.get_nome_display }}</strong>
-                                <span class="attachment-extension">{{ attachment.get_extensao|default:'?' }}</span>
-                                {% if grupo.readonly %}<span class="attachment-badge attachment-badge--recusado">Recusado</span>{% elif grupo.key == 'corrigidos' %}<span class="attachment-badge attachment-badge--corrigido">Novo</span>{% endif %}
-                            </div>
-                            <div class="attachment-meta">
-                                <span>{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
-                                <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
-                            </div>
-                        </div>
-                        <div class="attachment-actions">
-                            <a href="{{ attachment.arquivo.url }}" target="_blank" rel="noopener" class="attachment-download attachment-download--compact">{% if grupo.readonly %}Ver{% else %}Baixar{% endif %}</a>
-                            {% if can_delete_attachment and not grupo.readonly %}
-                                {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
-                                <a href="{% url 'gestao:delete_attachment' attachment.pk %}?next={% url 'gestao:detail_workorder' workorder.pk %}" class="attachment-delete">Excluir</a>
-                                {% endif %}
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="empty-attachments attachments-group-empty">Nenhum documento corrigido.</p>
-                {% endif %}
-            </div>
-            {% endfor %}
-        {% else %}
-        <p class="empty-attachments">Nenhum anexo.</p>
-        {% endif %}
     </div>
-
+    
+    <!-- Área de Aprovação -->
+    {% if can_approve %}
+        <div class="approval-section">
+            <h2 class="approval-section-title">Aprovação</h2>
+            <p class="approval-section-text">Este pedido está aguardando sua aprovação.</p>
+            <div class="approval-actions">
+                <button type="button" id="gc-detail-aprov-btn" class="btn approval-btn-approve">Aprovar</button>
+                <a href="{% url 'gestao:reject_workorder' workorder.pk %}" class="btn approval-btn-reject">Reprovar</a>
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Comentários e Discussão -->
     {% if can_comment %}
     <div class="detail-section">
-        <div class="detail-section-title-row">
-            <h2 class="detail-section-title detail-section-title--inline">Comentários</h2>
-            <span class="comments-count">{{ comments|length }}</span>
+        <div class="detail-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Comentários</span>
+            <span class="comments-count">{{ comments|length }} comentário{{ comments|length|pluralize }}</span>
         </div>
         {% if comments %}
-        <div class="comments-list comments-list--compact">
-            {% for comment in comments %}
-            <div class="comment-item comment-item--compact">
-                <span class="comment-author-name">{% if comment.autor %}{{ comment.autor.get_full_name|default:comment.autor.username }}{% else %}—{% endif %}</span>
-                <span class="comment-meta">{{ comment.created_at|date:"d/m/Y H:i" }}</span>
-                <div class="comment-text">{{ comment.texto }}</div>
+            <div class="comments-list">
+                {% for comment in comments %}
+                    <div class="comment-item">
+                        <div class="comment-row">
+                            <div class="comment-author-row">
+                                <div class="comment-avatar">{% if comment.autor %}{{ comment.autor.get_full_name|default:comment.autor.username|first|upper }}{% else %}?{% endif %}</div>
+                                <div>
+                                    <div class="comment-author-name">{% if comment.autor %}{{ comment.autor.get_full_name|default:comment.autor.username }}{% else %}Usuário removido{% endif %}</div>
+                                    <div class="comment-meta">{{ comment.created_at|date:"d/m/Y H:i" }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comment-text">{{ comment.texto }}</div>
+                    </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
         {% else %}
-        <div class="comment-empty">Nenhum comentário.</div>
+            <div class="comment-empty">Nenhum comentário ainda.</div>
         {% endif %}
-        <form method="post" action="{% url 'gestao:add_comment' workorder.pk %}" class="comment-form-divider comment-form--compact">
+        <form method="post" action="{% url 'gestao:add_comment' workorder.pk %}" class="comment-form-divider">
             {% csrf_token %}
-            <textarea id="comment-texto" name="texto" rows="2" placeholder="Comentário..." required class="comment-form-textarea"></textarea>
+            <label for="comment-texto" class="comment-form-label">Adicionar comentário</label>
+            <textarea id="comment-texto" name="texto" rows="3" placeholder="Digite seu comentário..." required class="comment-form-textarea"></textarea>
+            <span class="comment-form-help">Use para esclarecer dúvidas ou pedir informações durante a análise.</span>
             <button type="submit" class="btn comment-form-submit">Enviar</button>
         </form>
     </div>
     {% endif %}
-
-    {% if approvals %}
-    <div class="detail-section detail-section--approvals">
-        <h2 class="detail-section-title">Pareceres de aprovação</h2>
-        <p class="detail-section-helper">Registro das decisões formais dos aprovadores (aprovar/reprovar) e justificativas.</p>
-        <div class="approvals-list approvals-list--compact">
-            {% for approval in approvals %}
-            <div class="approval-item approval-item--compact {{ approval.decisao }}">
-                <strong class="approval-decision {{ approval.decisao }}">{{ approval.get_decisao_display|upper }}</strong>
-                <span class="approval-meta">{% if approval.aprovado_por %}{{ approval.aprovado_por.get_full_name|default:approval.aprovado_por.username }}{% else %}—{% endif %} · {{ approval.created_at|date:"d/m/Y H:i" }}</span>
-                {% if approval.comentario %}<p class="approval-comment {{ approval.decisao }}">{{ approval.comentario }}</p>{% endif %}
-                {% if approval.decisao == 'reprovado' and approval.tags_erro.exists %}
-                <div class="approval-tags-list">
-                    {% for tag in approval.tags_erro.all %}<span class="approval-tag-chip">{{ tag.nome }}</span>{% endfor %}
+    
+    <!-- Anexos -->
+    <div class="detail-section">
+        <div class="attachments-header">
+            <h2 class="detail-section-title" style="margin-bottom: 0;">Anexos</h2>
+            {% if can_add_attachment %}
+                <a href="{% url 'gestao:upload_attachment' workorder.pk %}" class="btn">+ Adicionar Anexo</a>
+            {% endif %}
+        </div>
+        {% if anexos_bloqueados_fluxo %}
+            <p class="attachments-locked-hint">{{ anexos_bloqueados_mensagem }}</p>
+        {% endif %}
+        {% if attachments_originais or anexos_por_versao %}
+            {% if attachments_originais %}
+                <div class="attachments-block">
+                    <h3 class="attachments-subtitle">Anexos originais</h3>
+                    <div class="attachments-list">
+                        {% for attachment in attachments_originais %}
+                            <div class="attachment-item">
+                                <div class="attachment-icon" aria-hidden="true">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                </div>
+                                <div class="attachment-info">
+                                    <div class="attachment-name">
+                                        <strong>{{ attachment.get_nome_display }}</strong>
+                                        <span class="attachment-extension">{{ attachment.get_extensao }}</span>
+                                    </div>
+                                    {% if attachment.descricao %}
+                                        <p class="attachment-description">{{ attachment.descricao }}</p>
+                                    {% endif %}
+                                    <div class="attachment-meta">
+                                        <span>{% if attachment.enviado_por %}{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}{% else %}—{% endif %}</span>
+                                        <span class="attachment-meta-sep">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+                                        <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
+                                    </div>
+                                </div>
+                                <div class="attachment-actions">
+                                    <a href="{{ attachment.arquivo.url }}" target="_blank" rel="noopener" class="attachment-download">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        Baixar
+                                    </a>
+                                    {% if can_delete_attachment %}
+                                        {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
+                                            <a href="{% url 'gestao:delete_attachment' attachment.pk %}" class="attachment-delete">Excluir</a>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
+            {% endif %}
+            
+            {% if anexos_por_versao_ordenado %}
+                {% for versao, anexos in anexos_por_versao_ordenado %}
+                    <div class="anexos-versao">
+                        <h3 class="anexos-versao-title"><span class="versao-badge">v{{ versao }}</span> Reaprovação v{{ versao }}</h3>
+                        <div class="attachments-list">
+                            {% for attachment in anexos %}
+                                <div class="attachment-item">
+                                    <div class="attachment-icon" aria-hidden="true">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                    </div>
+                                    <div class="attachment-info">
+                                        <div class="attachment-name">
+                                            <strong>{{ attachment.get_nome_display }}</strong>
+                                            <span class="attachment-extension">Novo</span>
+                                        </div>
+                                        {% if attachment.descricao %}
+                                            <p class="attachment-description">{{ attachment.descricao }}</p>
+                                        {% endif %}
+                                        <div class="attachment-meta">
+                                            <span>{% if attachment.enviado_por %}{{ attachment.enviado_por.get_full_name|default:attachment.enviado_por.username }}{% else %}—{% endif %}</span>
+                                            <span class="attachment-meta-sep">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+                                            <span class="attachment-meta-sep">{{ attachment.get_tamanho_display }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="attachment-actions">
+                                        <a href="{{ attachment.arquivo.url }}" target="_blank" rel="noopener" class="attachment-download">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            Baixar
+                                        </a>
+                                        {% if can_delete_attachment %}
+                                            {% if attachment.enviado_por == user or workorder.criado_por == user or user_profile == 'admin' %}
+                                                <a href="{% url 'gestao:delete_attachment' attachment.pk %}" class="attachment-delete">Excluir</a>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% else %}
+            <p class="empty-attachments">Nenhum anexo adicionado ainda.</p>
+        {% endif %}
     </div>
+    
+    <!-- Histórico de Aprovações -->
+    {% if approvals %}
+        <div class="detail-section">
+            <h2 class="detail-section-title">Histórico de Aprovações</h2>
+            <div class="approvals-list">
+                {% for approval in approvals %}
+                    <div class="approval-item {{ approval.decisao }}">
+                        <div class="approval-header">
+                            <div>
+                                <strong class="approval-decision {{ approval.decisao }}">{{ approval.get_decisao_display|upper }}</strong>
+                                <span class="approval-meta">por {% if approval.aprovado_por %}{{ approval.aprovado_por.get_full_name|default:approval.aprovado_por.username }}{% else %}—{% endif %}</span>
+                            </div>
+                            <span class="approval-date">{{ approval.created_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                        {% if approval.comentario %}
+                            <p class="approval-comment {{ approval.decisao }}">{{ approval.comentario }}</p>
+                        {% endif %}
+                        {% if approval.decisao == 'reprovado' and approval.tags_erro.exists %}
+                            <div class="approval-tags-line">
+                                <span class="approval-tags-label">Motivos:</span>
+                                <div class="approval-tags-list">
+                                    {% for tag in approval.tags_erro.all %}
+                                        <span class="approval-tag-chip">{{ tag.nome }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
     {% endif %}
-
+    
+    <!-- Histórico de Status -->
     {% if status_history %}
-    <div class="detail-section detail-section--timeline">
-        <h2 class="detail-section-title">Linha do tempo do pedido</h2>
-        <p class="detail-section-helper">Evolução completa de status e alterações do pedido.</p>
-        <div class="approvals-list approvals-list--compact">
-            {% for history in status_history %}
-            <div class="approval-item approval-item--compact history-item">
-                <strong>
-                    {% if history.status_anterior == history.status_novo and history.status_anterior %}
-                        Editado ({{ history.status_novo|title }})
-                    {% elif history.status_anterior %}
-                        {{ history.status_anterior|title }} → {{ history.status_novo|title }}
-                    {% else %}
-                        {{ history.status_novo|title }}
-                    {% endif %}
-                </strong>
-                <span class="approval-meta">{% if history.alterado_por %}{{ history.alterado_por.get_full_name|default:history.alterado_por.username }}{% else %}—{% endif %} · {{ history.created_at|date:"d/m/Y H:i" }}</span>
-                {% if history.observacao_exibicao %}<p class="approval-comment">{{ history.observacao_exibicao }}</p>{% elif history.observacao %}<p class="approval-comment">{{ history.observacao }}</p>{% endif %}
+        <div class="detail-section">
+            <h2 class="detail-section-title">Histórico de Mudanças de Status</h2>
+            
+            <div class="approvals-list">
+                {% for history in status_history %}
+                    <div class="approval-item {% if history.status_anterior == history.status_novo and history.status_anterior %}editado{% endif %}">
+                        <div class="approval-header">
+                            <div>
+                                <strong>
+                                    {% if history.status_anterior == history.status_novo and history.status_anterior %}
+                                        Pedido Editado ({{ history.status_novo|title }})
+                                    {% elif history.status_anterior %}
+                                        {{ history.status_anterior|title }} → {{ history.status_novo|title }}
+                                    {% else %}
+                                        {{ history.status_novo|title }}
+                                    {% endif %}
+                                </strong>
+                                <span class="approval-meta">
+                                    por {% if history.alterado_por %}{{ history.alterado_por.get_full_name|default:history.alterado_por.username }}{% else %}—{% endif %}
+                                </span>
+                            </div>
+                            <span class="approval-date">
+                                {{ history.created_at|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+                        {% if history.observacao_exibicao %}
+                            <p class="approval-comment {% if history.status_anterior == history.status_novo %}editado{% endif %}">
+                                {{ history.observacao_exibicao }}
+                            </p>
+                        {% elif history.observacao %}
+                            <p class="approval-comment {% if history.status_anterior == history.status_novo %}editado{% endif %}">
+                                {{ history.observacao }}
+                            </p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
-    </div>
     {% endif %}
 </div>
-
-<script>
-(function () {
-    function shouldIgnoreClick(target) {
-        return !!target.closest('a, button, input, textarea, select, label, form');
-    }
-
-    function openAttachmentFromItem(item) {
-        var url = item.getAttribute('data-open-url');
-        if (!url) return;
-        window.open(url, '_blank', 'noopener');
-    }
-
-    document.addEventListener('click', function (event) {
-        var item = event.target.closest('.attachment-item--clickable');
-        if (!item) return;
-        if (shouldIgnoreClick(event.target)) return;
-        openAttachmentFromItem(item);
-    });
-
-    document.addEventListener('keydown', function (event) {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        var item = event.target.closest('.attachment-item--clickable');
-        if (!item) return;
-        if (shouldIgnoreClick(event.target)) return;
-        event.preventDefault();
-        openAttachmentFromItem(item);
-    });
-})();
-</script>
 
 {% if can_approve %}
 <link rel="stylesheet" href="{% static 'gestao_aprovacao/css/modal_pedido.css' %}">
 {% include "gestao_aprovacao/includes/sheet_aprovar_pedido.html" %}
-<script>window._gcSignatureUserId = {{ request.user.pk|default:"0" }};</script>
+<script>
+    window._gcSignatureUserId = {{ request.user.pk|default:"0" }};
+</script>
 <script src="{% static 'workflow_aprovacao/js/wf_manual_signature.js' %}"></script>
 <script src="{% static 'gestao_aprovacao/js/modal_pedido.js' %}"></script>
 <script>

@@ -12,7 +12,6 @@ from django.urls import reverse
 from django.utils import timezone
 
 from gestao_aprovacao.models import Attachment, GestaoCentralDispatch, StatusHistory, WorkOrder
-from gestao_aprovacao.services.attachment_versions import ordered_attachments_for_consolidation
 from workflow_aprovacao.exceptions import NoFlowConfigurationError
 from workflow_aprovacao.models import ProcessCategory, SyncStatus
 from workflow_aprovacao.services.engine import ApprovalEngine
@@ -46,7 +45,7 @@ def category_for_workorder_tipo(tipo_solicitacao: str) -> Optional[ProcessCatego
 def build_dispatch_snapshot(workorder: WorkOrder, *, request=None) -> dict[str, Any]:
     """Metadados e referências de anexos no momento do envio."""
     anexos = []
-    for att in ordered_attachments_for_consolidation(workorder):
+    for att in Attachment.objects.filter(work_order=workorder).order_by('pk'):
         url = ''
         if att.arquivo:
             try:
