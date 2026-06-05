@@ -205,7 +205,7 @@ def _webhook_receber(request):
 
         usuario_whatsapp = usuario_wa
         try:
-            resposta = chamar_openai(texto)
+            resposta = chamar_openai(texto, usuario_wa=usuario_wa)
         except Exception as exc:
             logger.exception('Erro ao chamar OpenAI: %s', exc)
             _registrar_erro(
