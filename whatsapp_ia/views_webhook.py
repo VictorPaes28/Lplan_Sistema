@@ -56,6 +56,15 @@ def normalizar_telefone(telefone: str) -> list[str]:
     return list(variantes)
 
 
+def telefone_para_envio(telefone: str) -> str:
+    numero = telefone.lstrip('+')
+    if numero.startswith('55') and len(numero) == 12:
+        ddd = numero[2:4]
+        restante = numero[4:]
+        return f'55{ddd}9{restante}'
+    return numero
+
+
 def _enviar_mensagem_whatsapp(telefone, texto):
     """Envia mensagem de texto via Meta Graph API. Não propaga exceções."""
     phone_number_id = getattr(settings, 'WHATSAPP_PHONE_NUMBER_ID', '').strip()
@@ -76,7 +85,7 @@ def _enviar_mensagem_whatsapp(telefone, texto):
     payload = {
         'messaging_product': 'whatsapp',
         'recipient_type': 'individual',
-        'to': telefone,
+        'to': telefone_para_envio(telefone),
         'type': 'text',
         'text': {'body': texto},
     }
