@@ -28,7 +28,17 @@
 
         <div class="detail-actions">
             {% if can_approve %}
-            <button type="button" id="gc-detail-aprov-btn" class="btn approval-btn-approve">Aprovar</button>
+            <button
+                type="button"
+                id="gc-detail-aprov-btn"
+                class="btn approval-btn-approve"
+                data-approve-url="{% url 'gestao:approve_workorder' workorder.pk %}"
+                data-workorder-codigo="{{ workorder.codigo|escape }}"
+                data-workorder-pk="{{ workorder.pk }}"
+                data-signature-user-id="{{ request.user.pk|default:'0' }}"
+            >
+                Aprovar
+            </button>
             <a href="{% url 'gestao:reject_workorder' workorder.pk %}" class="btn approval-btn-reject">Reprovar</a>
             {% endif %}
             {% if can_edit %}
@@ -46,7 +56,14 @@
             <a href="{% url 'gestao:exportar_snapshot_workorder_pdf' workorder.pk %}" class="btn btn-export-pdf">Exportar PDF</a>
             <a href="{% url 'gestao:leitura_pedido_pdf' workorder.pk %}" class="btn btn-secondary">Leitura</a>
             {% if pdf_assinatura_pronto %}
-            <a href="{% url 'gestao:gerar_pdf_assinatura_workorder' workorder.pk %}" class="btn btn-secondary" title="PDF com documentos vigentes e assinatura">PDF assinatura</a>
+            <a
+                href="{% url 'gestao:gerar_pdf_assinatura_workorder' workorder.pk %}"
+                id="detail-pdf-assinatura-btn"
+                class="btn btn-secondary"
+                title="PDF com documentos vigentes e assinatura"
+            >
+                PDF assinatura
+            </a>
             {% elif pdf_assinatura_precheck.message %}
             <span class="btn btn-secondary btn-pdf-zapsign--disabled" title="{{ pdf_assinatura_precheck.message }}">PDF assinatura</span>
             {% endif %}
@@ -182,7 +199,7 @@
                 {% if grupo.items %}
                 <div class="attachments-list attachments-list--compact">
                     {% for attachment in grupo.items %}
-                    <div class="attachment-item attachment-item--clickable {% if grupo.readonly %}attachment-item--readonly{% endif %}" data-open-url="{{ attachment.arquivo.url }}" tabindex="0" role="link" aria-label="Abrir anexo {{ attachment.get_nome_display }}">
+                    <div class="attachment-item attachment-item--clickable {% if grupo.readonly %}attachment-item--readonly{% endif %}" data-open-url="{{ attachment.arquivo.url }}" data-attachment-id="{{ attachment.pk }}" tabindex="0" role="link" aria-label="Abrir anexo {{ attachment.get_nome_display }}">
                         <div class="attachment-info">
                             <div class="attachment-name">
                                 <strong title="{{ attachment.get_nome_display }}">{{ attachment.get_nome_display }}</strong>
@@ -288,8 +305,37 @@
     {% endif %}
 </div>
 
+<div id="detail-pdf-order-overlay" class="pdf-order-overlay" aria-hidden="true">
+    <div class="pdf-order-panel" role="dialog" aria-modal="true" aria-labelledby="detail-pdf-order-title">
+        <div class="pdf-order-head">
+            <h2 id="detail-pdf-order-title">Ordenar anexos do PDF</h2>
+            <button type="button" id="detail-pdf-order-close" class="pdf-order-close" aria-label="Fechar">✕</button>
+        </div>
+        <p class="pdf-order-intro">
+            Ajuste a sequência dos anexos. O PDF para assinatura será gerado nessa ordem e a página de assinatura ficará no final.
+        </p>
+        <div id="detail-pdf-order-empty" class="pdf-order-empty" style="display:none;">
+            Nenhum anexo disponível para ordenação.
+        </div>
+        <ul id="detail-pdf-order-list" class="pdf-order-list"></ul>
+        <div class="pdf-order-actions">
+            <button type="button" id="detail-pdf-order-cancel" class="pdf-order-btn pdf-order-btn--secondary">Cancelar</button>
+            <button type="button" id="detail-pdf-order-generate" class="pdf-order-btn pdf-order-btn--primary">Gerar PDF</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
+    var pdfBtn = document.getElementById('detail-pdf-assinatura-btn');
+    var pdfOverlay = document.getElementById('detail-pdf-order-overlay');
+    var pdfListEl = document.getElementById('detail-pdf-order-list');
+    var pdfEmptyEl = document.getElementById('detail-pdf-order-empty');
+    var pdfGenerateBtn = document.getElementById('detail-pdf-order-generate');
+    var pdfCancelBtn = document.getElementById('detail-pdf-order-cancel');
+    var pdfCloseBtn = document.getElementById('detail-pdf-order-close');
+    var pdfOrderItems = [];
+
     function shouldIgnoreClick(target) {
         return !!target.closest('a, button, input, textarea, select, label, form');
     }
@@ -315,23 +361,161 @@
         event.preventDefault();
         openAttachmentFromItem(item);
     });
+
+    function renderPdfOrderList() {
+        if (!pdfListEl) return;
+        if (!pdfOrderItems.length) {
+            pdfListEl.innerHTML = '';
+            if (pdfEmptyEl) pdfEmptyEl.style.display = 'block';
+            if (pdfGenerateBtn) pdfGenerateBtn.disabled = true;
+            return;
+        }
+        if (pdfEmptyEl) pdfEmptyEl.style.display = 'none';
+        if (pdfGenerateBtn) pdfGenerateBtn.disabled = false;
+
+        pdfListEl.innerHTML = '';
+        pdfOrderItems.forEach(function (item, idx) {
+            var li = document.createElement('li');
+            li.className = 'pdf-order-item';
+
+            var pos = document.createElement('span');
+            pos.className = 'pdf-order-position';
+            pos.textContent = String(idx + 1);
+
+            var name = document.createElement('span');
+            name.className = 'pdf-order-name';
+            name.textContent = item.nome || ('Anexo #' + String(item.id));
+
+            var controls = document.createElement('div');
+            controls.className = 'pdf-order-controls';
+
+            var up = document.createElement('button');
+            up.type = 'button';
+            up.className = 'pdf-order-move';
+            up.textContent = '↑';
+            up.title = 'Mover para cima';
+            up.disabled = idx === 0;
+            up.addEventListener('click', function () {
+                if (idx === 0) return;
+                var current = pdfOrderItems[idx];
+                pdfOrderItems[idx] = pdfOrderItems[idx - 1];
+                pdfOrderItems[idx - 1] = current;
+                renderPdfOrderList();
+            });
+
+            var down = document.createElement('button');
+            down.type = 'button';
+            down.className = 'pdf-order-move';
+            down.textContent = '↓';
+            down.title = 'Mover para baixo';
+            down.disabled = idx === pdfOrderItems.length - 1;
+            down.addEventListener('click', function () {
+                if (idx === pdfOrderItems.length - 1) return;
+                var current = pdfOrderItems[idx];
+                pdfOrderItems[idx] = pdfOrderItems[idx + 1];
+                pdfOrderItems[idx + 1] = current;
+                renderPdfOrderList();
+            });
+
+            controls.appendChild(up);
+            controls.appendChild(down);
+            li.appendChild(pos);
+            li.appendChild(name);
+            li.appendChild(controls);
+            pdfListEl.appendChild(li);
+        });
+    }
+
+    function collectPdfOrderItemsFromDom() {
+        var nodes = document.querySelectorAll(
+            '#anexos-pedido-view .attachment-item--clickable:not(.attachment-item--readonly)'
+        );
+        var collected = [];
+        nodes.forEach(function (node) {
+            var rawId = (node.getAttribute('data-attachment-id') || '').trim();
+            var id = parseInt(rawId, 10);
+            if (!Number.isFinite(id) || id <= 0) return;
+            var strong = node.querySelector('.attachment-name strong');
+            collected.push({
+                id: id,
+                nome: strong ? (strong.textContent || '').trim() : ('Anexo #' + String(id)),
+            });
+        });
+        return collected;
+    }
+
+    function closePdfOrderModal() {
+        if (!pdfOverlay) return;
+        pdfOverlay.classList.remove('is-open');
+        pdfOverlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    function openPdfOrderModal() {
+        if (!pdfOverlay) return;
+        pdfOrderItems = collectPdfOrderItemsFromDom();
+        renderPdfOrderList();
+        pdfOverlay.classList.add('is-open');
+        pdfOverlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function buildOrderedPdfUrl() {
+        if (!pdfBtn) return '';
+        var baseUrl = pdfBtn.getAttribute('href') || '';
+        if (!baseUrl) return '';
+        var ids = pdfOrderItems.map(function (item) { return String(item.id); }).join(',');
+        if (!ids) return baseUrl;
+        var sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
+        return baseUrl + sep + 'anexos=' + encodeURIComponent(ids);
+    }
+
+    if (pdfBtn) {
+        pdfBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            openPdfOrderModal();
+        });
+    }
+    if (pdfCloseBtn) pdfCloseBtn.addEventListener('click', closePdfOrderModal);
+    if (pdfCancelBtn) pdfCancelBtn.addEventListener('click', closePdfOrderModal);
+    if (pdfOverlay) {
+        pdfOverlay.addEventListener('click', function (event) {
+            if (event.target === pdfOverlay) closePdfOrderModal();
+        });
+    }
+    if (pdfGenerateBtn) {
+        pdfGenerateBtn.addEventListener('click', function () {
+            var nextUrl = buildOrderedPdfUrl();
+            if (!nextUrl) return;
+            closePdfOrderModal();
+            window.location.href = nextUrl;
+        });
+    }
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && pdfOverlay && pdfOverlay.classList.contains('is-open')) {
+            event.preventDefault();
+            closePdfOrderModal();
+        }
+    });
 })();
 </script>
 
 {% if can_approve %}
 <link rel="stylesheet" href="{% static 'gestao_aprovacao/css/modal_pedido.css' %}">
 {% include "gestao_aprovacao/includes/sheet_aprovar_pedido.html" %}
-<script>window._gcSignatureUserId = {{ request.user.pk|default:"0" }};</script>
 <script src="{% static 'workflow_aprovacao/js/wf_manual_signature.js' %}"></script>
 <script src="{% static 'gestao_aprovacao/js/modal_pedido.js' %}"></script>
 <script>
 (function () {
-    window._gcModalCurrentPk = {{ workorder.pk }};
-    window._gcModalApproveData = {
-        aprovarUrl: "{% url 'gestao:approve_workorder' workorder.pk %}",
-        codigo: "{{ workorder.codigo|escapejs }}"
-    };
     var btnAprov = document.getElementById('gc-detail-aprov-btn');
+    if (btnAprov) {
+        window._gcSignatureUserId = parseInt(btnAprov.getAttribute('data-signature-user-id') || '0', 10) || 0;
+        window._gcModalCurrentPk = parseInt(btnAprov.getAttribute('data-workorder-pk') || '0', 10) || null;
+        window._gcModalApproveData = {
+            aprovarUrl: btnAprov.getAttribute('data-approve-url') || '',
+            codigo: btnAprov.getAttribute('data-workorder-codigo') || ''
+        };
+    }
     if (btnAprov) {
         btnAprov.addEventListener('click', function (e) {
             e.preventDefault();

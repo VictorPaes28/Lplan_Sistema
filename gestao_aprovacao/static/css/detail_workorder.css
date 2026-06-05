@@ -909,6 +909,154 @@
     background: var(--dw-warning-bg);
 }
 
+/* ----- Modal de ordenação do PDF assinatura ----- */
+.pdf-order-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10040;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.pdf-order-overlay.is-open {
+    display: flex;
+}
+
+.pdf-order-panel {
+    width: min(620px, 100%);
+    max-height: min(88vh, 740px);
+    overflow: auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+    padding: 1rem 1.1rem 1.1rem;
+}
+
+.pdf-order-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.pdf-order-head h2 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--dw-text);
+}
+
+.pdf-order-close {
+    border: 1px solid var(--dw-border);
+    background: #fff;
+    color: var(--dw-text-secondary);
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.pdf-order-intro {
+    margin: 0 0 0.8rem;
+    color: var(--dw-text-secondary);
+    font-size: 0.83rem;
+}
+
+.pdf-order-empty {
+    margin-bottom: 0.85rem;
+    color: var(--dw-text-muted);
+    font-size: 0.85rem;
+}
+
+.pdf-order-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.pdf-order-item {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--dw-border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.pdf-order-position {
+    font-size: 0.8rem;
+    color: var(--dw-text-secondary);
+    font-weight: 600;
+}
+
+.pdf-order-name {
+    font-size: 0.83rem;
+    color: var(--dw-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pdf-order-controls {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.pdf-order-move {
+    border: 1px solid var(--dw-border);
+    background: var(--dw-bg-subtle);
+    color: var(--dw-text);
+    width: 2rem;
+    height: 1.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.pdf-order-move:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.pdf-order-actions {
+    margin-top: 0.9rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.45rem;
+}
+
+.pdf-order-btn {
+    border-radius: 8px;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pdf-order-btn--secondary {
+    border: 1px solid var(--dw-border);
+    background: #fff;
+    color: var(--dw-text-secondary);
+}
+
+.pdf-order-btn--primary {
+    border: 1px solid #0f766e;
+    background: #0f766e;
+    color: #fff;
+}
+
+.pdf-order-btn--primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 /* ----- Card base (se usado globalmente) ----- */
 .detail-section.card {
     box-shadow: none;

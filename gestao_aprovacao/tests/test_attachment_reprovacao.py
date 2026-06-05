@@ -1,7 +1,11 @@
+from datetime import timedelta
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from gestao_aprovacao.models import Approval, Attachment, Empresa, Obra, WorkOrder
 from gestao_aprovacao.services.attachment_versions import (
@@ -10,6 +14,10 @@ from gestao_aprovacao.services.attachment_versions import (
     build_attachment_display_groups,
     mark_submission_attachments_recusados,
     ordered_attachments_for_consolidation,
+)
+from gestao_aprovacao.services.consolidated_signature_pdf import (
+    ConsolidationError,
+    build_consolidated_signature_pdf,
 )
 
 
@@ -73,9 +81,75 @@ class AttachmentReprovacaoFlowTests(TestCase):
         self._attach('v1a.pdf', versao=1)
         self.assertEqual(assign_new_attachment_version(self.workorder), 1)
 
+    def test_ordem_consolidacao_respeita_sequencia_upload(self):
+        primeiro = self._attach('01-primeiro.pdf')
+        segundo = self._attach('02-segundo.pdf')
+        terceiro = self._attach('03-terceiro.pdf')
+
+        # Mesmo que timestamps mudem (ex.: mesma granularidade no banco),
+        # o consolidado deve seguir a sequência de upload.
+        agora = timezone.now()
+        Attachment.objects.filter(pk=primeiro.pk).update(created_at=agora)
+        Attachment.objects.filter(pk=segundo.pk).update(created_at=agora - timedelta(minutes=10))
+        Attachment.objects.filter(pk=terceiro.pk).update(created_at=agora - timedelta(minutes=20))
+
+        anexos = ordered_attachments_for_consolidation(self.workorder)
+        self.assertEqual([a.pk for a in anexos], [primeiro.pk, segundo.pk, terceiro.pk])
+
     def test_anexo_recusado_nao_pode_ser_excluido(self):
         recusado = self._attach('hist.pdf', recusado=True)
         self.assertFalse(attachment_pode_excluir(recusado))
+
+    def test_pdf_consolidado_respeita_ordem_personalizada(self):
+        primeiro = self._attach('01-primeiro.pdf')
+        segundo = self._attach('02-segundo.pdf')
+        terceiro = self._attach('03-terceiro.pdf')
+        ordem = [terceiro.pk, primeiro.pk, segundo.pk]
+        capturado = []
+
+        def _merge_spy(parts):
+            capturado.extend(parts)
+            return b'pdf-final'
+
+        with patch(
+            'gestao_aprovacao.services.consolidated_signature_pdf._pdf_bytes_from_attachment',
+            side_effect=lambda att: f'att-{att.pk}'.encode('utf-8'),
+        ), patch(
+            'gestao_aprovacao.services.consolidated_signature_pdf.build_signature_page_pdf',
+            return_value=b'assinatura',
+        ), patch(
+            'gestao_aprovacao.services.consolidated_signature_pdf._merge_pdf_parts',
+            side_effect=_merge_spy,
+        ):
+            result = build_consolidated_signature_pdf(
+                work_order=self.workorder,
+                signature_data='data:image/png;base64,AAA',
+                signer_name='Aprovador',
+                attachment_order=ordem,
+            )
+
+        self.assertEqual(result, b'pdf-final')
+        self.assertEqual(
+            capturado,
+            [
+                f'att-{terceiro.pk}'.encode('utf-8'),
+                f'att-{primeiro.pk}'.encode('utf-8'),
+                f'att-{segundo.pk}'.encode('utf-8'),
+                b'assinatura',
+            ],
+        )
+
+    def test_pdf_consolidado_falha_quando_ordem_personalizada_esta_incompleta(self):
+        primeiro = self._attach('01-primeiro.pdf')
+        self._attach('02-segundo.pdf')
+
+        with self.assertRaises(ConsolidationError):
+            build_consolidated_signature_pdf(
+                work_order=self.workorder,
+                signature_data='data:image/png;base64,AAA',
+                signer_name='Aprovador',
+                attachment_order=[primeiro.pk],
+            )
 
     def test_edit_reenvio_aceita_varios_anexos_no_mesmo_post(self):
         self._attach('recusado.pdf', recusado=True)

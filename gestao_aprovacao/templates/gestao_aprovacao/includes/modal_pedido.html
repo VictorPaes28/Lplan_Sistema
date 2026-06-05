@@ -178,6 +178,26 @@
 
     {% include "gestao_aprovacao/includes/sheet_aprovar_pedido.html" %}
 
+    <div id="gc-pdf-order-overlay" class="gc-pdf-order-overlay" aria-hidden="true">
+        <div class="gc-pdf-order-panel" role="dialog" aria-modal="true" aria-labelledby="gc-pdf-order-title">
+            <div class="gc-pdf-order-head">
+                <h2 id="gc-pdf-order-title" class="gc-pdf-order-title">Ordenar anexos do PDF</h2>
+                <button type="button" class="gc-pdf-order-close" id="gc-pdf-order-close" aria-label="Fechar">✕</button>
+            </div>
+            <p class="gc-pdf-order-intro">
+                Organize os anexos na ordem desejada. O PDF para assinatura será montado nesta sequência.
+            </p>
+            <p id="gc-pdf-order-empty" class="gc-pdf-order-empty" style="display:none;">
+                Nenhum anexo disponível para ordenação.
+            </p>
+            <ul id="gc-pdf-order-list" class="gc-pdf-order-list"></ul>
+            <div class="gc-pdf-order-actions">
+                <button type="button" id="gc-pdf-order-cancel" class="gc-pdf-order-btn gc-pdf-order-btn--secondary">Cancelar</button>
+                <button type="button" id="gc-pdf-order-generate" class="gc-pdf-order-btn gc-pdf-order-btn--primary">Gerar PDF</button>
+            </div>
+        </div>
+    </div>
+
     <div id="gc-reprovar-overlay" class="gc-reprovar-overlay" aria-hidden="true">
         <div class="gc-reprovar-panel" role="dialog" aria-modal="true" aria-labelledby="gc-reprovar-title">
             <div class="gc-reprovar-panel-head">

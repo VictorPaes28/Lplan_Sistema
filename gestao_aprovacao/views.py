@@ -2641,13 +2641,42 @@ def leitura_pedido_pdf(request, pk):
     })
 
 
-def _gerar_pdf_assinatura_response(request, workorder, *, signature_data, signer_name, signed_at=None):
+def _parse_attachment_order_query(raw_value: str) -> list[int]:
+    ordered_ids: list[int] = []
+    seen: set[int] = set()
+    for chunk in (raw_value or '').split(','):
+        token = chunk.strip()
+        if not token:
+            continue
+        try:
+            attachment_id = int(token)
+        except (TypeError, ValueError):
+            raise ConsolidationError('Ordem de anexos inválida para gerar o PDF.')
+        if attachment_id <= 0:
+            raise ConsolidationError('Ordem de anexos inválida para gerar o PDF.')
+        if attachment_id in seen:
+            continue
+        seen.add(attachment_id)
+        ordered_ids.append(attachment_id)
+    return ordered_ids
+
+
+def _gerar_pdf_assinatura_response(
+    request,
+    workorder,
+    *,
+    signature_data,
+    signer_name,
+    signed_at=None,
+    attachment_order: list[int] | None = None,
+):
     try:
         pdf_bytes = build_consolidated_signature_pdf(
             work_order=workorder,
             signature_data=signature_data,
             signer_name=signer_name,
             signed_at=signed_at,
+            attachment_order=attachment_order,
         )
     except ConsolidationError as exc:
         msg = str(exc)
@@ -2692,12 +2721,14 @@ def gerar_pdf_assinatura_workorder(request, pk):
 
     signer = approval.aprovado_por
     signer_name = (signer.get_full_name() or signer.username) if signer else '—'
+    attachment_order = _parse_attachment_order_query(request.GET.get('anexos', ''))
     return _gerar_pdf_assinatura_response(
         request,
         workorder,
         signature_data=approval.signature_data,
         signer_name=signer_name,
         signed_at=approval.created_at,
+        attachment_order=attachment_order,
     )
 
 

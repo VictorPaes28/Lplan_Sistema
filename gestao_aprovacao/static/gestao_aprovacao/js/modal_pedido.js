@@ -22,6 +22,8 @@
     window._gcModalApproveData = null;
     window._gcListaPedidosAlterada = false;
     var gcAprovarSig = null;
+    var gcPdfOrderItems = [];
+    var gcPdfOrderUrl = '';
 
     function gcAprovarSignatureStorageKey() {
         var uid = window._gcSignatureUserId;
@@ -63,6 +65,113 @@
 
     function getReprovarOverlayEl() {
         return document.getElementById('gc-reprovar-overlay');
+    }
+
+    function getPdfOrderOverlayEl() {
+        return document.getElementById('gc-pdf-order-overlay');
+    }
+
+    function resetPdfOrderState() {
+        gcPdfOrderItems = [];
+        gcPdfOrderUrl = '';
+    }
+
+    function renderPdfOrderList() {
+        var list = document.getElementById('gc-pdf-order-list');
+        var empty = document.getElementById('gc-pdf-order-empty');
+        var submit = document.getElementById('gc-pdf-order-generate');
+        if (!list) return;
+
+        if (!gcPdfOrderItems.length) {
+            list.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            if (submit) submit.disabled = true;
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+        if (submit) submit.disabled = false;
+        list.innerHTML = '';
+
+        gcPdfOrderItems.forEach(function (item, idx) {
+            var li = document.createElement('li');
+            li.className = 'gc-pdf-order-item';
+
+            var pos = document.createElement('span');
+            pos.className = 'gc-pdf-order-pos';
+            pos.textContent = String(idx + 1);
+
+            var name = document.createElement('span');
+            name.className = 'gc-pdf-order-name';
+            name.textContent = item.nome || ('Anexo #' + String(item.id || ''));
+
+            var controls = document.createElement('div');
+            controls.className = 'gc-pdf-order-controls';
+
+            var up = document.createElement('button');
+            up.type = 'button';
+            up.className = 'gc-pdf-order-move';
+            up.textContent = '\u2191';
+            up.title = 'Mover para cima';
+            up.disabled = idx === 0;
+            up.addEventListener('click', function () {
+                if (idx === 0) return;
+                var current = gcPdfOrderItems[idx];
+                gcPdfOrderItems[idx] = gcPdfOrderItems[idx - 1];
+                gcPdfOrderItems[idx - 1] = current;
+                renderPdfOrderList();
+            });
+
+            var down = document.createElement('button');
+            down.type = 'button';
+            down.className = 'gc-pdf-order-move';
+            down.textContent = '\u2193';
+            down.title = 'Mover para baixo';
+            down.disabled = idx === gcPdfOrderItems.length - 1;
+            down.addEventListener('click', function () {
+                if (idx === gcPdfOrderItems.length - 1) return;
+                var current = gcPdfOrderItems[idx];
+                gcPdfOrderItems[idx] = gcPdfOrderItems[idx + 1];
+                gcPdfOrderItems[idx + 1] = current;
+                renderPdfOrderList();
+            });
+
+            controls.appendChild(up);
+            controls.appendChild(down);
+            li.appendChild(pos);
+            li.appendChild(name);
+            li.appendChild(controls);
+            list.appendChild(li);
+        });
+    }
+
+    function closePdfOrderOverlay() {
+        var ov = getPdfOrderOverlayEl();
+        if (!ov) return;
+        ov.classList.remove('is-open');
+        ov.setAttribute('aria-hidden', 'true');
+    }
+
+    function openPdfOrderOverlay(items, baseUrl) {
+        var ov = getPdfOrderOverlayEl();
+        if (!ov || !baseUrl) return;
+        gcPdfOrderItems = (items || []).map(function (item) {
+            return { id: item.id, nome: item.nome || '' };
+        });
+        gcPdfOrderUrl = baseUrl;
+        renderPdfOrderList();
+        ov.classList.add('is-open');
+        ov.setAttribute('aria-hidden', 'false');
+    }
+
+    function buildPdfSignatureUrlWithOrder() {
+        if (!gcPdfOrderUrl) return '';
+        var ids = gcPdfOrderItems
+            .map(function (item) { return String(item.id || '').trim(); })
+            .filter(function (id) { return !!id; })
+            .join(',');
+        if (!ids) return gcPdfOrderUrl;
+        var sep = gcPdfOrderUrl.indexOf('?') === -1 ? '?' : '&';
+        return gcPdfOrderUrl + sep + 'anexos=' + encodeURIComponent(ids);
     }
 
     function hideAprovarInlineError() {
@@ -271,6 +380,8 @@
 
         window.fecharReprovarSheet();
         window.fecharAprovarSheet();
+        closePdfOrderOverlay();
+        resetPdfOrderState();
         var overlay = document.getElementById('gc-overlay');
         if (overlay) overlay.style.display = 'none';
         document.body.style.overflow = '';
@@ -342,6 +453,8 @@
     window.modalPedidoResetParaCarregar = function () {
         window.fecharReprovarSheet();
         window.fecharAprovarSheet();
+        closePdfOrderOverlay();
+        resetPdfOrderState();
         window._gcModalRejectData = null;
         window._gcModalApproveData = null;
         var bc = document.getElementById('gc-breadcrumb');
@@ -742,12 +855,19 @@
             var prePdf = d.pdf_assinatura_precheck || {};
             var temAnexos = d.anexos && d.anexos.length;
             if (d.pdf_assinatura_pronto && u.gerar_pdf_assinatura) {
+                var anexosPdf = (d.anexos || [])
+                    .filter(function (item) {
+                        return item && item.id != null;
+                    })
+                    .map(function (item) {
+                        return { id: item.id, nome: item.nome || '' };
+                    });
                 ftPdfSig.style.display = 'inline-flex';
                 ftPdfSig.disabled = false;
-                ftPdfSig.title = 'Baixa PDF com anexos e assinatura registrada na aprovação';
+                ftPdfSig.title = 'Ordene os anexos e gere o PDF com assinatura';
                 ftPdfSig.onclick = function (e) {
                     e.preventDefault();
-                    window.location.href = u.gerar_pdf_assinatura;
+                    openPdfOrderOverlay(anexosPdf, u.gerar_pdf_assinatura);
                 };
             } else if (temAnexos && prePdf.message) {
                 ftPdfSig.style.display = 'inline-flex';
@@ -1121,6 +1241,26 @@
         var rsub = document.getElementById('gc-reprovar-submit');
         if (rsub) rsub.addEventListener('click', function () { window.enviarReprovarModal(); });
 
+        var pdfOrderOverlay = getPdfOrderOverlayEl();
+        if (pdfOrderOverlay) {
+            pdfOrderOverlay.addEventListener('click', function (e) {
+                if (e.target === pdfOrderOverlay) closePdfOrderOverlay();
+            });
+        }
+        var pdfOrderClose = document.getElementById('gc-pdf-order-close');
+        if (pdfOrderClose) pdfOrderClose.addEventListener('click', closePdfOrderOverlay);
+        var pdfOrderCancel = document.getElementById('gc-pdf-order-cancel');
+        if (pdfOrderCancel) pdfOrderCancel.addEventListener('click', closePdfOrderOverlay);
+        var pdfOrderGenerate = document.getElementById('gc-pdf-order-generate');
+        if (pdfOrderGenerate) {
+            pdfOrderGenerate.addEventListener('click', function () {
+                var nextUrl = buildPdfSignatureUrlWithOrder();
+                if (!nextUrl) return;
+                closePdfOrderOverlay();
+                window.location.href = nextUrl;
+            });
+        }
+
         var rnovaIn = document.getElementById('gc-reprovar-nova-input');
         var rnovaAdd = document.getElementById('gc-reprovar-nova-add');
         if (rnovaAdd && rnovaIn) {
@@ -1171,6 +1311,12 @@
             var ro = getReprovarOverlayEl();
             if (ro && ro.classList.contains('is-open')) {
                 window.fecharReprovarSheet();
+                e.preventDefault();
+                return;
+            }
+            var po = getPdfOrderOverlayEl();
+            if (po && po.classList.contains('is-open')) {
+                closePdfOrderOverlay();
                 e.preventDefault();
                 return;
             }

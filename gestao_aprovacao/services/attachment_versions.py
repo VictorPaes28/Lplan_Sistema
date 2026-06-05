@@ -11,7 +11,9 @@ from gestao_aprovacao.models import Attachment, WorkOrder
 
 def attachments_ativos_queryset(work_order: WorkOrder) -> QuerySet[Attachment]:
     """Anexos válidos para o envio atual e para consolidação em PDF."""
-    return Attachment.objects.filter(work_order=work_order, recusado=False).order_by('created_at')
+    # Ordenação estável pela sequência de upload para manter o PDF consolidado
+    # no mesmo fluxo em que os arquivos entraram no pedido.
+    return Attachment.objects.filter(work_order=work_order, recusado=False).order_by('id')
 
 
 def ordered_attachments_for_consolidation(work_order: WorkOrder) -> list[Attachment]:
@@ -66,7 +68,7 @@ def attachment_pode_excluir(attachment: Attachment) -> bool:
 def build_attachment_display_groups(work_order: WorkOrder) -> dict[str, Any]:
     """Agrupa anexos para exibição na UI (histórico vs. corrigidos)."""
     all_atts = list(
-        Attachment.objects.filter(work_order=work_order).order_by('versao_reaprovacao', 'created_at')
+        Attachment.objects.filter(work_order=work_order).order_by('versao_reaprovacao', 'id')
     )
     if not all_atts:
         return {'modo': 'vazio', 'grupos': []}

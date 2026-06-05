@@ -52,6 +52,10 @@ class UnsupportedAttachmentsError(ConsolidationError):
         )
 
 
+class InvalidAttachmentOrderError(ConsolidationError):
+    pass
+
+
 def _attachment_ext(attachment) -> str:
     name = (attachment.nome or '').strip()
     if not name and attachment.arquivo:
@@ -73,6 +77,34 @@ def _validate_attachments(attachments: Iterable[Attachment]) -> None:
     ]
     if unsupported:
         raise UnsupportedAttachmentsError(unsupported)
+
+
+def _reorder_attachments(
+    attachments: list[Attachment],
+    attachment_order: list[int] | None,
+) -> list[Attachment]:
+    if not attachment_order:
+        return attachments
+    by_id = {att.pk: att for att in attachments}
+    expected_ids = set(by_id.keys())
+    requested_ids = set(attachment_order)
+    if requested_ids != expected_ids:
+        raise InvalidAttachmentOrderError(
+            'A lista de anexos foi alterada. Reabra a ordenação e tente novamente.'
+        )
+    reordered: list[Attachment] = []
+    seen: set[int] = set()
+    for att_id in attachment_order:
+        if att_id in seen:
+            continue
+        att = by_id.get(att_id)
+        if att is None:
+            raise InvalidAttachmentOrderError(
+                'A lista de anexos foi alterada. Reabra a ordenação e tente novamente.'
+            )
+        reordered.append(att)
+        seen.add(att_id)
+    return reordered
 
 
 def _read_attachment_bytes(attachment: Attachment) -> bytes:
@@ -344,8 +376,10 @@ def build_consolidated_signature_pdf(
     signature_data: str,
     signer_name: str,
     signed_at=None,
+    attachment_order: list[int] | None = None,
 ) -> bytes:
     attachments = ordered_attachments_for_consolidation(work_order)
+    attachments = _reorder_attachments(attachments, attachment_order)
     _validate_attachments(attachments)
 
     parts: list[bytes] = []

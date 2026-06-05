@@ -1035,6 +1035,167 @@ a.gc-btn-reprovar:hover,
     pointer-events: none;
 }
 
+/* Segunda camada: ordenação do PDF de assinatura */
+.gc-pdf-order-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 49;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+    background: rgba(15, 23, 42, 0.48);
+    backdrop-filter: blur(2px);
+}
+
+.gc-pdf-order-overlay.is-open {
+    display: flex;
+}
+
+.gc-pdf-order-panel {
+    width: min(620px, 100%);
+    max-height: min(86vh, 720px);
+    overflow: auto;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    padding: 1rem 1.1rem 1.1rem;
+}
+
+.gc-pdf-order-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.45rem;
+}
+
+.gc-pdf-order-title {
+    margin: 0;
+    font-size: 1rem;
+    color: #0f172a;
+}
+
+.gc-pdf-order-close {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-pdf-order-close:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.gc-pdf-order-intro {
+    margin: 0 0 0.7rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.gc-pdf-order-empty {
+    margin: 0 0 0.65rem;
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.gc-pdf-order-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.gc-pdf-order-item {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.gc-pdf-order-pos {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.gc-pdf-order-name {
+    font-size: 0.82rem;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gc-pdf-order-controls {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.gc-pdf-order-move {
+    width: 2rem;
+    height: 1.8rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #0f172a;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-pdf-order-move:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.gc-pdf-order-actions {
+    margin-top: 0.85rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.45rem;
+}
+
+.gc-pdf-order-btn {
+    border-radius: 8px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.gc-pdf-order-btn--secondary {
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+}
+
+.gc-pdf-order-btn--primary {
+    border: 1px solid #0f766e;
+    background: #0f766e;
+    color: #fff;
+}
+
+.gc-pdf-order-btn--primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 /* Segunda camada: reprovação sobre o modal (mantém o usuário no mesmo fluxo).
    Filho absolute referencia o #gc-overlay (fixed). */
 
