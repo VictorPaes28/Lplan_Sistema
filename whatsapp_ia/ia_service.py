@@ -26,7 +26,7 @@ MSG_ERRO_PADRAO = (
 )
 
 
-def chamar_openai(mensagem_usuario: str) -> str:
+def chamar_openai(mensagem_usuario: str, usuario_wa=None) -> str:
     try:
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
         messages = [
@@ -54,7 +54,7 @@ def chamar_openai(mensagem_usuario: str) -> str:
                 args = json.loads(tool_call.function.arguments)
             except json.JSONDecodeError:
                 args = {}
-            resultado = executar_funcao(nome, args)
+            resultado = executar_funcao(nome, args, usuario_wa=usuario_wa)
             messages.append({
                 'role': 'tool',
                 'tool_call_id': tool_call.id,
