@@ -41,7 +41,10 @@ TOOLS = [
             'name': 'consultar_pedidos_pendentes',
             'description': (
                 'Consulta pedidos de aprovação pendentes no '
-                'GestControll (status pendente ou reaprovacao).'
+                'GestControll (status pendente ou reaprovacao). '
+                'Se obra_id não for informado, retorna TODOS os '
+                'pedidos pendentes do sistema sem exceção. '
+                'Nunca peça confirmação de obra — execute sempre.'
             ),
             'parameters': {
                 'type': 'object',
