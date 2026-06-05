@@ -602,8 +602,68 @@
                     '<p class="gc-anexos-bloqueados-hint">' + escapeHtml(d.anexos_bloqueados_mensagem) + '</p>'
                 );
             }
-            if (d.anexos && d.anexos.length) {
-                d.anexos.forEach(function (x) {
+            if (d.anexos_grupos && d.anexos_grupos.modo === 'reprovacao' && d.anexos_grupos.grupos && d.anexos_grupos.grupos.length) {
+                d.anexos_grupos.grupos.forEach(function (grupo, idx) {
+                    var grupoCls = 'gc-anexos-grupo';
+                    if (grupo.key === 'historico' || grupo.readonly) {
+                        grupoCls += ' gc-anexos-grupo--historico';
+                    } else if (grupo.key === 'corrigidos') {
+                        grupoCls += ' gc-anexos-grupo--corrigidos';
+                    }
+                    parts.push(
+                        '<div class="' + grupoCls + '">' +
+                        '<div class="gc-anexos-grupo-title">' + escapeHtml(grupo.label) + '</div>'
+                    );
+                    if (grupo.hint) {
+                        parts.push(
+                            '<p class="gc-anexos-grupo-hint">' + escapeHtml(grupo.hint) + '</p>'
+                        );
+                    }
+                    parts.push('<div class="gc-anexos-grupo-grid">');
+                    if (grupo.items && grupo.items.length) {
+                        grupo.items.forEach(function (x) {
+                            var thumb = x.eh_imagem
+                                ? '<img src="' + escapeHtml(x.url) + '" alt="">'
+                                : GC_DOC_SVG;
+                            var tileCls = 'gc-anexo-tile';
+                            if (grupo.readonly) {
+                                tileCls += ' gc-anexo-tile--readonly';
+                            }
+                            parts.push(
+                                '<a class="' + tileCls + '" href="' + escapeHtml(x.url) + '" target="_blank" rel="noopener">' +
+                                '<div class="gc-anexo-tile-inner">' + thumb +
+                                '<span class="gc-anexo-tile-name">' + escapeHtml(x.nome) + '</span></div></a>'
+                            );
+                        });
+                    } else if (grupo.key === 'corrigidos_vazio') {
+                        parts.push(
+                            '<p class="gc-anexos-grupo-empty">Nenhum documento corrigido adicionado ainda.</p>'
+                        );
+                    }
+                    if (
+                        d.pode_adicionar_anexo &&
+                        d.urls &&
+                        d.urls.upload_anexo &&
+                        (grupo.key === 'corrigidos' || grupo.key === 'corrigidos_vazio')
+                    ) {
+                        parts.push(
+                            '<a class="gc-anexo-tile gc-anexo-tile--add" href="' + escapeHtml(d.urls.upload_anexo) + '">' +
+                            '<span class="gc-anexo-add-plus">+</span>' +
+                            '<span class="gc-anexo-add-label">Corrigido</span></a>'
+                        );
+                    }
+                    parts.push('</div></div>');
+                });
+            } else {
+                var items = d.anexos ? d.anexos.slice() : [];
+                if (!items.length && d.anexos_grupos && d.anexos_grupos.grupos) {
+                    d.anexos_grupos.grupos.forEach(function (grupo) {
+                        if (grupo.items && grupo.items.length) {
+                            items = items.concat(grupo.items);
+                        }
+                    });
+                }
+                items.forEach(function (x) {
                     var thumb = x.eh_imagem
                         ? '<img src="' + escapeHtml(x.url) + '" alt="">'
                         : GC_DOC_SVG;
@@ -613,13 +673,13 @@
                         '<span class="gc-anexo-tile-name">' + escapeHtml(x.nome) + '</span></div></a>'
                     );
                 });
-            }
-            if (d.pode_adicionar_anexo && d.urls && d.urls.upload_anexo) {
-                parts.push(
-                    '<a class="gc-anexo-tile gc-anexo-tile--add" href="' + escapeHtml(d.urls.upload_anexo) + '">' +
-                    '<span class="gc-anexo-add-plus">+</span>' +
-                    '<span class="gc-anexo-add-label">Adicionar</span></a>'
-                );
+                if (d.pode_adicionar_anexo && d.urls && d.urls.upload_anexo) {
+                    parts.push(
+                        '<a class="gc-anexo-tile gc-anexo-tile--add" href="' + escapeHtml(d.urls.upload_anexo) + '">' +
+                        '<span class="gc-anexo-add-plus">+</span>' +
+                        '<span class="gc-anexo-add-label">Adicionar</span></a>'
+                    );
+                }
             }
             if (parts.length) {
                 anex.innerHTML = parts.join('');

@@ -10,13 +10,13 @@ from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
-from django.db.models import Max
 from django.utils import timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from gestao_aprovacao.models import Approval, Attachment, WorkOrder
+from gestao_aprovacao.services.attachment_versions import ordered_attachments_for_consolidation
 from gestao_aprovacao.signature_utils import validate_signature_data
 
 try:
@@ -52,34 +52,7 @@ class UnsupportedAttachmentsError(ConsolidationError):
         )
 
 
-def _latest_reapproval_version(work_order: WorkOrder) -> int:
-    """Maior versao_reaprovacao do pedido (0 = só anexos originais)."""
-    agg = Attachment.objects.filter(work_order=work_order).aggregate(
-        max_versao=Max('versao_reaprovacao')
-    )
-    return int(agg['max_versao'] or 0)
-
-
-def ordered_attachments_for_consolidation(work_order: WorkOrder) -> list[Attachment]:
-    """
-    Anexos que compõem o pacote aprovado.
-
-    Pedidos que passaram por reprovação mantêm anexos antigos em versao_reaprovacao=0
-    (e versões intermediárias v1, v2…). O PDF/e-mail deve levar só a última versão
-    enviada para aprovação — não o histórico de versões reprovadas.
-
-    Ordem: upload cronológico dentro da versão vigente.
-    """
-    latest = _latest_reapproval_version(work_order)
-    qs = Attachment.objects.filter(work_order=work_order)
-    if latest > 0:
-        qs = qs.filter(versao_reaprovacao=latest)
-    else:
-        qs = qs.filter(versao_reaprovacao=0)
-    return list(qs.order_by('created_at'))
-
-
-def _attachment_ext(attachment: Attachment) -> str:
+def _attachment_ext(attachment) -> str:
     name = (attachment.nome or '').strip()
     if not name and attachment.arquivo:
         name = os.path.basename(attachment.arquivo.name)
@@ -90,8 +63,8 @@ def _validate_attachments(attachments: Iterable[Attachment]) -> None:
     items = list(attachments)
     if not items:
         raise NoAttachmentsError(
-            'Este pedido não possui anexos para consolidar. '
-            'Adicione pelo menos um arquivo antes de gerar o PDF.'
+            'Este pedido não possui documentos corrigidos para consolidar. '
+            'Adicione os arquivos do novo envio antes de gerar o PDF.'
         )
     unsupported = [
         att.get_nome_display()
@@ -285,8 +258,8 @@ def consolidation_precheck(work_order: WorkOrder) -> dict:
             'ok': False,
             'reason': 'no_attachments',
             'message': (
-                'Este pedido não possui anexos para consolidar. '
-                'Adicione pelo menos um arquivo antes de gerar o PDF.'
+                'Este pedido não possui documentos corrigidos para consolidar. '
+                'Adicione os arquivos do novo envio antes de gerar o PDF.'
             ),
         }
     unsupported = [
