@@ -17,7 +17,7 @@ from whatsapp_ia.models import IaErroLog, IaMensagemLog, UsuarioWhatsApp
 
 logger = logging.getLogger(__name__)
 
-WHATSAPP_API_VERSION = 'v19.0'
+WHATSAPP_API_VERSION = 'v21.0'
 RESPOSTA_FIXA = 'Olá! Recebi sua mensagem. Em breve responderei.'
 MSG_NAO_AUTORIZADO = (
     'Este número não está autorizado a consultar '
