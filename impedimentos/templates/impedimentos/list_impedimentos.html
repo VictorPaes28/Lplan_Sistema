@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=75">
+<link rel="stylesheet" href="{% static 'impedimentos/css/list_impedimentos.css' %}?v=81">
 {% endblock %}
 
 {% block content %}
@@ -43,23 +43,6 @@
         data-show-modal="{% if show_modal %}1{% else %}0{% endif %}"
         data-edit-id="{% if edit_item_id %}{{ edit_item_id }}{% endif %}"
     ></div>
-    <header class="imp-header">
-        <div>
-            <h2 class="imp-title">{{ obra.sigla|default:project.code }} - {{ obra.nome }}</h2>
-            <p class="imp-subtitle">{% if tem_categorias %}Acompanhe status, responsáveis e prazos. Use as categorias à esquerda para filtrar.{% else %}Comece criando <strong>categorias</strong> (agrupam por tema); só depois cadastre restrições nelas.{% endif %}</p>
-        </div>
-        <div class="imp-header-actions">
-            {% if is_admin_export %}
-            <button type="button" class="imp-btn imp-btn-secondary" id="imp-open-status-config" title="Configurar status desta obra" data-status-config-url="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}">
-                <i class="fas fa-sliders-h"></i> Configurar status
-            </button>
-            {% endif %}
-            <a href="{% url 'impedimentos:select_obra' %}" class="imp-btn imp-btn-secondary">
-                <i class="fas fa-exchange-alt"></i> Trocar obra
-            </a>
-        </div>
-    </header>
-
     <section class="imp-toolbar">
         <nav class="imp-tabs" aria-label="Visualizações">
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_lista }}" class="imp-tab {% if active_view == 'lista' %}is-active{% endif %}">Lista</a>
@@ -69,26 +52,99 @@
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_quadro }}" class="imp-tab {% if active_view == 'quadro' %}is-active{% endif %}">Quadro</a>
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_calendario }}" class="imp-tab {% if active_view == 'calendario' %}is-active{% endif %}">Calendário</a>
         </nav>
-        {% if tem_categorias %}
-        <button type="button" class="imp-btn imp-btn-primary" data-modal-open data-imp-nova-restricao-guard>
-            <i class="fas fa-plus"></i> Nova Restrição
-        </button>
-        {% else %}
-        <div class="imp-header-no-cat-actions">
-        <button
-            type="button"
-            title="É necessário criar categorias antes de adicionar restrições"
-            style="opacity: .5; cursor: not-allowed;"
-            class="imp-btn imp-btn-primary imp-nova-restricao--blocked"
-            data-imp-nova-restricao-guard
-            aria-disabled="true">
-            <i class="fas fa-plus"></i> Nova Restrição
-        </button>
-        <button type="button" class="imp-btn imp-btn-secondary" data-imp-open-cat-mini>
-            <i class="fas fa-tags"></i> Nova categoria
-        </button>
+        <div class="imp-header-actions">
+            <a href="{% url 'impedimentos:select_obra' %}" class="imp-btn imp-btn-secondary" title="Trocar obra">
+                {{ obra.nome }}
+            </a>
+            {% if is_admin_export %}
+            <button type="button" class="imp-btn imp-btn-secondary" id="imp-open-status-config" title="Configurar status desta obra" data-status-config-url="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}">
+                <i class="fas fa-sliders-h"></i> Configurar status
+            </button>
+            {% endif %}
+            {% if tem_categorias %}
+            <button type="button" class="imp-btn imp-btn-primary" data-modal-open data-imp-nova-restricao-guard>
+                <i class="fas fa-plus"></i> Nova Restrição
+            </button>
+            {% else %}
+            <div class="imp-header-no-cat-actions">
+            <button
+                type="button"
+                title="É necessário criar categorias antes de adicionar restrições"
+                style="opacity: .5; cursor: not-allowed;"
+                class="imp-btn imp-btn-primary imp-nova-restricao--blocked"
+                data-imp-nova-restricao-guard
+                aria-disabled="true">
+                <i class="fas fa-plus"></i> Nova Restrição
+            </button>
+            <button type="button" class="imp-btn imp-btn-secondary" data-imp-open-cat-mini>
+                <i class="fas fa-tags"></i> Nova categoria
+            </button>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
+    </section>
+
+    <section class="imp-global-filters" aria-label="Busca e filtros">
+        <form
+            method="get"
+            action="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}"
+            class="imp-global-filters__form"
+            id="imp-global-filter-form">
+            <input type="hidden" name="view" value="{{ active_view }}">
+            {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
+            <input type="hidden" name="data_inicio" id="imp-global-data-inicio-hidden" value="{{ table_filters.data_inicio|default:'' }}">
+            <div class="imp-global-field imp-global-field--search">
+                <label for="imp-global-q" class="sr-only">Busca global</label>
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input
+                    id="imp-global-q"
+                    type="search"
+                    name="q"
+                    value="{{ table_filters.q }}"
+                    placeholder="Buscar por nome, status, prioridade, responsável, data ou categoria..."
+                    autocomplete="off">
+            </div>
+            <div class="imp-global-field">
+                <label for="imp-global-status" class="sr-only">Status</label>
+                <select id="imp-global-status" name="status">
+                    <option value="">Status</option>
+                    {% for st in status_list %}
+                    <option value="{{ st.id }}" {% if table_filters.status == st.id|stringformat:"s" %}selected{% endif %}>{{ st.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="imp-global-field imp-global-field--prio">
+                <label for="imp-global-prio" class="sr-only">Prioridade</label>
+                <select id="imp-global-prio" name="prioridade">
+                    <option value="">Prioridade</option>
+                    {% for value, label in prioridade_choices %}
+                    <option value="{{ value }}" {% if table_filters.prioridade == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="imp-global-field">
+                <label for="imp-global-resp" class="sr-only">Responsável</label>
+                <select id="imp-global-resp" name="responsavel">
+                    <option value="">Responsável</option>
+                    {% for resp in responsaveis_choices %}
+                    <option value="{{ resp.id }}" {% if table_filters.responsavel == resp.id|stringformat:"s" %}selected{% endif %}>{{ resp.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="imp-global-field imp-global-field--date">
+                <label for="imp-global-data" class="sr-only">Prazo</label>
+                <input id="imp-global-data" name="data_fim" type="date" value="{% if table_filters.data_fim %}{{ table_filters.data_fim }}{% else %}{{ table_filters.data_inicio }}{% endif %}">
+            </div>
+            <div class="imp-global-actions">
+                {% if active_view == "tabela" %}
+                <button type="submit" class="imp-btn imp-btn-primary imp-btn-xs">Aplicar</button>
+                {% endif %}
+                <a
+                    href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?view={{ active_view }}{% if cat_param %}&cat={{ cat_param|urlencode }}{% endif %}"
+                    class="imp-btn imp-btn-secondary imp-btn-xs"
+                    id="imp-global-clear">Limpar</a>
+            </div>
+        </form>
     </section>
 
     <div class="imp-layout">
@@ -106,7 +162,7 @@
     <aside class="imp-cat-sidebar" id="imp-cat-sidebar" aria-label="Filtrar por categoria">
         <h3 class="imp-cat-sidebar__title">Categorias</h3>
         {% if categorias_obra %}
-        <button type="button" class="imp-cat-row imp-cat-row--todas {% if cat_param == 'all' %}is-selected{% endif %}" data-cat-show-all>
+        <button type="button" class="imp-cat-row imp-cat-row--todas {% if cat_param == 'all' %}is-selected{% endif %}" data-cat-show-all title="Todas">
             <span class="imp-cat-bullet imp-cat-bullet--neutral" aria-hidden="true"></span>
             <span class="imp-cat-row__label">Todas</span>
         </button>
@@ -118,7 +174,7 @@
                     <button type="button" class="imp-cat-bullet-btn" data-cat-edit-bullet data-atualizar-url="{% url 'impedimentos:atualizar_categoria_ajax' obra_id=project.id categoria_id=c.id %}" data-cat-id="{{ c.id }}" data-cat-nome="{{ c.nome|escape }}" data-cat-cor="{{ c.cor|escape }}" title="Editar nome e cor" aria-label="Editar categoria {{ c.nome|escape }}">
                         <span class="imp-cat-bullet" style="background-color: {{ c.cor|escape }};" aria-hidden="true"></span>
                     </button>
-                    <button type="button" class="imp-cat-row {% if c.id in selected_cat_ids %}is-selected{% endif %}" data-cat-toggle="{{ c.id }}">
+                    <button type="button" class="imp-cat-row {% if c.id in selected_cat_ids %}is-selected{% endif %}" data-cat-toggle="{{ c.id }}" title="{{ c.nome }}">
                         <span class="imp-cat-row__label">{{ c.nome }}</span>
                     </button>
                     {% if is_admin_export or user.is_staff %}
@@ -172,6 +228,7 @@
                         class="imp-list-line {% if lista_finalizado_status_id and col.id == lista_finalizado_status_id %}imp-list-line--done{% endif %}"
                         data-imp-item-id="{{ item.id }}"
                         data-imp-status-id="{{ item.status_id }}"
+                        data-imp-search="{{ item.titulo|escape }} {{ item.status_nome|escape }} {{ item.prioridade|escape }} {{ item.responsaveis_texto|default:''|escape }} {% if item.prazo %}{{ item.prazo|date:'d/m/Y' }} {{ item.prazo|date:'Y-m-d' }}{% endif %}{% for cat in item.categorias %} {{ cat.nome|escape }}{% endfor %}"
                     >
                         <div class="imp-list-line__grid">
                             <div class="imp-list-line__name imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="nome" role="button" tabindex="0">
@@ -187,20 +244,16 @@
                                     <span class="imp-list-subtask-count">{{ item.subtarefas_concluidas }}/{{ item.subtarefas_count }}</span>
                                     {% endif %}
                                     <div class="imp-title-with-cats">
-                                        {% if item.categorias %}
-                                            {% if cat_param == 'all' %}
-                                            <div class="imp-list-cat-badges" aria-label="Categorias">
-                                                {% for cat in item.categorias %}
-                                                <span class="imp-list-cat-badge" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
-                                                {% endfor %}
-                                            </div>
-                                            {% else %}
-                                            <div class="imp-list-cat-dots">
-                                                {% for cat in item.categorias %}
-                                                <span class="imp-list-cat-dot" style="background:{{ cat.cor }}" title="{{ cat.nome|escape }}"></span>
-                                                {% endfor %}
-                                            </div>
-                                            {% endif %}
+                                        {% if cat_param == 'all' and item.categorias %}
+                                        <div class="imp-list-cat-badges" aria-label="Categorias">
+                                            {% for cat in item.categorias %}
+                                            <span class="imp-list-cat-badge" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        {% elif cat_param != 'all' %}
+                                        <div class="imp-list-cat-dots" aria-label="Status">
+                                            <span class="imp-list-cat-dot" style="background:{{ item.status_cor|default:'#64748b' }}" title="{{ item.status_nome|escape }}"></span>
+                                        </div>
                                         {% endif %}
                                         <span class="imp-item-titulo-text">{{ item.titulo }}</span>
                                     </div>
@@ -307,7 +360,15 @@
                 <div class="imp-kanban-cards-area" data-dropzone data-status-id="{{ col.id }}">
                     {% for item in col.items %}
                     <div class="imp-kanban-stack">
-                    <div class="imp-kanban-card{% if lista_finalizado_status_id and item.status_id == lista_finalizado_status_id %} imp-kanban-card--done{% endif %}" data-item-id="{{ item.id }}" draggable="true">
+                    <div
+                        class="imp-kanban-card{% if lista_finalizado_status_id and item.status_id == lista_finalizado_status_id %} imp-kanban-card--done{% endif %}"
+                        data-item-id="{{ item.id }}"
+                        data-imp-status-id="{{ item.status_id }}"
+                        data-imp-prio-value="{{ item.prioridade_value }}"
+                        {% if item.prazo_iso %}data-imp-prazo-iso="{{ item.prazo_iso }}"{% endif %}
+                        data-imp-resp-ids="{{ item.responsaveis_ids_csv }}"
+                        data-imp-search="{{ item.titulo|escape }} {{ item.status_nome|escape }} {{ item.prioridade|escape }} {{ item.responsaveis_texto|default:''|escape }} {% if item.prazo %}{{ item.prazo|date:'d/m/Y' }} {{ item.prazo|date:'Y-m-d' }}{% endif %}{% for cat in item.categorias %} {{ cat.nome|escape }}{% endfor %}"
+                        draggable="true">
                         <div class="imp-kcard-head">
                             <div class="imp-kcard-title" role="button" tabindex="0">{{ item.titulo }}</div>
                             {% include 'impedimentos/_restricao_item_menu.html' with item=item cat_param=cat_param %}
@@ -432,6 +493,11 @@
                         type="button"
                         class="imp-calendar-pill {{ item.prioridade_badge_class|default:'imp-priority-normal' }}{% if cat_param == 'all' and item.categorias %} imp-calendar-pill--stacked{% endif %}"
                         data-calendar-detail-trigger
+                        data-imp-status-id="{{ item.status_id }}"
+                        data-imp-prio-value="{{ item.prioridade_value }}"
+                        {% if item.prazo_iso %}data-imp-prazo-iso="{{ item.prazo_iso }}"{% endif %}
+                        data-imp-resp-ids="{{ item.responsaveis_ids_csv }}"
+                        data-imp-search="{{ item.titulo|escape }} {{ item.status_nome|escape }} {{ item.prioridade|escape }} {{ item.responsaveis_texto|default:''|escape }} {% if item.prazo %}{{ item.prazo|date:'d/m/Y' }} {{ item.prazo|date:'Y-m-d' }}{% endif %}{% for cat in item.categorias %} {{ cat.nome|escape }}{% endfor %}"
                         aria-label="Abrir restrição {{ item.titulo|escape }}"
                     >
                         <span class="imp-calendar-pill__body">
@@ -464,7 +530,9 @@
     </section>
     {% elif active_view == "tabela" %}
     <section class="imp-table-shell" id="imp-tabela-section">
-        <form method="get" class="imp-table-filters">
+        <details class="imp-table-filters-advanced" {% if table_filters.q or table_filters.status or table_filters.prioridade or table_filters.responsavel or table_filters.data_inicio or table_filters.data_fim %}open{% endif %}>
+            <summary>Filtros avançados</summary>
+        <form method="get" class="imp-table-filters imp-table-filters--advanced">
             <input type="hidden" name="view" value="tabela">
             {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
             <div class="imp-filter-field imp-filter-field-lg">
@@ -517,6 +585,7 @@
                 {% endif %}
             </div>
         </form>
+        </details>
 
         <div class="imp-table-wrap">
             <table class="imp-table">
@@ -537,20 +606,16 @@
                     <tr data-imp-item-id="{{ item.id }}" data-imp-status-id="{{ item.status_id }}">
                         <td class="imp-table-cell-editable imp-table-cell--interactive" data-imp-cell="nome" role="button" tabindex="0">
                             <div class="imp-title-with-cats">
-                                {% if item.categorias %}
-                                    {% if cat_param == 'all' %}
-                                    <div class="imp-list-cat-badges" aria-label="Categorias">
-                                        {% for cat in item.categorias %}
-                                        <span class="imp-list-cat-badge" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
-                                        {% endfor %}
-                                    </div>
-                                    {% else %}
-                                    <div class="imp-list-cat-dots">
-                                        {% for cat in item.categorias %}
-                                        <span class="imp-list-cat-dot" style="background:{{ cat.cor }}" title="{{ cat.nome|escape }}"></span>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
+                                {% if cat_param == 'all' and item.categorias %}
+                                <div class="imp-list-cat-badges" aria-label="Categorias">
+                                    {% for cat in item.categorias %}
+                                    <span class="imp-list-cat-badge" style="border-color: {{ cat.cor|escape }}; background-color: {{ cat.cor|escape }}14;">{{ cat.nome }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% elif cat_param != 'all' %}
+                                <div class="imp-list-cat-dots" aria-label="Status">
+                                    <span class="imp-list-cat-dot" style="background:{{ item.status_cor|default:'#64748b' }}" title="{{ item.status_nome|escape }}"></span>
+                                </div>
                                 {% endif %}
                                 <span class="imp-item-titulo-text">{{ item.titulo }}</span>
                             </div>
@@ -2992,13 +3057,11 @@
         return String(pageRoot.dataset.catParam || '') === 'all';
     }
 
-    function formatListCatDotsHtml(cats) {
-        if (!cats || !cats.length) return '';
+    function formatListStatusDotHtml(statusColor, statusNome) {
+        const cor = esc(statusColor || '#64748b');
+        const nome = esc(statusNome || '');
         let h = '<div class="imp-list-cat-dots">';
-        cats.forEach(function(c) {
-            h += '<span class="imp-list-cat-dot" style="background:' + esc(c.cor || '#64748b')
-                + '" title="' + esc(c.nome || '') + '"></span>';
-        });
+        h += '<span class="imp-list-cat-dot" style="background:' + cor + '" title="' + nome + '"></span>';
         h += '</div>';
         return h;
     }
@@ -3017,14 +3080,16 @@
         return h;
     }
 
-    function formatListCatMarksHtml(cats) {
-        if (!cats || !cats.length) return '';
-        if (catLabelsModeAll()) return formatListCatBadgesHtml(cats, false);
-        return formatListCatDotsHtml(cats);
+    function formatListCatMarksHtml(cats, statusColor, statusNome) {
+        if (catLabelsModeAll()) {
+            if (!cats || !cats.length) return '';
+            return formatListCatBadgesHtml(cats, false);
+        }
+        return formatListStatusDotHtml(statusColor, statusNome);
     }
 
     function formatTableNomeCellInner(row) {
-        return '<div class="imp-title-with-cats">' + formatListCatMarksHtml(row.categorias)
+        return '<div class="imp-title-with-cats">' + formatListCatMarksHtml(row.categorias, row.status_cor, row.status_nome)
             + '<span class="imp-item-titulo-text">' + esc(row.titulo || '') + '</span></div>';
     }
 
@@ -3059,7 +3124,7 @@
             + '<div class="imp-list-line__grid">'
             + '<div class="imp-list-line__name imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="nome" role="button" tabindex="0">'
             + '<div class="imp-list-line__name-inner">' + toggleHtml + cntHtml
-            + '<div class="imp-title-with-cats">' + formatListCatMarksHtml(item.categorias)
+            + '<div class="imp-title-with-cats">' + formatListCatMarksHtml(item.categorias, item.status_cor, item.status_nome)
             + '<span class="imp-item-titulo-text">' + esc(item.titulo) + '</span>'
             + '</div></div></div>'
             + '<div class="imp-list-line__status imp-list-cell--interactive imp-list-cell-editable" data-imp-cell="status">'
@@ -3560,7 +3625,7 @@
             if (oldDots) oldDots.remove();
             const oldBadges = titleWithCats.querySelector('.imp-list-cat-badges');
             if (oldBadges) oldBadges.remove();
-            const marksHtml = formatListCatMarksHtml(row.categorias);
+            const marksHtml = formatListCatMarksHtml(row.categorias, row.status_cor, row.status_nome);
             if (marksHtml && tit) tit.insertAdjacentHTML('beforebegin', marksHtml);
             else if (marksHtml) titleWithCats.insertAdjacentHTML('afterbegin', marksHtml);
         }
@@ -5624,6 +5689,181 @@
             showInline(msg, 'err');
         });
     });
+})();
+</script>
+<script>
+(function () {
+    var pageRoot = document.getElementById('imp-page-root');
+    var form = document.getElementById('imp-global-filter-form');
+    if (!pageRoot || !form) return;
+
+    var activeView = String(pageRoot.getAttribute('data-active-view') || '').toLowerCase();
+    var isTableView = activeView === 'tabela';
+    var qEl = document.getElementById('imp-global-q');
+    var statusEl = document.getElementById('imp-global-status');
+    var prioEl = document.getElementById('imp-global-prio');
+    var respEl = document.getElementById('imp-global-resp');
+    var dateEl = document.getElementById('imp-global-data');
+    var dateStartHiddenEl = document.getElementById('imp-global-data-inicio-hidden');
+    var clearBtn = document.getElementById('imp-global-clear');
+
+    function norm(value) {
+        return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    }
+
+    function dateMatches(dateIso, filterIso) {
+        if (!filterIso) return true;
+        if (!dateIso) return false;
+        return dateIso === filterIso;
+    }
+
+    function getFilters() {
+        return {
+            q: norm(qEl && qEl.value),
+            status: String((statusEl && statusEl.value) || '').trim(),
+            prioridade: String((prioEl && prioEl.value) || '').trim().toUpperCase(),
+            responsavel: String((respEl && respEl.value) || '').trim(),
+            data: String((dateEl && dateEl.value) || '').trim(),
+        };
+    }
+
+    function matchCommon(searchText, statusId, prioValue, respIdsCsv, prazoIso, filters) {
+        if (filters.q && norm(searchText).indexOf(filters.q) === -1) return false;
+        if (filters.status && String(statusId || '') !== filters.status) return false;
+        if (filters.prioridade && String(prioValue || '').toUpperCase() !== filters.prioridade) return false;
+        if (filters.responsavel) {
+            var ids = ',' + String(respIdsCsv || '').replace(/\s+/g, '') + ',';
+            if (ids.indexOf(',' + filters.responsavel + ',') === -1) return false;
+        }
+        if (!dateMatches(String(prazoIso || ''), filters.data)) return false;
+        return true;
+    }
+
+    function applyListFilters(filters) {
+        var groups = document.querySelectorAll('#imp-lista-section [data-imp-list-group]');
+        groups.forEach(function (group) {
+            var body = group.querySelector('.imp-list-group-body');
+            if (!body) return;
+            var stacks = body.querySelectorAll('.imp-list-line-stack');
+            var visible = 0;
+            stacks.forEach(function (stack) {
+                var line = stack.querySelector('article.imp-list-line');
+                if (!line) return;
+                var prioCell = line.querySelector('[data-imp-cell="prioridade"]');
+                var respCell = line.querySelector('[data-imp-cell="responsaveis"]');
+                var prazoCell = line.querySelector('[data-imp-cell="prazo"]');
+                var ok = matchCommon(
+                    line.getAttribute('data-imp-search') || line.textContent || '',
+                    line.getAttribute('data-imp-status-id') || '',
+                    prioCell ? prioCell.getAttribute('data-imp-prio-value') : '',
+                    respCell ? respCell.getAttribute('data-imp-resp-ids') : '',
+                    prazoCell ? prazoCell.getAttribute('data-imp-prazo-iso') : '',
+                    filters
+                );
+                stack.hidden = !ok;
+                if (ok) visible += 1;
+            });
+            var countBadge = group.querySelector('.imp-list-group-count');
+            if (countBadge) countBadge.textContent = String(visible);
+            var dynamicEmpty = body.querySelector('.imp-list-status-empty--dynamic');
+            if (!dynamicEmpty) {
+                dynamicEmpty = document.createElement('p');
+                dynamicEmpty.className = 'imp-list-status-empty imp-list-status-empty--dynamic';
+                dynamicEmpty.textContent = 'Nenhuma restrição com os filtros atuais.';
+                dynamicEmpty.hidden = true;
+                body.appendChild(dynamicEmpty);
+            }
+            dynamicEmpty.hidden = visible > 0;
+        });
+    }
+
+    function applyKanbanFilters(filters) {
+        var columns = document.querySelectorAll('.imp-kanban-column');
+        columns.forEach(function (col) {
+            var stacks = col.querySelectorAll('.imp-kanban-stack');
+            var visible = 0;
+            stacks.forEach(function (stack) {
+                var card = stack.querySelector('.imp-kanban-card');
+                if (!card) return;
+                var ok = matchCommon(
+                    card.getAttribute('data-imp-search') || card.textContent || '',
+                    card.getAttribute('data-imp-status-id') || '',
+                    card.getAttribute('data-imp-prio-value') || '',
+                    card.getAttribute('data-imp-resp-ids') || '',
+                    card.getAttribute('data-imp-prazo-iso') || '',
+                    filters
+                );
+                stack.hidden = !ok;
+                if (ok) visible += 1;
+            });
+            var countEl = col.querySelector('[data-count]');
+            if (countEl) countEl.textContent = String(visible);
+        });
+    }
+
+    function applyCalendarFilters(filters) {
+        var days = document.querySelectorAll('.imp-calendar-day');
+        days.forEach(function (day) {
+            var pills = day.querySelectorAll('.imp-calendar-pill');
+            var visible = 0;
+            pills.forEach(function (pill) {
+                var ok = matchCommon(
+                    pill.getAttribute('data-imp-search') || pill.textContent || '',
+                    pill.getAttribute('data-imp-status-id') || '',
+                    pill.getAttribute('data-imp-prio-value') || '',
+                    pill.getAttribute('data-imp-resp-ids') || '',
+                    pill.getAttribute('data-imp-prazo-iso') || '',
+                    filters
+                );
+                pill.hidden = !ok;
+                if (ok) visible += 1;
+            });
+            day.classList.toggle('is-filter-empty', pills.length > 0 && visible === 0);
+        });
+    }
+
+    function applyClientFilters() {
+        if (isTableView) return;
+        var filters = getFilters();
+        if (activeView === 'lista') applyListFilters(filters);
+        if (activeView === 'quadro') applyKanbanFilters(filters);
+        if (activeView === 'calendario') applyCalendarFilters(filters);
+    }
+
+    if (!isTableView) {
+        form.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            applyClientFilters();
+        });
+        var debouncedTimer = null;
+        [qEl, statusEl, prioEl, respEl, dateEl].forEach(function (el) {
+            if (!el) return;
+            var eventName = el.tagName === 'SELECT' ? 'change' : 'input';
+            el.addEventListener(eventName, function () {
+                window.clearTimeout(debouncedTimer);
+                debouncedTimer = window.setTimeout(applyClientFilters, 120);
+            });
+            if (eventName !== 'change') {
+                el.addEventListener('change', applyClientFilters);
+            }
+        });
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                if (qEl) qEl.value = '';
+                if (statusEl) statusEl.value = '';
+                if (prioEl) prioEl.value = '';
+                if (respEl) respEl.value = '';
+                if (dateEl) dateEl.value = '';
+                applyClientFilters();
+            });
+        }
+        applyClientFilters();
+    } else {
+        form.addEventListener('submit', function () {
+            if (dateStartHiddenEl) dateStartHiddenEl.value = String((dateEl && dateEl.value) || '').trim();
+        });
+    }
 })();
 </script>
 {% endblock %}
