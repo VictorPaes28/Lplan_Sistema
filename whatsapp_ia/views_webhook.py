@@ -13,12 +13,12 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from whatsapp_ia.ia_service import MSG_ERRO_PADRAO, chamar_openai
 from whatsapp_ia.models import IaErroLog, IaMensagemLog, UsuarioWhatsApp
 
 logger = logging.getLogger(__name__)
 
 WHATSAPP_API_VERSION = 'v21.0'
-RESPOSTA_FIXA = 'Olá! Recebi sua mensagem. Em breve responderei.'
 MSG_NAO_AUTORIZADO = (
     'Este número não está autorizado a consultar '
     'informações do sistema. Procure o administrador '
@@ -204,12 +204,33 @@ def _webhook_receber(request):
             return HttpResponse(status=200)
 
         usuario_whatsapp = usuario_wa
-        enviado = _enviar_mensagem_whatsapp(telefone, RESPOSTA_FIXA)
+        try:
+            resposta = chamar_openai(texto)
+        except Exception as exc:
+            logger.exception('Erro ao chamar OpenAI: %s', exc)
+            _registrar_erro(
+                exc,
+                payload_resumido=f'telefone={telefone}, texto={texto[:200]}',
+                usuario=usuario_wa,
+            )
+            resposta = MSG_ERRO_PADRAO
+
+        enviado = _enviar_mensagem_whatsapp(telefone, resposta)
 
         log.usuario = usuario_wa
-        log.resposta_enviada = RESPOSTA_FIXA
+        log.intencao_detectada = 'resposta_direta'
+        log.funcao_chamada = 'chamar_openai'
+        log.resposta_enviada = resposta
         log.status = 'ok' if enviado else 'erro_envio'
-        log.save(update_fields=['usuario', 'resposta_enviada', 'status'])
+        log.save(
+            update_fields=[
+                'usuario',
+                'intencao_detectada',
+                'funcao_chamada',
+                'resposta_enviada',
+                'status',
+            ]
+        )
 
         if not enviado:
             _registrar_erro(
