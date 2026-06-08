@@ -5,6 +5,7 @@ import logging
 import threading
 import os
 import time
+import smtplib
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 from django.utils.html import strip_tags
@@ -149,6 +150,13 @@ def _enviar_email_com_retry(email_obj, email_log, max_tentativas=3, delay=2):
     Returns:
         bool: True se enviado com sucesso, False caso contrário
     """
+    def _is_smtp_auth_error(exc):
+        if isinstance(exc, smtplib.SMTPAuthenticationError):
+            return True
+        # Fallback para backends que encapsulam a exceção em mensagem textual.
+        raw = str(exc or "").lower()
+        return "incorrect authentication data" in raw or " 535" in raw or "(535" in raw
+
     ultimo_erro = None
     
     for tentativa in range(1, max_tentativas + 1):
@@ -186,6 +194,19 @@ def _enviar_email_com_retry(email_obj, email_log, max_tentativas=3, delay=2):
                     logger.warning(f"Erro ao atualizar log de falha: {log_error}")
             else:
                 logger.warning(f"Tentativa {tentativa}/{max_tentativas} falhou (sem log): {e}")
+
+            # Erro de autenticação SMTP não se resolve com retry.
+            if _is_smtp_auth_error(e):
+                logger.error(
+                    "Falha de autenticação SMTP detectada (sem retry): "
+                    "backend=%s host=%s port=%s user=%s erro=%s",
+                    getattr(settings, 'EMAIL_BACKEND', ''),
+                    getattr(settings, 'EMAIL_HOST', ''),
+                    getattr(settings, 'EMAIL_PORT', ''),
+                    getattr(settings, 'EMAIL_HOST_USER', ''),
+                    e,
+                )
+                break
             
             # Se não for a última tentativa, aguarda antes de tentar novamente
             if tentativa < max_tentativas:
