@@ -277,6 +277,41 @@ TOOLS = [
     {
         'type': 'function',
         'function': {
+            'name': 'buscar_pdf_rdo',
+            'description': (
+                'Busca e prepara o envio do PDF do RDO de uma obra '
+                'em uma data específica. '
+                "Use quando o usuário pedir 'manda o RDO', "
+                "'envia o diário', 'PDF do RDO', 'relatório de obra'. "
+                'Se a data não for informada, usa hoje. '
+                'Se a obra não for informada, peça o nome da obra.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'data': {
+                        'type': 'string',
+                        'description': (
+                            'Data no formato YYYY-MM-DD. '
+                            'Se não informada, usa hoje.'
+                        ),
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
             'name': 'resumo_obra',
             'description': (
                 'Retorna um resumo consolidado de uma obra: '
@@ -827,6 +862,65 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
     }, ensure_ascii=False)
 
 
+def buscar_pdf_rdo(
+    obra_nome=None, data=None, obra_id=None,
+    usuario_wa=None,
+) -> str:
+    """
+    Localiza o RDO por obra + data e retorna metadados
+    para envio do PDF. O envio real é feito no webhook.
+    """
+    from whatsapp_ia.models import IaPermissaoConsulta
+
+    if usuario_wa:
+        try:
+            permissao = IaPermissaoConsulta.objects.get(
+                usuario=usuario_wa
+            )
+            if not permissao.pode_receber_pdf:
+                return json.dumps({
+                    'erro': 'Você não tem permissão para '
+                            'receber PDFs pelo WhatsApp.',
+                }, ensure_ascii=False)
+        except IaPermissaoConsulta.DoesNotExist:
+            pass
+
+    project = _resolver_project(
+        obra_nome=obra_nome,
+        obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not project:
+        return json.dumps({
+            'erro': 'Obra não encontrada. '
+                    'Informe o nome correto da obra.',
+        }, ensure_ascii=False)
+
+    data_obj = _data_ou_hoje(data)
+
+    try:
+        diary = ConstructionDiary.objects.get(
+            project=project,
+            date=data_obj,
+        )
+    except ConstructionDiary.DoesNotExist:
+        return json.dumps({
+            'erro': f'Nenhum RDO encontrado para '
+                    f'{project.name} em {data_obj}.',
+        }, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({'erro': str(e)}, ensure_ascii=False)
+
+    return json.dumps({
+        'acao': 'enviar_pdf_rdo',
+        'diary_id': diary.id,
+        'obra': project.name,
+        'data': str(diary.date),
+        'status': diary.status,
+        'report_number': getattr(diary, 'report_number', None),
+    }, ensure_ascii=False)
+
+
 FUNCOES_DISPONIVEIS = {
     'consultar_rdos_pendentes': consultar_rdos_pendentes,
     'consultar_pedidos_pendentes': consultar_pedidos_pendentes,
@@ -840,6 +934,7 @@ FUNCOES_DISPONIVEIS = {
     'consultar_pendencias_vencidas': consultar_pendencias_vencidas,
     'consultar_execucao_fisica_obra': consultar_execucao_fisica_obra,
     'resumo_obra': resumo_obra,
+    'buscar_pdf_rdo': buscar_pdf_rdo,
 }
 
 

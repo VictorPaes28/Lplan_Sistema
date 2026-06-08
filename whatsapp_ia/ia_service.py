@@ -89,6 +89,12 @@ def chamar_openai(mensagem_usuario: str, usuario_wa=None) -> str:
             except json.JSONDecodeError:
                 args = {}
             resultado = executar_funcao(nome, args, usuario_wa=usuario_wa)
+            try:
+                dados_acao = json.loads(resultado)
+                if dados_acao.get('acao') == 'enviar_pdf_rdo':
+                    return resultado
+            except json.JSONDecodeError:
+                pass
             messages.append({
                 'role': 'tool',
                 'tool_call_id': tool_call.id,
