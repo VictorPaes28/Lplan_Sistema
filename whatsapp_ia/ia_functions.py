@@ -386,10 +386,20 @@ def _resolver_obra_mapa(obra_nome=None, obra_id=None, usuario_wa=None):
     if obra_id:
         return escopo.filter(id=obra_id).first()
     if obra_nome:
-        exato = escopo.filter(nome__iexact=obra_nome).first()
-        if exato:
-            return exato
-        return escopo.filter(nome__icontains=obra_nome).first()
+        try:
+            exato = escopo.filter(nome__iexact=obra_nome).first()
+            if exato:
+                return exato
+            return escopo.filter(nome__icontains=obra_nome).first()
+        except Exception:
+            nome_lower = obra_nome.lower()
+            for obra in escopo:
+                if obra.nome.lower() == nome_lower:
+                    return obra
+            for obra in escopo:
+                if nome_lower in obra.nome.lower():
+                    return obra
+            return None
     return None
 
 
@@ -404,10 +414,20 @@ def _resolver_obra_gestao(obra_nome=None, obra_id=None, usuario_wa=None):
     if obra_id:
         return qs.filter(id=obra_id).first()
     if obra_nome:
-        exato = qs.filter(nome__iexact=obra_nome).first()
-        if exato:
-            return exato
-        return qs.filter(nome__icontains=obra_nome).first()
+        try:
+            exato = qs.filter(nome__iexact=obra_nome).first()
+            if exato:
+                return exato
+            return qs.filter(nome__icontains=obra_nome).first()
+        except Exception:
+            nome_lower = obra_nome.lower()
+            for obra in qs:
+                if obra.nome.lower() == nome_lower:
+                    return obra
+            for obra in qs:
+                if nome_lower in obra.nome.lower():
+                    return obra
+            return None
     return None
 
 
@@ -417,10 +437,20 @@ def _resolver_project(obra_nome=None, obra_id=None, usuario_wa=None):
     if obra_id:
         return qs.filter(id=obra_id).first()
     if obra_nome:
-        exato = qs.filter(name__iexact=obra_nome).first()
-        if exato:
-            return exato
-        return qs.filter(name__icontains=obra_nome).first()
+        try:
+            exato = qs.filter(name__iexact=obra_nome).first()
+            if exato:
+                return exato
+            return qs.filter(name__icontains=obra_nome).first()
+        except Exception:
+            nome_lower = obra_nome.lower()
+            for project in qs:
+                if project.name.lower() == nome_lower:
+                    return project
+            for project in qs:
+                if nome_lower in project.name.lower():
+                    return project
+            return None
     return None
 
 
