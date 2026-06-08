@@ -232,9 +232,9 @@ TOOLS = [
             'name': 'consultar_pendencias_vencidas',
             'description': (
                 'Lista pendências TrackHub vencidas (prazo < hoje) '
-                'em todas as obras ativas ou em uma obra específica. '
-                'Use quando perguntar sobre atrasos, vencimentos ou '
-                'o que está atrasado operacionalmente.'
+                'em todas as obras ativas. EXECUTE SEMPRE sem pedir '
+                'confirmação de obra. Se o usuário mencionar uma obra '
+                'específica, filtre por ela; caso contrário retorne tudo.'
             ),
             'parameters': {
                 'type': 'object',
