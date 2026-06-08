@@ -2121,14 +2121,14 @@ def consultar_pedidos_filtrados(
         )
 
     if ultimos_dias:
-        desde = timezone.localdate() - timedelta(days=ultimos_dias)
-        qs = qs.filter(data_envio__date__gte=desde)
+        desde_dt = timezone.now() - timedelta(days=ultimos_dias)
+        qs = qs.filter(data_envio__gte=desde_dt)
 
     if atraso_minimo_dias:
-        limite = timezone.localdate() - timedelta(days=atraso_minimo_dias)
+        limite_dt = timezone.now() - timedelta(days=atraso_minimo_dias)
         qs = qs.filter(
             status__in=['pendente', 'reaprovacao'],
-            data_envio__date__lte=limite,
+            data_envio__lte=limite_dt,
         )
 
     if ordem == 'antigos':
@@ -2355,8 +2355,8 @@ def consultar_pedidos_reprovados(
             qs = qs.filter(obra=obra_g)
 
     if ultimos_dias:
-        desde = timezone.localdate() - timedelta(days=ultimos_dias)
-        qs = qs.filter(data_envio__date__gte=desde)
+        desde_dt = timezone.now() - timedelta(days=ultimos_dias)
+        qs = qs.filter(data_envio__gte=desde_dt)
 
     pedidos = []
     for w in qs[:20]:
