@@ -457,5 +457,97 @@
     padding: 2rem;
     text-align: center;
 }
+
+/* Fallback de modal quando Bootstrap JS/CSS não estiver disponível */
+.email-logs-modal-fallback {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.42);
+    z-index: 1050;
+}
+.email-logs-modal-fallback.is-open {
+    display: flex;
+}
+.email-logs-modal-fallback .modal-dialog {
+    width: min(960px, 100%);
+    margin: 0;
+}
+.email-logs-modal-fallback .modal-content {
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+}
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    if (window.bootstrap && window.bootstrap.Modal) {
+        return;
+    }
+
+    var triggers = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target]');
+    if (!triggers.length) {
+        return;
+    }
+
+    function closeFallbackModal(modalEl) {
+        if (!modalEl) return;
+        modalEl.classList.remove('is-open');
+        modalEl.classList.remove('email-logs-modal-fallback');
+        modalEl.setAttribute('aria-hidden', 'true');
+        modalEl.style.display = '';
+        document.body.style.overflow = '';
+    }
+
+    function openFallbackModal(modalEl) {
+        if (!modalEl) return;
+        modalEl.classList.add('email-logs-modal-fallback');
+        modalEl.classList.add('is-open');
+        modalEl.setAttribute('aria-hidden', 'false');
+        modalEl.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    document.addEventListener('click', function (event) {
+        var openBtn = event.target.closest('[data-bs-toggle="modal"][data-bs-target]');
+        if (openBtn) {
+            event.preventDefault();
+            var target = openBtn.getAttribute('data-bs-target');
+            var modal = target ? document.querySelector(target) : null;
+            openFallbackModal(modal);
+            return;
+        }
+
+        var closeBtn = event.target.closest('[data-bs-dismiss="modal"], .btn-close');
+        if (closeBtn) {
+            var insideModal = closeBtn.closest('.modal');
+            if (insideModal && insideModal.classList.contains('email-logs-modal-fallback')) {
+                event.preventDefault();
+                closeFallbackModal(insideModal);
+            }
+            return;
+        }
+
+        var openModal = event.target.classList && event.target.classList.contains('email-logs-modal-fallback')
+            ? event.target
+            : null;
+        if (openModal) {
+            closeFallbackModal(openModal);
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') return;
+        var openModal = document.querySelector('.email-logs-modal-fallback.is-open');
+        if (!openModal) return;
+        event.preventDefault();
+        closeFallbackModal(openModal);
+    });
+})();
+</script>
 {% endblock %}
