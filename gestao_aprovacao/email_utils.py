@@ -153,6 +153,15 @@ def _enviar_email_com_retry(email_obj, email_log, max_tentativas=3, delay=2):
     
     for tentativa in range(1, max_tentativas + 1):
         try:
+            # Recria conexão a cada tentativa para evitar reaproveitar backend quebrado.
+            conn = getattr(email_obj, 'connection', None)
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            email_obj.connection = None
+
             email_obj.send(fail_silently=False)
             # Atualizar log se existir
             if email_log:

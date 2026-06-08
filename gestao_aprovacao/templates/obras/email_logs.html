@@ -477,8 +477,65 @@
     margin: 0;
 }
 .email-logs-modal-fallback .modal-content {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.22);
     max-height: calc(100vh - 2rem);
     overflow: auto;
+}
+.email-logs-modal-fallback .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.email-logs-modal-fallback .modal-title {
+    margin: 0;
+    font-size: 1rem;
+    color: #111827;
+}
+.email-logs-modal-fallback .modal-body {
+    padding: 1rem;
+    color: #1f2937;
+}
+.email-logs-modal-fallback .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+.email-logs-modal-fallback .btn-close {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    border-radius: 6px;
+    width: 30px;
+    height: 30px;
+    line-height: 1;
+    font-size: 18px;
+    color: #374151;
+    cursor: pointer;
+}
+.email-logs-modal-fallback .table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.email-logs-modal-fallback .table th,
+.email-logs-modal-fallback .table td {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 0.5rem 0.35rem;
+    text-align: left;
+    vertical-align: top;
+}
+.email-logs-modal-fallback .table th {
+    font-weight: 600;
+    color: #4b5563;
+    width: 30%;
 }
 </style>
 {% endblock %}
