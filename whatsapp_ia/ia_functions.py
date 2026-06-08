@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from decimal import Decimal
 
-from django.db.models import Count, DecimalField, Sum, Value
+from django.db.models import Count, DecimalField, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -330,6 +330,615 @@ TOOLS = [
                     'obra_id': {
                         'type': 'integer',
                         'description': 'ID do core.Project (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_usuarios',
+            'description': (
+                'Consulta usuários do sistema. '
+                'Retorna total, lista de ativos/inativos, '
+                'ou dados de um usuário específico com '
+                'últimos registros de atividade. '
+                'Use quando perguntar sobre usuários, '
+                'quem está ativo, ou atividade de alguém.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'usuario_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou username do usuário (opcional).',
+                    },
+                    'apenas_ativos': {
+                        'type': 'boolean',
+                        'description': (
+                            'Se True, retorna só ativos. '
+                            'Default False (todos).'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_dados_obra',
+            'description': (
+                'Retorna dados completos de uma obra específica: '
+                'locais do mapa, aprovadores de RDO, emails do diário, '
+                'mão de obra, equipamentos, totais de atividades, '
+                'membros e configurações. '
+                'Use quando perguntar sobre detalhes de uma obra específica.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_modulos_sistema',
+            'description': (
+                'Retorna informações gerais de todos os módulos do sistema: '
+                'total de itens em cada módulo (obras, pedidos, RDOs, '
+                'restrições, pendências TrackHub, insumos, usuários). '
+                'Use quando perguntar sobre o sistema em geral ou '
+                'visão geral dos módulos.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_rdos_por_periodo',
+            'description': (
+                'Consulta RDOs de uma obra em um período. '
+                'Retorna lista com data, status, número do relatório. '
+                "Use quando perguntar 'RDOs de maio', 'diários da semana', "
+                "'relatórios do mês', 'RDOs entre datas'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                    'data_inicio': {
+                        'type': 'string',
+                        'description': 'Data inicial YYYY-MM-DD.',
+                    },
+                    'data_fim': {
+                        'type': 'string',
+                        'description': (
+                            'Data final YYYY-MM-DD. '
+                            'Se não informada, usa hoje.'
+                        ),
+                    },
+                    'status': {
+                        'type': 'string',
+                        'description': (
+                            'Filtrar por status: PR, SP, AG, RG, AP (opcional).'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_detalhes_rdo',
+            'description': (
+                'Retorna detalhes completos de um RDO específico: '
+                'clima, equipe, equipamentos, atividades, ocorrências, '
+                'status, aprovadores e quem preencheu. '
+                "Use quando perguntar sobre 'detalhes do RDO', "
+                "'como foi o dia na obra X', 'o que teve no RDO de ontem'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                    'data': {
+                        'type': 'string',
+                        'description': (
+                            'Data YYYY-MM-DD. Se não informada, usa hoje.'
+                        ),
+                    },
+                    'diary_id': {
+                        'type': 'integer',
+                        'description': 'ID direto do ConstructionDiary (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_aprovadores_obra',
+            'description': (
+                'Lista aprovadores de RDO e membros de uma obra. '
+                "Use quando perguntar 'quem aprova o RDO da obra X', "
+                "'aprovadores do diário', 'quem preenche o diário'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_rdos_por_responsavel',
+            'description': (
+                'Consulta RDOs filtrados por quem preencheu/criou. '
+                "Use quando perguntar 'RDOs do Cleiton', "
+                "'diários enviados pela Emília', 'quem enviou RDO hoje'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'responsavel_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou username de quem preencheu o RDO.',
+                    },
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome da obra (opcional).',
+                    },
+                    'data_inicio': {
+                        'type': 'string',
+                        'description': 'Data inicial YYYY-MM-DD (opcional).',
+                    },
+                    'data_fim': {
+                        'type': 'string',
+                        'description': 'Data final YYYY-MM-DD (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_pedidos_filtrados',
+            'description': (
+                'Consulta pedidos do GestControll com filtros avançados. '
+                'Use para: pedidos dos últimos N dias, pedidos atrasados, '
+                'por obra, por responsável/aprovador, por tipo, por credor, '
+                'por solicitante, por status específico. '
+                "Exemplos: 'pedidos pendentes da última semana', "
+                "'pedidos atrasados há mais de 15 dias', "
+                "'pedidos de medição', 'pedidos do credor X'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra (opcional).',
+                    },
+                    'status': {
+                        'type': 'string',
+                        'description': (
+                            'Status: rascunho, pendente, aprovado, '
+                            'reprovado, reaprovacao, cancelado (opcional).'
+                        ),
+                    },
+                    'tipo': {
+                        'type': 'string',
+                        'description': (
+                            'Tipo do pedido: medicao, contrato, etc (opcional).'
+                        ),
+                    },
+                    'credor_nome': {
+                        'type': 'string',
+                        'description': 'Nome do credor/fornecedor (opcional).',
+                    },
+                    'solicitante_nome': {
+                        'type': 'string',
+                        'description': 'Nome de quem solicitou (opcional).',
+                    },
+                    'aprovador_nome': {
+                        'type': 'string',
+                        'description': 'Nome do aprovador (opcional).',
+                    },
+                    'ultimos_dias': {
+                        'type': 'integer',
+                        'description': (
+                            'Filtrar pedidos dos últimos N dias (opcional).'
+                        ),
+                    },
+                    'atraso_minimo_dias': {
+                        'type': 'integer',
+                        'description': (
+                            'Pedidos pendentes há mais de N dias (opcional).'
+                        ),
+                    },
+                    'ordem': {
+                        'type': 'string',
+                        'description': (
+                            'Ordenar por: recentes, antigos, obra (opcional).'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_status_pedido',
+            'description': (
+                'Consulta status detalhado de um pedido específico: '
+                'histórico de aprovações, alçada atual, quem aprovou, '
+                'quem está pendente, datas. '
+                'Use quando perguntar sobre um pedido específico por código.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'codigo': {
+                        'type': 'string',
+                        'description': 'Código do pedido (ex: PC-001, 1234).',
+                    },
+                    'pedido_id': {
+                        'type': 'integer',
+                        'description': 'ID do WorkOrder (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_desempenho_equipe_gest',
+            'description': (
+                'Consulta o desempenho da equipe no GestControll: '
+                'tempo médio de resposta por aprovador, '
+                'total aprovado/reprovado por pessoa, '
+                'desempenho de solicitantes. '
+                'Use quando perguntar sobre desempenho, '
+                'quem está demorando mais para aprovar, '
+                'ranking de aprovadores.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Filtrar por obra (opcional).',
+                    },
+                    'tipo': {
+                        'type': 'string',
+                        'description': (
+                            'aprovadores ou solicitantes (opcional).'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'buscar_pdf_pedido',
+            'description': (
+                'Gera e envia o PDF snapshot de um pedido específico. '
+                "Use quando perguntar 'manda o PDF do pedido X', "
+                "'envia o pedido 1234', 'PDF da solicitação'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'codigo': {
+                        'type': 'string',
+                        'description': 'Código do pedido.',
+                    },
+                    'pedido_id': {
+                        'type': 'integer',
+                        'description': 'ID do WorkOrder (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_pedidos_reprovados',
+            'description': (
+                'Consulta pedidos reprovados no GestControll. '
+                'Retorna lista com motivo, obra e data. '
+                'Use quando perguntar sobre pedidos reprovados, '
+                'recusados ou negados.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Filtrar por obra (opcional).',
+                    },
+                    'ultimos_dias': {
+                        'type': 'integer',
+                        'description': 'Últimos N dias (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'localizar_insumo',
+            'description': (
+                'Localiza um insumo específico no mapa de suprimentos '
+                'de uma obra por nome, código ou descrição. '
+                'Retorna status, quantidade planejada, recebida, '
+                'alocada e localização. '
+                "Use quando perguntar sobre um material específico: "
+                "'onde está o cimento', 'status do aço', "
+                "'quanto tem de tinta na obra X'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'insumo_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome do insumo.',
+                    },
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome da obra (opcional).',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do mapa_obras.Obra (opcional).',
+                    },
+                },
+                'required': ['insumo_nome'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_suprimentos_por_local',
+            'description': (
+                'Consulta o pipeline de materiais de um local específico '
+                'de uma obra (bloco, pavimento, apartamento, setor). '
+                'Retorna pendências, entregues, sem SC/PC. '
+                "Use quando perguntar 'como está o bloco A', "
+                "'situação do apto 302', 'materiais do pavimento 2'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome da obra.',
+                    },
+                    'local_nome': {
+                        'type': 'string',
+                        'description': (
+                            'Nome do local (bloco, apto, pavimento).'
+                        ),
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do mapa_obras.Obra (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_mapa_controle_completo',
+            'description': (
+                'Consulta o mapa de controle (execução física) completo '
+                'de uma obra: percentual por bloco, pavimento, unidade, '
+                'atividades. Informa qual ambiente está ativo, '
+                'última atualização e versão. '
+                "Use quando perguntar sobre avanço físico, "
+                "'% de execução', 'como está o bloco B no controle', "
+                "'qual o progresso da obra'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do mapa_obras.Obra (opcional).',
+                    },
+                    'detalhar_blocos': {
+                        'type': 'boolean',
+                        'description': (
+                            'Se True, retorna % por bloco. Default True.'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_bi_obra',
+            'description': (
+                'Consulta o BI consolidado de uma obra: '
+                'todos os módulos juntos (suprimentos, diário, '
+                'pedidos, restrições, TrackHub, execução física). '
+                "Use quando perguntar por uma visão completa, "
+                "'análise da obra', 'BI da obra X', "
+                "'como está tudo na obra'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do mapa_obras.Obra (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_restricoes_por_responsavel',
+            'description': (
+                'Consulta restrições abertas filtradas por responsável. '
+                "Use quando perguntar 'restrições do João', "
+                "'impedimentos da Maria', 'o que o Carlos tem pendente'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'responsavel_nome': {
+                        'type': 'string',
+                        'description': 'Nome do responsável pela restrição.',
+                    },
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Filtrar por obra (opcional).',
+                    },
+                    'incluir_concluidas': {
+                        'type': 'boolean',
+                        'description': 'Default False.',
+                    },
+                },
+                'required': ['responsavel_nome'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_pendencias_por_responsavel',
+            'description': (
+                'Consulta pendências TrackHub de um responsável específico. '
+                "Use quando perguntar 'pendências do Cleiton', "
+                "'o que a Emília tem aberto', 'tarefas do responsável X'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'responsavel_nome': {
+                        'type': 'string',
+                        'description': 'Nome do responsável.',
+                    },
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Filtrar por obra (opcional).',
+                    },
+                    'incluir_concluidas': {
+                        'type': 'boolean',
+                        'description': 'Default False.',
+                    },
+                },
+                'required': ['responsavel_nome'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_etapas_pendencia',
+            'description': (
+                'Consulta as etapas de uma pendência TrackHub específica: '
+                'quais foram concluídas, quais faltam, prazos e responsáveis. '
+                "Use quando perguntar sobre o checklist de uma pendência, "
+                "'como está a pendência X', 'etapas da tarefa Y'."
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'pendencia_id': {
+                        'type': 'integer',
+                        'description': 'ID da pendência.',
+                    },
+                    'pendencia_titulo': {
+                        'type': 'string',
+                        'description': (
+                            'Título ou parte do título (opcional).'
+                        ),
+                    },
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Filtrar por obra (opcional).',
                     },
                 },
                 'required': [],
@@ -951,6 +1560,1276 @@ def buscar_pdf_rdo(
     }, ensure_ascii=False)
 
 
+def consultar_usuarios(
+    usuario_nome=None, apenas_ativos=False, usuario_wa=None,
+) -> str:
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    qs = User.objects.all()
+    if apenas_ativos:
+        qs = qs.filter(is_active=True)
+    if usuario_nome:
+        qs = qs.filter(
+            Q(first_name__icontains=usuario_nome)
+            | Q(last_name__icontains=usuario_nome)
+            | Q(username__icontains=usuario_nome)
+        )
+
+    total = qs.count()
+    ativos = User.objects.filter(is_active=True).count()
+    inativos = User.objects.filter(is_active=False).count()
+
+    usuarios = []
+    for u in qs[:20]:
+        ultimo_login = str(u.last_login.date()) if u.last_login else 'Nunca'
+        usuarios.append({
+            'id': u.id,
+            'nome': u.get_full_name() or u.username,
+            'username': u.username,
+            'email': u.email,
+            'ativo': u.is_active,
+            'ultimo_login': ultimo_login,
+        })
+
+    return json.dumps({
+        'total': total,
+        'total_ativos': ativos,
+        'total_inativos': inativos,
+        'usuarios': usuarios,
+    }, ensure_ascii=False)
+
+
+def consultar_dados_obra(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    from core.models import (
+        Activity,
+        ConstructionDiary,
+        Equipment,
+        Labor,
+        ProjectDiaryApprover,
+        ProjectMember,
+    )
+
+    project = _resolver_project(
+        obra_nome=obra_nome,
+        obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not project:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    membros = list(
+        ProjectMember.objects.filter(project=project)
+        .select_related('user')
+        .values('user__first_name', 'user__last_name', 'user__email')
+    )
+
+    aprovadores = list(
+        ProjectDiaryApprover.objects.filter(
+            project=project, is_active=True,
+        ).order_by('order')
+        .select_related('user')
+        .values('user__first_name', 'user__last_name', 'order')
+    )
+
+    try:
+        from mapa_obras.models import LocalObra
+        total_locais = LocalObra.objects.filter(
+            obra__project=project,
+        ).count()
+    except Exception:
+        total_locais = 0
+
+    total_rdos = ConstructionDiary.objects.filter(
+        project=project,
+    ).count()
+    rdos_aprovados = ConstructionDiary.objects.filter(
+        project=project, status='AP',
+    ).count()
+
+    try:
+        total_atividades = Activity.objects.filter(
+            project=project,
+        ).count()
+    except Exception:
+        total_atividades = 0
+
+    try:
+        total_equipamentos = Equipment.objects.filter(
+            project=project,
+        ).count()
+        total_mao_obra = Labor.objects.filter(
+            project=project,
+        ).count()
+    except Exception:
+        total_equipamentos = 0
+        total_mao_obra = 0
+
+    return json.dumps({
+        'obra': project.name,
+        'ativa': project.is_active,
+        'total_membros': len(membros),
+        'membros': membros,
+        'aprovadores_rdo': aprovadores,
+        'total_locais_mapa': total_locais,
+        'total_rdos': total_rdos,
+        'rdos_aprovados': rdos_aprovados,
+        'total_atividades': total_atividades,
+        'total_equipamentos_rdo': total_equipamentos,
+        'total_mao_obra_rdo': total_mao_obra,
+    }, ensure_ascii=False)
+
+
+def consultar_modulos_sistema(usuario_wa=None) -> str:
+    from django.contrib.auth import get_user_model
+
+    from core.models import ConstructionDiary, Project
+    from gestao_aprovacao.models import WorkOrder
+    from impedimentos.models import Impedimento
+    from suprimentos.models import ItemMapa
+    from trackhub.models import Pendencia
+
+    User = get_user_model()
+
+    try:
+        from painel_operacional.models import AmbienteOperacional
+        total_ambientes = AmbienteOperacional.objects.filter(
+            ativo=True,
+        ).count()
+    except Exception:
+        total_ambientes = 0
+
+    return json.dumps({
+        'usuarios': {
+            'total': User.objects.count(),
+            'ativos': User.objects.filter(is_active=True).count(),
+        },
+        'obras': {
+            'total': Project.objects.count(),
+            'ativas': Project.objects.filter(is_active=True).count(),
+        },
+        'diario_obra': {
+            'total_rdos': ConstructionDiary.objects.count(),
+            'aprovados': ConstructionDiary.objects.filter(
+                status='AP',
+            ).count(),
+            'pendentes_gestor': ConstructionDiary.objects.filter(
+                status='AG',
+            ).count(),
+        },
+        'gestcontroll': {
+            'total_pedidos': WorkOrder.objects.count(),
+            'pendentes': WorkOrder.objects.filter(
+                status__in=['pendente', 'reaprovacao'],
+            ).count(),
+            'aprovados': WorkOrder.objects.filter(
+                status='aprovado',
+            ).count(),
+        },
+        'restricoes': {
+            'total': Impedimento.objects.filter(
+                parent__isnull=True,
+            ).count(),
+        },
+        'trackhub': {
+            'total_pendencias': Pendencia.objects.count(),
+            'abertas': Pendencia.objects.exclude(
+                status__in=['concluida', 'cancelada'],
+            ).count(),
+        },
+        'suprimentos': {
+            'total_itens_mapa': ItemMapa.objects.count(),
+        },
+        'ambientes_operacionais': {
+            'total_ativos': total_ambientes,
+        },
+    }, ensure_ascii=False)
+
+
+def consultar_rdos_por_periodo(
+    obra_nome=None, obra_id=None,
+    data_inicio=None, data_fim=None,
+    status=None, usuario_wa=None,
+) -> str:
+    project = _resolver_project(
+        obra_nome=obra_nome,
+        obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not project:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    qs = ConstructionDiary.objects.filter(
+        project=project,
+    ).order_by('-date')
+
+    if data_inicio:
+        try:
+            qs = qs.filter(
+                date__gte=datetime.strptime(
+                    data_inicio, '%Y-%m-%d',
+                ).date(),
+            )
+        except ValueError:
+            pass
+
+    if data_fim:
+        try:
+            qs = qs.filter(
+                date__lte=datetime.strptime(
+                    data_fim, '%Y-%m-%d',
+                ).date(),
+            )
+        except ValueError:
+            pass
+    else:
+        qs = qs.filter(date__lte=timezone.localdate())
+
+    if status:
+        qs = qs.filter(status=status.upper())
+
+    status_labels = {
+        'PR': 'Preenchendo',
+        'SP': 'Salvamento parcial',
+        'AG': 'Aguardando aprovação',
+        'RG': 'Reprovado',
+        'AP': 'Aprovado',
+    }
+
+    rdos = []
+    for d in qs[:30]:
+        rdos.append({
+            'id': d.id,
+            'data': str(d.date),
+            'status': status_labels.get(d.status, d.status),
+            'report_number': getattr(d, 'report_number', None),
+            'criado_por': (
+                d.created_by.get_full_name()
+                if hasattr(d, 'created_by') and d.created_by
+                else '-'
+            ),
+        })
+
+    return json.dumps({
+        'obra': project.name,
+        'total': qs.count(),
+        'rdos': rdos,
+    }, ensure_ascii=False)
+
+
+def consultar_detalhes_rdo(
+    obra_nome=None, obra_id=None,
+    data=None, diary_id=None,
+    usuario_wa=None,
+) -> str:
+    from core.models import DailyWorkLog, DiaryOccurrence
+
+    if diary_id:
+        try:
+            diary = ConstructionDiary.objects.select_related(
+                'project',
+            ).get(id=diary_id)
+        except ConstructionDiary.DoesNotExist:
+            return json.dumps(
+                {'erro': 'RDO não encontrado.'},
+                ensure_ascii=False,
+            )
+    else:
+        project = _resolver_project(
+            obra_nome=obra_nome,
+            obra_id=obra_id,
+            usuario_wa=usuario_wa,
+        )
+        if not project:
+            return json.dumps(
+                {'erro': 'Obra não encontrada.'},
+                ensure_ascii=False,
+            )
+        data_obj = _data_ou_hoje(data)
+        try:
+            diary = ConstructionDiary.objects.get(
+                project=project, date=data_obj,
+            )
+        except ConstructionDiary.DoesNotExist:
+            return json.dumps({
+                'erro': f'Nenhum RDO em {data_obj} '
+                        f'para {project.name}.',
+            }, ensure_ascii=False)
+
+    clima = {}
+    for campo in [
+        'weather_conditions',
+        'weather_morning_rain', 'weather_afternoon_rain',
+        'weather_night_rain',
+    ]:
+        val = getattr(diary, campo, None)
+        if val is not None:
+            clima[campo] = val
+
+    work_logs = DailyWorkLog.objects.filter(
+        diary=diary,
+    ).select_related('activity').prefetch_related(
+        'resources_labor', 'resources_equipment',
+    )
+
+    atividades = []
+    equipe = set()
+    equipamentos = set()
+
+    for wl in work_logs:
+        if wl.activity:
+            atividades.append(wl.activity.name)
+        for labor in wl.resources_labor.all():
+            equipe.add(
+                getattr(labor, 'name', str(labor)),
+            )
+        for equip in wl.resources_equipment.all():
+            equipamentos.add(
+                getattr(equip, 'name', str(equip)),
+            )
+
+    ocorrencias = []
+    try:
+        for oc in DiaryOccurrence.objects.filter(
+            diary=diary,
+        )[:10]:
+            ocorrencias.append(
+                getattr(oc, 'description', str(oc)),
+            )
+    except Exception:
+        pass
+
+    status_labels = {
+        'PR': 'Preenchendo',
+        'SP': 'Salvamento parcial',
+        'AG': 'Aguardando aprovação',
+        'RG': 'Reprovado',
+        'AP': 'Aprovado',
+    }
+
+    return json.dumps({
+        'obra': diary.project.name,
+        'data': str(diary.date),
+        'status': status_labels.get(diary.status, diary.status),
+        'report_number': getattr(diary, 'report_number', None),
+        'criado_por': (
+            diary.created_by.get_full_name()
+            if hasattr(diary, 'created_by') and diary.created_by
+            else '-'
+        ),
+        'clima': clima,
+        'atividades': list(set(atividades)),
+        'equipe': list(equipe),
+        'equipamentos': list(equipamentos),
+        'ocorrencias': ocorrencias,
+    }, ensure_ascii=False)
+
+
+def consultar_aprovadores_obra(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    from core.models import ProjectDiaryApprover, ProjectMember
+
+    project = _resolver_project(
+        obra_nome=obra_nome,
+        obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not project:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    aprovadores = []
+    for ap in ProjectDiaryApprover.objects.filter(
+        project=project, is_active=True,
+    ).order_by('order').select_related('user'):
+        aprovadores.append({
+            'nome': ap.user.get_full_name() or ap.user.username,
+            'email': ap.user.email,
+            'ordem': ap.order,
+        })
+
+    membros = []
+    for m in ProjectMember.objects.filter(
+        project=project,
+    ).select_related('user'):
+        membros.append({
+            'nome': m.user.get_full_name() or m.user.username,
+            'email': m.user.email,
+        })
+
+    return json.dumps({
+        'obra': project.name,
+        'aprovadores_rdo': aprovadores,
+        'membros_diario': membros,
+    }, ensure_ascii=False)
+
+
+def consultar_rdos_por_responsavel(
+    responsavel_nome=None, obra_nome=None,
+    data_inicio=None, data_fim=None,
+    usuario_wa=None,
+) -> str:
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    qs = ConstructionDiary.objects.select_related(
+        'project', 'created_by',
+    ).order_by('-date')
+
+    if responsavel_nome:
+        usuarios = User.objects.filter(
+            Q(first_name__icontains=responsavel_nome)
+            | Q(last_name__icontains=responsavel_nome)
+            | Q(username__icontains=responsavel_nome),
+        )
+        if not usuarios.exists():
+            return json.dumps({
+                'erro': f'Usuário "{responsavel_nome}" não encontrado.',
+            }, ensure_ascii=False)
+        qs = qs.filter(created_by__in=usuarios)
+
+    if obra_nome:
+        project = _resolver_project(
+            obra_nome=obra_nome,
+            usuario_wa=usuario_wa,
+        )
+        if project:
+            qs = qs.filter(project=project)
+
+    if data_inicio:
+        try:
+            qs = qs.filter(
+                date__gte=datetime.strptime(
+                    data_inicio, '%Y-%m-%d',
+                ).date(),
+            )
+        except ValueError:
+            pass
+    if data_fim:
+        try:
+            qs = qs.filter(
+                date__lte=datetime.strptime(
+                    data_fim, '%Y-%m-%d',
+                ).date(),
+            )
+        except ValueError:
+            pass
+
+    status_labels = {
+        'PR': 'Preenchendo', 'SP': 'Rascunho',
+        'AG': 'Aguardando aprovação',
+        'RG': 'Reprovado', 'AP': 'Aprovado',
+    }
+
+    rdos = []
+    for d in qs[:20]:
+        rdos.append({
+            'id': d.id,
+            'obra': d.project.name,
+            'data': str(d.date),
+            'status': status_labels.get(d.status, d.status),
+            'criado_por': (
+                d.created_by.get_full_name()
+                if d.created_by else '-'
+            ),
+        })
+
+    return json.dumps({
+        'total': qs.count(),
+        'rdos': rdos,
+    }, ensure_ascii=False)
+
+
+def _obra_gestao_por_project(project):
+    if not project:
+        return None
+    from gestao_aprovacao.models import Obra as ObraGestao
+    return ObraGestao.objects.filter(project=project).first()
+
+
+def consultar_pedidos_filtrados(
+    obra_nome=None, status=None, tipo=None,
+    credor_nome=None, solicitante_nome=None,
+    aprovador_nome=None, ultimos_dias=None,
+    atraso_minimo_dias=None, ordem=None,
+    usuario_wa=None,
+) -> str:
+    from datetime import timedelta
+
+    from django.contrib.auth import get_user_model
+
+    from gestao_aprovacao.models import Approval, WorkOrder, WorkOrderPermission
+
+    User = get_user_model()
+
+    qs = WorkOrder.objects.select_related('obra').order_by('-data_envio')
+
+    if obra_nome:
+        project = _resolver_project(
+            obra_nome=obra_nome, usuario_wa=usuario_wa,
+        )
+        obra_g = _obra_gestao_por_project(project)
+        if obra_g:
+            qs = qs.filter(obra=obra_g)
+
+    if status:
+        qs = qs.filter(status=status.lower())
+
+    if tipo:
+        qs = qs.filter(tipo_solicitacao__icontains=tipo)
+
+    if credor_nome:
+        qs = qs.filter(nome_credor__icontains=credor_nome)
+
+    if solicitante_nome:
+        usuarios = User.objects.filter(
+            Q(first_name__icontains=solicitante_nome)
+            | Q(last_name__icontains=solicitante_nome)
+            | Q(username__icontains=solicitante_nome),
+        )
+        qs = qs.filter(criado_por__in=usuarios)
+
+    if aprovador_nome:
+        usuarios_ap = User.objects.filter(
+            Q(first_name__icontains=aprovador_nome)
+            | Q(last_name__icontains=aprovador_nome)
+            | Q(username__icontains=aprovador_nome),
+        )
+        obra_ids = WorkOrderPermission.objects.filter(
+            usuario__in=usuarios_ap,
+            tipo_permissao='aprovador',
+            ativo=True,
+        ).values_list('obra_id', flat=True)
+        pedidos_aprovados = Approval.objects.filter(
+            aprovado_por__in=usuarios_ap,
+        ).values_list('work_order_id', flat=True)
+        qs = qs.filter(
+            Q(obra_id__in=obra_ids) | Q(id__in=pedidos_aprovados),
+        )
+
+    if ultimos_dias:
+        desde = timezone.localdate() - timedelta(days=ultimos_dias)
+        qs = qs.filter(data_envio__date__gte=desde)
+
+    if atraso_minimo_dias:
+        limite = timezone.localdate() - timedelta(days=atraso_minimo_dias)
+        qs = qs.filter(
+            status__in=['pendente', 'reaprovacao'],
+            data_envio__date__lte=limite,
+        )
+
+    if ordem == 'antigos':
+        qs = qs.order_by('data_envio')
+    elif ordem == 'obra':
+        qs = qs.order_by('obra__nome')
+
+    total = qs.count()
+    pedidos = []
+    for w in qs[:20]:
+        pedidos.append({
+            'id': w.id,
+            'codigo': w.codigo,
+            'tipo': w.tipo_solicitacao,
+            'credor': w.nome_credor,
+            'status': w.status,
+            'obra': w.obra.nome if w.obra else '-',
+            'data_envio': (
+                str(w.data_envio.date()) if w.data_envio else '-'
+            ),
+            'criado_por': (
+                w.criado_por.get_full_name()
+                if w.criado_por else '-'
+            ),
+        })
+
+    return json.dumps({
+        'total': total,
+        'pedidos': pedidos,
+    }, ensure_ascii=False)
+
+
+def consultar_status_pedido(
+    codigo=None, pedido_id=None, usuario_wa=None,
+) -> str:
+    from gestao_aprovacao.models import Approval, WorkOrder
+
+    qs = WorkOrder.objects.select_related('obra')
+    if pedido_id:
+        qs = qs.filter(id=pedido_id)
+    elif codigo:
+        qs = qs.filter(codigo__icontains=codigo)
+    else:
+        return json.dumps(
+            {'erro': 'Informe o código ou ID do pedido.'},
+            ensure_ascii=False,
+        )
+
+    workorder = qs.first()
+    if not workorder:
+        return json.dumps(
+            {'erro': f'Pedido "{codigo or pedido_id}" não encontrado.'},
+            ensure_ascii=False,
+        )
+
+    aprovacoes = []
+    for ap in Approval.objects.filter(
+        work_order=workorder,
+    ).select_related('aprovado_por').order_by('created_at'):
+        aprovacoes.append({
+            'aprovador': (
+                ap.aprovado_por.get_full_name()
+                if ap.aprovado_por else '-'
+            ),
+            'decisao': ap.decisao,
+            'data': (
+                str(ap.created_at.date()) if ap.created_at else '-'
+            ),
+            'comentario': ap.comentario or '',
+        })
+
+    return json.dumps({
+        'id': workorder.id,
+        'codigo': workorder.codigo,
+        'tipo': workorder.tipo_solicitacao,
+        'credor': workorder.nome_credor,
+        'status': workorder.status,
+        'obra': workorder.obra.nome if workorder.obra else '-',
+        'data_envio': (
+            str(workorder.data_envio.date())
+            if workorder.data_envio else '-'
+        ),
+        'data_aprovacao': (
+            str(workorder.data_aprovacao.date())
+            if workorder.data_aprovacao else '-'
+        ),
+        'criado_por': (
+            workorder.criado_por.get_full_name()
+            if workorder.criado_por else '-'
+        ),
+        'historico_aprovacoes': aprovacoes,
+    }, ensure_ascii=False)
+
+
+def consultar_desempenho_equipe_gest(
+    obra_nome=None, tipo=None, usuario_wa=None,
+) -> str:
+    from django.contrib.auth import get_user_model
+    from django.db.models import Count
+
+    from gestao_aprovacao.models import Approval, WorkOrder
+
+    User = get_user_model()
+    obra_g = None
+    if obra_nome:
+        project = _resolver_project(
+            obra_nome=obra_nome, usuario_wa=usuario_wa,
+        )
+        obra_g = _obra_gestao_por_project(project)
+
+    aprovadores = []
+    if not tipo or tipo == 'aprovadores':
+        qs_ap = Approval.objects.select_related(
+            'aprovado_por', 'work_order',
+        )
+        if obra_g:
+            qs_ap = qs_ap.filter(work_order__obra=obra_g)
+
+        por_aprovador = {}
+        for ap in qs_ap:
+            uid = ap.aprovado_por_id or 'desconhecido'
+            if uid not in por_aprovador:
+                por_aprovador[uid] = {
+                    'nome': (
+                        ap.aprovado_por.get_full_name()
+                        if ap.aprovado_por else 'Desconhecido'
+                    ),
+                    'total': 0,
+                    'aprovados': 0,
+                    'reprovados': 0,
+                }
+            por_aprovador[uid]['total'] += 1
+            if ap.decisao == 'reprovado':
+                por_aprovador[uid]['reprovados'] += 1
+            else:
+                por_aprovador[uid]['aprovados'] += 1
+
+        aprovadores = sorted(
+            por_aprovador.values(),
+            key=lambda x: x['total'],
+            reverse=True,
+        )[:10]
+
+    solicitantes = []
+    if not tipo or tipo == 'solicitantes':
+        qs_sol = WorkOrder.objects.filter(criado_por__isnull=False)
+        if obra_g:
+            qs_sol = qs_sol.filter(obra=obra_g)
+        sol_count = (
+            qs_sol.values(
+                'criado_por__first_name',
+                'criado_por__last_name',
+                'criado_por__id',
+            )
+            .annotate(total=Count('id'))
+            .order_by('-total')[:10]
+        )
+        for s in sol_count:
+            nome = (
+                f"{s['criado_por__first_name'] or ''} "
+                f"{s['criado_por__last_name'] or ''}".strip()
+                or 'Desconhecido'
+            )
+            solicitantes.append({
+                'nome': nome,
+                'total_pedidos': s['total'],
+            })
+
+    return json.dumps({
+        'aprovadores': aprovadores,
+        'solicitantes': solicitantes,
+    }, ensure_ascii=False)
+
+
+def buscar_pdf_pedido(
+    codigo=None, pedido_id=None, usuario_wa=None,
+) -> str:
+    from gestao_aprovacao.models import WorkOrder
+
+    qs = WorkOrder.objects.select_related('obra')
+    if pedido_id:
+        qs = qs.filter(id=pedido_id)
+    elif codigo:
+        qs = qs.filter(codigo__icontains=codigo)
+    else:
+        return json.dumps(
+            {'erro': 'Informe o código ou ID do pedido.'},
+            ensure_ascii=False,
+        )
+
+    workorder = qs.first()
+    if not workorder:
+        return json.dumps(
+            {'erro': f'Pedido "{codigo or pedido_id}" não encontrado.'},
+            ensure_ascii=False,
+        )
+
+    return json.dumps({
+        'acao': 'enviar_pdf_pedido',
+        'pedido_id': workorder.id,
+        'codigo': workorder.codigo,
+        'obra': workorder.obra.nome if workorder.obra else '-',
+        'status': workorder.status,
+    }, ensure_ascii=False)
+
+
+def consultar_pedidos_reprovados(
+    obra_nome=None, ultimos_dias=None, usuario_wa=None,
+) -> str:
+    from datetime import timedelta
+
+    from gestao_aprovacao.models import Approval, WorkOrder
+
+    qs = WorkOrder.objects.filter(
+        status='reprovado',
+    ).select_related('obra', 'criado_por').order_by('-data_envio')
+
+    if obra_nome:
+        project = _resolver_project(
+            obra_nome=obra_nome, usuario_wa=usuario_wa,
+        )
+        obra_g = _obra_gestao_por_project(project)
+        if obra_g:
+            qs = qs.filter(obra=obra_g)
+
+    if ultimos_dias:
+        desde = timezone.localdate() - timedelta(days=ultimos_dias)
+        qs = qs.filter(data_envio__date__gte=desde)
+
+    pedidos = []
+    for w in qs[:20]:
+        motivo = '-'
+        ultima_ap = Approval.objects.filter(
+            work_order=w, decisao='reprovado',
+        ).order_by('-created_at').first()
+        if ultima_ap:
+            motivo = ultima_ap.comentario or '-'
+
+        pedidos.append({
+            'id': w.id,
+            'codigo': w.codigo,
+            'tipo': w.tipo_solicitacao,
+            'credor': w.nome_credor,
+            'obra': w.obra.nome if w.obra else '-',
+            'data_envio': (
+                str(w.data_envio.date()) if w.data_envio else '-'
+            ),
+            'motivo_reprovacao': motivo,
+            'solicitante': (
+                w.criado_por.get_full_name()
+                if w.criado_por else '-'
+            ),
+        })
+
+    return json.dumps({
+        'total': qs.count(),
+        'pedidos': pedidos,
+    }, ensure_ascii=False)
+
+
+def _filtrar_itens_insumo(qs, termo: str):
+    return qs.filter(
+        Q(insumo__descricao__icontains=termo)
+        | Q(insumo__codigo_sienge__icontains=termo),
+    )
+
+
+def localizar_insumo(
+    insumo_nome, obra_nome=None, obra_id=None,
+    usuario_wa=None,
+) -> str:
+    from django.db.models import Sum
+
+    from suprimentos.models import ItemMapa
+
+    qs = ItemMapa.objects.select_related(
+        'insumo', 'obra', 'local_aplicacao',
+    )
+    qs = _filtrar_itens_insumo(qs, insumo_nome)
+
+    if obra_nome or obra_id:
+        obra = _resolver_obra_mapa(
+            obra_nome=obra_nome, obra_id=obra_id,
+            usuario_wa=usuario_wa,
+        )
+        if obra:
+            qs = qs.filter(obra=obra)
+        else:
+            return json.dumps(
+                {'erro': 'Obra não encontrada.'},
+                ensure_ascii=False,
+            )
+    else:
+        qs = qs.filter(obra__in=_get_escopo_obras(usuario_wa))
+
+    if not qs.exists():
+        qs = ItemMapa.objects.select_related(
+            'insumo', 'obra', 'local_aplicacao',
+        ).filter(obra__in=_get_escopo_obras(usuario_wa))
+        qs = _filtrar_itens_insumo(qs, insumo_nome)
+        if obra_nome or obra_id:
+            obra = _resolver_obra_mapa(
+                obra_nome=obra_nome, obra_id=obra_id,
+                usuario_wa=usuario_wa,
+            )
+            if obra:
+                qs = qs.filter(obra=obra)
+
+    resultados = []
+    for item in qs[:15]:
+        total_alocado = (
+            item.alocacoes.aggregate(
+                total=Sum('quantidade_alocada'),
+            )['total'] or 0
+        )
+        resultados.append({
+            'insumo': item.insumo.descricao if item.insumo else '-',
+            'codigo': (
+                item.insumo.codigo_sienge if item.insumo else '-'
+            ),
+            'obra': item.obra.nome if item.obra else '-',
+            'local': (
+                item.local_aplicacao.nome
+                if item.local_aplicacao else '-'
+            ),
+            'qtd_planejada': float(item.quantidade_planejada or 0),
+            'qtd_alocada': float(total_alocado),
+            'numero_sc': item.numero_sc or '-',
+            'numero_pc': item.numero_pc or '-',
+            'status_etapa': item.status_etapa or '-',
+            'status_css': item.status_css or '-',
+        })
+
+    return json.dumps({
+        'total_encontrados': len(resultados),
+        'insumo_buscado': insumo_nome,
+        'itens': resultados,
+    }, ensure_ascii=False)
+
+
+def consultar_suprimentos_por_local(
+    obra_nome=None, local_nome=None,
+    obra_id=None, usuario_wa=None,
+) -> str:
+    from mapa_obras.models import LocalObra
+    from suprimentos.services.local_mapa_relatorio_service import (
+        LocalMapaRelatorioService,
+        find_local_obra,
+    )
+
+    obra = _resolver_obra_mapa(
+        obra_nome=obra_nome, obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not obra:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    service = LocalMapaRelatorioService(obra)
+    local = None
+    if local_nome:
+        local = find_local_obra(obra, texto_usuario=local_nome)
+        if not local:
+            local = LocalObra.objects.filter(
+                obra=obra, nome__icontains=local_nome,
+            ).first()
+
+    try:
+        if local:
+            payload = service.build_facts_for_local(local)
+        else:
+            snapshots = service.build_snapshots_por_local()
+            payload = {
+                'total_locais': len(snapshots),
+                'locais': [
+                    {
+                        'nome': s.nome,
+                        'tipo': s.tipo,
+                        'total': s.total,
+                        'pendentes': s.pendentes,
+                        'entregues': s.entregues,
+                        'sem_sc': s.sem_sc,
+                        'sem_pc': s.sem_pc,
+                        'atrasados': s.atrasados,
+                        'saude_score': s.saude_score,
+                    }
+                    for s in snapshots.values()
+                ],
+            }
+        return json.dumps({
+            'obra': obra.nome,
+            'local': local.nome if local else (local_nome or 'todos'),
+            'resumo': payload,
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({'erro': str(e)}, ensure_ascii=False)
+
+
+def consultar_mapa_controle_completo(
+    obra_nome=None, obra_id=None,
+    detalhar_blocos=True, usuario_wa=None,
+) -> str:
+    from painel_operacional.models import (
+        AmbienteOperacional,
+        AmbienteTipo,
+        AmbienteVersao,
+    )
+    from suprimentos.services.analise_obra_service import AnaliseObraService
+
+    obra = _resolver_obra_mapa(
+        obra_nome=obra_nome, obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not obra:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    ambientes = AmbienteOperacional.objects.filter(
+        obra=obra,
+        tipo=AmbienteTipo.MAPA_CONTROLE,
+    ).order_by('-updated_at')
+
+    if not ambientes.exists():
+        return json.dumps({
+            'obra': obra.nome,
+            'erro': 'Nenhum mapa de controle encontrado.',
+        }, ensure_ascii=False)
+
+    resultado_ambientes = []
+    for amb in ambientes:
+        versao = AmbienteVersao.objects.filter(
+            ambiente=amb,
+        ).order_by('-numero').first()
+
+        resultado_ambientes.append({
+            'id': amb.id,
+            'nome': amb.nome,
+            'ativo': amb.ativo,
+            'ultima_atualizacao': (
+                str(amb.updated_at.date()) if amb.updated_at else '-'
+            ),
+            'versao': versao.numero if versao else '-',
+            'versao_estado': versao.estado if versao else '-',
+        })
+
+    controle_kpis = {}
+    progresso_blocos = []
+    try:
+        service = AnaliseObraService(obra)
+        secao = service.build_section('controle')
+        controle_kpis = secao or {}
+        if detalhar_blocos and secao:
+            controle = secao.get('controle', {})
+            kpis = controle.get('kpis', {}) if isinstance(controle, dict) else {}
+            progresso_blocos = kpis.get('progresso_blocos', [])
+    except Exception:
+        pass
+
+    return json.dumps({
+        'obra': obra.nome,
+        'ambientes': resultado_ambientes,
+        'ambiente_mais_recente': (
+            resultado_ambientes[0] if resultado_ambientes else None
+        ),
+        'kpis_controle': controle_kpis,
+        'progresso_blocos': progresso_blocos if detalhar_blocos else [],
+    }, ensure_ascii=False, default=str)
+
+
+def consultar_bi_obra(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    from suprimentos.services.analise_obra_service import AnaliseObraService
+
+    obra = _resolver_obra_mapa(
+        obra_nome=obra_nome, obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not obra:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    try:
+        service = AnaliseObraService(obra)
+        payload = service.build_payload()
+        bi = {
+            chave: payload.get(chave)
+            for chave in (
+                'meta', 'controle', 'suprimentos', 'diario',
+                'gestcontroll', 'restricoes', 'trackhub', 'cruzamento',
+            )
+        }
+        return json.dumps({
+            'obra': obra.nome,
+            'bi': bi,
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({'erro': str(e)}, ensure_ascii=False)
+
+
+def consultar_restricoes_por_responsavel(
+    responsavel_nome, obra_nome=None,
+    incluir_concluidas=False, usuario_wa=None,
+) -> str:
+    from django.contrib.auth import get_user_model
+
+    from impedimentos.models import Impedimento, StatusImpedimento
+
+    User = get_user_model()
+
+    usuarios = User.objects.filter(
+        Q(first_name__icontains=responsavel_nome)
+        | Q(last_name__icontains=responsavel_nome)
+        | Q(username__icontains=responsavel_nome),
+    )
+
+    if not usuarios.exists():
+        return json.dumps({
+            'erro': f'Responsável "{responsavel_nome}" não encontrado.',
+        }, ensure_ascii=False)
+
+    qs = Impedimento.objects.filter(
+        responsaveis__in=usuarios,
+        parent__isnull=True,
+    ).select_related('obra', 'status').distinct()
+
+    if obra_nome:
+        obra = _resolver_obra_gestao(
+            obra_nome=obra_nome, usuario_wa=usuario_wa,
+        )
+        if obra:
+            qs = qs.filter(obra=obra)
+
+    if not incluir_concluidas:
+        final_ids = []
+        for obra_id in qs.values_list('obra_id', flat=True).distinct():
+            status_final = StatusImpedimento.objects.filter(
+                obra_id=obra_id,
+            ).order_by('-ordem').first()
+            if status_final:
+                final_ids.append(status_final.id)
+        if final_ids:
+            qs = qs.exclude(status_id__in=final_ids)
+
+    hoje = timezone.localdate()
+    resultados = []
+    for imp in qs[:20]:
+        resultados.append({
+            'id': imp.id,
+            'titulo': imp.titulo,
+            'prioridade': imp.prioridade,
+            'obra': imp.obra.nome if imp.obra else '-',
+            'status': (
+                imp.status.nome if imp.status else '-'
+            ),
+            'prazo': str(imp.prazo) if imp.prazo else '-',
+            'vencida': imp.prazo < hoje if imp.prazo else False,
+        })
+
+    return json.dumps({
+        'responsavel': responsavel_nome,
+        'total': qs.count(),
+        'restricoes': resultados,
+    }, ensure_ascii=False)
+
+
+def consultar_pendencias_por_responsavel(
+    responsavel_nome, obra_nome=None,
+    incluir_concluidas=False, usuario_wa=None,
+) -> str:
+    from django.contrib.auth import get_user_model
+
+    from trackhub.models import Pendencia
+
+    User = get_user_model()
+
+    usuarios = User.objects.filter(
+        Q(first_name__icontains=responsavel_nome)
+        | Q(last_name__icontains=responsavel_nome)
+        | Q(username__icontains=responsavel_nome),
+    )
+
+    if not usuarios.exists():
+        return json.dumps({
+            'erro': f'Responsável "{responsavel_nome}" não encontrado.',
+        }, ensure_ascii=False)
+
+    qs = Pendencia.objects.filter(
+        responsavel_interno__in=usuarios,
+    ).select_related('obra')
+
+    if not incluir_concluidas:
+        qs = qs.exclude(status__in=['concluida', 'cancelada'])
+
+    if obra_nome:
+        obra = _resolver_obra_mapa(
+            obra_nome=obra_nome, usuario_wa=usuario_wa,
+        )
+        if obra:
+            qs = qs.filter(obra=obra)
+
+    hoje = timezone.localdate()
+    resultados = []
+    for p in qs[:20]:
+        resultados.append({
+            'id': p.id,
+            'titulo': p.titulo,
+            'tipo': p.tipo,
+            'status': p.status,
+            'obra': p.obra.nome if p.obra else '-',
+            'prazo': str(p.prazo) if p.prazo else '-',
+            'vencida': p.prazo < hoje if p.prazo else False,
+        })
+
+    return json.dumps({
+        'responsavel': responsavel_nome,
+        'total': qs.count(),
+        'pendencias': resultados,
+    }, ensure_ascii=False)
+
+
+def consultar_etapas_pendencia(
+    pendencia_id=None, pendencia_titulo=None,
+    obra_nome=None, usuario_wa=None,
+) -> str:
+    from trackhub.models import EtapaPendencia, Pendencia
+
+    if pendencia_id:
+        try:
+            pendencia = Pendencia.objects.select_related(
+                'obra',
+            ).get(id=pendencia_id)
+        except Pendencia.DoesNotExist:
+            return json.dumps(
+                {'erro': 'Pendência não encontrada.'},
+                ensure_ascii=False,
+            )
+    elif pendencia_titulo:
+        qs = Pendencia.objects.filter(
+            titulo__icontains=pendencia_titulo,
+        ).select_related('obra')
+        if obra_nome:
+            obra = _resolver_obra_mapa(
+                obra_nome=obra_nome, usuario_wa=usuario_wa,
+            )
+            if obra:
+                qs = qs.filter(obra=obra)
+        pendencia = qs.first()
+        if not pendencia:
+            return json.dumps(
+                {'erro': 'Pendência não encontrada.'},
+                ensure_ascii=False,
+            )
+    else:
+        return json.dumps(
+            {'erro': 'Informe o ID ou título da pendência.'},
+            ensure_ascii=False,
+        )
+
+    etapas = []
+    hoje = timezone.localdate()
+    for et in EtapaPendencia.objects.filter(
+        pendencia=pendencia,
+    ).select_related('responsavel_interno').order_by('ordem'):
+        concluida = et.status == 'concluida'
+        prazo = et.prazo
+        etapas.append({
+            'ordem': et.ordem,
+            'titulo': et.titulo,
+            'concluida': concluida,
+            'status': et.status,
+            'responsavel': (
+                et.responsavel_interno.get_full_name()
+                if et.responsavel_interno else '-'
+            ),
+            'prazo': str(prazo) if prazo else '-',
+            'vencida': (
+                prazo < hoje and not concluida if prazo else False
+            ),
+        })
+
+    total = len(etapas)
+    concluidas = sum(1 for e in etapas if e['concluida'])
+
+    return json.dumps({
+        'pendencia': pendencia.titulo,
+        'obra': pendencia.obra.nome if pendencia.obra else '-',
+        'status': pendencia.status,
+        'total_etapas': total,
+        'concluidas': concluidas,
+        'pendentes': total - concluidas,
+        'etapas': etapas,
+    }, ensure_ascii=False)
+
+
 FUNCOES_DISPONIVEIS = {
     'consultar_rdos_pendentes': consultar_rdos_pendentes,
     'consultar_pedidos_pendentes': consultar_pedidos_pendentes,
@@ -965,6 +2844,25 @@ FUNCOES_DISPONIVEIS = {
     'consultar_execucao_fisica_obra': consultar_execucao_fisica_obra,
     'resumo_obra': resumo_obra,
     'buscar_pdf_rdo': buscar_pdf_rdo,
+    'consultar_usuarios': consultar_usuarios,
+    'consultar_dados_obra': consultar_dados_obra,
+    'consultar_modulos_sistema': consultar_modulos_sistema,
+    'consultar_rdos_por_periodo': consultar_rdos_por_periodo,
+    'consultar_detalhes_rdo': consultar_detalhes_rdo,
+    'consultar_aprovadores_obra': consultar_aprovadores_obra,
+    'consultar_rdos_por_responsavel': consultar_rdos_por_responsavel,
+    'consultar_pedidos_filtrados': consultar_pedidos_filtrados,
+    'consultar_status_pedido': consultar_status_pedido,
+    'consultar_desempenho_equipe_gest': consultar_desempenho_equipe_gest,
+    'buscar_pdf_pedido': buscar_pdf_pedido,
+    'consultar_pedidos_reprovados': consultar_pedidos_reprovados,
+    'localizar_insumo': localizar_insumo,
+    'consultar_suprimentos_por_local': consultar_suprimentos_por_local,
+    'consultar_mapa_controle_completo': consultar_mapa_controle_completo,
+    'consultar_bi_obra': consultar_bi_obra,
+    'consultar_restricoes_por_responsavel': consultar_restricoes_por_responsavel,
+    'consultar_pendencias_por_responsavel': consultar_pendencias_por_responsavel,
+    'consultar_etapas_pendencia': consultar_etapas_pendencia,
 }
 
 
