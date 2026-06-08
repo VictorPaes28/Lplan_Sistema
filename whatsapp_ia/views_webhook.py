@@ -203,20 +203,21 @@ def _processar_acao_pdf(
     """
     try:
         dados = json.loads(resposta_ia)
-        if dados.get('acao') == 'enviar_pdf_rdo':
+    except json.JSONDecodeError:
+        return False, resposta_ia
+
+    acao = dados.get('acao')
+
+    if acao == 'enviar_pdf_rdo':
+        try:
             diary_id = dados['diary_id']
             obra = dados['obra']
             data = dados['data']
 
-            from core.models import ConstructionDiary
             from core.utils.pdf_generator import PDFGenerator, get_rdo_pdf_filename
 
-            diary = ConstructionDiary.objects.select_related(
-                'project'
-            ).get(id=diary_id)
-
             pdf_buffer = PDFGenerator.generate_diary_pdf(
-                diary_id, pdf_type='normal'
+                diary_id, pdf_type='normal',
             )
             if not pdf_buffer:
                 return False, (
@@ -224,11 +225,16 @@ def _processar_acao_pdf(
                     f'da obra {obra} em {data}.'
                 )
 
+            from core.models import ConstructionDiary
+
+            diary = ConstructionDiary.objects.select_related(
+                'project',
+            ).get(id=diary_id)
             filename = get_rdo_pdf_filename(diary.project, diary.date)
             caption = f'RDO — {obra} — {data}'
 
             enviado = _enviar_documento_whatsapp(
-                telefone, pdf_buffer, filename, caption
+                telefone, pdf_buffer, filename, caption,
             )
             if enviado:
                 return True, f'PDF do RDO enviado: {obra} — {data}'
@@ -236,8 +242,54 @@ def _processar_acao_pdf(
                 'Não consegui enviar o PDF agora. '
                 'Tente novamente.'
             )
-    except (json.JSONDecodeError, KeyError, Exception):
-        pass
+        except (KeyError, Exception):
+            logger.exception('Erro ao processar PDF do RDO')
+            return False, 'Não consegui gerar o PDF do RDO agora.'
+
+    if acao == 'enviar_pdf_pedido':
+        try:
+            pedido_id = dados['pedido_id']
+            codigo = dados.get('codigo', str(pedido_id))
+            obra = dados.get('obra', '')
+
+            from django.contrib.auth.models import AnonymousUser
+            from django.test import RequestFactory
+
+            from gestao_aprovacao.models import WorkOrder
+            from gestao_aprovacao.views import exportar_snapshot_workorder_pdf
+
+            workorder = WorkOrder.objects.select_related(
+                'obra',
+            ).get(id=pedido_id)
+
+            factory = RequestFactory()
+            request = factory.get(
+                f'/pedidos/{pedido_id}/exportar-pdf/',
+            )
+            request.user = (
+                workorder.criado_por
+                if workorder.criado_por
+                else AnonymousUser()
+            )
+
+            response = exportar_snapshot_workorder_pdf(
+                request, pk=pedido_id,
+            )
+
+            if response.status_code == 200:
+                pdf_bytes = response.content
+                filename = f'Pedido_{codigo}.pdf'.replace('/', '-')
+                caption = f'Pedido {codigo} — {obra}'
+                enviado = _enviar_documento_whatsapp(
+                    telefone, pdf_bytes, filename, caption,
+                )
+                if enviado:
+                    return True, f'PDF do pedido {codigo} enviado.'
+            return False, 'Não consegui gerar o PDF do pedido.'
+        except Exception:
+            logger.exception('Erro ao processar PDF do pedido')
+            return False, 'Não consegui gerar o PDF do pedido agora.'
+
     return False, resposta_ia
 
 
