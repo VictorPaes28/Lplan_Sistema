@@ -7,7 +7,7 @@ from typing import Any
 from django.db.models import Q, Sum
 
 from mapa_obras.models import LocalObra, Obra
-from suprimentos.models import ItemMapa
+from suprimentos.models import ItemMapa, RecebimentoObra
 
 
 @dataclass
@@ -100,8 +100,21 @@ class MapaControleService:
             return item.status_etapa == "ENTREGUE"
         return True
 
+    def _attach_recebimentos_obra_cache(self, items: list[ItemMapa]) -> None:
+        """Uma query por lista — evita N× RecebimentoObra.filter(obra=...) em recebimento_vinculado."""
+        if not items:
+            return
+        recs = list(
+            RecebimentoObra.objects.filter(obra=self.obra)
+            .select_related("insumo")
+            .prefetch_related("alocacoes")
+        )
+        for item in items:
+            item._recebimentos_obra_cache = recs
+
     def _filtered_items(self) -> list[ItemMapa]:
         items = list(self._base_queryset())
+        self._attach_recebimentos_obra_cache(items)
         if self.filters.status:
             items = [i for i in items if self._matches_status(i, self.filters.status)]
         return items

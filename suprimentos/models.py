@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.utils import timezone
+from django.utils.functional import cached_property
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 from mapa_obras.models import Obra, LocalObra
@@ -501,7 +502,7 @@ class ItemMapa(models.Model):
     # PROPRIEDADES CALCULADAS - NOVA ARQUITETURA
     # =========================================================================
     
-    @property
+    @cached_property
     def recebimento_vinculado(self):
         """
         Busca o RecebimentoObra vinculado a este item pela SC + Insumo.
@@ -853,7 +854,7 @@ class ItemMapa(models.Model):
         """Verifica se alocado > planejado."""
         return self.quantidade_alocada_local > self.quantidade_planejada and self.quantidade_planejada > 0
 
-    @property
+    @cached_property
     def status_css(self):
         """
         Lógica de cores do status (sincronizada com status_etapa):
