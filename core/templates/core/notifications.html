@@ -1,646 +1,593 @@
 {% extends 'base.html' %}
+{% load core_tags %}
 
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block page_title %}Notificações{% endblock %}
 {% block page_subtitle %}Alertas e atualizações do sistema{% endblock %}
-
-{% block wrapper_extra_class %} main-content-wrapper--notif-full{% endblock %}
-{% block main_extra_class %} main-content--notifications-full{% endblock %}
+{% block main_extra_class %} main-content--notifications{% endblock %}
 
 {% block extra_css %}
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* base.css (≥1280px) centra .main-content em max-width:1400px — esta página usa a largura útil toda */
-@media (min-width: 1280px) {
-  main.main-content.main-content--notifications-full {
-    max-width: none !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    width: 100% !important;
-  }
+/* Variáveis GestControll (mesmas de base.html / list_workorders) */
+:root {
+  --primary-color: #3498db;
+  --primary-dark: #2980b9;
+  --light-bg: #F4F6F8;
+  --card-bg: #FFFFFF;
+  --border-color: #EBEBEB;
+  --text-color: #1a202c;
+  --text-muted: #718096;
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --radius-sm: 6px;
+  --radius-md: 8px;
 }
-@media (min-width: 768px) {
-  .main-content-wrapper.main-content-wrapper--notif-full {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    box-sizing: border-box;
-  }
-  .main-content.main-content--notifications-full {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex !important;
-    flex-direction: column !important;
-  }
+
+/* Toolbar full-bleed colada ao header (sem gap, borda do header como separador) */
+.main-content--notifications > .top-bar-container:first-child {
+  margin-bottom: 0 !important;
 }
-/* Remove padding horizontal duplicado do main nesta página; o recuo fica em .notif-page-v2 */
-.main-content.main-content--notifications-full > *:not(.top-bar-container) {
+
+.main-content--notifications > .notif-layout {
   padding-left: 0 !important;
   padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
 }
 
-.notif-page-v2 {
+.notif-layout {
   width: 100%;
-  max-width: none;
-  margin: 0;
-  flex: 1 1 auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  padding-left: 1rem;
-  padding-right: 1rem;
-  font-family: 'Sora', sans-serif;
-  color: #1e293b;
-  background: #f8fafc;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text-color);
+  background: var(--light-bg);
 }
+
+/* Faixa de filtros — largura total da área de conteúdo (respeita sidebar) */
+.notif-toolbar-wrap {
+  width: 100%;
+  flex-shrink: 0;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  box-sizing: border-box;
+}
+
+/* Lista centralizada — coluna única max 900px */
+.notif-page {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2rem;
+  box-sizing: border-box;
+}
+
 @media (min-width: 768px) {
-  .notif-page-v2 {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+  .notif-page {
+    padding: 1.25rem 1.5rem 2rem;
   }
 }
-@media (min-width: 1024px) {
-  .notif-page-v2 {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
-}
-.notif-v2-row {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  gap: 0;
-  overflow: hidden;
-}
 
-/* LEFT PANEL — filtros (gabarito notificacoes_v2) */
-.filters-panel {
-  width: 280px;
-  min-width: 280px;
-  background: #fff;
-  border-right: 1px solid #e2e8f0;
-  padding: 24px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-.filters-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  margin-bottom: 2px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.stat-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 12px 14px;
-}
-.stat-num {
-  font-size: 22px;
-  font-weight: 800;
-  color: #0f172a;
-  font-family: 'JetBrains Mono', monospace;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-.stat-num.highlight {
-  color: #2563eb;
-}
-.stat-label {
-  font-size: 10.5px;
-  color: #94a3b8;
-  font-weight: 500;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.filter-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-}
-.filter-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-.filter-select {
-  width: 100%;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1.5px solid #e2e8f0;
-  font-size: 13px;
-  font-family: 'Sora', sans-serif;
-  color: #374151;
-  background: #fff;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 30px;
-}
-.filter-select:focus {
-  outline: none;
-  border-color: #2563eb;
-}
-
-.filter-btn {
-  width: 100%;
-  padding: 9px;
-  border-radius: 8px;
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Sora', sans-serif;
+/* Barra de filtros horizontal */
+.notif-toolbar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: opacity 0.2s;
-}
-.filter-btn:hover {
-  opacity: 0.88;
-}
-.filter-clear {
+  gap: 0.75rem;
+  flex-wrap: wrap;
   width: 100%;
-  padding: 8px;
-  border-radius: 8px;
-  background: transparent;
-  color: #64748b;
-  border: 1.5px solid #e2e8f0;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Sora', sans-serif;
-  transition: all 0.2s;
-  box-sizing: border-box;
-  text-align: center;
-  text-decoration: none;
-  display: block;
-}
-.filter-clear:hover {
-  border-color: #94a3b8;
-  color: #374151;
-}
-
-.tipo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.tipo-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #374151;
-  text-decoration: none;
-}
-.tipo-item:hover {
-  background: #f8fafc;
-}
-.tipo-item.active {
-  background: #eff6ff;
-  color: #2563eb;
-  font-weight: 600;
-}
-.tipo-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.tipo-count {
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
-  color: #94a3b8;
-}
-.tipo-item.active .tipo-count {
-  color: #2563eb;
-}
-
-.marcar-todas-form {
+  padding: 0.65rem 1rem;
   margin: 0;
-}
-.marcar-todas {
-  width: 100%;
-  padding: 9px;
-  border-radius: 8px;
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1.5px solid #86efac;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Sora', sans-serif;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-.marcar-todas:hover {
-  background: #dcfce7;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
 }
 
-/* MAIN — lista */
-.notif-main {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  overflow-y: auto;
-  padding: 24px 32px;
-}
-.notif-main::-webkit-scrollbar {
-  width: 4px;
-}
-.notif-main::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 99px;
+@media (min-width: 768px) {
+  .notif-toolbar {
+    padding: 0.65rem 1.5rem;
+  }
 }
 
-.notif-header {
+.notif-toolbar-count {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.notif-toolbar-count strong {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.notif-toolbar-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  gap: 12px;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.notif-toolbar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   flex-wrap: wrap;
 }
-.notif-header-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.notif-header-count {
-  font-size: 12px;
-  color: #94a3b8;
-}
 
-.notif-empty {
-  text-align: center;
-  padding: 60px 20px;
-  color: #94a3b8;
-}
-.notif-empty .fas {
-  font-size: 40px;
-  margin: 0 auto 12px;
-  opacity: 0.4;
-  display: block;
-}
-.notif-empty-title {
-  font-size: 14px;
+.notif-tab {
+  padding: 0.34rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: #64748b;
-  margin-bottom: 4px;
+  text-decoration: none;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
-/* NOTIF ITEM */
-.notif-item {
-  background: #fff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 16px 18px;
-  margin-bottom: 10px;
+.notif-tab:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.notif-tab.active {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
+.notif-tab.active--unread {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.notif-tab.active--read {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.notif-toolbar-actions {
   display: flex;
-  gap: 14px;
-  transition: all 0.2s;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.notif-type-form {
+  margin: 0;
+}
+
+.notif-type-select {
+  font-family: 'Inter', inherit;
+  font-size: 0.8125rem;
+  padding: 0.34rem 1.75rem 0.34rem 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-color);
   cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  max-width: 11rem;
+}
+
+.notif-type-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.notif-markall-form {
+  margin: 0;
+}
+
+.notif-markall-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: 'Inter', inherit;
+  color: #334155;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.notif-markall-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+/* Separador de data */
+.notif-day-sep {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 1rem 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.notif-day-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.notif-day-sep:first-child {
+  margin-top: 0;
+}
+
+/* Lista */
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* Card compacto — grid; não lidas e lidas com colunas distintas */
+.notif-row {
+  display: grid;
+  column-gap: 0.55rem;
+  align-items: center;
+  padding: 7px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  font-size: 13px;
+  transition: border-color 0.15s;
   position: relative;
-  overflow: hidden;
+  min-width: 0;
 }
-.notif-item:hover {
-  border-color: #c7d2fe;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
+
+/* Não lidas — badge e ações em colunas fixas (layout original) */
+.notif-row.unread {
+  grid-template-columns:
+    24px
+    minmax(0, 2fr)
+    minmax(0, 1.5fr)
+    10.5rem
+    9.75rem
+    2.35rem
+    0.5rem;
 }
-.notif-item.unread {
-  border-color: #bfdbfe;
-  background: #fafcff;
+
+/* Lidas — coluna de tipo fixa, início alinhado entre todas as linhas */
+.notif-row:not(.unread) {
+  grid-template-columns:
+    24px
+    minmax(0, 2fr)
+    minmax(0, 1.5fr)
+    10.5rem
+    auto
+    2.35rem
+    0.5rem;
 }
-.notif-item.unread::before {
+
+.notif-row:hover {
+  border-color: #d1d9e0;
+}
+
+.notif-row.unread {
+  background: rgba(52, 152, 219, 0.04);
+  border-color: #d6e8f5;
+}
+
+.notif-row.unread::before {
   content: '';
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: #2563eb;
-  border-radius: 99px 0 0 99px;
+  width: 2.5px;
+  background: var(--primary-color);
+  border-radius: 5px 0 0 5px;
 }
 
+/* Ícone 24px */
 .notif-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  grid-column: 1;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-}
-.notif-icon .fas {
-  font-size: 1.05rem;
-  line-height: 1;
-}
-.notif-icon.pedido {
-  background: #faf5ff;
-  color: #7c3aed;
-}
-.notif-icon.aprovado {
-  background: #f0fdf4;
-  color: #16a34a;
-}
-.notif-icon.reprovado {
-  background: #fef2f2;
-  color: #ef4444;
-}
-.notif-icon.sistema {
-  background: #f8fafc;
-  color: #64748b;
-}
-.notif-icon.trackhub {
-  background: #f0fdfa;
-  color: #0d9488;
-}
-.notif-icon.rdo {
-  background: #eff6ff;
-  color: #2563eb;
-}
-.notif-icon.pedido-reenviado {
-  background: #fffbeb;
-  color: #d97706;
-}
-.notif-icon.pedido-atualizado {
-  background: #f0f9ff;
-  color: #0284c7;
-}
-.notif-icon.pedido-exclusao-sol {
-  background: #fffbeb;
-  color: #ca8a04;
 }
 
-.notif-body {
-  flex: 1;
-  min-width: 0;
+.notif-icon .fas {
+  font-size: 0.7rem;
+  line-height: 1;
 }
-/* Bolinha absoluta no canto do card — reservar espaço para o horário (.notif-date) não colidir */
-.notif-item.unread .notif-body {
-  padding-right: 28px;
-}
-.notif-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
+
+.notif-icon.pedido { background: #f5f3ff; color: #7c3aed; }
+.notif-icon.aprovado { background: #f0fdf4; color: #16a34a; }
+.notif-icon.reprovado { background: #fef2f2; color: #ef4444; }
+.notif-icon.sistema { background: #f8fafc; color: #64748b; }
+.notif-icon.trackhub { background: #f0fdfa; color: #0d9488; }
+.notif-icon.rdo { background: #eff6ff; color: #2563eb; }
+.notif-icon.pedido-reenviado { background: #fffbeb; color: #d97706; }
+.notif-icon.pedido-atualizado { background: #f0f9ff; color: #0284c7; }
+.notif-icon.pedido-exclusao-sol { background: #fffbeb; color: #ca8a04; }
+
 .notif-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.4;
-  margin: 0;
-  flex: 1;
+  grid-column: 2;
   min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.notif-item.unread .notif-title {
+
+.notif-row.unread .notif-title {
   color: #1e3a8a;
 }
-.notif-date {
-  font-size: 10.5px;
-  color: #94a3b8;
-  font-family: 'JetBrains Mono', monospace;
+
+.notif-summary {
+  grid-column: 3;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
   white-space: nowrap;
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+/* Badge pill — neutro (cor só no ícone) */
 .notif-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  font-size: 10px;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-.notif-badge.pedido {
-  background: #faf5ff;
-  color: #7c3aed;
-}
-.notif-badge.aprovado {
-  background: #f0fdf4;
-  color: #16a34a;
-}
-.notif-badge.reprovado {
-  background: #fef2f2;
-  color: #ef4444;
-}
-.notif-badge.sistema {
+  padding: 0.12rem 0.45rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  white-space: nowrap;
   background: #f8fafc;
-  color: #64748b;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
-.notif-badge.trackhub {
-  background: #f0fdfa;
-  color: #0d9488;
+
+.notif-row.unread .notif-badge {
+  grid-column: 4;
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
 }
-.notif-badge.pedido-reenviado {
-  background: #fffbeb;
-  color: #d97706;
+
+.notif-badge-slot {
+  grid-column: 4;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
 }
-.notif-badge.pedido-atualizado {
-  background: #f0f9ff;
-  color: #0284c7;
-}
-.notif-badge.pedido-exclusao-sol {
-  background: #fffbeb;
-  color: #b45309;
-}
-.notif-badge.rdo {
-  background: #eff6ff;
-  color: #2563eb;
-}
-.notif-msg {
-  font-size: 12.5px;
-  color: #64748b;
-  line-height: 1.5;
-  margin-bottom: 10px;
-  white-space: pre-wrap;
-}
+
+/* Ações compactas */
 .notif-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
-.btn-abrir {
+
+.notif-row.unread .notif-actions {
+  grid-column: 5;
+  justify-content: flex-end;
+}
+
+.notif-row:not(.unread) .notif-actions {
+  grid-column: 5;
+  justify-content: flex-start;
+}
+
+.btn-ver {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 7px;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
   background: #eff6ff;
-  color: #2563eb;
+  color: var(--primary-color);
   border: 1px solid #bfdbfe;
-  font-size: 11.5px;
+  font-size: 0.6875rem;
   font-weight: 600;
-  cursor: pointer;
-  font-family: 'Sora', sans-serif;
+  font-family: 'Inter', inherit;
   text-decoration: none;
-  transition: all 0.2s;
+  white-space: nowrap;
+  transition: background 0.15s;
 }
-.btn-abrir:hover {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
+
+.btn-ver:hover {
+  background: #dbeafe;
 }
-.btn-abrir .fas {
-  font-size: 11px;
-}
+
 .btn-lida {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 7px;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
   background: transparent;
-  color: #94a3b8;
-  border: 1px solid #e2e8f0;
-  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  font-size: 0.6875rem;
   font-weight: 600;
   cursor: pointer;
-  font-family: 'Sora', sans-serif;
-  transition: all 0.2s;
+  font-family: 'Inter', inherit;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
 }
+
 .btn-lida:hover {
-  border-color: #94a3b8;
-  color: #374151;
+  border-color: #cbd5e1;
+  color: #334155;
 }
-.notif-unread-dot {
-  position: absolute;
-  top: 16px;
-  right: 18px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #2563eb;
-  flex-shrink: 0;
-}
+
 .form-lida-inline {
   margin: 0;
   display: inline;
 }
 
-/* PAGINAÇÃO */
+.notif-time {
+  grid-column: 6;
+  font-size: 0.6875rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  text-align: right;
+  justify-self: end;
+}
+
+.notif-unread-dot {
+  grid-column: 7;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  justify-self: center;
+}
+
+/* Estado vazio */
+.notif-empty {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.notif-empty .fas {
+  font-size: 2rem;
+  margin: 0 auto 0.75rem;
+  opacity: 0.4;
+  display: block;
+  color: #cbd5e1;
+}
+
+.notif-empty-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Paginação */
 .pagination {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #f1f5f9;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
 }
+
 .page-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1.5px solid #e2e8f0;
-  background: #fff;
-  color: #374151;
-  font-size: 13px;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: #334155;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Sora', sans-serif;
-  transition: all 0.2s;
+  font-family: 'Inter', inherit;
   text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
 }
+
 .page-btn:hover {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
+
 .page-btn .fas {
-  font-size: 14px;
+  font-size: 0.75rem;
 }
+
 .page-indicator {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: #64748b;
-  padding: 0 8px;
+  color: var(--text-muted);
+  padding: 0 0.5rem;
 }
 
-/* DATA GROUP */
-.notif-group-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  margin: 20px 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.notif-group-label::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: #f1f5f9;
-}
-.notif-header + .notif-group-label {
-  margin-top: 0;
-}
-
-@media (max-width: 900px) {
-  .notif-v2-row {
+@media (max-width: 768px) {
+  .notif-toolbar {
     flex-direction: column;
-    overflow: visible;
+    align-items: stretch;
   }
-  .filters-panel {
-    width: 100%;
-    min-width: 0;
-    border-right: none;
-    border-bottom: 1px solid #e2e8f0;
+
+  .notif-toolbar-right {
+    margin-left: 0;
+    flex-direction: column;
+    align-items: stretch;
   }
-  .notif-main {
-    overflow-y: visible;
+
+  .notif-toolbar-tabs {
+    justify-content: flex-start;
+  }
+
+  .notif-toolbar-actions {
+    flex-wrap: wrap;
+  }
+
+  .notif-type-select {
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .notif-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+    row-gap: 0.3rem;
+  }
+
+  .notif-title {
+    grid-column: 2;
+  }
+
+  .notif-summary {
+    grid-column: 1 / -1;
+    padding-left: calc(24px + 0.55rem);
+  }
+
+  .notif-badge,
+  .notif-badge-slot,
+  .notif-actions,
+  .notif-time,
+  .notif-unread-dot {
+    grid-column: 1 / -1;
+  }
+
+  .notif-actions {
+    flex-wrap: wrap;
   }
 }
 </style>
@@ -648,190 +595,143 @@
 
 {% block content %}
 {% now "Y-m-d" as notif_today_iso %}
-<div class="notif-page-v2">
-  <div class="notif-v2-row">
-    <aside class="filters-panel" aria-label="Filtros e resumo">
-      <div>
-        <div class="filters-title">Resumo</div>
-        <div class="stats-row" style="margin-top: 10px;">
-          <div class="stat-card" role="status">
-            <div class="stat-num">{{ notifications.paginator.count }}</div>
-            <div class="stat-label">Nesta lista</div>
-          </div>
-          <div class="stat-card" role="status">
-            <div class="stat-num highlight">{{ unread_count }}</div>
-            <div class="stat-label">Não lidas</div>
-          </div>
-        </div>
-      </div>
+<div class="notif-layout">
 
-      {% if unread_count > 0 %}
-      <form method="post" action="{% url 'notification-mark-all-read' %}" class="marcar-todas-form">
-        {% csrf_token %}
-        <button type="submit" class="marcar-todas">
-          <i class="fas fa-check-double" aria-hidden="true"></i>
-          Marcar todas como lidas
-        </button>
-      </form>
-      {% endif %}
+  <!-- Barra horizontal de filtros — full width, colada ao header -->
+  <div class="notif-toolbar-wrap">
+  <div class="notif-toolbar" role="toolbar" aria-label="Filtros de notificações">
+    <div class="notif-toolbar-count">
+      <strong>{{ notifications.paginator.count }}</strong> notificações · <strong>{{ unread_count }}</strong> não lidas
+    </div>
 
-      <form method="get" aria-label="Filtros de notificações">
-        <div class="filter-group">
-          <div class="filter-label">Tipo</div>
-          <select name="type" class="filter-select" id="notif-filter-type">
-            <option value="" {% if not filter_type %}selected{% endif %}>Todos</option>
-            <option value="pedido_criado" {% if filter_type == 'pedido_criado' %}selected{% endif %}>Novo Pedido para Aprovar</option>
-            <option value="pedido_reenviado" {% if filter_type == 'pedido_reenviado' %}selected{% endif %}>Pedido reenviado (após reprovação)</option>
-            <option value="pedido_atualizado" {% if filter_type == 'pedido_atualizado' %}selected{% endif %}>Pedido atualizado (pendente)</option>
-            <option value="pedido_aprovado" {% if filter_type == 'pedido_aprovado' %}selected{% endif %}>Pedido Aprovado</option>
-            <option value="pedido_reprovado" {% if filter_type == 'pedido_reprovado' %}selected{% endif %}>Pedido Reprovado</option>
-            <option value="pedido_exclusao_solicitada" {% if filter_type == 'pedido_exclusao_solicitada' %}selected{% endif %}>Exclusão de pedido solicitada</option>
-            <option value="pedido_exclusao_aprovada" {% if filter_type == 'pedido_exclusao_aprovada' %}selected{% endif %}>Exclusão de pedido aprovada</option>
-            <option value="pedido_exclusao_rejeitada" {% if filter_type == 'pedido_exclusao_rejeitada' %}selected{% endif %}>Exclusão de pedido rejeitada</option>
-            <option value="rdo_pendente" {% if filter_type == 'rdo_pendente' %}selected{% endif %}>RDO Pendente</option>
-            <option value="trackhub_etapa_concluida" {% if filter_type == 'trackhub_etapa_concluida' %}selected{% endif %}>TrackHub</option>
-            <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Notificação do Sistema</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <div class="filter-label">Leitura</div>
-          <select name="read" class="filter-select" id="notif-filter-read">
-            <option value="" {% if not filter_read %}selected{% endif %}>Todas</option>
-            <option value="unread" {% if filter_read == 'unread' %}selected{% endif %}>Não lidas</option>
-            <option value="read" {% if filter_read == 'read' %}selected{% endif %}>Lidas</option>
-          </select>
-        </div>
-        <div class="filter-actions">
-          <button type="submit" class="filter-btn">
-            <i class="fas fa-filter" aria-hidden="true"></i>
-            Aplicar filtros
-          </button>
-          <a href="{% url 'notifications' %}" class="filter-clear">Limpar</a>
-        </div>
-      </form>
-
-      {% if sidebar_types %}
-      <div>
-        <div class="filter-label" style="margin-bottom: 10px;">Por tipo</div>
-        <div class="tipo-list">
-          {% for row in sidebar_types %}
-          <a href="{% url 'notifications' %}?type={{ row.slug }}{% if filter_read %}&read={{ filter_read }}{% endif %}"
-             class="tipo-item{% if filter_type == row.slug %} active{% endif %}">
-            <span class="tipo-dot" style="background: {{ row.dot }};"></span>
-            {{ row.label }}
-            <span class="tipo-count">{{ row.count }}</span>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-    </aside>
-
-    <div class="notif-main">
-      <div class="notif-header">
-        <div class="notif-header-title">
-          {% if filter_type == 'pedido_criado' %}Novo Pedido para Aprovar
-          {% elif filter_type == 'pedido_reenviado' %}Pedido reenviado para aprovação
-          {% elif filter_type == 'pedido_atualizado' %}Pedido atualizado (pendente)
-          {% elif filter_type == 'pedido_aprovado' %}Pedido Aprovado
-          {% elif filter_type == 'pedido_reprovado' %}Pedido Reprovado
-          {% elif filter_type == 'pedido_exclusao_solicitada' %}Exclusão de pedido solicitada
-          {% elif filter_type == 'pedido_exclusao_aprovada' %}Exclusão de pedido aprovada
-          {% elif filter_type == 'pedido_exclusao_rejeitada' %}Exclusão de pedido rejeitada
-          {% elif filter_type == 'pedido_comentario' %}Comentário em Pedido
-          {% elif filter_type == 'rdo_pendente' %}RDO Pendente
-          {% elif filter_type == 'rdo_aprovado' %}RDO Aprovado
-          {% elif filter_type == 'rdo_reprovado' %}RDO Reprovado
-          {% elif filter_type == 'restricao_criada' %}Nova Restrição Atribuída
-          {% elif filter_type == 'restricao_status' %}Status de Restrição Alterado
-          {% elif filter_type == 'restricao_prazo' %}Prazo de Restrição
-          {% elif filter_type == 'trackhub_etapa_concluida' %}TrackHub
-          {% elif filter_type == 'trackhub_prazo' %}Prazo TrackHub
-          {% elif filter_type == 'system' %}Notificação do Sistema
-          {% elif filter_read == 'unread' %}Não lidas
-          {% elif filter_read == 'read' %}Lidas
-          {% else %}Todas as notificações{% endif %}
-        </div>
-        <div class="notif-header-count">{{ notifications.paginator.count }} notificações · {{ unread_count }} não lidas</div>
-      </div>
-
-      {% regroup notifications by created_at|date:"Y-m-d" as notif_by_day %}
-      {% for day in notif_by_day %}
-      <div class="notif-group-label notif-day-label" data-day-iso="{{ day.grouper }}">
-        {% if day.grouper == notif_today_iso %}Hoje{% else %}{{ day.list.0.created_at|date:"d/m/Y" }}{% endif %}
-      </div>
-      {% for notification in day.list %}
-      {% with t=notification.notification_type %}
-      <div class="notif-item{% if not notification.is_read %} unread{% endif %}">
-        <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">
-          {% if t == 'pedido_criado' %}<i class="fas fa-file-alt" aria-hidden="true"></i>
-          {% elif t == 'pedido_reenviado' %}<i class="fas fa-redo-alt" aria-hidden="true"></i>
-          {% elif t == 'pedido_atualizado' %}<i class="fas fa-pen-to-square" aria-hidden="true"></i>
-          {% elif t == 'pedido_exclusao_solicitada' %}<i class="fas fa-trash-alt" aria-hidden="true"></i>
-          {% elif t == 'pedido_exclusao_aprovada' %}<i class="fas fa-check-double" aria-hidden="true"></i>
-          {% elif t == 'pedido_exclusao_rejeitada' %}<i class="fas fa-ban" aria-hidden="true"></i>
-          {% elif t == 'pedido_comentario' %}<i class="fas fa-comment" aria-hidden="true"></i>
-          {% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}<i class="fas fa-check" aria-hidden="true"></i>
-          {% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}<i class="fas fa-times" aria-hidden="true"></i>
-          {% elif t == 'rdo_pendente' %}<i class="fas fa-file-lines" aria-hidden="true"></i>
-          {% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}<i class="fas fa-crosshairs" aria-hidden="true"></i>
-          {% else %}<i class="fas fa-bell" aria-hidden="true"></i>{% endif %}
-        </div>
-        <div class="notif-body">
-          <div class="notif-top">
-            <h3 class="notif-title">{{ notification.title }}</h3>
-            <div class="notif-date">{{ notification.created_at|date:"d/m H:i" }}</div>
-          </div>
-          <span class="notif-badge {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">{{ notification.get_notification_type_display }}</span>
-          <div class="notif-msg">{{ notification.message }}</div>
-          <div class="notif-actions">
-            {% url 'notification-open' notification.pk as notif_open %}
-            {% if notification.related_url %}
-            <a href="{{ notif_open }}?next={{ notification.related_url|urlencode }}" class="btn-abrir">
-              <i class="fas fa-external-link-alt" aria-hidden="true"></i> Abrir
-            </a>
-            {% elif notification.related_diary %}
-            {% url 'diary-detail' notification.related_diary.id as diary_target %}
-            <a href="{{ notif_open }}?next={{ diary_target|urlencode }}" class="btn-abrir">
-              <i class="fas fa-external-link-alt" aria-hidden="true"></i> Ver relatório
-            </a>
-            {% endif %}
-            {% if not notification.is_read %}
-            <form method="post" action="{% url 'notification-mark-read' notification.id %}" class="form-lida-inline">
-              {% csrf_token %}
-              <button type="submit" class="btn-lida">Marcar como lida</button>
-            </form>
-            {% endif %}
-          </div>
-        </div>
-        {% if not notification.is_read %}<div class="notif-unread-dot" aria-hidden="true"></div>{% endif %}
-      </div>
-      {% endwith %}
-      {% endfor %}
-      {% empty %}
-      <div class="notif-empty">
-        <i class="fas fa-bell" aria-hidden="true"></i>
-        <p class="notif-empty-title">Nenhuma notificação encontrada.</p>
-      </div>
-      {% endfor %}
-
-      {% if notifications.has_other_pages %}
-      <nav class="pagination" aria-label="Paginação">
-        {% if notifications.has_previous %}
-        <a class="page-btn" href="?page={{ notifications.previous_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" aria-label="Página anterior">
-          <i class="fas fa-chevron-left" aria-hidden="true"></i>
-        </a>
-        {% endif %}
-        <span class="page-indicator">{{ notifications.number }} / {{ notifications.paginator.num_pages }}</span>
-        {% if notifications.has_next %}
-        <a class="page-btn" href="?page={{ notifications.next_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" aria-label="Próxima página">
-          <i class="fas fa-chevron-right" aria-hidden="true"></i>
-        </a>
-        {% endif %}
+    <div class="notif-toolbar-right">
+      <nav class="notif-toolbar-tabs" aria-label="Filtrar por leitura">
+        <a href="{% url 'notifications' %}{% if filter_type %}?type={{ filter_type }}{% endif %}"
+           class="notif-tab{% if not filter_read %} active{% endif %}">Todas</a>
+        <a href="?read=unread{% if filter_type %}&type={{ filter_type }}{% endif %}"
+           class="notif-tab{% if filter_read == 'unread' %} active active--unread{% endif %}">Não lidas ({{ unread_count }})</a>
+        <a href="?read=read{% if filter_type %}&type={{ filter_type }}{% endif %}"
+           class="notif-tab{% if filter_read == 'read' %} active active--read{% endif %}">Lidas</a>
       </nav>
-      {% endif %}
+
+      <div class="notif-toolbar-actions">
+        <form method="get" class="notif-type-form" aria-label="Filtrar por tipo">
+          {% if filter_read %}<input type="hidden" name="read" value="{{ filter_read }}">{% endif %}
+          <select name="type" class="notif-type-select" id="notif-filter-type" onchange="this.form.submit()">
+            <option value="" {% if not filter_type %}selected{% endif %}>Todos os tipos</option>
+            <option value="pedido_criado" {% if filter_type == 'pedido_criado' %}selected{% endif %}>Novo Pedido</option>
+            <option value="pedido_reenviado" {% if filter_type == 'pedido_reenviado' %}selected{% endif %}>Reenvio</option>
+            <option value="pedido_atualizado" {% if filter_type == 'pedido_atualizado' %}selected{% endif %}>Pedido editado</option>
+            <option value="pedido_exclusao_solicitada" {% if filter_type == 'pedido_exclusao_solicitada' %}selected{% endif %}>Exclusão pedido</option>
+            <option value="pedido_exclusao_aprovada" {% if filter_type == 'pedido_exclusao_aprovada' %}selected{% endif %}>Exclusão ok</option>
+            <option value="system" {% if filter_type == 'system' %}selected{% endif %}>Sistema</option>
+          </select>
+        </form>
+
+        {% if unread_count > 0 %}
+        <form method="post" action="{% url 'notification-mark-all-read' %}" class="notif-markall-form">
+          {% csrf_token %}
+          <button type="submit" class="notif-markall-btn">
+            <i class="fas fa-check-double" aria-hidden="true"></i>
+            Marcar todas como lidas
+          </button>
+        </form>
+        {% endif %}
+      </div>
     </div>
   </div>
+  </div>
+
+  <!-- Lista de notificações -->
+  <div class="notif-page">
+  <div class="notif-list">
+    {% regroup notifications by created_at|date:"Y-m-d" as notif_by_day %}
+    {% for day in notif_by_day %}
+    <div class="notif-day-sep notif-day-label" data-day-iso="{{ day.grouper }}">
+      {% if day.grouper == notif_today_iso %}Hoje{% else %}{{ day.list.0.created_at|date:"d/m/Y" }}{% endif %}
+    </div>
+    {% for notification in day.list %}
+    {% with t=notification.notification_type %}
+    <div class="notif-row{% if t != 'pedido_exclusao_solicitada' and not notification.is_read %} unread{% endif %}">
+      <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">
+        {% if t == 'pedido_criado' %}<i class="fas fa-file-alt" aria-hidden="true"></i>
+        {% elif t == 'pedido_reenviado' %}<i class="fas fa-redo-alt" aria-hidden="true"></i>
+        {% elif t == 'pedido_atualizado' %}<i class="fas fa-pen-to-square" aria-hidden="true"></i>
+        {% elif t == 'pedido_exclusao_solicitada' %}<i class="fas fa-trash-alt" aria-hidden="true"></i>
+        {% elif t == 'pedido_exclusao_aprovada' %}<i class="fas fa-check-double" aria-hidden="true"></i>
+        {% elif t == 'pedido_exclusao_rejeitada' %}<i class="fas fa-ban" aria-hidden="true"></i>
+        {% elif t == 'pedido_comentario' %}<i class="fas fa-comment" aria-hidden="true"></i>
+        {% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' %}<i class="fas fa-check" aria-hidden="true"></i>
+        {% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}<i class="fas fa-times" aria-hidden="true"></i>
+        {% elif t == 'rdo_pendente' %}<i class="fas fa-file-lines" aria-hidden="true"></i>
+        {% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}<i class="fas fa-crosshairs" aria-hidden="true"></i>
+        {% else %}<i class="fas fa-bell" aria-hidden="true"></i>{% endif %}
+      </div>
+
+      <h3 class="notif-title" title="{{ notification.title }}">{{ notification.title }}</h3>
+
+      {% notification_resumo notification notif_wo_map as notif_resumo %}
+      <span class="notif-summary" title="{{ notif_resumo }}">{{ notif_resumo }}</span>
+
+      {% if t != 'pedido_exclusao_solicitada' and not notification.is_read %}
+      <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification|notification_badge_label }}</span>
+      {% else %}
+      <span class="notif-badge-slot">
+        <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification|notification_badge_label }}</span>
+      </span>
+      {% endif %}
+
+      <div class="notif-actions">
+        {% url 'notification-open' notification.pk as notif_open %}
+        {% if notification.related_url %}
+        <a href="{{ notif_open }}?next={{ notification.related_url|urlencode }}" class="btn-ver">
+          <i class="fas fa-external-link-alt" aria-hidden="true"></i> Ver
+        </a>
+        {% elif notification.related_diary %}
+        {% url 'diary-detail' notification.related_diary.id as diary_target %}
+        <a href="{{ notif_open }}?next={{ diary_target|urlencode }}" class="btn-ver">
+          <i class="fas fa-external-link-alt" aria-hidden="true"></i> Ver
+        </a>
+        {% endif %}
+        {% if t != 'pedido_exclusao_solicitada' and not notification.is_read %}
+        <form method="post" action="{% url 'notification-mark-read' notification.id %}" class="form-lida-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn-lida">Marcar como lida</button>
+        </form>
+        {% endif %}
+      </div>
+
+      <span class="notif-time">{{ notification.created_at|date:"H:i" }}</span>
+
+      {% if t != 'pedido_exclusao_solicitada' and not notification.is_read %}<span class="notif-unread-dot" aria-hidden="true" title="Não lida"></span>{% endif %}
+    </div>
+    {% endwith %}
+    {% endfor %}
+    {% empty %}
+    <div class="notif-empty">
+      <i class="fas fa-bell" aria-hidden="true"></i>
+      <p class="notif-empty-title">Nenhuma notificação encontrada.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if notifications.has_other_pages %}
+  <nav class="pagination" aria-label="Paginação">
+    {% if notifications.has_previous %}
+    <a class="page-btn" href="?page={{ notifications.previous_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" aria-label="Página anterior">
+      <i class="fas fa-chevron-left" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+    <span class="page-indicator">{{ notifications.number }} / {{ notifications.paginator.num_pages }}</span>
+    {% if notifications.has_next %}
+    <a class="page-btn" href="?page={{ notifications.next_page_number }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_read %}&read={{ filter_read }}{% endif %}" aria-label="Próxima página">
+      <i class="fas fa-chevron-right" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+  </div>
+
 </div>
 {% endblock %}
 

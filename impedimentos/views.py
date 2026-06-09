@@ -1147,6 +1147,8 @@ def list_impedimentos(request, obra_id):
         .order_by("prazo", "-criado_em")
     )
     calendar_qs = _filter_impedimentos_by_cat_ids(calendar_qs, cat_ids)
+    if ultimo_status_obra:
+        calendar_qs = calendar_qs.exclude(status_id=ultimo_status_obra.id)
     calendar_items_raw = _build_impedimentos_items(calendar_qs)
     calendar_items_by_day = {}
     for item in calendar_items_raw:

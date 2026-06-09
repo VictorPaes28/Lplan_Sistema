@@ -1775,6 +1775,7 @@ def calendario_view(request):
     qs = (
         _pendencias_qs_for_user(request.user)
         .select_related("obra")
+        .exclude(status__in=["concluida", "cancelada"])
         .order_by("titulo")
     )
     if obra_id and str(obra_id).isdigit():
@@ -1785,11 +1786,7 @@ def calendario_view(request):
         if status_val == 'em_aberto':
             qs = qs.filter(status__in=['aberta', 'em_andamento'])
         elif status_val == 'vencida':
-            qs = qs.exclude(status__in=['concluida', 'cancelada']).filter(prazo__lt=today)
-        elif status_val == 'concluida':
-            qs = qs.filter(status='concluida')
-        elif status_val == 'cancelada':
-            qs = qs.filter(status='cancelada')
+            qs = qs.filter(prazo__lt=today)
     if responsavel_id and str(responsavel_id).isdigit():
         qs = qs.filter(responsavel_interno_id=int(responsavel_id))
     if prioridade_vals and set(prioridade_vals) != _valid_prioridades:
@@ -1866,7 +1863,7 @@ def calendario_view(request):
         "tipo": tipo_val,
         "tipo_label": tipo_labels.get(tipo_val, tipo_val) if tipo_val else "",
         "status": status_val,
-        "status_label": {"em_aberto": "Em aberto", "vencida": "Vencida", "concluida": "Concluída", "cancelada": "Cancelada"}.get(status_val, ""),
+        "status_label": {"em_aberto": "Em aberto", "vencida": "Vencida"}.get(status_val, ""),
         "responsavel": responsavel_id,
         "responsavel_nome": resp_nome,
         "responsavel_iniciais": resp_iniciais,

@@ -551,9 +551,63 @@
     min-width: 0;
 }
 
+/* Restrições concluídas (lista) — visual discreto, sem urgência de prioridade/prazo */
+.imp-list-line--done {
+    background: #f8fafc !important;
+}
+
+.imp-list-group-body .imp-list-line--done:nth-child(even) {
+    background: #f1f5f9 !important;
+}
+
+.imp-list-line--done:hover {
+    background: #eef2f6 !important;
+}
+
 .imp-list-line--done .imp-item-titulo-text {
     text-decoration: line-through;
-    opacity: 0.65;
+    color: #94a3b8;
+    font-weight: 500;
+    opacity: 1;
+}
+
+.imp-list-line--done .imp-list-line__people,
+.imp-list-line--done .imp-list-line__comments,
+.imp-list-line--done .imp-empty-text {
+    color: #94a3b8;
+}
+
+.imp-list-line--done .imp-list-status-badge {
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    border-color: #e2e8f0 !important;
+}
+
+.imp-list-line--done .imp-priority-badge,
+.imp-list-line--done .imp-priority-baixa,
+.imp-list-line--done .imp-priority-normal,
+.imp-list-line--done .imp-priority-alta,
+.imp-list-line--done .imp-priority-critica {
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    border-color: #e2e8f0 !important;
+}
+
+.imp-list-line--done .imp-list-prazo,
+.imp-list-line--done .imp-list-prazo--vencido,
+.imp-list-line--done .imp-list-prazo--urgente,
+.imp-list-line--done .imp-list-prazo--proximo,
+.imp-list-line--done .imp-list-prazo--normal {
+    color: #94a3b8 !important;
+    font-weight: 500;
+}
+
+.imp-list-line--done .imp-list-prazo .fas {
+    color: #cbd5e1 !important;
+}
+
+.imp-list-line--done .imp-list-cat-badge {
+    opacity: 0.55;
 }
 
 .imp-list-cat-dots {

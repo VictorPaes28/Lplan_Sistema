@@ -50,11 +50,16 @@
   --th-border: #e2e8f0;
   --th-muted-bg: #f8fafc;
   --th-danger: #e74c3c;
+  --th-danger-text: #c0392b;
   --th-danger-soft: #fdf5f5;
   --th-warning: #f39c12;
+  --th-warning-text: #c2790a;
   --th-warning-soft: #fef9f0;
   --th-success: #27ae60;
+  --th-success-text: #1e8449;
   --th-success-soft: #ecf8f0;
+  --th-accent-text: #1f6fa8;
+  --th-badge-muted-text: #475569;
 }
 
 .th-panel.th-panel--prioridade-urgente {
@@ -353,29 +358,29 @@
 
 /* BADGES */
 .th-badge { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; line-height: 1.35; }
-.th-badge.urgente   { background: var(--th-danger-soft); color: var(--th-danger); }
-.th-badge.alta      { background: var(--th-warning-soft); color: var(--th-warning); }
-.th-badge.normal    { background: var(--th-surface-accent); color: var(--th-accent-hover); }
-.th-badge.baixa     { background: var(--th-muted-bg); color: var(--th-text-muted); }
-.th-badge.aberta    { background: var(--th-surface-accent); color: var(--th-accent-hover); }
+.th-badge.urgente   { background: var(--th-danger-soft); color: var(--th-danger-text); }
+.th-badge.alta      { background: var(--th-warning-soft); color: var(--th-warning-text); }
+.th-badge.normal    { background: var(--th-surface-accent); color: var(--th-accent-text); }
+.th-badge.baixa     { background: var(--th-muted-bg); color: var(--th-badge-muted-text); }
+.th-badge.aberta    { background: var(--th-surface-accent); color: var(--th-accent-text); }
 .th-badge.em_andamento {
   background: var(--th-muted-bg);
-  color: var(--th-text-muted);
+  color: var(--th-badge-muted-text);
   border: 1px solid var(--th-border);
 }
 .th-badge.aguardando {
   background: var(--th-muted-bg);
-  color: var(--th-text-muted);
+  color: var(--th-badge-muted-text);
   border: 1px solid var(--th-border);
 }
 .th-badge.concluida {
   background: var(--th-success-soft);
-  color: var(--th-success);
+  color: var(--th-success-text);
 }
-.th-badge.cancelada    { background: var(--th-muted-bg); color: var(--th-text-muted); }
+.th-badge.cancelada    { background: var(--th-muted-bg); color: var(--th-badge-muted-text); }
 .th-badge.vencida {
   background: var(--th-danger-soft);
-  color: var(--th-danger);
+  color: var(--th-danger-text);
   border: 1px solid #f5cbcb;
 }
 .th-badge.financeiro,
@@ -761,10 +766,10 @@
   height: 10px;
   flex-shrink: 0;
 }
-.th-cal-pop-item.urgente { background: var(--th-danger-soft); color: var(--th-danger); }
-.th-cal-pop-item.alta { background: var(--th-warning-soft); color: var(--th-warning); }
-.th-cal-pop-item.normal { background: var(--th-surface-accent); color: var(--th-accent-hover); }
-.th-cal-pop-item.baixa { background: var(--th-muted-bg); color: var(--th-text-muted); }
+.th-cal-pop-item.urgente { background: var(--th-danger-soft); color: var(--th-danger-text); }
+.th-cal-pop-item.alta { background: var(--th-warning-soft); color: var(--th-warning-text); }
+.th-cal-pop-item.normal { background: var(--th-surface-accent); color: var(--th-accent-text); }
+.th-cal-pop-item.baixa { background: var(--th-muted-bg); color: var(--th-badge-muted-text); }
 .th-cal-pop-item.th-cal-pop-item--concluida .th-cal-pop-item-text {
   text-decoration: line-through;
   text-decoration-color: currentColor;
@@ -820,10 +825,10 @@
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .th-cal-event-icon { width: 10px; height: 10px; flex-shrink: 0; opacity: .9; }
-.th-cal-event.urgente { background: var(--th-danger-soft); color: var(--th-danger); }
-.th-cal-event.alta    { background: var(--th-warning-soft); color: var(--th-warning); }
-.th-cal-event.normal  { background: var(--th-surface-accent); color: var(--th-accent-hover); }
-.th-cal-event.baixa   { background: var(--th-muted-bg); color: var(--th-text-muted); }
+.th-cal-event.urgente { background: var(--th-danger-soft); color: var(--th-danger-text); }
+.th-cal-event.alta    { background: var(--th-warning-soft); color: var(--th-warning-text); }
+.th-cal-event.normal  { background: var(--th-surface-accent); color: var(--th-accent-text); }
+.th-cal-event.baixa   { background: var(--th-muted-bg); color: var(--th-badge-muted-text); }
 .th-cal-event.th-cal-event--concluida .th-cal-event-text {
   text-decoration: line-through;
   text-decoration-color: currentColor;
@@ -1388,24 +1393,24 @@
 .th-detalhe-pill:hover:not(:disabled) { filter: brightness(.95); }
 .th-detalhe-pill.is-disabled, .th-detalhe-pill:disabled { opacity: .45; cursor: not-allowed; }
 
-.th-pill--status.status-aberta { background: var(--th-surface-accent); color: var(--th-accent-hover); }
+.th-pill--status.status-aberta { background: var(--th-surface-accent); color: var(--th-accent-text); }
 .th-pill--status.status-em_andamento {
   background: var(--th-muted-bg);
-  color: var(--th-text-muted);
+  color: var(--th-badge-muted-text);
   border: 1px solid var(--th-border);
 }
 .th-pill--status.status-aguardando {
   background: var(--th-muted-bg);
-  color: var(--th-text-muted);
+  color: var(--th-badge-muted-text);
   border: 1px solid var(--th-border);
 }
-.th-pill--status.status-concluida { background: var(--th-success-soft); color: var(--th-success); }
-.th-pill--status.status-cancelada { background: var(--th-muted-bg); color: var(--th-text-muted); }
+.th-pill--status.status-concluida { background: var(--th-success-soft); color: var(--th-success-text); }
+.th-pill--status.status-cancelada { background: var(--th-muted-bg); color: var(--th-badge-muted-text); }
 
-.th-pill--prioridade.prio-urgente { background: var(--th-danger-soft); color: var(--th-danger); }
-.th-pill--prioridade.prio-alta { background: var(--th-warning-soft); color: var(--th-warning); }
-.th-pill--prioridade.prio-normal { background: var(--th-surface-accent); color: var(--th-accent-hover); }
-.th-pill--prioridade.prio-baixa { background: var(--th-muted-bg); color: var(--th-text-muted); }
+.th-pill--prioridade.prio-urgente { background: var(--th-danger-soft); color: var(--th-danger-text); }
+.th-pill--prioridade.prio-alta { background: var(--th-warning-soft); color: var(--th-warning-text); }
+.th-pill--prioridade.prio-normal { background: var(--th-surface-accent); color: var(--th-accent-text); }
+.th-pill--prioridade.prio-baixa { background: var(--th-muted-bg); color: var(--th-badge-muted-text); }
 
 .th-pill--tipo.tipo-financeiro,
 .th-pill--tipo.tipo-operacional,

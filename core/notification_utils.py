@@ -13,6 +13,20 @@ CORE_TIPOS_PEDIDO_FILA_APROVACAO = (
     'pedido_atualizado',
 )
 
+# Tipos informativos — não entram em contagem, filtros nem UI de lida/não lida.
+NOTIFICATION_TYPES_NO_READ_TRACKING = frozenset({
+    'pedido_exclusao_solicitada',
+})
+
+
+def notificacoes_nao_lidas_qs(user):
+    """Queryset de não lidas excluindo tipos sem acompanhamento de leitura."""
+    from core.models import Notification
+
+    return Notification.objects.filter(user=user, is_read=False).exclude(
+        notification_type__in=NOTIFICATION_TYPES_NO_READ_TRACKING
+    )
+
 
 def criar_notificacao(usuario_ou_lista, tipo, titulo, mensagem, url='', event_key=''):
     """
@@ -59,6 +73,7 @@ def criar_notificacao(usuario_ou_lista, tipo, titulo, mensagem, url='', event_ke
                 message=mensagem or '',
                 related_url=(url or '')[:500],
                 event_key=ek,
+                is_read=tipo in NOTIFICATION_TYPES_NO_READ_TRACKING,
             )
         )
     if notificacoes:

@@ -2,6 +2,7 @@
 Template tags customizados para o app core.
 """
 import math
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -258,6 +259,168 @@ def weekday_name(date_value):
         return ""
 
 
+def _user_display(user) -> str:
+    if not user:
+        return '—'
+    return (user.get_full_name() or user.username or '—').strip()
+
+
+def _truncate(text: str, limit: int = 72) -> str:
+    text = (text or '').strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + '…'
+
+
+def _notification_resumo(notification, wo_map=None) -> str:
+    """Resumo curto para a lista de notificações (uma linha, informação essencial)."""
+    tipo = getattr(notification, 'notification_type', '') or ''
+    msg = (getattr(notification, 'message', '') or '').strip()
+    wo_map = wo_map or {}
+
+    wo = None
+    ek = (getattr(notification, 'event_key', '') or '').strip()
+    if ek.startswith('gestao:wo:'):
+        wo = wo_map.get(ek)
+
+    if tipo in ('pedido_criado', 'pedido_reenviado', 'pedido_atualizado'):
+        if wo:
+            sol = _user_display(getattr(wo, 'criado_por', None))
+            obra = getattr(getattr(wo, 'obra', None), 'nome', None) or '—'
+            tipo_ped = (
+                wo.get_tipo_solicitacao_display()
+                if hasattr(wo, 'get_tipo_solicitacao_display')
+                else '—'
+            )
+            return _truncate(f'{sol} · {obra} · {tipo_ped}')
+        parts = [p.strip() for p in msg.split('·') if p.strip()]
+        if parts:
+            return _truncate(' · '.join(parts[:3]))
+        return _truncate(msg)
+
+    if tipo == 'pedido_aprovado':
+        m = re.search(r'aprovado por (.+?)\.', msg, re.I)
+        if m:
+            return _truncate(f'{m.group(1).strip()} aprovou')
+        return _truncate(msg)
+
+    if tipo == 'pedido_reprovado':
+        return 'Reprovado — ver comentários'
+
+    if tipo == 'pedido_exclusao_solicitada':
+        m = re.match(r'^(.+?)\s+pediu a exclusão(?: do pedido)?\.?\s*Motivo:\s*(.+)$', msg, re.I | re.S)
+        if m:
+            return _truncate(f'{m.group(1).strip()} · {m.group(2).strip()}')
+        return _truncate(msg)
+
+    if tipo == 'pedido_exclusao_aprovada':
+        m = re.search(r'O aprovador (.+?) aprovou a exclusão', msg, re.I)
+        if m:
+            return _truncate(f'{m.group(1).strip()} aprovou exclusão')
+        return _truncate(msg)
+
+    if tipo == 'pedido_exclusao_rejeitada':
+        m = re.search(r'O aprovador (.+?) rejeitou a exclusão', msg, re.I)
+        com = re.search(r'Comentário:\s*(.+)$', msg, re.I | re.S)
+        if m and com:
+            return _truncate(f'{m.group(1).strip()} rejeitou · {com.group(1).strip()}')
+        if m:
+            return _truncate(f'{m.group(1).strip()} rejeitou exclusão')
+        return _truncate(msg)
+
+    if tipo == 'pedido_comentario':
+        if ':' in msg:
+            autor, texto = msg.split(':', 1)
+            return _truncate(f'{autor.strip()} · {texto.strip()}')
+        return _truncate(msg)
+
+    if tipo == 'restricao_criada':
+        m = re.search(r'"(.+?)"\s+na obra\s+(.+?)\.', msg, re.I | re.S)
+        if m:
+            return _truncate(f'{m.group(2).strip()} · {m.group(1).strip()}')
+        return _truncate(msg)
+
+    if tipo in ('restricao_status', 'restricao_prazo'):
+        m = re.search(r'"(.+?)":\s*(.+)$', msg, re.S)
+        if m:
+            return _truncate(f'{m.group(1).strip()} · {m.group(2).strip()}')
+        return _truncate(msg)
+
+    if tipo == 'trackhub_etapa_concluida':
+        m = re.search(
+            r'A etapa "(.+?)" da pendência "(.+?)" foi concluída por (.+?)\.',
+            msg,
+            re.I | re.S,
+        )
+        if m:
+            return _truncate(f'{m.group(3).strip()} · {m.group(1).strip()}')
+        m = re.search(r'A pendência "(.+?)" foi (?:marcada como |totalmente )?concluída', msg, re.I)
+        if m:
+            return _truncate(f'{m.group(1).strip()} concluída')
+        return _truncate(msg)
+
+    if tipo == 'trackhub_prazo':
+        m = re.search(r'etapa "(.+?)"', msg, re.I)
+        if m:
+            return _truncate(f'Prazo · {m.group(1).strip()}')
+        return _truncate(msg)
+
+    if tipo == 'rdo_pendente':
+        m = re.search(
+            r'relatório do dia\s+(.+?)\s+da obra\s+(.+?)\s+precisa',
+            msg,
+            re.I | re.S,
+        )
+        if m:
+            return _truncate(f'{m.group(2).strip()} · {m.group(1).strip()}')
+        return _truncate(msg)
+
+    if tipo == 'rdo_aprovado':
+        m = re.search(r'relatório do dia\s+(.+?)\s+foi aprovado', msg, re.I)
+        if m:
+            return _truncate(f'RDO {m.group(1).strip()} aprovado')
+        return _truncate(msg)
+
+    if tipo == 'rdo_reprovado':
+        m = re.search(r'relatório do dia\s+(.+?)\s+foi reprovado', msg, re.I)
+        if m:
+            return _truncate(f'RDO {m.group(1).strip()} reprovado')
+        return _truncate(msg)
+
+    return _truncate(msg)
+
+
+@register.simple_tag
+def notification_resumo(notification, wo_map=None):
+    return _notification_resumo(notification, wo_map)
+
+
+_NOTIF_BADGE_LABELS = {
+    'pedido_criado': 'Novo pedido',
+    'pedido_reenviado': 'Reenvio',
+    'pedido_atualizado': 'Pedido editado',
+    'pedido_aprovado': 'Pedido aprovado',
+    'pedido_reprovado': 'Pedido reprovado',
+    'pedido_exclusao_solicitada': 'Exclusão solicitada',
+    'pedido_exclusao_aprovada': 'Exclusão aprovada',
+    'pedido_exclusao_rejeitada': 'Exclusão rejeitada',
+    'restricao_criada': 'Nova restrição',
+    'restricao_status': 'Restrição atualizada',
+    'restricao_prazo': 'Prazo restrição',
+    'trackhub_etapa_concluida': 'Etapa concluída',
+    'trackhub_prazo': 'Prazo TrackHub',
+    'rdo_pendente': 'RDO pendente',
+    'rdo_aprovado': 'RDO aprovado',
+    'rdo_reprovado': 'RDO reprovado',
+}
+
+
+@register.filter
+def notification_badge_label(notification):
+    tipo = getattr(notification, 'notification_type', '') or ''
+    return _NOTIF_BADGE_LABELS.get(tipo) or notification.get_notification_type_display()
+
+
 @register.simple_tag(takes_context=False)
 def get_unread_notifications_count(user):
     """Retorna o número de notificações não lidas do usuário."""
@@ -278,7 +441,9 @@ def get_unread_notifications_count(user):
         
         # Tenta buscar as notificações
         try:
-            count = Notification.objects.filter(user=user, is_read=False).count()
+            from core.notification_utils import notificacoes_nao_lidas_qs
+
+            count = notificacoes_nao_lidas_qs(user).count()
             return count if count else 0
         except Exception:
             return 0

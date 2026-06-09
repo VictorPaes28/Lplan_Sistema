@@ -6088,8 +6088,9 @@ def notifications_view(request):
         '-created_at',
     )
 
-    # Marca notificações como lidas
-    unread_count = notifications.filter(is_read=False).count()
+    from .notification_utils import NOTIFICATION_TYPES_NO_READ_TRACKING, notificacoes_nao_lidas_qs
+
+    unread_count = notificacoes_nao_lidas_qs(request.user).count()
 
     # Filtros
     filter_type = request.GET.get('type')
@@ -6099,9 +6100,13 @@ def notifications_view(request):
         notifications = notifications.filter(notification_type=filter_type)
 
     if filter_read == 'unread':
-        notifications = notifications.filter(is_read=False)
+        notifications = notifications.filter(is_read=False).exclude(
+            notification_type__in=NOTIFICATION_TYPES_NO_READ_TRACKING
+        )
     elif filter_read == 'read':
-        notifications = notifications.filter(is_read=True)
+        notifications = notifications.filter(is_read=True).exclude(
+            notification_type__in=NOTIFICATION_TYPES_NO_READ_TRACKING
+        )
 
     # Paginação (não lidas primeiro via order_by acima)
     from django.core.paginator import Paginator
@@ -6116,7 +6121,7 @@ def notifications_view(request):
         .values_list('notification_type', 'c')
     )
     sidebar_meta = [
-        ('pedido_criado', 'Novo Pedido', '#7c3aed'),
+        ('pedido_criado', 'Novo Pedido', '#6d28d9'),
         ('pedido_reenviado', 'Reenvio', '#d97706'),
         ('pedido_atualizado', 'Pedido editado', '#0ea5e9'),
         ('pedido_exclusao_solicitada', 'Exclusão pedido', '#ca8a04'),
@@ -6134,12 +6139,28 @@ def notifications_view(request):
         if count_by_type.get(slug)
     ]
 
+    wo_pks = []
+    for n in page_obj:
+        ek = (n.event_key or '').strip()
+        if ek.startswith('gestao:wo:'):
+            try:
+                wo_pks.append(int(ek.rsplit(':', 1)[-1]))
+            except (TypeError, ValueError):
+                pass
+    notif_wo_map = {}
+    if wo_pks:
+        from gestao_aprovacao.models import WorkOrder
+
+        for wo in WorkOrder.objects.filter(pk__in=wo_pks).select_related('obra', 'criado_por'):
+            notif_wo_map[f'gestao:wo:{wo.pk}'] = wo
+
     context = {
         'notifications': page_obj,
         'unread_count': unread_count,
         'filter_type': filter_type,
         'filter_read': filter_read,
         'sidebar_types': sidebar_types,
+        'notif_wo_map': notif_wo_map,
     }
 
     return render(request, 'core/notifications.html', context)
@@ -6202,8 +6223,10 @@ def notifications_poll_view(request):
 
     from .models import Notification
 
+    from .notification_utils import notificacoes_nao_lidas_qs
+
     max_id = Notification.objects.filter(user=request.user).aggregate(m=Max('pk'))['m'] or 0
-    unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
+    unread_count = notificacoes_nao_lidas_qs(request.user).count()
 
     def _row(n: Notification) -> dict:
         row: dict = {
@@ -6237,7 +6260,7 @@ def notifications_poll_view(request):
         toast_items = []
         if unread_count > 0:
             unread_qs = (
-                Notification.objects.filter(user=request.user, is_read=False)
+                notificacoes_nao_lidas_qs(request.user)
                 .select_related('related_diary')
                 .order_by('-created_at')[:15]
             )
@@ -6279,9 +6302,13 @@ def notification_mark_all_read_view(request):
     from django.shortcuts import redirect
     from .models import Notification
     
+    from .notification_utils import NOTIFICATION_TYPES_NO_READ_TRACKING
+
     updated = Notification.objects.filter(
         user=request.user,
-        is_read=False
+        is_read=False,
+    ).exclude(
+        notification_type__in=NOTIFICATION_TYPES_NO_READ_TRACKING,
     ).update(is_read=True)
     
     messages.success(request, f'{updated} notificação(ões) marcada(s) como lida(s).')
