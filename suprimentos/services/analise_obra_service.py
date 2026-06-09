@@ -587,7 +587,6 @@ class AnaliseObraFilters:
     tag_ocorrencia_id: str = ""
     busca_diario_texto: str = ""
     responsavel_texto: str = ""
-    visao: str = "geral"  # geral | detalhe
 
     def to_mapa_suprimentos_filters(self) -> MapaControleFilters:
         return MapaControleFilters(
@@ -618,6 +617,30 @@ class AnaliseObraService:
             self.periodo = AnaliseObraPeriodo(data_inicio=today - timedelta(days=30), data_fim=today)
         self.filtros = filtros or AnaliseObraFilters()
         self._controle_bundle_cache: dict[str, Any] | None = None
+        self._mapa_service_cache: MapaControleService | None = None
+        self._mapa_summary_cache: dict[str, Any] | None = None
+        self._gestao_obra_resolved = False
+        self._gestao_obra_cache: Any = None
+
+    @property
+    def _mapa_service(self) -> MapaControleService:
+        if self._mapa_service_cache is None:
+            self._mapa_service_cache = MapaControleService(
+                self.obra, self.filtros.to_mapa_suprimentos_filters()
+            )
+        return self._mapa_service_cache
+
+    def _get_mapa_summary(self) -> dict[str, Any]:
+        if self._mapa_summary_cache is None:
+            self._mapa_summary_cache = self._mapa_service.build_summary_payload()
+        return self._mapa_summary_cache
+
+    @property
+    def _gestao_obra(self):
+        if not self._gestao_obra_resolved:
+            self._gestao_obra_cache = _resolve_gestao_obra(self.obra)
+            self._gestao_obra_resolved = True
+        return self._gestao_obra_cache
 
     def controle_ambiente_cache_stamp(self) -> str:
         """Carimbo para invalidar cache do BI quando o ambiente de mapa for editado."""
@@ -890,7 +913,7 @@ class AnaliseObraService:
             "aprovadores": [],
         }
 
-        go = _resolve_gestao_obra(self.obra)
+        go = self._gestao_obra
         if not go:
             return empty
 
@@ -1053,7 +1076,7 @@ class AnaliseObraService:
             "por_responsavel": [],
         }
 
-        go = _resolve_gestao_obra(self.obra)
+        go = self._gestao_obra
         if not go:
             return empty
 
@@ -1102,7 +1125,7 @@ class AnaliseObraService:
         )
 
         resp_ct: Counter[str] = Counter()
-        for imp in base_open.prefetch_related("responsaveis"):
+        for imp in base_open.prefetch_related("responsaveis")[:50]:
             for u in imp.responsaveis.all():
                 nome = (u.get_full_name() or "").strip() or u.username
                 resp_ct[nome] += 1
@@ -1202,7 +1225,7 @@ class AnaliseObraService:
         mais_atrasadas: list[dict[str, Any]] = []
         for pend in base.filter(prazo__isnull=False, prazo__lt=hoje).only(
             "titulo", "prazo"
-        ):
+        ).order_by("prazo")[:10]:
             prazo = pend.prazo
             if not prazo:
                 continue
@@ -1212,7 +1235,6 @@ class AnaliseObraService:
                     "dias_atraso": int((hoje - prazo).days),
                 }
             )
-        mais_atrasadas.sort(key=lambda x: (-x["dias_atraso"], x["titulo"].lower()))
 
         return {
             "resumo": {
@@ -1245,8 +1267,7 @@ class AnaliseObraService:
                     atividades_set.add(label)
         atividades = sorted(atividades_set)[:200]
 
-        mcf = MapaControleService(obra=self.obra, filters=MapaControleFilters(limit=1)).build_summary_payload()
-        filt_sup = mcf.get("filtros") or {}
+        filt_sup = self._get_mapa_summary().get("filtros") or {}
 
         tags = list(OccurrenceTag.objects.filter(is_active=True).order_by("name").values("id", "name", "color")[:200])
 
@@ -1264,137 +1285,154 @@ class AnaliseObraService:
                     {"id": "em_andamento", "label": "Em andamento"},
                     {"id": "nao_iniciado", "label": "Não iniciado"},
                 ],
-                "visao": [
-                    {"id": "geral", "label": "Visão geral"},
-                    {"id": "detalhe", "label": "Visão detalhada"},
-                ],
                 "suprimentos": filt_sup.get("options") or {},
                 "tags_ocorrencia": tags,
             },
         }
 
-    def build_payload(self) -> dict[str, Any]:
-        project = _resolve_project_for_obra(self.obra)
+    def _build_meta_block(
+        self,
+        *,
+        project: Project | None,
+        controle: dict[str, Any],
+        suprimentos: dict[str, Any],
+        diario: dict[str, Any],
+        gestcontroll: dict[str, Any],
+        restricoes: dict[str, Any],
+    ) -> dict[str, Any]:
         dias_periodo = max(1, (self.periodo.data_fim - self.periodo.data_inicio).days + 1)
-        controle = self._build_controle()
-        suprimentos = self._build_suprimentos()
-        diario = self._build_diario(project)
         rdos = diario.get("rdos_resumo") if isinstance(diario.get("rdos_resumo"), dict) else {}
-        rdos_pend_hero = int(rdos.get("pendentes_rdos_count") or 0)
-        cruzamento = self._build_cruzamento(controle, suprimentos, diario)
-        heatmap = self._build_heatmap()
         situacao = self._classify_situacao(controle, suprimentos, diario)
-        filtros = self.build_filtros_payload()
+        gv = gestcontroll["kpis"]["pendentes_valor"]
+        return {
+            "obra_id": self.obra.id,
+            "obra_nome": self.obra.nome,
+            "obra_codigo": self.obra.codigo_sienge,
+            "projeto_diario_id": project.id if project else None,
+            "projeto_diario_codigo": project.code if project else None,
+            "projeto_diario_nome": project.name if project else None,
+            "diario_vinculo_projeto": bool(diario.get("vinculo_projeto")),
+            "periodo": {
+                "inicio": self.periodo.data_inicio.isoformat(),
+                "fim": self.periodo.data_fim.isoformat(),
+                "dias": dias_periodo,
+            },
+            "gerado_em": timezone.now().isoformat(),
+            "situacao_executiva": situacao,
+            "kpis_hero": {
+                "valor_em_aprovacao": gv,
+                "restricoes_abertas": restricoes["kpis"]["total_aberto"],
+                "rdos_pendentes": int(rdos.get("pendentes_rdos_count") or 0),
+            },
+            "baseline_planejamento": {
+                "disponivel": False,
+                "mensagem": (
+                    "Curva planejada × real depende da fonte de baseline definida pelo produto; "
+                    "até lá o comparativo oficial de prazo não é exibido automaticamente."
+                ),
+            },
+        }
+
+    def build_shell_payload(self) -> dict[str, Any]:
+        """Carregamento inicial da página: hero + controle + filtros (seções pesadas via AJAX)."""
+        project = _resolve_project_for_obra(self.obra)
+        controle = self._build_controle(include_progressao_completo=False)
+        suprimentos = self._build_suprimentos(include_extras=False)
+        diario = self._build_diario(project, extended=False)
+        gestcontroll = self._build_gestcontroll()
+        restricoes = self._build_restricoes()
+        return {
+            "meta": self._build_meta_block(
+                project=project,
+                controle=controle,
+                suprimentos=suprimentos,
+                diario=diario,
+                gestcontroll=gestcontroll,
+                restricoes=restricoes,
+            ),
+            "controle": controle,
+            "filtros": self.build_filtros_payload(),
+        }
+
+    def build_payload(self, *, include_optional: bool = False) -> dict[str, Any]:
+        project = _resolve_project_for_obra(self.obra)
+        controle = self._build_controle(include_progressao_completo=include_optional)
+        suprimentos = self._build_suprimentos(include_extras=include_optional)
+        diario = self._build_diario(project, extended=include_optional)
         gestcontroll = self._build_gestcontroll()
         restricoes = self._build_restricoes()
         trackhub = self._build_trackhub()
-        gv = gestcontroll["kpis"]["pendentes_valor"]
-
-        return {
-            "meta": {
-                "obra_id": self.obra.id,
-                "obra_nome": self.obra.nome,
-                "obra_codigo": self.obra.codigo_sienge,
-                "projeto_diario_id": project.id if project else None,
-                "projeto_diario_codigo": project.code if project else None,
-                "projeto_diario_nome": project.name if project else None,
-                "periodo": {
-                    "inicio": self.periodo.data_inicio.isoformat(),
-                    "fim": self.periodo.data_fim.isoformat(),
-                    "dias": dias_periodo,
-                },
-                "gerado_em": timezone.now().isoformat(),
-                "situacao_executiva": situacao,
-                "kpis_hero": {
-                    "valor_em_aprovacao": gv,
-                    "restricoes_abertas": restricoes["kpis"]["total_aberto"],
-                    "rdos_pendentes": rdos_pend_hero,
-                },
-                "baseline_planejamento": {
-                    "disponivel": False,
-                    "mensagem": (
-                        "Curva planejada × real depende da fonte de baseline definida pelo produto; "
-                        "até lá o comparativo oficial de prazo não é exibido automaticamente."
-                    ),
-                },
-            },
-            "filtros": filtros,
+        payload: dict[str, Any] = {
+            "meta": self._build_meta_block(
+                project=project,
+                controle=controle,
+                suprimentos=suprimentos,
+                diario=diario,
+                gestcontroll=gestcontroll,
+                restricoes=restricoes,
+            ),
+            "filtros": self.build_filtros_payload(),
             "controle": controle,
             "suprimentos": suprimentos,
             "diario": diario,
-            "cruzamento": cruzamento,
-            "heatmap": heatmap,
             "gestcontroll": gestcontroll,
             "restricoes": restricoes,
             "trackhub": trackhub,
         }
+        if include_optional:
+            payload["heatmap"] = self._build_heatmap()
+            payload["cruzamento"] = self._build_cruzamento(controle, suprimentos, diario)
+        return payload
+
+    def build_full_payload(self) -> dict[str, Any]:
+        """Payload completo para API ?secao=all (inclui blocos opcionais)."""
+        return self.build_payload(include_optional=True)
 
     def build_section(self, secao: str) -> dict[str, Any] | None:
         """Retorna apenas um bloco do payload (para carregamento assíncrono por seção)."""
         s = (secao or "").strip().lower()
         if s in ("", "all", "full"):
-            return self.build_payload()
+            return self.build_full_payload()
         if s == "meta":
             project = _resolve_project_for_obra(self.obra)
-            dias_periodo = max(1, (self.periodo.data_fim - self.periodo.data_inicio).days + 1)
-            controle = self._build_controle()
-            diario = self._build_diario(project)
+            controle = self._build_controle(include_progressao_completo=False)
+            suprimentos = self._build_suprimentos(include_extras=False)
+            diario = self._build_diario(project, extended=False)
             gestcontroll = self._build_gestcontroll()
             restricoes = self._build_restricoes()
-            rdos = diario.get("rdos_resumo") if isinstance(diario.get("rdos_resumo"), dict) else {}
-            gv = gestcontroll["kpis"]["pendentes_valor"]
             return {
-                "meta": {
-                    "obra_id": self.obra.id,
-                    "obra_nome": self.obra.nome,
-                    "obra_codigo": self.obra.codigo_sienge,
-                    "projeto_diario_id": project.id if project else None,
-                    "projeto_diario_codigo": project.code if project else None,
-                    "projeto_diario_nome": project.name if project else None,
-                    "periodo": {
-                        "inicio": self.periodo.data_inicio.isoformat(),
-                        "fim": self.periodo.data_fim.isoformat(),
-                        "dias": dias_periodo,
-                    },
-                    "gerado_em": timezone.now().isoformat(),
-                    "situacao_executiva": self._classify_situacao(
-                        controle,
-                        {"kpis": {}},
-                        diario,
-                    ),
-                    "kpis_hero": {
-                        "valor_em_aprovacao": gv,
-                        "restricoes_abertas": restricoes["kpis"]["total_aberto"],
-                        "rdos_pendentes": int(rdos.get("pendentes_rdos_count") or 0),
-                    },
-                    "baseline_planejamento": {
-                        "disponivel": False,
-                        "mensagem": (
-                            "Curva planejada × real depende da fonte de baseline definida pelo produto; "
-                            "até lá o comparativo oficial de prazo não é exibido automaticamente."
-                        ),
-                    },
-                }
+                "meta": self._build_meta_block(
+                    project=project,
+                    controle=controle,
+                    suprimentos=suprimentos,
+                    diario=diario,
+                    gestcontroll=gestcontroll,
+                    restricoes=restricoes,
+                )
             }
         if s == "filtros":
             return {"filtros": self.build_filtros_payload()}
         if s == "controle":
-            return {"controle": self._build_controle()}
+            return {"controle": self._build_controle(include_progressao_completo=True)}
         if s == "suprimentos":
-            return {"suprimentos": self._build_suprimentos()}
+            return {"suprimentos": self._build_suprimentos(include_extras=True)}
         if s == "diario":
             project = _resolve_project_for_obra(self.obra)
-            return {"diario": self._build_diario(project)}
+            return {"diario": self._build_diario(project, extended=True)}
         if s == "heatmap":
             return {"heatmap": self._build_heatmap()}
         if s == "cruzamento":
             project = _resolve_project_for_obra(self.obra)
-            controle = self._build_controle()
-            suprimentos = self._build_suprimentos()
-            diario = self._build_diario(project)
+            controle = self._build_controle(include_progressao_completo=True)
+            suprimentos = self._build_suprimentos(include_extras=True)
+            diario = self._build_diario(project, extended=True)
             return {"cruzamento": self._build_cruzamento(controle, suprimentos, diario)}
         if s == "trackhub":
             return {"trackhub": self._build_trackhub()}
+        if s == "gestcontroll":
+            return {"gestcontroll": self._build_gestcontroll()}
+        if s == "restricoes":
+            return {"restricoes": self._build_restricoes()}
         return None
 
     def build_drill_down(self, bloco: str, pavimento: str, setor: str | None = None) -> dict[str, Any]:
@@ -1539,16 +1577,19 @@ class AnaliseObraService:
             "resumo_executivo": {"prioridade": prioridade, "score": score, "acao": acao},
         }
 
-    def _build_suprimentos(self) -> dict[str, Any]:
-        raw = MapaControleService(obra=self.obra, filters=self.filtros.to_mapa_suprimentos_filters()).build_summary_payload()
-        return {
+    def _build_suprimentos(self, *, include_extras: bool = False) -> dict[str, Any]:
+        raw = self._get_mapa_summary()
+        result: dict[str, Any] = {
             "origem": "mapa_suprimentos",
             "descricao_curta": "Pipeline de materiais: SC, PC, entrega, alocação e pendências.",
             "kpis": raw.get("kpis"),
             "ranking": raw.get("ranking"),
-            "distribuicao_status": raw.get("distribuicao_status"),
             "obra": raw.get("obra"),
         }
+        if include_extras:
+            result["distribuicao_status"] = raw.get("distribuicao_status")
+            result["quem_cobrar"] = raw.get("quem_cobrar")
+        return result
 
     def _build_matrix_bloco_view_ctx(self, bundle: dict[str, Any]) -> dict[str, Any] | None:
         """
@@ -1587,9 +1628,15 @@ class AnaliseObraService:
             ambiente_id=int(ambiente_id),
         )
 
-    def _matrix_bloco_layer_kpis(self, bundle: dict[str, Any]) -> dict[str, float | int | None] | None:
+    def _matrix_bloco_layer_kpis(
+        self,
+        bundle: dict[str, Any],
+        *,
+        view_ctx: dict[str, Any] | None = None,
+    ) -> dict[str, float | int | None] | None:
         """KPIs de avanço físico alinhados ao total_geral da matriz (camada bloco)."""
-        view_ctx = self._build_matrix_bloco_view_ctx(bundle)
+        if view_ctx is None:
+            view_ctx = self._build_matrix_bloco_view_ctx(bundle)
         if not view_ctx:
             return None
 
@@ -1605,7 +1652,7 @@ class AnaliseObraService:
             "nao_iniciados": int(matrix_kpis.get("nao_iniciados") or 0),
         }
 
-    def _build_controle(self) -> dict[str, Any]:
+    def _build_controle(self, *, include_progressao_completo: bool = False) -> dict[str, Any]:
         bundle = self._load_controle_bundle()
         if not bundle:
             return self._controle_sem_dados_payload()
@@ -1617,7 +1664,7 @@ class AnaliseObraService:
             )
 
         view_ctx = self._build_matrix_bloco_view_ctx(bundle)
-        matrix_kpis = self._matrix_bloco_layer_kpis(bundle) if view_ctx else None
+        matrix_kpis = self._matrix_bloco_layer_kpis(bundle, view_ctx=view_ctx) if view_ctx else None
         status_servico_ativo = self.filtros.status_servico in {
             "concluido",
             "em_andamento",
@@ -1654,16 +1701,18 @@ class AnaliseObraService:
             piores=False,
         )
 
-        ordenado_pior_melhor = sorted(bloco_scores, key=lambda x: x["percentual_medio"])
         _prog_max = 200
-        progressao_eixos_completo = sorted(
-            ordenado_pior_melhor[:_prog_max],
-            key=_progressao_eixo_sort_key,
-        )
+        progressao_eixos_completo: list[dict[str, Any]] = []
+        if include_progressao_completo:
+            ordenado_pior_melhor = sorted(bloco_scores, key=lambda x: x["percentual_medio"])
+            progressao_eixos_completo = sorted(
+                ordenado_pior_melhor[:_prog_max],
+                key=_progressao_eixo_sort_key,
+            )
         ranking_meta = {
             "eixos_listados": len(piores),
             "eixos_com_medicao": len(bloco_scores),
-            "eixos_lista_completa": len(progressao_eixos_completo),
+            "eixos_lista_completa": len(progressao_eixos_completo) if include_progressao_completo else len(bloco_scores),
             "limite_ranking": 16,
             "lista_completa_cortada": len(bloco_scores) > _prog_max,
         }
@@ -1696,7 +1745,11 @@ class AnaliseObraService:
                 "nao_iniciados": nao_iniciados,
             },
             "blocos_mais_atrasados": piores,
-            "progressao_eixos_completo": progressao_eixos_completo,
+            **(
+                {"progressao_eixos_completo": progressao_eixos_completo}
+                if include_progressao_completo
+                else {}
+            ),
             "blocos_mais_avancados": melhores,
             "progresso_blocos": progresso_blocos,
             "atividades_mais_criticas": atividades_mais_criticas,
@@ -1804,7 +1857,7 @@ class AnaliseObraService:
             },
         }
 
-    def _build_diario(self, project: Project | None) -> dict[str, Any]:
+    def _build_diario(self, project: Project | None, *, extended: bool = False) -> dict[str, Any]:
         if not project:
             return {
                 "origem": "diario_obra",
@@ -1942,18 +1995,23 @@ class AnaliseObraService:
 
         total_ocorrencias = occ_qs.count()
 
-        por_dia = occ_qs.values("diary__date").annotate(n=Count("id")).order_by("diary__date")
-        ocorrencias_por_dia = []
-        for row in por_dia:
-            dia = row["diary__date"]
-            ocorrencias_por_dia.append(
-                {
-                    "data": dia.isoformat(),
-                    "total": row["n"],
-                    "relatorio_id": relatorio_id_por_data.get(dia),
-                }
-            )
-        dias_com_ocorrencia = len(ocorrencias_por_dia)
+        ocorrencias_por_dia: list[dict[str, Any]] = []
+        if extended:
+            por_dia = occ_qs.values("diary__date").annotate(n=Count("id")).order_by("diary__date")
+            for row in por_dia:
+                dia = row["diary__date"]
+                ocorrencias_por_dia.append(
+                    {
+                        "data": dia.isoformat(),
+                        "total": row["n"],
+                        "relatorio_id": relatorio_id_por_data.get(dia),
+                    }
+                )
+        dias_com_ocorrencia = (
+            len(ocorrencias_por_dia)
+            if extended
+            else occ_qs.values("diary__date").distinct().count()
+        )
         media_dia_com_evento = round((total_ocorrencias / dias_com_ocorrencia), 2) if dias_com_ocorrencia else 0.0
         taxa_dias_com_ocorrencia = round((dias_com_ocorrencia / dias_periodo) * 100.0, 1)
 
@@ -1968,13 +2026,14 @@ class AnaliseObraService:
         ]
 
         priorities = {"p1_critica": 0, "p2_alta": 0, "p3_media": 0, "p4_baixa": 0}
-        ocorrencias_recentes = []
+        ocorrencias_recentes: list[dict[str, Any]] = []
         occ_recent_qs = (
             occ_qs.select_related("diary")
             .prefetch_related("tags")
             .order_by("-diary__date", "-created_at")
         )
-        for occ in occ_recent_qs:
+        occ_iter = occ_recent_qs if extended else occ_recent_qs[:30]
+        for occ in occ_iter:
             tags_list = [t.name for t in occ.tags.all()]
             severity = _classify_occurrence_severity(occ.description or "", tags_list)
             if severity == "critica":
@@ -1986,51 +2045,53 @@ class AnaliseObraService:
             else:
                 priorities["p4_baixa"] += 1
 
-            ocorrencias_recentes.append(
-                {
-                    "data": occ.diary.date.isoformat(),
-                    "relatorio": occ.diary.report_number,
-                    "relatorio_id": occ.diary_id,
-                    "descricao": (occ.description or "")[:220],
-                    "gravidade": severity,
-                    "tags": tags_list[:5],
-                }
-            )
-
-        recent = (
-            diarios_aprovados.order_by("-date")
-            .prefetch_related(
-                Prefetch(
-                    "occurrences",
-                    queryset=DiaryOccurrence.objects.prefetch_related("tags").order_by("-created_at"),
-                )
-            )[:12]
-        )
-        timeline = []
-        for d in recent:
-            day_occurrences = list(d.occurrences.all())
-            occ_n = len(day_occurrences)
-            occ_items = []
-            for occ in day_occurrences:
-                occ_items.append(
+            if extended:
+                ocorrencias_recentes.append(
                     {
-                        "descricao": (occ.description or "")[:260],
-                        "tags": [t.name for t in occ.tags.all()[:4]],
+                        "data": occ.diary.date.isoformat(),
+                        "relatorio": occ.diary.report_number,
+                        "relatorio_id": occ.diary_id,
+                        "descricao": (occ.description or "")[:220],
+                        "gravidade": severity,
+                        "tags": tags_list[:5],
                     }
                 )
-            timeline.append(
-                {
-                    "data": d.date.isoformat(),
-                    "relatorio": d.report_number,
-                    "relatorio_id": d.id,
-                    "status": d.status,
-                    "ocorrencias_no_dia": occ_n,
-                    "resumo_clima": (d.weather_conditions or "")[:160],
-                    "ocorrencias": occ_items,
-                }
-            )
 
-        return {
+        timeline: list[dict[str, Any]] = []
+        if extended:
+            recent = (
+                diarios_aprovados.order_by("-date")
+                .prefetch_related(
+                    Prefetch(
+                        "occurrences",
+                        queryset=DiaryOccurrence.objects.prefetch_related("tags").order_by("-created_at"),
+                    )
+                )[:12]
+            )
+            for d in recent:
+                day_occurrences = list(d.occurrences.all())
+                occ_n = len(day_occurrences)
+                occ_items = []
+                for occ in day_occurrences:
+                    occ_items.append(
+                        {
+                            "descricao": (occ.description or "")[:260],
+                            "tags": [t.name for t in occ.tags.all()[:4]],
+                        }
+                    )
+                timeline.append(
+                    {
+                        "data": d.date.isoformat(),
+                        "relatorio": d.report_number,
+                        "relatorio_id": d.id,
+                        "status": d.status,
+                        "ocorrencias_no_dia": occ_n,
+                        "resumo_clima": (d.weather_conditions or "")[:160],
+                        "ocorrencias": occ_items,
+                    }
+                )
+
+        result: dict[str, Any] = {
             "origem": "diario_obra",
             "descricao_curta": "Fatos registrados no diário: ocorrências, tags e narrativa de campo.",
             "vinculo_projeto": True,
@@ -2050,12 +2111,14 @@ class AnaliseObraService:
                 "taxa_dias_com_ocorrencia": taxa_dias_com_ocorrencia,
                 "ocorrencias_criticas_no_periodo": priorities["p1_critica"],
             },
-            "ocorrencias_por_dia": ocorrencias_por_dia,
             "tags_top": tags_top,
-            "timeline": timeline,
             "prioridades": priorities,
-            "ocorrencias_recentes": ocorrencias_recentes,
         }
+        if extended:
+            result["ocorrencias_por_dia"] = ocorrencias_por_dia
+            result["timeline"] = timeline
+            result["ocorrencias_recentes"] = ocorrencias_recentes
+        return result
 
     def _build_cruzamento(
         self,

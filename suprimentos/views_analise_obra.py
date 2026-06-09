@@ -125,7 +125,6 @@ def _parse_filtros(request) -> AnaliseObraFilters:
         tag_ocorrencia_id=(request.GET.get("tag_ocorrencia_id") or "").strip(),
         busca_diario_texto=(request.GET.get("busca_diario_texto") or "").strip(),
         responsavel_texto=(request.GET.get("responsavel_texto") or "").strip(),
-        visao=(request.GET.get("visao") or "geral").strip() or "geral",
     )
 
 
@@ -162,10 +161,32 @@ def _controle_cache_stamp_for_obra(obra: Obra, filtros: AnaliseObraFilters, ini,
     return svc.controle_ambiente_cache_stamp()
 
 
-def _get_cached_payload_or_build(request, obra: Obra, ini, fim, filtros: AnaliseObraFilters):
+def _get_cached_payload_or_build(
+    request,
+    obra: Obra,
+    ini,
+    fim,
+    filtros: AnaliseObraFilters,
+    *,
+    shell: bool = False,
+):
+    prefix = "shell" if shell else "full"
+    base_key = _build_cache_key(
+        prefix,
+        user_id=request.user.id,
+        obra_id=obra.id,
+        ini=ini.isoformat() if ini else "",
+        fim=fim.isoformat() if fim else "",
+        filtros=filtros,
+        controle_stamp="",
+    )
+    cached = cache.get(base_key)
+    if cached is not None:
+        return cached
+
     controle_stamp = _controle_cache_stamp_for_obra(obra, filtros, ini, fim)
-    key = _build_cache_key(
-        "full",
+    stamped_key = _build_cache_key(
+        prefix,
         user_id=request.user.id,
         obra_id=obra.id,
         ini=ini.isoformat() if ini else "",
@@ -173,14 +194,59 @@ def _get_cached_payload_or_build(request, obra: Obra, ini, fim, filtros: Analise
         filtros=filtros,
         controle_stamp=controle_stamp,
     )
-    cached = cache.get(key)
+    cached = cache.get(stamped_key)
     if cached is not None:
         return cached
+
     periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
     svc = AnaliseObraService(obra, periodo=periodo, filtros=filtros)
-    payload = svc.build_payload()
-    cache.set(key, payload, ANALISE_OBRA_CACHE_TTL_SECONDS)
+    payload = svc.build_shell_payload() if shell else svc.build_full_payload()
+    cache.set(stamped_key, payload, ANALISE_OBRA_CACHE_TTL_SECONDS)
     return payload
+
+
+def _get_cached_section_or_build(
+    request,
+    obra: Obra,
+    ini,
+    fim,
+    filtros: AnaliseObraFilters,
+    svc: AnaliseObraService,
+    secao: str,
+):
+    base_key = _build_cache_key(
+        "section",
+        user_id=request.user.id,
+        obra_id=obra.id,
+        ini=ini.isoformat() if ini else "",
+        fim=fim.isoformat() if fim else "",
+        filtros=filtros,
+        controle_stamp="",
+        extra=secao,
+    )
+    cached = cache.get(base_key)
+    if cached is not None:
+        return cached
+
+    controle_stamp = _controle_cache_stamp_for_obra(obra, filtros, ini, fim)
+    stamped_key = _build_cache_key(
+        "section",
+        user_id=request.user.id,
+        obra_id=obra.id,
+        ini=ini.isoformat() if ini else "",
+        fim=fim.isoformat() if fim else "",
+        filtros=filtros,
+        controle_stamp=controle_stamp,
+        extra=secao,
+    )
+    cached = cache.get(stamped_key)
+    if cached is not None:
+        return cached
+
+    data = svc.build_section(secao)
+    if data is not None:
+        cache.set(stamped_key, data, ANALISE_OBRA_CACHE_TTL_SECONDS)
+    return data
 
 
 @login_required
@@ -194,7 +260,7 @@ def analise_obra(request):
     ini, fim = _effective_periodo_analise(request, obra)
 
     if obra:
-        payload = _get_cached_payload_or_build(request, obra, ini, fim, filtros)
+        payload = _get_cached_payload_or_build(request, obra, ini, fim, filtros, shell=True)
 
     filtros_dict = filtros.to_dict()
     hoje = timezone.localdate()
@@ -251,29 +317,17 @@ def analise_obra_api(request):
             "diario",
             "cruzamento",
             "heatmap",
+            "gestcontroll",
+            "restricoes",
+            "trackhub",
         }
     )
     if secao not in validas:
         return _json_error("Parâmetro secao inválido.", 400)
     if secao in {"all", "full"}:
-        data = _get_cached_payload_or_build(request, obra, ini, fim, filtros)
+        data = _get_cached_payload_or_build(request, obra, ini, fim, filtros, shell=False)
     else:
-        controle_stamp = _controle_cache_stamp_for_obra(obra, filtros, ini, fim)
-        key = _build_cache_key(
-            "section",
-            user_id=request.user.id,
-            obra_id=obra.id,
-            ini=ini.isoformat() if ini else "",
-            fim=fim.isoformat() if fim else "",
-            filtros=filtros,
-            controle_stamp=controle_stamp,
-            extra=secao,
-        )
-        data = cache.get(key)
-        if data is None:
-            data = svc.build_section(secao)
-            if data is not None:
-                cache.set(key, data, ANALISE_OBRA_CACHE_TTL_SECONDS)
+        data = _get_cached_section_or_build(request, obra, ini, fim, filtros, svc, secao)
     if data is None:
         return _json_error("Não foi possível montar a seção.", 400)
     return JsonResponse(

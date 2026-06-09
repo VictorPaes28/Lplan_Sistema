@@ -233,6 +233,17 @@ html, body {
   }
 }
 
+.analise-loading-skeleton {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--bi-text3);
+  font-size: 12.5px;
+  background: var(--bi-card);
+  border: 1px solid var(--bi-border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
 .index-toggle-btn {
   position: fixed;
   top: 64px;
@@ -1069,7 +1080,7 @@ html, body {
 {% endif %}
 
 {% if analise_payload %}
-{% if analise_payload.meta.diario_sem_vinculo or not analise_payload.diario.vinculo_projeto %}
+{% if not analise_payload.meta.diario_vinculo_projeto %}
       <div style="background:var(--bi-yellow-bg);border:1px solid var(--bi-yellow);border-radius:10px;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;margin-bottom:18px">
         <div style="font-size:16px">⚠️</div>
         <div>
@@ -1159,33 +1170,6 @@ html, body {
           </button>
           {% endif %}
         </div>
-        {% else %}
-        <div class="card">
-          <div class="card-title">Avanço geral <span class="card-tag tag-obra">OBRA</span></div>
-          <div class="big-num yellow">38,5%</div>
-          <div class="big-sub">média consolidada na camada bloco (Total da matriz do mapa)</div>
-          <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill yellow" style="width:38.5%"></div></div></div>
-          <div class="chips" style="margin-top:12px">
-            <div class="chip chip-green">✓ 142 concluídos</div>
-            <div class="chip chip-blue">↻ 89 em andamento</div>
-            <div class="chip chip-gray">○ 138 não iniciados</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">Progresso por bloco <span class="card-tag tag-obra">OBRA</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Bloco C</div><div class="stat-row-value" style="color:var(--bi-red)">12%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco A</div><div class="stat-row-value" style="color:var(--bi-yellow)">28%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Bloco B</div><div class="stat-row-value" style="color:var(--bi-yellow)">31%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Bloco D</div><div class="stat-row-value" style="color:var(--bi-blue)">47%</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Atividades mais críticas <span class="card-tag tag-obra">OBRA</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Acabamento</div><div class="stat-row-value" style="color:var(--bi-red)">8%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Revestimento</div><div class="stat-row-value" style="color:var(--bi-red)">15%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Instalações</div><div class="stat-row-value" style="color:var(--bi-yellow)">29%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Alvenaria</div><div class="stat-row-value" style="color:var(--bi-yellow)">44%</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-green)"></div>Estrutura</div><div class="stat-row-value" style="color:var(--bi-green)">61%</div></div>
-        </div>
         {% endif %}
       </div>
 
@@ -1193,679 +1177,54 @@ html, body {
         <div class="sec-title"><div class="sec-num">2</div>Pedidos & Aprovações</div>
         <div class="sec-right"><div class="sec-source">GestControll · Central</div><a href="{% url 'gestao:list_workorders' %}" class="nav-link">Abrir GestControll <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
-      <div class="grid-4" style="margin-bottom:12px">
-        {% if analise_payload and analise_payload.gestcontroll %}
-        {% with g=analise_payload.gestcontroll %}
-        <div class="card">
-          <div class="card-title">Pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="big-num yellow">{{ g.kpis.pendentes_count|default:0 }}</div>
-          <div class="big-sub">aguardando aprovação</div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
-            <div style="font-size:10px;color:var(--bi-text3);margin-bottom:3px">Valor em análise</div>
-            <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">R$&nbsp;{{ g.kpis.pendentes_valor|default_if_none:0|format_brl }}</div>
-          </div>
-          <a href="{% url 'gestao:list_workorders' %}?status=pendente{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">Ver fila <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Reprovados <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="big-num red">{{ g.kpis.reprovados_count|default:0 }}</div>
-          <div class="big-sub">no período</div>
-          <div class="chips" style="margin-top:10px">
-            {% for tipo, qtd in g.kpis.reprovados_por_tipo.items %}
-            <div class="chip chip-red">{{ tipo }} · {{ qtd }}</div>
-            {% empty %}
-            <div class="chip chip-gray">Nenhum</div>
-            {% endfor %}
-          </div>
-          <a href="{% url 'gestao:list_workorders' %}?status=reprovado{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">Ver reprovados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Taxa aprovação <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          {% with tx=g.kpis.taxa_aprovacao|default:0 apr=g.kpis.aprovados_count|default:0 rep=g.kpis.reprovados_count|default:0 %}
-          <div class="big-num green">{{ tx|floatformat:0 }}%</div>
-          <div class="big-sub">no período</div>
-          <div class="prog-wrap" style="margin-top:12px">
-            <div class="prog-label"><span style="color:var(--bi-green)">✓ {{ apr }} apr.</span><span style="color:var(--bi-red)">✕ {{ rep }} repr.</span></div>
-            <div class="prog-bar" style="height:8px;display:flex">
-              <div style="height:100%;width:{{ g.kpis.taxa_aprovacao|default:0 }}%;background:var(--bi-green);border-radius:99px 0 0 99px"></div>
-              <div style="height:100%;width:{% widthratio rep apr|add:rep 100 %}%;background:var(--bi-red);border-radius:0 99px 99px 0"></div>
-            </div>
-          </div>
-          {% endwith %}
-        </div>
-        <div class="card">
-          <div class="card-title">Alçadas travadas <span class="card-tag tag-gest">CENTRAL</span></div>
-          <div class="big-num red">{{ g.kpis.alcadas_travadas|default:0 }}</div>
-          <div class="big-sub">parados há +5 dias</div>
-          <div class="chips" style="margin-top:10px">
-            {% for alcada in g.kpis.alcadas_detalhes %}
-            <div class="chip chip-{% if forloop.first %}red{% else %}yellow{% endif %}">{{ alcada.nome }} · {{ alcada.count }}</div>
-            {% empty %}
-            <div class="chip chip-gray">—</div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endwith %}
-        {% else %}
-        <div class="card">
-          <div class="card-title">Pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="big-num yellow">7</div>
-          <div class="big-sub">aguardando aprovação</div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
-            <div style="font-size:10px;color:var(--bi-text3);margin-bottom:3px">Valor em análise</div>
-            <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">R$ 1.247.500</div>
-          </div>
-          <a href="{% url 'gestao:list_workorders' %}" class="nav-link">Ver fila <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Reprovados <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="big-num red">4</div>
-          <div class="big-sub">no período</div>
-          <div class="chips" style="margin-top:10px">
-            <div class="chip chip-red">Medição · 2</div>
-            <div class="chip chip-red">Serviço · 1</div>
-            <div class="chip chip-red">Material · 1</div>
-          </div>
-          <a href="{% url 'gestao:list_workorders' %}" class="nav-link">Ver reprovados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Taxa aprovação <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="big-num green">78%</div>
-          <div class="big-sub">no período</div>
-          <div class="prog-wrap" style="margin-top:12px">
-            <div class="prog-label"><span style="color:var(--bi-green)">✓ 18 apr.</span><span style="color:var(--bi-red)">✕ 4 repr.</span></div>
-            <div class="prog-bar" style="height:8px;display:flex">
-              <div style="height:100%;width:78%;background:var(--bi-green);border-radius:99px 0 0 99px"></div>
-              <div style="height:100%;width:22%;background:var(--bi-red);border-radius:0 99px 99px 0"></div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">Alçadas travadas <span class="card-tag tag-gest">CENTRAL</span></div>
-          <div class="big-num red">3</div>
-          <div class="big-sub">parados há +5 dias</div>
-          <div class="chips" style="margin-top:10px">
-            <div class="chip chip-red">Alçada 2 · 2</div>
-            <div class="chip chip-yellow">Alçada 1 · 1</div>
-          </div>
-        </div>
-        {% endif %}
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="gestcontroll" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+        <div class="analise-loading-skeleton">Carregando pedidos e aprovações…</div>
       </div>
-      <div class="grid-2" style="margin-bottom:12px">
-        {% if analise_payload and analise_payload.gestcontroll %}
-        {% with g=analise_payload.gestcontroll %}
-        <div class="card">
-          <div class="card-title">Pedidos pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          {% for pedido in g.pedidos_pendentes|slice:":7" %}
-          <div class="pedido-row" onclick="location.href='{% url 'gestao:detail_workorder' pedido.id %}'">
-            <div class="pedido-code">{{ pedido.codigo|default:"—" }}</div>
-            <div class="pedido-credor">
-              {{ pedido.nome_credor|default:"—" }}
-              <div style="font-size:10px;color:var(--bi-text3)">
-                {{ pedido.tipo_solicitacao|default:"—" }} · há {{ pedido.dias_pendente|default:0 }} dias
-                {% if pedido.dias_pendente|default:0 > 7 %}⚠️{% endif %}
-              </div>
-            </div>
-            <div class="pedido-valor">{% if pedido.valor_estimado != None %}R$ {{ pedido.valor_estimado|format_brl }}{% elif pedido.valor_medicao != None %}R$ {{ pedido.valor_medicao|format_brl }}{% else %}—{% endif %}</div>
-            <div class="pedido-badge pend">Pendente</div>
-            <div class="pedido-arrow">›</div>
-          </div>
-          {% empty %}
-          <div style="font-size:12px;color:var(--bi-text3);padding:12px 0">Nenhum pedido pendente</div>
-          {% endfor %}
-          {% if g.kpis.pendentes_count > 0 %}
-          <a href="{% url 'gestao:list_workorders' %}?status=pendente{% if g.gestao_obra_id %}&amp;obra={{ g.gestao_obra_id }}{% endif %}" class="nav-link">
-            Ver todos os {{ g.kpis.pendentes_count }} pendentes
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </a>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Aprovadores <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          {% for aprovador in g.aprovadores %}
-          <div class="resp-row">
-            <div class="resp-avatar">{{ aprovador.nome|slice:":2"|upper }}</div>
-            <div>
-              <div class="resp-name">{{ aprovador.nome }}</div>
-              <div class="resp-sub">{{ aprovador.nivel|default:"Aprovador" }}</div>
-            </div>
-            <div class="resp-stats">
-              <div class="resp-stat">
-                <div class="resp-stat-val green">{{ aprovador.aprovados|default:0 }}</div>
-                <div class="resp-stat-label">Aprov.</div>
-              </div>
-              <div class="resp-divider"></div>
-              <div class="resp-stat">
-                <div class="resp-stat-val red">{{ aprovador.reprovados|default:0 }}</div>
-                <div class="resp-stat-label">Repr.</div>
-              </div>
-              <div class="resp-divider"></div>
-              <div class="resp-stat">
-                <div class="tempo-badge {% if aprovador.tempo_medio_dias <= 2 %}fast{% elif aprovador.tempo_medio_dias <= 5 %}mid{% else %}slow{% endif %}">
-                  {{ aprovador.tempo_medio_dias|floatformat:1 }}d
-                </div>
-                <div class="resp-stat-label" style="margin-top:2px;text-align:center">Tempo</div>
-              </div>
-            </div>
-          </div>
-          {% empty %}
-          <div style="font-size:12px;color:var(--bi-text3);padding:12px 0">Sem dados de aprovadores</div>
-          {% endfor %}
-          <div style="margin-top:12px;padding:10px;background:var(--bi-yellow-bg);border-radius:8px">
-            <div style="font-size:10px;font-weight:700;color:var(--bi-yellow);margin-bottom:3px">⏱ Tempo médio geral</div>
-            <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">{% if g.kpis.tempo_medio_geral != None %}{{ g.kpis.tempo_medio_geral|floatformat:1 }} dias{% else %}—{% endif %}</div>
-          </div>
-        </div>
-        {% endwith %}
-        {% else %}
-        <div class="card">
-          <div class="card-title">Pedidos pendentes <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="pedido-row"><div class="pedido-code">260-2026-109</div><div class="pedido-credor">L A Distribuidora<div style="font-size:10px;color:var(--bi-text3)">Medição · há 3 dias</div></div><div class="pedido-valor">R$ 320.000</div><div class="pedido-badge pend">Pendente</div><div class="pedido-arrow">›</div></div>
-          <div class="pedido-row"><div class="pedido-code">260-2026-108</div><div class="pedido-credor">Construtora ABC<div style="font-size:10px;color:var(--bi-text3)">Serviço · há 5 dias</div></div><div class="pedido-valor">R$ 180.000</div><div class="pedido-badge pend">Pendente</div><div class="pedido-arrow">›</div></div>
-          <div class="pedido-row"><div class="pedido-code">260-2026-097</div><div class="pedido-credor">Fornecedor XYZ<div style="font-size:10px;color:var(--bi-text3)">Material · há 8 dias ⚠️</div></div><div class="pedido-valor">R$ 95.000</div><div class="pedido-badge pend">Pendente</div><div class="pedido-arrow">›</div></div>
-          <a href="{% url 'gestao:list_workorders' %}" class="nav-link">Ver todos os 7 pendentes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Aprovadores <span class="card-tag tag-gest">GESTCONTROLL</span></div>
-          <div class="resp-row">
-            <div class="resp-avatar">MS</div>
-            <div><div class="resp-name">Marcos Silva</div><div class="resp-sub">Nível 1</div></div>
-            <div class="resp-stats">
-              <div class="resp-stat"><div class="resp-stat-val green">11</div><div class="resp-stat-label">Aprov.</div></div>
-              <div class="resp-divider"></div>
-              <div class="resp-stat"><div class="resp-stat-val red">2</div><div class="resp-stat-label">Repr.</div></div>
-              <div class="resp-divider"></div>
-              <div class="resp-stat"><div class="tempo-badge fast">1,2d</div><div class="resp-stat-label" style="margin-top:2px;text-align:center">Tempo</div></div>
-            </div>
-          </div>
-          <div class="resp-row">
-            <div class="resp-avatar">AC</div>
-            <div><div class="resp-name">Ana Costa</div><div class="resp-sub">Nível 2</div></div>
-            <div class="resp-stats">
-              <div class="resp-stat"><div class="resp-stat-val green">5</div><div class="resp-stat-label">Aprov.</div></div>
-              <div class="resp-divider"></div>
-              <div class="resp-stat"><div class="resp-stat-val red">1</div><div class="resp-stat-label">Repr.</div></div>
-              <div class="resp-divider"></div>
-              <div class="resp-stat"><div class="tempo-badge slow">7,1d</div><div class="resp-stat-label" style="margin-top:2px;text-align:center">Tempo</div></div>
-            </div>
-          </div>
-          <div style="margin-top:12px;padding:10px;background:var(--bi-yellow-bg);border-radius:8px">
-            <div style="font-size:10px;font-weight:700;color:var(--bi-yellow);margin-bottom:3px">⏱ Tempo médio geral</div>
-            <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-yellow)">3,2 dias</div>
-          </div>
-        </div>
-        {% endif %}
-      </div>
+      {% endif %}
 
       <div class="sec-header" id="bloco-3">
         <div class="sec-title"><div class="sec-num">3</div>Restrições abertas</div>
         <div class="sec-right"><div class="sec-source">Restrições</div><a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Abrir Restrições <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
-      <div class="grid-4">
-        {% if analise_payload and analise_payload.restricoes %}
-        {% with r=analise_payload.restricoes %}
-        <div class="card">
-          <div class="card-title">Total aberto <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="big-num red">{{ r.kpis.total_aberto|default:0 }}</div><div class="big-sub">em aberto</div>
-          <div class="chips" style="margin-top:10px">
-            {% for prioridade, qtd in r.kpis.por_prioridade.items %}
-            {% if qtd > 0 %}
-            <div class="chip chip-{% if prioridade == 'CRITICA' %}red{% elif prioridade == 'ALTA' %}yellow{% elif prioridade == 'NORMAL' %}blue{% else %}gray{% endif %}">
-              {% if prioridade == 'CRITICA' %}🔴{% elif prioridade == 'ALTA' %}🟡{% elif prioridade == 'NORMAL' %}🔵{% else %}⚪{% endif %}
-              {{ prioridade|capfirst }} {{ qtd }}
-            </div>
-            {% endif %}
-            {% endfor %}
-          </div>
-          {% if obra_selecionada.project_id %}
-          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;prioridade=CRITICA" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-          {% else %}
-          <a href="{% url 'impedimentos:select_obra' %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Prazo vencido <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="big-num red">{{ r.kpis.vencidas|default:0 }}</div><div class="big-sub">prazo expirado</div>
-          <div style="margin-top:10px">
-            {% for v in r.vencidas_recentes %}
-            <div class="tl-item">
-              <div class="tl-date">há {{ v.dias_vencido }} dias</div>
-              <div class="tl-content">
-                {{ v.titulo|truncatechars:40 }}
-                <div class="tl-meta">{{ v.prioridade|capfirst }} · {{ v.responsavel|default:"Sem responsável" }}</div>
-              </div>
-            </div>
-            {% empty %}
-            <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">Nenhuma vencida</div>
-            {% endfor %}
-          </div>
-          {% if obra_selecionada.project_id %}
-          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;data_fim={{ restricoes_data_ontem }}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-          {% else %}
-          <a href="{% url 'impedimentos:select_obra' %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Por responsável <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          {% for resp in r.por_responsavel %}
-          <div class="stat-row">
-            <div class="stat-row-label">
-              <div class="stat-dot" style="background:{% if forloop.counter == 1 %}var(--bi-red){% elif forloop.counter == 2 %}var(--bi-yellow){% elif forloop.counter == 3 %}var(--bi-blue){% else %}var(--bi-text3){% endif %}"></div>
-              {{ resp.nome }}
-            </div>
-            <div class="stat-row-value">{{ resp.total }}</div>
-          </div>
-          {% endfor %}
-          {% if r.kpis.sem_responsavel > 0 %}
-          <div class="stat-row">
-            <div class="stat-row-label" style="color:var(--bi-red)">⚠ Sem responsável</div>
-            <div class="stat-row-value" style="color:var(--bi-red)">{{ r.kpis.sem_responsavel }}</div>
-          </div>
-          {% endif %}
-          {% if r.kpis.sem_responsavel > 0 and obra_selecionada.project_id %}
-          <a href="{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?sem_responsavel=true" class="nav-link">
-            Atribuir responsáveis
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </a>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Subtarefas bloqueando <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="big-num yellow">{{ r.kpis.subtarefas_bloqueando|default:0 }}</div><div class="big-sub">subtarefas abertas</div>
-          {% if r.kpis.restricoes_com_subtarefa_aberta %}
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
-            <div class="chip chip-red" style="display:inline-flex">{{ r.kpis.restricoes_com_subtarefa_aberta }} restrições bloqueadas</div>
-          </div>
-          {% endif %}
-        </div>
-        {% endwith %}
-        {% else %}
-        <div class="card">
-          <div class="card-title">Total aberto <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="big-num red">12</div><div class="big-sub">em aberto</div>
-          <div class="chips" style="margin-top:10px">
-            <div class="chip chip-red">🔴 Crítica 2</div>
-            <div class="chip chip-yellow">🟡 Alta 5</div>
-            <div class="chip chip-blue">🔵 Normal 3</div>
-            <div class="chip chip-gray">⚪ Baixa 2</div>
-          </div>
-          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;prioridade=CRITICA{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver críticas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Prazo vencido <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="big-num red">4</div><div class="big-sub">prazo expirado</div>
-          <div style="margin-top:10px">
-            <div class="tl-item"><div class="tl-date">há 8 dias</div><div class="tl-content">Licença de demolição<div class="tl-meta">Crítica · João Silva</div></div></div>
-            <div class="tl-item"><div class="tl-date">há 3 dias</div><div class="tl-content">Aprovação CREA<div class="tl-meta">Alta · Maria Costa</div></div></div>
-          </div>
-          <a href="{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}?view=tabela&amp;data_fim={{ restricoes_data_ontem }}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}" class="nav-link">Ver vencidas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Por responsável <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>João Silva</div><div class="stat-row-value">4</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Maria Costa</div><div class="stat-row-value">3</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Carlos Melo</div><div class="stat-row-value">3</div></div>
-          <div class="stat-row"><div class="stat-row-label" style="color:var(--bi-red)">⚠ Sem responsável</div><div class="stat-row-value" style="color:var(--bi-red)">2</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Subtarefas bloqueando <span class="card-tag tag-rest">RESTRIÇÕES</span></div>
-          <div class="big-num yellow">8</div><div class="big-sub">subtarefas abertas</div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border)">
-            <div class="chip chip-red" style="display:inline-flex">3 restrições bloqueadas</div>
-          </div>
-        </div>
-        {% endif %}
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="restricoes" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}" data-restricoes-data-ontem="{{ restricoes_data_ontem }}" data-project-id="{{ obra_selecionada.project_id|default:'' }}">
+        <div class="analise-loading-skeleton">Carregando restrições…</div>
       </div>
+      {% endif %}
 
       <div class="sec-header" id="bloco-4">
         <div class="sec-title"><div class="sec-num">4</div>Diário de obras</div>
         <div class="sec-right"><div class="sec-source">RDO</div><a href="{% url 'report-list' %}" class="nav-link">Abrir Diário <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
-      <div class="grid-3">
-        {% if analise_payload %}
-        <div class="card">
-          <div class="card-title">Status dos RDOs <span class="card-tag tag-campo">DIÁRIO</span></div>
-          {% with rs=analise_payload.diario.rdos_resumo %}
-          <div style="display:flex;gap:16px;align-items:center">
-            <div><div class="big-num green" style="font-size:28px">{{ rs.aprovados|default:0 }}</div><div class="big-sub">aprovados</div></div>
-            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
-            <div><div class="big-num yellow" style="font-size:22px">{{ rs.pendentes|default:0 }}</div><div class="big-sub">pendentes</div></div>
-            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
-            <div><div class="big-num red" style="font-size:22px">{{ rs.sem_rdo|default:0 }}</div><div class="big-sub">sem RDO</div></div>
-          </div>
-          <div class="rdo-bar">
-            <div class="rdo-seg" style="flex:{{ rs.aprovados|default:1 }};background:var(--bi-green);opacity:.8"></div>
-            {% if rs.pendentes|default:0 > 0 %}
-            <div class="rdo-seg" style="flex:{{ rs.pendentes }};background:var(--bi-yellow)"></div>
-            {% endif %}
-            {% if rs.sem_rdo|default:0 > 0 %}
-            <div class="rdo-seg" style="flex:{{ rs.sem_rdo }};background:var(--bi-border2)"></div>
-            {% endif %}
-          </div>
-          <div style="font-size:10.5px;color:var(--bi-text3)">{{ analise_payload.meta.periodo.dias }} dias · {{ rs.aprovados|default:0 }} apr · {{ rs.pendentes|default:0 }} pend. · {{ rs.sem_rdo|default:0 }} sem registro</div>
-          {% if rs.pendentes|default:0 > 0 and analise_payload.meta.projeto_diario_id %}
-          <a href="{% url 'report-list' %}?obra={{ analise_payload.meta.projeto_diario_id }}&amp;status=AG" class="nav-link">
-            Aprovar pendentes ({{ rs.pendentes }})
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </a>
-          {% endif %}
-          {% endwith %}
-        </div>
-        <div class="card">
-          <div class="card-title">Ocorrências por tag <span class="card-tag tag-campo">DIÁRIO</span></div>
-          {% if analise_payload.diario.vinculo_projeto %}
-          {% for tag in analise_payload.diario.tags_top %}
-          <div class="stat-row">
-            <div class="stat-row-label">
-              <div class="stat-dot" style="background:{{ tag.cor|default:'#6366f1' }}"></div>
-              {{ tag.nome }}
-            </div>
-            <div class="stat-row-value">{{ tag.total|default_if_none:0 }}</div>
-          </div>
-          {% empty %}
-          <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">Sem ocorrências no período</div>
-          {% endfor %}
-          {% else %}
-          <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">
-            ⚠️ Diário sem vínculo — configure o código Sienge da obra
-          </div>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Últimos dias <span class="card-tag tag-campo">DIÁRIO</span></div>
-
-          {% if analise_payload.diario.vinculo_projeto %}
-
-            <!-- Primeiros 5 dias — sempre visíveis -->
-            <div id="dias-resumo">
-              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:":7" %}
-              <div class="tl-item">
-                <div class="tl-date">{{ dia.data|date:"d/m" }}</div>
-                <div class="tl-content">
-                  {% if dia.tem_rdo %}
-                    RDO #{{ dia.report_number }} ·
-                    {% if dia.status == 'AP' %}<span style="color:var(--bi-green)">Aprovado</span>
-                    {% elif dia.status == 'AG' %}<span style="color:var(--bi-yellow)">Pendente</span>
-                    {% else %}{{ dia.status }}{% endif %}
-                    <div class="tl-meta">{{ dia.ocorrencias|default:0 }} ocorr. · {{ dia.responsavel|default:"—" }}</div>
-                  {% else %}
-                    <span style="color:var(--bi-text3);font-style:italic">Sem RDO registrado</span>
-                  {% endif %}
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-
-            <!-- Dias 6 a 30 — ocultos por padrão -->
-            <div id="dias-expandido" style="display:none;overflow:hidden;transition:all .3s;">
-              {% for dia in analise_payload.diario.ultimos_dias_calendario|slice:"7:30" %}
-              <div class="tl-item">
-                <div class="tl-date">{{ dia.data|date:"d/m" }}</div>
-                <div class="tl-content">
-                  {% if dia.tem_rdo %}
-                    RDO #{{ dia.report_number }} ·
-                    {% if dia.status == 'AP' %}<span style="color:var(--bi-green)">Aprovado</span>
-                    {% elif dia.status == 'AG' %}<span style="color:var(--bi-yellow)">Pendente</span>
-                    {% else %}{{ dia.status }}{% endif %}
-                    <div class="tl-meta">{{ dia.ocorrencias|default:0 }} ocorr. · {{ dia.responsavel|default:"—" }}</div>
-                  {% else %}
-                    <span style="color:var(--bi-text3);font-style:italic">Sem RDO registrado</span>
-                  {% endif %}
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-
-            <!-- Botões -->
-            {% if analise_payload.diario.ultimos_dias_calendario|length > 7 %}
-            <button type="button" id="btn-ver-mais-dias" onclick="toggleDias()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
-              Ver mais
-              <svg id="icon-ver-mais-dias" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            {% endif %}
-
-            <a href="{% url 'report-list' %}?project={{ analise_payload.meta.projeto_diario_id }}" class="nav-link">
-              Ver todos os diários
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </a>
-
-          {% else %}
-            <div style="font-size:12px;color:var(--bi-text3);padding:8px 0">
-              Diário sem vínculo com esta obra.
-              <a href="/admin/" style="color:var(--bi-accent)">Configurar →</a>
-            </div>
-          {% endif %}
-        </div>
-        {% else %}
-        <div class="card">
-          <div class="card-title">Status dos RDOs <span class="card-tag tag-campo">DIÁRIO</span></div>
-          <div style="display:flex;gap:16px;align-items:center">
-            <div><div class="big-num green" style="font-size:28px">21</div><div class="big-sub">aprovados</div></div>
-            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
-            <div><div class="big-num yellow" style="font-size:22px">3</div><div class="big-sub">pendentes</div></div>
-            <div style="width:1px;height:40px;background:var(--bi-border)"></div>
-            <div><div class="big-num red" style="font-size:22px">7</div><div class="big-sub">sem RDO</div></div>
-          </div>
-          <div class="rdo-bar">
-            <div class="rdo-seg" style="flex:21;background:var(--bi-green);opacity:.8"></div>
-            <div class="rdo-seg" style="flex:3;background:var(--bi-yellow)"></div>
-            <div class="rdo-seg" style="flex:7;background:var(--bi-border2)"></div>
-          </div>
-          <div style="font-size:10.5px;color:var(--bi-text3)">31 dias · 21 apr · 3 pend. · 7 sem registro</div>
-          <a href="{% url 'report-list' %}" class="nav-link">Aprovar pendentes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Ocorrências por tag <span class="card-tag tag-campo">DIÁRIO</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#ef4444"></div>Segurança</div><div class="stat-row-value">8</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#f59e0b"></div>Clima</div><div class="stat-row-value">6</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#3b82f6"></div>Equipamento</div><div class="stat-row-value">4</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#8b5cf6"></div>Mão de obra</div><div class="stat-row-value">3</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:#22c55e"></div>Outros</div><div class="stat-row-value">2</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Últimos dias <span class="card-tag tag-campo">DIÁRIO</span></div>
-          <div class="tl-item"><div class="tl-date">05/05</div><div class="tl-content">RDO #31 · Aprovado<div class="tl-meta">0 ocorr. · João Silva</div></div></div>
-          <div class="tl-item"><div class="tl-date">04/05</div><div class="tl-content">RDO #30 · <span style="color:var(--bi-yellow)">Pendente</span><div class="tl-meta">2 ocorr. · Carlos Melo</div></div></div>
-          <div class="tl-item"><div class="tl-date">03/05</div><div class="tl-content" style="color:var(--bi-text3);font-style:italic">Sem RDO registrado</div></div>
-          <div class="tl-item"><div class="tl-date">02/05</div><div class="tl-content">RDO #29 · Aprovado<div class="tl-meta">1 ocorr. · João Silva</div></div></div>
-          <a href="{% url 'report-list' %}" class="nav-link">Ver todos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        {% endif %}
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="diario" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}" data-periodo-dias="{% if analise_payload %}{{ analise_payload.meta.periodo.dias }}{% endif %}" data-projeto-diario-id="{% if analise_payload %}{{ analise_payload.meta.projeto_diario_id|default:'' }}{% endif %}" data-diario-vinculo="{% if analise_payload %}{{ analise_payload.meta.diario_vinculo_projeto|yesno:'1,0' }}{% else %}0{% endif %}">
+        <div class="analise-loading-skeleton">Carregando diário de obras…</div>
       </div>
+      {% endif %}
 
       <div class="sec-header" id="bloco-5">
         <div class="sec-title"><div class="sec-num">5</div>Suprimentos</div>
         <div class="sec-right"><div class="sec-source">Mapa de Suprimentos</div><a href="{% url 'engenharia:mapa' %}" class="nav-link">Abrir Suprimentos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
-      <div class="grid-2">
-        {% if analise_payload %}
-        {% with sk=analise_payload.suprimentos.kpis %}
-        {% with denom=sk.total_itens|default:1 %}
-        <div class="card">
-          <div class="card-title">Funil de materiais <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
-          <div class="funnel">
-            <div class="funnel-item"><div class="funnel-label">Sem pedido (SC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f1" style="width:{% widthratio sk.sem_sc|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_sc|default:0 }}</span></div></div></div>
-            <div class="funnel-item"><div class="funnel-label">SC sem compra (PC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f2" style="width:{% widthratio sk.sem_pc|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_pc|default:0 }}</span></div></div></div>
-            <div class="funnel-item"><div class="funnel-label">PC sem entrega</div><div class="funnel-bar-wrap"><div class="funnel-bar f3" style="width:{% widthratio sk.sem_entrega|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_entrega|default:0 }}</span></div></div></div>
-            <div class="funnel-item"><div class="funnel-label">Entregue s/ alocar</div><div class="funnel-bar-wrap"><div class="funnel-bar f4" style="width:{% widthratio sk.sem_alocacao|default:0 denom 100 %}%;min-width:28px"><span class="funnel-num">{{ sk.sem_alocacao|default:0 }}</span></div></div></div>
-          </div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border);display:flex;align-items:center;justify-content:space-between">
-            <div style="font-size:11px;color:var(--bi-text2)">Itens atrasados</div>
-            <div style="font-size:16px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-red)">{{ sk.atrasados|default:0 }}</div>
-          </div>
-          <a href="{% url 'engenharia:dashboard_2' %}" class="nav-link">Ver atrasados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        {% endwith %}
-        {% endwith %}
-        <div class="card">
-          <div class="card-title">Locais com mais pressão <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
-          {% with locais=analise_payload.suprimentos.ranking.locais %}
-          {% if locais %}
-          {% with mx=locais.0.1|default:1 %}
-          {% for row in locais %}
-          {% with nome=row.0 qtd=row.1 %}
-          <div class="prog-wrap"><div class="prog-label"><span>{{ nome|default:"—" }}</span><span>{{ qtd|default:0 }} pend.</span></div><div class="prog-bar"><div class="prog-fill {% if qtd >= 15 %}red{% elif qtd >= 8 %}yellow{% elif qtd >= 4 %}accent{% else %}green{% endif %}" style="width:{% widthratio qtd mx 100 %}%"></div></div></div>
-          {% endwith %}
-          {% endfor %}
-          {% endwith %}
-          {% else %}
-          <div class="big-sub" style="color:var(--bi-text3)">Sem dados de locais</div>
-          {% endif %}
-          {% endwith %}
-          <a href="{% url 'engenharia:mapa' %}" class="nav-link">Ver por local <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        {% else %}
-        <div class="card">
-          <div class="card-title">Funil de materiais <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
-          <div class="funnel">
-            <div class="funnel-item"><div class="funnel-label">Sem pedido (SC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f1"><span class="funnel-num">24</span></div></div></div>
-            <div class="funnel-item"><div class="funnel-label">SC sem compra (PC)</div><div class="funnel-bar-wrap"><div class="funnel-bar f2"><span class="funnel-num">17</span></div></div></div>
-            <div class="funnel-item"><div class="funnel-label">PC sem entrega</div><div class="funnel-bar-wrap"><div class="funnel-bar f3"><span class="funnel-num">11</span></div></div></div>
-            <div class="funnel-item"><div class="funnel-label">Entregue s/ alocar</div><div class="funnel-bar-wrap"><div class="funnel-bar f4"><span class="funnel-num">6</span></div></div></div>
-          </div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border);display:flex;align-items:center;justify-content:space-between">
-            <div style="font-size:11px;color:var(--bi-text2)">Itens atrasados</div>
-            <div style="font-size:16px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bi-red)">9</div>
-          </div>
-          <a href="{% url 'engenharia:dashboard_2' %}" class="nav-link">Ver atrasados <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Locais com mais pressão <span class="card-tag tag-mat">SUPRIMENTOS</span></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Bloco C — P3</span><span>18 pend.</span></div><div class="prog-bar"><div class="prog-fill red" style="width:90%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Bloco A — P2</span><span>14 pend.</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:70%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Bloco B — P1</span><span>11 pend.</span></div><div class="prog-bar"><div class="prog-fill yellow" style="width:55%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Bloco D — P4</span><span>7 pend.</span></div><div class="prog-bar"><div class="prog-fill accent" style="width:35%"></div></div></div>
-          <div class="prog-wrap"><div class="prog-label"><span>Bloco A — P1</span><span>4 pend.</span></div><div class="prog-bar"><div class="prog-fill green" style="width:20%"></div></div></div>
-          <a href="{% url 'engenharia:mapa' %}" class="nav-link">Ver por local <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        {% endif %}
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="suprimentos" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+        <div class="analise-loading-skeleton">Carregando suprimentos…</div>
       </div>
+      {% endif %}
 
       <div class="sec-header" id="bloco-6">
         <div class="sec-title"><div class="sec-num">6</div>Pendências</div>
         <div class="sec-right">
           <div class="sec-source">TrackHub</div>
-          {% if analise_payload %}
-          <a href="{% url 'trackhub:fila' %}?obra={{ analise_payload.meta.obra_id }}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+          {% if obra_selecionada %}
+          <a href="{% url 'trackhub:fila' %}?obra={{ obra_selecionada.id }}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
           {% endif %}
         </div>
       </div>
-      {% if analise_payload %}
-      {% with th=analise_payload.trackhub %}
-      <div class="grid-3" style="margin-bottom:12px">
-        <div class="card">
-          <div class="card-title">Resumo geral <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="big-num {% if th.resumo.vencidas > 0 %}red{% else %}green{% endif %}">{{ th.resumo.total_aberto|default:0 }}</div>
-          <div class="big-sub">pendências abertas</div>
-          <div class="stat-row" style="margin-top:10px"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Prazo vencido</div><div class="stat-row-value" style="color:var(--bi-red)">{{ th.resumo.vencidas|default:0 }}</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Em andamento</div><div class="stat-row-value" style="color:var(--bi-blue)">{{ th.resumo.em_andamento|default:0 }}</div></div>
-          <a href="{% url 'trackhub:fila' %}?obra={{ analise_payload.meta.obra_id }}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Por tipo <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div id="tipos-resumo">
-            {% for row in th.por_tipo|slice:":7" %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if forloop.counter == 1 %}var(--bi-red){% elif forloop.counter == 2 %}var(--bi-yellow){% elif forloop.counter == 3 %}var(--bi-blue){% else %}var(--bi-text3){% endif %}"></div>{{ row.tipo|default:"—" }}</div><div class="stat-row-value">{{ row.total|default:0 }}</div></div>
-            {% empty %}
-            <div class="stat-row"><div class="stat-row-label">Sem pendências abertas</div><div class="stat-row-value">—</div></div>
-            {% endfor %}
-          </div>
-          <div id="tipos-expandido" style="display:none;overflow:hidden;transition:all .3s;">
-            {% for row in th.por_tipo|slice:"7:" %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-text3)"></div>{{ row.tipo|default:"—" }}</div><div class="stat-row-value">{{ row.total|default:0 }}</div></div>
-            {% endfor %}
-          </div>
-          {% if th.por_tipo|length > 7 %}
-          <button type="button" id="btn-ver-mais-tipos" onclick="toggleTipos()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
-            Ver mais
-            <svg id="icon-ver-mais-tipos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Concluídas recentemente <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="big-num green">{{ th.resumo.concluidas_30d|default:0 }}</div>
-          <div class="big-sub">concluídas nos últimos 30 dias</div>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title">Responsáveis com etapas pendentes <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div id="responsaveis-resumo">
-            {% for resp in th.responsaveis|slice:":7" %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if forloop.counter == 1 %}var(--bi-red){% elif forloop.counter == 2 %}var(--bi-yellow){% elif forloop.counter == 3 %}var(--bi-blue){% else %}var(--bi-text3){% endif %}"></div>{{ resp.nome }}</div><div class="stat-row-value">{{ resp.total }}</div></div>
-            {% empty %}
-            <div class="stat-row"><div class="stat-row-label">Nenhuma etapa pendente</div><div class="stat-row-value">—</div></div>
-            {% endfor %}
-          </div>
-          <div id="responsaveis-expandido" style="display:none;overflow:hidden;transition:all .3s;">
-            {% for resp in th.responsaveis|slice:"7:" %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-text3)"></div>{{ resp.nome }}</div><div class="stat-row-value">{{ resp.total }}</div></div>
-            {% endfor %}
-          </div>
-          {% if th.responsaveis|length > 7 %}
-          <button type="button" id="btn-ver-mais-responsaveis" onclick="toggleResponsaveis()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
-            Ver mais
-            <svg id="icon-ver-mais-responsaveis" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          {% endif %}
-        </div>
-        <div class="card">
-          <div class="card-title">Pendências mais atrasadas <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div id="atrasadas-resumo">
-            {% for item in th.mais_atrasadas|slice:":5" %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>{{ item.titulo|truncatechars:40 }}</div><div class="stat-row-value" style="color:var(--bi-red)">{{ item.dias_atraso }} dias</div></div>
-            {% empty %}
-            <div class="stat-row"><div class="stat-row-label">Nenhuma vencida</div><div class="stat-row-value">—</div></div>
-            {% endfor %}
-          </div>
-          <div id="atrasadas-expandido" style="display:none;overflow:hidden;transition:all .3s;">
-            {% for item in th.mais_atrasadas|slice:"5:" %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>{{ item.titulo|truncatechars:40 }}</div><div class="stat-row-value" style="color:var(--bi-red)">{{ item.dias_atraso }} dias</div></div>
-            {% endfor %}
-          </div>
-          {% if th.mais_atrasadas|length > 5 %}
-          <button type="button" id="btn-ver-mais-atrasadas" onclick="toggleAtrasadas()" class="nav-link" style="margin-top:10px;border:none;cursor:pointer;background:var(--bi-accent-bg);color:var(--bi-accent);">
-            Ver mais
-            <svg id="icon-ver-mais-atrasadas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          {% endif %}
-        </div>
-      </div>
-      {% endwith %}
-      {% else %}
-      <div class="grid-3" style="margin-bottom:12px">
-        <div class="card">
-          <div class="card-title">Resumo geral <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="big-num yellow">18</div><div class="big-sub">pendências abertas</div>
-          <div class="stat-row" style="margin-top:10px"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Prazo vencido</div><div class="stat-row-value" style="color:var(--bi-red)">5</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Em andamento</div><div class="stat-row-value" style="color:var(--bi-blue)">7</div></div>
-          <a href="{% url 'trackhub:fila' %}" class="nav-link">Abrir TrackHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-        <div class="card">
-          <div class="card-title">Por tipo <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Documento</div><div class="stat-row-value">6</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Operacional</div><div class="stat-row-value">5</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Financeiro</div><div class="stat-row-value">4</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Concluídas recentemente <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="big-num green">9</div>
-          <div class="big-sub">concluídas nos últimos 30 dias</div>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title">Responsáveis com etapas pendentes <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>João Silva</div><div class="stat-row-value">8</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-yellow)"></div>Maria Costa</div><div class="stat-row-value">5</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-blue)"></div>Carlos Melo</div><div class="stat-row-value">3</div></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Pendências mais atrasadas <span class="card-tag tag-gest">TRACKHUB</span></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Licença ambiental</div><div class="stat-row-value" style="color:var(--bi-red)">12 dias</div></div>
-          <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:var(--bi-red)"></div>Aprovação CREA</div><div class="stat-row-value" style="color:var(--bi-red)">7 dias</div></div>
-        </div>
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="trackhub" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+        <div class="analise-loading-skeleton">Carregando pendências TrackHub…</div>
       </div>
       {% endif %}
 
@@ -2293,6 +1652,22 @@ document.querySelectorAll('.index-item').forEach(function(item) {
   }
 })();
 </script>
+{% if obra_selecionada %}
+<script>
+window.__ANALISE_API_URL__ = "{% url 'suprimentos:analise_obra_api' %}";
+window.__AO_OBRA_ID__ = "{{ obra_selecionada.id }}";
+window.__AO_URLS__ = {
+  gestao_list_pendente: "{% url 'gestao:list_workorders' %}?status=pendente",
+  gestao_list_reprovado: "{% url 'gestao:list_workorders' %}?status=reprovado",
+  gestao_detail_prefix: "{% url 'gestao:detail_workorder' 999999 %}".replace("999999", ""),
+  report_list: "{% url 'report-list' %}",
+  trackhub_fila: "{% url 'trackhub:fila' %}",
+  impedimentos_select: "{% url 'impedimentos:select_obra' %}",
+  impedimentos_list: "{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}"
+};
+</script>
+<script src="{% static 'suprimentos/js/analise_obra.js' %}?v={{ lplan_static_version }}"></script>
+{% endif %}
 </body>
 </html>
 
