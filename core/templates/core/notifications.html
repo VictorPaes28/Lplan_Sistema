@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load core_tags %}
 
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 {% block page_title %}Notificações{% endblock %}
@@ -670,14 +669,13 @@
 
       <h3 class="notif-title" title="{{ notification.title }}">{{ notification.title }}</h3>
 
-      {% notification_resumo notification notif_wo_map as notif_resumo %}
-      <span class="notif-summary" title="{{ notif_resumo }}">{{ notif_resumo }}</span>
+      <span class="notif-summary" title="{{ notification.message }}">{{ notification.message|truncatechars:80 }}</span>
 
       {% if t != 'pedido_exclusao_solicitada' and not notification.is_read %}
-      <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification|notification_badge_label }}</span>
+      <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification.get_notification_type_display }}</span>
       {% else %}
       <span class="notif-badge-slot">
-        <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification|notification_badge_label }}</span>
+        <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification.get_notification_type_display }}</span>
       </span>
       {% endif %}
 
