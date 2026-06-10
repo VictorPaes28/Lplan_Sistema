@@ -26,6 +26,25 @@
     color: #0a58ca;
     border-color: #0d6efd;
 }
+.mapa-contexto-import {
+    font-size: 0.85rem;
+}
+.mapa-alerta-codigo {
+    font-size: 0.85rem;
+}
+.mapa-sienge-diag {
+    font-size: 0.68rem;
+    line-height: 1.25;
+    margin-top: 0.2rem;
+    text-align: left;
+}
+.mapa-sienge-diag--aviso { color: #b45309; }
+.mapa-sienge-diag--info { color: #64748b; }
+.badge-sienge-vinculo {
+    font-size: 0.62rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
 </style>
 {% endblock %}
 
@@ -57,6 +76,44 @@
         <span>Inconsistência aloc.: {{ confiabilidade.inconsistencia_alocacao }}</span>
     </div>
     {% endif %}
+
+    {% if obra_selecionada and ultima_importacao %}
+    <div class="alert {% if ultima_importacao.tem_importacao %}alert-info{% else %}alert-warning{% endif %} border mapa-contexto-import py-2 mb-2" role="status">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <i class="bi bi-cloud-upload"></i>
+            {% if ultima_importacao.tem_importacao %}
+            <span>
+                <strong>Última importação Sienge:</strong>
+                {{ ultima_importacao.created_at|date:"d/m/Y H:i" }}
+                — {{ ultima_importacao.nome_arquivo }}
+                {% if ultima_importacao.usuario %}<span class="text-muted">({{ ultima_importacao.usuario }})</span>{% endif %}
+            </span>
+            {% else %}
+            <span><strong>Nenhuma importação Sienge registrada nesta obra.</strong> O quantitativo (col. 7) e o recebido na obra dependem do menu <a href="{% url 'engenharia:importar_sienge' %}" class="alert-link">Importar Sienge</a>.</span>
+            {% endif %}
+            <span class="text-muted ms-md-2">| {{ ultima_importacao.recebimentos_obra }} linha(s) de recebimento na obra</span>
+            <a href="{% url 'engenharia:importar_sienge' %}?obra={{ obra_selecionada.id }}" class="btn btn-sm btn-outline-primary ms-auto">Importar / atualizar</a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if alertas_mapa %}
+    {% for msg in alertas_mapa %}
+    <div class="alert alert-warning border mapa-alerta-codigo py-2 mb-2" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i>{{ msg }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <details class="mb-2 mapa-contexto-import">
+        <summary class="text-primary" style="cursor:pointer;font-size:0.9rem;"><i class="bi bi-question-circle me-1"></i>Como funciona o mapa (ordem recomendada)</summary>
+        <ol class="small text-muted mb-0 mt-2 ps-3">
+            <li><strong>Levantamento</strong> — descrição e quantidade planejada (col. 8); código pode ficar vazio.</li>
+            <li><strong>Sienge</strong> — criar SC no ERP e <strong>importar</strong> o arquivo (menu Importar).</li>
+            <li><strong>Vínculo</strong> — informar SC (col. 10) e código (col. 2); col. 7 mostra o quantitativo do Sienge ou um aviso se faltar vínculo.</li>
+            <li><strong>Alocação</strong> — col. 14 «Alocado / solicitado» e botão <strong>+</strong>: distribuir ao local o que já foi recebido na obra (não é digitar NF aqui).</li>
+        </ol>
+    </details>
 
 <!-- KPIs - Barra compacta melhorada -->
 <div class="kpi-container">
@@ -256,6 +313,9 @@
         <input type="hidden" name="obra" value="{{ filtros.obra_id|default:'' }}">
         <div class="filtros-row">
             <div class="filtro-item">
+                {% include "mapa_obras/includes/seletor_frente.html" with select_class="form-select" compact=True module_help="Contexto de navegação. Itens do mapa permanecem consolidados por obra." %}
+            </div>
+            <div class="filtro-item">
                 <label for="categoria" class="form-label">Categoria:</label>
                 <select name="categoria" id="categoria" class="form-select" onchange="this.form.submit()">
                     <option value="">Todas</option>
@@ -358,14 +418,14 @@
                 <th>4. LOCAL</th>
                 <th>5. RESPONSÁVEL</th>
                 <th>6. PRAZO</th>
-                <th>7. QUANTITATIVO (SC)</th>
+                <th title="Quantidade solicitada no Sienge (somente leitura). Vazio = ver aviso na célula.">7. QUANTIT. SIENGE (SC)</th>
                 <th>8. QUANTIDADE PLANEJADA</th>
                 <th>9. UND</th>
                 <th>10. Nº SOLICITAÇÃO</th>
                 <th>11. Nº PEDIDO DE COMPRA</th>
                 <th>12. EMPRESA RESPONSÁVEL</th>
                 <th>13. PRAZO RECEBIMENTO</th>
-                <th>14. QUANTIDADE RECEBIDA</th>
+                <th title="Quanto já foi alocado neste local ÷ solicitado (Sienge) ou planejado. Recebido na obra vem do import; use o botão + para alocar.">14. ALOCADO / SOLICITADO</th>
                 <th>15. SALDO A SER ENTREGUE</th>
                 <th class="col-sticky-right">16. STATUS</th>
                 <th>17. PRIORIDADE</th>
@@ -473,16 +533,24 @@
                            data-field="prazo_necessidade"
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
-                <!-- 7. QUANTITATIVO (do Sienge) -->
+                <!-- 7. QUANTITATIVO Sienge (somente leitura) -->
                 <td class="input-readonly campo-sienge text-center"
                     data-sienge-patch="quantidade_solicitada"
+                    data-sienge-diag-patch="1"
                     data-bs-toggle="tooltip"
-                    title="Quantidade solicitada no Sienge (SC)">
+                    title="{% if item.sienge_diagnostico.mensagem %}{{ item.sienge_diagnostico.mensagem }}{% else %}Quantidade solicitada no Sienge para SC + código desta linha{% endif %}">
                     {% if item.quantidade_solicitada_sienge > 0 %}
                         <strong>{{ item.quantidade_solicitada_sienge|floatformat:2 }}</strong>
                         <span class="text-muted small">{{ item.insumo.unidade|format_unidade }}</span>
+                        <span class="badge rounded-pill text-bg-success badge-sienge-vinculo ms-1">{{ item.sienge_diagnostico.badge }}</span>
                     {% else %}
-                        <span class="text-muted">-</span>
+                        <span class="text-muted">—</span>
+                        {% if item.sienge_diagnostico.badge %}
+                        <span class="badge rounded-pill {% if item.sienge_diagnostico.nivel == 'aviso' %}text-bg-warning{% else %}text-bg-secondary{% endif %} badge-sienge-vinculo d-block mt-1">{{ item.sienge_diagnostico.badge }}</span>
+                        {% endif %}
+                    {% endif %}
+                    {% if item.sienge_diagnostico.mensagem %}
+                    <div class="mapa-sienge-diag mapa-sienge-diag--{{ item.sienge_diagnostico.nivel }}">{{ item.sienge_diagnostico.mensagem }}</div>
                     {% endif %}
                 </td>
                 <!-- 8. QUANTIDADE PLANEJADA (editável e separada do quantitativo SC) -->
@@ -611,11 +679,10 @@
                         <span class="text-muted small">-</span>
                     {% endif %}
                 </td>
-                <!-- 14. QUANTIDADE RECEBIDA (Barra de progresso no fundo) -->
-                <!-- IMPORTANTE: Esta coluna mostra ALOCADO/SOLICITADO (alocação manual), não recebido do Sienge -->
+                <!-- 14. Alocado / solicitado (não é campo para digitar «recebido» — isso vem do Sienge; alocação pelo botão +) -->
                 <td class="celula-progresso" 
                     data-bs-toggle="tooltip" 
-                    title="Alocado para este local: {{ item.quantidade_alocada_local|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} | {% if item.numero_sc %}Solicitado no Sienge: {{ item.quantidade_solicitada_sienge|floatformat:2 }}{% else %}Planejado: {{ item.quantidade_planejada|floatformat:2 }}{% endif %} {{ item.insumo.unidade|format_unidade }} | Recebido na Obra (disponível para alocar): {{ item.quantidade_recebida_obra|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} | {{ item.percentual_alocado_porcentagem|floatformat:0 }}%">
+                    title="Alocado neste local: {{ item.quantidade_alocada_local|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} | {% if item.numero_sc %}Solicitado Sienge: {{ item.quantidade_solicitada_sienge|floatformat:2 }}{% else %}Planejado: {{ item.quantidade_planejada|floatformat:2 }}{% endif %} | Já recebido na obra (import): {{ item.quantidade_recebida_obra|floatformat:2 }} | Use + para alocar ao local">
                     <div class="progresso-bg" style="width: {{ item.percentual_alocado_porcentagem|floatformat:0 }}%; background: {% if item.percentual_alocado >= 1 %}rgba(34,197,94,0.2){% elif item.percentual_alocado > 0 %}rgba(245,158,11,0.2){% else %}rgba(156,163,175,0.1){% endif %};"></div>
                     <span class="progresso-texto">
                         {% if item.numero_sc and item.quantidade_solicitada_sienge > 0 %}

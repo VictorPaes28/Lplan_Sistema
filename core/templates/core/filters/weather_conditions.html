@@ -19,6 +19,17 @@
             <label for="filter-weather-date-end">Data fim</label>
             <input type="date" id="filter-weather-date-end" name="date_end" value="{{ date_end }}">
         </div>
+        {% if has_active_fronts %}
+        <div>
+            <label for="filter-weather-front">Frente</label>
+            <select id="filter-weather-front" name="front">
+                <option value="">Todas</option>
+                {% for front in active_fronts %}
+                <option value="{{ front.id }}"{% if selected_front and selected_front.id == front.id %} selected{% endif %}>{{ front.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
         <div class="filter-submit-wrap">
             <button type="submit" class="filter-submit">
                 <i class="fas fa-search"></i> Filtrar
@@ -104,6 +115,9 @@
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condições</th>
+                    {% if has_active_fronts %}
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frente</th>
+                    {% endif %}
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chuva</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                 </tr>
@@ -126,6 +140,11 @@
                             <span>{{ diary.weather_conditions|truncatechars:50 }}</span>
                         </div>
                     </td>
+                    {% if has_active_fronts %}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {% if diary.front %}{{ diary.front.name }}{% else %}—{% endif %}
+                    </td>
+                    {% endif %}
                     <td class="px-6 py-4 whitespace-nowrap">
                         {% if diary.rain_occurrence == 'F' %}
                             <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Fraca</span>

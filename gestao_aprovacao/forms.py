@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.models import User, Group
 from django.db.models import Q
 from decimal import Decimal, InvalidOperation
+import json
 from accounts.groups import ADMINISTRADOR_GLOBAL_GROUP_NAMES, GRUPOS
 from core.obras_readonly import OBRA_INATIVA_CONSULTA_MSG, gestao_obra_requires_readonly
 from .models import Empresa, Obra, WorkOrder, Attachment, WorkOrderPermission, AprovacaoEmailDestinatario
@@ -206,6 +207,7 @@ class WorkOrderForm(forms.ModelForm):
         model = WorkOrder
         fields = [
             'obra',
+            'front',
             'codigo',
             'nome_credor',
             'tipo_solicitacao',
@@ -218,6 +220,7 @@ class WorkOrderForm(forms.ModelForm):
         ]
         widgets = {
             'obra': forms.Select(attrs={'class': 'form-control'}),
+            'front': forms.Select(attrs={'class': 'form-control'}),
             'codigo': forms.TextInput(attrs={'class': 'form-control'}),
             'nome_credor': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_solicitacao': forms.Select(attrs={'class': 'form-control'}),
@@ -250,10 +253,13 @@ class WorkOrderForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         self._is_creating = is_creating
+        self._user = user
+        from .utils import is_admin
+        self._is_admin_user = bool(user and (is_admin(user) or user.is_superuser or user.is_staff))
         
         # Filtrar obras baseado no usuário e permissões
         if user:
-            from .utils import is_aprovador, is_admin, is_responsavel_empresa, is_engenheiro
+            from .utils import is_aprovador, is_responsavel_empresa, is_engenheiro
             
             # Verificar se é solicitante através do grupo OU WorkOrderPermission
             is_solicitante_group = is_engenheiro(user)  # Grupo "Solicitante"
@@ -318,6 +324,68 @@ class WorkOrderForm(forms.ModelForm):
                     del self.fields['codigo']
         else:
             self.fields['obra'].queryset = Obra.objects.filter(ativo=True).order_by('codigo')
+
+        # Frente (Gestt): dinâmica por obra e escopo do usuário
+        from .utils import frentes_ativas_disponiveis_para_obra
+        front_field = self.fields['front']
+        front_field.required = False
+        front_field.queryset = front_field.queryset.none()
+        front_field.help_text = (
+            'Obrigatória para usuários não administradores quando a obra possuir frentes ativas.'
+        )
+
+        front_map = {}
+        obras_qs = self.fields['obra'].queryset.select_related('project')
+        for obra_item in obras_qs:
+            frentes_qs = frentes_ativas_disponiveis_para_obra(obra_item, user)
+            frentes_payload = [
+                {'id': f.pk, 'name': f.name}
+                for f in frentes_qs
+            ]
+            if frentes_payload:
+                front_map[str(obra_item.pk)] = frentes_payload
+
+        selected_obra_id = None
+        if self.is_bound:
+            raw_obra = (self.data.get('obra') or '').strip()
+            if raw_obra.isdigit():
+                selected_obra_id = int(raw_obra)
+        elif self.instance and getattr(self.instance, 'obra_id', None):
+            selected_obra_id = self.instance.obra_id
+
+        selected_obra = None
+        if selected_obra_id:
+            selected_obra = Obra.objects.filter(pk=selected_obra_id).select_related('project').first()
+        elif self.instance and getattr(self.instance, 'obra_id', None):
+            selected_obra = self.instance.obra
+
+        if selected_obra:
+            front_qs = frentes_ativas_disponiveis_para_obra(selected_obra, user)
+            if self.instance and getattr(self.instance, 'front_id', None):
+                front_qs = (
+                    front_qs | front_qs.model.objects.filter(pk=self.instance.front_id)
+                ).distinct()
+            front_field.queryset = front_qs.order_by('name')
+            if (
+                not self._is_admin_user
+                and front_qs.count() == 1
+                and not (self.is_bound and (self.data.get('front') or '').strip())
+            ):
+                if not self.instance.pk or not getattr(self.instance, 'front_id', None):
+                    front_field.initial = front_qs.first().pk
+        elif self.instance and getattr(self.instance, 'front_id', None):
+            front_field.queryset = front_field.queryset.model.objects.filter(pk=self.instance.front_id)
+
+        obra_attrs = self.fields['obra'].widget.attrs
+        obra_attrs['data-front-map'] = json.dumps(front_map, ensure_ascii=False)
+        obra_attrs['data-front-admin-allow-empty'] = '1' if self._is_admin_user else '0'
+        obra_attrs['data-front-empty-label'] = (
+            'Sem frente (obra toda)' if self._is_admin_user else 'Selecione a frente'
+        )
+        front_field.widget.attrs['data-front-select'] = '1'
+        front_field.widget.attrs['data-front-visible-initial'] = (
+            '1' if front_field.queryset.exists() else '0'
+        )
         
         # Se estiver editando, tornar código readonly (se ainda existir)
         if self.instance.pk:
@@ -366,6 +434,38 @@ class WorkOrderForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        from .utils import frentes_ativas_disponiveis_para_obra
+        from core.models import ProjectFront
+
+        obra = cleaned_data.get('obra')
+        front = cleaned_data.get('front')
+
+        if obra and front:
+            front_valida_qs = frentes_ativas_disponiveis_para_obra(obra, self._user)
+            if not front_valida_qs.filter(pk=front.pk).exists():
+                self.add_error('front', 'A frente selecionada não pertence ao seu escopo nesta obra.')
+
+        if obra and getattr(obra, 'project_id', None):
+            has_active_fronts = ProjectFront.objects.filter(
+                project_id=obra.project_id,
+                is_active=True,
+            ).exists()
+            if has_active_fronts and not front and not self._is_admin_user:
+                frentes_unicas = list(frentes_ativas_disponiveis_para_obra(obra, self._user))
+                if len(frentes_unicas) == 1:
+                    cleaned_data['front'] = frentes_unicas[0]
+                    front = frentes_unicas[0]
+            if has_active_fronts and not self._is_admin_user and not front:
+                self.add_error(
+                    'front',
+                    'Selecione a frente. Para esta obra, o pedido deve ser vinculado a uma frente.',
+                )
+            if has_active_fronts and not self._is_admin_user and not frentes_ativas_disponiveis_para_obra(obra, self._user).exists():
+                self.add_error(
+                    'obra',
+                    'Você não possui frentes ativas vinculadas para esta obra. Solicite acesso a um administrador.',
+                )
+
         tipo = cleaned_data.get('tipo_solicitacao')
         if tipo != 'medicao':
             cleaned_data['valor_medicao'] = None

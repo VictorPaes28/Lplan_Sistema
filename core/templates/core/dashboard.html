@@ -17,7 +17,7 @@
 <div class="dashboard-content">
 {% if request.session.selected_project_id %}
 <div class="mb-6 flex flex-wrap items-center justify-end gap-3">
-    <a href="{% url 'diary-new' %}" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
+    <a href="{% url 'diary-new' %}" onclick="return openCreateReportEntryFromEvent(event);" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm font-medium">
         <i class="fas fa-plus-circle mr-2"></i>
         Criar relatório
     </a>
@@ -117,6 +117,20 @@
                 Calendário de Relatórios
             </h2>
             <div class="dashboard-calendar-legend" role="list" aria-label="Legenda do calendário">
+                {% if has_active_fronts %}
+                <span class="dashboard-legend-item dashboard-legend-overdue">
+                    <i class="fas fa-times-circle" aria-hidden="true"></i>
+                    Sem RDO
+                </span>
+                <span class="dashboard-legend-item dashboard-legend-draft">
+                    <i class="fas fa-adjust" aria-hidden="true"></i>
+                    Parcial
+                </span>
+                <span class="dashboard-legend-item dashboard-legend-filled">
+                    <i class="fas fa-check-circle" aria-hidden="true"></i>
+                    Completo
+                </span>
+                {% else %}
                 <span class="dashboard-legend-item dashboard-legend-filled">
                     <i class="fas fa-check-circle" aria-hidden="true"></i>
                     Preenchido
@@ -137,6 +151,7 @@
                     <i class="fas fa-calendar-check" aria-hidden="true"></i>
                     Sem RDO (justif.)
                 </span>
+                {% endif %}
             </div>
         </div>
         <div class="dashboard-calendar-wrapper">
@@ -155,6 +170,43 @@
                 Ver tudo →
             </a>
         </div>
+        {% if has_active_fronts %}
+        {% if recent_reports_by_front %}
+        <div class="dashboard-front-groups">
+            {% for group in recent_reports_by_front %}
+            <section class="dashboard-front-group">
+                <header class="dashboard-front-group__header">
+                    <h4 class="dashboard-front-group__title">{{ group.front.name }}</h4>
+                    <span class="dashboard-front-group__count">{{ group.total }} relatório{{ group.total|pluralize }}</span>
+                </header>
+                <ul class="dashboard-front-report-list">
+                    {% for report in group.items %}
+                    <li class="dashboard-front-report-item">
+                        <a href="{% url 'diary-detail' report.id %}" class="dashboard-front-report-link">
+                            <span class="dashboard-front-report-link__meta">
+                                <strong>{{ report.date|date:"d/m/Y" }}</strong>
+                                <span class="dashboard-front-report-link__number">RDO #{{ report.report_number|default:"-" }}</span>
+                            </span>
+                            <span class="report-status {{ report|report_status_css }} px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center" style="{{ report|report_status_style }}">
+                                <i class="fas fa-circle report-status-bullet" style="font-size:0.35rem;vertical-align:middle;margin-right:0.25rem" aria-hidden="true"></i>{{ report|report_status_label }}
+                            </span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-container">
+            <div class="empty-state-icon" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);">
+                <i class="fas fa-file-alt text-blue-500"></i>
+            </div>
+            <p class="empty-state-title">Nenhum relatório por frente ainda</p>
+            <p class="empty-state-desc">Os relatórios das frentes ativas aparecerão organizados aqui.</p>
+        </div>
+        {% endif %}
+        {% else %}
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200 recent-reports-table">
                 <thead class="bg-slate-50">
@@ -201,7 +253,7 @@
                                 </div>
                                 <p class="empty-state-title">Nenhum relatório ainda</p>
                                 <p class="empty-state-desc">Comece criando seu primeiro relatório de obra</p>
-                                <a href="{% url 'diary-new' %}" class="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition" style="padding:0.5rem 1rem;text-decoration:none;display:inline-flex;align-items:center;gap:0.375rem;">
+                                <a href="{% url 'diary-new' %}" onclick="return openCreateReportEntryFromEvent(event);" class="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition" style="padding:0.5rem 1rem;text-decoration:none;display:inline-flex;align-items:center;gap:0.375rem;">
                                     <i class="fas fa-plus" style="font-size:0.65rem;"></i> Criar relatório
                                 </a>
                             </div>
@@ -211,6 +263,7 @@
                 </tbody>
             </table>
         </div>
+        {% endif %}
     </div>
 
     <!-- Fotos Recentes -->
@@ -221,6 +274,40 @@
                 Ver tudo →
             </a>
         </div>
+        {% if has_active_fronts %}
+        {% if recent_photos_by_front %}
+        <div class="dashboard-front-groups">
+            {% for group in recent_photos_by_front %}
+            <section class="dashboard-front-group">
+                <header class="dashboard-front-group__header">
+                    <h4 class="dashboard-front-group__title">{{ group.front.name }}</h4>
+                    <span class="dashboard-front-group__count">{{ group.total }} foto{{ group.total|pluralize }}</span>
+                </header>
+                <div class="dashboard-photos-grid dashboard-photos-grid--front">
+                    {% for photo in group.items %}
+                    <a href="{% url 'diary-detail' photo.diary.pk %}" 
+                       class="dashboard-photo-thumb rounded-lg overflow-hidden bg-slate-100 group cursor-pointer hover:opacity-90 transition-opacity block"
+                       aria-label="Ver detalhes do relatório com foto da {{ group.front.name }}">
+                        <img src="{{ photo.image.url }}" 
+                             alt="{{ photo.caption|default:'Foto' }}"
+                             loading="lazy"
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200">
+                    </a>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-container">
+            <div class="empty-state-icon" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);">
+                <i class="fas fa-camera text-purple-400"></i>
+            </div>
+            <p class="empty-state-title">Nenhuma foto por frente encontrada</p>
+            <p class="empty-state-desc">As fotos das frentes ativas aparecerão separadas aqui.</p>
+        </div>
+        {% endif %}
+        {% else %}
         {% if recent_photos %}
         <div class="dashboard-photos-grid">
             {% for photo in recent_photos %}
@@ -243,6 +330,7 @@
             <p class="empty-state-desc">As fotos dos relatórios aparecerão aqui</p>
         </div>
         {% endif %}
+        {% endif %}
     </div>
 </div>
 
@@ -256,6 +344,64 @@
                 Ver tudo →
             </a>
         </div>
+        {% if has_active_fronts %}
+        {% if recent_videos_by_front %}
+        <div class="dashboard-front-groups">
+            {% for group in recent_videos_by_front %}
+            <section class="dashboard-front-group">
+                <header class="dashboard-front-group__header">
+                    <h4 class="dashboard-front-group__title">{{ group.front.name }}</h4>
+                    <span class="dashboard-front-group__count">{{ group.total }} vídeo{{ group.total|pluralize }}</span>
+                </header>
+                <div class="dashboard-videos-grid dashboard-videos-grid--front">
+                    {% for video in group.items %}
+                    <div class="dashboard-video-card-wrapper">
+                        <div class="dashboard-video-card rounded-xl border border-slate-200 overflow-hidden bg-slate-100 hover:border-slate-300 hover:shadow-md transition-all">
+                            <div class="dashboard-video-thumb">
+                                <video class="dashboard-video-player"
+                                       controls
+                                       controlsList="nodownload"
+                                       preload="metadata"
+                                       onclick="event.preventDefault(); event.stopPropagation();"
+                                       onplay="event.stopPropagation()"
+                                       onpause="event.stopPropagation()"
+                                       title="{{ video.caption|default:'Reproduzir vídeo' }}">
+                                    <source src="{{ video.video.url }}" type="video/mp4">
+                                    <source src="{{ video.video.url }}" type="video/webm">
+                                    Seu navegador não suporta a reprodução de vídeos HTML5.
+                                </video>
+                                <div class="dashboard-video-placeholder" aria-hidden="true">
+                                    <i class="fas fa-play text-slate-400"></i>
+                                </div>
+                            </div>
+                            <div class="dashboard-video-info">
+                                <p class="dashboard-video-caption" title="{{ video.caption|default:'' }}">
+                                    {{ video.caption|default:"Vídeo"|truncatewords:6 }}
+                                </p>
+                                <a href="{% url 'diary-detail' video.diary.pk %}"
+                                   class="dashboard-video-link"
+                                   onclick="event.stopPropagation()"
+                                   aria-label="Ver detalhes do relatório">
+                                    Ver relatório <i class="fas fa-arrow-right text-xs ml-0.5"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-container">
+            <div class="empty-state-icon" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);">
+                <i class="fas fa-video text-green-400"></i>
+            </div>
+            <p class="empty-state-title">Nenhum vídeo por frente encontrado</p>
+            <p class="empty-state-desc">Os vídeos das frentes ativas aparecerão separados aqui.</p>
+        </div>
+        {% endif %}
+        {% else %}
         {% if recent_videos %}
         <div class="dashboard-videos-grid">
             {% for video in recent_videos %}
@@ -301,6 +447,7 @@
             <p class="empty-state-title">Nenhum vídeo encontrado</p>
             <p class="empty-state-desc">Os vídeos dos relatórios aparecerão aqui</p>
         </div>
+        {% endif %}
         {% endif %}
     </div>
 
@@ -408,10 +555,14 @@
 <script>
 // URLs base geradas pelo Django (evita hardcode)
 const DIARY_DETAIL_URL = "{% url 'diary-detail' 0 %}".replace('/0/', '/{id}/');
+const DIARY_EDIT_URL = "{% url 'diary-edit' 0 %}".replace('/0/', '/{id}/');
 const DIARY_NEW_URL = "{% url 'diary-new' %}";
 const REPORT_LIST_URL = "{% url 'report-list' %}";
+const CALENDAR_DAY_FRONTS_SUMMARY_URL = "{% url 'calendar-day-fronts-summary' %}";
 const MISSING_DAY_CREATE_URL = "{% url 'diary-no-report-day-create' %}";
 const MISSING_DAY_CSRF = "{{ csrf_token }}";
+const HAS_ACTIVE_FRONTS = {{ has_active_fronts|yesno:"true,false" }};
+const ACTIVE_FRONTS_COUNT = {{ active_fronts_count|default:0 }};
 const MISSING_DAY_REASONS = [
     {% for val, label in no_report_reasons %}
     { value: "{{ val|escapejs }}", label: "{{ label|escapejs }}" }{% if not forloop.last %},{% endif %}
@@ -457,6 +608,7 @@ function _forceRemoveMissingDayModal() {
 }
 
 var _justifiedDetailEscapeHandler = null;
+var _frontDayDetailEscapeHandler = null;
 
 function _forceRemoveJustifiedDetailModal() {
     if (_justifiedDetailEscapeHandler) {
@@ -465,6 +617,106 @@ function _forceRemoveJustifiedDetailModal() {
     }
     var el = document.getElementById('modal-justified-detail');
     if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function _forceRemoveFrontDayDetailModal() {
+    if (_frontDayDetailEscapeHandler) {
+        document.removeEventListener('keydown', _frontDayDetailEscapeHandler);
+        _frontDayDetailEscapeHandler = null;
+    }
+    var el = document.getElementById('modal-front-day-detail');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function _renderFrontActionButtons(front) {
+    if (!front) return '';
+    if (!front.has_diary && front.new_url) {
+        return '<a href="' + _escAttr(front.new_url) + '" class="lplan-front-day-detail__btn lplan-front-day-detail__btn--cta">Criar RDO</a>';
+    }
+    if (front.edit_url) {
+        return '<a href="' + _escAttr(front.edit_url) + '" class="lplan-front-day-detail__btn lplan-front-day-detail__btn--primary">Editar RDO</a>';
+    }
+    if (front.detail_url) {
+        return '<a href="' + _escAttr(front.detail_url) + '" class="lplan-front-day-detail__btn lplan-front-day-detail__btn--primary">Abrir RDO</a>';
+    }
+    return '';
+}
+
+function openFrontDayDetailModal(payload) {
+    _forceRemoveMissingDayModal();
+    _forceRemoveJustifiedDetailModal();
+    _forceRemoveFrontDayDetailModal();
+
+    var rows = [];
+    var fronts = (payload && payload.fronts) ? payload.fronts : [];
+    fronts.forEach(function(front) {
+        var statusClass = front.has_diary ? 'lplan-front-day-detail__status--ok' : 'lplan-front-day-detail__status--missing';
+        var frontNameHtml = _escHtml(front.front_name || 'Frente');
+        if (front.detail_url) {
+            frontNameHtml = '<a href="' + _escAttr(front.detail_url) + '" class="lplan-front-day-detail__front-name-link">' + frontNameHtml + '</a>';
+        }
+        rows.push(
+            '<div class="lplan-front-day-detail__row">' +
+            '<div class="lplan-front-day-detail__front">' +
+            '<p class="lplan-front-day-detail__front-name">' + frontNameHtml + '</p>' +
+            '<span class="lplan-front-day-detail__status ' + statusClass + '">' + _escHtml(front.status || '') + '</span>' +
+            '</div>' +
+            '<div class="lplan-front-day-detail__actions">' + _renderFrontActionButtons(front) + '</div>' +
+            '</div>'
+        );
+    });
+
+    var wrap = document.createElement('div');
+    wrap.id = 'modal-front-day-detail';
+    wrap.className = 'lplan-front-day-detail-overlay';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-labelledby', 'lplan-front-day-detail-title');
+    wrap.addEventListener('click', function(e) {
+        if (e.target === wrap) _forceRemoveFrontDayDetailModal();
+    });
+
+    wrap.innerHTML =
+        '<div class="lplan-front-day-detail__panel" onclick="event.stopPropagation()">' +
+        '<div class="lplan-front-day-detail__hdr">' +
+        '<div>' +
+        '<h3 id="lplan-front-day-detail-title" class="lplan-front-day-detail__title">Consolidado por frente</h3>' +
+        '<p class="lplan-front-day-detail__sub">' + _escHtml(_formatMissingDaySubtitle(payload.date || '')) + ' · ' + _escHtml(payload.status || '') + ' (' + (payload.filled || 0) + '/' + (payload.total || 0) + ')</p>' +
+        '</div>' +
+        '<button type="button" class="lplan-front-day-detail__close" aria-label="Fechar"><i class="fas fa-times" aria-hidden="true"></i></button>' +
+        '</div>' +
+        '<div class="lplan-front-day-detail__body">' +
+        (rows.length ? rows.join('') : '<p class="lplan-front-day-detail__empty">Nenhuma frente ativa para este dia.</p>') +
+        '</div>' +
+        '</div>';
+
+    var close = function() { _forceRemoveFrontDayDetailModal(); };
+    wrap.querySelector('.lplan-front-day-detail__close').addEventListener('click', close);
+    document.body.appendChild(wrap);
+
+    _frontDayDetailEscapeHandler = function(e) {
+        if (e.key === 'Escape') _forceRemoveFrontDayDetailModal();
+    };
+    document.addEventListener('keydown', _frontDayDetailEscapeHandler);
+    requestAnimationFrame(function() {
+        _focusNoScroll(wrap.querySelector('.lplan-front-day-detail__close'));
+    });
+}
+
+function openFrontDayDetailFromDate(dateStr) {
+    var url = CALENDAR_DAY_FRONTS_SUMMARY_URL + '?date=' + encodeURIComponent(dateStr || '');
+    fetch(url, { credentials: 'same-origin' })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (!data || !data.ok) {
+                alert((data && data.message) ? data.message : 'Não foi possível carregar o consolidado por frente.');
+                return;
+            }
+            openFrontDayDetailModal(data);
+        })
+        .catch(function() {
+            alert('Erro ao carregar consolidado por frente.');
+        });
 }
 
 function openJustifiedDetailModal(dateStr, reasonLabel, note) {
@@ -544,6 +796,35 @@ function _focusNoScroll(el) {
     } catch (e) {
         el.focus();
     }
+}
+
+function _todayIsoDate() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+}
+
+function openCreateReportEntry(dateStr) {
+    var selectedDate = (dateStr && String(dateStr).trim()) ? String(dateStr).trim() : _todayIsoDate();
+    if (HAS_ACTIVE_FRONTS && ACTIVE_FRONTS_COUNT > 1) {
+        openFrontDayDetailFromDate(selectedDate);
+        return false;
+    }
+    var target = DIARY_NEW_URL;
+    if (selectedDate) {
+        target += '?date=' + encodeURIComponent(selectedDate);
+    }
+    window.location.href = target;
+    return false;
+}
+
+function openCreateReportEntryFromEvent(evt, dateStr) {
+    if (evt && typeof evt.preventDefault === 'function') {
+        evt.preventDefault();
+    }
+    return openCreateReportEntry(dateStr);
 }
 
 function _resetMissingDaySteps(modal) {
@@ -735,6 +1016,7 @@ function closeMissingDayModal() {
 document.addEventListener('DOMContentLoaded', function() {
     _forceRemoveMissingDayModal();
     _forceRemoveJustifiedDetailModal();
+    _forceRemoveFrontDayDetailModal();
     // Pequeno delay para garantir que a top bar esteja renderizada
     setTimeout(function() {
         const calendarEl = document.getElementById('calendar');
@@ -775,6 +1057,17 @@ document.addEventListener('DOMContentLoaded', function() {
             var short = (props && props.short_title) ? props.short_title : arg.event.title;
             var icon = 'fa-check-circle';
             var compactMobile = window.innerWidth < 768 && arg.view.type === 'dayGridMonth';
+            if (props && props.has_fronts_mode) {
+                if (props.status === 'Sem RDO') {
+                    icon = 'fa-times-circle';
+                } else if (props.status === 'Parcial') {
+                    icon = 'fa-adjust';
+                } else if (props.status === 'Completo') {
+                    icon = 'fa-check-circle';
+                } else if (props.status === 'Justificado') {
+                    icon = 'fa-calendar-check';
+                }
+            } else
             if (props && props.no_report_justified) {
                 icon = 'fa-calendar-check';
             } else if (props && props.missing) {
@@ -805,6 +1098,36 @@ document.addEventListener('DOMContentLoaded', function() {
             const status = props.status;
             const hasDiary = props.has_diary !== false; // Default true se não especificado
             const isMissing = props.missing === true;
+
+            if (props.has_fronts_mode) {
+                info.el.style.transition = 'all 0.2s ease';
+                if (status === 'Sem RDO') {
+                    info.el.classList.add('fc-event--atraso');
+                    info.el.style.backgroundColor = '#fef2f2';
+                    info.el.style.borderColor = '#dc2626';
+                    info.el.style.borderStyle = 'solid';
+                    info.el.style.borderWidth = '1px';
+                    info.el.style.color = '#991b1b';
+                    info.el.style.fontWeight = '700';
+                } else if (status === 'Parcial') {
+                    info.el.classList.add('fc-event--pending-approval');
+                    // Melhor contraste para leitura no calendário (AA+)
+                    info.el.style.backgroundColor = '#b45309';
+                    info.el.style.borderColor = '#92400e';
+                    info.el.style.borderStyle = 'solid';
+                    info.el.style.borderWidth = '1px';
+                    info.el.style.color = '#ffffff';
+                    info.el.style.fontWeight = '700';
+                } else if (status === 'Completo') {
+                    info.el.classList.add('fc-event--preenchido');
+                    info.el.style.backgroundColor = '#059669';
+                    info.el.style.borderColor = '#047857';
+                    info.el.style.color = '#fff';
+                } else if (status === 'Justificado') {
+                    info.el.classList.add('fc-event--justificado');
+                }
+                return;
+            }
 
             if (props.no_report_justified) {
                 info.el.classList.add('fc-event--justificado');
@@ -908,6 +1231,14 @@ document.addEventListener('DOMContentLoaded', function() {
         eventClick: function(info) {
             const props = info.event.extendedProps;
 
+            if (HAS_ACTIVE_FRONTS && props.has_fronts_mode) {
+                if (info.jsEvent && info.jsEvent.preventDefault) {
+                    info.jsEvent.preventDefault();
+                }
+                openFrontDayDetailFromDate(_missingDayDateStrFromEvent(info));
+                return;
+            }
+
             // Se tem relatório, vai para detalhes
             if (props.diary_id) {
                 const diaryId = props.diary_id;
@@ -979,6 +1310,7 @@ window.addEventListener('pageshow', function() {
     // Ao voltar (incl. bfcache), o FullCalendar pode manter eventos antigos em memória.
     _forceRemoveMissingDayModal();
     _forceRemoveJustifiedDetailModal();
+    _forceRemoveFrontDayDetailModal();
     if (_dashboardCalendar) {
         _dashboardCalendar.refetchEvents();
     }

@@ -218,7 +218,7 @@ class ConstructionDiarySerializer(serializers.ModelSerializer):
     class Meta:
         model = ConstructionDiary
         fields = [
-            'id', 'project', 'date', 'status', 'created_by', 'created_by_name',
+            'id', 'project', 'front', 'date', 'status', 'created_by', 'created_by_name',
             'reviewed_by', 'reviewed_by_name', 'approved_at', 'weather_conditions',
             'general_notes', 'images_count', 'work_logs_count', 'can_edit',
             'created_at', 'updated_at'
@@ -251,22 +251,38 @@ class ConstructionDiarySerializer(serializers.ModelSerializer):
                 "Diários aprovados não podem ser editados."
             )
         
-        # Valida unicidade de projeto + data
-        if 'project' in data or 'date' in data:
+        # Valida consistência de projeto + frente e unicidade
+        if 'project' in data or 'date' in data or 'front' in data:
             project = data.get('project', self.instance.project if self.instance else None)
+            front = data.get('front', self.instance.front if self.instance else None)
             date = data.get('date', self.instance.date if self.instance else None)
-            
+
+            if front and project and front.project_id != project.id:
+                raise serializers.ValidationError(
+                    "A frente selecionada não pertence ao projeto informado."
+                )
+
+            if project and project.fronts.filter(is_active=True).exists() and not front and not self.instance:
+                raise serializers.ValidationError(
+                    "Selecione uma frente para este projeto."
+                )
+
             if project and date:
                 existing = ConstructionDiary.objects.filter(
                     project=project,
-                    date=date
+                    date=date,
+                    front=front,
                 )
                 if self.instance:
                     existing = existing.exclude(pk=self.instance.pk)
                 
                 if existing.exists():
+                    if front:
+                        raise serializers.ValidationError(
+                            "Já existe um diário para este projeto, frente e data."
+                        )
                     raise serializers.ValidationError(
-                        "Já existe um diário para este projeto nesta data."
+                        "Já existe um diário para este projeto nesta data sem frente."
                     )
         
         return data

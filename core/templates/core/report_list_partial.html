@@ -21,6 +21,46 @@
         </div>
     </summary>
     <div class="report-list-collapsible__panel">
+{% if has_active_fronts and report_groups_by_front %}
+<section class="report-list-front-groups" aria-label="Relatórios por frente">
+    {% for group in report_groups_by_front %}
+    <article class="report-list-front-group-card">
+        <header class="report-list-front-group-card__head">
+            <h4 class="report-list-front-group-card__title">{{ group.front.name }}</h4>
+            <span class="report-list-front-group-card__count">{{ group.total }} RDO{{ group.total|pluralize }}</span>
+        </header>
+        <ul class="report-list-front-group-card__list">
+            {% for diary in group.items %}
+            <li>
+                <a href="{% url 'diary-detail' diary.id %}" class="report-list-front-group-card__item-link">
+                    <span class="report-list-front-group-card__item-meta">
+                        <strong>{{ diary.date|date:"d/m/Y" }}</strong>
+                        <span>#{{ diary.report_number|default:"-" }}</span>
+                    </span>
+                    <span class="report-status {{ diary|report_status_css }}" style="{{ diary|report_status_style }}">
+                        <i class="fas fa-circle report-status-bullet" style="font-size:0.38rem;vertical-align:middle" aria-hidden="true"></i>
+                        {{ diary|report_status_label }}
+                    </span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </article>
+    {% endfor %}
+</section>
+{% elif has_active_fronts %}
+<div class="bg-white rounded-xl border border-slate-200 p-10 text-center">
+    <div class="empty-state-container">
+        <div class="empty-state-icon bg-slate-100">
+            <i class="fas fa-file-alt text-slate-500 text-3xl"></i>
+        </div>
+        <p class="empty-state-title">Nenhum relatório por frente encontrado</p>
+        <p class="empty-state-desc">As frentes ativas aparecerão aqui conforme os RDOs forem registados.</p>
+        <a href="{% url 'diary-new' %}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 text-sm font-medium">Criar relatório</a>
+    </div>
+</div>
+{% endif %}
+{% if not has_active_fronts %}
 <!-- Desktop: Tabela -->
 <div class="hidden md:block report-list-table-shell bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     <table class="min-w-full divide-y divide-slate-200 report-list-table">
@@ -28,6 +68,9 @@
             <tr>
                 <th scope="col" class="report-list-table__th px-4 py-3 text-left">{% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.date label='Data' sort_col='date' %}</th>
                 <th scope="col" class="report-list-table__th px-4 py-3 text-left">{% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.report_number label='N°' sort_col='report_number' %}</th>
+                {% if has_active_fronts %}
+                <th scope="col" class="report-list-table__th px-4 py-3 text-left">Frente</th>
+                {% endif %}
                 <th scope="col" class="report-list-table__th px-4 py-3 text-left">{% include 'core/report_list_sort_header_link.html' with sort_q=report_list_sort_q.status label='Status' sort_col='status' %}</th>
                 <th scope="col" class="report-list-table__th px-4 py-3 text-left">Fotos</th>
                 <th scope="col" class="report-list-table__th report-list-table__actions-head py-3 text-right">Ações</th>
@@ -52,6 +95,15 @@
                 <td class="px-4 py-3 whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">#{{ diary.report_number|default:"-" }}</span>
                 </td>
+                {% if has_active_fronts %}
+                <td class="px-4 py-3 whitespace-nowrap">
+                    {% if diary.front %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{{ diary.front.name }}</span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-50 text-slate-400 border border-slate-100">—</span>
+                    {% endif %}
+                </td>
+                {% endif %}
                 <td class="px-4 py-3 whitespace-nowrap">
                     <span class="report-status {{ diary|report_status_css }}" style="{{ diary|report_status_style }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
                 </td>
@@ -98,6 +150,11 @@
                 <td class="px-4 py-3 whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-50 text-slate-400 border border-slate-100 tabular-nums">—</span>
                 </td>
+                {% if has_active_fronts %}
+                <td class="px-4 py-3 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-50 text-slate-400 border border-slate-100">—</span>
+                </td>
+                {% endif %}
                 <td class="px-4 py-3 min-w-0 max-w-md">
                     <div class="flex items-center gap-2 min-w-0">
                         {% if j.reason == 'FE' %}
@@ -136,7 +193,7 @@
             {% endif %}
             {% empty %}
             <tr>
-                <td colspan="5" class="px-6 py-16">
+                <td colspan="{% if has_active_fronts %}6{% else %}5{% endif %}" class="px-6 py-16">
                     <div class="empty-state-container text-center max-w-sm mx-auto">
                         <div class="empty-state-icon bg-slate-100">
                             <i class="fas fa-file-alt text-slate-500 text-3xl"></i>
@@ -152,7 +209,7 @@
         {% if report_list_paginator.num_pages > 1 %}
         <tfoot>
             <tr>
-                <td colspan="5" class="report-list-table__foot">
+                <td colspan="{% if has_active_fronts %}6{% else %}5{% endif %}" class="report-list-table__foot">
                     {% include 'core/report_list_pagination.html' %}
                 </td>
             </tr>
@@ -186,6 +243,13 @@
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-900">{{ diary.date|date:"d/m/Y" }}</p>
                         <p class="text-xs text-slate-500">N° {{ diary.report_number|default:"-" }} · {{ diary.image_count }} foto{{ diary.image_count|pluralize }}</p>
+                        {% if has_active_fronts %}
+                            {% if diary.front %}
+                            <p class="text-xs mt-1"><span class="inline-flex items-center px-2 py-0.5 rounded-md font-medium bg-blue-50 text-blue-700 border border-blue-100">Frente: {{ diary.front.name }}</span></p>
+                            {% else %}
+                            <p class="text-xs mt-1"><span class="inline-flex items-center px-2 py-0.5 rounded-md font-medium bg-slate-50 text-slate-400 border border-slate-100">Frente: —</span></p>
+                            {% endif %}
+                        {% endif %}
                     </div>
                 </div>
                 <span class="report-status {{ diary|report_status_css }} flex-shrink-0" style="{{ diary|report_status_style }}"><i class="fas fa-circle report-status-bullet" style="font-size:0.4rem;vertical-align:middle" aria-hidden="true"></i> {{ diary|report_status_label }}</span>
@@ -258,6 +322,7 @@
 <div class="md:hidden report-list-table-shell__foot">
     {% include 'core/report_list_pagination.html' %}
 </div>
+{% endif %}
 {% endif %}
 </div>
 </details>

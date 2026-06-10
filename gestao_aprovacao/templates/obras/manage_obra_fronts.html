@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gerenciar Frentes: {{ obra.sigla|default:obra.codigo }}{% endblock %}
+{% block back_url %}{{ back_url }}{% endblock %}
+
+{% block page_title %}Frentes da Obra{% endblock %}
+{% block page_subtitle %}GestControll - Gerenciamento{% endblock %}
+
+{% block extra_css %}
+<style>
+    .front-page-shell { max-width: 1280px !important; }
+    .front-page { width: 100%; display: flex; flex-direction: column; gap: 1rem; }
+    .back-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; color: #475569; font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: background 0.2s, color 0.2s; }
+    .back-link:hover { background: #f8fafc; color: #1e293b; }
+    .back-link svg { flex-shrink: 0; }
+    .hero { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1rem 1.1rem; }
+    .hero-title { margin: 0; font-size: 1.3rem; font-weight: 800; color: #0f172a; }
+    .hero-subtitle { margin: 0.35rem 0 0; font-size: 0.9rem; color: #64748b; }
+    .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; margin-top: 0.85rem; }
+    .kpi { border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 0.55rem 0.7rem; }
+    .kpi-label { margin: 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; font-weight: 700; }
+    .kpi-value { margin: 0.2rem 0 0; font-size: 1.15rem; color: #0f172a; font-weight: 800; }
+    .warn-box { background: #fefce8; border: 1px solid #fde68a; border-radius: 10px; padding: 0.9rem 1rem; font-size: 0.875rem; color: #713f12; line-height: 1.5; }
+    .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1rem; }
+    .panel-title { margin: 0 0 0.85rem 0; font-size: 1.02rem; color: #0f172a; font-weight: 700; }
+    .front-create-accordion { border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden; }
+    .front-create-accordion summary { list-style: none; cursor: pointer; padding: 0.7rem 0.85rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; font-weight: 700; color: #1e293b; background: #f8fafc; }
+    .front-create-accordion summary::-webkit-details-marker { display: none; }
+    .front-create-accordion summary i { color: #64748b; transition: transform .18s ease; }
+    .front-create-accordion[open] summary { background: #eff6ff; border-bottom: 1px solid #dbeafe; }
+    .front-create-accordion[open] summary i { transform: rotate(180deg); }
+    .front-create-accordion-body { padding: 0.85rem; background: #fff; }
+    .grid-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+    .field-wrap label { display: block; font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.28rem; }
+    .field-wrap input[type="text"], .field-wrap textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 0.52rem 0.65rem; font-size: 0.87rem; background: #fff; color: #0f172a; }
+    .field-wrap textarea { min-height: 78px; resize: vertical; }
+    .field-wrap input:focus, .field-wrap textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+    .field-wrap--full { grid-column: 1 / -1; }
+    .check-wrap { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.88rem; color: #334155; font-weight: 600; }
+    .panel-actions { display: flex; justify-content: flex-end; margin-top: 0.8rem; }
+    .btn-primary { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid #16a34a; border-radius: 9px; background: #16a34a; color: #fff; padding: 0.5rem 0.8rem; font-size: 0.84rem; font-weight: 700; }
+    .btn-primary:hover { background: #15803d; border-color: #15803d; }
+    .fronts-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
+    .front-card { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; overflow: hidden; }
+    .front-card-head { padding: 0.75rem 0.8rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; border-bottom: 1px solid #edf2f7; background: #f8fafc; }
+    .front-card-title { margin: 0; font-size: 0.95rem; font-weight: 800; color: #0f172a; }
+    .front-card-code { margin: 0.2rem 0 0; font-size: 0.78rem; color: #64748b; font-weight: 700; }
+    .front-badge { font-size: 0.68rem; border-radius: 9999px; padding: 0.2rem 0.45rem; font-weight: 700; border: 1px solid transparent; }
+    .front-badge--active { background: #ecfdf5; color: #166534; border-color: #86efac; }
+    .front-badge--inactive { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .front-card-body { padding: 0.75rem 0.8rem; display: flex; flex-direction: column; gap: 0.55rem; }
+    .front-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; }
+    .front-meta-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.38rem 0.45rem; background: #fff; }
+    .front-meta-label { margin: 0; font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; font-weight: 700; }
+    .front-meta-value { margin: 0.15rem 0 0; font-size: 0.84rem; color: #0f172a; font-weight: 700; }
+    .front-info-line { margin: 0; font-size: 0.83rem; color: #334155; }
+    .front-info-line strong { color: #0f172a; }
+    .front-description { margin: 0; font-size: 0.83rem; color: #475569; line-height: 1.45; border-top: 1px dashed #e2e8f0; padding-top: 0.5rem; }
+    .front-card-actions { border-top: 1px solid #edf2f7; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; gap: 0.45rem; background: #fcfdff; }
+    .btn-edit { border: 1px solid #cbd5e1; background: #f8fafc; color: #334155; border-radius: 8px; padding: 0.46rem 0.7rem; font-size: 0.8rem; font-weight: 700; }
+    .btn-neutral, .btn-danger { border-radius: 8px; padding: 0.46rem 0.7rem; font-size: 0.8rem; font-weight: 700; }
+    .btn-neutral { border: 1px solid #cbd5e1; background: #f8fafc; color: #334155; }
+    .btn-danger { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; }
+    .empty-message { color: #64748b; margin: 0; font-size: 0.9rem; }
+
+    .front-modal-overlay { position: fixed; inset: 0; z-index: 80; background: rgba(15,23,42,.58); display: none; align-items: center; justify-content: center; padding: 1rem; }
+    .front-modal-overlay.is-open { display: flex; }
+    .front-modal-panel { width: min(760px, 100%); max-height: calc(100vh - 2rem); overflow: auto; background: #fff; border: 1px solid #dbe3ee; border-radius: 14px; box-shadow: 0 24px 48px rgba(15,23,42,.24); }
+    .front-modal-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .8rem 1rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+    .front-modal-title { margin: 0; font-size: .95rem; font-weight: 800; color: #0f172a; }
+    .front-modal-close { width: 2rem; height: 2rem; border-radius: .5rem; border: 1px solid #d1dbe8; background: #fff; color: #334155; }
+    .front-modal-body { padding: .95rem; }
+    body.front-modal-open { overflow: hidden; }
+
+    @media (max-width: 980px) {
+        .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .fronts-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+        .grid-form, .front-meta, .fronts-list { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container front-page-shell">
+<div class="front-page">
+    <div class="back-actions">
+        <a href="{% url 'gestao:detail_obra' obra.pk %}" class="back-link" aria-label="Voltar para a obra">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Voltar à obra
+        </a>
+    </div>
+
+    <section class="hero">
+        <h1 class="hero-title">Frentes da obra {{ obra.sigla|default:obra.codigo }}</h1>
+        <p class="hero-subtitle">Gerencie cada frente como uma mini-obra: responsável, localização, escopo e operação diária.</p>
+        <div class="kpis">
+            <article class="kpi">
+                <p class="kpi-label">Total de frentes</p>
+                <p class="kpi-value">{{ fronts|length }}</p>
+            </article>
+            <article class="kpi">
+                <p class="kpi-label">Ativas</p>
+                <p class="kpi-value">{{ fronts_active_count }}</p>
+            </article>
+            <article class="kpi">
+                <p class="kpi-label">Inativas</p>
+                <p class="kpi-value">{{ fronts_inactive_count }}</p>
+            </article>
+            <article class="kpi">
+                <p class="kpi-label">Projeto diário</p>
+                <p class="kpi-value">{% if project %}{{ project.code }}{% else %}—{% endif %}</p>
+            </article>
+        </div>
+    </section>
+
+    {% if not project %}
+        <div class="warn-box">
+            Esta obra ainda não está vinculada a um Projeto do Diário. Sem esse vínculo não é possível criar ou editar frentes.
+        </div>
+    {% endif %}
+
+    <section class="panel">
+        <h2 class="panel-title">Cadastro de frente</h2>
+        <details class="front-create-accordion">
+            <summary>
+                <span>Adicionar nova frente</span>
+                <i class="fas fa-chevron-down" aria-hidden="true"></i>
+            </summary>
+            <div class="front-create-accordion-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add">
+                    <div class="grid-form">
+                        <div class="field-wrap">
+                            <label for="front-name">Nome da frente</label>
+                            <input id="front-name" name="name" type="text" required placeholder="Ex.: Frente Norte" {% if not project %}disabled{% endif %}>
+                        </div>
+                        <div class="field-wrap">
+                            <label for="front-code">Código</label>
+                            <input id="front-code" name="code" type="text" placeholder="Ex.: FN01" {% if not project %}disabled{% endif %}>
+                        </div>
+                        <div class="field-wrap">
+                            <label for="front-responsible">Responsável</label>
+                            <input id="front-responsible" name="responsible_name" type="text" placeholder="Ex.: João Silva" {% if not project %}disabled{% endif %}>
+                        </div>
+                        <div class="field-wrap">
+                            <label for="front-location">Localização/Referência</label>
+                            <input id="front-location" name="location_reference" type="text" placeholder="Ex.: Torre A - Pav. 12" {% if not project %}disabled{% endif %}>
+                        </div>
+                        <div class="field-wrap field-wrap--full">
+                            <label for="front-description">Descrição da frente</label>
+                            <textarea id="front-description" name="description" placeholder="Escopo resumido desta frente/subobra..." {% if not project %}disabled{% endif %}></textarea>
+                        </div>
+                        <div class="field-wrap field-wrap--full">
+                            <label class="check-wrap">
+                                <input type="checkbox" name="is_active" checked {% if not project %}disabled{% endif %}>
+                                Frente ativa para operação de RDO
+                            </label>
+                        </div>
+                    </div>
+                    <div class="panel-actions">
+                        <button type="submit" class="btn-primary" {% if not project %}disabled{% endif %}>
+                            <i class="fas fa-plus" aria-hidden="true"></i> Adicionar frente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </details>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title">Frentes cadastradas</h2>
+        {% if fronts %}
+            <div class="fronts-list">
+                {% for front in fronts %}
+                <article class="front-card">
+                    <div class="front-card-head">
+                        <div>
+                            <h3 class="front-card-title">{{ front.name }}</h3>
+                            <p class="front-card-code">{% if front.code %}{{ front.code }}{% else %}Sem código{% endif %}</p>
+                        </div>
+                        {% if front.is_active %}
+                            <span class="front-badge front-badge--active">Ativa</span>
+                        {% else %}
+                            <span class="front-badge front-badge--inactive">Inativa</span>
+                        {% endif %}
+                    </div>
+                    <div class="front-card-body">
+                        <div class="front-meta">
+                            <div class="front-meta-item">
+                                <p class="front-meta-label">RDOs</p>
+                                <p class="front-meta-value">{{ front.diaries_count|default:0 }}</p>
+                            </div>
+                            <div class="front-meta-item">
+                                <p class="front-meta-label">Equipe</p>
+                                <p class="front-meta-value">{{ front.members_count|default:0 }}</p>
+                            </div>
+                            <div class="front-meta-item">
+                                <p class="front-meta-label">Último RDO</p>
+                                <p class="front-meta-value">{% if front.last_diary_date %}{{ front.last_diary_date|date:"d/m/Y" }}{% else %}—{% endif %}</p>
+                            </div>
+                        </div>
+
+                        <p class="front-info-line"><strong>Responsável:</strong> {{ front.responsible_name|default:"—" }}</p>
+                        <p class="front-info-line"><strong>Localização:</strong> {{ front.location_reference|default:"—" }}</p>
+                        {% if front.description %}
+                        <p class="front-description">{{ front.description }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="front-card-actions">
+                        <button type="button" class="btn-edit" data-front-edit-open="front-modal-{{ front.id }}">Editar</button>
+                        <div style="display:flex; gap:.45rem;">
+                            <form method="post" style="display:inline;" onsubmit="return confirm('Tem certeza que deseja alterar o status desta frente?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle">
+                                <input type="hidden" name="front_id" value="{{ front.id }}">
+                                <button type="submit" class="btn-neutral">{% if front.is_active %}Desativar{% else %}Ativar{% endif %}</button>
+                            </form>
+                            <form method="post" style="display:inline;" onsubmit="return confirm('Remover esta frente?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="front_id" value="{{ front.id }}">
+                                <button type="submit" class="btn-danger">Remover</button>
+                            </form>
+                        </div>
+                    </div>
+                </article>
+
+                <div id="front-modal-{{ front.id }}" class="front-modal-overlay" aria-hidden="true">
+                    <div class="front-modal-panel" role="dialog" aria-modal="true" aria-labelledby="front-modal-title-{{ front.id }}">
+                        <div class="front-modal-head">
+                            <h3 id="front-modal-title-{{ front.id }}" class="front-modal-title">Editar frente — {{ front.name }}</h3>
+                            <button type="button" class="front-modal-close" data-front-edit-close>✕</button>
+                        </div>
+                        <div class="front-modal-body">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update">
+                                <input type="hidden" name="front_id" value="{{ front.id }}">
+                                <div class="grid-form">
+                                    <div class="field-wrap">
+                                        <label for="front-name-{{ front.id }}">Nome</label>
+                                        <input id="front-name-{{ front.id }}" name="name" type="text" value="{{ front.name }}" required>
+                                    </div>
+                                    <div class="field-wrap">
+                                        <label for="front-code-{{ front.id }}">Código</label>
+                                        <input id="front-code-{{ front.id }}" name="code" type="text" value="{{ front.code }}">
+                                    </div>
+                                    <div class="field-wrap">
+                                        <label for="front-responsible-{{ front.id }}">Responsável</label>
+                                        <input id="front-responsible-{{ front.id }}" name="responsible_name" type="text" value="{{ front.responsible_name }}">
+                                    </div>
+                                    <div class="field-wrap">
+                                        <label for="front-location-{{ front.id }}">Localização/Referência</label>
+                                        <input id="front-location-{{ front.id }}" name="location_reference" type="text" value="{{ front.location_reference }}">
+                                    </div>
+                                    <div class="field-wrap field-wrap--full">
+                                        <label for="front-description-{{ front.id }}">Descrição</label>
+                                        <textarea id="front-description-{{ front.id }}" name="description">{{ front.description }}</textarea>
+                                    </div>
+                                    <div class="field-wrap field-wrap--full">
+                                        <label class="check-wrap">
+                                            <input type="checkbox" name="is_active" {% if front.is_active %}checked{% endif %}>
+                                            Frente ativa para operação de RDO
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="panel-actions">
+                                    <button type="submit" class="btn-primary">Salvar alterações</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-message">Nenhuma frente cadastrada para esta obra.</p>
+        {% endif %}
+    </section>
+</div>
+</div>
+<script>
+(function () {
+    const openBtns = document.querySelectorAll('[data-front-edit-open]');
+    const closeSelectors = '[data-front-edit-close]';
+    const bodyClass = 'front-modal-open';
+
+    function openModal(modal) {
+        if (!modal) return;
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add(bodyClass);
+    }
+
+    function closeModal(modal) {
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        if (!document.querySelector('.front-modal-overlay.is-open')) {
+            document.body.classList.remove(bodyClass);
+        }
+    }
+
+    openBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const id = btn.getAttribute('data-front-edit-open');
+            const modal = document.getElementById(id);
+            openModal(modal);
+        });
+    });
+
+    document.addEventListener('click', function (ev) {
+        const closeBtn = ev.target.closest(closeSelectors);
+        if (closeBtn) {
+            closeModal(closeBtn.closest('.front-modal-overlay'));
+            return;
+        }
+        if (ev.target.classList.contains('front-modal-overlay')) {
+            closeModal(ev.target);
+        }
+    });
+
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') return;
+        document.querySelectorAll('.front-modal-overlay.is-open').forEach(closeModal);
+    });
+})();
+</script>
+{% endblock %}

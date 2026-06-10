@@ -84,7 +84,19 @@ def _normalize_project_ids(project_ids):
     return out
 
 
-def create_signup_request(*, full_name, email, phone='', password='', username_suggestion='', notes='', requested_groups=None, requested_project_ids=None, origem='auto', requested_by=None):
+def _normalize_front_ids(front_ids):
+    out = []
+    for fid in front_ids or []:
+        try:
+            value = int(fid)
+        except (TypeError, ValueError):
+            continue
+        if value not in out:
+            out.append(value)
+    return out
+
+
+def create_signup_request(*, full_name, email, phone='', password='', username_suggestion='', notes='', requested_groups=None, requested_project_ids=None, requested_front_ids=None, origem='auto', requested_by=None):
     plain_password = password or ''
     return UserSignupRequest.objects.create(
         full_name=(full_name or '').strip(),
@@ -95,6 +107,7 @@ def create_signup_request(*, full_name, email, phone='', password='', username_s
         notes=(notes or '').strip(),
         requested_groups=_normalize_groups(requested_groups),
         requested_project_ids=_normalize_project_ids(requested_project_ids),
+        requested_front_ids=_normalize_front_ids(requested_front_ids),
         origem=origem,
         requested_by=requested_by,
     )
@@ -189,9 +202,9 @@ def build_default_password(first_name, last_name):
     return f'@#{ini_1}{ini_2}{ano}'
 
 
-def apply_signup_access_bindings(user, *, requested_groups=None, requested_project_ids=None):
+def apply_signup_access_bindings(user, *, requested_groups=None, requested_project_ids=None, requested_front_ids=None):
     """Aplica grupos, obras e perfil ao usuário (mesma regra da Central de Cadastros)."""
-    from core.models import Project, ProjectMember
+    from core.models import Project, ProjectFront, ProjectFrontMember, ProjectMember
     from gestao_aprovacao.models import Obra, UserEmpresa, UserProfile, WorkOrderPermission
 
     groups = _normalize_groups(requested_groups)
@@ -228,11 +241,25 @@ def apply_signup_access_bindings(user, *, requested_groups=None, requested_proje
                 defaults={'ativo': True},
             )
 
+    front_ids = _normalize_front_ids(requested_front_ids)
+    if front_ids:
+        allowed_fronts = ProjectFront.objects.filter(
+            pk__in=front_ids,
+            project_id__in=project_ids,
+            is_active=True,
+        )
+        for front in allowed_fronts:
+            ProjectFrontMember.objects.get_or_create(
+                user=user,
+                front=front,
+                defaults={'is_active': True},
+            )
+
     UserProfile.objects.get_or_create(usuario=user)
 
 
 @transaction.atomic
-def approve_signup_request(signup_request, approved_by, selected_groups=None, selected_project_ids=None):
+def approve_signup_request(signup_request, approved_by, selected_groups=None, selected_project_ids=None, selected_front_ids=None):
     """Aprova solicitação pendente, cria usuário e vínculos de acesso."""
     if signup_request.status != UserSignupRequest.STATUS_PENDENTE:
         raise ValueError('A solicitação não está pendente.')
@@ -272,10 +299,14 @@ def approve_signup_request(signup_request, approved_by, selected_groups=None, se
     requested_project_ids = _normalize_project_ids(
         selected_project_ids if selected_project_ids is not None else signup_request.requested_project_ids
     )
+    requested_front_ids = _normalize_front_ids(
+        selected_front_ids if selected_front_ids is not None else getattr(signup_request, 'requested_front_ids', [])
+    )
     apply_signup_access_bindings(
         user,
         requested_groups=requested_groups,
         requested_project_ids=requested_project_ids,
+        requested_front_ids=requested_front_ids,
     )
 
     signup_request.status = UserSignupRequest.STATUS_APROVADO

@@ -112,6 +112,16 @@
                 <div class="form-help" style="background-color: #d1ecf1; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
                     <strong>ℹ️ Gerenciamento de Permissões:</strong> Após criar/editar a obra, você pode gerenciar as permissões de usuários (solicitantes e aprovadores) na página de detalhes da obra.
                 </div>
+                <div class="form-help" style="background-color: #eff6ff; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <strong>📌 Frentes/Subobras:</strong> Você pode gerenciar as frentes desta obra pelo botão abaixo, sem usar o Django admin.
+                    <div style="margin-top: 0.5rem;">
+                        <a href="{% url 'gestao:manage_obra_fronts' obra.pk %}" class="btn btn-secondary">Gerenciar frentes</a>
+                    </div>
+                </div>
+            {% else %}
+                <div class="form-help" style="background-color: #eff6ff; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <strong>📌 Frentes/Subobras:</strong> Após salvar a obra, use "Salvar e gerenciar frentes" para abrir a tela de frentes automaticamente.
+                </div>
             {% endif %}
             
             <div class="form-group">
@@ -132,10 +142,11 @@
             
             <div class="form-actions">
                 <button type="submit" class="btn">Salvar</button>
+                <button type="submit" name="save_and_manage_fronts" value="1" class="btn">Salvar e gerenciar frentes</button>
                 {% if obra %}
                     <a href="{% url 'gestao:detail_obra' obra.pk %}" class="btn btn-secondary">Cancelar</a>
                 {% else %}
-                    <a href="{% url 'gestao:list_obras' %}" class="btn btn-secondary">Cancelar</a>
+                    <a href="{% url 'central_project_list' %}" class="btn btn-secondary">Cancelar</a>
                 {% endif %}
             </div>
         </form>

@@ -12,8 +12,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import Optional
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from treebeard.mp_tree import MP_Node, MP_NodeManager
 
@@ -139,6 +141,112 @@ class Project(models.Model):
 
     def __str__(self) -> str:
         return f"{self.code} - {self.name}"
+
+
+class ProjectFront(models.Model):
+    """Frente/Subobra opcional vinculada a um projeto."""
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='fronts',
+        verbose_name='Projeto',
+    )
+    name = models.CharField(
+        max_length=120,
+        verbose_name='Nome da Frente',
+        help_text='Nome amigável da frente/subobra (ex: Frente Norte, Torre A)',
+    )
+    code = models.CharField(
+        max_length=40,
+        blank=True,
+        verbose_name='Código da Frente',
+        help_text='Identificador opcional da frente/subobra',
+    )
+    responsible_name = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name='Responsável da Frente',
+        help_text='Nome do responsável operacional por esta frente',
+    )
+    location_reference = models.CharField(
+        max_length=180,
+        blank=True,
+        verbose_name='Localização/Referência',
+        help_text='Referência física para identificar rapidamente onde fica esta frente',
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name='Descrição da Frente',
+        help_text='Resumo do escopo/objetivo desta frente (mini-obra)',
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Ativa',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Data de Atualização')
+
+    class Meta:
+        verbose_name = 'Frente/Subobra'
+        verbose_name_plural = 'Frentes/Subobras'
+        ordering = ['project', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'name'],
+                name='core_front_unique_project_name',
+            ),
+            models.UniqueConstraint(
+                fields=['project', 'code'],
+                condition=~Q(code=''),
+                name='core_front_unique_project_code_when_filled',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['project', 'is_active']),
+            models.Index(fields=['project', 'name']),
+        ]
+
+    def __str__(self) -> str:
+        prefix = f"[{self.code}] " if self.code else ""
+        return f"{self.project.code} - {prefix}{self.name}"
+
+
+class ProjectFrontMember(models.Model):
+    """Vínculo opcional de permissão de usuário por frente."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='diario_front_memberships',
+        verbose_name='Usuário',
+    )
+    front = models.ForeignKey(
+        ProjectFront,
+        on_delete=models.CASCADE,
+        related_name='members',
+        verbose_name='Frente',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Ativo')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Data de Atualização')
+
+    class Meta:
+        verbose_name = 'Vínculo usuário–frente (Diário)'
+        verbose_name_plural = 'Vínculos usuário–frente (Diário)'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'front'],
+                name='core_front_member_unique_user_front',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['front', 'is_active']),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.user.username} - {self.front}'
 
 
 class ProjectMember(models.Model):
@@ -795,6 +903,15 @@ class ConstructionDiary(models.Model):
         verbose_name='Projeto',
         help_text='Projeto ao qual este diário pertence'
     )
+    front = models.ForeignKey(
+        ProjectFront,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='diaries',
+        verbose_name='Frente/Subobra',
+        help_text='Frente/subobra do diário (opcional)',
+    )
     date = models.DateField(
         verbose_name='Data',
         help_text='Data do registro do diário'
@@ -1067,15 +1184,35 @@ class ConstructionDiary(models.Model):
         verbose_name = 'Diário de Obra'
         verbose_name_plural = 'Diários de Obra'
         ordering = ['-date', '-created_at']
-        unique_together = [['project', 'date']]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'front', 'date'],
+                name='core_diary_unique_project_front_date',
+            ),
+            models.UniqueConstraint(
+                fields=['project', 'date'],
+                condition=Q(front__isnull=True),
+                name='core_diary_unique_project_date_without_front',
+            ),
+        ]
         indexes = [
             models.Index(fields=['project', 'date']),
+            models.Index(fields=['project', 'front', 'date']),
             models.Index(fields=['project', 'status']),
             models.Index(fields=['status', '-date']),
         ]
 
     def __str__(self) -> str:
+        if self.front_id:
+            return f"Diário {self.project.code}/{self.front.name} - {self.date}"
         return f"Diário {self.project.code} - {self.date}"
+
+    def clean(self):
+        super().clean()
+        if self.front_id and self.project_id and self.front.project_id != self.project_id:
+            raise ValidationError(
+                {'front': 'A frente selecionada não pertence ao projeto informado.'}
+            )
 
     def is_approved(self) -> bool:
         """Verifica se o diário está aprovado (imutável)."""

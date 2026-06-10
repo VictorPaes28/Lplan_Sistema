@@ -28,7 +28,7 @@
             <i class="fas fa-calendar-minus" aria-hidden="true"></i>Sem relatório (justificar)
         </button>
         <button type="button"
-                onclick="openModal()"
+                onclick="openCreateReportEntry()"
                 aria-label="Abrir modal para adicionar novo relatório"
                 class="report-list-primary__btn report-list-primary__btn--primary report-list-add-btn">
             Adicionar relatório
@@ -36,8 +36,20 @@
         </div>
     </header>
 
-    <div class="report-list-filter-shell filter-form-card">
-        <span class="report-list-filter__label">Filtrar resultados</span>
+    <details class="report-list-filter-shell filter-form-card report-list-filter-collapsible" {% if request.GET.search or request.GET.date_start or request.GET.date_end or request.GET.front %}open{% endif %}>
+        <summary class="report-list-filter-collapsible__summary">
+            <span class="report-list-filter__label">Filtros</span>
+            <span class="report-list-filter-collapsible__hint">Clique para mostrar/ocultar</span>
+            <span class="report-list-filter-collapsible__chev" aria-hidden="true">
+                <i class="fas fa-chevron-down"></i>
+            </span>
+        </summary>
+        <div class="report-list-filter-collapsible__body">
+        {% if front_access_empty %}
+        <div class="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            Seu usuário não possui frente ativa atribuída nesta obra.
+        </div>
+        {% endif %}
         <form id="report-list-filter-form"
               hx-get="{% url 'report-list' %}"
               hx-target="#report-list"
@@ -66,6 +78,19 @@
                 <label for="report-list-date-end">Data fim</label>
                 <input type="date" id="report-list-date-end" name="date_end" value="{{ request.GET.date_end }}">
             </div>
+            {% if has_active_fronts %}
+            <div>
+                <label for="report-list-front">Frente</label>
+                <select id="report-list-front" name="front">
+                    <option value="">Todas</option>
+                    {% for front in active_fronts %}
+                    <option value="{{ front.id }}" {% if selected_front and selected_front.id == front.id %}selected{% endif %}>
+                        {{ front.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="filter-submit-wrap">
                 <button type="submit" class="filter-submit">
                     <i class="fas fa-search"></i> Filtrar
@@ -83,7 +108,8 @@
                 <i class="fas fa-file-archive" aria-hidden="true"></i> Exportar PDFs (ZIP)
             </button>
         </div>
-    </div>
+        </div>
+    </details>
 
     <div id="report-list" class="report-list-htmx-target">
         {% include 'core/report_list_partial.html' %}
@@ -145,6 +171,33 @@
                         </div>
                         <p id="project-error" class="mt-1.5 text-xs text-red-600 hidden">Por favor, selecione uma obra.</p>
                     </div>
+                    {% if has_active_fronts %}
+                    <div>
+                        <label for="select_front" class="block text-sm font-medium text-slate-700 mb-2">
+                            Frente <span class="text-red-500" aria-label="campo obrigatório">*</span>
+                        </label>
+                        <div class="relative">
+                            <select id="select_front"
+                                    name="front"
+                                    data-current-project-id="{{ project.id|default:'' }}"
+                                    aria-required="true"
+                                    aria-invalid="false"
+                                    aria-describedby="front-error"
+                                    {% if not active_fronts %}disabled{% endif %}
+                                    class="w-full px-4 py-3 pr-10 text-sm border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white cursor-pointer transition-all hover:border-slate-400">
+                                <option value="">-- Selecione uma frente --</option>
+                                {% for front in active_fronts %}
+                                    <option value="{{ front.id }}">{{ front.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none text-sm"></i>
+                        </div>
+                        <p id="front-error" class="mt-1.5 text-xs text-red-600 hidden">Por favor, selecione uma frente.</p>
+                        <p id="front-help-other-project" class="mt-1.5 text-xs text-slate-500 hidden">
+                            A frente só pode ser escolhida para a obra atualmente selecionada nesta tela.
+                        </p>
+                    </div>
+                    {% endif %}
                     
                     <!-- Data do Relatório -->
                     <div style="margin-top: 2rem !important; display: block !important;">
@@ -253,6 +306,66 @@
 
 <!-- CSS específico para o botão X do modal - Sobrescreve regras globais -->
 <style>
+.report-list-filter-collapsible__summary {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    padding: 0.45rem 0.55rem;
+    border-radius: 10px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.report-list-filter-collapsible__summary::-webkit-details-marker {
+    display: none;
+}
+
+.report-list-filter-collapsible__summary:hover {
+    background: #f8fafc;
+    border-color: #dbeafe;
+}
+
+.report-list-filter-collapsible__summary:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 1px;
+}
+
+.report-list-filter-collapsible__summary .report-list-filter__label {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.report-list-filter-collapsible__hint {
+    font-size: 0.78rem;
+    color: #334155;
+}
+
+.report-list-filter-collapsible__chev {
+    margin-left: auto;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    background: #fff;
+    transition: transform 0.18s ease;
+}
+
+.report-list-filter-collapsible[open] .report-list-filter-collapsible__chev {
+    transform: rotate(180deg);
+}
+
+.report-list-filter-collapsible__body {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 0.75rem;
+}
+
 /* Sobrescreve a regra global de base.css que deixa botões pretos */
 #modal-close-button,
 #modal-close-button:not([aria-expanded="true"]),
@@ -367,6 +480,253 @@
     color: inherit !important;
 }
 
+.report-list-front-groups {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0.4rem 0 1rem;
+    max-height: 70vh;
+    overflow: auto;
+    padding-right: 0.2rem;
+}
+
+.report-list-front-group-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.72rem;
+}
+
+.report-list-front-group-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.report-list-front-group-card__title {
+    margin: 0;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.report-list-front-group-card__count {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.12rem 0.5rem;
+    white-space: nowrap;
+}
+
+.report-list-front-group-card__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.42rem;
+    max-height: 16rem;
+    overflow: auto;
+    padding-right: 0.15rem;
+}
+
+.report-list-front-group-card__item-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    text-decoration: none;
+    padding: 0.45rem 0.52rem;
+}
+
+.report-list-front-group-card__item-link:hover {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.report-list-front-group-card__item-meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.34rem;
+    align-items: center;
+    color: #0f172a;
+    font-size: 0.78rem;
+}
+
+.report-list-front-group-card__item-meta > span {
+    color: #64748b;
+}
+
+/* Mesmo visual do modal "Consolidado por frente" do calendário */
+.lplan-front-day-detail-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.56);
+    backdrop-filter: blur(2px);
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.lplan-front-day-detail__panel {
+    width: min(760px, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.28);
+}
+
+.lplan-front-day-detail__hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.lplan-front-day-detail__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.lplan-front-day-detail__sub {
+    margin: 0.3rem 0 0;
+    font-size: 0.82rem;
+    color: #64748b;
+}
+
+.lplan-front-day-detail__close {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+}
+
+.lplan-front-day-detail__close:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.lplan-front-day-detail__body {
+    padding: 1rem 1.25rem 1.25rem;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.lplan-front-day-detail__row {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.lplan-front-day-detail__front {
+    min-width: 220px;
+}
+
+.lplan-front-day-detail__front-name {
+    margin: 0;
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.92rem;
+}
+
+.lplan-front-day-detail__front-name-link {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dashed #93c5fd;
+}
+
+.lplan-front-day-detail__front-name-link:hover {
+    color: #1d4ed8;
+    border-bottom-color: #1d4ed8;
+}
+
+.lplan-front-day-detail__status {
+    margin-top: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.73rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.lplan-front-day-detail__status--ok {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #6ee7b7;
+}
+
+.lplan-front-day-detail__status--missing {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-color: #fecaca;
+}
+
+.lplan-front-day-detail__actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.lplan-front-day-detail__btn {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0.42rem 0.82rem;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    background: #fff;
+}
+
+.lplan-front-day-detail__btn:hover {
+    background: #f8fafc;
+}
+
+.lplan-front-day-detail__btn--primary {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+}
+
+.lplan-front-day-detail__btn--cta {
+    background: #334155;
+    color: #fff;
+    border-color: #1e293b;
+}
+
+.lplan-front-day-detail__btn--cta:hover {
+    background: #1e293b;
+}
+
 @media (max-width: 640px) {
     .report-list-add-btn {
         width: 100%;
@@ -410,6 +770,10 @@
 <!-- JavaScript para Modal e Opções de Copiar -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var HAS_ACTIVE_FRONTS = {% if has_active_fronts %}true{% else %}false{% endif %};
+    var ACTIVE_FRONTS_COUNT = {{ active_fronts|length|default:0 }};
+    var CALENDAR_DAY_FRONTS_SUMMARY_URL = "{% url 'calendar-day-fronts-summary' %}";
+
     var modal = document.getElementById('modal-new-report');
     var modalContent = modal.querySelector('.modal-content');
     var form = document.getElementById('new-report-form');
@@ -418,6 +782,127 @@ document.addEventListener('DOMContentLoaded', function() {
     var submitBtn = document.getElementById('submit-btn');
     var projectError = document.getElementById('project-error');
     var dateError = document.getElementById('date-error');
+    var frontSelect = document.getElementById('select_front');
+    var frontError = document.getElementById('front-error');
+    var frontHelpOtherProject = document.getElementById('front-help-other-project');
+    var _frontDayDetailEscapeHandler = null;
+
+    function _escHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function _escAttr(str) {
+        return _escHtml(str).replace(/`/g, '&#96;');
+    }
+
+    function _formatMissingDaySubtitle(dateStr) {
+        var parts = String(dateStr || '').split('-');
+        if (parts.length !== 3) return dateStr || '';
+        var months = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+        var d = parseInt(parts[2], 10);
+        var m = parseInt(parts[1], 10) - 1;
+        if (m < 0 || m > 11) return dateStr;
+        return d + ' de ' + months[m] + ' de ' + parts[0];
+    }
+
+    function _forceRemoveFrontDayDetailModal() {
+        if (_frontDayDetailEscapeHandler) {
+            document.removeEventListener('keydown', _frontDayDetailEscapeHandler);
+            _frontDayDetailEscapeHandler = null;
+        }
+        var el = document.getElementById('modal-front-day-detail');
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function _renderFrontActionButtons(front) {
+        if (!front) return '';
+        if (!front.has_diary && front.new_url) {
+            return '<a href="' + _escAttr(front.new_url) + '" class="lplan-front-day-detail__btn lplan-front-day-detail__btn--cta">Criar RDO</a>';
+        }
+        if (front.edit_url) {
+            return '<a href="' + _escAttr(front.edit_url) + '" class="lplan-front-day-detail__btn lplan-front-day-detail__btn--primary">Editar RDO</a>';
+        }
+        if (front.detail_url) {
+            return '<a href="' + _escAttr(front.detail_url) + '" class="lplan-front-day-detail__btn lplan-front-day-detail__btn--primary">Abrir RDO</a>';
+        }
+        return '';
+    }
+
+    function openFrontDayDetailModal(payload) {
+        _forceRemoveFrontDayDetailModal();
+        var rows = [];
+        var fronts = (payload && payload.fronts) ? payload.fronts : [];
+        fronts.forEach(function(front) {
+            var statusClass = front.has_diary ? 'lplan-front-day-detail__status--ok' : 'lplan-front-day-detail__status--missing';
+            var frontNameHtml = _escHtml(front.front_name || 'Frente');
+            if (front.detail_url) {
+                frontNameHtml = '<a href="' + _escAttr(front.detail_url) + '" class="lplan-front-day-detail__front-name-link">' + frontNameHtml + '</a>';
+            }
+            rows.push(
+                '<div class="lplan-front-day-detail__row">' +
+                '<div class="lplan-front-day-detail__front">' +
+                '<p class="lplan-front-day-detail__front-name">' + frontNameHtml + '</p>' +
+                '<span class="lplan-front-day-detail__status ' + statusClass + '">' + _escHtml(front.status || '') + '</span>' +
+                '</div>' +
+                '<div class="lplan-front-day-detail__actions">' + _renderFrontActionButtons(front) + '</div>' +
+                '</div>'
+            );
+        });
+
+        var wrap = document.createElement('div');
+        wrap.id = 'modal-front-day-detail';
+        wrap.className = 'lplan-front-day-detail-overlay';
+        wrap.setAttribute('role', 'dialog');
+        wrap.setAttribute('aria-modal', 'true');
+        wrap.setAttribute('aria-labelledby', 'lplan-front-day-detail-title');
+        wrap.addEventListener('click', function(e) {
+            if (e.target === wrap) _forceRemoveFrontDayDetailModal();
+        });
+
+        wrap.innerHTML =
+            '<div class="lplan-front-day-detail__panel" onclick="event.stopPropagation()">' +
+            '<div class="lplan-front-day-detail__hdr">' +
+            '<div>' +
+            '<h3 id="lplan-front-day-detail-title" class="lplan-front-day-detail__title">Consolidado por frente</h3>' +
+            '<p class="lplan-front-day-detail__sub">' + _escHtml(_formatMissingDaySubtitle(payload.date || '')) + ' · ' + _escHtml(payload.status || '') + ' (' + (payload.filled || 0) + '/' + (payload.total || 0) + ')</p>' +
+            '</div>' +
+            '<button type="button" class="lplan-front-day-detail__close" aria-label="Fechar"><i class="fas fa-times" aria-hidden="true"></i></button>' +
+            '</div>' +
+            '<div class="lplan-front-day-detail__body">' +
+            (rows.length ? rows.join('') : '<p class="lplan-front-day-detail__empty">Nenhuma frente ativa para este dia.</p>') +
+            '</div>' +
+            '</div>';
+
+        var close = function() { _forceRemoveFrontDayDetailModal(); };
+        wrap.querySelector('.lplan-front-day-detail__close').addEventListener('click', close);
+        document.body.appendChild(wrap);
+
+        _frontDayDetailEscapeHandler = function(e) {
+            if (e.key === 'Escape') _forceRemoveFrontDayDetailModal();
+        };
+        document.addEventListener('keydown', _frontDayDetailEscapeHandler);
+    }
+
+    function openFrontDayDetailFromDate(dateStr) {
+        var url = CALENDAR_DAY_FRONTS_SUMMARY_URL + '?date=' + encodeURIComponent(dateStr || '');
+        fetch(url, { credentials: 'same-origin' })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                if (!data || !data.ok) {
+                    alert((data && data.message) ? data.message : 'Não foi possível carregar o consolidado por frente.');
+                    return;
+                }
+                openFrontDayDetailModal(data);
+            })
+            .catch(function() {
+                alert('Erro ao carregar consolidado por frente.');
+            });
+    }
     
     // Função para abrir modal com animação
     window.openModal = function() {
@@ -455,6 +940,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return y + '-' + m + '-' + day;
     }
 
+    window.openCreateReportEntry = function(dateStr) {
+        var day = (dateStr && String(dateStr).trim()) ? String(dateStr).trim() : _localIsoDate(new Date());
+        if (HAS_ACTIVE_FRONTS && ACTIVE_FRONTS_COUNT > 1) {
+            openFrontDayDetailFromDate(day);
+            return;
+        }
+        openModal();
+    };
+
     window.openNoReportModal = function() {
         if (!modalNoReport) return;
         modalNoReport.classList.remove('hidden');
@@ -474,6 +968,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fechar modal com ESC
     document.addEventListener('keydown', function(e) {
         if (e.key !== 'Escape') return;
+        var frontModal = document.getElementById('modal-front-day-detail');
+        if (frontModal) {
+            _forceRemoveFrontDayDetailModal();
+            return;
+        }
         if (modalNoReport && !modalNoReport.classList.contains('hidden')) {
             closeNoReportModal();
             return;
@@ -492,6 +991,12 @@ document.addEventListener('DOMContentLoaded', function() {
         dateInput.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
         dateInput.setAttribute('aria-invalid', 'false');
         dateError.classList.add('hidden');
+
+        if (frontSelect && frontError) {
+            frontSelect.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+            frontSelect.setAttribute('aria-invalid', 'false');
+            frontError.classList.add('hidden');
+        }
         
         submitBtn.disabled = false;
         submitBtn.querySelector('.submit-text').classList.remove('hidden');
@@ -509,7 +1014,28 @@ document.addEventListener('DOMContentLoaded', function() {
             this.setAttribute('aria-invalid', 'true');
             projectError.classList.remove('hidden');
         }
+        if (frontSelect && frontHelpOtherProject) {
+            var currentProjectId = frontSelect.getAttribute('data-current-project-id');
+            var selectedProjectId = projectSelect.value || '';
+            var onCurrentProject = currentProjectId && selectedProjectId && currentProjectId === selectedProjectId;
+            frontSelect.disabled = !onCurrentProject;
+            if (!onCurrentProject) {
+                frontSelect.value = '';
+                frontHelpOtherProject.classList.remove('hidden');
+            } else {
+                frontHelpOtherProject.classList.add('hidden');
+            }
+        }
     });
+    if (frontSelect && frontError) {
+        frontSelect.addEventListener('change', function() {
+            if (this.value) {
+                this.classList.remove('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+                this.setAttribute('aria-invalid', 'false');
+                frontError.classList.add('hidden');
+            }
+        });
+    }
     
     // Validação do formulário
     form.addEventListener('submit', function(e) {
@@ -531,12 +1057,24 @@ document.addEventListener('DOMContentLoaded', function() {
             dateError.classList.remove('hidden');
             isValid = false;
         }
+
+        // Validar frente quando habilitada
+        if (frontSelect && !frontSelect.disabled) {
+            if (!frontSelect.value) {
+                frontSelect.classList.add('invalid:border-red-300', 'invalid:focus:ring-red-500', 'invalid:focus:border-red-500');
+                frontSelect.setAttribute('aria-invalid', 'true');
+                if (frontError) frontError.classList.remove('hidden');
+                isValid = false;
+            }
+        }
         
         if (!isValid) {
             e.preventDefault();
             // Foca no primeiro campo inválido
             if (!projectSelect.value) {
                 projectSelect.focus();
+            } else if (frontSelect && !frontSelect.disabled && !frontSelect.value) {
+                frontSelect.focus();
             } else if (!dateIso || !dateIso.value) {
                 dateInput.focus();
             }
@@ -598,11 +1136,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
-    // Atualizar botão de abrir modal
-    var openModalBtn = document.querySelector('button[onclick*="modal-new-report"]');
-    if (openModalBtn) {
-        openModalBtn.setAttribute('onclick', 'openModal()');
+
+    if (frontSelect && frontHelpOtherProject) {
+        var currentProjectId = frontSelect.getAttribute('data-current-project-id');
+        var selectedProjectId = projectSelect ? (projectSelect.value || '') : '';
+        var onCurrentProject = currentProjectId && selectedProjectId && currentProjectId === selectedProjectId;
+        frontSelect.disabled = !onCurrentProject;
+        frontHelpOtherProject.classList.toggle('hidden', !!onCurrentProject);
+    }
+
+    // Abre automaticamente o modal de criação quando vier com ?create=1
+    try {
+        var qs = new URLSearchParams(window.location.search);
+        if (qs.get('create') === '1') {
+            var presetDate = qs.get('date');
+            if (HAS_ACTIVE_FRONTS && ACTIVE_FRONTS_COUNT > 1) {
+                openCreateReportEntry(presetDate);
+            } else {
+                openModal();
+            }
+            if (presetDate) {
+                var hiddenDate = document.getElementById('report_date_iso');
+                if (hiddenDate) hiddenDate.value = presetDate;
+            }
+        }
+    } catch (e) {
+        // no-op
     }
 });
 

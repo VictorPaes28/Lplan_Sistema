@@ -34,6 +34,22 @@
         {% endif %}
     </div>
 
+    {% if form.front %}
+    <div class="form-group" id="front-field-group" style="display:none;">
+        <label for="{{ form.front.id_for_label }}" class="form-label">
+            Frente
+            <span class="form-required" id="front-required-mark" style="display:none;">*</span>
+        </label>
+        {{ form.front }}
+        {% if form.front.help_text %}
+            <div class="form-help">{{ form.front.help_text }}</div>
+        {% endif %}
+        {% if form.front.errors %}
+            <div class="form-error">{{ form.front.errors }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if form.codigo %}
         <div class="form-group">
             <label for="{{ form.codigo.id_for_label }}" class="form-label">

@@ -27,24 +27,24 @@
         <a href="{% url 'gestao:list_workorders' %}" class="quick-filter-btn {% if not status_filter %}active{% endif %}">
             Todos
         </a>
-        <a href="?status=pendente{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-pendente {% if status_filter == 'pendente' %}active{% endif %}">
+        <a href="?status=pendente{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-pendente {% if status_filter == 'pendente' %}active{% endif %}">
             Pendentes
         </a>
-        <a href="?status=aprovado{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-aprovado {% if status_filter == 'aprovado' %}active{% endif %}">
+        <a href="?status=aprovado{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-aprovado {% if status_filter == 'aprovado' %}active{% endif %}">
             Aprovados
         </a>
-        <a href="?status=reprovado{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-reprovado {% if status_filter == 'reprovado' %}active{% endif %}">
+        <a href="?status=reprovado{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-reprovado {% if status_filter == 'reprovado' %}active{% endif %}">
             Reprovados
         </a>
-        <a href="?status=reaprovacao{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-reaprovacao {% if status_filter == 'reaprovacao' %}active{% endif %}">
+        <a href="?status=reaprovacao{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-reaprovacao {% if status_filter == 'reaprovacao' %}active{% endif %}">
             Reaprovação
         </a>
         {% if pode_marcar_analisado %}
         <div class="quick-filter-divider"></div>
-        <a href="?analisado=nao{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-analisado {% if analisado_filter == 'nao' %}active{% endif %}">
+        <a href="?analisado=nao{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-analisado {% if analisado_filter == 'nao' %}active{% endif %}">
             Não Analisados
         </a>
-        <a href="?analisado=sim{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-analisado-check {% if analisado_filter == 'sim' %}active{% endif %}">
+        <a href="?analisado=sim{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}" class="quick-filter-btn quick-filter-analisado-check {% if analisado_filter == 'sim' %}active{% endif %}">
             Analisados
         </a>
         {% endif %}
@@ -57,18 +57,18 @@
 
     <div class="list-pedidos-filters-summary">
     <!-- Filtros e Busca -->
-    <div class="card filters-card{% if obra_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} is-advanced-open{% endif %}">
+    <div class="card filters-card{% if obra_filter or front_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} is-advanced-open{% endif %}">
     <div class="filters-header">
         <div class="filters-title-group">
             <h3 class="filters-title">Filtros de Busca</h3>
             <p class="filters-title-sub">Buscar pedidos</p>
         </div>
-        <button type="button" class="filters-pdf-toggle{% if obra_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} is-open{% endif %}" id="toggle-filters-btn" aria-expanded="{% if obra_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %}true{% else %}false{% endif %}" aria-controls="advanced-filters" title="Abre filtros por período, obra, status e exportação">
+        <button type="button" class="filters-pdf-toggle{% if obra_filter or front_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} is-open{% endif %}" id="toggle-filters-btn" aria-expanded="{% if obra_filter or front_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %}true{% else %}false{% endif %}" aria-controls="advanced-filters" title="Abre filtros por período, obra, status e exportação">
             <span class="filters-pdf-toggle__icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </span>
-            <span id="toggle-filters-text">{% if obra_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %}Ocultar filtros avançados{% else %}Filtros avançados{% endif %}</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="filters-pdf-toggle__chevron" id="toggle-filters-icon" aria-hidden="true"{% if obra_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} style="transform: rotate(180deg);"{% endif %}>
+            <span id="toggle-filters-text">{% if obra_filter or front_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %}Ocultar filtros avançados{% else %}Filtros avançados{% endif %}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="filters-pdf-toggle__chevron" id="toggle-filters-icon" aria-hidden="true"{% if obra_filter or front_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} style="transform: rotate(180deg);"{% endif %}>
                 <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
         </button>
@@ -94,7 +94,7 @@
             </div>
         </div>
         
-        <div class="advanced-filters{% if obra_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} is-visible{% endif %}" id="advanced-filters">
+        <div class="advanced-filters{% if obra_filter or front_filter or tipo_solicitacao_filter or credor_filter or data_inicio or data_fim or periodo_rapido %} is-visible{% endif %}" id="advanced-filters">
             <div class="filter-section filter-section--period">
                 <p class="filter-section-heading">Período</p>
                 <p class="filter-section-sub">Por data de envio; se não houver envio, usa a data de criação.</p>
@@ -146,11 +146,26 @@
             {% if obras_disponiveis %}
             <div class="filter-field">
                 <label for="obra" class="filter-label">Obra</label>
-                <select id="obra" name="obra" class="filter-select">
+                <select id="obra" name="obra" class="filter-select" onchange="if (this.form) { var f = this.form.querySelector('#front'); if (f) f.value = ''; this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit(); }">
                     <option value="">Todas</option>
                     {% for obra in obras_disponiveis %}
                         <option value="{{ obra.pk }}" {% if obra_filter|stringformat:"s" == obra.pk|stringformat:"s" %}selected{% endif %}>
                             {{ obra.sigla|default:obra.codigo }} - {{ obra.nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if frentes_disponiveis %}
+            <div class="filter-field">
+                <label for="front" class="filter-label">Frente</label>
+                <select id="front" name="front" class="filter-select">
+                    {% if frentes_disponiveis|length != 1 %}
+                    <option value="">Todas</option>
+                    {% endif %}
+                    {% for front in frentes_disponiveis %}
+                        <option value="{{ front.pk }}" {% if front_filter|stringformat:"s" == front.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ front.name }}
                         </option>
                     {% endfor %}
                 </select>
@@ -292,6 +307,19 @@
                             <span class="sort-indicator"></span>
                         </div>
                     </th>
+                    {% if show_front_column %}
+                    <th class="sortable" data-sort="front">
+                        <div class="th-content">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 7h18"></path>
+                                <path d="M6 12h12"></path>
+                                <path d="M9 17h6"></path>
+                            </svg>
+                            Frente
+                            <span class="sort-indicator"></span>
+                        </div>
+                    </th>
+                    {% endif %}
                     <th class="sortable" data-sort="nome_credor">
                         <div class="th-content">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -406,6 +434,15 @@
                                 <span>{{ workorder.obra.sigla|default:workorder.obra.codigo }}</span>
                             </div>
                         </td>
+                        {% if show_front_column %}
+                        <td data-label="Frente">
+                            {% if workorder.front %}
+                                <span>{{ workorder.front.name }}</span>
+                            {% else %}
+                                <span style="color:#64748b;">Sem frente (obra toda)</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                         <td data-label="Credor">
                             <div class="cell-with-icon">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -479,13 +516,13 @@
         <div class="pagination-wrapper">
             <div class="pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Primeira página">
+                    <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Primeira página">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="11 17 6 12 11 7"></polyline>
                             <polyline points="18 17 13 12 18 7"></polyline>
                         </svg>
                     </a>
-                    <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn" title="Página anterior">
+                    <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn" title="Página anterior">
                         Anterior
                     </a>
                 {% else %}
@@ -500,7 +537,7 @@
                 
                 <div class="pagination-numbers">
                     {% if page_obj.number > 3 %}
-                        <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">1</a>
+                        <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">1</a>
                         {% if page_obj.number > 4 %}
                             <span class="pagination-ellipsis">...</span>
                         {% endif %}
@@ -510,7 +547,7 @@
                         {% if num == page_obj.number %}
                             <span class="pagination-number pagination-number-active">{{ num }}</span>
                         {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
-                            <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">{{ num }}</a>
+                            <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">{{ num }}</a>
                         {% endif %}
                     {% endfor %}
                     
@@ -518,15 +555,15 @@
                         {% if page_obj.number < page_obj.paginator.num_pages|add:"-3" %}
                             <span class="pagination-ellipsis">...</span>
                         {% endif %}
-                        <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">{{ page_obj.paginator.num_pages }}</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-number">{{ page_obj.paginator.num_pages }}</a>
                     {% endif %}
                 </div>
                 
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn" title="Próxima página">
+                    <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn" title="Próxima página">
                         Próxima
                     </a>
-                    <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Última página">
+                    <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if tipo_solicitacao_filter %}&tipo_solicitacao={{ tipo_solicitacao_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if obra_filter %}&obra={{ obra_filter }}{% endif %}{% if front_filter %}&front={{ front_filter }}{% endif %}{% if credor_filter %}&credor={{ credor_filter }}{% endif %}{% if engenheiro_filter %}&engenheiro={{ engenheiro_filter }}{% endif %}{% if data_inicio %}&data_inicio={{ data_inicio }}{% endif %}{% if data_fim %}&data_fim={{ data_fim }}{% endif %}{% if analisado_filter %}&analisado={{ analisado_filter }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" class="pagination-btn pagination-btn-icon" title="Última página">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="13 17 18 12 13 7"></polyline>
                             <polyline points="6 17 11 12 6 7"></polyline>

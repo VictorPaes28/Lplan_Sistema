@@ -546,6 +546,7 @@
     window.preencherModalPedido = function (d) {
         var obraLabel = (d.obra && d.obra.label) ? d.obra.label : '';
         var obraNome = (d.obra && d.obra.nome) ? d.obra.nome : '';
+        var frontName = (d.front && d.front.name) ? d.front.name : '';
         var bcObraTitulo = (obraNome || obraLabel || '—').trim();
         var bc = document.getElementById('gc-breadcrumb');
         if (bc) {
@@ -564,7 +565,10 @@
         var tp = document.getElementById('gc-pill-tipo');
         if (tp) tp.textContent = d.tipo_solicitacao_display || '';
         var op = document.getElementById('gc-pill-obra');
-        if (op) op.textContent = obraNome || obraLabel || '—';
+        if (op) {
+            var obraText = obraNome || obraLabel || '—';
+            op.textContent = frontName ? (obraText + ' · ' + frontName) : obraText;
+        }
         var vp = document.getElementById('gc-pill-valor');
         if (vp) {
             var vtxt = d.valor_medicao_formatado || d.valor_estimado_formatado || '—';

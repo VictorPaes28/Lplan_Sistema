@@ -35,6 +35,7 @@ from audit.action_codes import AuditAction
 from audit.models import AuditEvent
 from core.models import (
     Project,
+    ProjectFront,
     ProjectOwner,
     ConstructionDiary,
     DiaryCorrectionRequestLog,
@@ -757,6 +758,17 @@ def central_signup_requests_list(request):
     from core.models import Project
     grupos_secoes = grupos_secoes_para_atribuicao()
     projects = list(Project.objects.filter(is_active=True).order_by('name'))
+    fronts_by_project_id = {}
+    if projects:
+        project_ids = [project.id for project in projects]
+        fronts = (
+            ProjectFront.objects.filter(project_id__in=project_ids, is_active=True)
+            .order_by('project__code', 'name')
+        )
+        for front in fronts:
+            fronts_by_project_id.setdefault(front.project_id, []).append(front)
+    for project in projects:
+        project.active_fronts = fronts_by_project_id.get(project.id, [])
     status_filter = (request.GET.get('status') or '').strip()
     requests_qs = UserSignupRequest.objects.select_related(
         'approved_by',
@@ -789,6 +801,7 @@ def central_signup_requests_list(request):
             'status_filter': status_filter,
             'grupos_secoes': grupos_secoes,
             'projects': projects,
+            'has_project_fronts': any(project.active_fronts for project in projects),
         },
     )
 
@@ -802,6 +815,14 @@ def central_signup_request_approve(request, pk):
     signup_request = get_object_or_404(UserSignupRequest, pk=pk)
     selected_groups = filtrar_grupos_post_atribuivel(request.POST.getlist('approved_groups'))
     selected_projects = request.POST.getlist('approved_projects')
+    selected_fronts = []
+    for raw_front_id in request.POST.getlist('approved_fronts'):
+        try:
+            front_id = int(raw_front_id)
+        except (TypeError, ValueError):
+            continue
+        if front_id not in selected_fronts:
+            selected_fronts.append(front_id)
     if not selected_groups:
         flash_message(request, "error", "central.signup.approve.groups_required")
         return redirect('central_signup_requests')
@@ -811,6 +832,7 @@ def central_signup_request_approve(request, pk):
             request.user,
             selected_groups=selected_groups,
             selected_project_ids=selected_projects,
+            selected_front_ids=selected_fronts,
         )
     except Exception as exc:
         msg = resolve_message("central.signup.approve.failed")

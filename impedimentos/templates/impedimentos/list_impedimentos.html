@@ -4,7 +4,7 @@
 {% block back_url %}{% url 'impedimentos:select_obra' %}{% endblock %}
 {% block title %}Restrições{% endblock %}
 {% block page_title %}Restrições{% endblock %}
-{% block page_subtitle %}{{ obra.nome }}{% endblock %}
+{% block page_subtitle %}{{ obra.nome }}{% if frente_selecionada %} · {{ frente_selecionada.name }}{% elif visao_obra_toda %} · Obra toda{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,6 +53,7 @@
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ tab_q_calendario }}" class="imp-tab {% if active_view == 'calendario' %}is-active{% endif %}">Calendário</a>
         </nav>
         <div class="imp-header-actions">
+            {% include "mapa_obras/includes/seletor_frente.html" with inline=True compact=True select_class="imp-front-select" module_help="Filtra restrições da frente selecionada. Legado sem frente só aparece em Obra toda." %}
             <a href="{% url 'impedimentos:select_obra' %}" class="imp-btn imp-btn-secondary" title="Trocar obra">
                 {{ obra.nome }}
             </a>
@@ -91,6 +92,7 @@
             class="imp-global-filters__form"
             id="imp-global-filter-form">
             <input type="hidden" name="view" value="{{ active_view }}">
+            {% if front_filter %}<input type="hidden" name="front" value="{{ front_filter }}">{% endif %}
             {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
             <input type="hidden" name="data_inicio" id="imp-global-data-inicio-hidden" value="{{ table_filters.data_inicio|default:'' }}">
             <div class="imp-global-field imp-global-field--search">
@@ -186,9 +188,6 @@
             </li>
             {% endfor %}
         </ul>
-        {% if not categorias_obra %}
-        <p class="imp-cat-sidebar__empty-hint">Sem categorias ainda. O próximo passo é criar a primeira — use o botão abaixo ou o destaque no topo da página.</p>
-        {% endif %}
         <button type="button" class="imp-btn imp-btn-secondary imp-cat-new-btn" id="imp-open-cat-mini-modal" data-imp-open-cat-mini>
             <i class="fas fa-plus"></i> Nova categoria
         </button>
@@ -196,7 +195,7 @@
     </div>
     <div class="imp-content">
 
-    {% if active_view == "lista" and tem_categorias %}
+    {% if active_view == "lista" %}
     <section class="imp-list imp-list--grid" id="imp-lista-section">
         {% for col in kanban_columns %}
         <div class="imp-list-group" data-imp-list-group data-imp-group-status-id="{{ col.id }}">
@@ -327,29 +326,8 @@
         </div>
         {% endfor %}
     </section>
-    {% elif active_view == "lista" %}
-    <section class="imp-empty imp-empty--onboarding" aria-labelledby="imp-empty-onboarding-title">
-        <div class="imp-empty-icon imp-empty-icon--accent"><i class="fas fa-tags" aria-hidden="true"></i></div>
-        <h3 id="imp-empty-onboarding-title">Primeiro: categorias</h3>
-        <p class="imp-empty__lead">Sem categorias não é possível cadastrar restrições — elas servem para organizar por tema ou tipo de pendência.</p>
-        <ol class="imp-empty-steps">
-            <li><strong>Crie uma categoria</strong> — botão principal acima ou «Nova categoria» na barra lateral.</li>
-            <li><strong>Depois</strong> — use «Nova restrição» e associe a uma ou mais categorias.</li>
-        </ol>
-        <div class="imp-empty-actions">
-            <button type="button" class="imp-btn imp-btn-primary" data-imp-open-cat-mini>
-                <i class="fas fa-plus"></i> Nova categoria
-            </button>
-        </div>
-    </section>
     {% elif active_view == "quadro" %}
     <section class="imp-kanban-wrapper">
-        {% if not tem_categorias %}
-        <div class="imp-view-banner imp-view-banner--info" role="status">
-            <i class="fas fa-info-circle" aria-hidden="true"></i>
-            <span><strong>Passo 1:</strong> crie uma categoria na barra lateral. Depois disso, os botões «Adicionar restrição» passam a abrir o cadastro normalmente.</span>
-        </div>
-        {% endif %}
         <div class="imp-kanban-board" data-update-url="{% url 'impedimentos:update_status_ajax' obra_id=project.id %}">
             {% for col in kanban_columns %}
             <article class="imp-kanban-column" data-status-id="{{ col.id }}">
@@ -459,12 +437,6 @@
     </section>
     {% elif active_view == "calendario" %}
     <section class="imp-calendar">
-        {% if not tem_categorias %}
-        <div class="imp-view-banner imp-view-banner--info" role="status">
-            <i class="fas fa-info-circle" aria-hidden="true"></i>
-            <span><strong>Sem categorias:</strong> o calendário ficará vazio até existir ao menos uma categoria e restrições com prazo. Comece pela barra lateral.</span>
-        </div>
-        {% endif %}
         <header class="imp-calendar-nav">
             <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?{{ cal_prev_q }}" class="imp-btn imp-btn-secondary">
                 <i class="fas fa-chevron-left"></i> Anterior
@@ -657,14 +629,10 @@
                     {% empty %}
                     <tr>
                         <td colspan="8" class="imp-table-empty">
-                            {% if tem_categorias %}
-                                {% if cat_param != 'all' and obra_tem_restricoes_raiz %}
-                                Nenhuma restrição nesta categoria com os filtros atuais. Experimente <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?view=tabela&cat=all{% if table_filters.q %}&q={{ table_filters.q|urlencode }}{% endif %}">ver todas</a> ou limpar filtros.
-                                {% else %}
-                                Nenhuma restrição encontrada com os filtros atuais.
-                                {% endif %}
+                            {% if cat_param != 'all' and obra_tem_restricoes_raiz %}
+                            Nenhuma restrição nesta categoria com os filtros atuais. Experimente <a href="{% url 'impedimentos:list_impedimentos' obra_id=project.id %}?view=tabela&cat=all{% if table_filters.q %}&q={{ table_filters.q|urlencode }}{% endif %}">ver todas</a> ou limpar filtros.
                             {% else %}
-                            Cadastre primeiro uma <strong>categoria</strong> na barra lateral; em seguida use «Nova categoria» / «Nova restrição» conforme o passo.
+                            Nenhuma restrição encontrada com os filtros atuais.
                             {% endif %}
                         </td>
                     </tr>

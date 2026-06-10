@@ -75,6 +75,9 @@
                     <div class="card-header">
                         <div>
                             <h2 class="card-title">{% if dash_escopo_admin %}Atividade recente{% else %}Últimas atualizações{% endif %}</h2>
+                            <p class="gc-card-subtitle gc-feed-card__subtitle">
+                                Prioridades no topo · demais movimentações dos últimos {{ feed_recent_days|default:21 }} dias
+                            </p>
                         </div>
                     </div>
                     <div class="updates-list{% if dashboard_modo_pessoal %} updates-list--compact updates-list--feed-dense{% endif %}">
@@ -133,6 +136,11 @@
                                                     <span class="update-obra-line">
                                                         <span class="update-obra-simple">{{ entry.obra_nome|default:"Obra não especificada" }}</span>
                                                     </span>
+                                                    {% if entry.mostrar_frente %}
+                                                    <span class="update-front-line">
+                                                        <span class="update-front-simple">{{ entry.front_label }}</span>
+                                                    </span>
+                                                    {% endif %}
                                                     {% if entry.prioridade and entry.prioridade_hint %}
                                                     <span class="gc-feed-priority-hint">{{ entry.prioridade_hint }}</span>
                                                     {% endif %}

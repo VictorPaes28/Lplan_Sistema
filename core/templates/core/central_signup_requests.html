@@ -677,6 +677,19 @@
 
                 {% endif %}
 
+                {% if has_project_fronts and req.requested_front_ids %}
+                    <p class="mt-2"><strong>Frentes solicitadas:</strong></p>
+                    <div class="signup-project-tags">
+                        {% for p in projects %}
+                            {% for front in p.active_fronts %}
+                                {% if front.id in req.requested_front_ids %}
+                                    <span class="signup-project-tag">{{ p.code }} · {{ front.name }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
                 {% if req.status == 'aprovado' and req.approved_user %}
 
                     <p class="mt-2"><strong>Usuário criado:</strong> {{ req.approved_user.username }}</p>
@@ -771,6 +784,53 @@
 
                     </div>
 
+                    {% if has_project_fronts %}
+                    <div class="signup-panel">
+
+                        <div class="signup-panel-head">
+
+                            <h3 class="signup-panel-title">Frentes de acesso</h3>
+
+                        </div>
+
+                        <div class="signup-panel-body">
+
+                            <div class="signup-scroll signup-scroll--obras">
+
+                                {% for p in projects %}
+                                    {% if p.active_fronts %}
+                                    <div style="margin-bottom:0.85rem;" data-fronts-project-group="{{ req.pk }}" data-project-id="{{ p.id }}">
+                                        <div style="font-size:0.76rem;color:#334155;font-weight:700;margin-bottom:0.35rem;">
+                                            {{ p.code }} — {{ p.name }}
+                                        </div>
+                                        {% for front in p.active_fronts %}
+                                        <label class="signup-obra-row" style="padding-top:0.3rem;padding-bottom:0.3rem;margin-left:0.2rem;">
+                                            <input
+                                                type="checkbox"
+                                                name="approved_fronts"
+                                                value="{{ front.id }}"
+                                                form="approve-form-{{ req.pk }}"
+                                                class="approved-front-checkbox approved-front-checkbox-{{ req.pk }}"
+                                                data-signup-id="{{ req.pk }}"
+                                                data-project-id="{{ p.id }}"
+                                                {% if front.id in req.requested_front_ids %}checked{% endif %}
+                                            >
+                                            <span>{{ front.name }}{% if front.code %} ({{ front.code }}){% endif %}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                {% empty %}
+                                    <p class="text-sm text-slate-500">Nenhuma frente ativa encontrada.</p>
+                                {% endfor %}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                    {% endif %}
+
                 </div>
 
             </form>
@@ -843,6 +903,50 @@
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    function syncFrontCheckboxes(signupId) {
+        var projectSelector = '#approve-form-' + signupId + ' input[name="approved_projects"]';
+        var frontSelector = '.approved-front-checkbox-' + signupId;
+        var projectInputs = document.querySelectorAll(projectSelector);
+        var frontInputs = document.querySelectorAll(frontSelector);
+        if (!projectInputs.length || !frontInputs.length) return;
+
+        var selectedProjects = new Set();
+        projectInputs.forEach(function(projectEl) {
+            if (projectEl.checked) selectedProjects.add(projectEl.value);
+        });
+
+        frontInputs.forEach(function(frontEl) {
+            var projectId = frontEl.getAttribute('data-project-id');
+            var enabled = selectedProjects.has(projectId);
+            frontEl.disabled = !enabled;
+            if (!enabled) frontEl.checked = false;
+        });
+    }
+
+    var allFrontCheckboxes = document.querySelectorAll('.approved-front-checkbox');
+    if (!allFrontCheckboxes.length) return;
+
+    var signupIds = new Set();
+    allFrontCheckboxes.forEach(function(frontEl) {
+        signupIds.add(frontEl.getAttribute('data-signup-id'));
+    });
+
+    signupIds.forEach(function(signupId) {
+        var projectSelector = '#approve-form-' + signupId + ' input[name="approved_projects"]';
+        document.querySelectorAll(projectSelector).forEach(function(projectEl) {
+            projectEl.addEventListener('change', function() {
+                syncFrontCheckboxes(signupId);
+            });
+        });
+        syncFrontCheckboxes(signupId);
+    });
+})();
+</script>
 {% endblock %}
 
 

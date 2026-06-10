@@ -587,6 +587,8 @@ class AnaliseObraFilters:
     tag_ocorrencia_id: str = ""
     busca_diario_texto: str = ""
     responsavel_texto: str = ""
+    visao: str = "geral"  # geral | detalhe
+    front_id: str = ""
 
     def to_mapa_suprimentos_filters(self) -> MapaControleFilters:
         return MapaControleFilters(
@@ -1084,6 +1086,15 @@ class AnaliseObraService:
         hoje = timezone.now().date()
 
         roots = Impedimento.objects.filter(obra=go, parent__isnull=True)
+        front_raw = (self.filtros.front_id or "").strip()
+        if front_raw:
+            from core.contexto_frente import FRONT_OBRA_TODA
+
+            if front_raw != FRONT_OBRA_TODA:
+                try:
+                    roots = roots.filter(front_id=int(front_raw))
+                except (TypeError, ValueError):
+                    pass
         if ultimo:
             base_open = roots.exclude(status_id=ultimo.id)
         else:
@@ -1882,6 +1893,15 @@ class AnaliseObraService:
         d1, d2 = self.periodo.data_inicio, self.periodo.data_fim
         diaries_qs = ConstructionDiary.objects.filter(project=project, date__gte=d1, date__lte=d2)
         f = self.filtros
+        front_raw = (f.front_id or "").strip()
+        if front_raw:
+            from core.contexto_frente import FRONT_OBRA_TODA
+
+            if front_raw != FRONT_OBRA_TODA:
+                try:
+                    diaries_qs = diaries_qs.filter(front_id=int(front_raw))
+                except (TypeError, ValueError):
+                    pass
         if f.responsavel_texto:
             rt = f.responsavel_texto.strip()
             diaries_qs = diaries_qs.filter(

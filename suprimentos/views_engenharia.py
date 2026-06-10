@@ -11,6 +11,7 @@ from django.views.decorators.cache import cache_control
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
+from mapa_obras.contexto_obra import resolve_obra_context
 from suprimentos.models import (
     ItemMapa,
     Insumo,
@@ -27,8 +28,6 @@ from datetime import datetime
 from uuid import uuid4
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
-import pandas as pd
-import numpy as np
 import re
 import json
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -36,6 +35,11 @@ from core.obras_readonly import (
     OBRA_INATIVA_CONSULTA_MSG,
     inactive_mapa_obra_write_json,
     mapa_obra_requires_readonly,
+)
+from suprimentos.services.mapa_engenharia_diagnostico import (
+    alertas_codigo_descricao_duplicada,
+    anexar_diagnostico_sienge_itens,
+    build_ultima_importacao_info,
 )
 
 
@@ -55,22 +59,7 @@ def _mapa_eng_readonly_guard(request, obra=None):
 
 def get_obra_da_sessao(request):
     """Obtém a obra da sessão ou a primeira disponível. Só considera obras às quais o usuário está vinculado."""
-    from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
-    obra_id = request.session.get('obra_id')
-    if obra_id:
-        try:
-            obra = Obra.objects.get(id=obra_id)
-            if _user_can_access_obra(request, obra):
-                return obra
-        except Obra.DoesNotExist:
-            pass
-        request.session.pop('obra_id', None)
-    # Fallback: primeira obra permitida ao usuário
-    obras = _get_obras_for_user(request)
-    obra = obras.first()
-    if obra:
-        request.session['obra_id'] = obra.id
-    return obra
+    return resolve_obra_context(request).obra
 
 
 _STATUS_RECEBIMENTO_ETAPA_DISPLAY = {
@@ -451,6 +440,7 @@ def mapa_engenharia(request):
 
     itens_lista_render = list(itens_ordered_qs)
     _attach_recebimentos_obra_cache(itens_lista_render, obra_id)
+    anexar_diagnostico_sienge_itens(itens_lista_render)
 
     def _item_tem_sc(item):
         return bool(item.numero_sc and str(item.numero_sc).strip())
@@ -533,8 +523,13 @@ def mapa_engenharia(request):
         'mapa_obra_somente_consulta': bool(
             obra_selecionada and mapa_obra_requires_readonly(obra_selecionada)
         ),
+        'ultima_importacao': build_ultima_importacao_info(obra_id) if obra_id else None,
+        'alertas_mapa': alertas_codigo_descricao_duplicada(itens_lista_render) if obra_id else [],
     }
-    
+
+    modulo_ctx = resolve_obra_context(request)
+    context.update(modulo_ctx.to_template_context())
+
     return render(request, 'suprimentos/mapa_engenharia.html', context)
 
 
@@ -542,6 +537,8 @@ def mapa_engenharia(request):
 @require_group(GRUPOS.ENGENHARIA)
 def exportar_mapa_excel(request):
     """Exporta o mapa de suprimentos para Excel com formatação."""
+    import pandas as pd
+
     # Aplicar os mesmos filtros da view mapa_engenharia
     obra_id = request.GET.get('obra')
     if not obra_id:
@@ -721,7 +718,7 @@ def exportar_mapa_excel(request):
             '10. Nº PEDIDO DE COMPRA': str(item.numero_pc or ''),
             '11. EMPRESA RESPONSÁVEL': str(item.empresa_fornecedora or ''),
             '12. PRAZO RECEBIMENTO': item.prazo_recebimento.strftime('%d/%m/%Y') if item.prazo_recebimento else '',
-            '13. QUANTIDADE RECEBIDA': qtd_recebida_str,  # Formato: alocado/solicitado
+            '13. ALOCADO / SOLICITADO': qtd_recebida_str,  # Formato: alocado/solicitado
             '14. SALDO A SER ENTREGUE': formatar_numero_br(saldo_valor),
             '15. STATUS': str(item.status_etapa or ''),
             '16. PRIORIDADE': str(item.get_prioridade_display() if item.prioridade else ''),
@@ -1276,6 +1273,7 @@ def importar_sienge_upload(request):
                 if ext in ('.xlsx', '.xls'):
                     try:
                         import pandas as pd
+                        import numpy as np
                         # O arquivo do Sienge costuma ter logo/título e o cabeçalho real começa algumas linhas abaixo.
                         # Além disso, alguns arquivos vêm com múltiplas abas ou cabeçalhos repetidos (por página).
                         # Então detectamos (aba + linha do header) automaticamente antes de converter.

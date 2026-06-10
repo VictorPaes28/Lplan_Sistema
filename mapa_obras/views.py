@@ -72,6 +72,17 @@ def selecionar_obra(request, obra_id):
     # Armazenar na sessão
     request.session['obra_id'] = obra.id
     request.session.modified = True
+    if obra.project_id:
+        from core.contexto_frente import clear_session_front_for_project
+
+        previous_front_map = request.session.get('front_by_project_id') or {}
+        if isinstance(previous_front_map, dict):
+            for key in list(previous_front_map.keys()):
+                try:
+                    if int(key) != int(obra.project_id):
+                        clear_session_front_for_project(request, int(key))
+                except (TypeError, ValueError):
+                    continue
     
     # Se for requisição AJAX, retornar JSON
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

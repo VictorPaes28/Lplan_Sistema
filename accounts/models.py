@@ -72,6 +72,7 @@ class UserSignupRequest(models.Model):
     )
     requested_groups = models.JSONField(default=list, blank=True, verbose_name='Grupos solicitados')
     requested_project_ids = models.JSONField(default=list, blank=True, verbose_name='Projetos solicitados')
+    requested_front_ids = models.JSONField(default=list, blank=True, verbose_name='Frentes solicitadas')
     notes = models.TextField(blank=True, verbose_name='Observações')
 
     status = models.CharField(

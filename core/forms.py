@@ -14,6 +14,7 @@ from .models import (
     Labor,
     Equipment,
     Project,
+    ProjectFront,
     Activity,
     DiaryOccurrence,
     OccurrenceTag,
@@ -59,6 +60,7 @@ class ConstructionDiaryForm(forms.ModelForm):
         model = ConstructionDiary
         fields = [
             'project',
+            'front',
             'date',
             'weather_conditions',
             'weather_morning_condition',
@@ -85,6 +87,9 @@ class ConstructionDiaryForm(forms.ModelForm):
         ]
         widgets = {
             'project': forms.Select(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
+            }),
+            'front': forms.Select(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
             }),
             'weather_conditions': forms.Textarea(attrs={
@@ -224,17 +229,32 @@ class ConstructionDiaryForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         project = kwargs.pop('project', None)
+        front_queryset = kwargs.pop('front_queryset', None)
+        project_has_active_fronts = kwargs.pop('project_has_active_fronts', None)
         super().__init__(*args, **kwargs)
         
         # Armazena o projeto para uso posterior
         self._project = project
+        self._has_active_fronts = False
         # Flag acessível no template (Django não permite atributos com underscore)
         self.date_after_planned_end = False
         
         # Se projeto foi passado, usa ele e oculta o campo
         if project:
+            if project_has_active_fronts is None:
+                self._has_active_fronts = ProjectFront.objects.filter(project=project, is_active=True).exists()
+            else:
+                self._has_active_fronts = bool(project_has_active_fronts)
             self.fields['project'].initial = project
             self.fields['project'].widget = forms.HiddenInput()
+            if front_queryset is not None:
+                self.fields['front'].queryset = front_queryset
+            else:
+                self.fields['front'].queryset = ProjectFront.objects.filter(
+                    project=project,
+                    is_active=True
+                ).order_by('name')
+            self.fields['front'].required = self._has_active_fronts
             # Garante que o projeto seja definido na instância se for um novo diário
             if self.instance and not self.instance.pk:
                 # Se for uma nova instância, define o projeto antes da validação
@@ -252,9 +272,15 @@ class ConstructionDiaryForm(forms.ModelForm):
         else:
             # Filtra projetos ativos
             self.fields['project'].queryset = Project.objects.filter(is_active=True)
+            self.fields['front'].queryset = ProjectFront.objects.filter(is_active=True).select_related('project').order_by(
+                'project__code', 'name'
+            )
+            self.fields['front'].required = False
         
         # Se for edição, verifica permissões
         if self.instance and self.instance.pk:
+            # Em edição, não permite trocar a frente para preservar histórico e rastreabilidade.
+            self.fields['front'].disabled = True
             if not self.instance.can_be_edited_by(user):
                 for field in self.fields:
                     self.fields[field].widget.attrs['readonly'] = True
@@ -300,17 +326,31 @@ class ConstructionDiaryForm(forms.ModelForm):
             cleaned_data['project'] = project
         else:
             project = cleaned_data.get('project')
+        front = cleaned_data.get('front')
         date = cleaned_data.get('date')
         
         # Garante instância com projeto correto (novo diário ou instância sem projeto)
         if project and self.instance and (not self.instance.pk or not getattr(self.instance.project, 'pk', None)):
             self.instance.project = project
+
+        if front and project and front.project_id != project.id:
+            self.add_error('front', 'A frente selecionada não pertence à obra informada.')
+            return cleaned_data
+
+        if front and not self.fields['front'].queryset.filter(pk=front.pk).exists():
+            self.add_error('front', 'Você não possui acesso à frente selecionada.')
+            return cleaned_data
+
+        if project and getattr(self, '_has_active_fronts', False) and not front and not (self.instance and self.instance.pk):
+            self.add_error('front', 'Selecione uma frente para esta obra.')
+            return cleaned_data
         
         # Valida unicidade projeto + data (antes da validação do modelo)
         # Isso permite uma mensagem de erro mais amigável
         if project and date:
             existing = ConstructionDiary.objects.filter(
                 project=project,
+                front=front,
                 date=date
             )
             # Se estiver editando, exclui o próprio registro
@@ -329,11 +369,18 @@ class ConstructionDiaryForm(forms.ModelForm):
                     # Não deve chegar aqui, mas por segurança
                     pass
                 else:
+                    if front:
+                        msg = (
+                            f"Já existe um relatório para esta obra/frente na data {date.strftime('%d/%m/%Y')}. "
+                            "Por favor, escolha outra data ou edite o relatório existente."
+                        )
+                    else:
+                        msg = (
+                            f"Já existe um relatório para esta obra na data {date.strftime('%d/%m/%Y')} sem frente. "
+                            "Por favor, escolha outra data ou edite o relatório existente."
+                        )
                     raise forms.ValidationError({
-                        '__all__': [
-                            f"Já existe um relatório para esta obra na data {date.strftime('%d/%m/%Y')}. "
-                            f"Por favor, escolha outra data ou edite o relatório existente."
-                        ]
+                        '__all__': [msg]
                     })
         
         # Combina clima manhã e tarde
@@ -971,6 +1018,24 @@ DailyWorkLogFormSet = inlineformset_factory(
 
 class ProjectForm(forms.ModelForm):
     """Form para criação e edição de projetos."""
+
+    has_fronts = forms.BooleanField(
+        required=False,
+        label='Esta obra terá frentes?',
+        widget=forms.CheckboxInput(attrs={
+            'class': 'h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500',
+        }),
+    )
+    initial_front_names = forms.CharField(
+        required=False,
+        label='Frentes iniciais',
+        widget=forms.Textarea(attrs={
+            'rows': 3,
+            'class': 'w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
+            'placeholder': 'Ex.: Frente Norte\nFrente Sul\nFrente Leste',
+        }),
+        help_text='Opcional. Informe um nome por linha (ou separados por vírgula).',
+    )
     
     class Meta:
         model = Project
@@ -1045,6 +1110,14 @@ class ProjectForm(forms.ModelForm):
         # Aceitar datas no formato do Flatpickr (dd/mm/aaaa) e ISO para garantir que o POST seja interpretado
         self.fields['start_date'].input_formats = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y']
         self.fields['end_date'].input_formats = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y']
+        existing_fronts = []
+        if getattr(self.instance, 'pk', None):
+            existing_fronts = list(
+                self.instance.fronts.filter(is_active=True).order_by('name').values_list('name', flat=True)
+            )
+        self.fields['has_fronts'].initial = bool(existing_fronts)
+        if existing_fronts and not self.is_bound:
+            self.fields['initial_front_names'].initial = '\n'.join(existing_fronts)
     
     def clean_code(self):
         code = self.cleaned_data.get('code')
@@ -1079,12 +1152,19 @@ class ProjectForm(forms.ModelForm):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
+        has_fronts = cleaned_data.get('has_fronts')
+        front_names_raw = (cleaned_data.get('initial_front_names') or '').strip()
         
         if start_date and end_date:
             if end_date <= start_date:
                 raise ValidationError({
                     'end_date': 'A data de término deve ser posterior à data de início.'
                 })
+
+        if has_fronts and not front_names_raw and not (self.instance and self.instance.pk):
+            raise ValidationError({
+                'initial_front_names': 'Informe ao menos uma frente inicial ou desmarque a opção de frentes.'
+            })
         
         return cleaned_data
 

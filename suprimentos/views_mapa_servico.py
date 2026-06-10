@@ -10,40 +10,12 @@ from django.views.decorators.cache import cache_control
 from accounts.decorators import require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
-from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
+from mapa_obras.contexto_obra import resolve_obra_context
 from suprimentos.models import ItemMapaServico
 
 
 def _resolve_obra_for_request(request):
-    obras = _get_obras_for_user(request)
-    obra_param = request.GET.get("obra")
-    obra = None
-
-    if obra_param:
-        try:
-            obra = Obra.objects.get(id=int(obra_param), ativa=True)
-            if not _user_can_access_obra(request, obra):
-                obra = None
-        except (Obra.DoesNotExist, ValueError):
-            obra = None
-
-    if not obra:
-        obra_sessao_id = request.session.get("obra_id")
-        if obra_sessao_id:
-            try:
-                obra = Obra.objects.get(id=int(obra_sessao_id), ativa=True)
-                if not _user_can_access_obra(request, obra):
-                    obra = None
-            except (Obra.DoesNotExist, ValueError):
-                obra = None
-
-    if not obra:
-        obra = obras.first()
-
-    if obra:
-        request.session["obra_id"] = obra.id
-        request.session.modified = True
-    return obras, obra
+    return resolve_obra_context(request)
 
 
 def _status_bucket(item: ItemMapaServico) -> str:
@@ -69,14 +41,14 @@ def _status_bucket(item: ItemMapaServico) -> str:
 @require_group(GRUPOS.ENGENHARIA)
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def mapa_servico(request):
-    obras, obra = _resolve_obra_for_request(request)
+    ctx = _resolve_obra_for_request(request)
+    obras, obra = ctx
     if not obra:
         return render(
             request,
             "suprimentos/mapa_servico.html",
             {
-                "obras": obras,
-                "obra_selecionada": None,
+                **ctx.to_template_context(),
                 "items": [],
                 "kpis": {"total": 0, "concluido": 0, "em_andamento": 0, "nao_iniciado": 0},
                 "filters": {},
@@ -125,8 +97,7 @@ def mapa_servico(request):
         request,
         "suprimentos/mapa_servico.html",
         {
-            "obras": obras,
-            "obra_selecionada": obra,
+            **ctx.to_template_context(),
             "items": items_all[:500],
             "total_items": total,
             "kpis": {

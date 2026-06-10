@@ -51,6 +51,7 @@ urlpatterns = [
     path('obras/criar/', views.create_obra, name='create_obra'),
     path('obras/<int:pk>/', views.detail_obra, name='detail_obra'),
     path('obras/<int:pk>/editar/', views.edit_obra, name='edit_obra'),
+    path('obras/<int:pk>/frentes/', views.manage_obra_fronts, name='manage_obra_fronts'),
     path('obras/<int:pk>/permissoes/', views.manage_obra_permissions, name='manage_obra_permissions'),
     
     # Gerenciamento de Usuários

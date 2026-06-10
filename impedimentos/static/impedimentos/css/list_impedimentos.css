@@ -2606,6 +2606,31 @@
     justify-content: flex-end;
 }
 
+.imp-header-actions .lplan-contexto-frente--inline {
+    margin-right: auto;
+}
+
+.imp-header-actions .lplan-contexto-frente__help {
+    display: none;
+}
+
+.imp-header-actions .imp-front-select,
+.imp-header-actions .lplan-front-searchable__trigger {
+    min-width: 10rem;
+    max-width: 14rem;
+    font-size: 0.82rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #0f172a;
+}
+
+.imp-header-actions .imp-front-select {
+    appearance: auto;
+    cursor: pointer;
+}
+
 .imp-status-config-toolbar {
     justify-content: flex-start;
 }

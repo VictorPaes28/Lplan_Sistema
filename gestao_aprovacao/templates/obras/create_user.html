@@ -108,6 +108,12 @@
                     <p class="text-muted">Cadastre projetos no Diário de Obra primeiro (Painel do sistema → Obras). Depois vincule as obras do GestControll aos projetos na tela Obras do GestControll (editar obra → campo Projeto).</p>
                 {% endif %}
             </div>
+
+            {% if has_project_fronts %}
+            <div class="form-group">
+                {% include "obras/includes/user_fronts_field.html" with help_pending=True scroll_max="40vh" %}
+            </div>
+            {% endif %}
             
             <div class="form-actions">
                 <button type="submit" class="btn" id="submit-create-user">Criar Usuário</button>
@@ -136,6 +142,40 @@
     }
     toggle.addEventListener('change', syncPendingMode);
     syncPendingMode();
+})();
+
+(function() {
+    var projectCheckboxes = document.querySelectorAll('input[name="projects"]');
+    var frontCheckboxes = document.querySelectorAll('.front-checkbox');
+    var frontGroups = document.querySelectorAll('[data-project-fronts]');
+    var emptyHint = document.getElementById('fronts-empty-hint');
+    if (!projectCheckboxes.length || !frontCheckboxes.length) return;
+
+    function syncFrontAccess() {
+        var selectedProjects = new Set();
+        projectCheckboxes.forEach(function(el) {
+            if (el.checked) selectedProjects.add(el.value);
+        });
+        var visibleGroups = 0;
+        frontGroups.forEach(function(groupEl) {
+            var projectId = groupEl.getAttribute('data-project-fronts');
+            var isVisible = selectedProjects.has(projectId);
+            groupEl.style.display = isVisible ? '' : 'none';
+            if (isVisible) visibleGroups += 1;
+        });
+        frontCheckboxes.forEach(function(frontEl) {
+            var projectId = frontEl.getAttribute('data-project-id');
+            var enabled = selectedProjects.has(projectId);
+            frontEl.disabled = !enabled;
+            if (!enabled) frontEl.checked = false;
+        });
+        if (emptyHint) emptyHint.style.display = visibleGroups ? 'none' : '';
+    }
+
+    projectCheckboxes.forEach(function(el) {
+        el.addEventListener('change', syncFrontAccess);
+    });
+    syncFrontAccess();
 })();
 </script>
 {% endblock %}

@@ -118,6 +118,9 @@
                                 {% else %}
                                     Prazo encerrado em {{ entry.deadline|date:"d/m H:i" }}
                                 {% endif %}
+                                {% if entry.diary.front %}
+                                    <br>Frente: {{ entry.diary.front.name }}
+                                {% endif %}
                             </div>
                         </div>
                     </div>

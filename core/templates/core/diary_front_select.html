@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block back_url %}{% url 'report-list' %}{% endblock %}
+{% block page_title %}Selecionar frente{% endblock %}
+{% block page_subtitle %}{% if project %}{{ project.name }}{% if project.code %} · {{ project.code }}{% endif %}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-content-wrapper max-w-5xl mx-auto">
+    <section class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900 mb-1">Escolha a frente para criar o RDO</h2>
+        <p class="text-sm text-slate-600 mb-4">
+            {% if initial_date %}
+            Data pré-selecionada: <strong>{{ initial_date }}</strong>.
+            {% else %}
+            Selecione a frente e continue para o formulário do relatório.
+            {% endif %}
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for item in front_options %}
+            <a href="{{ item.url }}"
+               class="block border border-slate-200 rounded-lg p-4 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition-colors">
+                <p class="text-sm font-semibold text-slate-900">{{ item.front.name }}</p>
+                {% if item.front.code %}
+                <p class="text-xs text-slate-500 mt-1">Código: {{ item.front.code }}</p>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

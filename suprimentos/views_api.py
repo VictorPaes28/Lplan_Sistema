@@ -17,6 +17,10 @@ import json
 
 from .recebimento_match import descricao_item_compativel
 from core.obras_readonly import inactive_mapa_obra_write_json
+from suprimentos.services.mapa_engenharia_diagnostico import (
+    diagnostico_vinculo_sienge_item,
+    descricao_visivel_item as _descricao_visivel_item,
+)
 
 
 def _normalizar_numero_sc(valor):
@@ -51,6 +55,22 @@ def _normalizar_codigo_insumo(valor):
         except (ValueError, TypeError):
             return s
     return s
+
+
+def _preservar_descricao_se_insumo_mudou(item, descricao_antes, insumo_id_antes):
+    """
+    Ao vincular código Sienge, o ItemMapa passa a usar o insumo do catálogo.
+    Se o usuário tinha outro texto (ex.: levantamento «Aço 6,3 mm»), grava em descricao_override.
+    """
+    if not item.insumo_id or item.insumo_id == insumo_id_antes:
+        return
+    antes = (descricao_antes or '').strip()
+    if not antes:
+        return
+    catalogo = (item.insumo.descricao or '').strip()
+    if antes == catalogo:
+        return
+    item.descricao_override = antes
 
 
 def _recebimentos_preferir_consolidado(recebimentos_list):
@@ -153,6 +173,7 @@ def _item_row_sienge_patch(item):
     except (TypeError, ValueError):
         qtd_f = 0.0
     unidade = ((item.insumo.unidade if item.insumo else '') or '').strip()
+    diag = diagnostico_vinculo_sienge_item(item)
     return {
         'numero_pc': (item.numero_pc or '').strip(),
         'empresa_fornecedora': (item.empresa_fornecedora or '').strip(),
@@ -161,6 +182,9 @@ def _item_row_sienge_patch(item):
         'quantidade_solicitada_unidade': unidade,
         'status_etapa': item.status_etapa or '',
         'insumo_codigo': (item.insumo.codigo_sienge if item.insumo else '') or '',
+        'sienge_diagnostico_nivel': diag.get('nivel') or '',
+        'sienge_diagnostico_mensagem': diag.get('mensagem') or '',
+        'sienge_diagnostico_badge': diag.get('badge') or '',
     }
 
 
@@ -603,6 +627,8 @@ def item_atualizar_campo(request):
         elif field == 'insumo_codigo':
             # Editar código do insumo - sempre editável
             # IMPORTANTE: A chave de ligação é SC + código do produto
+            descricao_antes_vinculo = _descricao_visivel_item(item)
+            insumo_id_antes_vinculo = item.insumo_id
             codigo_novo = (value or '').strip()
             
             # Verificar se já existe insumo com esse código
@@ -640,8 +666,10 @@ def item_atualizar_campo(request):
                     insumo_atual.codigo_sienge = codigo_novo
                     insumo_atual.save(update_fields=['codigo_sienge', 'updated_at'])
                     valor_novo = codigo_novo
+            _preservar_descricao_se_insumo_mudou(item, descricao_antes_vinculo, insumo_id_antes_vinculo)
             # Vincular aos dados do Sienge: se já tiver numero_sc, preencher PC, datas, quantidades, etc.
             filled_from_sienge = _aplicar_dados_recebimento_obra(item)
+            _preservar_descricao_se_insumo_mudou(item, descricao_antes_vinculo, insumo_id_antes_vinculo)
         elif field == 'insumo_unidade':
             # Editar unidade do insumo
             if not item.insumo:
@@ -929,6 +957,13 @@ def item_atualizar_campo(request):
         }
         if filled_from_sienge:
             payload['row_patch'] = _item_row_sienge_patch(item)
+        if field in ('insumo_codigo', 'numero_sc'):
+            payload['descricao_exibida'] = _descricao_visivel_item(item)
+            diag_patch = _item_row_sienge_patch(item)
+            if payload.get('row_patch'):
+                payload['row_patch'].update(diag_patch)
+            else:
+                payload['row_patch'] = diag_patch
         return JsonResponse(payload)
     
     except Exception as e:

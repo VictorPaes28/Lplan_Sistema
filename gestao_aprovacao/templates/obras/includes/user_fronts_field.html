@@ -1,0 +1,83 @@
+<label class="form-label">Frentes por obra</label>
+<div class="form-help">
+    {% if help_pending %}
+    Para obras com frentes ativas, você pode restringir o acesso do usuário marcando apenas as frentes permitidas.
+    Se nenhuma frente for marcada, ele mantém acesso geral da obra.
+    {% else %}
+    Restrinja por frente quando necessário. Se nenhuma frente for marcada para uma obra com frentes,
+    o usuário mantém acesso geral dessa obra.
+    {% endif %}
+</div>
+<input
+    type="search"
+    id="fronts-filter-input"
+    class="form-control form-control-sm mb-2"
+    placeholder="Buscar frente por nome ou código…"
+    autocomplete="off"
+    aria-label="Buscar frente"
+>
+<div id="fronts-picker-scroll" style="max-height: {% if scroll_max %}{{ scroll_max }}{% else %}260px{% endif %}; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 0.75rem;">
+    <p id="fronts-empty-hint" class="text-muted" style="margin: 0 0 0.75rem 0; font-size: 0.85rem;">
+        Selecione uma ou mais obras acima para exibir as frentes correspondentes.
+    </p>
+    <p id="fronts-filter-empty" class="text-muted d-none" style="margin: 0; font-size: 0.85rem;">
+        Nenhuma frente corresponde à busca.
+    </p>
+    {% for project in projects %}
+        {% if project.active_fronts %}
+        <details class="mb-2 user-fronts-project" data-project-fronts="{{ project.id }}" data-project-label="{{ project.code }} {{ project.name }}" style="border:1px solid #e2e8f0;border-radius:8px;padding:0.4rem 0.55rem;">
+            <summary style="cursor:pointer;font-size:0.82rem;color:#334155;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:0.6rem;">
+                <span>{{ project.code }} – {{ project.name }}</span>
+                <span class="user-fronts-count" style="font-size:0.72rem;color:#64748b;font-weight:600;">{{ project.active_fronts|length }} frente(s)</span>
+            </summary>
+            <div class="user-fronts-list" style="margin-top:0.55rem;padding-top:0.45rem;border-top:1px dashed #e2e8f0;">
+                {% for front in project.active_fronts %}
+                <div class="form-check user-front-row" style="margin-left:0.25rem;" data-front-label="{{ front.name }} {% if front.code %}{{ front.code }}{% endif %}">
+                    <input
+                        type="checkbox"
+                        id="front_{{ front.id }}"
+                        name="fronts"
+                        value="{{ front.id }}"
+                        class="form-check-input front-checkbox front-project-{{ project.id }}"
+                        data-project-id="{{ project.id }}"
+                        {% if user_front_ids and front.id in user_front_ids %}checked{% endif %}
+                    >
+                    <label for="front_{{ front.id }}" class="form-check-label">
+                        {{ front.name }}{% if front.code %} ({{ front.code }}){% endif %}
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    {% endfor %}
+</div>
+<script>
+(function () {
+    var search = document.getElementById('fronts-filter-input');
+    var filterEmpty = document.getElementById('fronts-filter-empty');
+    if (!search) return;
+    function applyFrontFilter() {
+        var q = (search.value || '').trim().toLowerCase();
+        var anyVisible = false;
+        document.querySelectorAll('.user-fronts-project').forEach(function (details) {
+            var rows = details.querySelectorAll('.user-front-row');
+            var visibleInProject = 0;
+            rows.forEach(function (row) {
+                var label = (row.getAttribute('data-front-label') || row.textContent || '').toLowerCase();
+                var show = !q || label.indexOf(q) !== -1;
+                row.style.display = show ? '' : 'none';
+                if (show) visibleInProject += 1;
+            });
+            var showProject = visibleInProject > 0;
+            details.style.display = showProject ? '' : 'none';
+            if (showProject) anyVisible = true;
+            if (q && showProject && !details.open) details.open = true;
+        });
+        if (filterEmpty) {
+            filterEmpty.classList.toggle('d-none', !q || anyVisible);
+        }
+    }
+    search.addEventListener('input', applyFrontFilter);
+})();
+</script>

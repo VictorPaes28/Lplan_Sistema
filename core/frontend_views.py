@@ -17,6 +17,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import datetime, timedelta
 from .models import (
     Project,
+    ProjectFront,
+    ProjectFrontMember,
     ProjectMember,
     ProjectOwner,
     ProjectDiaryApprover,
@@ -30,6 +32,7 @@ from .models import (
     DiaryApprovalHistory,
     DiaryComment,
     DiaryImage,
+    DiaryOccurrence,
     DailyWorkLog,
     Labor,
     Equipment,
@@ -39,6 +42,7 @@ from .models import (
 )
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.forms import inlineformset_factory
 import logging
 from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
 from accounts.models import UserSignupRequest
@@ -82,6 +86,20 @@ OBRA_CONTRATANTE_MAP = {
 }
 
 
+def _project_active_fronts(project, user=None):
+    """Retorna as frentes ativas da obra, ordenadas por nome."""
+    from core.contexto_frente import frentes_ativas_disponiveis_para_project
+
+    return frentes_ativas_disponiveis_para_project(project, user)
+
+
+def _project_has_active_fronts(project) -> bool:
+    """Indica se a obra possui ao menos uma frente ativa."""
+    if not project:
+        return False
+    return _project_active_fronts(project).exists()
+
+
 @require_http_methods(['GET', 'POST'])
 def signup_request_view(request):
     """Tela pública para solicitar cadastro com aprovação manual."""
@@ -91,10 +109,22 @@ def signup_request_view(request):
         if group:
             groups.append(group)
 
-    projects = Project.objects.filter(is_active=True).order_by('name')
+    projects = list(Project.objects.filter(is_active=True).order_by('name'))
+    fronts_by_project_id = {}
+    if projects:
+        project_ids = [project.id for project in projects]
+        fronts = (
+            ProjectFront.objects.filter(project_id__in=project_ids, is_active=True)
+            .order_by('project__code', 'name')
+        )
+        for front in fronts:
+            fronts_by_project_id.setdefault(front.project_id, []).append(front)
+    for project in projects:
+        project.active_fronts = fronts_by_project_id.get(project.id, [])
 
     selected_groups = []
     selected_projects = []
+    selected_fronts = []
     if request.method == 'POST':
         first_name = (request.POST.get('first_name') or '').strip()
         last_name = (request.POST.get('last_name') or '').strip()
@@ -106,6 +136,29 @@ def signup_request_view(request):
         username_suggestion = (request.POST.get('username_suggestion') or '').strip()
         notes = (request.POST.get('notes') or '').strip()
         selected_projects = request.POST.getlist('projects')
+        selected_fronts = request.POST.getlist('fronts')
+        normalized_project_ids = []
+        for raw_project_id in selected_projects:
+            try:
+                value = int(raw_project_id)
+            except (TypeError, ValueError):
+                continue
+            if value not in normalized_project_ids:
+                normalized_project_ids.append(value)
+        normalized_front_ids = []
+        for raw_front_id in selected_fronts:
+            try:
+                value = int(raw_front_id)
+            except (TypeError, ValueError):
+                continue
+            if value not in normalized_front_ids:
+                normalized_front_ids.append(value)
+        allowed_front_ids = set(
+            ProjectFront.objects.filter(
+                project_id__in=normalized_project_ids,
+                is_active=True,
+            ).values_list('id', flat=True)
+        )
         password_error = validate_signup_password(
             password,
             email=email,
@@ -122,6 +175,8 @@ def signup_request_view(request):
             messages.error(request, password_error)
         elif password != password_confirm:
             messages.error(request, 'As senhas informadas não coincidem.')
+        elif normalized_front_ids and not allowed_front_ids.issuperset(normalized_front_ids):
+            messages.error(request, 'Há frentes selecionadas que não pertencem às obras marcadas.')
         elif UserSignupRequest.objects.filter(email__iexact=email, status=UserSignupRequest.STATUS_PENDENTE).exists():
             messages.info(request, 'Já existe uma solicitação pendente para este e-mail. Aguarde a análise.')
         else:
@@ -133,7 +188,8 @@ def signup_request_view(request):
                 username_suggestion=username_suggestion,
                 notes=notes,
                 requested_groups=[],
-                requested_project_ids=selected_projects,
+                requested_project_ids=normalized_project_ids,
+                requested_front_ids=normalized_front_ids,
                 origem=UserSignupRequest.ORIGEM_AUTO,
                 requested_by=request.user if request.user.is_authenticated else None,
             )
@@ -152,8 +208,10 @@ def signup_request_view(request):
         {
             'groups': groups,
             'projects': projects,
+            'has_project_fronts': any(project.active_fronts for project in projects),
             'selected_groups': selected_groups,
             'selected_projects': [str(p) for p in selected_projects],
+            'selected_fronts': [str(f) for f in selected_fronts],
         },
     )
 
@@ -379,11 +437,11 @@ def _resolve_labor_cargo_from_payload_item(labor_item, project=None):
     ).id, cargo_name
 
 
-def _project_activities_picker_data(project, exclude_diary_pk=None):
+def _project_activities_picker_data(project, exclude_diary_pk=None, front_id=None):
     """
-    Atividades distintas já registradas em RDOs desta obra (para reutilizar no seletor).
+    Atividades distintas já registradas em RDOs (para reutilizar no seletor).
 
-    Fonte: registros ``DailyWorkLog`` (work_logs) dos diários da obra — o mesmo vínculo
+    Fonte: registros ``DailyWorkLog`` (work_logs) dos diários — o mesmo vínculo
     usado ao salvar o RDO. Não é a listagem da EAP (tela Atividades), que inclui agrupadoras
     e itens nunca lançados em diário.
 
@@ -401,6 +459,8 @@ def _project_activities_picker_data(project, exclude_diary_pk=None):
             .select_related('activity', 'diary')
             .order_by('-diary__date', '-diary_id', '-id')
         )
+        if front_id is not None:
+            qs = qs.filter(diary__front_id=front_id)
         if exclude_diary_pk:
             qs = qs.exclude(diary_id=exclude_diary_pk)
 
@@ -1532,6 +1592,10 @@ def dashboard_view(request):
         diary__project=project
     ).count()
     
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = active_fronts.exists()
+    active_fronts_list = list(active_fronts.only('id', 'name', 'code'))
+
     # Relatórios recentes (últimos 7 para cards; até 25 para modo tabela)
     recent_reports = ConstructionDiary.objects.filter(
         project=project
@@ -1553,6 +1617,66 @@ def dashboard_view(request):
     recent_videos = DiaryVideo.objects.filter(
         diary__project=project
     ).select_related('diary').order_by('-uploaded_at')[:6]
+
+    # Dashboard por frente (somente quando há frentes ativas visíveis para o usuário)
+    recent_reports_by_front = []
+    recent_photos_by_front = []
+    recent_videos_by_front = []
+    if has_active_fronts:
+        reports_map = {
+            front.id: {'front': front, 'items': [], 'total': 0}
+            for front in active_fronts_list
+        }
+        photos_map = {
+            front.id: {'front': front, 'items': [], 'total': 0}
+            for front in active_fronts_list
+        }
+        videos_map = {
+            front.id: {'front': front, 'items': [], 'total': 0}
+            for front in active_fronts_list
+        }
+
+        grouped_reports = ConstructionDiary.objects.filter(
+            project=project,
+            front__in=active_fronts_list,
+        ).select_related('project', 'front').prefetch_related(
+            'images', 'videos', 'occurrences'
+        ).order_by('-date', '-created_at')[:320]
+        for report in grouped_reports:
+            bucket = reports_map.get(report.front_id)
+            if not bucket:
+                continue
+            bucket['total'] += 1
+            if len(bucket['items']) < 8:
+                bucket['items'].append(report)
+
+        grouped_photos = DiaryImage.objects.filter(
+            diary__project=project,
+            diary__front__in=active_fronts_list,
+        ).select_related('diary', 'diary__front').order_by('-uploaded_at')[:320]
+        for photo in grouped_photos:
+            bucket = photos_map.get(photo.diary.front_id)
+            if not bucket:
+                continue
+            bucket['total'] += 1
+            if len(bucket['items']) < 8:
+                bucket['items'].append(photo)
+
+        grouped_videos = DiaryVideo.objects.filter(
+            diary__project=project,
+            diary__front__in=active_fronts_list,
+        ).select_related('diary', 'diary__front').order_by('-uploaded_at')[:240]
+        for video in grouped_videos:
+            bucket = videos_map.get(video.diary.front_id)
+            if not bucket:
+                continue
+            bucket['total'] += 1
+            if len(bucket['items']) < 6:
+                bucket['items'].append(video)
+
+        recent_reports_by_front = [b for b in reports_map.values() if b['total'] > 0]
+        recent_photos_by_front = [b for b in photos_map.values() if b['total'] > 0]
+        recent_videos_by_front = [b for b in videos_map.values() if b['total'] > 0]
 
     # Cálculos para Informações da Obra
     project_days_elapsed = 0
@@ -1592,6 +1716,9 @@ def dashboard_view(request):
         'recent_reports_table': recent_reports_table,
         'recent_photos': recent_photos,
         'recent_videos': recent_videos,
+        'recent_reports_by_front': recent_reports_by_front,
+        'recent_photos_by_front': recent_photos_by_front,
+        'recent_videos_by_front': recent_videos_by_front,
         # Informações da Obra
         'project_days_elapsed': project_days_elapsed,
         'project_days_total': project_days_total,
@@ -1607,6 +1734,8 @@ def dashboard_view(request):
         'total_attachments_count': total_attachments,
         'DEBUG': settings.DEBUG,
         'no_report_reasons': DiaryNoReportDay.Reason.choices,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts_count': len(active_fronts_list),
     }
     
     return render(request, 'core/dashboard.html', context)
@@ -1617,11 +1746,14 @@ def dashboard_view(request):
 def calendar_events_view(request):
     """API endpoint para eventos do FullCalendar."""
     from datetime import date as date_type
-    
+
     project = get_selected_project(request)
+    all_active_fronts = list(_project_active_fronts(project))
+    active_fronts = list(_project_active_fronts(project, request.user))
+    has_active_fronts = bool(all_active_fronts)
     start = request.GET.get('start')
     end = request.GET.get('end')
-    
+
     try:
         start_date = datetime.fromisoformat(start.replace('Z', '+00:00'))
         end_date = datetime.fromisoformat(end.replace('Z', '+00:00'))
@@ -1645,69 +1777,26 @@ def calendar_events_view(request):
         project=project,
         date__gte=view_start,
         date__lte=view_end
-    ).select_related('project', 'created_by')
-    
-    # Cria um conjunto de datas que já têm relatórios
-    dates_with_diaries = set(diary.date for diary in diaries)
-    
+    ).select_related('project', 'front', 'created_by')
+
     events = []
-    
-    # Adiciona eventos para dias com relatórios
-    for diary in diaries:
-        # Determina cor baseada no status
-        if diary.status == DiaryStatus.APROVADO:
-            color = '#10b981'  # Verde - Preenchido/Finalizado
-            title_status = 'Preenchido'
-        elif diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
-            color = '#2563eb'  # Azul - aguardando aprovação
-            title_status = 'Aguardando aprovação'
-        elif diary.status == DiaryStatus.REPROVADO_GESTOR:
-            color = '#dc2626'  # Vermelho - reprovado
-            title_status = 'Reprovado'
-        elif diary.status == DiaryStatus.SALVAMENTO_PARCIAL:
-            color = '#f59e0b'  # Âmbar - Salvamento parcial (rascunho)
-            title_status = 'Salvamento Parcial'
-        elif diary.status == DiaryStatus.PREENCHENDO:
-            # Preenchendo = relatório existe mas ainda está sendo preenchido
-            color = '#10b981'  # Verde - Preenchido
-            title_status = 'Preenchido'
-        else:
-            # Status desconhecido ou inválido - trata como preenchido mas com status indefinido
-            color = '#6b7280'  # Cinza
-            title_status = 'Indefinido'
-        
-        # Título completo e curto (para preview compacto no calendário)
-        if diary.report_number:
-            title = f"RDO #{diary.report_number} - {title_status}"
-            short_title = f"RDO #{diary.report_number}"
-        else:
-            creator = getattr(diary, 'created_by', None)
-            if creator:
-                creator_name = creator.get_full_name() or creator.username
-                title = f"{creator_name[:15]}... - {title_status}"
-            else:
-                title = f"RDO - {title_status}"
-            short_title = "RDO"
-        
-        events.append({
-            'id': diary.id,
-            'title': title,
-            'start': diary.date.isoformat(),
-            'allDay': True,
-            'color': color,
-            'display': 'block',
-            'extendedProps': {
-                'status': title_status,
-                'diary_id': diary.id,
-                'has_diary': True,
-                'short_title': short_title,
-            },
-        })
-    
-    # Adiciona eventos para dias sem relatórios (dias faltantes) ou já justificados (sem RDO)
-    # Considera todo o intervalo exibido (view_start até view_end), incluindo após o término previsto
-    if view_start and view_end:
+
+    if has_active_fronts:
+        # Caminho novo: consolidado diário por frentes (somente para obras com frentes ativas).
         today = timezone.now().date()
+        fronts_total = len(active_fronts)
+        if fronts_total == 0:
+            response = JsonResponse([], safe=False)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Vary'] = 'Cookie'
+            return response
+        front_ids = {f.id for f in active_fronts}
+        diaries_by_date = {}
+        for diary in diaries:
+            if diary.front_id in front_ids:
+                diaries_by_date.setdefault(diary.date, {})[diary.front_id] = diary
+
         justified_by_date = {
             row.date: row
             for row in DiaryNoReportDay.objects.filter(
@@ -1716,30 +1805,27 @@ def calendar_events_view(request):
                 date__lte=view_end,
             ).only('date', 'reason', 'note')
         }
-        current_date = view_start
 
+        current_date = view_start
         while current_date <= view_end:
-            # Se não tem relatório neste dia e está dentro do período da obra
-            # Só exibe evento para hoje ou dias passados (Falta/Atraso). Dias futuros ficam em branco.
-            if current_date not in dates_with_diaries and current_date <= today:
+            day_map = diaries_by_date.get(current_date, {})
+            filled_count = len(day_map)
+
+            # Mantém comportamento de não preencher futuro sem dados.
+            if current_date > today and filled_count == 0:
+                current_date += timedelta(days=1)
+                continue
+
+            if filled_count == 0:
                 if current_date in justified_by_date:
                     nrd = justified_by_date[current_date]
                     reason_label = nrd.get_reason_display()
                     note = (nrd.note or '').strip()
-                    if note:
-                        title = f'{reason_label} — {note}'
-                        # Na célula: prioriza o nome livre (ex.: feriado); senão o motivo
-                        short_raw = note
-                    else:
-                        title = reason_label
-                        short_raw = reason_label
-                    if len(short_raw) > 22:
-                        short_title = short_raw[:19] + '…'
-                    else:
-                        short_title = short_raw
+                    short_raw = note or reason_label
+                    short_title = short_raw[:19] + '…' if len(short_raw) > 22 else short_raw
                     events.append({
                         'id': f'justified_{current_date.isoformat()}',
-                        'title': title,
+                        'title': f'{reason_label} — {note}' if note else reason_label,
                         'start': current_date.isoformat(),
                         'allDay': True,
                         'color': '#94a3b8',
@@ -1753,31 +1839,171 @@ def calendar_events_view(request):
                             'no_report_reason': reason_label,
                             'no_report_note': note,
                             'short_title': short_title,
+                            'has_fronts_mode': True,
+                            'fronts_total': fronts_total,
+                            'fronts_filled': 0,
                         },
                     })
                 else:
-                    color = '#dc2626'  # Vermelho escuro para borda
-                    title_status = 'Atraso'
-                    title = f"Falta relatório - {title_status}"
-                    short_title = 'Falta'
                     events.append({
-                        'id': f'missing_{current_date.isoformat()}',
-                        'title': title,
+                        'id': f'front_summary_{current_date.isoformat()}',
+                        'title': 'Sem RDO',
                         'start': current_date.isoformat(),
                         'allDay': True,
-                        'color': color,
+                        'color': '#dc2626',
                         'display': 'block',
                         'extendedProps': {
-                            'status': title_status,
-                            'diary_id': None,
+                            'status': 'Sem RDO',
                             'has_diary': False,
                             'missing': True,
-                            'short_title': short_title,
+                            'short_title': f'Sem RDO (0/{fronts_total})',
+                            'has_fronts_mode': True,
+                            'fronts_total': fronts_total,
+                            'fronts_filled': 0,
                         },
                     })
+            elif filled_count < fronts_total:
+                events.append({
+                    'id': f'front_summary_{current_date.isoformat()}',
+                    'title': 'Parcial',
+                    'start': current_date.isoformat(),
+                    'allDay': True,
+                    'color': '#f59e0b',
+                    'display': 'block',
+                    'extendedProps': {
+                        'status': 'Parcial',
+                        'has_diary': True,
+                        'short_title': f'Parcial ({filled_count}/{fronts_total})',
+                        'has_fronts_mode': True,
+                        'fronts_total': fronts_total,
+                        'fronts_filled': filled_count,
+                    },
+                })
+            else:
+                events.append({
+                    'id': f'front_summary_{current_date.isoformat()}',
+                    'title': 'Completo',
+                    'start': current_date.isoformat(),
+                    'allDay': True,
+                    'color': '#10b981',
+                    'display': 'block',
+                    'extendedProps': {
+                        'status': 'Completo',
+                        'has_diary': True,
+                        'short_title': f'Completo ({fronts_total}/{fronts_total})',
+                        'has_fronts_mode': True,
+                        'fronts_total': fronts_total,
+                        'fronts_filled': filled_count,
+                    },
+                })
 
             current_date += timedelta(days=1)
-    
+    else:
+        # Caminho legado: mantém o comportamento atual de obras sem frente.
+        dates_with_diaries = set(diary.date for diary in diaries)
+        for diary in diaries:
+            if diary.status == DiaryStatus.APROVADO:
+                color = '#10b981'
+                title_status = 'Preenchido'
+            elif diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
+                color = '#2563eb'
+                title_status = 'Aguardando aprovação'
+            elif diary.status == DiaryStatus.REPROVADO_GESTOR:
+                color = '#dc2626'
+                title_status = 'Reprovado'
+            elif diary.status == DiaryStatus.SALVAMENTO_PARCIAL:
+                color = '#f59e0b'
+                title_status = 'Salvamento Parcial'
+            elif diary.status == DiaryStatus.PREENCHENDO:
+                color = '#10b981'
+                title_status = 'Preenchido'
+            else:
+                color = '#6b7280'
+                title_status = 'Indefinido'
+
+            if diary.report_number:
+                title = f"RDO #{diary.report_number} - {title_status}"
+                short_title = f"RDO #{diary.report_number}"
+            else:
+                creator = getattr(diary, 'created_by', None)
+                if creator:
+                    creator_name = creator.get_full_name() or creator.username
+                    title = f"{creator_name[:15]}... - {title_status}"
+                else:
+                    title = f"RDO - {title_status}"
+                short_title = "RDO"
+
+            events.append({
+                'id': diary.id,
+                'title': title,
+                'start': diary.date.isoformat(),
+                'allDay': True,
+                'color': color,
+                'display': 'block',
+                'extendedProps': {
+                    'status': title_status,
+                    'diary_id': diary.id,
+                    'has_diary': True,
+                    'short_title': short_title,
+                },
+            })
+
+        if view_start and view_end:
+            today = timezone.now().date()
+            justified_by_date = {
+                row.date: row
+                for row in DiaryNoReportDay.objects.filter(
+                    project=project,
+                    date__gte=view_start,
+                    date__lte=view_end,
+                ).only('date', 'reason', 'note')
+            }
+            current_date = view_start
+
+            while current_date <= view_end:
+                if current_date not in dates_with_diaries and current_date <= today:
+                    if current_date in justified_by_date:
+                        nrd = justified_by_date[current_date]
+                        reason_label = nrd.get_reason_display()
+                        note = (nrd.note or '').strip()
+                        short_raw = note or reason_label
+                        short_title = short_raw[:19] + '…' if len(short_raw) > 22 else short_raw
+                        events.append({
+                            'id': f'justified_{current_date.isoformat()}',
+                            'title': f'{reason_label} — {note}' if note else reason_label,
+                            'start': current_date.isoformat(),
+                            'allDay': True,
+                            'color': '#94a3b8',
+                            'display': 'block',
+                            'extendedProps': {
+                                'status': 'Justificado',
+                                'diary_id': None,
+                                'has_diary': False,
+                                'missing': False,
+                                'no_report_justified': True,
+                                'no_report_reason': reason_label,
+                                'no_report_note': note,
+                                'short_title': short_title,
+                            },
+                        })
+                    else:
+                        events.append({
+                            'id': f'missing_{current_date.isoformat()}',
+                            'title': "Falta relatório - Atraso",
+                            'start': current_date.isoformat(),
+                            'allDay': True,
+                            'color': '#dc2626',
+                            'display': 'block',
+                            'extendedProps': {
+                                'status': 'Atraso',
+                                'diary_id': None,
+                                'has_diary': False,
+                                'missing': True,
+                                'short_title': 'Falta',
+                            },
+                        })
+                current_date += timedelta(days=1)
+
     # Evita resposta em cache (proxy/navegador): o calendário ficava com “Falta”
     # mesmo após justificar o dia no servidor.
     response = JsonResponse(events, safe=False)
@@ -1785,6 +2011,69 @@ def calendar_events_view(request):
     response['Pragma'] = 'no-cache'
     response['Vary'] = 'Cookie'
     return response
+
+
+@login_required
+@project_required
+@require_http_methods(['GET'])
+def calendar_day_fronts_summary_view(request):
+    """Retorna o consolidado por frente de um dia específico (obras com frentes)."""
+    from django.urls import reverse
+    from datetime import datetime as dt_mod
+
+    project = get_selected_project(request)
+    active_fronts = list(_project_active_fronts(project, request.user))
+    if not active_fronts:
+        return JsonResponse({'ok': False, 'message': 'Seu usuário não possui frente ativa atribuída para esta obra.'}, status=400)
+
+    date_str = (request.GET.get('date') or '').strip()
+    try:
+        day = dt_mod.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'message': 'Data inválida.'}, status=400)
+
+    diaries = {
+        d.front_id: d
+        for d in ConstructionDiary.objects.filter(
+            project=project,
+            date=day,
+            front__in=active_fronts,
+        ).select_related('front')
+    }
+
+    fronts_payload = []
+    filled = 0
+    for front in active_fronts:
+        diary = diaries.get(front.id)
+        item = {
+            'front_id': front.id,
+            'front_name': front.name,
+            'has_diary': bool(diary),
+            'status': 'Com RDO' if diary else 'Sem RDO',
+            'diary_id': diary.id if diary else None,
+            'detail_url': reverse('diary-detail', kwargs={'pk': diary.id}) if diary else None,
+            'edit_url': reverse('diary-edit', kwargs={'pk': diary.id}) if diary and diary.can_be_edited_by(request.user) else None,
+            'new_url': reverse('diary-new') + f'?date={day.isoformat()}&front={front.id}' if not diary else None,
+        }
+        if diary:
+            filled += 1
+        fronts_payload.append(item)
+
+    if filled == 0:
+        day_status = 'Sem RDO'
+    elif filled < len(active_fronts):
+        day_status = 'Parcial'
+    else:
+        day_status = 'Completo'
+
+    return JsonResponse({
+        'ok': True,
+        'date': day.isoformat(),
+        'status': day_status,
+        'filled': filled,
+        'total': len(active_fronts),
+        'fronts': fronts_payload,
+    })
 
 
 _REPORT_LIST_SORT_KEYS = frozenset({'date', 'report_number', 'status'})
@@ -1870,24 +2159,50 @@ def _report_list_merge_rows(diary_list, no_report_list, sort, sort_dir):
 def report_list_view(request):
     """View de listagem de relatórios com filtros HTMX."""
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    # Evita loop de redirect quando usuário não possui frente ativa nesta obra.
+    # A própria tela já mostra o aviso via front_access_empty.
     report_list_per_page = 30
     is_htmx = bool(request.headers.get('HX-Request'))
 
     diaries = (
         ConstructionDiary.objects.filter(project=project)
-        .select_related('project')
+        .select_related('project', 'front')
         .annotate(image_count=Count('images'))
     )
+    if has_active_fronts:
+        allowed_ids = list(active_fronts.values_list('id', flat=True))
+        diaries = diaries.filter(front_id__in=allowed_ids)
 
     if is_htmx:
         can_review_diaries = False
         pending_approval_diaries = []
+        pending_approval_groups_by_front = []
     else:
         can_review_diaries = _is_project_rdo_approver(request.user, project) if project else False
         pending_approval_diaries = ConstructionDiary.objects.filter(
             project=project,
             status=DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
-        ).select_related('created_by').order_by('date', 'report_number')
+        ).select_related('created_by', 'front').order_by('date', 'report_number')
+        pending_approval_groups_by_front = []
+        if has_active_fronts and pending_approval_diaries:
+            fronts_for_group = list(active_fronts.only('id', 'name'))
+            group_map = {
+                front.id: {'front': front, 'items': []}
+                for front in fronts_for_group
+            }
+            fallback_group = {'front': None, 'items': []}
+            for pending in pending_approval_diaries:
+                bucket = group_map.get(pending.front_id)
+                if bucket is None:
+                    fallback_group['items'].append(pending)
+                else:
+                    bucket['items'].append(pending)
+            pending_approval_groups_by_front = [b for b in group_map.values() if b['items']]
+            if fallback_group['items']:
+                pending_approval_groups_by_front.append(fallback_group)
     
     # Filtros
     search = request.GET.get('search')
@@ -1915,6 +2230,38 @@ def report_list_view(request):
     status = request.GET.get('status')
     if status:
         diaries = diaries.filter(status=status)
+
+    selected_front_id = request.GET.get('front')
+    selected_front = None
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            diaries = diaries.filter(front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
+
+    report_groups_by_front = []
+    if has_active_fronts:
+        fronts_meta = list(active_fronts.only('id', 'name'))
+        group_map = {
+            front.id: {'front': front, 'total': 0, 'items': []}
+            for front in fronts_meta
+        }
+        # Totais por frente (sem carregar todos os objetos em memória).
+        totals_by_front = diaries.values('front_id').annotate(total=Count('id'))
+        for row in totals_by_front:
+            bucket = group_map.get(row['front_id'])
+            if bucket:
+                bucket['total'] = row['total']
+
+        # Prévia por frente para UI: limitada para evitar custo alto em obras muito grandes.
+        grouped_source = diaries.order_by('-date', '-created_at')[:800]
+        for diary in grouped_source:
+            bucket = group_map.get(diary.front_id)
+            if not bucket:
+                continue
+            bucket['items'].append(diary)
+        report_groups_by_front = [bucket for bucket in group_map.values() if bucket['total'] > 0]
 
     sort, sort_dir = _report_list_parse_sort(request)
 
@@ -1979,7 +2326,13 @@ def report_list_view(request):
         'all_projects': all_projects,  # Projetos acessíveis para o select do modal
         'can_review_diaries': can_review_diaries,
         'pending_approval_diaries': pending_approval_diaries,
+        'pending_approval_groups_by_front': pending_approval_groups_by_front,
         'no_report_reasons': no_report_reasons,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
+        'report_groups_by_front': report_groups_by_front,
+        'front_access_empty': has_active_fronts and not active_fronts.exists(),
     }
     
     # Se for requisição HTMX, retorna apenas o conteúdo
@@ -2094,7 +2447,7 @@ def diary_detail_view(request, pk):
         request.META['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     
     diary = get_object_or_404(
-        ConstructionDiary.objects.select_related('project', 'created_by', 'reviewed_by')
+        ConstructionDiary.objects.select_related('project', 'front', 'created_by', 'reviewed_by')
         .prefetch_related(
             'images', 'videos',
             'work_logs__activity', 'work_logs__resources_labor', 'work_logs__resources_equipment',
@@ -2122,6 +2475,11 @@ def diary_detail_view(request, pk):
         request.session['selected_project_id'] = project.id
         request.session['selected_project_name'] = project.name
         request.session['selected_project_code'] = getattr(project, 'code', '')
+
+    if diary.front_id:
+        allowed_fronts = _project_active_fronts(project, request.user)
+        if not allowed_fronts.filter(pk=diary.front_id).exists():
+            raise Http404('Relatório não encontrado.')
     
     try:
         from core.notification_utils import marcar_lidas_para_usuario_event_key
@@ -2732,18 +3090,26 @@ def client_diary_add_comment_view(request, pk):
 def filter_photos_view(request):
     """View para filtro de fotos."""
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    front_ids = list(active_fronts.values_list('id', flat=True)) if has_active_fronts else []
     
     # Busca todas as fotos do projeto
     photos = DiaryImage.objects.filter(
         diary__project=project,
         is_approved_for_report=True
-    ).select_related('diary').order_by('-diary__date', '-uploaded_at')
+    ).select_related('diary', 'diary__front').order_by('-diary__date', '-uploaded_at')
+    if has_active_fronts:
+        photos = photos.filter(diary__front_id__in=front_ids) if front_ids else photos.none()
     
     # Filtros
     search = request.GET.get('search', '')
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
     diary_id = request.GET.get('diary_id')
+    selected_front = None
+    selected_front_id = (request.GET.get('front') or '').strip()
     
     if search:
         photos = photos.filter(
@@ -2766,6 +3132,13 @@ def filter_photos_view(request):
     
     if diary_id:
         photos = photos.filter(diary_id=diary_id)
+
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            photos = photos.filter(diary__front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
     
     # Remove itens com arquivo ausente/inacessível para evitar 404/500 no carregamento da galeria.
     visible_photos = []
@@ -2799,6 +3172,9 @@ def filter_photos_view(request):
         'date_start': date_start or '',
         'date_end': date_end or '',
         'diary_id': diary_id,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
     }
     
     return render(request, 'core/filters/photos.html', context)
@@ -2810,17 +3186,25 @@ def filter_videos_view(request):
     """View para filtro de vídeos."""
     project = get_selected_project(request)
     from core.models import DiaryVideo
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    front_ids = list(active_fronts.values_list('id', flat=True)) if has_active_fronts else []
     
     # Busca todos os vídeos do projeto
     videos = DiaryVideo.objects.filter(
         diary__project=project
-    ).select_related('diary').order_by('-diary__date', '-uploaded_at')
+    ).select_related('diary', 'diary__front').order_by('-diary__date', '-uploaded_at')
+    if has_active_fronts:
+        videos = videos.filter(diary__front_id__in=front_ids) if front_ids else videos.none()
     
     # Filtros
     search = request.GET.get('search', '')
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
     diary_id = request.GET.get('diary_id')
+    selected_front = None
+    selected_front_id = (request.GET.get('front') or '').strip()
     
     if search:
         videos = videos.filter(
@@ -2843,6 +3227,13 @@ def filter_videos_view(request):
     
     if diary_id:
         videos = videos.filter(diary_id=diary_id)
+
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            videos = videos.filter(diary__front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
     
     # Paginação
     from django.core.paginator import Paginator
@@ -2862,6 +3253,9 @@ def filter_videos_view(request):
         'date_start': date_start or '',
         'date_end': date_end or '',
         'diary_id': diary_id,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
     }
     
     return render(request, 'core/filters/videos.html', context)
@@ -2968,6 +3362,10 @@ def filter_occurrences_view(request):
     from .models import DiaryOccurrence
 
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    front_ids = list(active_fronts.values_list('id', flat=True)) if has_active_fronts else []
 
     filtered_occurrences = (
         DiaryOccurrence.objects.filter(diary__project=project)
@@ -2975,11 +3373,15 @@ def filter_occurrences_view(request):
         .prefetch_related('tags')
         .order_by('-created_at')
     )
+    if has_active_fronts:
+        filtered_occurrences = filtered_occurrences.filter(diary__front_id__in=front_ids) if front_ids else filtered_occurrences.none()
 
     search = (request.GET.get('search') or '').strip()
     date_start = (request.GET.get('date_start') or '').strip()
     date_end = (request.GET.get('date_end') or '').strip()
     period = (request.GET.get('period') or '').strip()
+    selected_front = None
+    selected_front_id = (request.GET.get('front') or '').strip()
 
     if search:
         filtered_occurrences = filtered_occurrences.filter(description__icontains=search)
@@ -2999,6 +3401,12 @@ def filter_occurrences_view(request):
         filtered_occurrences = filtered_occurrences.filter(diary__date__gte=today - timedelta(days=30))
     elif period == '90d' and not date_start:
         filtered_occurrences = filtered_occurrences.filter(diary__date__gte=today - timedelta(days=90))
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            filtered_occurrences = filtered_occurrences.filter(diary__front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
 
     total_occurrences = filtered_occurrences.count()
     total_project_occurrences = DiaryOccurrence.objects.filter(diary__project=project).count()
@@ -3014,7 +3422,7 @@ def filter_occurrences_view(request):
             project=project,
             occurrences__in=filtered_occurrences,
         )
-        .select_related('project')
+        .select_related('project', 'front')
         .prefetch_related(occurrence_prefetch)
         .distinct()
         .order_by('-date', '-id')
@@ -3052,7 +3460,7 @@ def filter_occurrences_view(request):
     if selected_diary_id:
         selected_diary = (
             ConstructionDiary.objects.filter(pk=selected_diary_id, project=project)
-            .select_related('project')
+            .select_related('project', 'front')
             .prefetch_related(occurrence_prefetch)
             .first()
         )
@@ -3066,6 +3474,7 @@ def filter_occurrences_view(request):
             ('date_start', date_start),
             ('date_end', date_end),
             ('period', period),
+            ('front', selected_front_id),
         ):
             if val:
                 params[key] = val
@@ -3073,7 +3482,7 @@ def filter_occurrences_view(request):
             params.update({k: v for k, v in extra.items() if v})
         return params
 
-    has_active_filters = bool(search or date_start or date_end or period)
+    has_active_filters = bool(search or date_start or date_end or period or selected_front_id)
 
     context = {
         'diary_list': diary_list,
@@ -3089,6 +3498,9 @@ def filter_occurrences_view(request):
         'project': project,
         'has_active_filters': has_active_filters,
         'filter_query': urlencode(filter_params()),
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
     }
 
     return render(request, 'core/filters/occurrences.html', context)
@@ -3101,18 +3513,26 @@ def filter_comments_view(request):
     from urllib.parse import urlencode
 
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    front_ids = list(active_fronts.values_list('id', flat=True)) if has_active_fronts else []
 
     diaries = (
         ConstructionDiary.objects.filter(project=project)
         .exclude(general_notes='')
         .exclude(general_notes__isnull=True)
-        .select_related('project')
+        .select_related('project', 'front')
     )
+    if has_active_fronts:
+        diaries = diaries.filter(front_id__in=front_ids) if front_ids else diaries.none()
 
     search = (request.GET.get('search') or '').strip()
     date_start = (request.GET.get('date_start') or '').strip()
     date_end = (request.GET.get('date_end') or '').strip()
     period = (request.GET.get('period') or '').strip()
+    selected_front = None
+    selected_front_id = (request.GET.get('front') or '').strip()
 
     if search:
         diaries = diaries.filter(general_notes__icontains=search)
@@ -3132,6 +3552,12 @@ def filter_comments_view(request):
         diaries = diaries.filter(date__gte=today - timedelta(days=30))
     elif period == '90d' and not date_start:
         diaries = diaries.filter(date__gte=today - timedelta(days=90))
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            diaries = diaries.filter(front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
 
     diaries = diaries.order_by('-date', '-id')
     total_comments = diaries.count()
@@ -3167,6 +3593,7 @@ def filter_comments_view(request):
             ('date_start', date_start),
             ('date_end', date_end),
             ('period', period),
+            ('front', selected_front_id),
         ):
             if not val:
                 continue
@@ -3175,7 +3602,7 @@ def filter_comments_view(request):
             params.update({k: v for k, v in extra.items() if v is not None and v != ''})
         return params
 
-    has_active_filters = bool(search or date_start or date_end or period)
+    has_active_filters = bool(search or date_start or date_end or period or selected_front_id)
 
     context = {
         'diaries': diary_list,
@@ -3189,6 +3616,9 @@ def filter_comments_view(request):
         'project': project,
         'has_active_filters': has_active_filters,
         'filter_query': urlencode(filter_params()),
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
     }
 
     return render(request, 'core/filters/comments.html', context)
@@ -3201,16 +3631,24 @@ def filter_attachments_view(request):
     from .models import DiaryAttachment
     
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    front_ids = list(active_fronts.values_list('id', flat=True)) if has_active_fronts else []
     
     # Busca anexos
     attachments = DiaryAttachment.objects.filter(
         diary__project=project
-    ).select_related('diary').order_by('-diary__date', '-uploaded_at')
+    ).select_related('diary', 'diary__front').order_by('-diary__date', '-uploaded_at')
+    if has_active_fronts:
+        attachments = attachments.filter(diary__front_id__in=front_ids) if front_ids else attachments.none()
     
     # Filtros
     search = request.GET.get('search', '')
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
+    selected_front = None
+    selected_front_id = (request.GET.get('front') or '').strip()
     
     if search:
         attachments = attachments.filter(
@@ -3230,6 +3668,12 @@ def filter_attachments_view(request):
             attachments = attachments.filter(diary__date__lte=date_end)
         except ValueError:
             pass
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            attachments = attachments.filter(diary__front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
     
     # Paginação
     from django.core.paginator import Paginator
@@ -3243,6 +3687,9 @@ def filter_attachments_view(request):
         'search': search,
         'date_start': date_start,
         'date_end': date_end,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
     }
     
     return render(request, 'core/filters/attachments.html', context)
@@ -3253,15 +3700,23 @@ def filter_attachments_view(request):
 def weather_conditions_view(request):
     """View para análise de condições climáticas."""
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
+    front_ids = list(active_fronts.values_list('id', flat=True)) if has_active_fronts else []
     
     # Busca todos os diários com condições climáticas
     diaries = ConstructionDiary.objects.filter(
         project=project
-    ).exclude(weather_conditions='').exclude(weather_conditions__isnull=True).order_by('-date')
+    ).exclude(weather_conditions='').exclude(weather_conditions__isnull=True).select_related('front').order_by('-date')
+    if has_active_fronts:
+        diaries = diaries.filter(front_id__in=front_ids) if front_ids else diaries.none()
     
     # Filtros
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
+    selected_front = None
+    selected_front_id = (request.GET.get('front') or '').strip()
     
     if date_start:
         try:
@@ -3274,6 +3729,12 @@ def weather_conditions_view(request):
             diaries = diaries.filter(date__lte=date_end)
         except ValueError:
             pass
+    if has_active_fronts and selected_front_id:
+        try:
+            selected_front = active_fronts.get(pk=selected_front_id)
+            diaries = diaries.filter(front=selected_front)
+        except (ProjectFront.DoesNotExist, ValueError, TypeError):
+            selected_front = None
     
     # Análise de condições climáticas
     weather_stats = {
@@ -3307,6 +3768,9 @@ def weather_conditions_view(request):
         'rain_stats': rain_stats,
         'date_start': date_start,
         'date_end': date_end,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
     }
     
     return render(request, 'core/filters/weather_conditions.html', context)
@@ -3598,9 +4062,24 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
             next_report_number = last_d.report_number + 1
         else:
             next_report_number = 1
+    selected_front_id_for_copy = None
+    try:
+        if diary and getattr(diary, 'front_id', None):
+            selected_front_id_for_copy = diary.front_id
+        front_from_post = (request.POST.get('front') or '').strip()
+        if front_from_post:
+            selected_front_id_for_copy = int(front_from_post)
+    except (TypeError, ValueError):
+        selected_front_id_for_copy = None
+
     last_diary_for_copy = None
     if project:
         qs = ConstructionDiary.objects.filter(project=project).order_by('-date', '-report_number')
+        if _project_has_active_fronts(project):
+            if selected_front_id_for_copy:
+                qs = qs.filter(front_id=selected_front_id_for_copy)
+            else:
+                qs = qs.none()
         if diary and getattr(diary, 'pk', None):
             qs = qs.exclude(pk=diary.pk)
         d = qs.only('pk', 'date', 'report_number').first()
@@ -3619,6 +4098,33 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
         if not signature_production_value:
             sig_prod = diary.signatures.filter(signature_type='production').only('signature_data').first()
             signature_production_value = sig_prod.signature_data if sig_prod else ''
+    active_fronts = _project_active_fronts(project, request.user)
+    selected_front = None
+    selected_front_id = None
+    try:
+        if diary and getattr(diary, 'front_id', None):
+            selected_front_id = diary.front_id
+        front_from_post = (request.POST.get('front') or '').strip()
+        if front_from_post:
+            selected_front_id = int(front_from_post)
+    except (TypeError, ValueError):
+        pass
+    if selected_front_id:
+        selected_front = (
+            ProjectFront.objects.filter(project=project, pk=selected_front_id).only('id', 'name').first()
+            if project else None
+        )
+    has_active_fronts = active_fronts.exists()
+    picker_front_id = None
+    picker_scope_kind = 'obra'
+    picker_scope_label = (getattr(project, 'code', '') or getattr(project, 'name', '') or '').strip()
+    picker_scope_text = 'desta obra'
+    if has_active_fronts:
+        picker_front_id = selected_front.id if selected_front else 0
+        picker_scope_kind = 'frente'
+        picker_scope_label = (getattr(selected_front, 'name', '') or '').strip()
+        picker_scope_text = 'desta frente'
+
     return {
         'diary': diary if diary and getattr(diary, 'pk', None) else None,
         'form': form,
@@ -3641,11 +4147,19 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
         'copy_options': '',
         'copy_source_diary': None,
         'project_activities_picker': _project_activities_picker_data(
-            project, exclude_diary_pk=getattr(diary, 'pk', None)
+            project,
+            exclude_diary_pk=getattr(diary, 'pk', None),
+            front_id=picker_front_id,
         ) or [],
         'project_eap_activities_count': _project_eap_activities_count(project),
         'signature_inspection_value': signature_inspection_value,
         'signature_production_value': signature_production_value,
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
+        'activities_picker_scope_kind': picker_scope_kind,
+        'activities_picker_scope_label': picker_scope_label,
+        'activities_picker_scope_text': picker_scope_text,
     }
 
 
@@ -3667,6 +4181,9 @@ def diary_form_view(request, pk=None):
     from .services import ProgressService
     
     project = get_selected_project(request)
+    all_active_fronts = _project_active_fronts(project)
+    active_fronts = _project_active_fronts(project, request.user)
+    has_active_fronts = all_active_fronts.exists()
     # Obra inativa: formulário de criação/edição não fica disponível (apenas visualização pelo detalhe)
     if project and not project.is_active:
         if pk:
@@ -3683,6 +4200,8 @@ def diary_form_view(request, pk=None):
             pk=pk, 
             project=project
         )
+        if has_active_fronts and diary.front_id and not active_fronts.filter(pk=diary.front_id).exists():
+            raise PermissionDenied('Você não possui acesso a esta frente.')
         if not diary.can_be_edited_by(request.user):
             messages.warning(request, 'Este diário não pode ser editado no momento.')
             return redirect('diary-detail', pk=pk)
@@ -3709,7 +4228,14 @@ def diary_form_view(request, pk=None):
             flash_message(request, "error", "core.diary.project_not_selected")
             return redirect('select-project')
         
-        form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
+        form = ConstructionDiaryForm(
+            request.POST,
+            instance=diary,
+            user=request.user,
+            project=project,
+            front_queryset=active_fronts,
+            project_has_active_fronts=has_active_fronts,
+        )
         if request.FILES:
             for key, file in request.FILES.items():
                 logger.info(f"  Arquivo: {key} -> {file.name} ({file.size} bytes)")
@@ -3794,7 +4320,14 @@ def diary_form_view(request, pk=None):
                 logger.error("Form.save(commit=False) retornou None! Isso não deveria acontecer.")
                 flash_message(request, "error", "core.diary.form_process_error")
                 # Retorna para o formulário com erros
-                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
+                form = ConstructionDiaryForm(
+                    request.POST,
+                    instance=diary,
+                    user=request.user,
+                    project=project,
+                    front_queryset=active_fronts,
+                    project_has_active_fronts=has_active_fronts,
+                )
                 if diary and diary.pk:
                     image_formset = DiaryImageFormSet(instance=diary)
                     worklog_formset = DailyWorkLogFormSet(instance=diary, form_kwargs={'diary': diary}, prefix='work_logs')
@@ -4608,8 +5141,6 @@ def diary_form_view(request, pk=None):
                     if (not saved_worklogs and 
                         ((hasattr(request, '_labor_objects') and request._labor_objects) or 
                          (hasattr(request, '_equipment_items') and request._equipment_items))):
-                        from core.models import DailyWorkLog, Activity
-                        
                         # Valida que project existe
                         if not project:
                             logger.error("Tentativa de criar worklog padrão sem projeto")
@@ -4831,7 +5362,14 @@ def diary_form_view(request, pk=None):
                     except Exception:
                         diary = None
 
-                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
+                form = ConstructionDiaryForm(
+                    request.POST,
+                    instance=diary,
+                    user=request.user,
+                    project=project,
+                    front_queryset=active_fronts,
+                    project_has_active_fronts=has_active_fronts,
+                )
                 files_for_formset = preserved_files if 'preserved_files' in locals() else request.FILES
 
                 from copy import deepcopy
@@ -4925,7 +5463,14 @@ def diary_form_view(request, pk=None):
                 if not occurrence_valid:
                     error_parts.append('ocorrências')
                 messages.warning(request, f'Diário salvo, mas alguns dados não puderam ser processados: {", ".join(error_parts)}. Verifique os erros abaixo.')
-                form = ConstructionDiaryForm(request.POST, instance=diary, user=request.user, project=project)
+                form = ConstructionDiaryForm(
+                    request.POST,
+                    instance=diary,
+                    user=request.user,
+                    project=project,
+                    front_queryset=active_fronts,
+                    project_has_active_fronts=has_active_fronts,
+                )
                 files_for_retry = request.FILES
                 if locals().get('preserved_files'):
                     files_for_retry = preserved_files
@@ -5010,6 +5555,7 @@ def diary_form_view(request, pk=None):
         # GET request - mostra formulário
         # Se vier da lista com projeto/data (modal "Adicionar relatório"), troca a obra na sessão e redireciona
         get_project_id = request.GET.get('project')
+        get_front = (request.GET.get('front') or '').strip()
         if get_project_id and not pk:
             try:
                 proj = Project.objects.get(pk=get_project_id, is_active=True)
@@ -5021,7 +5567,10 @@ def diary_form_view(request, pk=None):
                     if get_date:
                         from django.urls import reverse
                         from urllib.parse import urlencode
-                        return redirect(reverse('diary-new') + '?' + urlencode({'date': get_date}))
+                        params = {'date': get_date}
+                        if get_front:
+                            params['front'] = get_front
+                        return redirect(reverse('diary-new') + '?' + urlencode(params))
                     return redirect('diary-new')
             except (Project.DoesNotExist, ValueError, TypeError):
                 pass  # Mantém projeto atual e ignora parâmetro inválido
@@ -5033,7 +5582,50 @@ def diary_form_view(request, pk=None):
                 project.save(update_fields=['client_name'])
         # Verifica se há data passada via GET; para novo diário, preenche data (e dia da semana) automaticamente
         get_date_str = request.GET.get('date')
-        form = ConstructionDiaryForm(instance=diary, user=request.user, project=project)
+        get_front_id = (request.GET.get('front') or '').strip()
+
+        selected_front = diary.front if diary and getattr(diary, 'front_id', None) else None
+        if not diary and has_active_fronts:
+            if not active_fronts.exists():
+                messages.error(request, 'Seu usuário não possui frente ativa atribuída para esta obra.')
+                return redirect('report-list')
+
+            if not get_front_id:
+                if active_fronts.count() == 1:
+                    only_front = active_fronts.first()
+                    params = {}
+                    if get_date_str:
+                        params['date'] = get_date_str
+                    params['front'] = only_front.pk
+                    from django.urls import reverse
+                    from urllib.parse import urlencode
+                    return redirect(reverse('diary-new') + '?' + urlencode(params))
+
+                from django.urls import reverse
+                from urllib.parse import urlencode
+                params = {'create': '1'}
+                if get_date_str:
+                    params['date'] = get_date_str
+                return redirect(reverse('report-list') + '?' + urlencode(params))
+
+            try:
+                selected_front = active_fronts.get(pk=get_front_id)
+            except (ProjectFront.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'Selecione uma frente válida para criar o relatório.')
+                from django.urls import reverse
+                from urllib.parse import urlencode
+                params = {'create': '1'}
+                if get_date_str:
+                    params['date'] = get_date_str
+                return redirect(reverse('report-list') + '?' + urlencode(params))
+
+        form = ConstructionDiaryForm(
+            instance=diary,
+            user=request.user,
+            project=project,
+            front_queryset=active_fronts,
+            project_has_active_fronts=has_active_fronts,
+        )
         
         initial_date_obj = None
         if not diary:
@@ -5050,6 +5642,35 @@ def diary_form_view(request, pk=None):
             if initial_date_obj is None:
                 initial_date_obj = date_type.today()
             form.initial['date'] = initial_date_obj
+
+            if has_active_fronts:
+                initial_front = selected_front
+                form.initial['front'] = initial_front
+
+                if initial_date_obj and initial_front:
+                    existing = ConstructionDiary.objects.filter(
+                        project=project,
+                        date=initial_date_obj,
+                        front=initial_front,
+                    ).only('pk').first()
+                    if existing:
+                        messages.info(
+                            request,
+                            f'Já existe RDO da frente "{initial_front.name}" em {initial_date_obj.strftime("%d/%m/%Y")}.',
+                        )
+                        return redirect('diary-edit', pk=existing.pk)
+            elif initial_date_obj:
+                existing = ConstructionDiary.objects.filter(
+                    project=project,
+                    date=initial_date_obj,
+                    front__isnull=True,
+                ).only('pk').first()
+                if existing:
+                    messages.info(
+                        request,
+                        f'Já existe RDO desta obra em {initial_date_obj.strftime("%d/%m/%Y")}.',
+                    )
+                    return redirect('diary-edit', pk=existing.pk)
         
         if diary and diary.pk:
             image_formset = DiaryImageFormSet(instance=diary)
@@ -5071,7 +5692,13 @@ def diary_form_view(request, pk=None):
                 copy_opts = ['climate', 'labor', 'equipment', 'activities', 'ocorrencias', 'interrupcoes']
             try:
                 from .models import ConstructionDiary as CD
-                src = CD.objects.filter(project=project, pk=copy_from_id).select_related('project').prefetch_related(
+                src_qs = CD.objects.filter(project=project, pk=copy_from_id)
+                if has_active_fronts:
+                    if selected_front:
+                        src_qs = src_qs.filter(front=selected_front)
+                    else:
+                        src_qs = src_qs.none()
+                src = src_qs.select_related('project').prefetch_related(
                     'work_logs__activity', 'work_logs__resources_equipment', 'occurrences__tags'
                 ).first()
                 if src and (not diary or src.pk != diary.pk):
@@ -5151,9 +5778,22 @@ def diary_form_view(request, pk=None):
                                     initial=occ_initial,
                                     prefix='ocorrencias',
                                 )
-                    except Exception:
-                        pass  # não perder copy_source_diary se preenchimento falhar
-            except Exception:
+                    except Exception as exc:
+                        logger.warning(
+                            "Falha ao preparar cópia inicial do RDO (copy_from=%s, project=%s): %s",
+                            copy_from_id,
+                            project.pk if project else None,
+                            exc,
+                            exc_info=True,
+                        )
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao localizar diário fonte para cópia (copy_from=%s, project=%s): %s",
+                    copy_from_id,
+                    project.pk if project else None,
+                    exc,
+                    exc_info=True,
+                )
                 copy_source_diary = None
     
     # Prepara dados para o template
@@ -5251,6 +5891,11 @@ def diary_form_view(request, pk=None):
     last_diary_for_copy = None
     if project:
         qs = ConstructionDiary.objects.filter(project=project).order_by('-date', '-report_number')
+        if has_active_fronts:
+            if selected_front:
+                qs = qs.filter(front=selected_front)
+            else:
+                qs = qs.none()
         if diary and diary.pk:
             qs = qs.exclude(pk=diary.pk)
         d = qs.only('pk', 'date', 'report_number').first()
@@ -5264,6 +5909,16 @@ def diary_form_view(request, pk=None):
                 'date': date_str,
                 'report_number': d.report_number or '-',
             }
+
+    picker_front_id = None
+    picker_scope_kind = 'obra'
+    picker_scope_label = (getattr(project, 'code', '') or getattr(project, 'name', '') or '').strip()
+    picker_scope_text = 'desta obra'
+    if has_active_fronts:
+        picker_front_id = selected_front.id if selected_front else 0
+        picker_scope_kind = 'frente'
+        picker_scope_label = (getattr(selected_front, 'name', '') or '').strip()
+        picker_scope_text = 'desta frente'
 
     context = {
         'diary': diary if diary and diary.pk else None,  # Só passa se já estiver salvo
@@ -5288,12 +5943,20 @@ def diary_form_view(request, pk=None):
         'copy_options': copy_options_raw if copy_source_diary else '',
         'copy_source_diary': copy_source_diary,
         'project_activities_picker': _project_activities_picker_data(
-            project, exclude_diary_pk=getattr(diary, 'pk', None)
+            project,
+            exclude_diary_pk=getattr(diary, 'pk', None),
+            front_id=picker_front_id,
         ) or [],
         'project_eap_activities_count': _project_eap_activities_count(project),
         # Data e dia da semana: para novo diário preenchidos automaticamente (hoje ou GET ?date=)
         'initial_date': initial_date_obj,
         'diary_date_display': (diary.date if diary and diary.pk else initial_date_obj),
+        'has_active_fronts': has_active_fronts,
+        'active_fronts': active_fronts,
+        'selected_front': selected_front,
+        'activities_picker_scope_kind': picker_scope_kind,
+        'activities_picker_scope_label': picker_scope_label,
+        'activities_picker_scope_text': picker_scope_text,
     }
     
     return render(request, 'core/daily_log_form.html', context)
@@ -5346,7 +6009,12 @@ def _diary_pdf_http_response(diary, pdf_type, disposition='attachment'):
     }.get(pdf_type, '')
     try:
         from .utils.pdf_generator import get_rdo_pdf_filename
-        filename = get_rdo_pdf_filename(diary.project, diary.date, suffix=type_suffix)
+        filename = get_rdo_pdf_filename(
+            diary.project,
+            diary.date,
+            suffix=type_suffix,
+            front_name=(diary.front.name if getattr(diary, 'front_id', None) and diary.front else ''),
+        )
     except Exception:
         filename = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}{type_suffix}.pdf"
     safe_name = "".join(c if c.isalnum() or c in '-_.' else '_' for c in filename)
@@ -5391,12 +6059,18 @@ def _diary_adjacent_ids_for_project(project, diary_pk):
     return prev_pk, next_pk, position, total
 
 
-def _diaries_queryset_for_report_filters(project, get_dict):
+def _diaries_queryset_for_report_filters(project, get_dict, user=None):
     """
     Mesmos filtros da listagem de relatórios (report_list), ordenação cronológica para exportação ZIP.
     get_dict: request.GET (QueryDict ou dict-like).
     """
     diaries = ConstructionDiary.objects.filter(project=project).select_related('project')
+    all_active_fronts = _project_active_fronts(project)
+    has_active_fronts = all_active_fronts.exists()
+    if has_active_fronts:
+        active_fronts = _project_active_fronts(project, user) if user is not None else all_active_fronts
+        allowed_ids = list(active_fronts.values_list('id', flat=True))
+        diaries = diaries.filter(front_id__in=allowed_ids) if allowed_ids else diaries.none()
     search = get_dict.get('search')
     if search:
         diaries = diaries.filter(
@@ -5419,6 +6093,12 @@ def _diaries_queryset_for_report_filters(project, get_dict):
     status = get_dict.get('status')
     if status:
         diaries = diaries.filter(status=status)
+    selected_front_id = get_dict.get('front')
+    if has_active_fronts and selected_front_id:
+        try:
+            diaries = diaries.filter(front_id=int(selected_front_id))
+        except (TypeError, ValueError):
+            pass
     return diaries.order_by('date', 'created_at', 'pk')
 
 
@@ -5458,6 +6138,10 @@ def diary_pdf_view(request, pk, pdf_type='normal'):
 
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+    if diary.front_id:
+        allowed_fronts = _project_active_fronts(project, request.user)
+        if not allowed_fronts.filter(pk=diary.front_id).exists():
+            raise Http404('Relatório não encontrado.')
 
     if not REPORTLAB_AVAILABLE:
         messages.error(request, "Geração de PDF não disponível neste ambiente.")
@@ -5489,6 +6173,10 @@ def diary_pdf_inline_view(request, pk, pdf_type='normal'):
 
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+    if diary.front_id:
+        allowed_fronts = _project_active_fronts(project, request.user)
+        if not allowed_fronts.filter(pk=diary.front_id).exists():
+            raise Http404('Relatório não encontrado.')
 
     if not REPORTLAB_AVAILABLE:
         messages.error(request, "Geração de PDF não disponível neste ambiente.")
@@ -5517,6 +6205,10 @@ def diary_pdf_reader_view(request, pk):
     """
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+    if diary.front_id:
+        allowed_fronts = _project_active_fronts(project, request.user)
+        if not allowed_fronts.filter(pk=diary.front_id).exists():
+            raise Http404('Relatório não encontrado.')
 
     qs = _diary_pdf_sequence_for_project(project)
     ids = list(qs.values_list('pk', flat=True))
@@ -5623,7 +6315,7 @@ def diary_bulk_pdf_zip_view(request):
         messages.error(request, 'Geração de PDF não disponível neste ambiente.')
         return redirect('report-list')
 
-    diaries = _diaries_queryset_for_report_filters(project, request.GET)
+    diaries = _diaries_queryset_for_report_filters(project, request.GET, request.user)
     count = diaries.count()
     if count == 0:
         messages.warning(request, 'Nenhum relatório encontrado com os filtros atuais.')
@@ -5648,7 +6340,12 @@ def diary_bulk_pdf_zip_view(request):
                     pdf_bytes = resp.content
                     try:
                         from .utils.pdf_generator import get_rdo_pdf_filename
-                        fname = get_rdo_pdf_filename(diary.project, diary.date, suffix='')
+                        fname = get_rdo_pdf_filename(
+                            diary.project,
+                            diary.date,
+                            suffix='',
+                            front_name=(diary.front.name if getattr(diary, 'front_id', None) and diary.front else ''),
+                        )
                     except Exception:
                         fname = f"RDO_{diary.project.code}_{diary.date.strftime('%Y%m%d')}.pdf"
                     safe_inner = ''.join(c if c.isalnum() or c in '-_.' else '_' for c in fname)
@@ -5682,6 +6379,10 @@ def diary_excel_view(request, pk):
     
     project = get_selected_project(request)
     diary = get_object_or_404(ConstructionDiary, pk=pk, project=project)
+    if diary.front_id:
+        allowed_fronts = _project_active_fronts(project, request.user)
+        if not allowed_fronts.filter(pk=diary.front_id).exists():
+            raise Http404('Relatório não encontrado.')
     
     # Cria workbook
     wb = Workbook()
@@ -6411,6 +7112,14 @@ def project_form_view(request, pk=None):
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from .forms import ProjectForm
     from django.core.exceptions import PermissionDenied
+    from django.urls import reverse
+    from django.db import IntegrityError, OperationalError
+
+    modal_mode = (
+        (request.GET.get('modal') == '1')
+        or (request.POST.get('modal') == '1')
+        or (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
+    )
 
     if not user_can_central_obras_diario_e_mapa(request.user):
         raise PermissionDenied('Você não tem permissão para criar ou editar projetos.')
@@ -6425,15 +7134,70 @@ def project_form_view(request, pk=None):
     if request.method == 'POST':
         form = ProjectForm(request.POST, instance=project)
         if form.is_valid():
-            project = form.save(commit=False)
-            # Nova obra: sempre criar como ativa para aparecer no Diário, Painel e GestControll
-            if project.pk is None:
-                project.is_active = True
-            project.save()
-            from core.sync_obras import sync_project_to_gestao_and_mapa
-            sync_project_to_gestao_and_mapa(project)
-            messages.success(request, f'Obra "{project.name}" foi salva e sincronizada com GestControll e Mapa.')
-            return redirect('central_project_list')
+            try:
+                has_fronts = form.cleaned_data.get('has_fronts')
+                initial_front_names_raw = (form.cleaned_data.get('initial_front_names') or '').strip()
+                project = form.save(commit=False)
+                # Nova obra: sempre criar como ativa para aparecer no Diário, Painel e GestControll
+                if project.pk is None:
+                    project.is_active = True
+                project.save()
+
+                created_fronts_count = 0
+                if has_fronts and initial_front_names_raw:
+                    raw_parts = []
+                    for line in initial_front_names_raw.splitlines():
+                        raw_parts.extend([part.strip() for part in line.split(',')])
+                    front_names = []
+                    seen = set()
+                    for name in raw_parts:
+                        normalized = ' '.join(name.split())
+                        if not normalized:
+                            continue
+                        key = normalized.lower()
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        front_names.append(normalized)
+
+                    for front_name in front_names:
+                        _, created = ProjectFront.objects.get_or_create(
+                            project=project,
+                            name=front_name,
+                            defaults={'is_active': True},
+                        )
+                        if created:
+                            created_fronts_count += 1
+
+                from core.sync_obras import sync_project_to_gestao_and_mapa
+                sync_project_to_gestao_and_mapa(project)
+                success_msg = f'Obra "{project.name}" foi salva e sincronizada com GestControll e Mapa.'
+                if has_fronts:
+                    if created_fronts_count > 0:
+                        success_msg += f' {created_fronts_count} frente(s) criada(s).'
+                    else:
+                        success_msg += ' Nenhuma frente nova foi criada (já existiam ou não foram informadas).'
+                messages.success(request, success_msg)
+                if modal_mode:
+                    return JsonResponse({
+                        'ok': True,
+                        'project_id': project.pk,
+                        'project_name': project.name,
+                        'redirect_url': reverse('central_project_list'),
+                    })
+                return redirect('central_project_list')
+            except OperationalError:
+                form.add_error(
+                    'initial_front_names',
+                    'Não foi possível salvar frentes porque a estrutura de banco ainda não foi atualizada. '
+                    'Rode as migrações e tente novamente.'
+                )
+            except IntegrityError:
+                form.add_error(
+                    'initial_front_names',
+                    'Não foi possível salvar algumas frentes por conflito de dados. '
+                    'Revise os nomes informados.'
+                )
         else:
             flash_message(request, "error", "core.form.fix_errors.project")
     else:
@@ -6443,8 +7207,15 @@ def project_form_view(request, pk=None):
         'form': form,
         'project': project,
         'form_title': form_title,
+        'modal_mode': modal_mode,
     }
-    
+
+    if modal_mode:
+        response = render(request, 'core/project_form_modal.html', context)
+        if request.method == 'POST' and not form.is_valid():
+            response.status_code = 400
+        return response
+
     return render(request, 'core/project_form.html', context)
 
 
@@ -6470,10 +7241,12 @@ def project_list_view(request):
     from accounts.painel_sistema_access import user_can_central_obras_diario_e_mapa
     from core.db_annotations import coalesced_correlated_count
     from django.core.exceptions import PermissionDenied
-    from django.db.models import Count, IntegerField, OuterRef, Subquery, Q
+    from django.db import connection
+    from django.db.models import Count, IntegerField, OuterRef, Subquery, Q, Value
     from django.db.models.functions import Coalesce
     from mapa_obras.models import LocalObra
-    from .models import ProjectEquipmentItem, ProjectLaborItem
+    from .models import ProjectEquipmentItem, ProjectLaborItem, ProjectFront
+    from gestao_aprovacao.models import Obra as GestaoObra
 
     if not getattr(request.user, 'is_authenticated', False):
         from django.contrib.auth.views import redirect_to_login
@@ -6490,21 +7263,97 @@ def project_list_view(request):
         .values('_n')[:1],
         output_field=IntegerField(),
     )
+    _obra_gestao_sq_by_project = Subquery(
+        GestaoObra.objects.filter(project_id=OuterRef('pk'))
+        .order_by('-ativo', '-id')
+        .values('id')[:1],
+        output_field=IntegerField(),
+    )
+    _obra_gestao_sq_by_code = Subquery(
+        GestaoObra.objects.filter(codigo__iexact=OuterRef('code'))
+        .order_by('-ativo', '-id')
+        .values('id')[:1],
+        output_field=IntegerField(),
+    )
+    _obra_gestao_sq_by_name = Subquery(
+        GestaoObra.objects.filter(nome__iexact=OuterRef('name'))
+        .order_by('-ativo', '-id')
+        .values('id')[:1],
+        output_field=IntegerField(),
+    )
 
-    projects = Project.objects.annotate(
-        diaries_count=coalesced_correlated_count(ConstructionDiary, fk_field='project_id'),
-        activities_count=coalesced_correlated_count(Activity, fk_field='project_id'),
-        n_locais_mapa=Coalesce(_locais_sq, 0),
-        n_equip_rdo=coalesced_correlated_count(
+    has_project_front_table = 'core_projectfront' in connection.introspection.table_names()
+
+    base_annotations = {
+        'diaries_count': coalesced_correlated_count(ConstructionDiary, fk_field='project_id'),
+        'activities_count': coalesced_correlated_count(Activity, fk_field='project_id'),
+        'n_locais_mapa': Coalesce(_locais_sq, 0),
+        'n_equip_rdo': coalesced_correlated_count(
             ProjectEquipmentItem, fk_field='project_id', is_active=True
         ),
-        n_labor_rdo=coalesced_correlated_count(
+        'n_labor_rdo': coalesced_correlated_count(
             ProjectLaborItem, fk_field='project_id', is_active=True
         ),
-    ).order_by('-created_at')
+        'obra_gestao_id': Coalesce(
+            _obra_gestao_sq_by_project,
+            _obra_gestao_sq_by_code,
+            _obra_gestao_sq_by_name,
+        ),
+    }
+
+    if has_project_front_table:
+        base_annotations.update({
+            'n_fronts_total': coalesced_correlated_count(ProjectFront, fk_field='project_id'),
+            'n_fronts_active': coalesced_correlated_count(
+                ProjectFront, fk_field='project_id', is_active=True
+            ),
+        })
+    else:
+        base_annotations.update({
+            'n_fronts_total': Value(0, output_field=IntegerField()),
+            'n_fronts_active': Value(0, output_field=IntegerField()),
+        })
+
+    base_projects = Project.objects.annotate(
+        **base_annotations
+    )
+
+    q = (request.GET.get('q') or '').strip()
+    status = (request.GET.get('status') or 'all').strip().lower()
+
+    projects = base_projects
+    if q:
+        projects = projects.filter(
+            Q(name__icontains=q) |
+            Q(code__icontains=q) |
+            Q(client_name__icontains=q) |
+            Q(contractor_name__icontains=q)
+        )
+    if status == 'active':
+        projects = projects.filter(is_active=True)
+    elif status == 'inactive':
+        projects = projects.filter(is_active=False)
+
+    projects = projects.order_by('-created_at')
+    projects = list(projects)
+
+    # Repara vínculos legados Project <-> Obra (GestControll) para evitar atalhos sem clique.
+    from core.sync_obras import ensure_gestao_links_for_projects
+
+    linked_obras_map = ensure_gestao_links_for_projects(projects, create_missing=True)
+    for project in projects:
+        if not getattr(project, 'obra_gestao_id', None):
+            linked_id = linked_obras_map.get(project.id)
+            if linked_id:
+                project.obra_gestao_id = linked_id
 
     context = {
         'projects': projects,
+        'q': q,
+        'status': status,
+        'total_projects': base_projects.count(),
+        'total_projects_active': base_projects.filter(is_active=True).count(),
+        'total_projects_inactive': base_projects.filter(is_active=False).count(),
     }
 
     return render(request, 'core/project_list.html', context)

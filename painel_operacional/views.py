@@ -21,7 +21,7 @@ from openpyxl import Workbook, load_workbook
 from accounts.decorators import login_required, require_group
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra
-from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
+from mapa_obras.contexto_obra import resolve_obra_context
 from suprimentos.views_controle import _normalize_ambiente_layout
 
 from .models import (
@@ -47,36 +47,7 @@ def _resolve_editor_mode(ambiente: AmbienteOperacional) -> str:
 
 
 def _resolver_obra(request):
-    obras = _get_obras_for_user(request)
-    obra = None
-    obra_param = request.GET.get("obra") or request.POST.get("obra")
-
-    if obra_param:
-        try:
-            obra = Obra.objects.get(id=int(obra_param), ativa=True)
-            if not _user_can_access_obra(request, obra):
-                obra = None
-        except (Obra.DoesNotExist, ValueError):
-            obra = None
-
-    if not obra:
-        obra_sessao_id = request.session.get("obra_id")
-        if obra_sessao_id:
-            try:
-                obra = Obra.objects.get(id=int(obra_sessao_id), ativa=True)
-                if not _user_can_access_obra(request, obra):
-                    obra = None
-            except (Obra.DoesNotExist, ValueError):
-                obra = None
-
-    if not obra:
-        obra = obras.first()
-
-    if obra:
-        request.session["obra_id"] = obra.id
-        request.session.modified = True
-
-    return obras, obra
+    return resolve_obra_context(request, allow_post=True)
 
 
 def _parse_json_body(request):
@@ -1175,7 +1146,8 @@ def _sync_layout_to_elementos(ambiente: AmbienteOperacional, versao: AmbienteVer
 @require_group(GRUPOS.FERRAMENTA_OPERACIONAL)
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
 def ferramenta_shell(request):
-    obras, obra = _resolver_obra(request)
+    ctx = _resolver_obra(request)
+    obras, obra = ctx
     ambientes = []
     importar_url = reverse("engenharia:importar_mapa_controle")
     if obra:
@@ -1189,11 +1161,10 @@ def ferramenta_shell(request):
         request,
         "painel_operacional/ferramenta_shell.html",
         {
-            "obras": obras,
-            "obra_selecionada": obra,
             "ambientes_json": json.dumps(ambientes),
             "tipos_ambiente": AmbienteTipo.choices,
             "importar_mapa_url": importar_url,
+            **ctx.to_template_context(),
         },
     )
 

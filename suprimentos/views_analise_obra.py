@@ -16,7 +16,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from accounts.groups import GRUPOS
 from core.models import Project
 from mapa_obras.models import Obra
-from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
+from mapa_obras.contexto_obra import resolve_obra_context
 from django.utils import timezone
 from suprimentos.services.analise_obra_service import (
     AnaliseObraFilters,
@@ -29,31 +29,7 @@ ANALISE_OBRA_CACHE_TTL_SECONDS = 120
 
 
 def _resolve_obra(request):
-    obras = _get_obras_for_user(request)
-    obra_param = request.GET.get("obra")
-    obra = None
-    if obra_param:
-        try:
-            obra = Obra.objects.get(id=int(obra_param), ativa=True)
-            if not _user_can_access_obra(request, obra):
-                obra = None
-        except (ValueError, Obra.DoesNotExist):
-            obra = None
-    if not obra:
-        sid = request.session.get("obra_id")
-        if sid:
-            try:
-                obra = Obra.objects.get(id=int(sid), ativa=True)
-                if not _user_can_access_obra(request, obra):
-                    obra = None
-            except (ValueError, Obra.DoesNotExist):
-                obra = None
-    if not obra:
-        obra = obras.first()
-    if obra:
-        request.session["obra_id"] = obra.id
-        request.session.modified = True
-    return obras, obra
+    return resolve_obra_context(request)
 
 
 def _parse_periodo(request):
@@ -109,7 +85,10 @@ def _effective_periodo_analise(request, obra: Obra | None):
     return ini, fim
 
 
-def _parse_filtros(request) -> AnaliseObraFilters:
+def _parse_filtros(request, frente_ctx=None) -> AnaliseObraFilters:
+    front_id = (request.GET.get("front") or "").strip()
+    if not front_id and frente_ctx is not None:
+        front_id = getattr(frente_ctx, 'front_query_value', '') or ''
     return AnaliseObraFilters(
         setor=(request.GET.get("setor") or "").strip(),
         bloco=(request.GET.get("bloco") or "").strip(),
@@ -125,13 +104,15 @@ def _parse_filtros(request) -> AnaliseObraFilters:
         tag_ocorrencia_id=(request.GET.get("tag_ocorrencia_id") or "").strip(),
         busca_diario_texto=(request.GET.get("busca_diario_texto") or "").strip(),
         responsavel_texto=(request.GET.get("responsavel_texto") or "").strip(),
+        visao=(request.GET.get("visao") or "geral").strip() or "geral",
+        front_id=front_id,
     )
 
 
-def _service_for_request(request, obra: Obra):
+def _service_for_request(request, obra: Obra, frente_ctx=None):
     ini, fim = _effective_periodo_analise(request, obra)
     periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
-    filtros = _parse_filtros(request)
+    filtros = _parse_filtros(request, frente_ctx)
     return AnaliseObraService(obra, periodo=periodo, filtros=filtros), ini, fim, filtros
 
 
@@ -254,9 +235,10 @@ def _get_cached_section_or_build(
 @ensure_csrf_cookie
 @cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
 def analise_obra(request):
-    obras, obra = _resolve_obra(request)
+    ctx = _resolve_obra(request)
+    obras, obra = ctx
     payload = None
-    filtros = _parse_filtros(request)
+    filtros = _parse_filtros(request, ctx.frente)
     ini, fim = _effective_periodo_analise(request, obra)
 
     if obra:
@@ -268,8 +250,6 @@ def analise_obra(request):
         request,
         "suprimentos/analise_obra.html",
         {
-            "obras": obras,
-            "obra_selecionada": obra,
             "analise_payload": payload,
             "restricoes_data_ontem": (hoje - timedelta(days=1)).isoformat(),
             "filtros_get": {
@@ -277,6 +257,7 @@ def analise_obra(request):
                 "data_fim": fim.isoformat() if fim else "",
                 **filtros_dict,
             },
+            **ctx.to_template_context(),
         },
     )
 
@@ -304,7 +285,8 @@ def analise_obra_api(request):
     if not _user_can_access_obra(request, obra):
         return _json_error("Sem permissão para esta obra.", 403)
 
-    svc, ini, fim, filtros = _service_for_request(request, obra)
+    ctx = resolve_obra_context(request)
+    svc, ini, fim, filtros = _service_for_request(request, obra, ctx.frente)
     secao = (request.GET.get("secao") or "all").strip().lower()
     validas = frozenset(
         {

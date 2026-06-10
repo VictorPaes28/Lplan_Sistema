@@ -283,6 +283,12 @@
                             {% if diary.project.code %}<span class="block text-slate-600 font-normal text-sm mt-0.5">{{ diary.project.code }}</span>{% endif %}
                         </td>
                     </tr>
+                    {% if diary.front %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Frente</td>
+                        <td class="diary-detail-data-table__value font-normal">{{ diary.front.name }}</td>
+                    </tr>
+                    {% endif %}
                     {% if diary.project.address %}
                     <tr>
                         <td class="diary-detail-data-table__label">Endereço</td>

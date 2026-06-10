@@ -1,0 +1,121 @@
+<div class="project-modal-shell">
+    <div class="project-modal-header">
+        <h3 class="project-modal-title">{{ form_title }}</h3>
+        <p class="project-modal-subtitle">Configure os dados essenciais e a estrutura inicial da obra.</p>
+    </div>
+
+    <form method="post" class="project-modal-form app-form" data-project-modal-form action="{% if project %}{% url 'project-edit' project.pk %}{% else %}{% url 'project-new' %}{% endif %}">
+        {% csrf_token %}
+        <input type="hidden" name="modal" value="1">
+
+        {% if form.non_field_errors %}
+        <div class="project-modal-alert project-modal-alert--error">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <span>{{ form.non_field_errors.0 }}</span>
+        </div>
+        {% endif %}
+
+        <section class="project-modal-section">
+            <h4 class="project-modal-section-title">Identificação</h4>
+            <div class="project-modal-grid project-modal-grid--name">
+                <div class="form-group">
+                    <label for="{{ form.name.id_for_label }}">Nome da obra <span class="text-red-500">*</span></label>
+                    {{ form.name }}
+                    {% if form.name.errors %}<p class="error-text">{{ form.name.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.sigla.id_for_label }}">Sigla <span class="text-red-500">*</span></label>
+                    {{ form.sigla }}
+                    {% if form.sigla.errors %}<p class="error-text">{{ form.sigla.errors.0 }}</p>{% endif %}
+                    <p class="help-text">3 letras maiúsculas (ex: SRS)</p>
+                </div>
+            </div>
+            <div class="project-modal-grid project-modal-grid--id">
+                <div class="form-group">
+                    <label for="{{ form.code.id_for_label }}">Código da obra <span class="text-red-500">*</span></label>
+                    {{ form.code }}
+                    {% if form.code.errors %}<p class="error-text">{{ form.code.errors.0 }}</p>{% endif %}
+                    <p class="help-text">Código único (ex: PROJ-2024-001).</p>
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.responsible.id_for_label }}">Responsável</label>
+                    {{ form.responsible }}
+                    {% if form.responsible.errors %}<p class="error-text">{{ form.responsible.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </section>
+
+        <section class="project-modal-section">
+            <h4 class="project-modal-section-title">Planejamento</h4>
+            <div class="project-modal-grid project-modal-grid--dates">
+                <div class="form-group">
+                    <label for="{{ form.start_date.id_for_label }}">Data de início <span class="text-red-500">*</span></label>
+                    {{ form.start_date }}
+                    {% if form.start_date.errors %}<p class="error-text">{{ form.start_date.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.end_date.id_for_label }}">Previsão de término <span class="text-red-500">*</span></label>
+                    {{ form.end_date }}
+                    {% if form.end_date.errors %}<p class="error-text">{{ form.end_date.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.address.id_for_label }}">Endereço</label>
+                {{ form.address }}
+                {% if form.address.errors %}<p class="error-text">{{ form.address.errors.0 }}</p>{% endif %}
+            </div>
+        </section>
+
+        <section class="project-modal-section project-modal-section--fronts">
+            <div class="project-modal-fronts-toggle">
+                <div>
+                    <h4 class="project-modal-section-title">Estrutura por frentes</h4>
+                    <p class="project-modal-inline-help">Use quando a obra será operada por equipes em frentes/subobras.</p>
+                </div>
+                <label class="project-modal-switch" for="{{ form.has_fronts.id_for_label }}">
+                    {{ form.has_fronts }}
+                    <span class="project-modal-switch-slider"></span>
+                </label>
+            </div>
+            {% if form.has_fronts.errors %}<p class="error-text">{{ form.has_fronts.errors.0 }}</p>{% endif %}
+
+            <div class="form-group" data-fronts-section {% if not form.has_fronts.value and not form.initial_front_names.value %}style="display:none"{% endif %}>
+                <label>{{ form.initial_front_names.label }}</label>
+                {{ form.initial_front_names }}
+                <div class="project-fronts-builder" data-fronts-builder>
+                    <div class="project-fronts-builder-list" data-fronts-list></div>
+                    <button type="button" class="project-fronts-builder-add" data-fronts-add>
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        Adicionar frente
+                    </button>
+                </div>
+                {% if form.initial_front_names.errors %}<p class="error-text">{{ form.initial_front_names.errors.0 }}</p>{% endif %}
+                <p class="help-text">{{ form.initial_front_names.help_text }}</p>
+            </div>
+        </section>
+
+        <section class="project-modal-section">
+            <h4 class="project-modal-section-title">Complementos</h4>
+            <div class="form-group">
+                <label for="{{ form.sienge_codigos_alternativos.id_for_label }}">Códigos Sienge alternativos</label>
+                {{ form.sienge_codigos_alternativos }}
+                {% if form.sienge_codigos_alternativos.errors %}<p class="error-text">{{ form.sienge_codigos_alternativos.errors.0 }}</p>{% endif %}
+                <p class="help-text">Opcional. Informe um código por linha ou separados por vírgula.</p>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.description.id_for_label }}">Descrição</label>
+                {{ form.description }}
+                {% if form.description.errors %}<p class="error-text">{{ form.description.errors.0 }}</p>{% endif %}
+            </div>
+        </section>
+
+        <div class="project-modal-actions">
+            <button type="button" class="project-modal-btn project-modal-btn--secondary" data-project-modal-close>
+                Cancelar
+            </button>
+            <button type="submit" class="project-modal-btn project-modal-btn--primary">
+                Salvar obra
+            </button>
+        </div>
+    </form>
+</div>

@@ -6,8 +6,8 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db import transaction
-from django.db.models import Q, Min, Value, Prefetch, Count
+from django.db import transaction, IntegrityError
+from django.db.models import Q, Min, Max, Value, Prefetch, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
@@ -51,9 +51,12 @@ from .utils import (
     usuarios_escopo_pedido_para_notificar,
     projects_disponiveis_para_vinculo_usuario,
     obra_gestao_do_projeto,
+    frentes_ativas_disponiveis_para_obra,
+    usuario_tem_escopo_frente_no_pedido,
 )
 from core.notification_utils import CORE_TIPOS_PEDIDO_FILA_APROVACAO
 from core.notification_utils import criar_notificacao as core_criar_notificacao
+from core.models import Project, ProjectFront, ProjectFrontMember
 from core.obras_readonly import (
     OBRA_INATIVA_CONSULTA_MSG,
     gestao_obra_requires_readonly,
@@ -431,6 +434,7 @@ def home(request):
     )
 
     workorders = queryset_workorders_home_scope(user)
+    workorders = _apply_front_scope_to_workorders_queryset(user, workorders)
 
     admin_user = is_admin(user)
 
@@ -465,6 +469,7 @@ def export_fila_atraso_pdf(request):
         return redirect('gestao:home')
 
     scoped_qs = queryset_workorders_home_scope(user)
+    scoped_qs = _apply_front_scope_to_workorders_queryset(user, scoped_qs)
     pedidos = collect_aprovador_fila_atraso(
         user,
         scoped_qs,
@@ -492,7 +497,7 @@ def _workorders_base_queryset_and_obras(user):
     Mesma regra de list_workorders / exportação.
     """
     if is_admin(user):
-        workorders = WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por').all()
+        workorders = WorkOrder.objects.select_related('obra', 'obra__empresa', 'criado_por', 'front').all()
         obras_disponiveis = Obra.objects.all().order_by('-ativo', 'codigo')
     elif is_aprovador(user):
         obras_com_permissao = Obra.objects.filter(
@@ -504,12 +509,12 @@ def _workorders_base_queryset_and_obras(user):
         obras_com_empresa = Obra.objects.filter(empresa_id__in=empresas_ids).distinct()
         obras_sem_empresa = obras_com_permissao.filter(empresa_id__isnull=True)
         obras_aprovador = (obras_com_empresa | obras_sem_empresa).distinct()
-        workorders = WorkOrder.objects.filter(obra__in=obras_aprovador).select_related('obra', 'obra__empresa', 'criado_por')
+        workorders = WorkOrder.objects.filter(obra__in=obras_aprovador).select_related('obra', 'obra__empresa', 'criado_por', 'front')
         obras_disponiveis = obras_aprovador.order_by('-ativo', 'codigo')
     elif is_responsavel_empresa(user):
         empresas_resp = Empresa.objects.filter(responsavel=user, ativo=True)
         obras_disponiveis = Obra.objects.filter(empresa__in=empresas_resp).distinct().order_by('-ativo', 'codigo')
-        workorders = WorkOrder.objects.filter(obra__in=obras_disponiveis).select_related('obra', 'obra__empresa', 'criado_por')
+        workorders = WorkOrder.objects.filter(obra__in=obras_disponiveis).select_related('obra', 'obra__empresa', 'criado_por', 'front')
     else:
         obras_solicitante = Obra.objects.filter(
             permissoes__usuario=user,
@@ -524,14 +529,78 @@ def _workorders_base_queryset_and_obras(user):
             ).values_list('usuario_id', flat=True).distinct()
             workorders = WorkOrder.objects.filter(obra__in=obras_solicitante).filter(
                 Q(criado_por=user) | Q(criado_por_id__in=outros_solicitantes_ids)
-            ).select_related('obra', 'obra__empresa', 'criado_por')
+            ).select_related('obra', 'obra__empresa', 'criado_por', 'front')
             obras_disponiveis = obras_solicitante.order_by('-ativo', 'codigo')
         else:
-            workorders = WorkOrder.objects.filter(criado_por=user).select_related('obra', 'obra__empresa', 'criado_por')
+            workorders = WorkOrder.objects.filter(criado_por=user).select_related('obra', 'obra__empresa', 'criado_por', 'front')
             obras_disponiveis = Obra.objects.filter(
                 id__in=workorders.values_list('obra_id', flat=True).distinct(),
             ).order_by('-ativo', 'codigo')
+    workorders = _apply_front_scope_to_workorders_queryset(user, workorders)
     return workorders, obras_disponiveis
+
+
+def _apply_front_scope_to_workorders_queryset(user, workorders):
+    """
+    Restringe o queryset de pedidos por escopo de frente.
+
+    Regras:
+    - admin/staff/superuser: sem restrição.
+    - obra sem frentes ativas: sem restrição.
+    - obra com frentes ativas:
+      - se usuário não tem vínculos por frente no projeto: vê todas as frentes ativas;
+      - se possui vínculos: vê apenas frentes permitidas;
+      - pedidos sem frente (consolidado) ficam restritos ao admin.
+    """
+    if is_admin(user) or getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False):
+        return workorders
+
+    project_ids = list(
+        workorders.exclude(obra__project_id__isnull=True)
+        .values_list('obra__project_id', flat=True)
+        .distinct()
+    )
+    if not project_ids:
+        return workorders
+
+    active_front_project_ids = set(
+        ProjectFront.objects.filter(
+            project_id__in=project_ids,
+            is_active=True,
+        ).values_list('project_id', flat=True).distinct()
+    )
+    if not active_front_project_ids:
+        return workorders
+
+    project_ids_with_memberships = set(
+        ProjectFrontMember.objects.filter(
+            user=user,
+            front__project_id__in=active_front_project_ids,
+        ).values_list('front__project_id', flat=True).distinct()
+    )
+    project_ids_without_memberships = active_front_project_ids - project_ids_with_memberships
+    allowed_front_ids = set(
+        ProjectFrontMember.objects.filter(
+            user=user,
+            front__project_id__in=active_front_project_ids,
+            is_active=True,
+            front__is_active=True,
+        ).values_list('front_id', flat=True)
+    )
+
+    allowed_q = (
+        Q(obra__project_id__isnull=True)
+        | ~Q(obra__project_id__in=active_front_project_ids)
+    )
+    if project_ids_without_memberships:
+        allowed_q |= Q(
+            obra__project_id__in=project_ids_without_memberships,
+            front__isnull=False,
+            front__is_active=True,
+        )
+    if allowed_front_ids:
+        allowed_q |= Q(front_id__in=allowed_front_ids)
+    return workorders.filter(allowed_q).distinct()
 
 
 def _parse_workorder_list_date(s):
@@ -588,6 +657,9 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
     """
     obra_filter = get_params.get('obra')
     obra_filter_out = ''
+    selected_obra = None
+    frentes_disponiveis = []
+    front_filter_out = ''
     if obra_filter:
         try:
             obra_id = int(obra_filter)
@@ -598,9 +670,32 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
             if obra_id in allowed:
                 workorders = workorders.filter(obra_id=obra_id)
                 obra_filter_out = str(obra_id)
+                selected_obra = obras_disponiveis.filter(pk=obra_id).select_related('project').first()
             else:
                 workorders = workorders.none()
                 obra_filter_out = ''
+
+    if selected_obra:
+        frentes_qs = frentes_ativas_disponiveis_para_obra(selected_obra, user)
+        frentes_disponiveis = list(frentes_qs)
+        front_filter_raw = (get_params.get('front') or '').strip()
+        if front_filter_raw:
+            try:
+                front_id = int(front_filter_raw)
+            except (ValueError, TypeError):
+                front_filter_out = ''
+            else:
+                allowed_front_ids = {f.pk for f in frentes_disponiveis}
+                if front_id in allowed_front_ids:
+                    workorders = workorders.filter(front_id=front_id)
+                    front_filter_out = str(front_id)
+                else:
+                    workorders = workorders.none()
+                    front_filter_out = ''
+        elif len(frentes_disponiveis) == 1:
+            only_front = frentes_disponiveis[0]
+            workorders = workorders.filter(front_id=only_front.pk)
+            front_filter_out = str(only_front.pk)
 
     status_filter = get_params.get('status')
     if status_filter:
@@ -678,6 +773,8 @@ def _apply_workorder_list_filters(user, workorders, obras_disponiveis, get_param
 
     return workorders, {
         'obra_filter': obra_filter_out,
+        'front_filter': front_filter_out,
+        'frentes_disponiveis': frentes_disponiveis,
         'status_filter': status_filter or '',
         'tipo_solicitacao_filter': tipo_solicitacao_filter or '',
         'credor_filter': credor_filter,
@@ -705,6 +802,17 @@ def list_workorders(request):
 
     base_workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
     workorders, filter_ctx = _apply_workorder_list_filters(user, base_workorders, obras_disponiveis, request.GET)
+
+    if (
+        request.method == 'GET'
+        and filter_ctx.get('obra_filter')
+        and filter_ctx.get('front_filter')
+        and not (request.GET.get('front') or '').strip()
+        and len(filter_ctx.get('frentes_disponiveis') or []) == 1
+    ):
+        q = request.GET.copy()
+        q['front'] = filter_ctx['front_filter']
+        return redirect(f"{request.path}?{q.urlencode()}")
     
     # Paginação
     paginator = Paginator(workorders, 15)  # 15 por página
@@ -736,6 +844,9 @@ def list_workorders(request):
         and not obras_disponiveis.exists()
     )
     _gestao_marcar_pk_ph = 999001999
+    show_front_column = bool(filter_ctx.get('frentes_disponiveis'))
+    if not show_front_column:
+        show_front_column = workorders.exclude(front_id__isnull=True).exists()
     context = {
         'page_obj': page_obj,
         'workorders': page_obj,
@@ -758,6 +869,7 @@ def list_workorders(request):
             args=[_gestao_marcar_pk_ph],
         ),
         'gestao_marcar_url_pk_placeholder': str(_gestao_marcar_pk_ph),
+        'show_front_column': show_front_column,
         **filter_ctx,
     }
     return render(request, 'obras/list_workorders.html', context)
@@ -821,7 +933,7 @@ def export_list_workorders_pdf(request):
     user = request.user
     workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
     workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
-    workorders = workorders.select_related('obra', 'criado_por').prefetch_related(
+    workorders = workorders.select_related('obra', 'criado_por', 'front').prefetch_related(
         Prefetch(
             'approvals',
             queryset=Approval.objects.filter(decisao='reprovado')
@@ -878,6 +990,8 @@ def export_list_workorders_pdf(request):
         filtros_bits.append(f"Busca: {_pdf_esc(filter_ctx['search_query'])}")
     if filter_ctx.get('obra_filter'):
         filtros_bits.append(f"Obra ID: {_pdf_esc(filter_ctx['obra_filter'])}")
+    if filter_ctx.get('front_filter'):
+        filtros_bits.append(f"Frente ID: {_pdf_esc(filter_ctx['front_filter'])}")
     if filter_ctx.get('status_filter'):
         filtros_bits.append(f"Status: {_pdf_esc(filter_ctx['status_filter'])}")
     if filter_ctx.get('tipo_solicitacao_filter'):
@@ -962,6 +1076,7 @@ def export_list_workorders_pdf(request):
         tipo_label = tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')
         solicitante = wo.criado_por.get_full_name() or wo.criado_por.username if wo.criado_por else '—'
         obra_txt = f"{wo.obra.sigla}" if wo.obra else '—'
+        front_txt = wo.front.name if getattr(wo, 'front', None) else 'Sem frente'
         reprovacoes = getattr(wo, 'prefetched_reprovacoes', None) or []
         qtd_reprov = len(reprovacoes)
         ultimo_motivo = _motivo_reprovacao_listagem(wo)
@@ -993,6 +1108,7 @@ def export_list_workorders_pdf(request):
         vlr_med_txt = _valor_medicao_relatorio(wo)
         detail_rows.append([
             Paragraph(_pdf_esc(obra_txt), normal),
+            Paragraph(_pdf_esc(_clip(front_txt, 26)), normal),
             Paragraph(_pdf_esc(_clip(credor_txt, 52)), normal),
             Paragraph(_pdf_esc(_clip(tipo_label, 28)), normal),
             Paragraph(_pdf_esc(vlr_med_txt), normal),
@@ -1063,6 +1179,7 @@ def export_list_workorders_pdf(request):
     story.append(Paragraph('DETALHAMENTO DOS PEDIDOS', section_title))
     data_rows = [[
         Paragraph('Obra', th),
+        Paragraph('Frente', th),
         Paragraph('Credor', th),
         Paragraph('Tipo', th),
         Paragraph('Valor<br/>medição', th),
@@ -1074,8 +1191,8 @@ def export_list_workorders_pdf(request):
         Paragraph('Última decisão', th),
     ]] + detail_rows
 
-    # 10 colunas (sem código — mais espaço para credor / motivo / datas); soma = 1.0
-    detail_fracs = [0.08, 0.12, 0.10, 0.08, 0.09, 0.06, 0.22, 0.10, 0.08, 0.07]
+    # 11 colunas (inclui frente); soma = 1.0
+    detail_fracs = [0.07, 0.09, 0.11, 0.09, 0.08, 0.08, 0.06, 0.20, 0.10, 0.07, 0.05]
     detail_col_widths = [report_width * f for f in detail_fracs]
     tbl = LongTable(
         data_rows,
@@ -1094,8 +1211,8 @@ def export_list_workorders_pdf(request):
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('FONTSIZE', (0, 0), (-1, -1), 7.5),
-        ('ALIGN', (3, 1), (3, -1), 'CENTER'),
-        ('ALIGN', (5, 1), (5, -1), 'CENTER'),
+        ('ALIGN', (4, 1), (4, -1), 'CENTER'),
+        ('ALIGN', (6, 1), (6, -1), 'CENTER'),
     ]))
     story.append(tbl)
     if total_count > MAX_ROWS:
@@ -1134,7 +1251,7 @@ def export_list_workorders_excel(request):
     user = request.user
     workorders, obras_disponiveis = _workorders_base_queryset_and_obras(user)
     workorders, filter_ctx = _apply_workorder_list_filters(user, workorders, obras_disponiveis, request.GET)
-    workorders = workorders.select_related('obra', 'criado_por').prefetch_related(
+    workorders = workorders.select_related('obra', 'criado_por', 'front').prefetch_related(
         Prefetch(
             'approvals',
             queryset=Approval.objects.filter(decisao='reprovado')
@@ -1163,7 +1280,7 @@ def export_list_workorders_excel(request):
 
     ws['A1'] = 'RELATÓRIO DE PEDIDOS DE OBRA — GestControll'
     ws['A1'].font = title_font
-    ws.merge_cells('A1:J1')
+    ws.merge_cells('A1:K1')
     ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
     filtros_bits = [
@@ -1174,6 +1291,8 @@ def export_list_workorders_excel(request):
         filtros_bits.append(f"Busca: {filter_ctx['search_query']}")
     if filter_ctx.get('obra_filter'):
         filtros_bits.append(f"Obra ID: {filter_ctx['obra_filter']}")
+    if filter_ctx.get('front_filter'):
+        filtros_bits.append(f"Frente ID: {filter_ctx['front_filter']}")
     if filter_ctx.get('status_filter'):
         filtros_bits.append(f"Status: {filter_ctx['status_filter']}")
     if filter_ctx.get('tipo_solicitacao_filter'):
@@ -1190,12 +1309,13 @@ def export_list_workorders_excel(request):
 
     ws['A2'] = ' · '.join(filtros_bits)
     ws['A2'].font = meta_font
-    ws.merge_cells('A2:J2')
+    ws.merge_cells('A2:K2')
     ws['A2'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
     headers = [
         'Código',
         'Obra',
+        'Frente',
         'Credor',
         'Tipo',
         'Valor medição (R$)',
@@ -1225,20 +1345,22 @@ def export_list_workorders_excel(request):
             else '—'
         )
         obra_txt = f"{wo.obra.sigla}" if wo.obra else '—'
+        front_txt = wo.front.name if getattr(wo, 'front', None) else 'Sem frente'
         motivo_repr = _motivo_reprovacao_listagem(wo)
         ws.cell(row=row, column=1, value=wo.codigo or '').alignment = cell_align
         ws.cell(row=row, column=2, value=obra_txt).alignment = cell_align
-        ws.cell(row=row, column=3, value=(wo.nome_credor or '')[:200]).alignment = cell_align
-        ws.cell(row=row, column=4, value=tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')).alignment = cell_align
+        ws.cell(row=row, column=3, value=front_txt).alignment = cell_align
+        ws.cell(row=row, column=4, value=(wo.nome_credor or '')[:200]).alignment = cell_align
+        ws.cell(row=row, column=5, value=tipo_dict.get(wo.tipo_solicitacao, wo.tipo_solicitacao or '')).alignment = cell_align
         if wo.tipo_solicitacao == 'medicao' and wo.valor_medicao is not None:
-            ws.cell(row=row, column=5, value=float(wo.valor_medicao)).alignment = cell_align
+            ws.cell(row=row, column=6, value=float(wo.valor_medicao)).alignment = cell_align
         else:
-            ws.cell(row=row, column=5, value='').alignment = cell_align
-        ws.cell(row=row, column=6, value=status_dict.get(wo.status, wo.status or '')).alignment = cell_align
-        ws.cell(row=row, column=7, value=motivo_repr if motivo_repr != '—' else '').alignment = cell_align
-        ws.cell(row=row, column=8, value=str(sol)[:120]).alignment = cell_align
-        ws.cell(row=row, column=9, value=_fmt_dt(wo.data_envio)).alignment = cell_align
-        ws.cell(row=row, column=10, value=_fmt_dt(wo.data_aprovacao)).alignment = cell_align
+            ws.cell(row=row, column=6, value='').alignment = cell_align
+        ws.cell(row=row, column=7, value=status_dict.get(wo.status, wo.status or '')).alignment = cell_align
+        ws.cell(row=row, column=8, value=motivo_repr if motivo_repr != '—' else '').alignment = cell_align
+        ws.cell(row=row, column=9, value=str(sol)[:120]).alignment = cell_align
+        ws.cell(row=row, column=10, value=_fmt_dt(wo.data_envio)).alignment = cell_align
+        ws.cell(row=row, column=11, value=_fmt_dt(wo.data_aprovacao)).alignment = cell_align
         row += 1
 
     if total_count > MAX_ROWS:
@@ -1248,10 +1370,10 @@ def export_list_workorders_excel(request):
             column=1,
             value=f'Lista truncada: {total_count} pedidos no filtro; exportados os primeiros {MAX_ROWS}.',
         )
-        ws.merge_cells(f'A{note_row}:J{note_row}')
+        ws.merge_cells(f'A{note_row}:K{note_row}')
         ws.cell(row=note_row, column=1).font = Font(italic=True, size=9)
 
-    widths = [14, 12, 22, 18, 14, 14, 36, 20, 16, 16]
+    widths = [14, 12, 16, 22, 18, 14, 14, 36, 20, 16, 16]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -1620,7 +1742,9 @@ def detail_workorder(request, pk):
         else:
             # Não tem permissão na obra e não está no grupo - não pode ver
             tem_permissao = False
-    
+    if tem_permissao:
+        tem_permissao = usuario_tem_escopo_frente_no_pedido(user, workorder)
+
     if not tem_permissao:
         messages.error(request, 'Você não tem permissão para visualizar este pedido.')
         return redirect('gestao:list_workorders')
@@ -1868,6 +1992,8 @@ def _workorder_ajax_permission_flags(workorder, user):
                 tem_permissao = False
         else:
             tem_permissao = False
+    if tem_permissao:
+        tem_permissao = usuario_tem_escopo_frente_no_pedido(user, workorder)
 
     can_edit = workorder.pode_editar(user) if tem_permissao else False
 
@@ -2097,6 +2223,7 @@ def workorder_detail_ajax(request, pk):
         WorkOrder.objects.select_related(
             'obra',
             'obra__empresa',
+            'front',
             'criado_por',
             'solicitado_exclusao_por',
             'central_dispatch__approval_process',
@@ -2115,6 +2242,7 @@ def workorder_detail_ajax(request, pk):
 
     obra = workorder.obra
     obra_label = obra.sigla or obra.codigo
+    front = workorder.front
     criado = workorder.criado_por
 
     exclusao_pendente = None
@@ -2228,6 +2356,14 @@ def workorder_detail_ajax(request, pk):
             'sigla': obra.sigla or '',
             'label': obra_label,
         },
+        'front': (
+            {
+                'id': front.pk,
+                'name': front.name,
+            }
+            if front
+            else None
+        ),
         'criado_por': {
             'nome': (criado.get_full_name() or criado.username) if criado else '—',
             'email': (criado.email or '') if criado else '',
@@ -2364,6 +2500,8 @@ def exportar_snapshot_workorder_pdf(request, pk):
                 criador_no_grupo = False
                 criador_tem_permissao = False
             tem_permissao = bool(criador_no_grupo or criador_tem_permissao)
+    if tem_permissao:
+        tem_permissao = usuario_tem_escopo_frente_no_pedido(user, workorder)
 
     if not tem_permissao:
         messages.error(request, 'Você não tem permissão para exportar este pedido.')
@@ -2515,6 +2653,7 @@ def exportar_snapshot_workorder_pdf(request, pk):
     info_rows = [
         [Paragraph('<b>Código</b>', label), Paragraph(_safe(workorder.codigo), normal)],
         [Paragraph('<b>Obra</b>', label), Paragraph(f"{_safe(getattr(workorder.obra, 'codigo', '-'))} - {_safe(getattr(workorder.obra, 'nome', '-'))}", normal)],
+        [Paragraph('<b>Frente</b>', label), Paragraph(_safe(getattr(getattr(workorder, 'front', None), 'name', None), 'Sem frente (obra toda)'), normal)],
         [Paragraph('<b>Credor</b>', label), Paragraph(_safe(workorder.nome_credor), normal)],
         [Paragraph('<b>Tipo de Solicitação</b>', label), Paragraph(_safe(tipo_labels.get(workorder.tipo_solicitacao, workorder.tipo_solicitacao)), normal)],
         [Paragraph('<b>Valor de medição (R$)</b>', label), Paragraph(_safe(_valor_medicao_relatorio(workorder)), normal)],
@@ -2788,6 +2927,7 @@ def edit_workorder(request, pk):
             # Salvar valores anteriores para comparação
             status_anterior = workorder.status
             obra_anterior = workorder.obra
+            frente_anterior = workorder.front
             nome_credor_anterior = workorder.nome_credor
             tipo_solicitacao_anterior = workorder.tipo_solicitacao
             observacoes_anterior = workorder.observacoes or ''
@@ -2947,6 +3087,10 @@ def edit_workorder(request, pk):
             alteracoes = []
             if obra_anterior != workorder.obra:
                 alteracoes.append(f'Obra: {obra_anterior.codigo} → {workorder.obra.codigo}')
+            if frente_anterior != workorder.front:
+                frente_old = frente_anterior.name if frente_anterior else 'Sem frente'
+                frente_new = workorder.front.name if workorder.front else 'Sem frente (obra toda)'
+                alteracoes.append(f'Frente: {frente_old} → {frente_new}')
             if nome_credor_anterior != workorder.nome_credor:
                 alteracoes.append(f'Nome do Credor: "{nome_credor_anterior}" → "{workorder.nome_credor}"')
             if tipo_solicitacao_anterior != workorder.tipo_solicitacao:
@@ -3167,6 +3311,11 @@ def approve_workorder(request, pk):
                 return _reject_workorder_json_error('gestao.approval.no_scope')
             flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
+    if not usuario_tem_escopo_frente_no_pedido(request.user, workorder):
+        if want_json:
+            return _reject_workorder_json_error('gestao.approval.no_scope', status=403)
+        flash_message(request, "error", "gestao.approval.no_scope")
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
 
     blocked = redirect_if_gestao_obra_readonly(request, workorder)
     if blocked:
@@ -3328,6 +3477,11 @@ def reject_workorder(request, pk):
                 return _reject_workorder_json_error('gestao.approval.no_scope')
             flash_message(request, "error", "gestao.approval.no_scope")
             return redirect('gestao:detail_workorder', pk=workorder.pk)
+    if not usuario_tem_escopo_frente_no_pedido(request.user, workorder):
+        if want_json:
+            return _reject_workorder_json_error('gestao.approval.no_scope', status=403)
+        flash_message(request, "error", "gestao.approval.no_scope")
+        return redirect('gestao:detail_workorder', pk=workorder.pk)
 
     if gestao_obra_requires_readonly(workorder.obra):
         if want_json:
@@ -3753,48 +3907,11 @@ def delete_attachment(request, pk):
 
 @login_required
 def list_obras(request):
-    """
-    Lista todas as obras.
-    Apenas administradores e responsáveis por empresa podem acessar.
-    """
+    """Rota legada: redireciona para a listagem canônica de obras (/projects/)."""
     if not (is_admin(request.user) or is_responsavel_empresa(request.user)):
         messages.error(request, 'Você não tem permissão para gerenciar obras.')
         return redirect('gestao:home')
-    
-    obras = Obra.objects.all().select_related('empresa')
-    
-    # Filtrar por empresa se for responsável
-    if is_responsavel_empresa(request.user) and not is_admin(request.user):
-        obras = obras.filter(empresa__responsavel=request.user)
-    
-    obras = obras.order_by('empresa', 'codigo')
-    
-    # Filtros
-    ativo_filter = request.GET.get('ativo')
-    if ativo_filter is not None and ativo_filter != '':
-        obras = obras.filter(ativo=ativo_filter == '1')
-    
-    search_query = request.GET.get('search')
-    if search_query:
-        obras = obras.filter(
-            Q(codigo__icontains=search_query) |
-            Q(nome__icontains=search_query) |
-            Q(descricao__icontains=search_query)
-        )
-    
-    # Paginação
-    paginator = Paginator(obras, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'page_obj': page_obj,
-        'obras': page_obj,
-        'user_profile': get_user_profile(request.user),
-        'ativo_filter': ativo_filter,
-        'search_query': search_query,
-    }
-    return render(request, 'obras/list_obras.html', context)
+    return redirect('central_project_list')
 
 
 @login_required
@@ -3805,11 +3922,11 @@ def create_obra(request):
     """
     if not is_admin(request.user):
         messages.error(request, 'Apenas administradores podem criar obras.')
-        return redirect('gestao:list_obras')
+        return redirect('central_project_list')
     
     # Evitar que Voltar do navegador retorne ao formulário já submetido
     if request.method == 'GET':
-        r = _redirect_if_back_after_post(request, '_prevent_back_create_obra', 'gestao:list_obras')
+        r = _redirect_if_back_after_post(request, '_prevent_back_create_obra', 'central_project_list')
         if r:
             return r
     
@@ -3822,6 +3939,8 @@ def create_obra(request):
             record_obra_created(request, request.user, obra)
             messages.success(request, f'Obra "{obra.codigo}" criada com sucesso!')
             _mark_post_success_redirect(request, '_prevent_back_create_obra')
+            if request.POST.get('save_and_manage_fronts'):
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
             return redirect('gestao:detail_obra', pk=obra.pk)
     else:
         form = ObraForm(user=request.user)
@@ -3842,24 +3961,28 @@ def detail_obra(request, pk):
     Apenas administradores e responsáveis por empresa podem acessar.
     """
     obra = get_object_or_404(Obra, pk=pk)
-    
-    # Verificar permissão
-    if not (is_admin(request.user) or 
-            (is_responsavel_empresa(request.user) and obra.empresa and obra.empresa.responsavel == request.user)):
+
+    if not (is_admin(request.user) or (
+        is_responsavel_empresa(request.user) and obra.empresa and obra.empresa.responsavel == request.user
+    )):
         messages.error(request, 'Você não tem permissão para visualizar esta obra.')
-        return redirect('gestao:list_obras')
-    
-    # Contar pedidos relacionados
-    workorders_count = obra.work_orders.count()
-    workorders_pendentes = obra.work_orders.filter(status='pendente').count()
-    
-    context = {
-        'obra': obra,
-        'user_profile': get_user_profile(request.user),
-        'workorders_count': workorders_count,
-        'workorders_pendentes': workorders_pendentes,
-    }
-    return render(request, 'obras/detail_obra.html', context)
+        return redirect('central_project_list')
+
+    # Tela legada desativada: direciona sempre para o cadastro canônico em /projects/.
+    if obra.project_id:
+        return redirect('project-edit', pk=obra.project_id)
+
+    matched_project = Project.objects.filter(code__iexact=(obra.codigo or '').strip()).first()
+    if matched_project:
+        obra.project = matched_project
+        obra.save(update_fields=['project', 'updated_at'])
+        return redirect('project-edit', pk=matched_project.id)
+
+    messages.info(
+        request,
+        'Esta obra ainda não possui projeto vinculado no Diário. Abra a lista de obras para vincular.',
+    )
+    return redirect('central_project_list')
 
 
 @login_required
@@ -3874,7 +3997,7 @@ def edit_obra(request, pk):
     if not (is_admin(request.user) or 
             (is_responsavel_empresa(request.user) and obra.empresa and obra.empresa.responsavel == request.user)):
         messages.error(request, 'Você não tem permissão para editar esta obra.')
-        return redirect('gestao:list_obras')
+        return redirect('central_project_list')
     
     # GET: evitar que Voltar do navegador retorne ao formulário já submetido
     if request.method == 'GET':
@@ -3891,6 +4014,8 @@ def edit_obra(request, pk):
             record_obra_updated(request, request.user, before, snapshot_obra(saved))
             messages.success(request, f'Obra "{saved.codigo}" atualizada com sucesso!')
             request.session['_prevent_back_edit_obra_pk'] = str(saved.pk)
+            if request.POST.get('save_and_manage_fronts'):
+                return redirect('gestao:manage_obra_fronts', pk=saved.pk)
             return redirect('gestao:detail_obra', pk=saved.pk)
     else:
         form = ObraForm(instance=obra, user=request.user)
@@ -4326,7 +4451,30 @@ def create_user(request):
         grupo = request.POST.get('grupo')
         create_as_pending = request.POST.get('create_as_pending') == 'on'
         grupos_selecionados = filtrar_grupos_post_atribuivel(request.POST.getlist('grupos'))
-        project_ids = request.POST.getlist('projects')
+        project_ids = []
+        for raw_project_id in request.POST.getlist('projects'):
+            try:
+                project_id = int(raw_project_id)
+            except (TypeError, ValueError):
+                continue
+            if project_id not in project_ids:
+                project_ids.append(project_id)
+
+        front_ids = []
+        for raw_front_id in request.POST.getlist('fronts'):
+            try:
+                front_id = int(raw_front_id)
+            except (TypeError, ValueError):
+                continue
+            if front_id not in front_ids:
+                front_ids.append(front_id)
+
+        allowed_front_ids = set(
+            ProjectFront.objects.filter(
+                project_id__in=project_ids,
+                is_active=True,
+            ).values_list('id', flat=True)
+        )
         
         if create_as_pending and not email:
             messages.error(request, 'Para cadastro pendente, informe o e-mail corporativo.')
@@ -4338,6 +4486,8 @@ def create_user(request):
             messages.error(request, 'Selecione pelo menos um grupo para o usuário acessar algum sistema.')
         elif not create_as_pending and User.objects.filter(username=username).exists():
             messages.error(request, 'Já existe um usuário com este username.')
+        elif front_ids and not allowed_front_ids.issuperset(front_ids):
+            messages.error(request, 'Há frentes selecionadas que não pertencem às obras marcadas.')
         else:
             if create_as_pending:
                 if UserSignupRequest.objects.filter(email__iexact=(email or '').strip(), status=UserSignupRequest.STATUS_PENDENTE).exists():
@@ -4352,6 +4502,7 @@ def create_user(request):
                     notes='Solicitação criada pelo cadastro interno (pendente de aprovação).',
                     requested_groups=grupos_selecionados,
                     requested_project_ids=project_ids,
+                    requested_front_ids=front_ids,
                     origem=UserSignupRequest.ORIGEM_INTERNO,
                     requested_by=request.user,
                 )
@@ -4386,31 +4537,41 @@ def create_user(request):
             
             # Lista única de obras = core.Project. Vincular ao Diário (ProjectMember) e ao GestControll (WorkOrderPermission quando Obra.project existe).
             for pid in project_ids:
-                try:
-                    project_id = int(pid)
-                    if not Project.objects.filter(pk=project_id).exists():
-                        continue
-                    ProjectMember.objects.get_or_create(user=user, project_id=project_id)
-                    obra = obra_gestao_do_projeto(project_id)
-                    if obra:
-                        if 'Solicitante' in grupos_selecionados:
-                            WorkOrderPermission.objects.get_or_create(
-                                usuario=user, obra=obra, tipo_permissao='solicitante',
-                                defaults={'ativo': True}
-                            )
-                        if 'Aprovador' in grupos_selecionados:
-                            WorkOrderPermission.objects.get_or_create(
-                                usuario=user, obra=obra, tipo_permissao='aprovador',
-                                defaults={'ativo': True}
-                            )
-                        if obra.empresa_id and (is_admin(request.user) or (is_responsavel_empresa(request.user) and obra.empresa.responsavel == request.user)):
-                            UserEmpresa.objects.get_or_create(
-                                usuario=user,
-                                empresa=obra.empresa,
-                                defaults={'ativo': True}
-                            )
-                except (ValueError, TypeError):
-                    pass
+                if not Project.objects.filter(pk=pid).exists():
+                    continue
+                ProjectMember.objects.get_or_create(user=user, project_id=pid)
+                obra = obra_gestao_do_projeto(pid)
+                if obra:
+                    if 'Solicitante' in grupos_selecionados:
+                        WorkOrderPermission.objects.get_or_create(
+                            usuario=user, obra=obra, tipo_permissao='solicitante',
+                            defaults={'ativo': True}
+                        )
+                    if 'Aprovador' in grupos_selecionados:
+                        WorkOrderPermission.objects.get_or_create(
+                            usuario=user, obra=obra, tipo_permissao='aprovador',
+                            defaults={'ativo': True}
+                        )
+                    if obra.empresa_id and (is_admin(request.user) or (is_responsavel_empresa(request.user) and obra.empresa.responsavel == request.user)):
+                        UserEmpresa.objects.get_or_create(
+                            usuario=user,
+                            empresa=obra.empresa,
+                            defaults={'ativo': True}
+                        )
+
+            # Quando informado, restringe o acesso do Diário às frentes selecionadas.
+            if front_ids:
+                selected_fronts = ProjectFront.objects.filter(
+                    id__in=front_ids,
+                    project_id__in=project_ids,
+                    is_active=True,
+                )
+                for front in selected_fronts:
+                    ProjectFrontMember.objects.get_or_create(
+                        user=user,
+                        front=front,
+                        defaults={'is_active': True},
+                    )
             
             # Criar perfil de usuário e fazer upload da foto se fornecida
             perfil, created = UserProfile.objects.get_or_create(usuario=user)
@@ -4443,10 +4604,7 @@ def create_user(request):
 
             _pids = []
             for _pid in project_ids:
-                try:
-                    _pids.append(int(_pid))
-                except (TypeError, ValueError):
-                    pass
+                _pids.append(_pid)
             record_user_created(
                 request,
                 request.user,
@@ -4476,7 +4634,18 @@ def create_user(request):
     grupos_secoes = grupos_secoes_para_atribuicao()
 
     # Lista única de obras do sistema = core.Project (ativas e inativas)
-    projects = projects_disponiveis_para_vinculo_usuario()
+    projects = list(projects_disponiveis_para_vinculo_usuario())
+    fronts_by_project_id = {}
+    if projects:
+        project_ids = [project.id for project in projects]
+        fronts = (
+            ProjectFront.objects.filter(project_id__in=project_ids, is_active=True)
+            .order_by('project__code', 'name')
+        )
+        for front in fronts:
+            fronts_by_project_id.setdefault(front.project_id, []).append(front)
+    for project in projects:
+        project.active_fronts = fronts_by_project_id.get(project.id, [])
     list_qs = _list_users_return_querystring(request)
     _central_cu = getattr(request, '_central_redirect', False)
     cancel_base = reverse('central_list_users' if _central_cu else 'gestao:list_users')
@@ -4484,6 +4653,7 @@ def create_user(request):
         'grupos_secoes': grupos_secoes,
         'empresas': empresas_disponiveis,
         'projects': projects,
+        'has_project_fronts': any(project.active_fronts for project in projects),
         'user_profile': get_user_profile(request.user),
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
         'use_central_urls': _central_cu,
@@ -4556,15 +4726,50 @@ def edit_user(request, pk):
                 pass
         
         # Lista única de obras = core.Project. Definir Diário (ProjectMember) = exatamente os projetos selecionados.
-        project_ids = request.POST.getlist('projects')
+        project_ids = []
+        for raw_project_id in request.POST.getlist('projects'):
+            try:
+                project_id = int(raw_project_id)
+            except (TypeError, ValueError):
+                continue
+            if project_id not in project_ids:
+                project_ids.append(project_id)
+        front_ids = []
+        for raw_front_id in request.POST.getlist('fronts'):
+            try:
+                front_id = int(raw_front_id)
+            except (TypeError, ValueError):
+                continue
+            if front_id not in front_ids:
+                front_ids.append(front_id)
+        allowed_front_ids = set(
+            ProjectFront.objects.filter(
+                project_id__in=project_ids,
+                is_active=True,
+            ).values_list('id', flat=True)
+        )
+        if front_ids and not allowed_front_ids.issuperset(front_ids):
+            messages.error(request, 'Há frentes selecionadas que não pertencem às obras marcadas.')
+            return _list_users_redirect(request)
+
         ProjectMember.objects.filter(user=user).delete()
         for pid in project_ids:
-            try:
-                project_id = int(pid)
-                if Project.objects.filter(pk=project_id).exists():
-                    ProjectMember.objects.get_or_create(user=user, project_id=project_id)
-            except (ValueError, TypeError):
-                pass
+            if Project.objects.filter(pk=pid).exists():
+                ProjectMember.objects.get_or_create(user=user, project_id=pid)
+
+        ProjectFrontMember.objects.filter(user=user).delete()
+        if front_ids:
+            selected_fronts = ProjectFront.objects.filter(
+                id__in=front_ids,
+                project_id__in=project_ids,
+                is_active=True,
+            )
+            for front in selected_fronts:
+                ProjectFrontMember.objects.get_or_create(
+                    user=user,
+                    front=front,
+                    defaults={'is_active': True},
+                )
         WorkOrderPermission.objects.filter(usuario=user).delete()
         if is_admin(request.user):
             UserEmpresa.objects.filter(usuario=user).update(ativo=False)
@@ -4572,27 +4777,23 @@ def edit_user(request, pk):
             empresas_responsavel = Empresa.objects.filter(responsavel=request.user, ativo=True)
             UserEmpresa.objects.filter(usuario=user, empresa__in=empresas_responsavel).update(ativo=False)
         for pid in project_ids:
-            try:
-                project_id = int(pid)
-                obra = obra_gestao_do_projeto(project_id)
-                if not obra:
-                    continue
-                if 'Solicitante' in grupos_selecionados:
-                    WorkOrderPermission.objects.create(
-                        usuario=user, obra=obra, tipo_permissao='solicitante', ativo=True
-                    )
-                if 'Aprovador' in grupos_selecionados:
-                    WorkOrderPermission.objects.create(
-                        usuario=user, obra=obra, tipo_permissao='aprovador', ativo=True
-                    )
-                if obra.empresa_id and (is_admin(request.user) or (is_responsavel_empresa(request.user) and obra.empresa.responsavel == request.user)):
-                    UserEmpresa.objects.update_or_create(
-                        usuario=user,
-                        empresa=obra.empresa,
-                        defaults={'ativo': True}
-                    )
-            except (ValueError, TypeError):
-                pass
+            obra = obra_gestao_do_projeto(pid)
+            if not obra:
+                continue
+            if 'Solicitante' in grupos_selecionados:
+                WorkOrderPermission.objects.create(
+                    usuario=user, obra=obra, tipo_permissao='solicitante', ativo=True
+                )
+            if 'Aprovador' in grupos_selecionados:
+                WorkOrderPermission.objects.create(
+                    usuario=user, obra=obra, tipo_permissao='aprovador', ativo=True
+                )
+            if obra.empresa_id and (is_admin(request.user) or (is_responsavel_empresa(request.user) and obra.empresa.responsavel == request.user)):
+                UserEmpresa.objects.update_or_create(
+                    usuario=user,
+                    empresa=obra.empresa,
+                    defaults={'ativo': True}
+                )
         
         # Atualizar foto de perfil se fornecida
         perfil, created = UserProfile.objects.get_or_create(usuario=user)
@@ -4637,8 +4838,22 @@ def edit_user(request, pk):
     
     grupos_secoes = grupos_secoes_para_atribuicao()
 
-    projects = projects_disponiveis_para_vinculo_usuario()
+    projects = list(projects_disponiveis_para_vinculo_usuario())
+    fronts_by_project_id = {}
+    if projects:
+        project_ids = [project.id for project in projects]
+        fronts = (
+            ProjectFront.objects.filter(project_id__in=project_ids, is_active=True)
+            .order_by('project__code', 'name')
+        )
+        for front in fronts:
+            fronts_by_project_id.setdefault(front.project_id, []).append(front)
+    for project in projects:
+        project.active_fronts = fronts_by_project_id.get(project.id, [])
     user_project_ids = list(ProjectMember.objects.filter(user=user).values_list('project_id', flat=True))
+    user_front_ids = list(
+        ProjectFrontMember.objects.filter(user=user, is_active=True, front__is_active=True).values_list('front_id', flat=True)
+    )
     # Sincronizar Diário: se o usuário tem obras no GestControll mas não tem ProjectMember, criar a partir das Obras vinculadas
     if not user_project_ids:
         project_ids_from_obras = list(
@@ -4664,6 +4879,8 @@ def edit_user(request, pk):
         'user_empresas': user_empresas,
         'projects': projects,
         'user_project_ids': user_project_ids,
+        'user_front_ids': user_front_ids,
+        'has_project_fronts': any(project.active_fronts for project in projects),
         'user_profile': get_user_profile(request.user),
         'is_responsavel_empresa': is_responsavel_empresa(request.user) and not is_admin(request.user),
         'use_central_urls': _central_ed,
@@ -5106,6 +5323,171 @@ def edit_empresa(request, pk):
     return _no_cache_form_response(response)
 
 
+# ========== GERENCIAMENTO DE FRENTES POR OBRA ==========
+
+@login_required
+def manage_obra_fronts(request, pk):
+    """
+    Gerencia frentes (subobras) da obra sem depender do Django admin.
+    """
+    obra = get_object_or_404(Obra, pk=pk)
+    next_url = (request.GET.get('next') or '').strip()
+    if next_url and not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        next_url = ''
+
+    if not (is_admin(request.user) or (
+        is_responsavel_empresa(request.user) and obra.empresa and obra.empresa.responsavel == request.user
+    )):
+        messages.error(request, 'Você não tem permissão para gerenciar frentes desta obra.')
+        return redirect('central_project_list')
+
+    project = obra.project
+    if not project:
+        project = Project.objects.filter(code__iexact=(obra.codigo or '').strip()).first()
+        if project:
+            obra.project = project
+            obra.save(update_fields=['project', 'updated_at'])
+            messages.info(
+                request,
+                f'Projeto do Diário vinculado automaticamente pela obra "{obra.codigo}".'
+            )
+
+    if request.method == 'POST':
+        if not project:
+            messages.error(
+                request,
+                'Esta obra ainda não está vinculada a um Projeto do Diário. '
+                'Vincule o projeto para gerenciar frentes.'
+            )
+            return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+
+        action = (request.POST.get('action') or '').strip()
+
+        if action == 'add':
+            name = (request.POST.get('name') or '').strip()
+            code = (request.POST.get('code') or '').strip().upper()
+            responsible_name = (request.POST.get('responsible_name') or '').strip()
+            location_reference = (request.POST.get('location_reference') or '').strip()
+            description = (request.POST.get('description') or '').strip()
+            is_active = request.POST.get('is_active') == 'on'
+
+            if not name:
+                messages.error(request, 'Informe o nome da frente.')
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+
+            try:
+                ProjectFront.objects.create(
+                    project=project,
+                    name=name,
+                    code=code,
+                    responsible_name=responsible_name,
+                    location_reference=location_reference,
+                    description=description,
+                    is_active=is_active,
+                )
+                messages.success(request, f'Frente "{name}" criada com sucesso.')
+            except IntegrityError:
+                messages.error(
+                    request,
+                    'Já existe frente com este nome/código nesta obra. Verifique os dados informados.'
+                )
+
+        elif action == 'update':
+            front_id = request.POST.get('front_id')
+            front = ProjectFront.objects.filter(pk=front_id, project=project).first()
+            if not front:
+                messages.error(request, 'Frente não encontrada.')
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+
+            name = (request.POST.get('name') or '').strip()
+            code = (request.POST.get('code') or '').strip().upper()
+            responsible_name = (request.POST.get('responsible_name') or '').strip()
+            location_reference = (request.POST.get('location_reference') or '').strip()
+            description = (request.POST.get('description') or '').strip()
+            is_active = request.POST.get('is_active') == 'on'
+
+            if not name:
+                messages.error(request, 'Informe o nome da frente.')
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+
+            front.name = name
+            front.code = code
+            front.responsible_name = responsible_name
+            front.location_reference = location_reference
+            front.description = description
+            front.is_active = is_active
+            try:
+                front.save()
+                messages.success(request, f'Frente "{front.name}" atualizada com sucesso.')
+            except IntegrityError:
+                messages.error(
+                    request,
+                    'Já existe outra frente com este nome/código nesta obra. Ajuste os dados.'
+                )
+
+        elif action == 'toggle':
+            front_id = request.POST.get('front_id')
+            front = ProjectFront.objects.filter(pk=front_id, project=project).first()
+            if not front:
+                messages.error(request, 'Frente não encontrada.')
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+            front.is_active = not front.is_active
+            front.save(update_fields=['is_active', 'updated_at'])
+            messages.success(
+                request,
+                f'Frente "{front.name}" {"ativada" if front.is_active else "desativada"} com sucesso.'
+            )
+
+        elif action == 'delete':
+            front_id = request.POST.get('front_id')
+            front = ProjectFront.objects.filter(pk=front_id, project=project).first()
+            if not front:
+                messages.error(request, 'Frente não encontrada.')
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+            if front.diaries.exists():
+                messages.error(
+                    request,
+                    'Não é possível remover frente com RDO já cadastrado. '
+                    'Desative a frente para retirar da operação.'
+                )
+                return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+            front.delete()
+            messages.success(request, 'Frente removida com sucesso.')
+
+        return redirect('gestao:manage_obra_fronts', pk=obra.pk)
+
+    fronts = ProjectFront.objects.none()
+    fronts_active_count = 0
+    fronts_inactive_count = 0
+    if project:
+        fronts = (
+            ProjectFront.objects.filter(project=project)
+            .annotate(
+                diaries_count=Count('diaries', distinct=True),
+                members_count=Count('members', filter=Q(members__is_active=True), distinct=True),
+                last_diary_date=Max('diaries__date'),
+            )
+            .order_by('-is_active', 'name')
+        )
+        fronts_active_count = fronts.filter(is_active=True).count()
+        fronts_inactive_count = fronts.filter(is_active=False).count()
+
+    context = {
+        'obra': obra,
+        'project': project,
+        'fronts': fronts,
+        'fronts_active_count': fronts_active_count,
+        'fronts_inactive_count': fronts_inactive_count,
+        'back_url': next_url or reverse('central_project_list'),
+        'user_profile': get_user_profile(request.user),
+    }
+    return render(request, 'obras/manage_obra_fronts.html', context)
+
+
 # ========== GERENCIAMENTO DE PERMISSÕES POR OBRA ==========
 
 @login_required
@@ -5120,7 +5502,7 @@ def manage_obra_permissions(request, pk):
     if not (is_admin(request.user) or 
             (is_responsavel_empresa(request.user) and obra.empresa and obra.empresa.responsavel == request.user)):
         messages.error(request, 'Você não tem permissão para gerenciar permissões desta obra.')
-        return redirect('gestao:list_obras')
+        return redirect('central_project_list')
     
     if request.method == 'POST':
         from audit.action_codes import AuditAction

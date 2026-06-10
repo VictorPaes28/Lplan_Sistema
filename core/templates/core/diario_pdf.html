@@ -22,6 +22,12 @@
                 <td>Status:</td>
                 <td>{{ diary.get_status_display }}</td>
             </tr>
+            {% if diary.front %}
+            <tr>
+                <td>Frente:</td>
+                <td>{{ diary.front.name }}</td>
+            </tr>
+            {% endif %}
             <tr>
                 <td>Criado por:</td>
                 <td>{{ diary.created_by.get_full_name|default:diary.created_by.username }}</td>

@@ -3,100 +3,398 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/central-pages.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'core/css/project_list.css' %}?v=1">
 {% endblock %}
 
 {% block page_title %}Obras{% endblock %}
-{% block page_subtitle %}Cadastro único: Diário de Obra, Mapa de Suprimentos (código Sienge = código do projeto) e locais do mapa por obra{% endblock %}
+{% block page_subtitle %}{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-    <a href="{% url 'accounts:admin_central' %}" class="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar ao Painel</a>
-</div>
-
-<header class="project-list-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div>
-        <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Obras</h2>
-        <p class="text-slate-500 text-sm mt-0.5 max-w-xl">Cada obra alimenta o <strong>Diário</strong> (RDO), o <strong>Mapa de Suprimentos</strong> (mesmo código) e os <strong>locais</strong> (blocos, pavimentos, etc.). Aqui também configura e-mails e aprovadores do PDF do diário.</p>
-    </div>
-    <a href="{% url 'project-new' %}" class="central-btn-primary inline-flex shrink-0 w-fit items-center gap-2" id="project-list-primary-cta">
-        <i class="fas fa-plus" aria-hidden="true"></i> Nova Obra
-    </a>
-</header>
-
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    {% for project in projects %}
-    <div class="central-project-card">
-        <div class="flex items-start justify-between mb-4">
-            <div class="min-w-0 flex-1 pr-2">
-                <h3 class="text-lg font-semibold text-slate-800 truncate">{{ project.name }}</h3>
-                <p class="text-sm text-slate-500 mt-1 line-clamp-2">{{ project.code }}</p>
+<div class="project-list-page">
+    <section class="project-list-filters">
+        <form method="get" class="project-list-filter-form">
+            <div class="project-list-filter-field">
+                <label for="project-search">Buscar obra</label>
+                <input id="project-search" type="search" name="q" value="{{ q }}" placeholder="Nome, código, contratante ou construtora">
             </div>
-            <span class="central-project-badge shrink-0 {% if project.is_active %}central-project-badge-ativo{% else %}central-project-badge-inativo{% endif %}">{% if project.is_active %}Ativo{% else %}Inativa{% endif %}</span>
+            <div class="project-list-filter-field project-list-filter-field--small">
+                <label for="project-status">Status</label>
+                <select id="project-status" name="status">
+                    <option value="all" {% if status == 'all' %}selected{% endif %}>Todas</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Ativas</option>
+                    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inativas</option>
+                </select>
+            </div>
+            <div class="project-list-filter-actions">
+                <button type="submit" class="central-btn-primary">Aplicar</button>
+                <a href="{% url 'central_project_list' %}" class="project-filter-clear">Limpar</a>
+            </div>
+        </form>
+    </section>
+
+    <div class="project-list-summary-row">
+        <section class="project-list-summary">
+            <span class="project-summary-chip">
+                <strong>{{ total_projects }}</strong> obras
+            </span>
+            <span class="project-summary-chip">
+                <strong>{{ total_projects_active }}</strong> ativas
+            </span>
+            <span class="project-summary-chip">
+                <strong>{{ total_projects_inactive }}</strong> inativas
+            </span>
+        </section>
+
+        <div class="project-list-primary-action">
+            <a href="{% url 'project-new' %}" class="central-btn-primary inline-flex shrink-0 w-fit items-center gap-2" id="project-list-primary-cta" data-project-modal-open data-project-modal-title="Nova Obra">
+                <i class="fas fa-plus" aria-hidden="true"></i> Nova Obra
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    {% for project in projects %}
+    <article class="central-project-card project-list-card">
+        <div class="project-list-card-header">
+            <div class="min-w-0 flex-1">
+                <h3 class="project-list-card-title">{{ project.name }}</h3>
+                <p class="project-list-card-code">{{ project.code }}</p>
+            </div>
+            <span class="central-project-badge shrink-0 {% if project.is_active %}central-project-badge-ativo{% else %}central-project-badge-inativo{% endif %}">{% if project.is_active %}Ativa{% else %}Inativa{% endif %}</span>
         </div>
 
-        <div class="space-y-2 mb-4">
-            <div class="flex items-center justify-between central-project-stat">
+        <div class="project-front-chip-wrap">
+            {% if project.obra_gestao_id %}
+            <a href="{% url 'gestao:manage_obra_fronts' project.obra_gestao_id %}?next={{ request.get_full_path|urlencode }}"
+               class="project-front-chip project-front-chip-link {% if project.n_fronts_active %}project-front-chip--has{% endif %}"
+               title="Gerenciar frentes desta obra">
+                <i class="fas fa-layer-group" aria-hidden="true"></i>
+                {% if project.n_fronts_active %}
+                    {{ project.n_fronts_active }} frente(s) ativa(s)
+                {% else %}
+                    Sem frentes ativas
+                {% endif %}
+            </a>
+            {% else %}
+            <span class="project-front-chip {% if project.n_fronts_active %}project-front-chip--has{% endif %}"
+               title="Sem vínculo da obra do GestControll para abrir o gerenciamento de frentes">
+                <i class="fas fa-layer-group" aria-hidden="true"></i>
+                {% if project.n_fronts_active %}
+                    {{ project.n_fronts_active }} frente(s) ativa(s)
+                {% else %}
+                    Sem frentes ativas
+                {% endif %}
+            </span>
+            {% endif %}
+        </div>
+
+        <div class="project-list-stats-grid">
+            <div class="central-project-stat">
                 <span>Diários</span>
                 <strong>{{ project.diaries_count }}</strong>
             </div>
-            <div class="flex items-center justify-between central-project-stat">
-                <span>Atividades</span>
-                <strong>{{ project.activities_count }}</strong>
-            </div>
-            <div class="flex items-center justify-between central-project-stat">
+            <div class="central-project-stat">
                 <span>Locais (mapa)</span>
                 <strong>{{ project.n_locais_mapa|default:0 }}</strong>
             </div>
-            <div class="flex items-center justify-between central-project-stat">
-                <span>Equip. RDO</span>
-                <strong>{{ project.n_equip_rdo|default:0 }}</strong>
-            </div>
-            <div class="flex items-center justify-between central-project-stat">
-                <span>Mão de obra RDO</span>
-                <strong>{{ project.n_labor_rdo|default:0 }}</strong>
+            <div class="central-project-stat">
+                <span>Atividades</span>
+                <strong>{{ project.activities_count }}</strong>
             </div>
         </div>
 
-        <div class="central-project-actions">
-            <a href="{% url 'project-locais-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);color:#047857;border:1px solid #6ee7b7;" title="Hierarquia de locais para o Mapa de Suprimentos">
+        <div class="project-list-action-groups">
+            <div class="central-project-actions project-list-actions-main">
+                <a href="{% url 'project-edit' project.id %}" class="central-project-btn project-list-btn-highlight" title="Editar obra" data-project-modal-open data-project-modal-title="Editar Obra">
+                    <i class="fas fa-edit" aria-hidden="true"></i> Editar obra
+                </a>
+                <a href="{% url 'central_diary_approvers' project.id %}" class="central-project-btn project-list-btn-highlight" title="Aprovadores que validam o RDO antes de enviar ao cliente">
+                    <i class="fas fa-user-check" aria-hidden="true"></i> Aprovadores do RDO
+                </a>
+            </div>
+
+            <details class="project-list-more-actions">
+                <summary>
+                    <span><i class="fas fa-sliders-h" aria-hidden="true"></i> Mais ações</span>
+                    <i class="fas fa-chevron-down project-list-more-actions__arrow" aria-hidden="true"></i>
+                </summary>
+                <div class="project-list-more-actions__content">
+                    <a href="{% url 'project-locais-manage' project.id %}" class="central-project-btn project-list-btn-neutral" title="Hierarquia de locais para o Mapa de Suprimentos">
                 <i class="fas fa-map-pin" aria-hidden="true"></i> Locais do mapa
-            </a>
-            <a href="{% url 'project-equipment-catalog-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#6d28d9;border:1px solid #c4b5fd;" title="Lista de equipamentos exibida no formulário do RDO">
-                <i class="fas fa-tools" aria-hidden="true"></i> Equip. RDO
-            </a>
-            <a href="{% url 'project-labor-catalog-manage' project.id %}" class="central-project-btn" style="background:linear-gradient(135deg,#fff7ed,#ffedd5);color:#c2410c;border:1px solid #fdba74;" title="Lista de cargos exibida no formulário do RDO">
-                <i class="fas fa-users" aria-hidden="true"></i> Mão de obra RDO
-            </a>
-            <a href="{% url 'central_diary_emails' project.id %}" class="central-project-btn central-project-btn-email" title="E-mails que recebem o PDF do diário por e-mail, todo dia">
-                <i class="fas fa-envelope" aria-hidden="true"></i> E-mails do diário
-            </a>
-            <a href="{% url 'central_diary_approvers' project.id %}" class="central-project-btn central-project-btn-primary" title="Aprovadores que validam o RDO antes de enviar ao cliente">
-                <i class="fas fa-user-check" aria-hidden="true"></i> Aprovadores do RDO
-            </a>
-            <a href="{% url 'project-edit' project.id %}" class="central-project-btn central-project-btn-icon" title="Editar obra">
-                <i class="fas fa-edit" aria-hidden="true"></i>
-            </a>
-            <form action="{% url 'project-toggle-active' project.id %}" method="post" class="central-project-toggle-form" onsubmit="return confirm('{% if project.is_active %}Desativar esta obra? Ela deixará de aparecer nas seleções de obra para os usuários; dados e histórico permanecem.{% else %}Reativar esta obra? Ela voltará a aparecer nas seleções e nos módulos.{% endif %}');">
-                {% csrf_token %}
-                <button type="submit" class="central-project-btn central-project-btn-icon {% if project.is_active %}central-project-btn-toggle-off{% else %}central-project-btn-toggle-on{% endif %}" title="{% if project.is_active %}Desativar obra{% else %}Reativar obra{% endif %}">
-                    <i class="fas fa-{% if project.is_active %}ban{% else %}check{% endif %}" aria-hidden="true"></i>
-                </button>
-            </form>
-            <form action="{% url 'project-delete' project.id %}" method="post" class="central-project-delete-form" onsubmit="return confirm('Tem certeza que deseja excluir a obra \u00AB{{ project.name|escapejs }}\u00BB? Esta ação não pode ser desfeita.');">
-                {% csrf_token %}
-                <button type="submit" class="central-project-btn central-project-btn-icon central-project-btn-delete" title="Excluir obra">
-                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
-                </button>
-            </form>
+                </a>
+                    <a href="{% url 'project-equipment-catalog-manage' project.id %}" class="central-project-btn project-list-btn-neutral" title="Lista de equipamentos exibida no formulário do RDO">
+                        <i class="fas fa-tools" aria-hidden="true"></i> Equip. RDO
+                    </a>
+                    <a href="{% url 'project-labor-catalog-manage' project.id %}" class="central-project-btn project-list-btn-neutral" title="Lista de cargos exibida no formulário do RDO">
+                        <i class="fas fa-users" aria-hidden="true"></i> Mão de obra RDO
+                    </a>
+                    <a href="{% url 'central_diary_emails' project.id %}" class="central-project-btn project-list-btn-neutral" title="E-mails que recebem o PDF do diário por e-mail, todo dia">
+                        <i class="fas fa-envelope" aria-hidden="true"></i> E-mails do diário
+                    </a>
+                    <form action="{% url 'project-toggle-active' project.id %}" method="post" class="central-project-toggle-form project-list-inline-form" onsubmit="return confirm('{% if project.is_active %}Desativar esta obra? Ela deixará de aparecer nas seleções de obra para os usuários; dados e histórico permanecem.{% else %}Reativar esta obra? Ela voltará a aparecer nas seleções e nos módulos.{% endif %}');">
+                        {% csrf_token %}
+                        <button type="submit" class="central-project-btn project-list-btn-neutral" title="{% if project.is_active %}Desativar obra{% else %}Reativar obra{% endif %}">
+                            <i class="fas fa-{% if project.is_active %}ban{% else %}check{% endif %}" aria-hidden="true"></i>
+                            {% if project.is_active %}Desativar obra{% else %}Reativar obra{% endif %}
+                        </button>
+                    </form>
+                    <form action="{% url 'project-delete' project.id %}" method="post" class="central-project-delete-form project-list-inline-form" onsubmit="return confirm('Tem certeza que deseja excluir a obra \u00AB{{ project.name|escapejs }}\u00BB? Esta ação não pode ser desfeita.');">
+                        {% csrf_token %}
+                        <button type="submit" class="central-project-btn project-list-btn-danger" title="Excluir obra">
+                            <i class="fas fa-trash-alt" aria-hidden="true"></i> Excluir obra
+                        </button>
+                    </form>
+                </div>
+            </details>
         </div>
-    </div>
+    </article>
     {% empty %}
     <div class="col-span-full central-section project-list-empty text-center py-12 px-6">
         <i class="fas fa-folder-open text-5xl text-slate-300 mb-4 block" aria-hidden="true"></i>
-        <p class="text-slate-600 font-medium">Nenhuma obra cadastrada.</p>
-        <p class="text-slate-500 text-sm mt-1 max-w-md mx-auto">Use o botão <strong>Nova Obra</strong> acima para cadastrar a primeira obra e configurar os e-mails que recebem o diário em PDF.</p>
-        <a href="{% url 'project-new' %}" class="inline-flex items-center gap-2 mt-4 text-sm font-medium text-slate-600 hover:text-slate-800 underline underline-offset-2">Cadastrar primeira obra <i class="fas fa-arrow-right text-xs" aria-hidden="true"></i></a>
+        {% if q or status != 'all' %}
+            <p class="text-slate-600 font-medium">Nenhuma obra encontrada com os filtros atuais.</p>
+            <p class="text-slate-500 text-sm mt-1 max-w-md mx-auto">Tente remover filtros ou ajustar a busca para visualizar obras.</p>
+            <a href="{% url 'central_project_list' %}" class="inline-flex items-center gap-2 mt-4 text-sm font-medium text-slate-600 hover:text-slate-800 underline underline-offset-2">Limpar filtros <i class="fas fa-arrow-right text-xs" aria-hidden="true"></i></a>
+        {% else %}
+            <p class="text-slate-600 font-medium">Nenhuma obra cadastrada.</p>
+            <p class="text-slate-500 text-sm mt-1 max-w-md mx-auto">Use o botão <strong>Nova Obra</strong> para cadastrar sua primeira obra e configurar os e-mails que recebem o diário em PDF.</p>
+            <a href="{% url 'project-new' %}" class="inline-flex items-center gap-2 mt-4 text-sm font-medium text-slate-600 hover:text-slate-800 underline underline-offset-2">Cadastrar primeira obra <i class="fas fa-arrow-right text-xs" aria-hidden="true"></i></a>
+        {% endif %}
     </div>
     {% endfor %}
+    </div>
 </div>
+
+<div id="project-modal-overlay" class="project-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+    <div class="project-modal-panel">
+        <div class="project-modal-topbar">
+            <h3 id="project-modal-title">Obra</h3>
+            <button type="button" class="project-modal-close-btn" aria-label="Fechar modal" data-project-modal-close>
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div id="project-modal-body" class="project-modal-body">
+            <div class="project-modal-loading">Carregando formulário...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const overlay = document.getElementById('project-modal-overlay');
+    const body = document.getElementById('project-modal-body');
+    const titleEl = document.getElementById('project-modal-title');
+    if (!overlay || !body || !titleEl) return;
+
+    const openClass = 'project-modal-open';
+
+    function initFrontsBuilder(scope) {
+        const hiddenField = scope.querySelector('#id_initial_front_names');
+        const list = scope.querySelector('[data-fronts-list]');
+        const addBtn = scope.querySelector('[data-fronts-add]');
+        if (!hiddenField || !list || !addBtn) return;
+
+        hiddenField.classList.add('project-fronts-hidden-field');
+
+        function buildRow(value) {
+            const row = document.createElement('div');
+            row.className = 'project-fronts-row';
+            row.innerHTML = `
+                <input type="text" class="project-fronts-input" placeholder="Nome da frente (ex.: Frente Norte)">
+                <button type="button" class="project-fronts-remove" aria-label="Remover frente">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            `;
+            const input = row.querySelector('input');
+            const removeBtn = row.querySelector('button');
+            input.value = value || '';
+
+            input.addEventListener('input', syncHiddenField);
+            removeBtn.addEventListener('click', function () {
+                row.remove();
+                if (!list.querySelector('.project-fronts-row')) {
+                    addRow('');
+                }
+                syncHiddenField();
+            });
+            list.appendChild(row);
+        }
+
+        function addRow(value) {
+            buildRow(value);
+            const rows = list.querySelectorAll('.project-fronts-row');
+            const lastInput = rows[rows.length - 1]?.querySelector('input');
+            if (lastInput) lastInput.focus();
+        }
+
+        function parseInitialValues() {
+            const raw = (hiddenField.value || '').trim();
+            if (!raw) return [];
+            const items = [];
+            raw.split('\n').forEach(function (line) {
+                line.split(',').forEach(function (part) {
+                    const normalized = part.trim();
+                    if (normalized) items.push(normalized);
+                });
+            });
+            return items;
+        }
+
+        function syncHiddenField() {
+            const values = [];
+            list.querySelectorAll('.project-fronts-input').forEach(function (input) {
+                const normalized = (input.value || '').trim();
+                if (normalized) values.push(normalized);
+            });
+            hiddenField.value = values.join('\n');
+        }
+
+        list.innerHTML = '';
+        const initialValues = parseInitialValues();
+        if (initialValues.length) {
+            initialValues.forEach(function (v) { buildRow(v); });
+        } else {
+            buildRow('');
+        }
+        syncHiddenField();
+
+        addBtn.addEventListener('click', function () {
+            addRow('');
+            syncHiddenField();
+        });
+
+        const form = hiddenField.closest('form');
+        if (form) {
+            form.__syncFrontsField = syncHiddenField;
+        }
+    }
+
+    function initDatePickers(scope) {
+        if (typeof flatpickr === 'undefined') return;
+        const startDateInput = scope.querySelector('#id_start_date');
+        const endDateInput = scope.querySelector('#id_end_date');
+        if (startDateInput) {
+            flatpickr(startDateInput, {
+                dateFormat: 'd/m/Y',
+                locale: 'pt',
+                allowInput: false,
+                clickOpens: true
+            });
+        }
+        if (endDateInput) {
+            const fpEnd = flatpickr(endDateInput, {
+                dateFormat: 'd/m/Y',
+                locale: 'pt',
+                allowInput: false,
+                clickOpens: true
+            });
+            if (startDateInput) {
+                startDateInput.addEventListener('change', function () {
+                    if (!this.value) return;
+                    const selectedDate = flatpickr.parseDate(this.value, 'd/m/Y');
+                    if (selectedDate) fpEnd.set('minDate', selectedDate);
+                });
+            }
+        }
+
+        const hasFrontsCheckbox = scope.querySelector('#id_has_fronts');
+        const frontsSection = scope.querySelector('[data-fronts-section]');
+        if (hasFrontsCheckbox && frontsSection) {
+            const syncFrontSection = function () {
+                frontsSection.style.display = hasFrontsCheckbox.checked ? '' : 'none';
+            };
+            hasFrontsCheckbox.addEventListener('change', syncFrontSection);
+            syncFrontSection();
+        }
+
+        initFrontsBuilder(scope);
+    }
+
+    function openModal() {
+        overlay.classList.remove('hidden');
+        document.body.classList.add(openClass);
+    }
+
+    function closeModal() {
+        overlay.classList.add('hidden');
+        document.body.classList.remove(openClass);
+        body.innerHTML = '<div class="project-modal-loading">Carregando formulário...</div>';
+    }
+
+    async function loadForm(url, title) {
+        titleEl.textContent = title || 'Obra';
+        openModal();
+        try {
+            const modalUrl = url.includes('?') ? `${url}&modal=1` : `${url}?modal=1`;
+            const resp = await fetch(modalUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const html = await resp.text();
+            body.innerHTML = html;
+            initDatePickers(body);
+        } catch (err) {
+            body.innerHTML = '<div class="project-modal-error">Não foi possível carregar o formulário. Tente novamente.</div>';
+        }
+    }
+
+    async function submitModalForm(form) {
+        if (typeof form.__syncFrontsField === 'function') {
+            form.__syncFrontsField();
+        }
+        const action = form.getAttribute('action') || window.location.href;
+        const formData = new FormData(form);
+        formData.set('modal', '1');
+        try {
+            const resp = await fetch(action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            const contentType = resp.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const payload = await resp.json();
+                if (payload && payload.ok) {
+                    window.location.reload();
+                    return;
+                }
+            }
+
+            const html = await resp.text();
+            body.innerHTML = html;
+            initDatePickers(body);
+        } catch (err) {
+            body.insertAdjacentHTML('beforeend', '<div class="project-modal-error">Erro ao salvar. Tente novamente.</div>');
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        const openBtn = event.target.closest('[data-project-modal-open]');
+        if (openBtn) {
+            event.preventDefault();
+            const url = openBtn.getAttribute('href');
+            const title = openBtn.getAttribute('data-project-modal-title') || 'Obra';
+            loadForm(url, title);
+            return;
+        }
+
+        const closeBtn = event.target.closest('[data-project-modal-close]');
+        if (closeBtn || event.target === overlay) {
+            event.preventDefault();
+            closeModal();
+        }
+    });
+
+    document.addEventListener('submit', function (event) {
+        const modalForm = event.target.closest('form[data-project-modal-form]');
+        if (!modalForm) return;
+        event.preventDefault();
+        submitModalForm(modalForm);
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !overlay.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+})();
+</script>
 {% endblock %}

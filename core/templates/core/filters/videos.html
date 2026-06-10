@@ -23,6 +23,17 @@
             <label for="filter-video-date-end">Data fim</label>
             <input type="date" id="filter-video-date-end" name="date_end" value="{{ date_end|default:'' }}">
         </div>
+        {% if has_active_fronts %}
+        <div>
+            <label for="filter-video-front">Frente</label>
+            <select id="filter-video-front" name="front">
+                <option value="">Todas</option>
+                {% for front in active_fronts %}
+                <option value="{{ front.id }}"{% if selected_front and selected_front.id == front.id %} selected{% endif %}>{{ front.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
         <div class="filter-submit-wrap">
             <button type="submit" class="filter-submit">
                 <i class="fas fa-search"></i> Filtrar
@@ -50,6 +61,9 @@
         </div>
         <div class="filter-card-body">
             <p class="filter-card-date">{{ video.diary.date|date:"d/m/Y" }}</p>
+            {% if video.diary.front %}
+            <p class="text-xs text-blue-700 mt-1">Frente: {{ video.diary.front.name }}</p>
+            {% endif %}
             {% if video.caption %}
             <p class="filter-card-caption" title="{{ video.caption }}">{{ video.caption }}</p>
             {% else %}
@@ -66,13 +80,13 @@
 {% if videos.has_other_pages %}
 <nav class="filter-pagination" aria-label="Paginação de vídeos">
     {% if videos.has_previous %}
-    <a href="?page={{ videos.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}">
+    <a href="?page={{ videos.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}{% if selected_front %}&front={{ selected_front.id }}{% endif %}">
         <i class="fas fa-chevron-left"></i> Anterior
     </a>
     {% endif %}
     <span class="filter-pagination-current">Pág. {{ videos.number }} de {{ videos.paginator.num_pages }}</span>
     {% if videos.has_next %}
-    <a href="?page={{ videos.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}">
+    <a href="?page={{ videos.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if date_start %}&date_start={{ date_start }}{% endif %}{% if date_end %}&date_end={{ date_end }}{% endif %}{% if selected_front %}&front={{ selected_front.id }}{% endif %}">
         Próxima <i class="fas fa-chevron-right"></i>
     </a>
     {% endif %}

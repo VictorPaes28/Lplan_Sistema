@@ -1,0 +1,34 @@
+{% load static %}
+{% if exibir_seletor_frente %}
+<link rel="stylesheet" href="{% static 'core/css/contexto_frente.css' %}">
+<div class="lplan-contexto-frente{% if compact %} lplan-contexto-frente--compact{% endif %}{% if inline %} lplan-contexto-frente--inline{% endif %}{% if css_class %} {{ css_class }}{% endif %}">
+    <label class="lplan-contexto-frente__label" for="lplanContextoFrenteSelect">{{ label|default:"Frente" }}</label>
+    <div class="lplan-contexto-frente__select-wrap">
+        <select
+            id="lplanContextoFrenteSelect"
+            name="front"
+            class="lplan-contexto-frente__select form-select{% if select_class %} {{ select_class }}{% endif %}"
+            form="{{ form_id|default:'' }}"
+            data-lplan-front-select="1"
+            data-lplan-front-count="{{ frentes_disponiveis|length }}"
+        >
+            {% if admin_pode_obra_toda %}
+            <option value="0" {% if visao_obra_toda %}selected{% endif %}>Obra toda (consolidado)</option>
+            {% endif %}
+            {% for front in frentes_disponiveis %}
+            <option value="{{ front.id }}" {% if frente_selecionada and frente_selecionada.id == front.id %}selected{% endif %}>
+                {{ front.name }}{% if front.code %} ({{ front.code }}){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if help_text %}
+    <p class="lplan-contexto-frente__help">{{ help_text }}</p>
+    {% elif module_help %}
+    <p class="lplan-contexto-frente__help">{{ module_help }}</p>
+    {% elif not admin_pode_obra_toda %}
+    <p class="lplan-contexto-frente__help">Recorte operacional da obra. Dados de suprimentos permanecem consolidados por obra.</p>
+    {% endif %}
+</div>
+<script src="{% static 'core/js/contexto_frente_select.js' %}"></script>
+{% endif %}

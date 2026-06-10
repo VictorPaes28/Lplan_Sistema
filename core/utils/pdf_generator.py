@@ -323,7 +323,7 @@ def _get_logo_absolute_path() -> Optional[str]:
     return None
 
 
-def get_rdo_pdf_filename(project, date_obj, suffix='') -> str:
+def get_rdo_pdf_filename(project, date_obj, suffix='', front_name='') -> str:
     """
     Nome padrão do arquivo PDF do RDO: RDO_[CODIGO]_[DATA]_[NOME_DA_OBRA].pdf
     date_obj: date do diário; suffix: opcional (ex: '_detalhado', '_sem_fotos').
@@ -333,7 +333,13 @@ def get_rdo_pdf_filename(project, date_obj, suffix='') -> str:
     name = (project.name or '').strip()
     name_safe = re.sub(r'[^\w\s-]', '', name)
     name_safe = re.sub(r'[\s]+', '_', name_safe).strip('_') or 'OBRA'
-    return "RDO_%s_%s_%s%s.pdf" % (code, data_str, name_safe[:80], suffix)
+    front_safe = ''
+    if front_name:
+        fs = re.sub(r'[^\w\s-]', '', str(front_name))
+        fs = re.sub(r'[\s]+', '_', fs).strip('_')
+        if fs:
+            front_safe = "_%s" % fs[:60]
+    return "RDO_%s_%s_%s%s%s.pdf" % (code, data_str, name_safe[:80], front_safe, suffix)
 
 
 class PDFGenerator:

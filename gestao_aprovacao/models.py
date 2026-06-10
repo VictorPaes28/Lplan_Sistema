@@ -3,6 +3,7 @@ import unicodedata
 import re
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 
@@ -201,6 +202,15 @@ class WorkOrder(models.Model):
         verbose_name='Obra',
         help_text='Obra à qual este pedido pertence'
     )
+    front = models.ForeignKey(
+        'core.ProjectFront',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_orders_gestao',
+        verbose_name='Frente',
+        help_text='Frente da obra para este pedido (opcional para admins).',
+    )
     
     # Campos principais
     codigo = models.CharField(
@@ -375,6 +385,21 @@ class WorkOrder(models.Model):
     
     def __str__(self):
         return f"{self.codigo} - {self.nome_credor}"
+
+    def clean(self):
+        super().clean()
+        if self.front_id and not self.obra_id:
+            raise ValidationError({'front': 'Selecione a obra antes da frente.'})
+        if self.front_id and self.obra_id:
+            obra_project_id = getattr(self.obra, 'project_id', None)
+            if not obra_project_id:
+                raise ValidationError(
+                    {'front': 'A obra selecionada não possui vínculo de projeto para usar frentes.'}
+                )
+            if self.front.project_id != obra_project_id:
+                raise ValidationError(
+                    {'front': 'A frente selecionada não pertence à obra informada.'}
+                )
     
     # Transições válidas de status (state machine)
     TRANSICOES_VALIDAS = {

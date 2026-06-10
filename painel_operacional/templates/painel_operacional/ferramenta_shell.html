@@ -28,6 +28,7 @@
                     <option value="">Nenhuma obra disponível</option>
                     {% endfor %}
                 </select>
+                {% include "mapa_obras/includes/seletor_frente.html" with compact=True inline=True select_class="form-select" module_help="Contexto de frente compartilhado entre módulos. Ambientes permanecem por obra." %}
                 <p class="small text-muted mb-0 mt-1">A lista abaixo muda conforme a obra selecionada.</p>
             </form>
         </div>

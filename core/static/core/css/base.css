@@ -2141,6 +2141,45 @@ main::-webkit-scrollbar-thumb:hover {
     color: #64748b;
 }
 
+.report-list-approval__groups {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.report-list-approval__group {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.6rem;
+    padding: 0.55rem;
+    background: #ffffff;
+}
+
+.report-list-approval__group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
+}
+
+.report-list-approval__group-title {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.report-list-approval__group-count {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+}
+
 .report-list-htmx-target {
     margin-top: 0.125rem;
 }

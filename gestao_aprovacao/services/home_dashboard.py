@@ -22,7 +22,13 @@ _REPROVACOES_PREFETCH = Prefetch(
     .order_by("-created_at"),
     to_attr="prefetched_reprovacoes",
 )
-from gestao_aprovacao.utils import is_admin, is_aprovador, is_engenheiro, is_responsavel_empresa
+from gestao_aprovacao.utils import (
+    is_admin,
+    is_aprovador,
+    is_engenheiro,
+    is_responsavel_empresa,
+    usuario_pode_aprovar_pedido,
+)
 
 
 def _workorders_obras_ativas(qs):
@@ -130,6 +136,51 @@ def _local_month_start():
     return timezone.make_aware(datetime.combine(d0, datetime.min.time()))
 
 
+def _projects_with_active_fronts(project_ids) -> set[int]:
+    if not project_ids:
+        return set()
+    from core.models import ProjectFront
+
+    return set(
+        ProjectFront.objects.filter(
+            project_id__in=project_ids,
+            is_active=True,
+        ).values_list('project_id', flat=True).distinct()
+    )
+
+
+def _feed_front_fields(wo, *, admin_scope: bool, projects_with_fronts: set[int]) -> tuple[bool, str]:
+    obra = getattr(wo, 'obra', None)
+    project_id = getattr(obra, 'project_id', None) if obra else None
+    if not project_id or project_id not in projects_with_fronts:
+        return False, ''
+    if getattr(wo, 'front_id', None):
+        front = getattr(wo, 'front', None)
+        return True, (front.name if front else '').strip() or 'Frente'
+    if admin_scope:
+        return True, 'Sem frente (obra toda)'
+    return False, ''
+
+
+def _feed_row_base(wo, *, admin_scope: bool, projects_with_fronts: set[int]) -> dict[str, Any]:
+    mostrar_frente, front_label = _feed_front_fields(
+        wo,
+        admin_scope=admin_scope,
+        projects_with_fronts=projects_with_fronts,
+    )
+    return {
+        'pk': wo.pk,
+        'codigo': wo.codigo,
+        'obra_nome': wo.obra.nome if wo.obra_id else '',
+        'mostrar_frente': mostrar_frente,
+        'front_label': front_label,
+        'status': wo.status,
+        'status_display': wo.get_status_display(),
+        'detail_url': reverse('gestao:detail_workorder', kwargs={'pk': wo.pk}),
+        'updated_at': wo.updated_at,
+    }
+
+
 def collect_aprovador_fila_atraso(user, scoped_qs, *, limit: int | None = None) -> list[dict[str, Any]]:
     """
     Pedidos pendentes/reaprovação há mais de APROVADOR_FILA_ATRASO_DIAS dias
@@ -153,7 +204,7 @@ def collect_aprovador_fila_atraso(user, scoped_qs, *, limit: int | None = None) 
 
     pedidos: list[dict[str, Any]] = []
     for wo in candidatos:
-        if not wo.pode_aprovar(user):
+        if not usuario_pode_aprovar_pedido(user, wo):
             continue
         wait_from = wo.wait_from
         dias_na_fila = max(0, (now - wait_from).days)
@@ -198,6 +249,13 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
     start_month = _local_month_start()
     mine = scoped_qs.filter(criado_por=user)
     agg_qs = scoped_qs if admin_scope else mine
+    project_ids = set(
+        scoped_qs.exclude(obra__project_id__isnull=True)
+        .values_list('obra__project_id', flat=True)
+        .distinct()
+    )
+    projects_with_fronts = _projects_with_active_fronts(project_ids)
+    user_is_approver = is_aprovador(user) and not is_admin(user)
 
     criados_mes = agg_qs.filter(created_at__gte=start_month).count()
 
@@ -222,81 +280,80 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
     solicitante_deve_agir = agg_qs.filter(status__in=["rascunho", "reprovado", "reaprovacao"]).count()
 
     fila_aprovacao: list[WorkOrder] = []
-    if not admin_scope and is_aprovador(user) and not is_admin(user):
-        base = scoped_qs.filter(status__in=["pendente", "reaprovacao"]).annotate(
-            ordem_dt=Coalesce("data_envio", "created_at", output_field=DateTimeField())
+    if not admin_scope and user_is_approver:
+        base = scoped_qs.filter(status__in=['pendente', 'reaprovacao']).annotate(
+            ordem_dt=Coalesce('data_envio', 'created_at', output_field=DateTimeField())
         )
-        for wo in base.order_by("ordem_dt", "updated_at")[:40]:
-            if wo.pode_aprovar(user):
+        for wo in base.select_related('obra', 'obra__empresa', 'front').order_by('ordem_dt', 'updated_at')[:40]:
+            if usuario_pode_aprovar_pedido(user, wo):
                 fila_aprovacao.append(wo)
 
     awaiting_my_approval_ct = len(fila_aprovacao)
 
-    rows: list[dict[str, Any]] = []
-    seen: set[int] = set()
+    rows_by_pk: dict[int, dict[str, Any]] = {}
 
-    def append_row(wo, tipo, prio):
-        if wo.pk in seen:
+    def upsert_priority_row(wo, tipo: str, prio: int):
+        existing = rows_by_pk.get(wo.pk)
+        if existing is not None and existing['_prio'] <= prio:
             return
-        seen.add(wo.pk)
-        rows.append(
-            {
-                "pk": wo.pk,
-                "codigo": wo.codigo,
-                "obra_nome": wo.obra.nome if wo.obra_id else "",
-                "status": wo.status,
-                "status_display": wo.get_status_display(),
-                "tipo": tipo,
-                "_prio": prio,
-                "detail_url": reverse("gestao:detail_workorder", kwargs={"pk": wo.pk}),
-                "updated_at": wo.updated_at,
-            }
+        row = _feed_row_base(
+            wo,
+            admin_scope=admin_scope,
+            projects_with_fronts=projects_with_fronts,
         )
+        row['tipo'] = tipo
+        row['_prio'] = prio
+        rows_by_pk[wo.pk] = row
 
-    for wo in agg_qs.filter(status="reprovado").order_by("-updated_at")[:8]:
-        append_row(wo, "Pedido reprovado — ajustar e reenviar.", 20)
+    for wo in agg_qs.filter(status='reprovado').select_related('obra', 'front').order_by('-updated_at')[:8]:
+        upsert_priority_row(wo, 'Pedido reprovado — ajustar e reenviar.', 20)
 
-    for wo in agg_qs.filter(status="reaprovacao").order_by("-updated_at")[:8]:
-        append_row(wo, "Em reaprovação — verifique pendências e anexos.", 30)
+    for wo in agg_qs.filter(status='reaprovacao').select_related('obra', 'front').order_by('-updated_at')[:8]:
+        upsert_priority_row(wo, 'Em reaprovação — verifique pendências e anexos.', 30)
 
     cutoff_cm = now - timedelta(days=5)
     comment_qs = Comment.objects.filter(
         origem=Comment.Origem.USUARIO,
         created_at__gte=cutoff_cm,
         work_order__obra__ativo=True,
-    ).exclude(autor_id=user.pk).exclude(work_order__status="rascunho")
+    ).exclude(autor_id=user.pk).exclude(work_order__status='rascunho')
     if admin_scope:
         comment_qs = comment_qs.filter(work_order__in=scoped_qs)
     else:
         comment_qs = comment_qs.filter(work_order__criado_por=user)
 
-    for c in comment_qs.select_related("work_order", "work_order__obra").order_by("-created_at")[:25]:
+    for c in comment_qs.select_related('work_order', 'work_order__obra', 'work_order__front').order_by('-created_at')[:25]:
         wo = c.work_order
-        quem = (c.autor.get_full_name() or c.autor.username) if c.autor else "outro usuário"
-        append_row(wo, f"Comentário recente ({quem}).", 35)
+        quem = (c.autor.get_full_name() or c.autor.username) if c.autor else 'outro usuário'
+        upsert_priority_row(wo, f'Comentário recente ({quem}).', 35)
 
     stale_before = now - timedelta(days=14)
     for wo in (
-        agg_qs.filter(status__in=["pendente", "reaprovacao"], updated_at__lt=stale_before).order_by("updated_at")[:10]
+        agg_qs.filter(status__in=['pendente', 'reaprovacao'], updated_at__lt=stale_before)
+        .select_related('obra', 'front')
+        .order_by('updated_at')[:10]
     ):
-        append_row(wo, "Pedido há bastante tempo sem atualização.", 70)
+        if user_is_approver and usuario_pode_aprovar_pedido(user, wo):
+            continue
+        upsert_priority_row(wo, 'Pedido há bastante tempo sem atualização.', 70)
 
     if not admin_scope:
         for wo in fila_aprovacao[:12]:
-            append_row(wo, "Pedido na sua fila para aprovação.", 15)
+            upsert_priority_row(wo, 'Pedido na sua fila para aprovação.', 15)
     else:
-        base = scoped_qs.filter(status__in=["pendente", "reaprovacao"]).annotate(
-            ordem_dt=Coalesce("data_envio", "created_at", output_field=DateTimeField())
+        base = scoped_qs.filter(status__in=['pendente', 'reaprovacao']).annotate(
+            ordem_dt=Coalesce('data_envio', 'created_at', output_field=DateTimeField())
         )
-        for wo in base.order_by("ordem_dt", "updated_at")[:12]:
-            append_row(wo, "Pedido na fila de aprovação (aguardando decisão).", 16)
+        for wo in base.select_related('obra', 'obra__empresa', 'front').order_by('ordem_dt', 'updated_at')[:12]:
+            upsert_priority_row(wo, 'Pedido na fila de aprovação (aguardando decisão).', 16)
 
-    rows.sort(key=lambda r: (r["_prio"], -r["updated_at"].timestamp()))
+    rows = list(rows_by_pk.values())
+    rows.sort(key=lambda r: (r['_prio'], -r['updated_at'].timestamp()))
     for r in rows:
-        del r["_prio"]
+        del r['_prio']
 
     prioridade_linhas = rows[:FEED_ITEMS_CAP]
-    pks_pri = {r["pk"] for r in prioridade_linhas}
+    pks_pri = {r['pk'] for r in prioridade_linhas}
 
     slack = FEED_ITEMS_CAP - len(prioridade_linhas)
     data_limite_feed = now - timedelta(days=FEED_RECENT_DAYS)
@@ -304,15 +361,17 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
     for r in prioridade_linhas:
         dash_feed.append(
             {
-                "pk": r["pk"],
-                "codigo": r["codigo"],
-                "obra_nome": r["obra_nome"],
-                "status": r["status"],
-                "status_display": r["status_display"],
-                "detail_url": r["detail_url"],
-                "updated_at": r["updated_at"],
-                "prioridade": True,
-                "prioridade_hint": r["tipo"],
+                'pk': r['pk'],
+                'codigo': r['codigo'],
+                'obra_nome': r['obra_nome'],
+                'mostrar_frente': r['mostrar_frente'],
+                'front_label': r['front_label'],
+                'status': r['status'],
+                'status_display': r['status_display'],
+                'detail_url': r['detail_url'],
+                'updated_at': r['updated_at'],
+                'prioridade': True,
+                'prioridade_hint': r['tipo'],
             }
         )
 
@@ -320,20 +379,20 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
         for wo in (
             scoped_qs.filter(updated_at__gte=data_limite_feed)
             .exclude(pk__in=pks_pri)
-            .exclude(status="rascunho")
-            .order_by("-updated_at")[:slack]
+            .exclude(status='rascunho')
+            .select_related('obra', 'front')
+            .order_by('-updated_at')[:slack]
         ):
+            row = _feed_row_base(
+                wo,
+                admin_scope=admin_scope,
+                projects_with_fronts=projects_with_fronts,
+            )
             dash_feed.append(
                 {
-                    "pk": wo.pk,
-                    "codigo": wo.codigo,
-                    "obra_nome": wo.obra.nome if wo.obra_id else "",
-                    "status": wo.status,
-                    "status_display": wo.get_status_display(),
-                    "detail_url": reverse("gestao:detail_workorder", kwargs={"pk": wo.pk}),
-                    "updated_at": wo.updated_at,
-                    "prioridade": False,
-                    "prioridade_hint": "",
+                    **row,
+                    'prioridade': False,
+                    'prioridade_hint': '',
                 }
             )
 
@@ -446,6 +505,7 @@ def _build_dashboard_context(user, scoped_qs, *, admin_scope: bool) -> dict[str,
             "tem_fila_aprovador": bool(fila_aprovacao) if not admin_scope else False,
         },
         "dash_feed": dash_feed,
+        "feed_recent_days": FEED_RECENT_DAYS,
         "dash_tags_reprovacao": dash_tags_reprovacao,
         "dash_tags_meta": dash_tags_meta,
         "dash_quick_links": dash_quick_links,

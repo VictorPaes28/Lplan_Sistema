@@ -4,6 +4,98 @@
  * @param {{ skipSubmitLock?: boolean }} opts - modal via AJAX não usa o travamento «Salvando…» síncrono.
  */
 (function (global) {
+    function fieldObra(scope) {
+        return scope.querySelector('#id_obra');
+    }
+
+    function fieldFront(scope) {
+        return scope.querySelector('#id_front');
+    }
+
+    function parseFrontMap(obraEl) {
+        if (!obraEl) return {};
+        var raw = obraEl.getAttribute('data-front-map') || '{}';
+        try {
+            var parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    function bindFrontByObra(scope) {
+        var obraEl = fieldObra(scope);
+        var frontEl = fieldFront(scope);
+        if (!obraEl || !frontEl) return;
+
+        var group = scope.querySelector('#front-field-group');
+        var reqMark = scope.querySelector('#front-required-mark');
+        var frontMap = parseFrontMap(obraEl);
+        var allowEmptyForAdmin = obraEl.getAttribute('data-front-admin-allow-empty') === '1';
+        var emptyLabelDefault = obraEl.getAttribute('data-front-empty-label') || 'Selecione a frente';
+
+        function renderFrontOptions() {
+            var obraId = String(obraEl.value || '').trim();
+            var fronts = frontMap[obraId] || [];
+            var previousValue = String(frontEl.value || '').trim();
+            var previousText = '';
+            if (frontEl.selectedIndex >= 0) {
+                previousText = (frontEl.options[frontEl.selectedIndex] || {}).text || '';
+            }
+
+            frontEl.innerHTML = '';
+
+            if (!obraId || !fronts.length) {
+                frontEl.required = false;
+                if (reqMark) reqMark.style.display = 'none';
+                if (group) group.style.display = 'none';
+                return;
+            }
+
+            if (group) group.style.display = '';
+
+            var emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = allowEmptyForAdmin ? 'Sem frente (obra toda)' : emptyLabelDefault;
+            frontEl.appendChild(emptyOption);
+
+            fronts.forEach(function (item) {
+                var opt = document.createElement('option');
+                opt.value = String(item.id);
+                opt.textContent = item.name || ('Frente #' + String(item.id));
+                frontEl.appendChild(opt);
+            });
+
+            var values = Array.prototype.map.call(frontEl.options, function (opt) { return opt.value; });
+            if (previousValue && values.indexOf(previousValue) === -1) {
+                var legacyOpt = document.createElement('option');
+                legacyOpt.value = previousValue;
+                legacyOpt.textContent = previousText || ('Frente #' + previousValue);
+                frontEl.appendChild(legacyOpt);
+            }
+            if (previousValue) {
+                frontEl.value = previousValue;
+            }
+
+            var shouldRequire = !allowEmptyForAdmin;
+            frontEl.required = shouldRequire;
+            frontEl.setAttribute('aria-required', shouldRequire ? 'true' : 'false');
+            if (reqMark) reqMark.style.display = shouldRequire ? 'inline' : 'none';
+
+            if (!allowEmptyForAdmin && fronts.length === 1) {
+                frontEl.value = String(fronts[0].id);
+            }
+        }
+
+        obraEl.addEventListener('change', function () {
+            if (!allowEmptyForAdmin) {
+                frontEl.value = '';
+            }
+            renderFrontOptions();
+        });
+        renderFrontOptions();
+    }
+
     function fieldValorMed(scope) {
         return scope.querySelector('#id_valor_medicao');
     }
@@ -172,6 +264,7 @@
      */
     global.LplanWorkorderFormInit = function (scope, opts) {
         if (!scope || !scope.querySelector) return;
+        bindFrontByObra(scope);
         bindValorMedicao(scope);
         bindAnexosFileQueue(scope);
         if (!opts || !opts.skipSubmitLock) bindSubmitLock(scope);

@@ -206,6 +206,66 @@
         .project-opt:hover { background: rgba(255, 255, 255, 0.04); }
         .project-opt input { width: auto; margin-top: 0.2rem; flex-shrink: 0; accent-color: #1e40af; }
 
+        .fronts-box {
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 10px;
+            padding: 0.55rem 0.65rem;
+            max-height: 240px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.15);
+        }
+        .fronts-empty-hint {
+            margin: 0.2rem 0.2rem 0.6rem;
+            font-size: 0.76rem;
+            color: #94a3b8;
+        }
+        .front-group {
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 8px;
+            margin-bottom: 0.55rem;
+            padding: 0.25rem 0.45rem;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .front-group summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            padding: 0.25rem 0;
+        }
+        .front-group-count {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .front-group-list {
+            margin-top: 0.45rem;
+            padding-top: 0.45rem;
+            border-top: 1px dashed rgba(148, 163, 184, 0.22);
+        }
+        .front-opt {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.35rem 0.2rem;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .front-opt:hover { background: rgba(255, 255, 255, 0.04); }
+        .front-opt-input {
+            width: auto;
+            margin-top: 0.2rem;
+            flex-shrink: 0;
+            accent-color: #1e40af;
+        }
+
         textarea.form-input { min-height: 76px; resize: vertical; }
 
         .msg {
@@ -366,6 +426,42 @@
                     </div>
                 </div>
 
+                {% if has_project_fronts %}
+                <div class="form-group">
+                    <label class="form-label"><i class="fas fa-diagram-project"></i> Frentes por obra</label>
+                    <div class="fronts-box">
+                        <p id="fronts-empty-hint" class="fronts-empty-hint">
+                            Selecione uma ou mais obras acima para liberar as frentes correspondentes.
+                        </p>
+                        {% for project in projects %}
+                            {% if project.active_fronts %}
+                            <details class="front-group" data-project-fronts="{{ project.id }}">
+                                <summary>
+                                    <span>{{ project.code }} — {{ project.name }}</span>
+                                    <span class="front-group-count">{{ project.active_fronts|length }} frente(s)</span>
+                                </summary>
+                                <div class="front-group-list">
+                                    {% for front in project.active_fronts %}
+                                    <label class="front-opt">
+                                        <input
+                                            type="checkbox"
+                                            name="fronts"
+                                            value="{{ front.id }}"
+                                            class="front-opt-input"
+                                            data-project-id="{{ project.id }}"
+                                            {% if front.id|stringformat:"s" in selected_fronts %}checked{% endif %}
+                                        >
+                                        <span>{{ front.name }}{% if front.code %} ({{ front.code }}){% endif %}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </details>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="form-group">
                     <label class="form-label" for="notes"><i class="fas fa-comment"></i> Observações</label>
                     <textarea class="form-input" id="notes" name="notes"
@@ -435,6 +531,42 @@
                         });
                     }
                 });
+            }
+
+            var projectInputs = document.querySelectorAll('input[name="projects"]');
+            var frontInputs = document.querySelectorAll('.front-opt-input');
+            var frontGroups = document.querySelectorAll('[data-project-fronts]');
+            var frontsEmptyHint = document.getElementById('fronts-empty-hint');
+            if (projectInputs.length && frontInputs.length) {
+                function syncProjectFronts() {
+                    var selectedProjects = new Set();
+                    projectInputs.forEach(function (input) {
+                        if (input.checked) selectedProjects.add(input.value);
+                    });
+
+                    var visibleGroups = 0;
+                    frontGroups.forEach(function (group) {
+                        var projectId = group.getAttribute('data-project-fronts');
+                        var visible = selectedProjects.has(projectId);
+                        group.style.display = visible ? '' : 'none';
+                        if (!visible) group.open = false;
+                        if (visible) visibleGroups += 1;
+                    });
+
+                    frontInputs.forEach(function (frontInput) {
+                        var projectId = frontInput.getAttribute('data-project-id');
+                        var enabled = selectedProjects.has(projectId);
+                        frontInput.disabled = !enabled;
+                        if (!enabled) frontInput.checked = false;
+                    });
+
+                    if (frontsEmptyHint) frontsEmptyHint.style.display = visibleGroups ? 'none' : '';
+                }
+
+                projectInputs.forEach(function (input) {
+                    input.addEventListener('change', syncProjectFronts);
+                });
+                syncProjectFronts();
             }
         })();
     </script>

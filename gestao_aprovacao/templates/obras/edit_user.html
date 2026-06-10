@@ -106,6 +106,12 @@
                     <p class="text-muted">Nenhum projeto cadastrado no Diário de Obra.</p>
                 {% endif %}
             </div>
+
+            {% if has_project_fronts %}
+            <div class="form-group">
+                {% include "obras/includes/user_fronts_field.html" with user_front_ids=user_front_ids scroll_max="260px" %}
+            </div>
+            {% endif %}
             
             <div class="form-actions">
                 <button type="submit" class="btn">Salvar Alterações</button>
@@ -114,4 +120,39 @@
         </form>
     </div>
 </div>
+<script>
+(function() {
+    var projectCheckboxes = document.querySelectorAll('input[name="projects"]');
+    var frontCheckboxes = document.querySelectorAll('.front-checkbox');
+    var frontGroups = document.querySelectorAll('[data-project-fronts]');
+    var emptyHint = document.getElementById('fronts-empty-hint');
+    if (!projectCheckboxes.length || !frontCheckboxes.length) return;
+
+    function syncFrontAccess() {
+        var selectedProjects = new Set();
+        projectCheckboxes.forEach(function(el) {
+            if (el.checked) selectedProjects.add(el.value);
+        });
+        var visibleGroups = 0;
+        frontGroups.forEach(function(groupEl) {
+            var projectId = groupEl.getAttribute('data-project-fronts');
+            var isVisible = selectedProjects.has(projectId);
+            groupEl.style.display = isVisible ? '' : 'none';
+            if (isVisible) visibleGroups += 1;
+        });
+        frontCheckboxes.forEach(function(frontEl) {
+            var projectId = frontEl.getAttribute('data-project-id');
+            var enabled = selectedProjects.has(projectId);
+            frontEl.disabled = !enabled;
+            if (!enabled) frontEl.checked = false;
+        });
+        if (emptyHint) emptyHint.style.display = visibleGroups ? 'none' : '';
+    }
+
+    projectCheckboxes.forEach(function(el) {
+        el.addEventListener('change', syncFrontAccess);
+    });
+    syncFrontAccess();
+})();
+</script>
 {% endblock %}

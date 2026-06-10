@@ -15,6 +15,7 @@ def obra_context(request):
         return {}
 
     from .views import _get_obras_for_user, _user_can_access_obra
+    from core.contexto_frente import resolve_frente_context
 
     obras_disponiveis = _get_obras_for_user(request)
     obra_atual = None
@@ -33,4 +34,9 @@ def obra_context(request):
     return {
         'obra_atual': obra_atual,
         'obras_disponiveis': obras_disponiveis,
+        **(
+            resolve_frente_context(request, obra_atual.project, user=request.user).to_template_context()
+            if obra_atual and obra_atual.project_id
+            else {}
+        ),
     }

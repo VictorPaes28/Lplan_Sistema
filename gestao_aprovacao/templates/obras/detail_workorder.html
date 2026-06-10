@@ -17,7 +17,10 @@
         <div class="detail-header">
             <div>
                 <h1 class="detail-title">{{ workorder.codigo }}</h1>
-                <p class="detail-subtitle">{{ workorder.nome_credor }} · {{ workorder.obra.codigo }}</p>
+                <p class="detail-subtitle">
+                    {{ workorder.nome_credor }} · {{ workorder.obra.codigo }}
+                    {% if workorder.front %} · {{ workorder.front.name }}{% elif user.is_staff or user.is_superuser %} · Sem frente (obra toda){% endif %}
+                </p>
             </div>
             <div class="detail-status-container">
                 <span class="status-badge-large {{ workorder.status }}">{{ workorder.get_status_display }}</span>
@@ -114,6 +117,12 @@
             <div>
                 <div class="detail-field-label">Obra</div>
                 <p class="detail-field-value">{{ workorder.obra.codigo }} — {{ workorder.obra.nome }}</p>
+            </div>
+            <div>
+                <div class="detail-field-label">Frente</div>
+                <p class="detail-field-value">
+                    {% if workorder.front %}{{ workorder.front.name }}{% else %}Sem frente (obra toda){% endif %}
+                </p>
             </div>
             <div>
                 <div class="detail-field-label">Credor</div>

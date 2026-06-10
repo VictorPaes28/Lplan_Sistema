@@ -119,7 +119,7 @@
                         <!-- Informações do Relatório (Direita) -->
                         <div class="diary-form-info-col space-y-4">
                             <h3 class="diary-form-block-title">Informações do Relatório</h3>
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 {% if has_active_fronts %}sm:grid-cols-4{% else %}sm:grid-cols-3{% endif %} gap-4">
                                 <div>
                                     <label class="block text-xs font-medium text-slate-600 mb-1.5">Relatório n°</label>
                                     <input type="text" 
@@ -176,6 +176,23 @@
                                     })();
                                     </script>
                                 </div>
+                                {% if has_active_fronts %}
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Frente <span class="text-red-500">*</span></label>
+                                    {{ form.front.as_hidden }}
+                                    <input type="text"
+                                           value="{% if selected_front %}{{ selected_front.name }}{% else %}Frente não definida{% endif %}"
+                                           readonly
+                                           class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm text-slate-700 bg-slate-100 cursor-not-allowed">
+                                    {% if form.front.errors %}
+                                        <div class="mt-1.5 flex items-start text-red-600 text-xs" role="alert">
+                                            <i class="fas fa-exclamation-circle mr-1.5 mt-0.5 flex-shrink-0"></i>
+                                            <div>{{ form.front.errors }}</div>
+                                        </div>
+                                    {% endif %}
+                                    <p class="diary-form-helper text-xs text-gray-500">A frente é definida antes de abrir este formulário.</p>
+                                </div>
+                                {% endif %}
                                 <div>
                                     <label class="block text-xs font-medium text-slate-600 mb-1.5">Dia da semana</label>
                                     <select name="weekday"
@@ -5146,8 +5163,9 @@ window.saveOccurrence = saveOccurrence;
             if (emptyEl) {
                 emptyEl.classList.remove('hidden');
                 var listMeta = listEl ? listEl.dataset : {};
-                var obraLabel = listMeta.projectCode || listMeta.projectName || 'esta obra';
-                emptyEl.textContent = 'Nenhuma atividade registrada em RDOs anteriores da obra ' + obraLabel + '. Use "Adicionar manualmente" acima da lista.';
+                var scopeKind = listMeta.scopeKind || 'obra';
+                var scopeLabel = listMeta.scopeLabel || listMeta.projectCode || listMeta.projectName || ('esta ' + scopeKind);
+                emptyEl.textContent = 'Nenhuma atividade registrada em RDOs anteriores da ' + scopeKind + ' ' + scopeLabel + '. Use "Adicionar manualmente" acima da lista.';
             }
             return;
         }
@@ -7133,11 +7151,13 @@ function saveSignature(canvasId) {
                     <div id="activity-picker-list" class="diary-activity-picker__list" role="group" aria-label="Atividades registradas em RDOs anteriores"
                          data-project-code="{{ project.code|default:''|escape }}"
                          data-project-name="{{ project.name|default:''|escape }}"
+                         data-scope-kind="{{ activities_picker_scope_kind|default:'obra'|escape }}"
+                         data-scope-label="{{ activities_picker_scope_label|default:''|escape }}"
                          data-eap-total="{{ project_eap_activities_count|default:0 }}">
                         <p id="activity-picker-empty" class="diary-activity-picker__empty hidden">Nenhuma atividade em RDOs anteriores. Use "Adicionar manualmente" acima.</p>
                     </div>
                     <p class="diary-activity-picker__hint">
-                        Itens que já constaram em RDOs salvos desta obra (via registros de atividade do diário).
+                        Itens que já constaram em RDOs salvos {{ activities_picker_scope_text|default:'desta obra' }} (via registros de atividade do diário).
                         A tela <strong>Atividades</strong> mostra a EAP completa
                         {% if project_eap_activities_count %}({{ project_eap_activities_count }} itens){% endif %}
                         — agrupadoras só aparecem aqui se já foram lançadas em algum RDO.

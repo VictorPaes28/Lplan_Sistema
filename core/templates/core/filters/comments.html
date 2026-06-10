@@ -33,6 +33,17 @@
                 <span class="comments-explorer__dates-sep" aria-hidden="true">até</span>
                 <input type="date" name="date_end" value="{{ date_end }}" aria-label="Data fim" title="Data fim">
             </div>
+            {% if has_active_fronts %}
+            <div class="activities-explorer__status-select">
+                <label class="sr-only" for="filter-comments-front">Frente</label>
+                <select id="filter-comments-front" name="front">
+                    <option value="">Todas as frentes</option>
+                    {% for front in active_fronts %}
+                    <option value="{{ front.id }}"{% if selected_front and selected_front.id == front.id %} selected{% endif %}>{{ front.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <button type="submit" class="comments-explorer__submit">Buscar</button>
             {% if has_active_filters %}
             <a href="{% url 'filter-comments' %}" class="comments-explorer__clear">Limpar</a>
@@ -40,11 +51,11 @@
         </form>
 
         <nav class="comments-explorer__periods" aria-label="Atalhos de período">
-            <a href="{% url 'filter-comments' %}{% if search %}?search={{ search|urlencode }}{% endif %}"
+            <a href="{% url 'filter-comments' %}{% if search or selected_front %}?{% endif %}{% if search %}search={{ search|urlencode }}{% endif %}{% if search and selected_front %}&amp;{% endif %}{% if selected_front %}front={{ selected_front.id }}{% endif %}"
                class="comments-period-chip{% if not period and not date_start and not date_end %} is-active{% endif %}">Todos</a>
-            <a href="?period=30d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+            <a href="?period=30d{% if search %}&amp;search={{ search|urlencode }}{% endif %}{% if selected_front %}&amp;front={{ selected_front.id }}{% endif %}"
                class="comments-period-chip{% if period == '30d' %} is-active{% endif %}">30 dias</a>
-            <a href="?period=90d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+            <a href="?period=90d{% if search %}&amp;search={{ search|urlencode }}{% endif %}{% if selected_front %}&amp;front={{ selected_front.id }}{% endif %}"
                class="comments-period-chip{% if period == '90d' %} is-active{% endif %}">90 dias</a>
         </nav>
     </div>
@@ -70,6 +81,9 @@
                         </span>
                     </div>
                     <p class="comments-explorer__row-excerpt">{{ diary.general_notes|truncatechars:140 }}</p>
+                    {% if has_active_fronts and diary.front %}
+                    <p class="text-xs text-blue-700 mt-1">Frente: {{ diary.front.name }}</p>
+                    {% endif %}
                 </a>
                 {% endfor %}
             </div>
@@ -89,6 +103,9 @@
                         </h2>
                         {% if selected_diary.project.code %}
                         <p class="comments-explorer__detail-meta">Obra {{ selected_diary.project.code }}</p>
+                        {% endif %}
+                        {% if has_active_fronts and selected_diary.front %}
+                        <p class="comments-explorer__detail-meta">Frente {{ selected_diary.front.name }}</p>
                         {% endif %}
                     </div>
                     <a href="{% url 'diary-detail' selected_diary.id %}" class="comments-explorer__detail-open">
@@ -117,6 +134,8 @@
         <p class="filter-empty-desc">
             {% if has_active_filters %}
             Ajuste a busca, o período ou as datas.
+            {% elif has_active_fronts and selected_front %}
+            Nenhum relatório desta frente tem observações gerais preenchidas.
             {% else %}
             Nenhum relatório desta obra tem observações gerais preenchidas.
             {% endif %}

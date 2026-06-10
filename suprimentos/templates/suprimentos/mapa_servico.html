@@ -33,6 +33,9 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="col-md-3">
+                    {% include "mapa_obras/includes/seletor_frente.html" with select_class="form-select" compact=True module_help="Contexto de navegação. Serviços permanecem consolidados por obra." %}
+                </div>
                 <div class="col-md-2">
                     <label class="form-label">Setor</label>
                     <select class="form-select" name="setor">

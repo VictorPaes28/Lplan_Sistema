@@ -32,6 +32,17 @@
                 <span class="comments-explorer__dates-sep" aria-hidden="true">até</span>
                 <input type="date" name="date_end" value="{{ date_end }}" aria-label="Data fim" title="Data fim">
             </div>
+            {% if has_active_fronts %}
+            <div class="activities-explorer__status-select">
+                <label class="sr-only" for="filter-occ-front">Frente</label>
+                <select id="filter-occ-front" name="front">
+                    <option value="">Todas as frentes</option>
+                    {% for front in active_fronts %}
+                    <option value="{{ front.id }}"{% if selected_front and selected_front.id == front.id %} selected{% endif %}>{{ front.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <button type="submit" class="comments-explorer__submit">Buscar</button>
             {% if has_active_filters %}
             <a href="{% url 'filter-occurrences' %}" class="comments-explorer__clear">Limpar</a>
@@ -39,11 +50,11 @@
         </form>
 
         <nav class="comments-explorer__periods" aria-label="Atalhos de período">
-            <a href="{% url 'filter-occurrences' %}{% if search %}?search={{ search|urlencode }}{% endif %}"
+            <a href="{% url 'filter-occurrences' %}{% if search or selected_front %}?{% endif %}{% if search %}search={{ search|urlencode }}{% endif %}{% if search and selected_front %}&amp;{% endif %}{% if selected_front %}front={{ selected_front.id }}{% endif %}"
                class="comments-period-chip{% if not period and not date_start and not date_end %} is-active{% endif %}">Todos</a>
-            <a href="?period=30d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+            <a href="?period=30d{% if search %}&amp;search={{ search|urlencode }}{% endif %}{% if selected_front %}&amp;front={{ selected_front.id }}{% endif %}"
                class="comments-period-chip{% if period == '30d' %} is-active{% endif %}">30 dias</a>
-            <a href="?period=90d{% if search %}&amp;search={{ search|urlencode }}{% endif %}"
+            <a href="?period=90d{% if search %}&amp;search={{ search|urlencode }}{% endif %}{% if selected_front %}&amp;front={{ selected_front.id }}{% endif %}"
                class="comments-period-chip{% if period == '90d' %} is-active{% endif %}">90 dias</a>
         </nav>
     </div>
@@ -84,6 +95,9 @@
                     <p class="comments-explorer__row-report" style="margin:0 0 0.2rem;font-size:0.75rem;color:#64748b;">
                         {% if diary.report_number %}Relatório nº {{ diary.report_number }}{% else %}Sem número de relatório{% endif %}
                     </p>
+                    {% if has_active_fronts and diary.front %}
+                    <p class="text-xs text-blue-700 mt-1">Frente: {{ diary.front.name }}</p>
+                    {% endif %}
                     {% if occ_list %}
                     <p class="comments-explorer__row-excerpt">{{ occ_list.0.description|truncatechars:120 }}</p>
                     {% if occ_list|length > 1 %}
@@ -107,6 +121,9 @@
                             {{ selected_diary.date|date:"d/m/Y" }}
                             {% if selected_diary.report_number %}· Relatório nº {{ selected_diary.report_number }}{% endif %}
                         </h2>
+                        {% if has_active_fronts and selected_diary.front %}
+                        <p class="occurrences-explorer__panel-sub">Frente: {{ selected_diary.front.name }}</p>
+                        {% endif %}
                         <p class="occurrences-explorer__panel-sub">{{ occ_list|length }} ocorrência{{ occ_list|length|pluralize }} neste RDO</p>
                     </div>
                     <a href="{% url 'diary-detail' selected_diary.id %}" class="occurrences-explorer__panel-link">
@@ -156,6 +173,8 @@
         <p class="filter-empty-desc">
             {% if has_active_filters %}
             Ajuste a busca, o período ou as datas.
+            {% elif has_active_fronts and selected_front %}
+            Nenhum relatório desta frente registrou ocorrências ainda.
             {% else %}
             Nenhum relatório desta obra registrou ocorrências ainda.
             {% endif %}

@@ -6,6 +6,8 @@ from treebeard.admin import TreeAdmin
 from treebeard.forms import movenodeform_factory
 from .models import (
     Project,
+    ProjectFront,
+    ProjectFrontMember,
     ProjectMember,
     ProjectOwner,
     ProjectDiaryRecipient,
@@ -49,6 +51,28 @@ class ProjectAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'start_date', 'end_date']
     search_fields = ['code', 'name', 'description']
     readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(ProjectFront)
+class ProjectFrontAdmin(admin.ModelAdmin):
+    """Frentes/subobras opcionais por projeto."""
+    list_display = ['project', 'name', 'code', 'responsible_name', 'location_reference', 'is_active', 'updated_at']
+    list_filter = ['project', 'is_active']
+    search_fields = ['name', 'code', 'responsible_name', 'location_reference', 'description', 'project__code', 'project__name']
+    autocomplete_fields = ['project']
+
+
+@admin.register(ProjectFrontMember)
+class ProjectFrontMemberAdmin(admin.ModelAdmin):
+    """Permissões de acesso por frente."""
+    list_display = ['user', 'front', 'project_code', 'is_active', 'updated_at']
+    list_filter = ['is_active', 'front__project']
+    search_fields = ['user__username', 'user__email', 'front__name', 'front__project__code']
+    autocomplete_fields = ['user', 'front']
+
+    def project_code(self, obj):
+        return obj.front.project.code if obj.front_id else '-'
+    project_code.short_description = 'Código obra'
 
 
 @admin.register(ProjectMember)
@@ -109,9 +133,9 @@ class ActivityAdmin(TreeAdmin):
 @admin.register(ConstructionDiary)
 class ConstructionDiaryAdmin(admin.ModelAdmin):
     """Admin para modelo ConstructionDiary."""
-    list_display = ['project', 'date', 'status', 'created_by', 'reviewed_by', 'approved_at', 'sent_to_owner_at', 'created_at']
-    list_filter = ['status', 'date', 'project']
-    search_fields = ['project__code', 'project__name', 'general_notes']
+    list_display = ['project', 'front', 'date', 'status', 'created_by', 'reviewed_by', 'approved_at', 'sent_to_owner_at', 'created_at']
+    list_filter = ['status', 'date', 'project', 'front']
+    search_fields = ['project__code', 'project__name', 'front__name', 'general_notes']
     readonly_fields = ['created_at', 'updated_at', 'approved_at', 'sent_to_owner_at']
     date_hierarchy = 'date'
 

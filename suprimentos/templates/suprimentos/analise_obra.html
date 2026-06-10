@@ -1039,6 +1039,9 @@ html, body {
           {% endfor %}
         </select>
       </div>
+      <div class="filter-field filter-field--frente">
+        {% include "mapa_obras/includes/seletor_frente.html" with select_class="filter-select" compact=True help_text="Filtra Diário e restrições no BI. Suprimentos e mapa permanecem consolidados por obra." %}
+      </div>
       <div class="filter-field">
         <label class="filter-label" for="filtro-data-inicio">Data inicial</label>
         <input id="filtro-data-inicio" type="date" name="data_inicio" class="filter-select" value="{% if filtros_get.data_inicio %}{{ filtros_get.data_inicio }}{% elif analise_payload %}{{ analise_payload.meta.periodo.inicio }}{% endif %}">
@@ -1411,6 +1414,7 @@ function trocarObra(select) {
   // (sem datas o servidor vai usar o padrão: data_inicio da obra e hoje)
   const url = new URL(window.location.href);
   url.searchParams.set('obra', obraId);
+  url.searchParams.delete('front');
   url.searchParams.delete('data_inicio');
   url.searchParams.delete('data_fim');
   window.location.href = url.toString();

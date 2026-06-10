@@ -96,6 +96,97 @@ def obra_gestao_do_projeto(project_id):
     return Obra.objects.filter(project_id=project_id).order_by('-ativo').first()
 
 
+def frentes_ativas_disponiveis_para_obra(obra, user=None):
+    """
+    Retorna frentes ativas da obra (via obra.project), com recorte opcional por usuário.
+
+    Regras:
+    - Admin/staff/superuser: vê todas as frentes ativas da obra.
+    - Usuário comum:
+      - sem vínculos explícitos em ProjectFrontMember para o projeto: vê todas (compatibilidade);
+      - com vínculos: vê apenas frentes ativas marcadas como ativas para ele.
+    """
+    from core.contexto_frente import frentes_ativas_disponiveis_para_project
+    from core.models import ProjectFront
+
+    if not obra or not getattr(obra, 'project_id', None):
+        return ProjectFront.objects.none()
+    return frentes_ativas_disponiveis_para_project(obra.project, user)
+
+
+def usuario_tem_escopo_frente_no_pedido(user, workorder):
+    """
+    Verifica se o usuário pode acessar o pedido no recorte de frente.
+
+    - Admin/staff/superuser: sempre permitido.
+    - Obra sem projeto ou sem frentes ativas: permitido (modelo legado sem frente).
+    - Obra com frentes ativas:
+      - pedido sem frente: permitido apenas para admin;
+      - pedido com frente: segue frentes disponíveis ao usuário.
+    """
+    from core.models import ProjectFront
+
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False) or is_admin(user):
+        return True
+
+    obra = getattr(workorder, 'obra', None)
+    if not obra or not getattr(obra, 'project_id', None):
+        return True
+
+    has_active_fronts = ProjectFront.objects.filter(
+        project_id=obra.project_id,
+        is_active=True,
+    ).exists()
+    if not has_active_fronts:
+        return True
+
+    if not getattr(workorder, 'front_id', None):
+        return False
+
+    return frentes_ativas_disponiveis_para_obra(obra, user).filter(
+        pk=workorder.front_id
+    ).exists()
+
+
+def usuario_pode_aprovar_pedido(user, workorder):
+    """
+    Mesma regra de can_approve na tela de detalhe: status elegível, permissão
+    de aprovador na obra/empresa e escopo de frente.
+    """
+    from .models import WorkOrderPermission
+
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if not workorder.pode_aprovar(user):
+        return False
+    if not usuario_tem_escopo_frente_no_pedido(user, workorder):
+        return False
+    if is_admin(user):
+        return True
+    if not is_aprovador(user):
+        return False
+
+    obra = workorder.obra
+    if not obra:
+        return False
+    if obra.empresa_id is None:
+        return WorkOrderPermission.objects.filter(
+            obra=obra,
+            usuario=user,
+            tipo_permissao='aprovador',
+            ativo=True,
+        ).exists()
+
+    empresas_ids = Empresa.objects.filter(
+        obras__permissoes__usuario=user,
+        obras__permissoes__tipo_permissao='aprovador',
+        obras__permissoes__ativo=True,
+    ).values_list('id', flat=True).distinct()
+    return obra.empresa_id in empresas_ids
+
+
 def usuario_pode_marcar_pedido_analisado(user):
     """
     Checkbox "Analisado" na lista de pedidos: apenas administradores da plataforma

@@ -322,6 +322,32 @@ def _user_can_access_project(user, project):
     return ProjectMember.objects.filter(user=user, project=project).exists()
 
 
+def _impedimentos_frente_context(request, project):
+    from core.contexto_frente import resolve_frente_context
+
+    return resolve_frente_context(request, project, allow_post=True)
+
+
+def _scope_impedimentos_qs(qs, frente_ctx):
+    from core.contexto_frente import filter_registros_by_frente_context
+
+    return filter_registros_by_frente_context(qs, frente_ctx)
+
+
+def _impedimento_no_escopo_frente(impedimento, frente_ctx) -> bool:
+    from core.contexto_frente import registro_visivel_no_contexto_frente
+
+    return registro_visivel_no_contexto_frente(impedimento, frente_ctx)
+
+
+def _front_novo_impedimento(frente_ctx, parent=None):
+    from core.contexto_frente import front_para_novo_registro
+
+    if parent is not None and parent.front_id:
+        return parent.front
+    return front_para_novo_registro(frente_ctx)
+
+
 def _with_no_cache_headers(response):
     response["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response["Pragma"] = "no-cache"
@@ -414,7 +440,7 @@ def _normalize_table_prioridade_filter(raw):
     return ""
 
 
-def _impedimentos_table_queryset(obra, get_params):
+def _impedimentos_table_queryset(obra, get_params, frente_ctx=None):
     q = (get_params.get("q") or "").strip()
     filter_status = (get_params.get("status") or "").strip()
     filter_responsavel = (get_params.get("responsavel") or "").strip()
@@ -463,6 +489,9 @@ def _impedimentos_table_queryset(obra, get_params):
 
     cat_ids = _parse_cat_ids(get_params, obra)
     table_qs = _filter_impedimentos_by_cat_ids(table_qs, cat_ids)
+
+    if frente_ctx is not None:
+        table_qs = _scope_impedimentos_qs(table_qs, frente_ctx)
 
     sort_field_map = {
         "titulo": "titulo",
@@ -750,6 +779,7 @@ def list_impedimentos(request, obra_id):
     request.session.modified = True
 
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
 
     categorias_obra = list(
         CategoriaImpedimento.objects.filter(obra=obra).order_by("nome", "pk")
@@ -843,6 +873,9 @@ def list_impedimentos(request, obra_id):
             impedimento_id = request.POST.get("impedimento_id")
             try:
                 impedimento_delete = Impedimento.objects.get(pk=impedimento_id, obra=obra)
+                if not _impedimento_no_escopo_frente(impedimento_delete, frente_ctx):
+                    messages.error(request, "Restrição fora do escopo da frente selecionada.")
+                    return redirect(_list_redirect_url(request, request.path, query_view))
                 impedimento_delete.delete()
                 messages.success(request, "Restrição excluída com sucesso.")
             except (Impedimento.DoesNotExist, ValueError, TypeError):
@@ -863,6 +896,9 @@ def list_impedimentos(request, obra_id):
             if not impedimento_edit:
                 messages.error(request, "Restrição não encontrada para edição.")
                 form = ImpedimentoForm(obra=obra, project=project)
+            elif not _impedimento_no_escopo_frente(impedimento_edit, frente_ctx):
+                messages.error(request, "Restrição fora do escopo da frente selecionada.")
+                return redirect(_list_redirect_url(request, request.path, query_view))
             else:
                 form = ImpedimentoForm(
                     request.POST,
@@ -950,6 +986,9 @@ def list_impedimentos(request, obra_id):
                                     )
                                 novo_impedimento.parent = parent_ref
                                 novo_impedimento.obra = parent_ref.obra
+                            front_novo = _front_novo_impedimento(frente_ctx, parent_ref)
+                            if front_novo:
+                                novo_impedimento.front = front_novo
                             novo_impedimento.full_clean()
                             novo_impedimento.save()
                             form.save_m2m()
@@ -1000,6 +1039,7 @@ def list_impedimentos(request, obra_id):
     )
     impedimentos_qs = _annotate_subtarefas_counts(impedimentos_qs, ultimo_status_obra)
     impedimentos_qs = _filter_impedimentos_by_cat_ids(impedimentos_qs, cat_ids)
+    impedimentos_qs = _scope_impedimentos_qs(impedimentos_qs, frente_ctx)
     impedimento_ids = list(impedimentos_qs.values_list("pk", flat=True))
     comentarios_count_by_id = {}
     if impedimento_ids:
@@ -1064,7 +1104,7 @@ def list_impedimentos(request, obra_id):
     table_get = request.GET.copy()
     if filter_data_fim and not (table_get.get("data_fim") or "").strip():
         table_get["data_fim"] = filter_data_fim
-    table_qs = _impedimentos_table_queryset(obra, table_get)
+    table_qs = _impedimentos_table_queryset(obra, table_get, frente_ctx)
     table_qs = _annotate_subtarefas_counts(table_qs, ultimo_status_obra)
 
     paginator = Paginator(table_qs, 15)
@@ -1147,6 +1187,7 @@ def list_impedimentos(request, obra_id):
         .order_by("prazo", "-criado_em")
     )
     calendar_qs = _filter_impedimentos_by_cat_ids(calendar_qs, cat_ids)
+    calendar_qs = _scope_impedimentos_qs(calendar_qs, frente_ctx)
     if ultimo_status_obra:
         calendar_qs = calendar_qs.exclude(status_id=ultimo_status_obra.id)
     calendar_items_raw = _build_impedimentos_items(calendar_qs)
@@ -1184,6 +1225,8 @@ def list_impedimentos(request, obra_id):
 
     def _tab_q(view_name, **extra):
         p = {"view": view_name, **extra}
+        if frente_ctx.front_query_value:
+            p["front"] = frente_ctx.front_query_value
         if cat_param:
             p["cat"] = cat_param
         preserved = {
@@ -1293,6 +1336,7 @@ def list_impedimentos(request, obra_id):
         "status_config_list": status_config_list,
         "status_config_form": status_config_form,
         "status_config_next_ordem": status_config_next_ordem,
+        **frente_ctx.to_template_context(),
     }
     response = render(request, "impedimentos/list_impedimentos.html", context)
     return _with_no_cache_headers(response)
@@ -1387,8 +1431,9 @@ def export_impedimentos_pdf(request, obra_id):
         return HttpResponseForbidden("Sem acesso a esta obra.")
 
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
 
-    table_qs = _impedimentos_table_queryset(obra, request.GET)
+    table_qs = _impedimentos_table_queryset(obra, request.GET, frente_ctx)
     table_qs = _annotate_subtarefas_counts(table_qs, _ultimo_status_obra(obra))
     total_count = table_qs.count()
     slice_qs = list(table_qs[:MAX_IMPEDIMENTOS_EXPORT_ROWS])
@@ -1446,6 +1491,13 @@ def update_status_ajax(request, obra_id):
         novo_status = StatusImpedimento.objects.get(pk=status_id, obra=obra)
     except (Impedimento.DoesNotExist, StatusImpedimento.DoesNotExist, ValueError, TypeError):
         return JsonResponse({"ok": False, "error": "Item ou status inválido."}, status=404)
+
+    frente_ctx = _impedimentos_frente_context(request, project)
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
+        )
 
     ultimo = _ultimo_status_obra(obra)
     if ultimo and novo_status.id == ultimo.id:
@@ -1507,10 +1559,16 @@ def comentarios_impedimento_ajax(request, obra_id, impedimento_id):
         )
 
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
     impedimento = Impedimento.objects.filter(pk=impedimento_id, obra=obra).first()
     if not impedimento:
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
+        )
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
         )
 
     if request.method == "GET":
@@ -1555,6 +1613,7 @@ def impedimento_detail_ajax(request, obra_id, impedimento_id):
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
         )
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
     ultimo = _ultimo_status_obra(obra)
     impedimento = (
         _annotate_subtarefas_counts(
@@ -1567,6 +1626,11 @@ def impedimento_detail_ajax(request, obra_id, impedimento_id):
     if not impedimento:
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
+        )
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
         )
 
     try:
@@ -1621,10 +1685,16 @@ def impedimento_atividades_ajax(request, obra_id, impedimento_id):
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
         )
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
     impedimento = Impedimento.objects.filter(pk=impedimento_id, obra=obra).first()
     if not impedimento:
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
+        )
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
         )
 
     qs = (
@@ -1652,11 +1722,17 @@ def impedimento_subtarefas_ajax(request, obra_id, impedimento_id):
             {"ok": False, "error": "Sem acesso a esta obra."}, status=403
         )
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
     parent_imp = get_object_or_404(
         Impedimento.objects.select_related("parent"),
         pk=impedimento_id,
         obra=obra,
     )
+    if not _impedimento_no_escopo_frente(parent_imp, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
+        )
     ultimo = _ultimo_status_obra(obra)
     children = (
         Impedimento.objects.filter(parent_id=impedimento_id, obra=obra)
@@ -1664,6 +1740,7 @@ def impedimento_subtarefas_ajax(request, obra_id, impedimento_id):
         .prefetch_related("responsaveis", "categorias")
         .order_by("-criado_em")
     )
+    children = _scope_impedimentos_qs(children, frente_ctx)
     children = _annotate_subtarefas_counts(children, ultimo)
     child_ids = list(children.values_list("pk", flat=True))
     comentarios_by_id = {}
@@ -1699,6 +1776,7 @@ def impedimento_update_field(request, obra_id, impedimento_id):
     if blocked:
         return blocked
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
 
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
@@ -1715,6 +1793,11 @@ def impedimento_update_field(request, obra_id, impedimento_id):
     if not impedimento:
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
+        )
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
         )
 
     member_ids = _project_member_user_ids(project)
@@ -1974,10 +2057,16 @@ def impedimento_arquivo_upload(request, obra_id, impedimento_id):
     if blocked:
         return blocked
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
     impedimento = Impedimento.objects.filter(pk=impedimento_id, obra=obra).first()
     if not impedimento:
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
+        )
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
         )
 
     f = request.FILES.get("arquivo")
@@ -2031,10 +2120,16 @@ def impedimento_arquivo_remover(request, obra_id, impedimento_id, arquivo_id):
     if blocked:
         return blocked
     obra = get_object_or_404(Obra, project=project)
+    frente_ctx = _impedimentos_frente_context(request, project)
     impedimento = Impedimento.objects.filter(pk=impedimento_id, obra=obra).first()
     if not impedimento:
         return JsonResponse(
             {"ok": False, "error": "Restrição não encontrada."}, status=404
+        )
+    if not _impedimento_no_escopo_frente(impedimento, frente_ctx):
+        return JsonResponse(
+            {"ok": False, "error": "Restrição fora do escopo da frente selecionada."},
+            status=404,
         )
 
     ar = ArquivoImpedimento.objects.filter(

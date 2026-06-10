@@ -27,9 +27,13 @@
                     readonly
                 />
             </div>
+            {% include "mapa_obras/includes/seletor_frente.html" with css_class="mapa-controle-obra-form" select_class="mapa-controle-input form-select mapa-controle-input" compact=True module_help="Contexto de navegação. Matriz permanece consolidada por obra." %}
             <form method="get" class="mapa-controle-filter-form" id="mapaControleFilterForm">
                 {% csrf_token %}
                 <input type="hidden" name="obra" value="{{ obra_selecionada.id|default:'' }}">
+                {% if front_filter %}
+                <input type="hidden" name="front" value="{{ front_filter }}">
+                {% endif %}
                 {% if ambiente_id %}
                 <input type="hidden" name="ambiente_id" value="{{ ambiente_id }}">
                 {% endif %}

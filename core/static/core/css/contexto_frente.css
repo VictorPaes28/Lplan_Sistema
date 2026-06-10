@@ -1,0 +1,177 @@
+/* Seletor compacto de frente — compartilhado entre módulos LPLAN */
+
+.lplan-contexto-frente {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.lplan-contexto-frente--inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
+}
+
+.lplan-contexto-frente--inline .lplan-contexto-frente__help {
+    flex: 1 1 100%;
+    margin: 0;
+}
+
+.lplan-contexto-frente__label {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #64748b;
+    line-height: 1.2;
+}
+
+.lplan-contexto-frente__select-wrap {
+    position: relative;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.lplan-contexto-frente__select {
+    width: 100%;
+    min-width: 9rem;
+    max-width: 16rem;
+    font-size: 0.875rem;
+}
+
+.lplan-contexto-frente--compact .lplan-contexto-frente__select {
+    max-width: 14rem;
+}
+
+.lplan-contexto-frente__help {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: #94a3b8;
+}
+
+/* Dropdown pesquisável (muitas frentes) */
+.lplan-front-searchable {
+    position: relative;
+    min-width: 9rem;
+    max-width: 16rem;
+}
+
+.lplan-front-searchable__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #0f172a;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+}
+
+.lplan-front-searchable__trigger:hover {
+    border-color: #94a3b8;
+}
+
+.lplan-front-searchable__trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.lplan-front-searchable__chevron {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    color: #64748b;
+}
+
+.lplan-front-searchable__panel {
+    position: absolute;
+    z-index: 1200;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 14rem;
+    max-height: 16rem;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+}
+
+.lplan-front-searchable__panel[hidden] {
+    display: none !important;
+}
+
+.lplan-front-searchable__search {
+    flex-shrink: 0;
+    border: 0;
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 0;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8125rem;
+}
+
+.lplan-front-searchable__list {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem 0;
+    overflow-y: auto;
+    max-height: 12rem;
+}
+
+.lplan-front-searchable__item {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    color: #334155;
+}
+
+.lplan-front-searchable__item:hover {
+    background: #f1f5f9;
+}
+
+.lplan-front-searchable__item.is-selected {
+    background: #ecfeff;
+    color: #0f766e;
+    font-weight: 600;
+}
+
+.lplan-front-searchable__empty {
+    padding: 0.65rem;
+    font-size: 0.8125rem;
+    color: #94a3b8;
+}
+
+.lplan-front-searchable.is-open .lplan-front-searchable__trigger {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.15);
+}
+
+/* Select nativo fica só para acessibilidade — não duplicar visualmente o dropdown */
+.lplan-front-searchable .lplan-front-native-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

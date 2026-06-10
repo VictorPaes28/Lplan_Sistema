@@ -137,6 +137,34 @@ function escapeHtml(text) {
         .replace(/"/g, '&quot;');
 }
 
+function buildSiengeQtdCellHtml(patch) {
+    var qtdRaw = parseFloat(String(patch.quantidade_solicitada_sienge || '0').replace(',', '.'));
+    var hasQtd = !isNaN(qtdRaw) && qtdRaw > 0;
+    var un = escapeHtml(patch.quantidade_solicitada_unidade || '');
+    var badge = escapeHtml(patch.sienge_diagnostico_badge || '');
+    var msg = escapeHtml(patch.sienge_diagnostico_mensagem || '');
+    var nivel = patch.sienge_diagnostico_nivel || '';
+    var html = '';
+    if (hasQtd) {
+        var qtd = escapeHtml(String(patch.quantidade_solicitada_sienge).replace('.', ','));
+        html += '<strong>' + qtd + '</strong>';
+        if (un) html += ' <span class="text-muted small">' + un + '</span>';
+        if (badge) {
+            html += ' <span class="badge rounded-pill text-bg-success badge-sienge-vinculo ms-1">' + badge + '</span>';
+        }
+    } else {
+        html += '<span class="text-muted">—</span>';
+        if (badge) {
+            var badgeCls = nivel === 'aviso' ? 'text-bg-warning' : 'text-bg-secondary';
+            html += '<span class="badge rounded-pill ' + badgeCls + ' badge-sienge-vinculo d-block mt-1">' + badge + '</span>';
+        }
+    }
+    if (msg) {
+        html += '<div class="mapa-sienge-diag mapa-sienge-diag--' + escapeHtml(nivel || 'info') + '">' + msg + '</div>';
+    }
+    return html;
+}
+
 function applyRowPatch(itemId, patch) {
     if (!patch) return;
     var row = document.querySelector('tr[data-item-id="' + itemId + '"]');
@@ -170,11 +198,11 @@ function applyRowPatch(itemId, patch) {
         }
     }
     var qtdCell = row.querySelector('[data-sienge-patch="quantidade_solicitada"]');
-    if (qtdCell && patch.quantidade_solicitada_sienge) {
-        var qtd = escapeHtml(patch.quantidade_solicitada_sienge.replace('.', ','));
-        var un = escapeHtml(patch.quantidade_solicitada_unidade || '');
-        qtdCell.innerHTML = '<strong>' + qtd + '</strong>' +
-            (un ? ' <span class="text-muted small">' + un + '</span>' : '');
+    if (qtdCell && (patch.quantidade_solicitada_sienge !== undefined || patch.sienge_diagnostico_mensagem)) {
+        qtdCell.innerHTML = buildSiengeQtdCellHtml(patch);
+        if (patch.sienge_diagnostico_mensagem) {
+            qtdCell.setAttribute('title', patch.sienge_diagnostico_mensagem);
+        }
     }
     if (patch.status_etapa) {
         row.setAttribute('data-status-etapa', patch.status_etapa);
@@ -229,6 +257,14 @@ function updateItemField(itemId, field, value, url, inputEl) {
                 }
                 if (data.row_patch) {
                     applyRowPatch(itemId, data.row_patch);
+                }
+                if (data.descricao_exibida !== undefined && data.descricao_exibida !== null) {
+                    var rowDesc = document.querySelector('tr[data-item-id="' + itemId + '"]');
+                    var descInp = rowDesc && rowDesc.querySelector('[data-field="descricao_override"]');
+                    if (descInp) {
+                        descInp.value = data.descricao_exibida;
+                        markInputSaved(descInp, data.descricao_exibida);
+                    }
                 }
                 syncObraQueryParam(data.obra_id);
                 if (data.debug_no_recebimento) {

@@ -64,6 +64,14 @@ class Impedimento(models.Model):
         on_delete=models.CASCADE,
         related_name="impedimentos",
     )
+    front = models.ForeignKey(
+        "core.ProjectFront",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="impedimentos",
+        verbose_name="Frente",
+    )
     parent = models.ForeignKey(
         "self",
         null=True,
@@ -113,6 +121,7 @@ class Impedimento(models.Model):
             models.Index(fields=["obra"]),
             models.Index(fields=["status"]),
             models.Index(fields=["parent"]),
+            models.Index(fields=["front"]),
         ]
 
     def clean(self):
@@ -123,9 +132,19 @@ class Impedimento(models.Model):
                 raise ValidationError({"parent": "Uma restrição não pode ser pai de si mesma."})
             if self.obra_id and parent.obra_id != self.obra_id:
                 raise ValidationError({"parent": "A subtarefa deve pertencer à mesma obra do pai."})
+            if parent.front_id and self.front_id and parent.front_id != self.front_id:
+                raise ValidationError({"front": "A subtarefa deve usar a mesma frente do pai."})
             # Raiz → subtarefa → sub-subtarefa: não criar filho de um item já em nível 2
             if parent.parent_id is not None and parent.parent.parent_id is not None:
                 raise ValidationError({"parent": "Máximo 2 níveis de subtarefas."})
+        if self.front_id and self.obra_id:
+            obra_project_id = getattr(self.obra, "project_id", None)
+            if not obra_project_id:
+                raise ValidationError(
+                    {"front": "A obra selecionada não possui vínculo de projeto para usar frentes."}
+                )
+            if self.front.project_id != obra_project_id:
+                raise ValidationError({"front": "A frente selecionada não pertence à obra informada."})
 
     def __str__(self):
         return self.titulo

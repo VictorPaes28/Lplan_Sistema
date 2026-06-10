@@ -18,6 +18,7 @@ Para obras operacionais do produto: criar/editar `Project` e chamar
 from __future__ import annotations
 
 import logging
+from typing import Iterable
 
 from django.shortcuts import get_object_or_404
 
@@ -82,6 +83,73 @@ def sync_project_to_gestao_and_mapa(project, return_result=False):
         )
 
     return result if return_result else None
+
+
+def ensure_gestao_links_for_projects(projects: Iterable, create_missing: bool = True) -> dict[int, int]:
+    """
+    Garante vínculo ``Project`` -> ``gestao_aprovacao.Obra`` para os projetos informados.
+
+    Estratégia:
+    1) reaproveita Obra já vinculada por ``project_id``;
+    2) tenta vincular Obra legada sem ``project`` por ``codigo`` (preferencial) ou ``nome``;
+    3) opcionalmente cria/atualiza réplica pelo sync padrão quando não existir correspondência.
+
+    Retorna mapa ``{project_id: obra_id}`` para consumo imediato na UI.
+    """
+    from gestao_aprovacao.models import Obra as GestaoObra
+
+    resolved: dict[int, int] = {}
+    for project in projects or []:
+        project_id = getattr(project, 'pk', None)
+        if not project_id:
+            continue
+
+        linked = (
+            GestaoObra.objects.filter(project_id=project_id)
+            .only('id')
+            .order_by('-ativo', '-id')
+            .first()
+        )
+        if linked:
+            resolved[project_id] = linked.id
+            continue
+
+        code_value = (getattr(project, 'code', None) or '').strip()
+        name_value = (getattr(project, 'name', None) or '').strip()
+
+        legacy = None
+        if code_value:
+            legacy = (
+                GestaoObra.objects.filter(project__isnull=True, codigo__iexact=code_value)
+                .only('id')
+                .order_by('-ativo', '-id')
+                .first()
+            )
+        if legacy is None and name_value:
+            legacy = (
+                GestaoObra.objects.filter(project__isnull=True, nome__iexact=name_value)
+                .only('id')
+                .order_by('-ativo', '-id')
+                .first()
+            )
+
+        if legacy is not None:
+            GestaoObra.objects.filter(pk=legacy.pk, project__isnull=True).update(project_id=project_id)
+            resolved[project_id] = legacy.id
+            continue
+
+        if create_missing:
+            sync_project_to_gestao_and_mapa(project)
+            created = (
+                GestaoObra.objects.filter(project_id=project_id)
+                .only('id')
+                .order_by('-ativo', '-id')
+                .first()
+            )
+            if created:
+                resolved[project_id] = created.id
+
+    return resolved
 
 
 def obra_mapa_for_project(project, sync: bool = True):
