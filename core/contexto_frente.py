@@ -193,17 +193,21 @@ def filter_registros_by_frente_context(qs, frente_ctx: FrenteContext | None):
     """
     Recorta queryset com FK ``front_id`` conforme frente selecionada.
 
-    Registros legados sem frente só aparecem em visão consolidada (admin, ``front=0``).
+    Registros sem frente (``front_id`` nulo) são da obra inteira e permanecem
+    visíveis em qualquer recorte de frente — não é necessário vinculá-los.
     """
+    from django.db.models import Q
+
     if not frente_ctx or not frente_ctx.tem_frentes_ativas:
         return qs
     if frente_ctx.visao_obra_toda:
         return qs
+    legado = Q(front_id__isnull=True)
     if frente_ctx.frente_selecionada:
-        return qs.filter(front_id=frente_ctx.frente_selecionada.pk)
+        return qs.filter(legado | Q(front_id=frente_ctx.frente_selecionada.pk))
     allowed_ids = [f.pk for f in frente_ctx.frentes_disponiveis]
     if allowed_ids:
-        return qs.filter(front_id__in=allowed_ids)
+        return qs.filter(legado | Q(front_id__in=allowed_ids))
     return qs.none()
 
 
@@ -215,7 +219,7 @@ def registro_visivel_no_contexto_frente(registro, frente_ctx: FrenteContext | No
         return True
     front_id = getattr(registro, 'front_id', None)
     if not front_id:
-        return False
+        return True
     if frente_ctx.frente_selecionada:
         return front_id == frente_ctx.frente_selecionada.pk
     allowed_ids = {f.pk for f in frente_ctx.frentes_disponiveis}

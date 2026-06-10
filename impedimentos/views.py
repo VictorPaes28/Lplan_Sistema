@@ -1070,6 +1070,7 @@ def list_impedimentos(request, obra_id):
                 "items": col_items,
             }
         )
+    lista_restricoes_visiveis = sum(col["count"] for col in kanban_columns)
 
     q = (request.GET.get("q") or "").strip()
     filter_status = (request.GET.get("status") or "").strip()
@@ -1329,6 +1330,7 @@ def list_impedimentos(request, obra_id):
         "comentarios_count_by_id": comentarios_count_by_id,
         "lista_finalizado_status_id": lista_finalizado_status_id,
         "obra_tem_restricoes_raiz": obra_tem_restricoes_raiz,
+        "lista_restricoes_visiveis": lista_restricoes_visiveis,
         "selected_categoria_nome": selected_categoria_nome,
         "status_list_json": [
             {"id": s.id, "nome": s.nome, "cor": s.cor} for s in status_list
