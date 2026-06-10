@@ -167,6 +167,24 @@ def modulo_esta_ativo(codigo: str) -> bool:
     return load_modulos_status_map().get(codigo, {}).get('ativo', True)
 
 
+# Rotas de suprimentos/engenharia bloqueadas pelo toggle «Mapa de Suprimentos».
+# BI da Obra, Ferramenta de ambientes e Mapa Controle ficam fora deste escopo.
+MAPA_SUPRIMENTOS_ENGENHARIA_PREFIXES = (
+    '/engenharia/mapa/',
+    '/engenharia/mapa-servico/',
+    '/engenharia/dashboard',
+    '/engenharia/insumo/',
+)
+
+
+def _path_is_mapa_suprimentos(path: str) -> bool:
+    if path.startswith('/mapa/'):
+        return True
+    if path == '/engenharia/mapa' or path.startswith('/engenharia/mapa?'):
+        return True
+    return any(path.startswith(prefix) for prefix in MAPA_SUPRIMENTOS_ENGENHARIA_PREFIXES)
+
+
 def resolve_modulo_from_path(path: str) -> str | None:
     """Retorna o código do módulo associado ao path ou None se não aplicável."""
     if not path:
@@ -177,13 +195,14 @@ def resolve_modulo_from_path(path: str) -> str | None:
         ('/gestao/', 'gestao'),
         ('/impedimentos/', 'impedimentos'),
         ('/trackhub/', 'trackhub'),
-        ('/mapa/', 'mapa'),
-        ('/engenharia/', 'mapa'),
         ('/aprovacoes/', 'workflow'),
     )
     for prefix, codigo in prefix_map:
         if path.startswith(prefix):
             return codigo
+
+    if _path_is_mapa_suprimentos(path):
+        return 'mapa'
 
     # Infraestrutura, painel, auth e cadastro central — nunca bloquear por módulo inativo.
     global_exempt = (

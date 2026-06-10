@@ -1230,7 +1230,7 @@
     <div id="moduloInativarModal" class="modulo-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="moduloInativarTitulo" hidden>
         <div class="modulo-modal">
             <h3 id="moduloInativarTitulo">Inativar módulo</h3>
-            <p class="modulo-modal-hint">Usuários continuarão vendo o módulo, mas não poderão entrar até você reativar. Administradores do painel mantêm acesso para correção.</p>
+            <p class="modulo-modal-hint" id="moduloInativarHint">Usuários continuarão vendo o módulo, mas não poderão entrar até você reativar. Administradores do painel mantêm acesso para correção.</p>
             <form id="moduloInativarForm" method="post" action="">
                 {% csrf_token %}
                 <label for="moduloInativarMensagem">Justificativa (obrigatória)</label>
@@ -1263,6 +1263,10 @@
     var mensagem = document.getElementById('moduloInativarMensagem');
     var previsao = document.getElementById('moduloInativarPrevisao');
     var cancelar = document.getElementById('moduloInativarCancelar');
+    var hint = document.getElementById('moduloInativarHint');
+    var hintPadrao = hint ? hint.textContent : '';
+    var hintMapa = 'Usuários continuarão vendo o módulo, mas não poderão entrar até você reativar. Administradores do painel mantêm acesso para correção. '
+        + 'Ao inativar o Mapa de Suprimentos, apenas /mapa/ e a grade /engenharia/mapa/ são bloqueados — BI da Obra, Ferramenta de ambientes e Mapa Controle permanecem ativos.';
     if (!modal || !form) return;
 
     function fechar() {
@@ -1272,6 +1276,9 @@
     function abrir(codigo, nome) {
         form.action = '{% url "accounts:modulo_integrado_inativar" "__codigo__" %}'.replace('__codigo__', codigo);
         titulo.textContent = 'Inativar «' + nome + '»';
+        if (hint) {
+            hint.textContent = codigo === 'mapa' ? hintMapa : hintPadrao;
+        }
         mensagem.value = '';
         previsao.value = '';
         modal.classList.add('is-open');

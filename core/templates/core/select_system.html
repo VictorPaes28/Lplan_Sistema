@@ -961,20 +961,6 @@
         {% endif %}
 
         {% if has_ferramenta_ambientes %}
-        {% with st=modulos_manutencao.mapa %}
-        {% if st.indisponivel %}
-        <a href="{% url 'accounts:modulo_indisponivel' 'mapa' %}" class="system-card ferramenta disabled" aria-label="Ferramenta de ambientes — indisponível">
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-border-all"></i></div>
-                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Ferramenta de ambientes</h3>
-                <p class="text-sm text-slate-500 mb-0">Montagem de painéis e mapas operacionais por obra, para uso no campo.</p>
-                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
-            </div>
-        </a>
-        {% else %}
         <a href="{% url 'engenharia:ferramenta_shell' %}" class="system-card ferramenta" aria-label="Acessar Ferramenta de ambientes">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
@@ -989,24 +975,8 @@
             </div>
         </a>
         {% endif %}
-        {% endwith %}
-        {% endif %}
 
         {% if has_bi_obra %}
-        {% with st=modulos_manutencao.mapa %}
-        {% if st.indisponivel %}
-        <a href="{% url 'accounts:modulo_indisponivel' 'mapa' %}" class="system-card biobra disabled" aria-label="BI da Obra — indisponível">
-            <div class="card-inner">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="system-icon"><i class="fas fa-chart-pie"></i></div>
-                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">BI da Obra</h3>
-                <p class="text-sm text-slate-500 mb-0">Indicadores consolidados sobre andamento físico e suprimento da obra.</p>
-                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
-            </div>
-        </a>
-        {% else %}
         <a href="{% url 'engenharia:analise_obra' %}" class="system-card biobra" aria-label="Acessar BI da Obra">
             <div class="card-inner">
                 <div class="flex items-start justify-between mb-3">
@@ -1020,8 +990,6 @@
                 </div>
             </div>
         </a>
-        {% endif %}
-        {% endwith %}
         {% endif %}
 
         {% if has_impedimentos %}
