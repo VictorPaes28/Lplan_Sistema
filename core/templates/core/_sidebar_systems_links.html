@@ -3,7 +3,7 @@ Trecho único para troca rápida entre aplicativos. Rolagem apenas nesta zona (a
 Requer flags do context_processor sidebar_systems: has_* + sidebar_show_assistente + has_bi_obra etc.
 {% endcomment %}
 {% if user.is_authenticated %}
-{% if has_diario or has_gestao or has_mapa_modules_any or has_impedimentos or has_central or has_workflow or has_trackhub or has_comunicados_painel or sidebar_show_assistente %}
+{% if has_diario or has_gestao or has_mapa_modules_any or has_impedimentos or has_central or has_workflow or has_trackhub or has_rh or has_comunicados_painel or sidebar_show_assistente %}
 <div class="sidebar-modules-zone">
     <div class="sidebar-modules-zone-accent" aria-hidden="true"></div>
     <div class="sidebar-nav-section-title sidebar-modules-zone-heading mt-1 mb-2 px-4">
@@ -24,7 +24,7 @@ Requer flags do context_processor sidebar_systems: has_* + sidebar_show_assisten
             </a>
             {% endif %}
             {% if has_diario %}
-            {% if request.resolver_match.url_name == 'select-system' or '/gestao/' in request.path or '/mapa/' in request.path or '/engenharia/' in request.path or '/accounts/admin-central' in request.path or '/aprovacoes/' in request.path or '/impedimentos/' in request.path or '/trackhub/' in request.path %}
+            {% if request.resolver_match.url_name == 'select-system' or '/gestao/' in request.path or '/mapa/' in request.path or '/engenharia/' in request.path or '/accounts/admin-central' in request.path or '/aprovacoes/' in request.path or '/impedimentos/' in request.path or '/trackhub/' in request.path or '/rh/' in request.path %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-book-open w-5 mr-3"></i>
                 <span class="font-medium">Diário de Obras</span>
@@ -65,6 +65,12 @@ Requer flags do context_processor sidebar_systems: has_* + sidebar_show_assisten
             <a href="{% url 'trackhub:fila' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-compass w-5 mr-3"></i>
                 <span class="font-medium">TrackHub</span>
+            </a>
+            {% endif %}
+            {% if has_rh and '/rh/' not in request.path %}
+            <a href="{% url 'recursos_humanos:colaboradores' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-1 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-users w-5 mr-3"></i>
+                <span class="font-medium">DP / RH</span>
             </a>
             {% endif %}
             {% if has_comunicados_painel and '/comunicados/' not in request.path %}

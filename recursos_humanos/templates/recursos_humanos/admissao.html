@@ -1,0 +1,147 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+
+
+{% block rh_content %}
+
+<div class="rh-page">
+
+  <div class="rh-page-header">
+
+    <div>
+
+      <h1 class="rh-title">Fluxo de Admissão</h1>
+
+      <p class="rh-subtitle">Entrada única para contratar novos colaboradores — da requisição até a ativação</p>
+
+    </div>
+
+    <a href="{% url 'recursos_humanos:admissao_nova' %}" class="rh-btn rh-btn-primary">
+      <i class="fas fa-plus" aria-hidden="true"></i> Nova requisição
+    </a>
+
+  </div>
+
+
+
+  {% if not admissoes %}
+
+  <div class="rh-card rh-pad rh-empty-state">
+
+    <p>Nenhuma admissão em andamento.</p>
+    <a href="{% url 'recursos_humanos:admissao_nova' %}" class="rh-btn rh-btn-primary">Criar nova requisição</a>
+
+  </div>
+
+  {% else %}
+
+  <div class="rh-admission-layout">
+
+    <aside class="rh-admission-list">
+
+      {% for adm in admissoes %}
+
+      <a href="?id={{ adm.pk }}" class="rh-admission-item {% if selecionado.pk == adm.pk %}active{% endif %}">
+
+        <strong>{{ adm.nome }}</strong>
+
+        <span class="rh-muted">{{ adm.cargo }}</span>
+
+        <span class="rh-admission-step">Etapa {{ adm.etapa_admissao }}/5</span>
+
+      </a>
+
+      {% endfor %}
+
+    </aside>
+
+
+
+    {% if selecionado %}
+
+    <div class="rh-admission-detail">
+
+      <div class="rh-steps">
+
+        {% for num, label in etapas %}
+
+        <div class="rh-step {% if selecionado.etapa_admissao >= num %}done{% endif %} {% if selecionado.etapa_admissao == num %}current{% endif %}">
+
+          <span class="rh-step-num">{{ num }}</span>
+
+          <span class="rh-step-label">{{ label }}</span>
+
+        </div>
+
+        {% endfor %}
+
+      </div>
+
+
+
+      <div class="rh-card rh-pad">
+
+        <h3 class="rh-card-title rh-card-title--tight">{{ selecionado.nome }}</h3>
+
+        <p class="rh-subtitle">{{ selecionado.cargo }} · {% for o in selecionado.obras.all %}{{ o.nome }}{% if not forloop.last %}, {% endif %}{% empty %}Sem obra{% endfor %}</p>
+
+        <div class="rh-fields-grid rh-fields-grid-2">
+
+          <div class="rh-field"><span class="rh-field-label">Início</span><span class="rh-field-value">{% if selecionado.data_admissao %}{{ selecionado.data_admissao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+
+          <div class="rh-field"><span class="rh-field-label">Etapa atual</span><span class="rh-field-value">{{ selecionado.etapa_admissao }} — {% for num, label in etapas %}{% if num == selecionado.etapa_admissao %}{{ label }}{% endif %}{% endfor %}</span></div>
+
+        </div>
+
+      </div>
+
+
+
+      {% include "recursos_humanos/includes/admissao_etapa_conteudo.html" %}
+
+
+
+      <div class="rh-card rh-pad">
+
+        <h3 class="rh-card-title">Histórico</h3>
+
+        <ul class="rh-timeline">
+
+          {% for ev in historico %}
+
+          <li class="rh-timeline-item {% if ev.concluido %}done{% else %}pending{% endif %}">
+
+            <span class="rh-timeline-dot"></span>
+
+            <div>
+
+              <strong>{{ ev.descricao }}</strong>
+
+              <span class="rh-muted">{{ ev.data_hora|date:"d/m/Y H:i" }} · {{ ev.autor|default:"—" }}</span>
+
+            </div>
+
+          </li>
+
+          {% empty %}
+
+          <li class="rh-muted">Sem eventos registrados.</li>
+
+          {% endfor %}
+
+        </ul>
+
+      </div>
+
+    </div>
+
+    {% endif %}
+
+  </div>
+
+  {% endif %}
+
+</div>
+
+{% endblock %}
+

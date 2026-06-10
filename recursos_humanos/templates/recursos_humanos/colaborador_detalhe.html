@@ -1,0 +1,150 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <a href="{% url 'recursos_humanos:colaboradores' %}" class="rh-back"><i class="fas fa-arrow-left"></i> Voltar para lista</a>
+
+  <div class="rh-profile-header">
+    <span class="rh-avatar rh-avatar-lg">{{ colaborador.iniciais }}</span>
+    <div class="rh-profile-meta">
+      <div class="rh-profile-title-row">
+        <h1 class="rh-title">{{ colaborador.nome }}</h1>
+        <span class="rh-status rh-status-{{ colaborador.status }}">{{ colaborador.get_status_display }}</span>
+      </div>
+      <p class="rh-subtitle">{{ colaborador.cargo }}</p>
+      <div class="rh-tags-row">
+        {% for obra in colaborador.obras.all %}
+        <span class="rh-tag rh-tag-blue"><i class="fas fa-building"></i> {{ obra.nome }}</span>
+        {% endfor %}
+        {% if colaborador.status == 'em_admissao' %}
+        <a href="{% url 'recursos_humanos:admissao' %}?id={{ colaborador.pk }}" class="rh-link">Ver admissão →</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="rh-grid-2-1">
+    <div class="rh-card rh-pad">
+      <h3 class="rh-card-title">Dados Pessoais</h3>
+      <form method="post" class="rh-form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="salvar_dados">
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.nome.id_for_label }}">Nome completo</label>
+          {{ form_colaborador.nome }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.cpf.id_for_label }}">CPF</label>
+          {{ form_colaborador.cpf }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.rg.id_for_label }}">RG</label>
+          {{ form_colaborador.rg }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.data_nascimento.id_for_label }}">Data de nascimento</label>
+          {{ form_colaborador.data_nascimento }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.pis.id_for_label }}">PIS</label>
+          {{ form_colaborador.pis }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.escolaridade.id_for_label }}">Escolaridade</label>
+          {{ form_colaborador.escolaridade }}
+        </div>
+        <div class="rh-form-field rh-form-field-full">
+          <label for="{{ form_colaborador.endereco.id_for_label }}">Endereço</label>
+          {{ form_colaborador.endereco }}
+        </div>
+        <div class="rh-form-field rh-form-field-full">
+          <label for="{{ form_colaborador.dados_bancarios.id_for_label }}">Conta bancária</label>
+          {{ form_colaborador.dados_bancarios }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.tamanho_camisa.id_for_label }}">Tamanho de camisa</label>
+          {{ form_colaborador.tamanho_camisa }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.tamanho_bota.id_for_label }}">Tamanho de bota</label>
+          {{ form_colaborador.tamanho_bota }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.cargo.id_for_label }}">Cargo</label>
+          {{ form_colaborador.cargo }}
+        </div>
+        <div class="rh-form-field">
+          <label for="{{ form_colaborador.empresa.id_for_label }}">Empresa</label>
+          {{ form_colaborador.empresa }}
+        </div>
+        <div class="rh-form-field-full rh-form-actions">
+          <button type="submit" class="rh-btn rh-btn-primary">Salvar dados</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="rh-stack">
+      <div class="rh-card rh-pad">
+        <h3 class="rh-card-title">Status</h3>
+        <form method="post" class="rh-inline-form">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="status_colaborador">
+          <select name="status" class="rh-select">
+            {% for val, label in colaborador.Status.choices %}
+            <option value="{{ val }}" {% if colaborador.status == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="rh-btn rh-btn-sm rh-btn-outline">Atualizar</button>
+        </form>
+        <div class="rh-field" style="margin-top:1rem">
+          <span class="rh-field-label">Admissão</span>
+          <span class="rh-field-value">{% if colaborador.data_admissao %}{{ colaborador.data_admissao|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rh-card rh-pad">
+    <div class="rh-card-header-row">
+      <h3 class="rh-card-title">Documentos</h3>
+      <span class="rh-muted">{{ colaborador.documentos_recebidos }}/{{ colaborador.documentos_total }} recebidos</span>
+    </div>
+    <div class="rh-doc-list">
+      {% for doc in documentos %}
+      <div class="rh-doc-row rh-doc-row--editable">
+        <span class="rh-doc-icon {% if doc.status == 'received' %}received{% elif doc.status == 'pending' %}pending{% else %}missing{% endif %}">
+          {% if doc.status == 'received' %}<i class="fas fa-check-circle"></i>
+          {% elif doc.status == 'pending' %}<i class="fas fa-exclamation-triangle"></i>
+          {% else %}<i class="fas fa-times-circle"></i>{% endif %}
+        </span>
+        <div class="rh-doc-info">
+          <span class="rh-doc-name">{{ doc.tipo.nome }}{% if not doc.tipo.obrigatorio %} <span class="rh-muted">(opcional)</span>{% endif %}</span>
+          {% if doc.vencimento %}<span class="rh-muted">Validade: {{ doc.vencimento|date:"d/m/Y" }}</span>{% endif %}
+          {% if doc.arquivo %}<a href="{{ doc.arquivo.url }}" class="rh-link" target="_blank" rel="noopener"><i class="fas fa-paperclip"></i> Ver arquivo</a>{% endif %}
+        </div>
+        <div class="rh-doc-actions">
+          <form method="post" action="{% url 'recursos_humanos:documento_status' doc.pk %}" class="rh-inline-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">
+            <select name="status" class="rh-select rh-select-sm">
+              <option value="missing" {% if doc.status == 'missing' %}selected{% endif %}>Faltando</option>
+              <option value="pending" {% if doc.status == 'pending' %}selected{% endif %}>Pendente</option>
+              <option value="received" {% if doc.status == 'received' %}selected{% endif %}>Recebido</option>
+            </select>
+            <button type="submit" class="rh-btn rh-btn-sm rh-btn-outline">OK</button>
+          </form>
+          <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-inline-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">
+            <input type="file" name="arquivo" class="rh-input rh-input-sm" required>
+            <button type="submit" class="rh-btn rh-btn-sm rh-btn-primary"><i class="fas fa-upload"></i></button>
+          </form>
+        </div>
+      </div>
+      {% empty %}
+      <p class="rh-empty">Nenhum documento cadastrado.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

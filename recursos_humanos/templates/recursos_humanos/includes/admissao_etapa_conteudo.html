@@ -1,0 +1,187 @@
+{% if admissao_ctx %}
+<div class="rh-card rh-pad rh-etapa-panel">
+  <div class="rh-etapa-panel-header">
+    <h3 class="rh-card-title rh-card-title--tight">
+      Etapa {{ admissao_ctx.etapa_atual }} —
+      {% for num, label in etapas %}{% if num == admissao_ctx.etapa_atual %}{{ label }}{% endif %}{% endfor %}
+    </h3>
+  </div>
+
+  {% with etapa=admissao_ctx.etapa_atual %}
+  {% if etapa == 1 %}
+  {% with ctx=admissao_ctx.etapa_1 %}
+  <p class="rh-etapa-intro">
+    Requisição criada e aprovada pelo gestor responsável.
+    <strong>{{ selecionado.nome }}</strong> foi selecionado(a) para o cargo.
+  </p>
+  <div class="rh-info-grid">
+    <div class="rh-info-box"><span class="rh-field-label">Solicitante</span><span class="rh-field-value">{{ ctx.solicitante }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Gestor aprovador</span><span class="rh-field-value">{{ ctx.gestor }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Data da requisição</span><span class="rh-field-value">{% if ctx.data_requisicao %}{{ ctx.data_requisicao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Motivo</span><span class="rh-field-value">{{ ctx.motivo }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
+  </div>
+  {% if ctx.observacoes %}
+  <p class="rh-muted rh-etapa-obs">{{ ctx.observacoes }}</p>
+  {% endif %}
+  <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" class="rh-action-row">
+    {% csrf_token %}
+    <input type="hidden" name="acao" value="avancar">
+    <button type="submit" class="rh-btn rh-btn-primary"><i class="fas fa-arrow-right"></i> Iniciar coleta de documentos</button>
+  </form>
+  {% endwith %}
+
+  {% elif etapa == 2 %}
+  {% with resumo=admissao_ctx.doc_resumo %}
+  <div class="rh-doc-coleta-header">
+    <p class="rh-etapa-intro">Coleta de documentos de <strong>{{ selecionado.nome }}</strong></p>
+    <div class="rh-doc-coleta-stats">
+      <span class="rh-doc-coleta-count {% if resumo.completo %}ok{% else %}bad{% endif %}">{{ resumo.recebidos }}/{{ resumo.total }} recebidos</span>
+    </div>
+  </div>
+
+  <div class="rh-doc-grupos">
+    {% for grupo in admissao_ctx.doc_grupos %}
+    <div class="rh-doc-grupo">
+      <div class="rh-doc-grupo-header rh-doc-grupo-header--{{ grupo.header_state }}">
+        <div class="rh-doc-grupo-title">
+          <i class="fas {{ grupo.icon }} rh-doc-grupo-icon rh-tone-{{ grupo.tone }}" aria-hidden="true"></i>
+          <span>{{ grupo.label }}</span>
+        </div>
+        <div class="rh-doc-grupo-progress">
+          <span class="rh-doc-grupo-ratio">{{ grupo.recebidos }}/{{ grupo.total }}</span>
+          <div class="rh-progress-bar rh-progress-bar--sm">
+            <div class="rh-progress-fill {% if grupo.header_state == 'done' %}ok{% elif grupo.header_state == 'missing' %}bad{% else %}warn{% endif %}" style="width: {% if grupo.total %}{% widthratio grupo.recebidos grupo.total 100 %}{% else %}0{% endif %}%"></div>
+          </div>
+        </div>
+      </div>
+      <div class="rh-doc-grupo-body">
+        {% for doc in grupo.docs %}
+        <div class="rh-doc-grupo-item rh-doc-grupo-item--editable">
+          <span class="rh-doc-grupo-item-icon {% if doc.status == 'ok' %}ok{% elif doc.status == 'pending' %}pending{% else %}missing{% endif %}">
+            {% if doc.status == 'ok' %}<i class="fas fa-check-circle"></i>
+            {% elif doc.status == 'pending' %}<i class="fas fa-exclamation-triangle"></i>
+            {% else %}<i class="far fa-circle"></i>{% endif %}
+          </span>
+          <div class="rh-doc-grupo-item-text">
+            <span class="rh-doc-grupo-item-name {% if doc.status == 'missing' %}muted{% endif %}">{{ doc.nome }}</span>
+            {% if doc.observacao %}<span class="rh-muted">{{ doc.observacao }}</span>{% endif %}
+            {% if doc.tem_arquivo %}<span class="rh-muted"><i class="fas fa-paperclip"></i> Arquivo anexado</span>{% endif %}
+          </div>
+          <div class="rh-doc-grupo-item-actions">
+            <form method="post" action="{% url 'recursos_humanos:documento_status' doc.pk %}" class="rh-inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}">
+              <select name="status" class="rh-select rh-select-sm">
+                <option value="missing" {% if doc.status == 'missing' %}selected{% endif %}>Faltando</option>
+                <option value="pending" {% if doc.status == 'pending' %}selected{% endif %}>Pendente</option>
+                <option value="received" {% if doc.status == 'ok' %}selected{% endif %}>Recebido</option>
+              </select>
+              <input type="text" name="observacao" value="{{ doc.observacao }}" placeholder="Obs." class="rh-input rh-input-sm" maxlength="300">
+              <button type="submit" class="rh-btn rh-btn-sm rh-btn-outline">Salvar</button>
+            </form>
+            <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}">
+              <input type="file" name="arquivo" class="rh-input rh-input-sm" required>
+              <button type="submit" class="rh-btn rh-btn-sm rh-btn-primary"><i class="fas fa-upload"></i> Enviar</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="rh-empty">Nenhum documento configurado para este colaborador.</p>
+    {% endfor %}
+  </div>
+
+  {% if resumo.completo %}
+  <div class="rh-banner rh-banner-success">
+    <i class="fas fa-check-circle" aria-hidden="true"></i>
+    <div>
+      <strong>Todos os documentos recebidos</strong>
+      <p class="rh-muted">Pronto para avançar para a etapa de Aprovação RH</p>
+    </div>
+    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="avancar">
+      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-arrow-right"></i> Encaminhar ao RH</button>
+    </form>
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  {% elif etapa == 3 %}
+  {% with ctx=admissao_ctx.etapa_3 %}
+  <p class="rh-etapa-intro">Documentação completa. Aguardando análise e aprovação do RH antes da assinatura do contrato.</p>
+  <div class="rh-banner rh-banner-warning">
+    <i class="fas fa-clock" aria-hidden="true"></i>
+    <div>
+      <strong>Em análise — {{ ctx.analista }}</strong>
+      <p class="rh-muted">Prazo: {{ ctx.prazo_analise|date:"d/m/Y" }} · Documentos conferidos: {{ ctx.docs_conferidos }}</p>
+    </div>
+  </div>
+  <div class="rh-check-grid">
+    {% for item in ctx.checklist %}
+    <div class="rh-check-item {% if item.ok %}ok{% else %}bad{% endif %}">
+      <i class="fas {% if item.ok %}fa-check-circle{% else %}fa-times-circle{% endif %}" aria-hidden="true"></i>
+      <span>{{ item.label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="rh-action-row">
+    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="aprovar">
+      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check"></i> Aprovar documentação</button>
+    </form>
+    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" class="rh-devolver-form">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="devolver">
+      <input type="text" name="motivo" class="rh-input" placeholder="Motivo da devolução" required maxlength="300">
+      <button type="submit" class="rh-btn rh-btn-danger-outline"><i class="fas fa-times"></i> Devolver com ressalvas</button>
+    </form>
+  </div>
+  {% endwith %}
+
+  {% elif etapa == 4 %}
+  {% with ctx=admissao_ctx.etapa_4 %}
+  <p class="rh-etapa-intro">Documentação aprovada. Contrato gerado e aguardando assinatura das partes.</p>
+  <div class="rh-info-grid">
+    <div class="rh-info-box"><span class="rh-field-label">Tipo de contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Cargo</span><span class="rh-field-value">{{ ctx.cargo }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Obra</span><span class="rh-field-value">{{ ctx.obra }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Data de início</span><span class="rh-field-value">{% if ctx.data_inicio %}{{ ctx.data_inicio|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
+  </div>
+  <div class="rh-action-row">
+    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="enviar_contrato">
+      <button type="submit" class="rh-btn rh-btn-primary"><i class="fas fa-pen"></i> Enviar contrato para assinatura</button>
+    </form>
+    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="concluir">
+      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-user-check"></i> Concluir admissão</button>
+    </form>
+  </div>
+  {% endwith %}
+
+  {% elif etapa == 5 %}
+  <div class="rh-banner rh-banner-success rh-banner-lg">
+    <i class="fas fa-user-check" aria-hidden="true"></i>
+    <div>
+      <strong>Admissão concluída com sucesso</strong>
+      <p class="rh-muted">{{ selecionado.nome }} aparece como <strong>Ativo</strong> na lista de Colaboradores.</p>
+    </div>
+    <a href="{% url 'recursos_humanos:colaborador_detalhe' selecionado.pk %}" class="rh-btn rh-btn-outline">Ver perfil</a>
+  </div>
+  {% else %}
+  <p class="rh-muted">Etapa não reconhecida.</p>
+  {% endif %}
+  {% endwith %}
+</div>
+{% endif %}

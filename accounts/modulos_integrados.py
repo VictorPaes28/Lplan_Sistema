@@ -97,6 +97,17 @@ MODULOS_INTEGRADOS: tuple[ModuloMeta, ...] = (
         'stats_impedimentos',
         (('Registros', 'total'), ('Sem conclusão', 'em_aberto')),
     ),
+    ModuloMeta(
+        'rh',
+        'DP / Recursos Humanos',
+        'Colaboradores, admissões e documentos',
+        'rh',
+        'fa-users',
+        'icon-rh',
+        'recursos_humanos:colaboradores',
+        'stats_rh',
+        (('Colaboradores', 'colaboradores'), ('Alertas', 'alertas')),
+    ),
 )
 
 MODULO_BY_CODIGO = {m.codigo: m for m in MODULOS_INTEGRADOS}
@@ -195,6 +206,7 @@ def resolve_modulo_from_path(path: str) -> str | None:
         ('/gestao/', 'gestao'),
         ('/impedimentos/', 'impedimentos'),
         ('/trackhub/', 'trackhub'),
+        ('/rh/', 'rh'),
         ('/aprovacoes/', 'workflow'),
     )
     for prefix, codigo in prefix_map:

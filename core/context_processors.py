@@ -16,7 +16,7 @@ from .models import (
 def _get_system_access(user):
     """Flags usados no seletor de sistema e na sidebar (exceto granularidade engenharia via _engenharia_groups)."""
     if not user or not user.is_authenticated:
-        return False, False, False, False, False, False, False
+        return False, False, False, False, False, False, False, False
     from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
@@ -47,7 +47,8 @@ def _get_system_access(user):
             GRUPOS.TRACKHUB_SOLICITANTE,
         }
     )
-    return has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow, has_trackhub
+    has_rh = adminish or plat_admin or (GRUPOS.RECURSOS_HUMANOS in user_groups)
+    return has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow, has_trackhub, has_rh
 
 
 def _engenharia_groups(user):
@@ -88,13 +89,14 @@ def sidebar_systems(request):
             'has_central': z,
             'has_workflow': z,
             'has_trackhub': z,
+            'has_rh': z,
             'has_bi_obra': z,
             'has_comunicados_painel': False,
             'sidebar_show_assistente': False,
             'can_manage_central_projects': False,
         }
 
-    has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow_cp, has_trackhub = (
+    has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow_cp, has_trackhub, has_rh = (
         _get_system_access(request.user)
     )
     eng = _engenharia_groups(request.user)
@@ -120,6 +122,7 @@ def sidebar_systems(request):
         'has_central': has_central,
         'has_workflow': has_workflow_cp,
         'has_trackhub': has_trackhub,
+        'has_rh': has_rh,
         'has_bi_obra': eng['has_bi_obra'],
         'has_comunicados_painel': has_comunicados_painel,
         'sidebar_show_assistente': True,

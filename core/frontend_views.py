@@ -655,6 +655,7 @@ def select_system_view(request):
             GRUPOS.TRACKHUB_SOLICITANTE,
         }
     )
+    has_rh = adm or plat_admin or (GRUPOS.RECURSOS_HUMANOS in user_groups)
     has_mapa_suprimentos = adm or (GRUPOS.ENGENHARIA in user_groups)
     has_mapa_controle = adm or (GRUPOS.MAPA_CONTROLE in user_groups)
     has_ferramenta_ambientes = adm or (GRUPOS.FERRAMENTA_OPERACIONAL in user_groups)
@@ -682,6 +683,7 @@ def select_system_view(request):
             or has_gestao
             or has_impedimentos
             or has_trackhub
+            or has_rh
             or has_mapa_modules_any
             or has_central
             or has_workflow
@@ -713,6 +715,7 @@ def select_system_view(request):
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,
         'has_trackhub': has_trackhub,
+        'has_rh': has_rh,
         'has_mapa': has_mapa,
         'has_mapa_suprimentos': has_mapa_suprimentos,
         'has_mapa_controle': has_mapa_controle,

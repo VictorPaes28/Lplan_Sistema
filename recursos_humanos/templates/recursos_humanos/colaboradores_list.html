@@ -1,0 +1,106 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Colaboradores</h1>
+      <p class="rh-subtitle">
+        Registro de todos os colaboradores da empresa. Para contratar alguém novo, inicie pelo
+        <a href="{% url 'recursos_humanos:admissao' %}" class="rh-link">Fluxo de Admissão</a>.
+      </p>
+    </div>
+    <a href="{% url 'recursos_humanos:admissao_nova' %}" class="rh-btn rh-btn-outline">
+      <i class="fas fa-code-branch" aria-hidden="true"></i> Iniciar admissão
+    </a>
+  </div>
+
+  <div class="rh-chips">
+    <span class="rh-chip rh-chip-green"><span class="rh-dot rh-dot-green"></span>{{ contagens.ativo }} Ativos</span>
+    <span class="rh-chip rh-chip-blue"><span class="rh-dot rh-dot-blue"></span>{{ contagens.em_admissao }} Em Admissão</span>
+    <span class="rh-chip rh-chip-gray"><span class="rh-dot rh-dot-gray"></span>{{ contagens.desligado }} Desligados</span>
+  </div>
+
+  <form method="get" class="rh-filters">
+    <div class="rh-search-wrap">
+      <i class="fas fa-search rh-search-icon" aria-hidden="true"></i>
+      <input type="search" name="q" value="{{ busca }}" placeholder="Buscar por nome, CPF ou cargo..." class="rh-input rh-search-input">
+    </div>
+    <div class="rh-segmented">
+      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=todos" class="rh-seg-btn {% if status_filtro == 'todos' %}active{% endif %}">Todos</a>
+      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=em_admissao" class="rh-seg-btn {% if status_filtro == 'em_admissao' %}active{% endif %}">Em Admissão</a>
+      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=ativo" class="rh-seg-btn {% if status_filtro == 'ativo' %}active{% endif %}">Ativos</a>
+      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=desligado" class="rh-seg-btn {% if status_filtro == 'desligado' %}active{% endif %}">Desligados</a>
+    </div>
+    <select name="obra" class="rh-select" onchange="this.form.submit()">
+      <option value="">Todas as obras</option>
+      {% for obra in obras %}
+      <option value="{{ obra.pk }}" {% if obra_filtro == obra.pk|stringformat:"s" %}selected{% endif %}>{{ obra.nome }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="status" value="{{ status_filtro }}">
+    <span class="rh-count">{{ colaboradores|length }} colaborador{{ colaboradores|length|pluralize:"es" }}</span>
+  </form>
+
+  <div class="rh-card rh-table-wrap">
+    <table class="rh-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>CPF</th>
+          <th>Cargo</th>
+          <th>Obra(s)</th>
+          <th>Status</th>
+          <th>Documentos</th>
+          <th>Prazo próximo</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in colaboradores %}
+        <tr>
+          <td>
+            <div class="rh-person-cell">
+              <span class="rh-avatar">{{ c.iniciais }}</span>
+              <a href="{% url 'recursos_humanos:colaborador_detalhe' c.pk %}" class="rh-person-name">{{ c.nome }}</a>
+            </div>
+          </td>
+          <td class="rh-muted">{{ c.cpf }}</td>
+          <td>{{ c.cargo }}</td>
+          <td>
+            {% for obra in c.obras.all %}
+            <span class="rh-tag">{{ obra.nome }}</span>
+            {% empty %}<span class="rh-muted">—</span>{% endfor %}
+          </td>
+          <td>
+            <span class="rh-status rh-status-{{ c.status }}">{{ c.get_status_display }}</span>
+          </td>
+          <td>
+            {% if c.status == 'em_admissao' %}
+            <a href="{% url 'recursos_humanos:admissao' %}?id={{ c.pk }}" class="rh-link">Ver admissão →</a>
+            {% else %}
+            <div class="rh-progress">
+              <div class="rh-progress-bar">
+                <div class="rh-progress-fill {% if c.docs_total and c.docs_recebidos == c.docs_total %}ok{% elif c.docs_total and c.docs_total|add:'-3' >= c.docs_recebidos %}warn{% else %}bad{% endif %}" style="width: {% if c.docs_total %}{% widthratio c.docs_recebidos c.docs_total 100 %}{% else %}0{% endif %}%"></div>
+              </div>
+              <span class="rh-progress-label">{{ c.docs_recebidos }}/{{ c.docs_total }}</span>
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.proximo_prazo_fmt %}
+            <span class="rh-deadline{% if c.dias_proximo_prazo is not None %}{% if c.dias_proximo_prazo < 0 %} rh-deadline-overdue{% elif c.dias_proximo_prazo <= 7 %} rh-deadline-urgent{% endif %}{% endif %}">{{ c.proximo_prazo_fmt }}</span>
+            {% else %}<span class="rh-muted">—</span>{% endif %}
+          </td>
+          <td>
+            <a href="{% url 'recursos_humanos:colaborador_detalhe' c.pk %}" class="rh-icon-btn" title="Ver perfil"><i class="fas fa-eye"></i></a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="rh-empty">Nenhum colaborador encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

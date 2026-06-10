@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block back_url %}{% url 'recursos_humanos:colaboradores' %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=2">
+{% endblock %}
+
+{% block title %}DP / RH — LPLAN{% endblock %}
+{% block page_title %}DP / Recursos Humanos{% endblock %}
+{% block page_subtitle %}Colaboradores, admissões e documentos{% endblock %}
+{% block main_extra_class %} rh-main{% endblock %}
+
+{% block content %}
+<div class="rh-fullbleed">
+  <div class="tabs-bar">
+    <a href="{% url 'recursos_humanos:colaboradores' %}" class="tab {% if request.resolver_match.url_name == 'colaboradores' or request.resolver_match.url_name == 'colaboradores_list' or request.resolver_match.url_name == 'colaborador_detalhe' %}active{% endif %}">
+      <i class="fas fa-users" aria-hidden="true"></i>
+      Colaboradores
+    </a>
+    <a href="{% url 'recursos_humanos:admissao' %}" class="tab {% if 'admissao' in request.resolver_match.url_name %}active{% endif %}">
+      <i class="fas fa-code-branch" aria-hidden="true"></i>
+      Fluxo de Admissão
+    </a>
+    <a href="{% url 'recursos_humanos:alertas' %}" class="tab {% if request.resolver_match.url_name == 'alertas' %}active{% endif %}">
+      <i class="fas fa-bell" aria-hidden="true"></i>
+      Prazos e Alertas
+      {% if rh_alertas_count %}<span class="tab-count">{{ rh_alertas_count }}</span>{% endif %}
+    </a>
+    <a href="{% url 'recursos_humanos:documentos_config' %}" class="tab {% if request.resolver_match.url_name == 'documentos_config' %}active{% endif %}">
+      <i class="fas fa-cog" aria-hidden="true"></i>
+      Config. Documentos
+    </a>
+  </div>
+
+  <div class="rh-content">
+    {% block rh_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

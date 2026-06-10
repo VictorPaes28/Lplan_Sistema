@@ -1,0 +1,104 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Configuração de Documentos</h1>
+      <p class="rh-subtitle">Tipos de documentos exigidos e regras de validade</p>
+    </div>
+  </div>
+
+  <div class="rh-card rh-pad rh-form-card">
+    <h3 class="rh-card-title">Novo tipo de documento</h3>
+    <form method="post" class="rh-form-grid rh-form-grid-compact">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="criar">
+      <div class="rh-form-field rh-form-field-wide">
+        <label for="{{ form_novo.nome.id_for_label }}">Nome</label>
+        {{ form_novo.nome }}
+      </div>
+      <div class="rh-form-field">
+        <label for="{{ form_novo.aplica_a.id_for_label }}">Aplica-se a</label>
+        {{ form_novo.aplica_a }}
+      </div>
+      <div class="rh-form-field">
+        <label><input type="checkbox" name="tem_validade" {% if form_novo.tem_validade.value %}checked{% endif %}> Tem validade</label>
+      </div>
+      <div class="rh-form-field">
+        <label for="{{ form_novo.dias_validade.id_for_label }}">Dias</label>
+        {{ form_novo.dias_validade }}
+      </div>
+      <div class="rh-form-field">
+        <label><input type="checkbox" name="obrigatorio" checked> Obrigatório</label>
+      </div>
+      <div class="rh-form-field">
+        <label for="{{ form_novo.ordem.id_for_label }}">Ordem</label>
+        {{ form_novo.ordem }}
+      </div>
+      <div class="rh-form-field rh-form-field-actions">
+        <button type="submit" class="rh-btn rh-btn-primary rh-btn-sm"><i class="fas fa-plus"></i> Adicionar</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="rh-card rh-table-wrap">
+    <table class="rh-table">
+      <thead>
+        <tr>
+          <th>Documento</th>
+          <th>Aplica-se a</th>
+          <th>Validade</th>
+          <th>Dias</th>
+          <th>Obrigatório</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tipos %}
+        <tr>
+          <td colspan="6" class="rh-table-edit-row">
+            <form method="post" class="rh-form-grid rh-form-grid-compact rh-table-inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="acao" value="editar">
+              <input type="hidden" name="tipo_id" value="{{ t.pk }}">
+              <div class="rh-form-field rh-form-field-wide">
+                <input type="text" name="nome" value="{{ t.nome }}" class="rh-input" required>
+              </div>
+              <div class="rh-form-field">
+                <select name="aplica_a" class="rh-select">
+                  {% for val, label in t.AplicaA.choices %}
+                  <option value="{{ val }}" {% if t.aplica_a == val %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="rh-form-field">
+                <label><input type="checkbox" name="tem_validade" {% if t.tem_validade %}checked{% endif %}></label>
+              </div>
+              <div class="rh-form-field">
+                <input type="number" name="dias_validade" value="{{ t.dias_validade|default:'' }}" class="rh-input" min="1">
+              </div>
+              <div class="rh-form-field">
+                <label><input type="checkbox" name="obrigatorio" {% if t.obrigatorio %}checked{% endif %}></label>
+              </div>
+              <div class="rh-form-field rh-form-field-actions">
+                <input type="number" name="ordem" value="{{ t.ordem }}" class="rh-input rh-input-sm" min="0" style="width:4rem">
+                <button type="submit" class="rh-btn rh-btn-sm rh-btn-outline">Salvar</button>
+              </div>
+            </form>
+            <form method="post" class="rh-inline-delete" onsubmit="return confirm('Excluir este tipo de documento?');">
+              {% csrf_token %}
+              <input type="hidden" name="acao" value="excluir">
+              <input type="hidden" name="tipo_id" value="{{ t.pk }}">
+              <button type="submit" class="rh-btn rh-btn-sm rh-btn-danger-outline"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="rh-empty">Nenhum tipo cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

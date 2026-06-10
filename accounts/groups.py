@@ -53,7 +53,9 @@ class _Grupos:
     TRACKHUB_SOLICITANTE = 'TrackHub Solicitante'
 
     # ──────────────────────────────────────────────
-    # Diário de Obra (Core)
+    # DP / Recursos Humanos
+    # ──────────────────────────────────────────────
+    RECURSOS_HUMANOS = 'Recursos Humanos'
     # ──────────────────────────────────────────────
     GERENTES = 'Diário de Obra'
 
@@ -98,6 +100,7 @@ class _Grupos:
             self.TRACKHUB_ADMIN,
             self.TRACKHUB_APROVADOR,
             self.TRACKHUB_SOLICITANTE,
+            self.RECURSOS_HUMANOS,
             self.GERENTES, self.ENGENHARIA, self.MAPA_CONTROLE, self.BI_DA_OBRA, self.FERRAMENTA_OPERACIONAL,
             self.CENTRAL_APROVACOES_ADMIN,
             self.CENTRAL_APROVACOES_APROVADOR,
@@ -149,6 +152,7 @@ GRUPO_LABEL_ATRIBUICAO_UI = {
     GRUPOS.TRACKHUB_ADMIN: 'TrackHub — administrador',
     GRUPOS.TRACKHUB_APROVADOR: 'TrackHub — aprovador',
     GRUPOS.TRACKHUB_SOLICITANTE: 'TrackHub — solicitante',
+    GRUPOS.RECURSOS_HUMANOS: 'Acesso ao DP / Recursos Humanos',
     GRUPOS.GERENTES: 'Acesso ao Diário de Obra',
     GRUPOS.ENGENHARIA: 'Acesso ao Mapa de Suprimentos',
     GRUPOS.MAPA_CONTROLE: 'Acesso ao Mapa de Controle',
@@ -197,6 +201,19 @@ GROUP_UI_SECTIONS = [
                     GRUPOS.SOLICITANTE,
                     GRUPOS.ENVIAR_PARA_CENTRAL_APROVACOES,
                 ],
+            },
+        ],
+    },
+    {
+        'id': 'mod_rh',
+        'title': 'DP / Recursos Humanos',
+        'description': 'Colaboradores, admissões, documentos e alertas de prazos.',
+        'modules': [
+            {
+                'id': 'rh_credencial',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.RECURSOS_HUMANOS],
             },
         ],
     },

@@ -90,6 +90,18 @@ def admin_central(request):
         }
     except Exception:
         pass
+
+    stats_rh = {'colaboradores': 0, 'alertas': 0}
+    try:
+        from recursos_humanos.models import Colaborador
+        from recursos_humanos.services.alerts import gerar_alertas
+
+        stats_rh = {
+            'colaboradores': Colaborador.objects.count(),
+            'alertas': len(gerar_alertas()),
+        }
+    except Exception:
+        pass
     
     # Grupos organizados por sistema com descricoes
     _grupo_descs = {
@@ -219,6 +231,7 @@ def admin_central(request):
         'stats_workflow': stats_workflow,
         'stats_trackhub': stats_trackhub,
         'stats_impedimentos': stats_impedimentos,
+        'stats_rh': stats_rh,
         'grupos_gestao': grupos_gestao,
         'grupos_diario': grupos_diario,
         'grupos_mapa': grupos_mapa,
@@ -244,6 +257,7 @@ def admin_central(request):
             'stats_workflow': stats_workflow,
             'stats_trackhub': stats_trackhub,
             'stats_impedimentos': stats_impedimentos,
+        'stats_rh': stats_rh,
         }
     )
 

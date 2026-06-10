@@ -1,0 +1,64 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Prazos e Alertas</h1>
+      <p class="rh-subtitle">Monitoramento de documentos, treinamentos e admissões</p>
+    </div>
+  </div>
+
+  <div class="rh-summary-grid">
+    <div class="rh-summary-card rh-summary-yellow">
+      <i class="fas fa-clock"></i>
+      <div><strong>{{ resumo.vencendo_7 }}</strong><span>Documentos vencendo (7 dias)</span></div>
+    </div>
+    <div class="rh-summary-card rh-summary-red">
+      <i class="fas fa-times-circle"></i>
+      <div><strong>{{ resumo.vencidos }}</strong><span>Documentos vencidos</span></div>
+    </div>
+    <div class="rh-summary-card rh-summary-blue">
+      <i class="fas fa-book"></i>
+      <div><strong>{{ resumo.treinamentos }}</strong><span>Treinamentos pendentes</span></div>
+    </div>
+    <div class="rh-summary-card rh-summary-green">
+      <i class="fas fa-user-plus"></i>
+      <div><strong>{{ resumo.admissoes }}</strong><span>Admissões em andamento</span></div>
+    </div>
+  </div>
+
+  <div class="rh-card">
+    <div class="rh-card-header-row rh-pad">
+      <h3 class="rh-card-title">Todos os alertas</h3>
+      <span class="rh-muted">{{ alertas|length }} itens</span>
+    </div>
+    <div class="rh-alert-list">
+      {% for a in alertas %}
+      <div class="rh-alert-row">
+        <span class="rh-alert-dot rh-alert-{{ a.urgencia }}"></span>
+        <div class="rh-alert-body">
+          <strong>{{ a.colaborador_nome }}</strong>
+          <span class="rh-muted">· {{ a.tipo }}</span>
+          <p class="rh-muted">{{ a.detalhe }}</p>
+        </div>
+        <div class="rh-alert-meta">
+          <span>{{ a.prazo }}</span>
+          <span class="rh-alert-days {% if a.dias_restantes < 0 %}bad{% elif a.dias_restantes <= 7 %}warn{% else %}ok{% endif %}">
+            {% if a.dias_restantes < 0 %}{% widthratio a.dias_restantes 1 -1 %} dias atraso
+            {% elif a.dias_restantes == 0 %}Hoje
+            {% else %}{{ a.dias_restantes }} dias{% endif %}
+          </span>
+          <span class="rh-urgency-badge rh-urgency-{{ a.urgencia }}">
+            {% if a.urgencia == 'red' %}Urgente{% elif a.urgencia == 'yellow' %}Atenção{% else %}Informativo{% endif %}
+          </span>
+        </div>
+        <a href="{{ a.url }}" class="rh-btn rh-btn-sm rh-btn-outline">{{ a.acao }} <i class="fas fa-chevron-right"></i></a>
+      </div>
+      {% empty %}
+      <p class="rh-empty rh-pad">Nenhum alerta no momento.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -414,6 +414,8 @@
     .system-card.central .card-inner::before { background: #64748b; }
     .system-card.impedimentos:hover:not(.disabled) .card-inner { border-color: #d24e1b; }
     .system-card.impedimentos .card-inner::before { background: #d24e1b; }
+    .system-card.rh:hover:not(.disabled) .card-inner { border-color: #7c3aed; }
+    .system-card.rh .card-inner::before { background: #7c3aed; }
     .system-card.trackhub:hover:not(.disabled) .card-inner { border-color: #6b7c52; }
     .system-card.trackhub .card-inner::before { background: #6b7c52; }
     .system-card.ferramenta:hover:not(.disabled) .card-inner { border-color: #6366f1; }
@@ -443,6 +445,7 @@
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
     .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
     .system-card.impedimentos .system-icon { background: #d24e1b; }
+    .system-card.rh .system-icon { background: #7c3aed; }
     .system-card.impedimentos .system-icon svg {
         width: 22px;
         height: 22px;
@@ -502,6 +505,7 @@
     .system-card.biobra .card-arrow { color: #0ea5e9; }
     .system-card.central .card-arrow { color: #64748b; }
     .system-card.impedimentos .card-arrow { color: #d24e1b; }
+    .system-card.rh .card-arrow { color: #7c3aed; }
     .system-card.trackhub .card-arrow { color: #6b7c52; }
     .system-card.ferramenta .card-arrow { color: #6366f1; }
     .system-card.workflow-central .card-arrow { color: #0d9488; }
@@ -906,6 +910,9 @@
                 {% if has_trackhub %}
                 <a href="{% url 'trackhub:fila' %}" class="select-system-quick-link"><i class="fas fa-compass" aria-hidden="true"></i><span>TrackHub</span></a>
                 {% endif %}
+                {% if has_rh %}
+                <a href="{% url 'recursos_humanos:colaboradores' %}" class="select-system-quick-link"><i class="fas fa-users" aria-hidden="true"></i><span>DP / RH</span></a>
+                {% endif %}
                 {% endwith %}
             </div>
         </nav>
@@ -920,7 +927,7 @@
     </div>
     <p id="select-system-module-filter-empty" class="select-system-module-filter-empty" hidden>Nenhum módulo encontrado.</p>
 
-    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_mapa and not has_ferramenta_ambientes and not has_bi_obra and not has_central and not has_workflow and not has_comunicados_painel %}
+    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_rh and not has_mapa and not has_ferramenta_ambientes and not has_bi_obra and not has_central and not has_workflow and not has_comunicados_painel %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
         <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum módulo nesta página.</p>
         <p class="text-amber-700 text-sm mt-1">A central de <strong>Suporte</strong> permanece disponível abaixo. Para os demais módulos, contate o administrador (grupos e obras).</p>
@@ -1020,6 +1027,38 @@
                 </div>
                 <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">Restrições</h3>
                 <p class="text-sm text-slate-500 mb-0">Pendências e bloqueios que impactam obra, cronograma e responsáveis.</p>
+                <div class="mt-4 text-right">
+                    <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
+                </div>
+            </div>
+        </a>
+        {% endif %}
+        {% endwith %}
+        {% endif %}
+
+        {% if has_rh %}
+        {% with st=modulos_manutencao.rh %}
+        {% if st.indisponivel %}
+        <a href="{% url 'accounts:modulo_indisponivel' 'rh' %}" class="system-card rh disabled" aria-label="DP / RH — indisponível">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-users"></i></div>
+                    <span class="access-badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;"><i class="fas fa-pause-circle"></i> Indisponível</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">DP / Recursos Humanos</h3>
+                <p class="text-sm text-slate-500 mb-0">Colaboradores, admissões, documentos e alertas de prazos.</p>
+                {% if st.mensagem %}<p class="text-sm mt-2 mb-0" style="color:#9a3412;">{{ st.mensagem|truncatechars:160 }}</p>{% endif %}
+            </div>
+        </a>
+        {% else %}
+        <a href="{% url 'recursos_humanos:colaboradores' %}" class="system-card rh" aria-label="Acessar DP / Recursos Humanos">
+            <div class="card-inner">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="system-icon"><i class="fas fa-users"></i></div>
+                    <span class="access-badge granted"><i class="fas fa-check"></i> Acesso</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mt-2 mb-1">DP / Recursos Humanos</h3>
+                <p class="text-sm text-slate-500 mb-0">Colaboradores, admissões, documentos e alertas de prazos.</p>
                 <div class="mt-4 text-right">
                     <span class="card-arrow">Acessar <i class="fas fa-arrow-right" style="font-size:0.7rem"></i></span>
                 </div>

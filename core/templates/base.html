@@ -193,7 +193,7 @@
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Home</span>
             </a>
-            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/trackhub/' not in request.path and '/aprovacoes/' not in request.path and '/impedimentos/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
+            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and '/trackhub/' not in request.path and '/rh/' not in request.path and '/aprovacoes/' not in request.path and '/impedimentos/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
@@ -339,6 +339,9 @@
 
             {% elif '/trackhub/' in request.path %}
             <!-- TrackHub: navegação principal nas abas da página; sem Diário de Obras / Trocar Obra aqui -->
+
+            {% elif '/rh/' in request.path %}
+            <!-- DP / RH: navegação nas abas do módulo -->
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->
