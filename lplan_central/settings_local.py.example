@@ -1,0 +1,11 @@
+"""
+Copie para settings_local.py nesta pasta (arquivo gitignored).
+Use só para overrides pontuais no servidor — o normal é configurar tudo no .env na raiz do projeto.
+
+  cp lplan_central/settings_local.py.example lplan_central/settings_local.py
+
+Exemplos (descomente se precisar):
+
+# DEBUG = False
+# ALLOWED_HOSTS = ['sistema.lplan.com.br', 'www.sistema.lplan.com.br']
+"""
