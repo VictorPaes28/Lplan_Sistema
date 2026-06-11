@@ -68,6 +68,12 @@
 
   var togglePanelBtn = document.getElementById('mg-toggle-panel');
 
+  var panelReopenBtn = document.getElementById('mg-panel-reopen');
+
+  var filtersToggle = document.getElementById('mg-filters-toggle');
+
+  var filtersBody = document.getElementById('mg-filters-body');
+
   var emptyHint = document.getElementById('mg-empty-hint');
 
   var exportWrap = document.getElementById('mg-export-wrap');
@@ -1894,7 +1900,15 @@
 
     if (workspace) workspace.classList.toggle('panel-collapsed', !panelOpen);
 
-    if (togglePanelBtn) togglePanelBtn.classList.toggle('is-active', panelOpen);
+    if (togglePanelBtn) {
+
+      togglePanelBtn.setAttribute('aria-expanded', panelOpen ? 'true' : 'false');
+
+      togglePanelBtn.dataset.tooltip = panelOpen ? 'Recolher lista' : 'Expandir lista';
+
+    }
+
+    if (panelReopenBtn) panelReopenBtn.hidden = panelOpen;
 
   }
 
@@ -1969,6 +1983,24 @@
     }
 
     if (togglePanelBtn) togglePanelBtn.addEventListener('click', toggleSidePanel);
+
+    if (panelReopenBtn) panelReopenBtn.addEventListener('click', toggleSidePanel);
+
+    if (filtersToggle && filtersBody) {
+
+      filtersToggle.addEventListener('click', function () {
+
+        var willOpen = filtersBody.hidden;
+
+        filtersBody.hidden = !willOpen;
+
+        filtersToggle.classList.toggle('is-open', willOpen);
+
+        filtersToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+      });
+
+    }
 
     function setHelpOpen(open) {
 
