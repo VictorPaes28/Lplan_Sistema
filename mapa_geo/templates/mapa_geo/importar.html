@@ -1,12 +1,17 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Importar mapa geográfico — {{ project.name }}{% endblock %}
 {% block page_title %}Importar em lote{% endblock %}
 {% block page_subtitle %}Opcional — {{ project.code }}{% endblock %}
 {% block back_url %}{% url 'mapa_geo:mapa' %}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'mapa_geo/css/mapa.css' %}?v=12" />
+{% endblock %}
+
 {% block content %}
-<div class="max-w-2xl mx-auto">
+<div class="max-w-2xl mx-auto mapa-geo-import-page">
   <div class="card shadow-sm p-6">
     <p class="text-gray-600 mb-4">
       O trabalho do dia a dia é feito no <a href="{% url 'mapa_geo:mapa' %}">mapa geográfico</a>: navegar, desenhar, editar e acompanhar o progresso.
@@ -35,11 +40,11 @@
         <input type="checkbox" name="replace" />
         Substituir todos os elementos existentes desta obra
       </label>
-      <div class="flex gap-3 pt-2">
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-upload"></i> Importar
+      <div class="flex gap-3 pt-2 mapa-geo-import-actions">
+        <button type="submit" class="mg-btn mg-btn--sm mg-btn--primary">
+          <i class="fas fa-upload"></i><span>Importar</span>
         </button>
-        <a href="{% url 'mapa_geo:mapa' %}" class="btn btn-secondary">Cancelar</a>
+        <a href="{% url 'mapa_geo:mapa' %}" class="mg-btn mg-btn--sm mg-btn--secondary">Cancelar</a>
       </div>
     </form>
   </div>

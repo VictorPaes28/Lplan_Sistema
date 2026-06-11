@@ -14,7 +14,11 @@ from mapa_geo.services import (
 
 
 class Command(BaseCommand):
-    help = 'Importa GeoJSON, KML ou KMZ para o mapa geográfico de uma obra (core.Project).'
+    help = (
+        'Importa GeoJSON, KML ou KMZ para o mapa geográfico de uma obra (core.Project). '
+        'Para integração Sienge/IRU TIM, exporte o KMZ do sistema fonte e importe aqui '
+        'ou use a tela Importar em lote no Mapa Geográfico.'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument('--project-code', required=True, help='Código do projeto (core.Project.code)')

@@ -14,7 +14,14 @@ from accounts.groups import GRUPOS
 from core.frontend_views import _get_projects_for_user, _user_can_access_project, _with_no_cache_html, get_selected_project
 from core.models import Project
 
-from .decorators import mapa_project_required
+from .decorators import mapa_geo_access_required, mapa_project_required
+from .enrichment import (
+    build_relatorio_context,
+    compare_features_at_dates,
+    get_map_alerts,
+    list_feature_folders,
+    multi_obra_panorama,
+)
 
 from .models import GeoFeature, GeoObraConfig
 from .services import (
@@ -59,6 +66,7 @@ def _json_body(request) -> dict:
 
 
 @login_required
+@mapa_geo_access_required
 def selecionar_obra_view(request):
     """Seleção de obra no contexto do Mapa Geográfico (não redireciona ao Diário)."""
     projects = _get_projects_for_user(request)
@@ -110,6 +118,7 @@ def selecionar_obra_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 def mapa_view(request):
     project = get_selected_project(request)
@@ -136,6 +145,7 @@ def mapa_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_http_methods(['GET', 'POST'])
 def api_features_view(request):
@@ -162,6 +172,7 @@ def api_features_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_http_methods(['GET', 'PUT', 'PATCH', 'DELETE'])
 def api_feature_detail_view(request, pk: int):
@@ -189,6 +200,7 @@ def api_feature_detail_view(request, pk: int):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_GET
 def api_activities_view(request):
@@ -200,6 +212,7 @@ def api_activities_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_GET
 def api_summary_view(request):
@@ -208,6 +221,7 @@ def api_summary_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_http_methods(['POST'])
 def api_sync_view(request):
@@ -219,6 +233,7 @@ def api_sync_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_GET
 def api_timeline_view(request):
@@ -228,6 +243,7 @@ def api_timeline_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_GET
 def exportar_view(request):
@@ -289,6 +305,7 @@ def exportar_view(request):
 
 
 @login_required
+@mapa_geo_access_required
 @mapa_project_required
 @require_http_methods(['GET', 'POST'])
 def importar_view(request):
@@ -352,3 +369,53 @@ def importar_view(request):
         messages.error(request, f'Falha na importação: {exc}')
 
     return redirect('mapa_geo:mapa')
+
+
+@login_required
+@mapa_geo_access_required
+@mapa_project_required
+@require_GET
+def api_folders_view(request):
+    project = get_selected_project(request)
+    return JsonResponse({'folders': list_feature_folders(project)})
+
+
+@login_required
+@mapa_geo_access_required
+@mapa_project_required
+@require_GET
+def api_alerts_view(request):
+    project = get_selected_project(request)
+    return JsonResponse(get_map_alerts(project))
+
+
+@login_required
+@mapa_geo_access_required
+@mapa_project_required
+@require_GET
+def api_compare_view(request):
+    project = get_selected_project(request)
+    date_a = _parse_date(request.GET.get('date_a'))
+    date_b = _parse_date(request.GET.get('date_b'))
+    if not date_a or not date_b:
+        return JsonResponse({'error': 'Informe date_a e date_b (YYYY-MM-DD).'}, status=400)
+    return JsonResponse(compare_features_at_dates(project, date_a, date_b))
+
+
+@login_required
+@mapa_geo_access_required
+@mapa_project_required
+@require_GET
+def relatorio_view(request):
+    project = get_selected_project(request)
+    target = _parse_date(request.GET.get('date'))
+    ctx = build_relatorio_context(project, target)
+    return render(request, 'mapa_geo/relatorio.html', ctx)
+
+
+@login_required
+@mapa_geo_access_required
+@require_GET
+def panorama_view(request):
+    rows = multi_obra_panorama(request.user)
+    return render(request, 'mapa_geo/panorama.html', {'obras': rows})

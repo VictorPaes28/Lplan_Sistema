@@ -24,7 +24,7 @@
 
 <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" crossorigin="" />
 
-<link rel="stylesheet" href="{% static 'mapa_geo/css/mapa.css' %}?v=8" />
+<link rel="stylesheet" href="{% static 'mapa_geo/css/mapa.css' %}?v=12" />
 
 {% endblock %}
 
@@ -43,6 +43,16 @@
      data-api-activities="{% url 'mapa_geo:api_activities' %}"
 
      data-api-sync="{% url 'mapa_geo:api_sync' %}"
+
+     data-api-folders="{% url 'mapa_geo:api_folders' %}"
+
+     data-api-alerts="{% url 'mapa_geo:api_alerts' %}"
+
+     data-api-compare="{% url 'mapa_geo:api_compare' %}"
+
+     data-relatorio-url="{% url 'mapa_geo:relatorio' %}"
+
+     data-panorama-url="{% url 'mapa_geo:panorama' %}"
 
      data-export-base="{% url 'mapa_geo:exportar' %}"
 
@@ -134,6 +144,14 @@
 
         </div>
 
+        <label class="mapa-geo-field-label mapa-geo-field-label--sub" for="mg-filter-folder">Pasta / frente</label>
+
+        <select id="mg-filter-folder" class="mapa-geo-folder-select">
+
+          <option value="">Todas as pastas</option>
+
+        </select>
+
       </div>
 
 
@@ -188,29 +206,39 @@
 
         <div class="mapa-geo-actions-row">
 
-          <button type="button" id="mg-fit-bounds" class="btn btn-sm btn-secondary" title="Enquadrar todos os elementos">
+          <div class="mg-btn-group" role="group" aria-label="Visualização">
 
-            <i class="fas fa-compress-arrows-alt"></i>
+            <button type="button" id="mg-fit-bounds" class="mg-btn mg-btn--icon mg-btn--secondary mg-has-tooltip" data-tooltip="Enquadrar todos os elementos" aria-label="Enquadrar mapa">
 
-          </button>
+              <i class="fas fa-compress-arrows-alt"></i>
 
-          <button type="button" id="mg-toggle-panel" class="btn btn-sm btn-secondary" title="Lista de elementos">
+            </button>
 
-            <i class="fas fa-list"></i>
+            <button type="button" id="mg-toggle-panel" class="mg-btn mg-btn--icon mg-btn--secondary mg-has-tooltip" data-tooltip="Lista de elementos" aria-label="Lista de elementos">
 
-          </button>
+              <i class="fas fa-list"></i>
+
+            </button>
+
+            <button type="button" id="mg-help-toggle" class="mg-btn mg-btn--icon mg-btn--secondary mg-has-tooltip" data-tooltip="Atalhos (?)" aria-label="Ajuda e atalhos">
+
+              <i class="fas fa-question"></i>
+
+            </button>
+
+          </div>
 
           {% if can_edit_geo %}
 
-          <button type="button" id="mg-toggle-edit" class="btn btn-sm {% if not has_features %}btn-primary{% else %}btn-secondary{% endif %}">
+          <button type="button" id="mg-toggle-edit" class="mg-btn mg-btn--sm {% if not has_features %}mg-btn--primary{% else %}mg-btn--secondary{% endif %}">
 
-            <i class="fas fa-pen"></i> Editar mapa
+            <i class="fas fa-pen"></i><span>Editar mapa</span>
 
           </button>
 
           <div class="mapa-geo-more-wrap">
 
-            <button type="button" class="btn btn-sm btn-secondary" id="mg-more-toggle" title="Mais opções">
+            <button type="button" class="mg-btn mg-btn--icon mg-btn--secondary mg-has-tooltip" id="mg-more-toggle" data-tooltip="Mais opções" aria-label="Mais opções" aria-haspopup="true">
 
               <i class="fas fa-ellipsis-v"></i>
 
@@ -220,11 +248,15 @@
 
               <span class="mapa-geo-menu-label">Integração Lplan</span>
 
-              <button type="button" id="mg-sync-diario">Atualizar progresso dos diários</button>
+              <button type="button" id="mg-sync-diario" class="mg-menu-item"><i class="fas fa-sync-alt"></i><span>Atualizar progresso dos diários</span></button>
 
               <span class="mapa-geo-menu-label">Avançado</span>
 
-              <a href="{% url 'mapa_geo:importar' %}">Importar arquivo em lote…</a>
+              <a href="{% url 'mapa_geo:importar' %}" class="mg-menu-item"><i class="fas fa-file-import"></i><span>Importar arquivo em lote…</span></a>
+
+              <a href="{% url 'mapa_geo:relatorio' %}" target="_blank" id="mg-relatorio-link" class="mg-menu-item"><i class="fas fa-print"></i><span>Relatório para impressão…</span></a>
+
+              <a href="{% url 'mapa_geo:panorama' %}" class="mg-menu-item"><i class="fas fa-table-cells-large"></i><span>Panorama multi-obra…</span></a>
 
             </div>
 
@@ -234,9 +266,9 @@
 
           <div class="mapa-geo-export-wrap" id="mg-export-wrap"{% if not has_features %} hidden{% endif %}>
 
-            <button type="button" class="btn btn-sm btn-secondary" id="mg-export-toggle">
+            <button type="button" class="mg-btn mg-btn--sm mg-btn--secondary" id="mg-export-toggle" aria-haspopup="true">
 
-              <i class="fas fa-download"></i> Exportar
+              <i class="fas fa-download"></i><span>Exportar</span>
 
             </button>
 
@@ -244,15 +276,15 @@
 
               <span class="mapa-geo-menu-label">Baixar mapa</span>
 
-              <a href="{% url 'mapa_geo:exportar' %}?format=geojson">GeoJSON</a>
+              <a href="{% url 'mapa_geo:exportar' %}?format=geojson" class="mg-menu-item"><i class="fas fa-code"></i><span>GeoJSON</span></a>
 
-              <a href="{% url 'mapa_geo:exportar' %}?format=kml">KML</a>
+              <a href="{% url 'mapa_geo:exportar' %}?format=kml" class="mg-menu-item"><i class="fas fa-globe"></i><span>KML</span></a>
 
-              <a href="{% url 'mapa_geo:exportar' %}?format=kmz">KMZ</a>
+              <a href="{% url 'mapa_geo:exportar' %}?format=kmz" class="mg-menu-item"><i class="fas fa-archive"></i><span>KMZ</span></a>
 
-              <a href="{% url 'mapa_geo:exportar' %}?format=csv-pontos">CSV pontos</a>
+              <a href="{% url 'mapa_geo:exportar' %}?format=csv-pontos" class="mg-menu-item"><i class="fas fa-map-pin"></i><span>CSV pontos</span></a>
 
-              <a href="{% url 'mapa_geo:exportar' %}?format=csv-geometrias">CSV geometrias</a>
+              <a href="{% url 'mapa_geo:exportar' %}?format=csv-geometrias" class="mg-menu-item"><i class="fas fa-shapes"></i><span>CSV geometrias</span></a>
 
             </div>
 
@@ -308,6 +340,18 @@
 
           </button>
 
+          <button type="button" class="mapa-geo-tool-btn" id="mg-undo" title="Desfazer (Ctrl+Z)">
+
+            <i class="fas fa-undo"></i><span>Desfazer</span>
+
+          </button>
+
+          <button type="button" class="mapa-geo-tool-btn" id="mg-redo" title="Refazer (Ctrl+Y)">
+
+            <i class="fas fa-redo"></i><span>Refazer</span>
+
+          </button>
+
         </div>
 
         <p class="mapa-geo-snap-hint"><i class="fas fa-magnet"></i> Imã ativo — vértices grudam em elementos próximos (15 px)</p>
@@ -318,9 +362,47 @@
 
 
 
+      <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-compare" id="mg-compare-wrap">
+
+        <span class="mapa-geo-field-label">Comparar datas</span>
+
+        <div class="mapa-geo-compare-row">
+
+          <label class="mg-switch"><input type="checkbox" id="mg-compare-toggle" /><span class="mg-switch-track" aria-hidden="true"></span><span class="mg-switch-label">Comparar datas</span></label>
+
+          <select id="mg-compare-date-a" class="mapa-geo-compare-select" disabled></select>
+
+          <span class="mapa-geo-compare-vs">vs</span>
+
+          <select id="mg-compare-date-b" class="mapa-geo-compare-select" disabled></select>
+
+        </div>
+
+        <div class="mapa-geo-compare-legend" id="mg-compare-legend" hidden>
+
+          <span class="mg-legend mg-legend--added">Novo</span>
+
+          <span class="mg-legend mg-legend--changed">Alterado</span>
+
+          <span class="mg-legend mg-legend--same">Sem mudança</span>
+
+        </div>
+
+      </div>
+
+
+
       <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-layers">
 
         <span class="mapa-geo-field-label">Camadas visíveis</span>
+
+        <select id="mg-base-layer" class="mapa-geo-base-layer-select" title="Mapa base">
+
+          <option value="osm">Mapa (ruas)</option>
+
+          <option value="satellite">Satélite (Esri)</option>
+
+        </select>
 
         <div class="mapa-geo-layer-chips">
 
@@ -351,6 +433,20 @@
         <h3>Elementos da obra</h3>
 
         <span class="mapa-geo-side-count" id="mg-list-count">0</span>
+
+      </div>
+
+      <div class="mapa-geo-alerts-panel" id="mg-alerts-panel" hidden>
+
+        <div class="mapa-geo-alerts-head">
+
+          <strong>Alertas</strong>
+
+          <span class="mapa-geo-alerts-count" id="mg-alerts-count">0</span>
+
+        </div>
+
+        <div class="mapa-geo-alerts-list" id="mg-alerts-list"></div>
 
       </div>
 
@@ -417,6 +513,52 @@
 
 
 <div id="mg-toast-host" class="mapa-geo-toast-host" aria-live="polite"></div>
+
+
+
+<div class="mg-help-overlay" id="mg-help-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="mg-help-title">
+
+  <div class="mg-help-panel">
+
+    <div class="mg-help-header">
+
+      <h3 id="mg-help-title"><i class="fas fa-keyboard"></i> Atalhos do mapa</h3>
+
+      <button type="button" class="mg-drawer-close" id="mg-help-close" aria-label="Fechar ajuda"><i class="fas fa-times"></i></button>
+
+    </div>
+
+    <div class="mg-help-body">
+
+      <p class="mg-help-intro">Use o teclado para trabalhar mais rápido no modo edição.</p>
+
+      <dl class="mg-help-list">
+
+        <div class="mg-help-row"><dt><kbd>Esc</kbd></dt><dd>Sair da ferramenta ou fechar painéis</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>L</kbd></dt><dd>Desenhar trecho</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>P</kbd></dt><dd>Marcar ponto</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>A</kbd></dt><dd>Desenhar área</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>E</kbd></dt><dd>Editar vértices</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>Del</kbd></dt><dd>Apagar elemento</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Desfazer</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>Refazer</dd></div>
+
+        <div class="mg-help-row"><dt><kbd>?</kbd></dt><dd>Abrir esta ajuda</dd></div>
+
+      </dl>
+
+    </div>
+
+  </div>
+
+</div>
 
 
 
@@ -504,15 +646,15 @@
 
     <div class="mg-drawer-actions">
 
-      <button type="button" class="btn btn-sm btn-danger" id="mg-f-delete">Excluir</button>
+      <button type="button" class="mg-btn mg-btn--sm mg-btn--danger" id="mg-f-delete"><i class="fas fa-trash-alt"></i><span>Excluir</span></button>
 
-      <button type="button" class="btn btn-sm btn-secondary" id="mg-drawer-cancel">Cancelar</button>
+      <button type="button" class="mg-btn mg-btn--sm mg-btn--secondary" id="mg-drawer-cancel">Cancelar</button>
 
-      <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
+      <button type="submit" class="mg-btn mg-btn--sm mg-btn--primary"><i class="fas fa-check"></i><span>Salvar</span></button>
 
     </div>
 
-    <button type="button" class="btn btn-sm btn-secondary mg-drawer-save-next" id="mg-save-and-next" hidden>Salvar e desenhar outro</button>
+    <button type="button" class="mg-btn mg-btn--sm mg-btn--outline mg-drawer-save-next" id="mg-save-and-next" hidden><i class="fas fa-plus"></i><span>Salvar e desenhar outro</span></button>
 
   </form>
 
@@ -534,7 +676,9 @@
 
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js" crossorigin=""></script>
 
-<script src="{% static 'mapa_geo/js/mapa.js' %}?v=8"></script>
+<script src="{% static 'mapa_geo/js/mapa.js' %}?v=12"></script>
+
+<script src="{% static 'mapa_geo/js/mapa_extras.js' %}?v=12"></script>
 
 {% endblock %}
 

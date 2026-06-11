@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Relatório — Mapa Geográfico — {{ project.code }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; color: #0f172a; }
+    h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+    .meta { color: #64748b; font-size: 0.9rem; margin-bottom: 1rem; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+    .kpi { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem; }
+    .kpi strong { display: block; font-size: 1.2rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { border: 1px solid #e2e8f0; padding: 0.4rem 0.5rem; text-align: left; }
+    th { background: #f8fafc; }
+    .alerts { margin: 1rem 0; }
+    .alert { padding: 0.35rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <button class="no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+  <h1>Mapa Geográfico — {{ project.name }}</h1>
+  <p class="meta">{{ project.code }} · Data de referência: {{ display_date|date:"d/m/Y" }}</p>
+
+  <div class="kpis">
+    <div class="kpi"><span>Progresso obra</span><strong>{{ summary.overall_progress_pct|floatformat:1 }}%</strong></div>
+    <div class="kpi"><span>Trechos</span><strong>{{ summary.segments }}</strong></div>
+    <div class="kpi"><span>Elementos</span><strong>{{ summary.total }}</strong></div>
+    <div class="kpi"><span>GPS RDO</span><strong>{{ summary.gps_markers }}</strong></div>
+  </div>
+
+  {% if alerts.items %}
+  <div class="alerts">
+    <h2>Alertas ({{ alerts.count }})</h2>
+    {% for item in alerts.items %}
+    <div class="alert">{{ item.message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>Elementos do mapa</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Pasta</th>
+        <th>Tipo</th>
+        <th>Status</th>
+        <th>Progresso</th>
+        <th>EAP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for feat in collection.features %}
+      <tr>
+        <td>{{ feat.properties.name|default:"—" }}</td>
+        <td>{{ feat.properties.folder|default:"—" }}</td>
+        <td>{{ feat.properties.kind|default:feat.properties.geometry_type }}</td>
+        <td>{{ feat.properties.status }}</td>
+        <td>{{ feat.properties.progress_pct|floatformat:1 }}%</td>
+        <td>{{ feat.properties.activity_code|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">Nenhum elemento cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

@@ -425,6 +425,11 @@ def features_geojson_at_date(project: Project, target: date | None = None) -> di
             line_total=line_total,
         )
         item = _feature_to_geojson_dict(feat, progress=progress, status=status)
+        try:
+            from .enrichment import enrich_feature_properties
+            item['properties'].update(enrich_feature_properties(feat, progress=progress, status=status))
+        except Exception:
+            pass
         features.append(item)
 
     config = GeoObraConfig.objects.filter(project=project).first()

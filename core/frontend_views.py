@@ -2987,6 +2987,11 @@ def diary_review_decision_view(request, pk):
         if not diary.sent_to_owner_at:
             diary.sent_to_owner_at = now
         diary.save(update_fields=['status', 'reviewed_by', 'approved_at', 'sent_to_owner_at', 'updated_at'])
+        try:
+            from mapa_geo.services import on_diary_saved
+            on_diary_saved(diary)
+        except Exception:
+            logger.debug('mapa_geo on_diary_saved (aprovação)', exc_info=True)
 
         DiaryApprovalHistory.objects.create(
             diary=diary,

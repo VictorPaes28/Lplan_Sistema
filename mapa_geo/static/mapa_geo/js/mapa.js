@@ -96,6 +96,12 @@
 
   var drawerBackdrop = document.getElementById('mg-drawer-backdrop');
 
+  var helpOverlay = document.getElementById('mg-help-overlay');
+
+  var helpToggle = document.getElementById('mg-help-toggle');
+
+  var helpClose = document.getElementById('mg-help-close');
+
   var featureForm = document.getElementById('mg-feature-form');
 
   var saveAndNextBtn = document.getElementById('mg-save-and-next');
@@ -374,9 +380,13 @@
 
 
 
+  var filterFolder = document.getElementById('mg-filter-folder');
+
   function passesFilters(props, gtype) {
 
     if (!matchesSearch(props)) return false;
+
+    if (filterFolder && filterFolder.value && (props.folder || '') !== filterFolder.value) return false;
 
     if (gtype === 'LineString' && filterLines && !filterLines.checked) return false;
 
@@ -404,7 +414,7 @@
 
     var editBtn = editable
 
-      ? '<button type="button" class="mg-popup-edit" data-id="' + props.id + '">Editar</button>'
+      ? '<button type="button" class="mg-btn mg-btn--xs mg-btn--secondary mg-popup-edit" data-id="' + props.id + '"><i class="fas fa-pen"></i><span>Editar</span></button>'
 
       : '';
 
@@ -434,6 +444,48 @@
 
     }
 
+    var lastDiary = '';
+
+    if (props.last_diary_path && props.last_diary_report) {
+
+      lastDiary = '<div class="meta"><strong>Último RDO:</strong> #' + escapeHtml(String(props.last_diary_report));
+
+      if (props.last_diary_date) lastDiary += ' · ' + formatDateBr(props.last_diary_date);
+
+      lastDiary += ' <a href="' + escapeHtml(props.last_diary_path) + '" class="mg-popup-link">Abrir</a></div>';
+
+    }
+
+    var eapLink = '';
+
+    if (props.activity_detail_path && props.activity_code) {
+
+      eapLink = ' <a href="' + escapeHtml(props.activity_detail_path) + '" class="mg-popup-link">Ver EAP</a>';
+
+    }
+
+    var photo = '';
+
+    if (props.diary_photo_url) {
+
+      photo = '<div class="mg-popup-photo"><img src="' + escapeHtml(props.diary_photo_url) + '" alt="Foto do RDO" loading="lazy" /></div>';
+
+    }
+
+    var alerts = '';
+
+    if (props.alert_blocked) alerts += '<span class="mg-popup-badge mg-popup-badge--danger">Bloqueado</span> ';
+
+    if (props.alert_no_eap) alerts += '<span class="mg-popup-badge mg-popup-badge--warn">Sem EAP</span> ';
+
+    if (props.alert_stale) alerts += '<span class="mg-popup-badge mg-popup-badge--muted">Parado</span> ';
+
+    if (props.compare && props.compare.change_type === 'changed') {
+
+      alerts += '<span class="mg-popup-badge mg-popup-badge--info">Δ ' + Number(props.compare.delta_progress).toFixed(1) + '%</span>';
+
+    }
+
     return (
 
       '<div class="mg-popup">' +
@@ -442,7 +494,9 @@
 
       (props.folder ? '<div class="meta">' + escapeHtml(props.folder) + '</div>' : '') +
 
-      eap + gps +
+      (alerts ? '<div class="mg-popup-badges">' + alerts + '</div>' : '') +
+
+      eap + eapLink + gps + lastDiary + photo +
 
       '<div class="meta">' + statusLabel(props.status) + ' · ' + Number(pct).toFixed(1) + '%</div>' +
 
@@ -484,31 +538,73 @@
 
     var color = progressColor(pct);
 
+    var compare = props.compare;
+
+    if (compare && compare.change_type) {
+
+      if (compare.change_type === 'added') {
+
+        color = '#16a34a';
+
+      } else if (compare.change_type === 'changed') {
+
+        color = '#ea580c';
+
+      } else if (compare.change_type === 'same') {
+
+        color = '#94a3b8';
+
+      }
+
+    }
+
     var gtype = props.geometry_type;
+
+    var dash = compare && compare.change_type === 'added' ? '8 6' : null;
+
+    var weightBoost = compare && compare.change_type === 'changed' ? 2 : 0;
 
     if (gtype === 'LineString') {
 
-      return { color: color, weight: 4, opacity: 0.85 };
+      var line = { color: color, weight: 4 + weightBoost, opacity: compare ? 0.95 : 0.85 };
+
+      if (dash) line.dashArray = dash;
+
+      return line;
 
     }
 
     if (gtype === 'Polygon') {
 
-      return { color: color, fillColor: color, fillOpacity: 0.25, weight: 2 };
+      var poly = {
+
+        color: color,
+
+        fillColor: color,
+
+        fillOpacity: compare && compare.change_type === 'same' ? 0.12 : 0.25,
+
+        weight: 2 + weightBoost,
+
+      };
+
+      if (dash) poly.dashArray = dash;
+
+      return poly;
 
     }
 
     return {
 
-      radius: 7,
+      radius: compare && compare.change_type === 'changed' ? 9 : 7,
 
-      color: '#1e293b',
+      color: compare && compare.change_type === 'added' ? '#15803d' : '#1e293b',
 
       fillColor: color,
 
-      fillOpacity: 0.9,
+      fillOpacity: compare && compare.change_type === 'same' ? 0.45 : 0.9,
 
-      weight: 1,
+      weight: 1 + (compare && compare.change_type === 'changed' ? 1 : 0),
 
     };
 
@@ -968,9 +1064,11 @@
 
     if (toggleEditBtn && !editMode) {
 
-      toggleEditBtn.classList.toggle('btn-primary', !featureTotal);
+      var emphasize = !featureTotal;
 
-      toggleEditBtn.classList.toggle('btn-secondary', !!featureTotal);
+      toggleEditBtn.classList.toggle('mg-btn--primary', emphasize);
+
+      toggleEditBtn.classList.toggle('mg-btn--secondary', !emphasize);
 
     }
 
@@ -1274,15 +1372,17 @@
 
     if (toggleEditBtn) {
 
-      toggleEditBtn.classList.toggle('btn-primary', editMode);
+      toggleEditBtn.classList.toggle('mg-btn--primary', editMode);
 
-      toggleEditBtn.classList.toggle('btn-secondary', !editMode);
+      toggleEditBtn.classList.toggle('mg-btn--secondary', !editMode);
+
+      toggleEditBtn.classList.toggle('is-active', editMode);
 
       toggleEditBtn.innerHTML = editMode
 
-        ? '<i class="fas fa-eye"></i> Modo visualização'
+        ? '<i class="fas fa-eye"></i><span>Modo visualização</span>'
 
-        : '<i class="fas fa-pen"></i> Editar mapa';
+        : '<i class="fas fa-pen"></i><span>Editar mapa</span>';
 
     }
 
@@ -1494,7 +1594,13 @@
 
         drawer.setAttribute('aria-hidden', 'false');
 
-        if (drawerBackdrop) drawerBackdrop.hidden = false;
+        if (drawerBackdrop) {
+
+          drawerBackdrop.hidden = false;
+
+          requestAnimationFrame(function () { drawerBackdrop.classList.add('is-visible'); });
+
+        }
 
       });
 
@@ -1556,7 +1662,13 @@
 
     drawer.setAttribute('aria-hidden', 'true');
 
-    if (drawerBackdrop) drawerBackdrop.hidden = true;
+    if (drawerBackdrop) {
+
+      drawerBackdrop.classList.remove('is-visible');
+
+      drawerBackdrop.hidden = true;
+
+    }
 
     drawerOpen = false;
 
@@ -1858,6 +1970,56 @@
 
     if (togglePanelBtn) togglePanelBtn.addEventListener('click', toggleSidePanel);
 
+    function setHelpOpen(open) {
+
+      if (!helpOverlay) return;
+
+      helpOverlay.hidden = !open;
+
+    }
+
+    if (helpToggle) {
+
+      helpToggle.addEventListener('click', function () { setHelpOpen(helpOverlay.hidden); });
+
+    }
+
+    if (helpClose) helpClose.addEventListener('click', function () { setHelpOpen(false); });
+
+    if (helpOverlay) {
+
+      helpOverlay.addEventListener('click', function (e) {
+
+        if (e.target === helpOverlay) setHelpOpen(false);
+
+      });
+
+    }
+
+    document.addEventListener('keydown', function (e) {
+
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+
+        var tagHelp = (e.target && e.target.tagName) || '';
+
+        if (tagHelp === 'INPUT' || tagHelp === 'TEXTAREA' || tagHelp === 'SELECT') return;
+
+        e.preventDefault();
+
+        if (helpOverlay) setHelpOpen(helpOverlay.hidden);
+
+        return;
+
+      }
+
+      if (e.key === 'Escape' && helpOverlay && !helpOverlay.hidden) {
+
+        setHelpOpen(false);
+
+      }
+
+    });
+
     if (toggleEditBtn) toggleEditBtn.addEventListener('click', function () { setEditMode(!editMode); });
 
     if (syncBtn) syncBtn.addEventListener('click', syncFromDiario);
@@ -1884,6 +2046,9 @@
 
     function closeAllDropdowns() {
       dropdownMenus.forEach(function (menu) { menu.hidden = true; });
+      [exportToggle, moreToggle].forEach(function (btn) {
+        if (btn) btn.classList.remove('is-open');
+      });
     }
 
     function bindDropdownMenu(toggle, menu) {
@@ -1893,6 +2058,7 @@
         var willOpen = menu.hidden;
         closeAllDropdowns();
         menu.hidden = !willOpen;
+        toggle.classList.toggle('is-open', willOpen);
       });
       menu.addEventListener('click', function (e) {
         if (e.target.closest('a, button')) closeAllDropdowns();
@@ -2015,6 +2181,34 @@
     });
 
   });
+
+  window.MapaGeo = {
+
+    getMap: function () { return map; },
+
+    getTimelineDates: function () { return timelineDates.slice(); },
+
+    getCurrentDate: currentDateParam,
+
+    loadFeatures: loadFeatures,
+
+    renderGeojson: renderGeojson,
+
+    showToast: showToast,
+
+    setEditMode: setEditMode,
+
+    passesFilters: passesFilters,
+
+    styleForProps: styleForProps,
+
+    popupHtml: popupHtml,
+
+    bindLayer: bindLayer,
+
+    addFeatureToMap: addFeatureToMap,
+
+  };
 
 })();
 

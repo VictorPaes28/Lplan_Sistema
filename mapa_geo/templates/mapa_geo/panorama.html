@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Panorama — Mapas Geográficos{% endblock %}
+{% block page_title %}Panorama multi-obra{% endblock %}
+{% block page_subtitle %}Visão consolidada dos mapas geográficos{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm" style="padding:1rem;">
+  <p class="text-gray-600" style="margin:0 0 1rem;">Obras às quais você tem acesso com resumo do mapa geográfico.</p>
+  <div style="overflow-x:auto;">
+    <table class="table" style="width:100%;font-size:0.9rem;">
+      <thead>
+        <tr>
+          <th>Obra</th>
+          <th>Progresso</th>
+          <th>Trechos</th>
+          <th>Elementos</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for obra in obras %}
+        <tr>
+          <td><strong>{{ obra.code }}</strong><br><span class="text-muted">{{ obra.name }}</span></td>
+          <td>{{ obra.overall_progress_pct|floatformat:1 }}%</td>
+          <td>{{ obra.segments }}</td>
+          <td>{{ obra.total }}</td>
+          <td><a href="{{ obra.map_url }}" class="btn btn-sm btn-primary">Abrir mapa</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">Nenhuma obra disponível.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
