@@ -285,13 +285,13 @@ def get_map_alerts(project: Project) -> dict[str, Any]:
 
                     'impedimento_id': imp.id,
 
-                    'obra_id': obra.id,
+                    'obra_id': project.pk,
 
                     'name': imp.titulo,
 
                     'message': f'Restrição: {imp.titulo}',
 
-                    'url': reverse('impedimentos:list_impedimentos', kwargs={'obra_id': obra.id}),
+                    'url': reverse('impedimentos:list_impedimentos', kwargs={'obra_id': project.pk}),
 
                 })
 

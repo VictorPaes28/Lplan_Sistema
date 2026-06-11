@@ -1392,7 +1392,11 @@ def dashboard2_alocar(request):
 def recebimentos_obra(request, obra_id):
     """Lista recebimentos de uma obra com saldo disponível para alocação."""
     obra = get_object_or_404(Obra, id=obra_id)
-    
+    from mapa_obras.views import _user_can_access_obra
+
+    if not _user_can_access_obra(request, obra):
+        return JsonResponse({'error': 'Sem permissão para esta obra.'}, status=403)
+
     recebimentos = RecebimentoObra.objects.filter(
         obra=obra,
         quantidade_recebida__gt=0
@@ -1430,7 +1434,11 @@ def listar_scs_disponiveis(request):
     
     try:
         obra = get_object_or_404(Obra, id=obra_id)
-        
+        from mapa_obras.views import _user_can_access_obra
+
+        if not _user_can_access_obra(request, obra):
+            return JsonResponse({'error': 'Sem permissão para esta obra.'}, status=403)
+
         # Buscar todas as SCs da obra (RecebimentoObra)
         recebimentos = RecebimentoObra.objects.filter(
             obra=obra
@@ -1616,6 +1624,11 @@ def busca_rapida_mobile(request):
     
     try:
         obra = get_object_or_404(Obra, id=obra_id)
+        from mapa_obras.views import _user_can_access_obra
+
+        if not _user_can_access_obra(request, obra):
+            return JsonResponse({'error': 'Sem permissão para esta obra.'}, status=403)
+
         itens = ItemMapa.objects.filter(
             obra=obra
         ).select_related('insumo', 'local_aplicacao')

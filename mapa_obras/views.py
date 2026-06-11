@@ -69,8 +69,12 @@ def selecionar_obra(request, obra_id):
         flash_message(request, "error", "mapa.select.no_scope", {"obra": obra.nome})
         return redirect('mapa_obras:home')
     
-    # Armazenar na sessão
+    # Armazenar na sessão (obra do mapa + Project do Diário/mapa geo)
     request.session['obra_id'] = obra.id
+    if obra.project_id:
+        request.session['selected_project_id'] = obra.project_id
+        request.session['selected_project_name'] = obra.project.name
+        request.session['selected_project_code'] = obra.project.code
     request.session.modified = True
     if obra.project_id:
         from core.contexto_frente import clear_session_front_for_project

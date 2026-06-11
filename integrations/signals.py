@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+from django.urls import reverse
 
 from accounts.models import UserSignupRequest
 from core.models import ConstructionDiary, DiaryStatus, Project
@@ -124,7 +125,11 @@ def _diary_event_handler(sender, instance: ConstructionDiary, created: bool, **k
             "details": f"Projeto: {instance.project.name} - Data: {instance.date}",
             "reference_type": "construction_diary",
             "reference_id": instance.id,
-            "link": f"{_site_url()}/diaries/{instance.id}/" if _site_url() else "",
+            "link": (
+                f"{_site_url()}{reverse('diary-detail', kwargs={'pk': instance.id})}"
+                if _site_url()
+                else ""
+            ),
             "file_name": f"RDO_{instance.project.code}_{instance.date}.pdf",
         },
     )

@@ -106,6 +106,10 @@ def resolve_obra_context(request, *, allow_post=False, with_front=True) -> Modul
 
     if obra:
         request.session['obra_id'] = obra.id
+        if obra.project_id:
+            request.session['selected_project_id'] = obra.project_id
+            request.session['selected_project_name'] = obra.project.name
+            request.session['selected_project_code'] = obra.project.code
         request.session.modified = True
         if with_front and previous_project_id and obra.project_id != previous_project_id:
             clear_session_front_for_project(request, previous_project_id)
