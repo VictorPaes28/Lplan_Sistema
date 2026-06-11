@@ -167,7 +167,7 @@
                             Central de Aprovações
                         {% elif '/impedimentos/' in request.path %}
                             Restrições
-                        {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
+                        {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
                             Mapa e Suprimentos
                         {% elif request.session.selected_project_name %}
                             {{ request.session.selected_project_name|truncatechars:20 }}
@@ -195,7 +195,12 @@
                 <i class="fas fa-home w-5 mr-3"></i>
                 <span class="font-medium">Home</span>
             </a>
-            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/mapa-geo/' not in request.path and '/engenharia/' not in request.path and '/trackhub/' not in request.path and '/rh/' not in request.path and '/aprovacoes/' not in request.path and '/impedimentos/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
+            {% if '/engenharia/' in request.path or request.resolver_match.url_name == 'analise_obra' %}
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i>
+                <span class="font-medium">Trocar Obra</span>
+            </a>
+            {% elif request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/mapa-geo/' not in request.path and '/engenharia/' not in request.path and '/trackhub/' not in request.path and '/rh/' not in request.path and '/aprovacoes/' not in request.path and '/impedimentos/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
@@ -297,7 +302,7 @@
             </a>
             {% endif %}
 
-            {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
+            {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
             <!-- ═══════ MENU: Mapa e Suprimentos ═══════ -->
             <a href="{% url 'engenharia:dashboard_2' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
