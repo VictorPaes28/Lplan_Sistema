@@ -402,9 +402,21 @@ def get_map_summary(project: Project) -> dict[str, Any]:
     }
 
 
+def _features_queryset_for_project(project: Project):
+    """Elementos da obra, excluindo vínculos EAP/RDO de outro projeto (dados inconsistentes)."""
+    from django.db.models import Q
+
+    return (
+        GeoFeature.objects.filter(project=project, is_active=True)
+        .select_related('activity', 'diary')
+        .filter(Q(diary__isnull=True) | Q(diary__project=project))
+        .filter(Q(activity__isnull=True) | Q(activity__project=project))
+    )
+
+
 def features_geojson_at_date(project: Project, target: date | None = None) -> dict[str, Any]:
     """Monta FeatureCollection com progresso vigente em uma data."""
-    qs = GeoFeature.objects.filter(project=project, is_active=True).select_related('activity', 'diary')
+    qs = _features_queryset_for_project(project)
     features = []
     display_date = target or timezone.localdate()
     overall = project_progress_at_date(project, display_date)
@@ -471,12 +483,13 @@ def _feature_to_geojson_dict(feat: GeoFeature, *, progress=None, status=None) ->
     if feat.activity_id and feat.activity:
         props['activity_code'] = feat.activity.code
         props['activity_name'] = feat.activity.name
-    if feat.diary_id:
+    if feat.diary_id and feat.diary and feat.diary.project_id == feat.project_id:
         props['is_diary_gps'] = True
-        if feat.diary:
-            props['diary_date'] = feat.diary.date.isoformat()
-            props['diary_report'] = feat.diary.report_number or feat.diary.pk
-            props['diary_detail_path'] = f'/diaries/{feat.diary_id}/'
+        props['diary_date'] = feat.diary.date.isoformat()
+        props['diary_report'] = feat.diary.report_number or feat.diary.pk
+        from django.urls import reverse
+
+        props['diary_detail_path'] = reverse('diary-detail', kwargs={'pk': feat.diary_id})
     return {
         'type': 'Feature',
         'id': feat.id,
@@ -492,6 +505,7 @@ def activity_progress_at_date(activity: Activity, target: date | None) -> Decima
     wl = (
         DailyWorkLog.objects.filter(
             activity=activity,
+            diary__project_id=activity.project_id,
             diary__date__lte=target,
             diary__status__in=DIARY_STATUSES_FOR_GEO_PROGRESS,
         )

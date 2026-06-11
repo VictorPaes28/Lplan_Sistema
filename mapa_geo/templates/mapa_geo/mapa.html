@@ -24,7 +24,7 @@
 
 <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" crossorigin="" />
 
-<link rel="stylesheet" href="{% static 'mapa_geo/css/mapa.css' %}?v=13" />
+<link rel="stylesheet" href="{% static 'mapa_geo/css/mapa.css' %}?v=14" />
 
 {% endblock %}
 
@@ -68,11 +68,37 @@
 
      data-focus-diary="{{ focus_diary }}"
 
-     data-focus-feature="{{ focus_feature }}">
+     data-focus-feature="{{ focus_feature }}"
+
+     data-project-id="{{ project.id }}"
+
+     data-project-code="{{ project.code }}"
+
+     data-project-name="{{ project.name }}"
+
+     data-selecionar-obra-url="{% url 'mapa_geo:selecionar_obra' %}">
 
 
 
   <div class="mapa-geo-summary card shadow-sm">
+
+    <div class="mapa-geo-obra-bar">
+
+      <div class="mapa-geo-obra-current">
+
+        <span class="mapa-geo-obra-label">Obra ativa</span>
+
+        <strong id="mg-obra-title">{{ project.code }} — {{ project.name }}</strong>
+
+      </div>
+
+      <a href="{% url 'mapa_geo:selecionar_obra' %}" class="mg-btn mg-btn--sm mg-btn--secondary" id="mg-trocar-obra">
+
+        <i class="fas fa-exchange-alt"></i><span>Trocar obra</span>
+
+      </a>
+
+    </div>
 
     <div class="mapa-geo-summary-grid">
 
@@ -710,9 +736,9 @@
 
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js" crossorigin=""></script>
 
-<script src="{% static 'mapa_geo/js/mapa.js' %}?v=13"></script>
+<script src="{% static 'mapa_geo/js/mapa.js' %}?v=14"></script>
 
-<script src="{% static 'mapa_geo/js/mapa_extras.js' %}?v=13"></script>
+<script src="{% static 'mapa_geo/js/mapa_extras.js' %}?v=14"></script>
 
 {% endblock %}
 

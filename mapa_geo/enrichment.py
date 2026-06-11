@@ -82,7 +82,7 @@ def enrich_feature_properties(feat: GeoFeature, *, progress=None, status=None) -
 
 
 
-    if feat.activity_id:
+    if feat.activity_id and feat.activity and feat.activity.project_id == feat.project_id:
 
         props['activity_detail_path'] = reverse(
             'activity-edit',
@@ -91,7 +91,7 @@ def enrich_feature_properties(feat: GeoFeature, *, progress=None, status=None) -
 
 
 
-    if feat.diary_id and feat.diary:
+    if feat.diary_id and feat.diary and feat.diary.project_id == feat.project_id:
 
         diary = feat.diary
 
@@ -117,13 +117,15 @@ def enrich_feature_properties(feat: GeoFeature, *, progress=None, status=None) -
 
             props['diary_photo_url'] = img.image.url
 
-    elif feat.activity_id:
+    elif feat.activity_id and feat.activity and feat.activity.project_id == feat.project_id:
 
         wl = (
 
             DailyWorkLog.objects.filter(
 
                 activity=feat.activity,
+
+                diary__project_id=feat.project_id,
 
                 diary__status__in=DIARY_STATUSES_FOR_GEO_PROGRESS,
 
@@ -347,7 +349,9 @@ def compare_features_at_dates(project: Project, date_a: date, date_b: date) -> d
 
 
 
-    qs = GeoFeature.objects.filter(project=project, is_active=True).select_related('activity', 'diary')
+    from .services import _features_queryset_for_project
+
+    qs = _features_queryset_for_project(project)
 
     for feat in qs:
 

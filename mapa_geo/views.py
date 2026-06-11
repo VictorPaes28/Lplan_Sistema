@@ -123,7 +123,9 @@ def selecionar_obra_view(request):
 def mapa_view(request):
     project = get_selected_project(request)
     config = GeoObraConfig.objects.filter(project=project).first()
-    feature_count = GeoFeature.objects.filter(project=project, is_active=True).count()
+    from .services import _features_queryset_for_project
+
+    feature_count = _features_queryset_for_project(project).count()
     dates = available_timeline_dates(project)
     can_edit = _user_can_edit_geo(request)
 

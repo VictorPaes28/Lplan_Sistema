@@ -30,6 +30,8 @@
 
   var focusFeature = root.dataset.focusFeature || '';
 
+  var expectedProjectId = root.dataset.projectId || '';
+
 
 
   var slider = document.getElementById('mg-timeline');
@@ -652,9 +654,11 @@
 
     if (!featureList) return;
 
-    featureList.querySelectorAll('.mapa-geo-list-item').forEach(function (el) {
+    featureList.querySelectorAll('.mapa-geo-list-row').forEach(function (row) {
 
-      el.classList.toggle('is-selected', el.dataset.id === String(selectedFeatureId));
+      var btn = row.querySelector('.mapa-geo-list-item');
+
+      row.classList.toggle('is-selected', btn && btn.dataset.id === String(selectedFeatureId));
 
     });
 
@@ -750,11 +754,29 @@
 
       var meta = [p.folder, pct + '%'].filter(Boolean).join(' · ');
 
+      var diaryPath = p.diary_detail_path || p.last_diary_path || '';
+
+      var eapPath = p.activity_detail_path || '';
+
+      var links = '';
+
+      if (diaryPath) {
+
+        links += '<a href="' + escapeHtml(diaryPath) + '" class="mapa-geo-list-link" title="Abrir RDO" onclick="event.stopPropagation()"><i class="fas fa-book-open"></i></a>';
+
+      }
+
+      if (eapPath) {
+
+        links += '<a href="' + escapeHtml(eapPath) + '" class="mapa-geo-list-link" title="Ver EAP" onclick="event.stopPropagation()"><i class="fas fa-sitemap"></i></a>';
+
+      }
+
       return (
 
-        '<button type="button" class="mapa-geo-list-item' + (String(p.id) === String(selectedFeatureId) ? ' is-selected' : '') + '" ' +
+        '<div class="mapa-geo-list-row' + (String(p.id) === String(selectedFeatureId) ? ' is-selected' : '') + '">' +
 
-        'data-id="' + p.id + '" data-gtype="' + item.gtype + '">' +
+        '<button type="button" class="mapa-geo-list-item" data-id="' + p.id + '" data-gtype="' + item.gtype + '">' +
 
         '<span class="mapa-geo-list-icon"><i class="fas ' + listIconForGtype(item.gtype, p) + '"></i></span>' +
 
@@ -766,7 +788,11 @@
 
         (meta ? '<span class="mapa-geo-list-meta">' + escapeHtml(meta) + '</span>' : '') +
 
-        '</span></button>'
+        '</span></button>' +
+
+        (links ? '<span class="mapa-geo-list-actions">' + links + '</span>' : '') +
+
+        '</div>'
 
       );
 
@@ -1203,6 +1229,26 @@
       })
 
       .then(function (data) {
+
+        var meta = data.meta || {};
+
+        if (expectedProjectId && meta.project_id && String(meta.project_id) !== String(expectedProjectId)) {
+
+          showToast('Os elementos carregados não correspondem à obra exibida. Troque de obra.', 'error');
+
+        }
+
+        if (meta.project_code || meta.project_name) {
+
+          var obraTitle = document.getElementById('mg-obra-title');
+
+          if (obraTitle) {
+
+            obraTitle.textContent = (meta.project_code || '') + (meta.project_name ? ' — ' + meta.project_name : '');
+
+          }
+
+        }
 
         renderGeojson(data, { fit: !editMode && !focusHandled });
 
