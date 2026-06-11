@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'workflow_aprovacao',
     'painel_operacional',
     'whatsapp_ia',
+    'mapa_geo',
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 

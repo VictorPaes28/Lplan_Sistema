@@ -1140,6 +1140,12 @@ class ConstructionDiary(models.Model):
         verbose_name='Observações Gerais',
         help_text='Observações gerais sobre o dia de trabalho'
     )
+    geolocation_data = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name='Localização GPS',
+        help_text='Coordenadas capturadas automaticamente ao salvar o diário (lat/lng, precisão, horário)',
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Data de Criação'

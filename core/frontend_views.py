@@ -642,6 +642,7 @@ def select_system_view(request):
     adm = user.is_superuser or user.is_staff
     plat_admin = usuario_tem_administracao_global_na_plataforma(user)
     has_diario = adm or GRUPOS.GERENTES in user_groups
+    has_mapa_geo = has_diario
     has_gestao = adm or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
@@ -680,6 +681,7 @@ def select_system_view(request):
     if (
         not (
             has_diario
+            or has_mapa_geo
             or has_gestao
             or has_impedimentos
             or has_trackhub
@@ -709,9 +711,15 @@ def select_system_view(request):
         'modulos_manutencao': load_modulos_status_map(),
         'workflow_access_url': reverse('workflow_aprovacao:home'),
         'diario_access_url': reverse('select-project'),
+        'mapa_geo_access_url': (
+            reverse('mapa_geo:mapa')
+            if request.session.get('selected_project_id')
+            else reverse('mapa_geo:selecionar_obra')
+        ),
         'gestao_access_url': reverse('gestao:home'),
         'mapa_access_url': reverse('mapa_obras:home'),
         'has_diario': has_diario,
+        'has_mapa_geo': has_mapa_geo,
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,
         'has_trackhub': has_trackhub,
@@ -5402,6 +5410,12 @@ def diary_form_view(request, pk=None):
             # Se chegou aqui, a transação foi commitada com sucesso
             if image_valid and worklog_valid and occurrence_valid:
                 from django.urls import reverse
+                if diary and diary.pk:
+                    try:
+                        from mapa_geo.services import on_diary_saved
+                        on_diary_saved(diary)
+                    except Exception as geo_exc:
+                        logger.debug('mapa_geo on_diary_saved: %s', geo_exc, exc_info=True)
                 if had_provisional_unlock and diary and diary.pk:
                     DiaryCorrectionRequestLog.objects.filter(
                         diary_id=diary.pk,

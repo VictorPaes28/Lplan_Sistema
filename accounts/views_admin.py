@@ -52,6 +52,17 @@ def admin_central(request):
         'itens_mapa': ItemMapa.objects.count(),
     }
 
+    stats_mapa_geo = {'elementos': 0, 'obras': 0}
+    try:
+        from mapa_geo.models import GeoFeature, GeoObraConfig
+
+        stats_mapa_geo = {
+            'elementos': GeoFeature.objects.count(),
+            'obras': GeoObraConfig.objects.count(),
+        }
+    except Exception:
+        pass
+
     stats_workflow = {'processos': 0, 'aguardando': 0}
     try:
         from workflow_aprovacao.models import ApprovalProcess, ProcessStatus
@@ -226,6 +237,7 @@ def admin_central(request):
         'usuarios_ativos': usuarios_ativos,
         'novos_usuarios_30d': novos_usuarios_30d,
         'stats_diario': stats_diario,
+        'stats_mapa_geo': stats_mapa_geo,
         'stats_gestao': stats_gestao,
         'stats_mapa': stats_mapa,
         'stats_workflow': stats_workflow,
@@ -252,6 +264,7 @@ def admin_central(request):
     context['modulos_integrados_cards'] = build_modulos_cards_for_admin(
         {
             'stats_diario': stats_diario,
+            'stats_mapa_geo': stats_mapa_geo,
             'stats_gestao': stats_gestao,
             'stats_mapa': stats_mapa,
             'stats_workflow': stats_workflow,

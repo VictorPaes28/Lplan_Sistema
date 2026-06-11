@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Importar mapa geográfico — {{ project.name }}{% endblock %}
+{% block page_title %}Importar em lote{% endblock %}
+{% block page_subtitle %}Opcional — {{ project.code }}{% endblock %}
+{% block back_url %}{% url 'mapa_geo:mapa' %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="card shadow-sm p-6">
+    <p class="text-gray-600 mb-4">
+      O trabalho do dia a dia é feito no <a href="{% url 'mapa_geo:mapa' %}">mapa geográfico</a>: navegar, desenhar, editar e acompanhar o progresso.
+      Use esta tela só quando já tiver um arquivo pronto para carregar de uma vez (<strong>GeoJSON</strong>, <strong>KML</strong> ou <strong>KMZ</strong>).
+    </p>
+    <p class="text-sm text-gray-500 mb-4">
+      Para compartilhar ou abrir em outro sistema, use <strong>Exportar</strong> no mapa (GeoJSON, KML, KMZ ou CSV).
+    </p>
+    <p class="text-sm text-gray-500 mb-6">
+      Elementos atuais nesta obra: <strong>{{ feature_count }}</strong>
+    </p>
+
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+      {% csrf_token %}
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="arquivo">Arquivo</label>
+        <input type="file" name="arquivo" id="arquivo" accept=".geojson,.json,.kml,.kmz" required
+               class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg p-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="source_label">Nome da fonte (opcional)</label>
+        <input type="text" name="source_label" id="source_label" maxlength="200" placeholder="Ex.: IRU TIM KMZ 01-06-26"
+               class="block w-full text-sm border border-gray-300 rounded-lg p-2" />
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="replace" />
+        Substituir todos os elementos existentes desta obra
+      </label>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-upload"></i> Importar
+        </button>
+        <a href="{% url 'mapa_geo:mapa' %}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -37,6 +37,9 @@ urlpatterns = [
     # === Mapa de Suprimentos ===
     path('mapa/', include('mapa_obras.urls')),
 
+    # === Mapa geográfico evolutivo (Leaflet + OSM) ===
+    path('mapa-geo/', include('mapa_geo.urls')),
+
     # === Autenticação e Admin Central ===
     path('accounts/', include('accounts.urls')),
 

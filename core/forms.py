@@ -1,6 +1,7 @@
 """
 Forms Django para Diário de Obra V2.0 - LPLAN
 """
+import json
 from decimal import Decimal, InvalidOperation
 from django import forms
 from django.forms import inlineformset_factory
@@ -26,7 +27,12 @@ User = get_user_model()
 
 class ConstructionDiaryForm(forms.ModelForm):
     """Form para ConstructionDiary."""
-    
+
+    geolocation_data = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={'id': 'id_geolocation_data'}),
+    )
+
     date = forms.DateField(
         input_formats=['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'],
         widget=forms.DateInput(attrs={
@@ -85,6 +91,7 @@ class ConstructionDiaryForm(forms.ModelForm):
             'inspection_responsible',
             'production_responsible',
         ]
+        # geolocation_data via CharField hidden (JSON parseado em clean_geolocation_data)
         widgets = {
             'project': forms.Select(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none',
@@ -277,6 +284,15 @@ class ConstructionDiaryForm(forms.ModelForm):
             )
             self.fields['front'].required = False
         
+        if self.instance and self.instance.pk and self.instance.geolocation_data:
+            try:
+                self.fields['geolocation_data'].initial = json.dumps(
+                    self.instance.geolocation_data,
+                    ensure_ascii=False,
+                )
+            except TypeError:
+                pass
+
         # Se for edição, verifica permissões
         if self.instance and self.instance.pk:
             # Em edição, não permite trocar a frente para preservar histórico e rastreabilidade.
@@ -317,6 +333,52 @@ class ConstructionDiaryForm(forms.ModelForm):
         else:
             self.date_after_planned_end = False
         return date_value
+
+    def clean_geolocation_data(self):
+        raw = (self.cleaned_data.get('geolocation_data') or '').strip()
+        if not raw:
+            return None
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        try:
+            lat = float(parsed.get('latitude'))
+            lng = float(parsed.get('longitude'))
+        except (TypeError, ValueError):
+            return None
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            return None
+        geo = {
+            'latitude': round(lat, 6),
+            'longitude': round(lng, 6),
+            'source': str(parsed.get('source') or 'diary_save')[:32],
+        }
+        try:
+            accuracy = float(parsed.get('accuracy_m'))
+            if accuracy > 0:
+                geo['accuracy_m'] = round(accuracy, 1)
+        except (TypeError, ValueError):
+            pass
+        captured_at = str(parsed.get('captured_at') or '').strip()
+        if captured_at:
+            geo['captured_at'] = captured_at[:40]
+        address = str(parsed.get('address') or '').strip()
+        if address:
+            geo['address'] = address[:240]
+        return geo
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        geo = self.cleaned_data.get('geolocation_data')
+        if geo:
+            instance.geolocation_data = geo
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
     
     def clean(self):
         cleaned_data = super().clean()

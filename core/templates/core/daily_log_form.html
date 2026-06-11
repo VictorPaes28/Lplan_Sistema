@@ -20,6 +20,7 @@
             <input type="hidden" name="partial_save" id="partial_save_flag" value="">
             <input type="hidden" name="work_logs_json" id="work_logs_json_input" value="">
             <input type="hidden" name="occurrences_json" id="occurrences_json_input" value="">
+            <input type="hidden" name="geolocation_data" id="id_geolocation_data" value="">
             {{ form.weather_conditions.as_hidden }}
             {{ form.weather_night_enabled.as_hidden }}
             {{ form.weather_night_type.as_hidden }}
@@ -6584,6 +6585,40 @@ function saveSignature(canvasId) {
                 e.preventDefault();
                 return false;
             }
+            // 0) Captura GPS antes do envio (uma vez por submit)
+            if (!form.dataset.geoCaptured) {
+                e.preventDefault();
+                var geoInput = document.getElementById('id_geolocation_data');
+                function finishGeoCapture() {
+                    form.dataset.geoCaptured = '1';
+                    if (e.submitter && typeof form.requestSubmit === 'function') {
+                        form.requestSubmit(e.submitter);
+                    } else {
+                        form.submit();
+                    }
+                }
+                if (!geoInput || !navigator.geolocation) {
+                    finishGeoCapture();
+                    return false;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    function (position) {
+                        geoInput.value = JSON.stringify({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy_m: position.coords.accuracy,
+                            captured_at: new Date().toISOString(),
+                            source: 'diary_save'
+                        });
+                        finishGeoCapture();
+                    },
+                    function () { finishGeoCapture(); },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 120000 }
+                );
+                return false;
+            }
+            delete form.dataset.geoCaptured;
+
             // 0) Normaliza data para yyyy-MM-dd (evita erro de formato e rejeição do form)
             normalizeDateInputForSubmit();
             // 0.1) Monta e envia atividades e ocorrências como JSON (nova forma de armazenamento)

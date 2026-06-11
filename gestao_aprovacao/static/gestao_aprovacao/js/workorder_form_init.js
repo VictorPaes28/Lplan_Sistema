@@ -81,10 +81,6 @@
             frontEl.required = shouldRequire;
             frontEl.setAttribute('aria-required', shouldRequire ? 'true' : 'false');
             if (reqMark) reqMark.style.display = shouldRequire ? 'inline' : 'none';
-
-            if (!allowEmptyForAdmin && fronts.length === 1) {
-                frontEl.value = String(fronts[0].id);
-            }
         }
 
         obraEl.addEventListener('change', function () {

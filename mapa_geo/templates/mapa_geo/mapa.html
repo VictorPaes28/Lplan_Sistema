@@ -1,0 +1,540 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+
+
+{% block title %}Mapa Geográfico — {{ project.name }}{% endblock %}
+
+{% block page_title %}Mapa geográfico{% endblock %}
+
+{% block page_subtitle %}{{ project.code }} — {{ project.name }}{% endblock %}
+
+{% block main_extra_class %} mapa-geo-main{% endblock %}
+
+
+
+{% block extra_css %}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" crossorigin="" />
+
+<link rel="stylesheet" href="{% static 'mapa_geo/css/mapa.css' %}?v=8" />
+
+{% endblock %}
+
+
+
+{% block content %}
+
+<div class="mapa-geo-shell" id="mapa-geo-app"
+
+     data-api-features="{% url 'mapa_geo:api_features' %}"
+
+     data-api-timeline="{% url 'mapa_geo:api_timeline' %}"
+
+     data-api-feature-detail="{% url 'mapa_geo:api_feature_detail' pk=0 %}"
+
+     data-api-activities="{% url 'mapa_geo:api_activities' %}"
+
+     data-api-sync="{% url 'mapa_geo:api_sync' %}"
+
+     data-export-base="{% url 'mapa_geo:exportar' %}"
+
+     data-can-edit="{{ can_edit_geo|yesno:'1,0' }}"
+
+     data-has-features="{{ has_features|yesno:'1,0' }}"
+
+     data-center-lat="{{ geo_config.center_latitude|default:'' }}"
+
+     data-center-lng="{{ geo_config.center_longitude|default:'' }}"
+
+     data-zoom="{{ geo_config.default_zoom|default:10 }}"
+
+     data-focus-diary="{{ focus_diary }}"
+
+     data-focus-feature="{{ focus_feature }}">
+
+
+
+  <div class="mapa-geo-summary card shadow-sm">
+
+    <div class="mapa-geo-summary-grid">
+
+      <div class="mapa-geo-kpi">
+
+        <span class="mapa-geo-kpi-label">Progresso da obra</span>
+
+        <strong class="mapa-geo-kpi-value" id="mg-kpi-progress">{{ map_summary.overall_progress_pct|floatformat:1 }}%</strong>
+
+        <span class="mapa-geo-kpi-meta">EAP / diários Lplan</span>
+
+      </div>
+
+      <div class="mapa-geo-kpi">
+
+        <span class="mapa-geo-kpi-label">Trechos no mapa</span>
+
+        <strong class="mapa-geo-kpi-value" id="mg-kpi-segments">{{ map_summary.segments }}</strong>
+
+        <span class="mapa-geo-kpi-meta"><span id="mg-kpi-eap">{{ map_summary.eap_linked }}</span> vinculados à EAP</span>
+
+      </div>
+
+      <div class="mapa-geo-kpi">
+
+        <span class="mapa-geo-kpi-label">GPS dos RDOs</span>
+
+        <strong class="mapa-geo-kpi-value" id="mg-kpi-gps">{{ map_summary.gps_markers }}</strong>
+
+        <span class="mapa-geo-kpi-meta">{{ map_summary.diaries_with_gps }} diário(s) com localização</span>
+
+      </div>
+
+      <div class="mapa-geo-kpi">
+
+        <span class="mapa-geo-kpi-label">Elementos</span>
+
+        <strong class="mapa-geo-kpi-value" id="mg-feature-count">{{ map_summary.total }}</strong>
+
+        <span class="mapa-geo-kpi-meta">{{ map_summary.points }} pontos · {{ map_summary.areas }} áreas</span>
+
+      </div>
+
+    </div>
+
+    {% if map_summary.import_label %}
+
+    <p class="mapa-geo-summary-source"><i class="fas fa-database"></i> Fonte: {{ map_summary.import_label }}</p>
+
+    {% endif %}
+
+  </div>
+
+
+
+  <div class="mapa-geo-toolbar card shadow-sm">
+
+    <div class="mapa-geo-toolbar-grid">
+
+      <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-search">
+
+        <label class="mapa-geo-field-label" for="mg-search">Buscar no mapa</label>
+
+        <div class="mapa-geo-search-wrap">
+
+          <i class="fas fa-search" aria-hidden="true"></i>
+
+          <input type="search" id="mg-search" class="mapa-geo-search" placeholder="Trecho, pasta ou EAP…" autocomplete="off" />
+
+        </div>
+
+      </div>
+
+
+
+      <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-timeline" id="mg-timeline-wrap">
+
+        <div class="mapa-geo-timeline-head">
+
+          <span class="mapa-geo-field-label">Evolução do mapa</span>
+
+          <span class="mapa-geo-timeline-badge" id="mg-current-date">Hoje</span>
+
+        </div>
+
+        <div class="mapa-geo-timeline-body">
+
+          <button type="button" class="mapa-geo-timeline-btn" id="mg-timeline-prev" title="Data anterior" aria-label="Data anterior">
+
+            <i class="fas fa-chevron-left"></i>
+
+          </button>
+
+          <div class="mapa-geo-slider-shell">
+
+            <input type="range" id="mg-timeline" class="mapa-geo-slider" min="0" max="0" value="0" aria-label="Linha do tempo do mapa" />
+
+            <div class="mapa-geo-slider-ticks">
+
+              <span id="mg-timeline-start">—</span>
+
+              <span id="mg-timeline-end">—</span>
+
+            </div>
+
+          </div>
+
+          <button type="button" class="mapa-geo-timeline-btn" id="mg-timeline-next" title="Próxima data" aria-label="Próxima data">
+
+            <i class="fas fa-chevron-right"></i>
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+
+      <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-actions mapa-geo-actions">
+
+        <label class="mapa-geo-field-label mapa-geo-field-label--actions">Ações</label>
+
+        <div class="mapa-geo-actions-row">
+
+          <button type="button" id="mg-fit-bounds" class="btn btn-sm btn-secondary" title="Enquadrar todos os elementos">
+
+            <i class="fas fa-compress-arrows-alt"></i>
+
+          </button>
+
+          <button type="button" id="mg-toggle-panel" class="btn btn-sm btn-secondary" title="Lista de elementos">
+
+            <i class="fas fa-list"></i>
+
+          </button>
+
+          {% if can_edit_geo %}
+
+          <button type="button" id="mg-toggle-edit" class="btn btn-sm {% if not has_features %}btn-primary{% else %}btn-secondary{% endif %}">
+
+            <i class="fas fa-pen"></i> Editar mapa
+
+          </button>
+
+          <div class="mapa-geo-more-wrap">
+
+            <button type="button" class="btn btn-sm btn-secondary" id="mg-more-toggle" title="Mais opções">
+
+              <i class="fas fa-ellipsis-v"></i>
+
+            </button>
+
+            <div class="mapa-geo-dropdown-menu" id="mg-more-menu" hidden>
+
+              <span class="mapa-geo-menu-label">Integração Lplan</span>
+
+              <button type="button" id="mg-sync-diario">Atualizar progresso dos diários</button>
+
+              <span class="mapa-geo-menu-label">Avançado</span>
+
+              <a href="{% url 'mapa_geo:importar' %}">Importar arquivo em lote…</a>
+
+            </div>
+
+          </div>
+
+          {% endif %}
+
+          <div class="mapa-geo-export-wrap" id="mg-export-wrap"{% if not has_features %} hidden{% endif %}>
+
+            <button type="button" class="btn btn-sm btn-secondary" id="mg-export-toggle">
+
+              <i class="fas fa-download"></i> Exportar
+
+            </button>
+
+            <div class="mapa-geo-dropdown-menu" id="mg-export-menu" hidden>
+
+              <span class="mapa-geo-menu-label">Baixar mapa</span>
+
+              <a href="{% url 'mapa_geo:exportar' %}?format=geojson">GeoJSON</a>
+
+              <a href="{% url 'mapa_geo:exportar' %}?format=kml">KML</a>
+
+              <a href="{% url 'mapa_geo:exportar' %}?format=kmz">KMZ</a>
+
+              <a href="{% url 'mapa_geo:exportar' %}?format=csv-pontos">CSV pontos</a>
+
+              <a href="{% url 'mapa_geo:exportar' %}?format=csv-geometrias">CSV geometrias</a>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+
+      {% if can_edit_geo %}
+
+      <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-draw" id="mg-draw-tools" hidden>
+
+        <span class="mapa-geo-field-label">Ferramentas de desenho</span>
+
+        <div class="mapa-geo-draw-tools">
+
+          <button type="button" class="mapa-geo-tool-btn is-active" data-tool="pan" title="Navegar (Esc)">
+
+            <i class="fas fa-hand-paper"></i><span>Navegar</span>
+
+          </button>
+
+          <button type="button" class="mapa-geo-tool-btn" data-tool="line" title="Desenhar trecho (L)">
+
+            <i class="fas fa-route"></i><span>Trecho</span>
+
+          </button>
+
+          <button type="button" class="mapa-geo-tool-btn" data-tool="marker" title="Marcar ponto (P)">
+
+            <i class="fas fa-map-pin"></i><span>Ponto</span>
+
+          </button>
+
+          <button type="button" class="mapa-geo-tool-btn" data-tool="polygon" title="Desenhar área (A)">
+
+            <i class="fas fa-draw-polygon"></i><span>Área</span>
+
+          </button>
+
+          <button type="button" class="mapa-geo-tool-btn" data-tool="edit" title="Mover vértices (E)">
+
+            <i class="fas fa-arrows-alt"></i><span>Editar</span>
+
+          </button>
+
+          <button type="button" class="mapa-geo-tool-btn mapa-geo-tool-btn--danger" data-tool="delete" title="Apagar (Del)">
+
+            <i class="fas fa-trash-alt"></i><span>Apagar</span>
+
+          </button>
+
+        </div>
+
+        <p class="mapa-geo-snap-hint"><i class="fas fa-magnet"></i> Imã ativo — vértices grudam em elementos próximos (15 px)</p>
+
+      </div>
+
+      {% endif %}
+
+
+
+      <div class="mapa-geo-toolbar-cell mapa-geo-toolbar-layers">
+
+        <span class="mapa-geo-field-label">Camadas visíveis</span>
+
+        <div class="mapa-geo-layer-chips">
+
+          <label class="mapa-geo-chip"><input type="checkbox" id="mg-filter-lines" checked /><span>Trechos</span></label>
+
+          <label class="mapa-geo-chip"><input type="checkbox" id="mg-filter-points" checked /><span>Pontos</span></label>
+
+          <label class="mapa-geo-chip"><input type="checkbox" id="mg-filter-polygons" checked /><span>Áreas</span></label>
+
+          <label class="mapa-geo-chip mapa-geo-chip--gps"><input type="checkbox" id="mg-filter-gps" checked /><span>GPS RDO</span></label>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="mapa-geo-workspace" id="mg-workspace">
+
+    <aside class="mapa-geo-side-panel card shadow-sm" id="mg-side-panel">
+
+      <div class="mapa-geo-side-head">
+
+        <h3>Elementos da obra</h3>
+
+        <span class="mapa-geo-side-count" id="mg-list-count">0</span>
+
+      </div>
+
+      <div class="mapa-geo-side-list" id="mg-feature-list">
+
+        <p class="mapa-geo-side-empty">Nenhum elemento visível.</p>
+
+      </div>
+
+    </aside>
+
+
+
+    <div class="mapa-geo-map-wrap">
+
+      <div id="mg-map" class="mapa-geo-map"></div>
+
+      {% if not has_features %}
+
+      <div class="mapa-geo-welcome" id="mg-empty-hint">
+
+        <p class="mapa-geo-welcome-title"><i class="fas fa-map-marked-alt"></i> Mapa geográfico</p>
+
+        <p>Visualize trechos, pontos de vistoria e <strong>GPS dos RDOs</strong> conforme os diários forem registrados.</p>
+
+        {% if can_edit_geo %}
+
+        <p class="mapa-geo-welcome-cta">Clique em <strong>Editar mapa</strong>, escolha <strong>Trecho</strong> na barra de ferramentas e desenhe no mapa.</p>
+
+        {% else %}
+
+        <p class="mapa-geo-welcome-muted">Os elementos aparecem aqui à medida que a equipe cadastra no mapa ou registra RDOs com GPS.</p>
+
+        {% endif %}
+
+      </div>
+
+      {% endif %}
+
+    </div>
+
+  </div>
+
+
+
+  <div class="mapa-geo-legend card shadow-sm">
+
+    <span class="legend-item"><i class="dot dot-red"></i> 0–25%</span>
+
+    <span class="legend-item"><i class="dot dot-orange"></i> 26–50%</span>
+
+    <span class="legend-item"><i class="dot dot-yellow"></i> 51–75%</span>
+
+    <span class="legend-item"><i class="dot dot-green"></i> 76–100%</span>
+
+    <span class="legend-item"><i class="dot dot-blue"></i> GPS do RDO</span>
+
+    <span class="legend-item muted">© OpenStreetMap</span>
+
+  </div>
+
+</div>
+
+
+
+<div id="mg-toast-host" class="mapa-geo-toast-host" aria-live="polite"></div>
+
+
+
+{% if can_edit_geo %}
+
+<aside class="mg-drawer" id="mg-drawer" aria-hidden="true">
+
+  <div class="mg-drawer-header">
+
+    <h3 id="mg-drawer-title">Editar elemento</h3>
+
+    <button type="button" class="mg-drawer-close" id="mg-drawer-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+
+  </div>
+
+  <form id="mg-feature-form" class="mg-drawer-body">
+
+    <input type="hidden" id="mg-f-id" />
+
+    <label>Nome <input type="text" id="mg-f-name" class="mg-input" placeholder="Ex.: Trecho 12 — Poste 45" /></label>
+
+    <label>Pasta / frente <input type="text" id="mg-f-folder" class="mg-input" placeholder="Ex.: Frente Norte" /></label>
+
+    <label>Descrição <textarea id="mg-f-description" class="mg-input" rows="3"></textarea></label>
+
+    <div class="mg-form-row">
+
+      <label>Tipo
+
+        <select id="mg-f-kind" class="mg-input">
+
+          <option value="segment">Trecho de rota</option>
+
+          <option value="point">Ponto geral</option>
+
+          <option value="obstacle">Obstáculo</option>
+
+          <option value="vistoria">Vistoria</option>
+
+          <option value="caixa">Caixa / infra</option>
+
+          <option value="area">Área</option>
+
+          <option value="other">Outro</option>
+
+        </select>
+
+      </label>
+
+      <label>Status
+
+        <select id="mg-f-status" class="mg-input">
+
+          <option value="planned">Planejado</option>
+
+          <option value="in_progress">Em andamento</option>
+
+          <option value="completed">Concluído</option>
+
+          <option value="blocked">Bloqueado</option>
+
+          <option value="vistoria">Vistoria</option>
+
+        </select>
+
+      </label>
+
+    </div>
+
+    <label>Atividade EAP (progresso real do Lplan)
+
+      <input type="search" id="mg-f-activity-search" class="mg-input mg-input-search" placeholder="Filtrar por código ou nome…" autocomplete="off" />
+
+      <select id="mg-f-activity" class="mg-input" size="4">
+
+        <option value="">— Sem vínculo (progresso manual) —</option>
+
+      </select>
+
+    </label>
+
+    <p class="mg-activity-hint" id="mg-activity-hint"></p>
+
+    <label>Progresso (%) <input type="number" id="mg-f-progress" class="mg-input" min="0" max="100" step="0.1" /></label>
+
+    <div class="mg-drawer-actions">
+
+      <button type="button" class="btn btn-sm btn-danger" id="mg-f-delete">Excluir</button>
+
+      <button type="button" class="btn btn-sm btn-secondary" id="mg-drawer-cancel">Cancelar</button>
+
+      <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
+
+    </div>
+
+    <button type="button" class="btn btn-sm btn-secondary mg-drawer-save-next" id="mg-save-and-next" hidden>Salvar e desenhar outro</button>
+
+  </form>
+
+</aside>
+
+<div class="mg-drawer-backdrop" id="mg-drawer-backdrop" hidden></div>
+
+{% endif %}
+
+{% endblock %}
+
+
+
+{% block extra_js %}
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js" crossorigin=""></script>
+
+<script src="{% static 'mapa_geo/js/mapa.js' %}?v=8"></script>
+
+{% endblock %}
+
