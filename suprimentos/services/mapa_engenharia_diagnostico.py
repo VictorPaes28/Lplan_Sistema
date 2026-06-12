@@ -122,6 +122,36 @@ def build_ultima_importacao_info(obra_id) -> dict | None:
     }
 
 
+def alertas_codigo_descricao_duplicada_obra(obra_id) -> list[str]:
+    """Alertas de código duplicado via query leve (sem carregar ItemMapa completo)."""
+    from suprimentos.models import ItemMapa
+
+    rows = ItemMapa.objects.filter(obra_id=obra_id).values(
+        'descricao_override',
+        'insumo__codigo_sienge',
+        'insumo__descricao',
+    )
+    por_codigo: dict[str, set[str]] = defaultdict(set)
+    for row in rows:
+        cod = (row.get('insumo__codigo_sienge') or '').strip()
+        if not cod or cod.startswith('SM-LEV-'):
+            continue
+        desc = (row.get('descricao_override') or '').strip() or (row.get('insumo__descricao') or '').strip()
+        if desc:
+            por_codigo[cod].add(desc)
+
+    alertas = []
+    for cod, descricoes in sorted(por_codigo.items()):
+        if len(descricoes) > 1:
+            amostra = '; '.join(sorted(descricoes)[:4])
+            extra = f' (+{len(descricoes) - 4})' if len(descricoes) > 4 else ''
+            alertas.append(
+                f'Código {cod} aparece com descrições diferentes na planilha ({amostra}{extra}). '
+                'No Sienge, um código corresponde a um produto — confira se o cadastro está correto.'
+            )
+    return alertas
+
+
 def alertas_codigo_descricao_duplicada(itens_list) -> list[str]:
     """
     Mesmo código Sienge com descrições diferentes na mesma lista (possível uso incorreto do código).

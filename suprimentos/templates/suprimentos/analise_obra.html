@@ -866,11 +866,6 @@ html, body {
                 <i class="fas fa-magic w-5 mr-3"></i>
                 <span class="font-medium">Ferramenta</span>
             </a>
-            <a href="{% url 'engenharia:importar_sienge' %}"
-               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'importar_sienge' or request.resolver_match.url_name == 'importar_mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
-                <i class="fas fa-upload w-5 mr-3"></i>
-                <span class="font-medium">Importar Sienge</span>
-            </a>
             <a href="{% url 'mapa_obras:home' %}"
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>

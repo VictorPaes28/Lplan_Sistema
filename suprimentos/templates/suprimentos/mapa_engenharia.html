@@ -5,45 +5,11 @@
 
 {% block extra_css %}
 <style>
-/* Popover parcelado: largura e legibilidade */
-.popover.parcela-popover-wide {
-    max-width: min(380px, 94vw);
-}
-.popover.parcela-popover-wide .popover-header {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-.parcela-etapa-card:last-child { margin-bottom: 0 !important; }
-.btn-parcela-trigger {
-    border-radius: 0.375rem;
-    font-weight: 500;
-    border-color: rgba(13, 110, 253, 0.35);
-    color: #0d6efd;
-    background: rgba(13, 110, 253, 0.06);
-}
-.btn-parcela-trigger:hover {
-    background: rgba(13, 110, 253, 0.12);
-    color: #0a58ca;
-    border-color: #0d6efd;
-}
 .mapa-contexto-import {
     font-size: 0.85rem;
 }
 .mapa-alerta-codigo {
     font-size: 0.85rem;
-}
-.mapa-sienge-diag {
-    font-size: 0.68rem;
-    line-height: 1.25;
-    margin-top: 0.2rem;
-    text-align: left;
-}
-.mapa-sienge-diag--aviso { color: #b45309; }
-.mapa-sienge-diag--info { color: #64748b; }
-.badge-sienge-vinculo {
-    font-size: 0.62rem;
-    font-weight: 600;
-    vertical-align: middle;
 }
 </style>
 {% endblock %}
@@ -55,45 +21,9 @@
 <!-- ============================================
      MAPA DE SUPRIMENTOS - Tabela Responsiva
      ============================================ -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="mb-0">Central de Suprimentos</h2>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="btnGerenciarLocais">
-            <i class="bi bi-geo-alt"></i> Gerenciar Locais
-        </button>
-    </div>
     {% if mapa_obra_somente_consulta %}
     <div class="alert alert-secondary border mb-2 py-2" role="alert">
         <i class="bi bi-eye me-1"></i>{{ lplan_obra_inativa_msg }}
-    </div>
-    {% endif %}
-    {% if user.is_staff or user.is_superuser %}
-    <div class="alert alert-light border d-flex flex-wrap gap-3 py-2 mb-2">
-        <span><strong>Confiabilidade:</strong> {{ confiabilidade.score }}%</span>
-        <span><strong>Nível:</strong> {% firstof confiabilidade.nivel_display confiabilidade.nivel %}</span>
-        <span>Sem SC: {{ confiabilidade.sem_sc }}</span>
-        <span>Sem código: {{ confiabilidade.sem_codigo_insumo }}</span>
-        <span>Sem local: {{ confiabilidade.sem_local }}</span>
-        <span>Inconsistência aloc.: {{ confiabilidade.inconsistencia_alocacao }}</span>
-    </div>
-    {% endif %}
-
-    {% if obra_selecionada and ultima_importacao %}
-    <div class="alert {% if ultima_importacao.tem_importacao %}alert-info{% else %}alert-warning{% endif %} border mapa-contexto-import py-2 mb-2" role="status">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <i class="bi bi-cloud-upload"></i>
-            {% if ultima_importacao.tem_importacao %}
-            <span>
-                <strong>Última importação Sienge:</strong>
-                {{ ultima_importacao.created_at|date:"d/m/Y H:i" }}
-                — {{ ultima_importacao.nome_arquivo }}
-                {% if ultima_importacao.usuario %}<span class="text-muted">({{ ultima_importacao.usuario }})</span>{% endif %}
-            </span>
-            {% else %}
-            <span><strong>Nenhuma importação Sienge registrada nesta obra.</strong> O quantitativo (col. 7) e o recebido na obra dependem do menu <a href="{% url 'engenharia:importar_sienge' %}" class="alert-link">Importar Sienge</a>.</span>
-            {% endif %}
-            <span class="text-muted ms-md-2">| {{ ultima_importacao.recebimentos_obra }} linha(s) de recebimento na obra</span>
-            <a href="{% url 'engenharia:importar_sienge' %}?obra={{ obra_selecionada.id }}" class="btn btn-sm btn-outline-primary ms-auto">Importar / atualizar</a>
-        </div>
     </div>
     {% endif %}
 
@@ -105,93 +35,73 @@
     {% endfor %}
     {% endif %}
 
-    <details class="mb-2 mapa-contexto-import">
-        <summary class="text-primary" style="cursor:pointer;font-size:0.9rem;"><i class="bi bi-question-circle me-1"></i>Como funciona o mapa (ordem recomendada)</summary>
-        <ol class="small text-muted mb-0 mt-2 ps-3">
-            <li><strong>Levantamento</strong> — descrição e quantidade planejada (col. 8); código pode ficar vazio.</li>
-            <li><strong>Sienge</strong> — criar SC no ERP e <strong>importar</strong> o arquivo (menu Importar).</li>
-            <li><strong>Vínculo</strong> — informar SC (col. 10) e código (col. 2); col. 7 mostra o quantitativo do Sienge ou um aviso se faltar vínculo.</li>
-            <li><strong>Alocação</strong> — col. 14 «Alocado / solicitado» e botão <strong>+</strong>: distribuir ao local o que já foi recebido na obra (não é digitar NF aqui).</li>
-        </ol>
-    </details>
-
-<!-- KPIs - Barra compacta melhorada -->
-<div class="kpi-container">
-    <div class="kpi-card kpi-total">
-        <div class="kpi-icon">
-            <i class="bi bi-list-ul"></i>
-        </div>
-        <div class="kpi-content">
-            <div class="kpi-valor">{{ kpis.total|default:0 }}</div>
-            <div class="kpi-label">Total</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-atrasados">
-        <div class="kpi-icon">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-        </div>
-        <div class="kpi-content">
-            <div class="kpi-valor text-danger">{{ kpis.atrasados|default:0 }}</div>
-            <div class="kpi-label">Atrasados</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-solicitados">
-        <div class="kpi-icon">
-            <i class="bi bi-file-earmark-text"></i>
-        </div>
-        <div class="kpi-content">
-            <div class="kpi-valor">{{ kpis.solicitados|default:0 }}</div>
-            <div class="kpi-label">Solicitados</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-compra">
-        <div class="kpi-icon">
-            <i class="bi bi-cart"></i>
-        </div>
-        <div class="kpi-content">
-            <div class="kpi-valor text-warning">{{ kpis.em_compra|default:0 }}</div>
-            <div class="kpi-label">Em Compra</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-parciais">
-        <div class="kpi-icon">
-            <i class="bi bi-hourglass-split"></i>
-        </div>
-        <div class="kpi-content">
-            <div class="kpi-valor text-warning">{{ kpis.parciais|default:0 }}</div>
-            <div class="kpi-label">Parciais</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-entregues">
-        <div class="kpi-icon">
-            <i class="bi bi-check-circle-fill"></i>
-        </div>
-        <div class="kpi-content">
-            <div class="kpi-valor text-success">{{ kpis.entregues|default:0 }}</div>
-            <div class="kpi-label">Entregues</div>
-        </div>
-    </div>
-</div>
-
-<!-- ============================================
-     NOVO LEVANTAMENTO (pré-Sienge) - Design Melhorado
-     ============================================ -->
-<div class="novo-levantamento-card mb-3">
-    <div class="novo-levantamento-header" id="novoLevantamentoHeader">
-        <div class="novo-levantamento-header-left">
-            <div class="novo-levantamento-icon">
-                <i class="bi bi-plus-circle-fill"></i>
+<section class="mapa-control-panel">
+    <div class="mapa-toolbar mapa-toolbar-metricas">
+        <div class="mapa-kpi-segment" id="kpi-container">
+            <div class="kpi-card kpi-total kpi-clickable{% if not filtros.status %} kpi-active{% endif %}" data-kpi-status="" title="Ver todos">
+                <span class="kpi-valor">{{ kpis.total|default:0 }}</span>
+                <span class="kpi-label">Total</span>
             </div>
-            <div class="novo-levantamento-title">
-                <h6 class="mb-0">Novo Levantamento</h6>
-                <small class="text-muted">Cadastrar insumo antes do Sienge (sem SC)</small>
+            <div class="kpi-card kpi-atrasados kpi-clickable{% if filtros.status == 'ATRASADO' %} kpi-active{% endif %}" data-kpi-status="ATRASADO" title="Atrasados">
+                <span class="kpi-valor">{{ kpis.atrasados|default:0 }}</span>
+                <span class="kpi-label">Atrasados</span>
+            </div>
+            <div class="kpi-card kpi-solicitados kpi-clickable{% if filtros.status == 'LEVANTAMENTO' %} kpi-active{% endif %}" data-kpi-status="LEVANTAMENTO" title="Levantamento">
+                <span class="kpi-valor">{{ kpis.levantamento|default:0 }}</span>
+                <span class="kpi-label">Levant.</span>
+            </div>
+            <div class="kpi-card kpi-parciais kpi-clickable{% if filtros.status == 'PARCIAL' %} kpi-active{% endif %}" data-kpi-status="PARCIAL" title="Parciais">
+                <span class="kpi-valor">{{ kpis.parciais|default:0 }}</span>
+                <span class="kpi-label">Parciais</span>
+            </div>
+            <div class="kpi-card kpi-entregues kpi-clickable{% if filtros.status == 'ENTREGUE' %} kpi-active{% endif %}" data-kpi-status="ENTREGUE" title="Entregues">
+                <span class="kpi-valor">{{ kpis.entregues|default:0 }}</span>
+                <span class="kpi-label">Entregues</span>
             </div>
         </div>
-        <button class="novo-levantamento-toggle" type="button" id="novoLevantamentoToggle" aria-expanded="false">
-            <i class="bi bi-chevron-down" id="novoLevantamentoIcon"></i>
-        </button>
+        <div class="mapa-toolbar-acoes">
+            <button type="button" class="mapa-btn-primary" id="btnNovoLevantamento" aria-expanded="false">+ Levantamento</button>
+            <button type="button" class="mapa-btn-toolbar" id="btnGerenciarLocais">Locais</button>
+            <details class="mapa-ajuda">
+                <summary title="Como usar o mapa">?</summary>
+                <div class="mapa-ajuda-body">
+                    <p><strong>Levantamento</strong> — cadastro da necessidade.</p>
+                    <p><strong>Alocação</strong> — quanto foi entregue no local.</p>
+                    <p><strong>Cores</strong> — branco, laranja, verde, vermelho (atrasado).</p>
+                </div>
+            </details>
+        </div>
     </div>
-    <div class="novo-levantamento-body collapse" id="novoLevantamentoBody">
+
+    {% if filtros.obra_id and mapa_suprimentos_manual %}
+    {% if pendencias.sem_local or pendencias.sem_prazo or pendencias.sem_codigo or pendencias.incompleto %}
+    <div class="mapa-toolbar mapa-toolbar-pendencias">
+        <span class="mapa-secao-label">Pendências</span>
+        <nav class="mapa-pendencias-tags" aria-label="Pendências">
+            {% if pendencias.sem_local %}<a href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}pendencia=SEM_LOCAL">Local <em>{{ pendencias.sem_local }}</em></a>{% endif %}
+            {% if pendencias.sem_prazo %}<a href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}pendencia=SEM_PRAZO">Prazo <em>{{ pendencias.sem_prazo }}</em></a>{% endif %}
+            {% if pendencias.sem_codigo %}<a href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}pendencia=SEM_CODIGO">Código <em>{{ pendencias.sem_codigo }}</em></a>{% endif %}
+            {% if pendencias.incompleto %}<a href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}pendencia=INCOMPLETO" class="is-alert">Incompletos <em>{{ pendencias.incompleto }}</em></a>{% endif %}
+        </nav>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if filtros.obra_id %}
+    {% if filtros.status or filtros.pendencia or filtros.local_id or filtros.categoria or filtros.prioridade or filtros.search %}
+    <div class="mapa-filtros-ativos" id="mapa-filtros-ativos">
+        <span class="mapa-filtros-ativos-label">Ativos</span>
+        {% if filtros.status %}<a href="#" class="mapa-chip-filtro" data-remove-param="status">{{ filtros.status }} ×</a>{% endif %}
+        {% if filtros.pendencia %}<a href="#" class="mapa-chip-filtro" data-remove-param="pendencia">{{ filtros.pendencia }} ×</a>{% endif %}
+        {% if filtros.local_id %}<a href="#" class="mapa-chip-filtro" data-remove-param="local">Local ×</a>{% endif %}
+        {% if filtros.categoria %}<a href="#" class="mapa-chip-filtro" data-remove-param="categoria">{{ filtros.categoria|truncatechars:20 }} ×</a>{% endif %}
+        {% if filtros.prioridade %}<a href="#" class="mapa-chip-filtro" data-remove-param="prioridade">{{ filtros.prioridade }} ×</a>{% endif %}
+        {% if filtros.search %}<a href="#" class="mapa-chip-filtro" data-remove-param="search">«{{ filtros.search|truncatechars:18 }}» ×</a>{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="novo-levantamento-drawer collapse" id="novoLevantamentoBody">
         <div class="novo-levantamento-content">
             <form method="post" action="{% url 'engenharia:novo_levantamento' %}" id="formNovoLevantamento">
                 {% csrf_token %}
@@ -208,6 +118,50 @@
                                required
                                placeholder="Ex: Cimento CP II 50kg"
                                autocomplete="off">
+                    </div>
+
+                    <div class="novo-levantamento-form-group">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-upc"></i> Código do Insumo
+                        </label>
+                        <input type="text"
+                               name="codigo_insumo"
+                               class="form-control novo-levantamento-input"
+                               placeholder="Opcional — gerado automaticamente se vazio"
+                               autocomplete="off">
+                    </div>
+
+                    <div class="novo-levantamento-form-group">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-rulers"></i> Unidade (UND)
+                        </label>
+                        <input type="text"
+                               name="unidade"
+                               class="form-control novo-levantamento-input"
+                               placeholder="Ex: KG, M², UND"
+                               maxlength="20"
+                               autocomplete="off">
+                    </div>
+
+                    <div class="novo-levantamento-form-group">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-geo-alt"></i> Local
+                        </label>
+                        <select name="local_aplicacao" class="form-select novo-levantamento-input">
+                            <option value="">— Sem local —</option>
+                            {% for local in locais %}
+                            <option value="{{ local.id }}">{{ local.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="novo-levantamento-form-group">
+                        <label class="novo-levantamento-label">
+                            <i class="bi bi-calendar-event"></i> Prazo de Necessidade
+                        </label>
+                        <input type="date"
+                               name="prazo_necessidade"
+                               class="form-control novo-levantamento-input">
                     </div>
 
                     <div class="novo-levantamento-form-group">
@@ -256,68 +210,24 @@
                 {% endif %}
                 
                 <div class="novo-levantamento-actions">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCancelarLevantamento">
-                        <i class="bi bi-x-circle"></i> Cancelar
-                    </button>
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-check-circle"></i> Criar Levantamento
-                    </button>
+                    <button type="button" class="btn btn-sm mapa-btn-toolbar" id="btnCancelarLevantamento">Cancelar</button>
+                    <button type="submit" class="btn btn-sm mapa-btn-primary">Criar</button>
                 </div>
             </form>
         </div>
     </div>
-</div>
 
-<!-- Legenda de Cores - Chips Compactos -->
-<div class="legenda-cores">
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom" 
-         title='1) LEVANTAMENTO: Engenharia ainda não gerou a SC.'>
-        <div class="legenda-cor status-branco"></div>
-        <span class="legenda-texto">1) Levantamento</span>
-    </div>
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
-         title='2) AGUARDANDO COMPRA: Engenharia gerou a SC, aguardando Compras gerar o PC.'>
-        <div class="legenda-cor status-vermelho"></div>
-        <span class="legenda-texto">2) Aguard. Compra</span>
-    </div>
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
-         title='3) AGUARDANDO ENTREGA: PC gerado, aguardando fornecedor entregar na obra.'>
-        <div class="legenda-cor status-azul"></div>
-        <span class="legenda-texto">3) Aguard. Entrega</span>
-    </div>
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
-         title='4) AGUARDANDO ALOCAÇÃO: Material chegou na obra, falta alocar para este local.'>
-        <div class="legenda-cor status-amarelo"></div>
-        <span class="legenda-texto">4) Aguard. Alocação</span>
-    </div>
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
-         title='5) ALOCAÇÃO PARCIAL: Material parcialmente alocado para este local.'>
-        <div class="legenda-cor status-laranja"></div>
-        <span class="legenda-texto">5) Parcial</span>
-    </div>
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
-         title='ENTREGUE: Material totalmente alocado para este local.'>
-        <div class="legenda-cor status-verde"></div>
-        <span class="legenda-texto">✓ Entregue</span>
-    </div>
-    <div class="legenda-item" data-bs-toggle="tooltip" data-bs-placement="bottom"
-         title="ATRASADO: Prazo de entrega vencido e ainda não entregue.">
-        <div class="legenda-cor status-atrasado"></div>
-        <span class="legenda-texto">⚠ Atrasado</span>
-    </div>
-</div>
-
-<!-- Filtros -->
-<div class="filtros-container">
-    <form id="filtro-form" method="get" action="{% url 'engenharia:mapa' %}">
+    <form id="filtro-form" class="mapa-filtros-form" method="get" action="{% url 'engenharia:mapa' %}">
         <input type="hidden" name="obra" value="{{ filtros.obra_id|default:'' }}">
-        <div class="filtros-row">
-            <div class="filtro-item">
-                {% include "mapa_obras/includes/seletor_frente.html" with select_class="form-select" compact=True module_help="Contexto de navegação. Itens do mapa permanecem consolidados por obra." %}
+        <div class="mapa-filtros-linha mapa-filtros-linha-prim">
+            {% if exibir_seletor_frente %}
+            <div class="mapa-field mapa-field-obra">
+                {% include "mapa_obras/includes/seletor_frente.html" with select_class="form-select" compact=True inline=True css_class="mapa-frente-inline" label="Frente" %}
             </div>
-            <div class="filtro-item">
-                <label for="categoria" class="form-label">Categoria:</label>
-                <select name="categoria" id="categoria" class="form-select" onchange="this.form.submit()">
+            {% endif %}
+            <div class="mapa-field">
+                <label for="categoria">Categoria</label>
+                <select name="categoria" id="categoria" class="mapa-field-control" onchange="this.form.submit()">
                     <option value="">Todas</option>
                     {% for val,label in categorias_opcoes %}
                         <option value="{{ val }}" {% if filtros.categoria == val %}selected{% endif %}>{{ label }}</option>
@@ -331,9 +241,9 @@
                     {% endif %}
                 </select>
             </div>
-            <div class="filtro-item">
-                <label for="local" class="form-label">Local:</label>
-                <select name="local" id="local" class="form-select" onchange="this.form.submit()">
+            <div class="mapa-field">
+                <label for="local">Local</label>
+                <select name="local" id="local" class="mapa-field-control" onchange="this.form.submit()">
                     <option value="">Todos</option>
                     {% for local in locais %}
                         <option value="{{ local.id }}" {% if filtros.local_id == local.id|stringformat:"s" %}selected{% endif %}>
@@ -342,9 +252,9 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="filtro-item">
-                <label for="prioridade" class="form-label">Prioridade:</label>
-                <select name="prioridade" id="prioridade" class="form-select" onchange="this.form.submit()">
+            <div class="mapa-field">
+                <label for="prioridade">Prioridade</label>
+                <select name="prioridade" id="prioridade" class="mapa-field-control" onchange="this.form.submit()">
                     <option value="">Todas</option>
                     <option value="URGENTE" {% if filtros.prioridade == "URGENTE" %}selected{% endif %}>Urgente</option>
                     <option value="ALTA" {% if filtros.prioridade == "ALTA" %}selected{% endif %}>Alta</option>
@@ -352,10 +262,16 @@
                     <option value="BAIXA" {% if filtros.prioridade == "BAIXA" %}selected{% endif %}>Baixa</option>
                 </select>
             </div>
-            <div class="filtro-item">
-                <label for="status" class="form-label">Status:</label>
-                <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+            <div class="mapa-field">
+                <label for="status">Status</label>
+                <select name="status" id="status" class="mapa-field-control" onchange="this.form.submit()">
                     <option value="">Todos</option>
+                    {% if mapa_suprimentos_manual %}
+                    <option value="LEVANTAMENTO" {% if filtros.status == "LEVANTAMENTO" %}selected{% endif %}>Levantamento</option>
+                    <option value="PARCIAL" {% if filtros.status == "PARCIAL" %}selected{% endif %}>Parcial</option>
+                    <option value="ENTREGUE" {% if filtros.status == "ENTREGUE" %}selected{% endif %}>Entregue</option>
+                    <option value="ATRASADO" {% if filtros.status == "ATRASADO" %}selected{% endif %}>Atrasado</option>
+                    {% else %}
                     <option value="LEVANTAMENTO" {% if filtros.status == "LEVANTAMENTO" %}selected{% endif %}>1) Levantamento</option>
                     <option value="AGUARDANDO_COMPRA" {% if filtros.status == "AGUARDANDO_COMPRA" %}selected{% endif %}>2) Aguardando Compra</option>
                     <option value="AGUARDANDO_ENTREGA" {% if filtros.status == "AGUARDANDO_ENTREGA" %}selected{% endif %}>3) Aguardando Entrega</option>
@@ -363,33 +279,60 @@
                     <option value="PARCIAL" {% if filtros.status == "PARCIAL" %}selected{% endif %}>5) Parcial</option>
                     <option value="ENTREGUE" {% if filtros.status == "ENTREGUE" %}selected{% endif %}>✓ Entregue</option>
                     <option value="ATRASADO" {% if filtros.status == "ATRASADO" %}selected{% endif %}>⚠ Atrasado</option>
+                    {% endif %}
                 </select>
             </div>
-            <div class="filtro-item">
-                <label for="search" class="form-label">Buscar:</label>
-                <input type="text" name="search" id="search" class="form-control" 
-                       value="{{ filtros.search }}" placeholder="Buscar: insumo, código, SC, PC, fornecedor...">
+            <div class="mapa-field mapa-field-busca">
+                <label for="search">Buscar</label>
+                <input type="text" name="search" id="search" class="mapa-field-control"
+                       value="{{ filtros.search }}" placeholder="Insumo, código, local…">
             </div>
-            <div class="filtro-item">
-                <button type="submit" class="btn btn-primary">Filtrar</button>
+            <div class="mapa-filtros-apply">
+                <a href="{% url 'engenharia:mapa' %}{% if filtros.obra_id %}?obra={{ filtros.obra_id }}{% endif %}"
+                   class="mapa-btn-toolbar" title="Limpar filtros">Limpar</a>
+                <button type="submit" class="mapa-btn-primary">Aplicar</button>
             </div>
-            <div class="filtro-item">
-                <a href="{% url 'engenharia:mapa' %}{% if filtros.obra_id %}?obra={{ filtros.obra_id }}{% endif %}" 
-                   class="btn btn-outline-secondary" 
-                   title="Limpar todos os filtros (mantém apenas a obra selecionada)">
-                    <i class="bi bi-x-circle"></i> Limpar filtros
-                </a>
+        </div>
+        <div class="mapa-filtros-linha mapa-filtros-linha-sec">
+            <div class="mapa-filtros-grupo mapa-filtros-grupo-lista">
+                <span class="mapa-secao-label">Listagem</span>
+                <div class="mapa-field mapa-field-sm">
+                    <label for="ordenar">Ordenar</label>
+                    <select name="ordenar" id="ordenar" class="mapa-field-control" onchange="this.form.submit()">
+                        <option value="descricao" {% if filtros.ordenar == "descricao" or not filtros.ordenar %}selected{% endif %}>Descrição</option>
+                        <option value="prazo" {% if filtros.ordenar == "prazo" %}selected{% endif %}>Prazo</option>
+                        <option value="prioridade" {% if filtros.ordenar == "prioridade" %}selected{% endif %}>Prioridade</option>
+                        <option value="local" {% if filtros.ordenar == "local" %}selected{% endif %}>Local</option>
+                        <option value="status" {% if filtros.ordenar == "status" %}selected{% endif %}>Status</option>
+                    </select>
+                </div>
+                <div class="mapa-field mapa-field-xs">
+                    <label for="por_pagina">Por página</label>
+                    <select name="por_pagina" id="por_pagina" class="mapa-field-control" onchange="this.form.submit()">
+                        {% for n in mapa_itens_por_pagina_opcoes %}
+                        <option value="{{ n }}" {% if filtros.por_pagina == n|stringformat:"s" %}selected{% endif %}>{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
-            <div class="filtro-item">
-                <a href="{% url 'engenharia:exportar_excel' %}?{{ request.GET.urlencode }}" 
-                   class="btn btn-success" 
-                   title="Exportar mapa atual para Excel">
-                    <i class="bi bi-file-earmark-excel"></i> Exportar Excel
-                </a>
+            <div class="mapa-filtros-grupo mapa-filtros-grupo-colunas">
+                <span class="mapa-secao-label">Colunas</span>
+                <div class="mapa-colunas-pills" id="mapa-colunas-toggle" aria-label="Colunas visíveis">
+                    <label class="mapa-col-pill"><input type="checkbox" data-col="col-resp" checked><span>Resp.</span></label>
+                    <label class="mapa-col-pill"><input type="checkbox" data-col="col-prazo" checked><span>Prazo</span></label>
+                    <label class="mapa-col-pill"><input type="checkbox" data-col="col-und" checked><span>UND</span></label>
+                    <label class="mapa-col-pill"><input type="checkbox" data-col="col-obs" checked><span>Obs.</span></label>
+                </div>
+            </div>
+            <div class="mapa-filtros-grupo mapa-filtros-grupo-export">
+                <span class="mapa-secao-label">Saída</span>
+                <button type="button" class="mapa-btn-toolbar" onclick="window.print()" title="Imprimir">Imprimir</button>
+                <a href="{% url 'engenharia:exportar_excel' %}?{{ request.GET.urlencode }}"
+                   class="mapa-btn-toolbar" title="Exportar Excel">Excel</a>
             </div>
         </div>
     </form>
-</div>
+</section>
 
 <!-- Tabela -->
 {% if not filtros.obra_id %}
@@ -400,37 +343,32 @@
     </div>
 </div>
 {% endif %}
+<div class="desktop-view" id="mapa-desktop-view">
 <div class="table-responsive">
     <table class="tabela-mapa">
         <thead>
-            <!-- Linha 1: Agrupadores (igual planilha do chefe) -->
-            <tr class="thead-agrupadores">
-                <th colspan="9" class="text-center">REQUISIÇÃO DE PRODUTO/SERVIÇO</th>
-                <th colspan="3" class="text-center">SOLICITAÇÃO DE COMPRA</th>
-                <th colspan="3" class="text-center">ENTREGA DE PRODUTO/SERVIÇO</th>
-                <th colspan="4" class="text-center"></th>
+            <tr class="mapa-zonas-row">
+                <th colspan="8" class="zona-header zona-plan">Planejamento</th>
+                <th colspan="2" class="zona-header zona-exec zona-sep-exec">Alocação</th>
+                <th colspan="1" class="zona-header zona-status zona-sep-status">Status</th>
+                <th colspan="2" class="zona-header zona-info zona-sep-info">Complemento</th>
+                <th colspan="1" class="zona-header zona-acoes zona-sep-acoes">Ações</th>
             </tr>
-            <!-- Linha 2: Colunas (igual planilha do chefe) -->
-            <tr>
-                <th class="col-sticky-left">1. CATEGORIA</th>
-                <th>2. CÓDIGO DO INSUMO</th>
-                <th>3. DESCRIÇÃO DO ITEM</th>
-                <th>4. LOCAL</th>
-                <th>5. RESPONSÁVEL</th>
-                <th>6. PRAZO</th>
-                <th title="Quantidade solicitada no Sienge (somente leitura). Vazio = ver aviso na célula.">7. QUANTIT. SIENGE (SC)</th>
-                <th>8. QUANTIDADE PLANEJADA</th>
-                <th>9. UND</th>
-                <th>10. Nº SOLICITAÇÃO</th>
-                <th>11. Nº PEDIDO DE COMPRA</th>
-                <th>12. EMPRESA RESPONSÁVEL</th>
-                <th>13. PRAZO RECEBIMENTO</th>
-                <th title="Quanto já foi alocado neste local ÷ solicitado (Sienge) ou planejado. Recebido na obra vem do import; use o botão + para alocar.">14. ALOCADO / SOLICITADO</th>
-                <th>15. SALDO A SER ENTREGUE</th>
-                <th class="col-sticky-right">16. STATUS</th>
-                <th>17. PRIORIDADE</th>
-                <th>18. OBSERVAÇÃO</th>
-                <th>Ações</th>
+            <tr class="mapa-cols-row">
+                <th class="col-sticky-left zona-plan">Categoria</th>
+                <th class="zona-plan">Código</th>
+                <th class="zona-plan col-text-left">Descrição</th>
+                <th class="zona-plan">Local</th>
+                <th class="col-opt col-resp zona-plan">Responsável</th>
+                <th class="col-opt col-prazo zona-plan">Prazo</th>
+                <th class="zona-plan">Qtd. planejada</th>
+                <th class="col-opt col-und zona-plan">UND</th>
+                <th class="zona-exec zona-sep-exec" title="Quanto já foi alocado neste local ÷ planejado. Use o botão + para alocar.">Alocado / planejado</th>
+                <th class="zona-exec">Saldo local</th>
+                <th class="col-sticky-right zona-status zona-sep-status">Status</th>
+                <th class="zona-info zona-sep-info">Prioridade</th>
+                <th class="col-opt col-obs zona-info col-text-left">Observação</th>
+                <th class="zona-acoes zona-sep-acoes">Ações</th>
             </tr>
         </thead>
         <tbody>
@@ -438,7 +376,7 @@
             {% regroup itens by categoria as itens_por_categoria %}
             {% for categoria_group in itens_por_categoria %}
                 <tr class="categoria-header" data-categoria="{{ categoria_group.grouper }}">
-                    <td colspan="19">
+                    <td colspan="14">
                         <span class="toggle-categoria" data-categoria="{{ categoria_group.grouper }}">
                             <i class="bi bi-chevron-down"></i>
                         </span>
@@ -447,11 +385,11 @@
                 </tr>
                 {% for item in categoria_group.list %}
             <tr data-item-id="{{ item.id }}" 
-                class="{{ item.status_css }} categoria-{{ categoria_group.grouper|slugify }} linha-item-mapa"
+                class="{{ item.status_css }} categoria-{{ categoria_group.grouper|slugify }} linha-item-mapa{% if item.is_atrasado %} linha-atrasada{% endif %}"
                 data-status-etapa="{{ item.status_etapa }}"
                 {% if item.is_atrasado %}data-atrasado="true"{% endif %}>
                 <!-- 1. CATEGORIA (Select - lista fechada LPLAN) -->
-                <td class="col-sticky-left">
+                <td class="col-sticky-left zona-plan">
                     <select class="input-inline form-select form-select-sm" 
                             data-item-id="{{ item.id }}" 
                             data-field="categoria"
@@ -465,7 +403,7 @@
                     </select>
                 </td>
                 <!-- 2. CÓDIGO INSUMO - Input Editável (sempre editável) -->
-                <td>
+                <td class="zona-plan">
                     {% with cod=item.insumo.codigo_sienge|default:"" %}
                         {% if cod|slice:":7" == "SM-LEV-" or not cod %}
                             {# Em levantamento: campo vazio para engenheiro inserir código #}
@@ -476,7 +414,7 @@
                                    data-field="insumo_codigo"
                                    data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
                                    placeholder="Digite o código"
-                                   title="Código do insumo (insira para vincular com o banco. Chave: SC + Código)"
+                                   title="Código do insumo (opcional)"
                                    style="min-width: 100px; font-style: italic;">
                         {% else %}
                             {# Já tem código: mostrar e permitir edição (sempre editável) #}
@@ -487,13 +425,13 @@
                                    data-field="insumo_codigo"
                                    data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
                                    placeholder="Código"
-                                   title="Código do insumo (sempre editável. Chave: SC + Código)"
+                                   title="Código do insumo"
                                    style="min-width: 100px;">
                         {% endif %}
                     {% endwith %}
                 </td>
                 <!-- 3. DESCRIÇÃO - Input Editável -->
-                <td>
+                <td class="zona-plan col-text-left">
                     <input type="text" 
                            class="input-inline form-control form-control-sm ghost-input"
                            value="{{ item.descricao_override|default:item.insumo.descricao }}"
@@ -504,7 +442,7 @@
                            title="Descrição original: {{ item.insumo.descricao }}">
                 </td>
                 <!-- 4. LOCAL - Select padronizado -->
-                <td>
+                <td class="zona-plan">
                     <select class="input-inline form-select form-select-sm" 
                             data-item-id="{{ item.id }}" 
                             data-field="local_aplicacao" 
@@ -518,7 +456,7 @@
                     </select>
                 </td>
                 <!-- 5. RESPONSÁVEL -->
-                <td>
+                <td class="col-opt col-resp zona-plan">
                     <input type="text" class="input-inline form-control form-control-sm" 
                            value="{{ item.responsavel|default:'' }}"
                            data-item-id="{{ item.id }}" 
@@ -526,37 +464,17 @@
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
                 <!-- 6. PRAZO -->
-                <td>
+                <td class="col-opt col-prazo zona-plan">
                     <input type="date" class="input-inline form-control form-control-sm" 
                            value="{{ item.prazo_necessidade|date:'Y-m-d'|default:'' }}"
                            data-item-id="{{ item.id }}" 
                            data-field="prazo_necessidade"
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
-                <!-- 7. QUANTITATIVO Sienge (somente leitura) -->
-                <td class="input-readonly campo-sienge text-center"
-                    data-sienge-patch="quantidade_solicitada"
-                    data-sienge-diag-patch="1"
-                    data-bs-toggle="tooltip"
-                    title="{% if item.sienge_diagnostico.mensagem %}{{ item.sienge_diagnostico.mensagem }}{% else %}Quantidade solicitada no Sienge para SC + código desta linha{% endif %}">
-                    {% if item.quantidade_solicitada_sienge > 0 %}
-                        <strong>{{ item.quantidade_solicitada_sienge|floatformat:2 }}</strong>
-                        <span class="text-muted small">{{ item.insumo.unidade|format_unidade }}</span>
-                        <span class="badge rounded-pill text-bg-success badge-sienge-vinculo ms-1">{{ item.sienge_diagnostico.badge }}</span>
-                    {% else %}
-                        <span class="text-muted">—</span>
-                        {% if item.sienge_diagnostico.badge %}
-                        <span class="badge rounded-pill {% if item.sienge_diagnostico.nivel == 'aviso' %}text-bg-warning{% else %}text-bg-secondary{% endif %} badge-sienge-vinculo d-block mt-1">{{ item.sienge_diagnostico.badge }}</span>
-                        {% endif %}
-                    {% endif %}
-                    {% if item.sienge_diagnostico.mensagem %}
-                    <div class="mapa-sienge-diag mapa-sienge-diag--{{ item.sienge_diagnostico.nivel }}">{{ item.sienge_diagnostico.mensagem }}</div>
-                    {% endif %}
-                </td>
-                <!-- 8. QUANTIDADE PLANEJADA (editável e separada do quantitativo SC) -->
-                <td>
+                <!-- 7. QUANTIDADE PLANEJADA -->
+                <td class="zona-plan">
                     <input type="number"
-                           class="input-inline form-control form-control-sm text-end"
+                           class="input-inline form-control form-control-sm"
                            value="{{ item.quantidade_planejada|unlocalize }}"
                            data-item-id="{{ item.id }}"
                            data-field="quantidade_planejada"
@@ -565,14 +483,13 @@
                            min="0.01"
                            title="Quantidade planejada para este item">
                 </td>
-                <!-- 9. UND - Editável (Select) -->
-                <td class="text-center">
-                    <select class="input-inline form-select form-select-sm text-center" 
+                <!-- 8. UND - Editável (Select) -->
+                <td class="col-opt col-und zona-plan">
+                    <select class="input-inline form-select form-select-sm text-center select-unidade" 
                             data-item-id="{{ item.id }}"
                             data-field="insumo_unidade"
                             data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
-                            title="Unidade de medida - sempre editável"
-                            style="min-width: 70px; max-width: 90px;">
+                            title="Unidade de medida - sempre editável">
                         <option value="" {% if not item.insumo.unidade or item.insumo.unidade == '' %}selected{% endif %}>--</option>
                         <option value="UND" {% if item.insumo.unidade == 'UND' %}selected{% endif %}>UND</option>
                         <option value="PÇ" {% if item.insumo.unidade == 'PÇ' %}selected{% endif %}>PÇ</option>
@@ -586,164 +503,41 @@
                         <option value="MES" {% if item.insumo.unidade == 'MES' %}selected{% endif %}>MES</option>
                     </select>
                 </td>
-                <!-- 10. Nº SOLICITAÇÃO (SC) -->
-                <!-- Novo fluxo: pode ser cadastrado manualmente após criar no Sienge, para vincular importação -->
-                <td class="campo-sienge" style="padding: 4px 6px; min-width: 112px;">
-                    <div class="d-flex flex-column align-items-stretch gap-1">
-                        <input type="text" 
-                               class="input-inline form-control form-control-sm ghost-input"
-                               style="min-width: 100px; max-width: 100%; font-size: 0.9em; padding: 2px 6px; font-weight: 500;"
-                               value="{{ item.numero_sc|default:'' }}"
-                               placeholder="SC"
-                               data-bs-toggle="tooltip"
-                               title="Digite a SC após criar no Sienge (vincula na próxima importação)."
-                               data-item-id="{{ item.id }}" 
-                               data-field="numero_sc"
-                               data-insumo-id="{{ item.insumo.id }}"
-                               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
-                               list="sc-datalist-{{ item.id }}">
-                        <datalist id="sc-datalist-{{ item.id }}"></datalist>
-                        {% if item.has_entrega_parcelada %}
-                        <div id="parcelas-src-{{ item.id }}" class="d-none parcelas-etapas-html">
-                            {% if item.recebimento_vinculado %}
-                            <div class="rounded border px-2 py-2 mb-2 text-start bg-body-secondary bg-opacity-25">
-                                <div class="d-flex align-items-center gap-1 mb-1 small fw-semibold text-body">
-                                    <i class="bi bi-box-seam"></i> Total consolidado (Sienge)
-                                </div>
-                                <div class="small"><span class="text-muted">Solicitado:</span> <strong>{{ item.recebimento_vinculado.quantidade_solicitada|floatformat:2 }}</strong></div>
-                                <div class="small"><span class="text-muted">Entregue na obra:</span> <strong>{{ item.recebimento_vinculado.quantidade_recebida|floatformat:2 }}</strong></div>
-                                <div class="small"><span class="text-muted">Saldo (arquivo):</span> <strong>{{ item.recebimento_vinculado.saldo_a_entregar|floatformat:2 }}</strong></div>
-                                <p class="text-muted mb-0 mt-2" style="font-size: 0.68rem; line-height: 1.35;">
-                                    Se cada linha do arquivo repetir o mesmo &quot;solicitado&quot;, o import usa <strong>um</strong> valor no mapa (não soma as linhas). Valores <strong>diferentes</strong> por ITEM são <strong>somados</strong> no total.
-                                </p>
-                            </div>
-                            {% endif %}
-                            <div class="text-uppercase text-muted fw-semibold mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Detalhe por ITEM</div>
-                            {% for etapa in item.etapas_entrega %}
-                            <div class="parcela-etapa-card rounded border bg-white px-2 py-2 mb-2 text-start shadow-sm">
-                                <div class="d-flex justify-content-between align-items-center gap-1 mb-1">
-                                    <span class="badge rounded-pill text-bg-light border">ITEM {{ etapa.item_sc }}</span>
-                                    <span class="badge rounded-pill bg-secondary bg-opacity-15 text-secondary">{{ etapa.status_display }}</span>
-                                </div>
-                                <div class="small"><span class="text-muted">Solicitado:</span> <span class="text-dark fw-medium">{{ etapa.quantidade_solicitada|floatformat:2 }}</span></div>
-                                <div class="small"><span class="text-muted">Entregue:</span> <span class="text-dark fw-medium">{{ etapa.quantidade_entregue|floatformat:2 }}</span></div>
-                                <div class="small"><span class="text-muted">Saldo linha:</span> <span class="text-dark fw-medium">{{ etapa.saldo|floatformat:2 }}</span></div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        <button type="button"
-                                class="btn btn-sm parcela-popover-trigger btn-parcela-trigger d-inline-flex align-items-center justify-content-center gap-1 w-100 px-1"
-                                style="font-size: 0.72rem;"
-                                data-parcel-src="parcelas-src-{{ item.id }}"
-                                data-popover-title="Entrega em {{ item.total_etapas_entrega }} etapas"
-                                aria-label="Ver detalhe da entrega parcelada por ITEM da SC">
-                            <i class="bi bi-layers"></i>
-                            <span>{{ item.total_etapas_entrega }} etapas</span>
-                        </button>
-                        {% endif %}
-                    </div>
-                </td>
-                <!-- 11. Nº PEDIDO (Readonly - Sienge - Automático) -->
-                <td class="input-readonly campo-sienge text-center" 
-                    data-sienge-patch="numero_pc"
+                <!-- 9. Alocado / planejado -->
+                <td class="celula-progresso zona-exec zona-sep-exec" 
                     data-bs-toggle="tooltip" 
-                    title="Nº Pedido de Compra (preenchido automaticamente pelo Sienge)"
-                    style="padding: 4px 6px; min-width: 90px; max-width: 120px;">
-                    {% if item.numero_pc %}
-                        <span class="text-primary fw-bold" style="font-size: 0.95em;">{{ item.numero_pc }}</span>
-                    {% else %}
-                        <span class="text-muted small">-</span>
-                    {% endif %}
-                </td>
-                <!-- 12. EMPRESA RESPONSÁVEL (Editável) -->
-                <td style="padding: 4px 6px;">
-                    <input type="text" 
-                           class="input-inline form-control form-control-sm" 
-                           value="{{ item.empresa_fornecedora|default:'' }}"
-                           data-item-id="{{ item.id }}"
-                           data-field="empresa_fornecedora"
-                           data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
-                           placeholder="-"
-                           maxlength="200"
-                           style="font-size: 0.85em; padding: 2px 6px;">
-                </td>
-                <!-- 13. PRAZO RECEBIMENTO (Readonly - Sienge - Automático) -->
-                <td class="input-readonly campo-sienge text-center" 
-                    data-sienge-patch="prazo_recebimento"
-                    data-bs-toggle="tooltip" 
-                    title="Prazo de recebimento (preenchido automaticamente pelo Sienge)"
-                    style="padding: 4px 6px; min-width: 90px;">
-                    {% if item.prazo_recebimento %}
-                        <span style="font-size: 0.9em;">{{ item.prazo_recebimento|date:"d/m/Y" }}</span>
-                    {% else %}
-                        <span class="text-muted small">-</span>
-                    {% endif %}
-                </td>
-                <!-- 14. Alocado / solicitado (não é campo para digitar «recebido» — isso vem do Sienge; alocação pelo botão +) -->
-                <td class="celula-progresso" 
-                    data-bs-toggle="tooltip" 
-                    title="Alocado neste local: {{ item.quantidade_alocada_local|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} | {% if item.numero_sc %}Solicitado Sienge: {{ item.quantidade_solicitada_sienge|floatformat:2 }}{% else %}Planejado: {{ item.quantidade_planejada|floatformat:2 }}{% endif %} | Já recebido na obra (import): {{ item.quantidade_recebida_obra|floatformat:2 }} | Use + para alocar ao local">
+                    title="Alocado: {{ item.quantidade_alocada_local|floatformat:2 }} | Planejado: {{ item.quantidade_planejada|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} — use + para alocar">
                     <div class="progresso-bg" style="width: {{ item.percentual_alocado_porcentagem|floatformat:0 }}%; background: {% if item.percentual_alocado >= 1 %}rgba(34,197,94,0.2){% elif item.percentual_alocado > 0 %}rgba(245,158,11,0.2){% else %}rgba(156,163,175,0.1){% endif %};"></div>
                     <span class="progresso-texto">
-                        {% if item.numero_sc and item.quantidade_solicitada_sienge > 0 %}
-                            {# Se tem SC, mostrar alocado/solicitado (alocação manual vs solicitado no Sienge) #}
-                            {# IMPORTANTE: Mostra o que foi ALOCADO MANUALMENTE para este local, não o recebido do Sienge #}
-                            {# Formatação: usar filtro customizado para preservar zeros e melhorar legibilidade #}
-                            <strong>{{ item.quantidade_alocada_local|format_quantidade }}</strong>/<span class="text-muted">{{ item.quantidade_solicitada_sienge|format_quantidade }}</span>
-                        {% else %}
-                            {# Senão, mostrar alocado/planejado do local #}
-                            <strong>{{ item.quantidade_alocada_local|format_quantidade }}</strong>/<span class="text-muted">{{ item.quantidade_planejada|format_quantidade }}</span>
-                        {% endif %}
+                        <strong>{{ item.quantidade_alocada_local|format_quantidade }}</strong>/<span class="text-muted">{{ item.quantidade_planejada|format_quantidade }}</span>
                         <span class="text-muted small ms-1">{{ item.insumo.unidade|format_unidade }}</span>
-                        {% if item.numero_sc and item.quantidade_disponivel_sienge > 0 %}
-                        {# Botão de alocar: mostrar se tem SC e há quantidade recebida disponível para alocar #}
-                        {# IMPORTANTE: Mostra apenas quando há material recebido na obra que ainda não foi alocado #}
-                        <button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" 
-                                data-item-id="{{ item.id }}"
-                                data-saldo="{{ item.quantidade_disponivel_sienge }}"
-                                data-unidade="{{ item.insumo.unidade }}"
-                                data-recebido="{{ item.quantidade_recebida_obra }}"
-                                data-alocado="{{ item.quantidade_alocada_local }}"
-                                title="Alocar até {{ item.quantidade_disponivel_sienge }} {{ item.insumo.unidade|format_unidade }} (Recebido: {{ item.quantidade_recebida_obra }}, Já alocado globalmente: {{ item.quantidade_alocada_local }}, Disponível: {{ item.quantidade_disponivel_sienge }})">
-                            <i class="bi bi-plus"></i>
-                        </button>
-                        {% elif not item.numero_sc and item.quantidade_recebida_obra > 0 and item.quantidade_alocada_local < item.quantidade_planejada %}
-                        {# Fallback: se não tem SC mas tem recebimento legado e ainda falta alocar #}
                         <button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" 
                                 data-item-id="{{ item.id }}"
                                 data-saldo="{{ item.saldo_a_alocar_local }}"
+                                data-planejado="{{ item.quantidade_planejada }}"
                                 data-unidade="{{ item.insumo.unidade }}"
-                                data-recebido="{{ item.quantidade_recebida_obra }}"
                                 data-alocado="{{ item.quantidade_alocada_local }}"
-                                title="Alocar {{ item.saldo_a_alocar_local }} {{ item.insumo.unidade|format_unidade }}">
-                            <i class="bi bi-plus"></i>
+                                title="{% if item.saldo_a_alocar_local > 0 %}Alocar até {{ item.saldo_a_alocar_local }} {{ item.insumo.unidade|format_unidade }}{% else %}Ver ou ajustar alocações{% endif %}">
+                            {% if item.saldo_a_alocar_local > 0 %}<i class="bi bi-plus-lg"></i>{% else %}<i class="bi bi-sliders"></i>{% endif %}
                         </button>
-                        {% endif %}
                     </span>
                 </td>
-                <!-- 15. SALDO (Readonly - Sienge se tiver SC, senão Local) -->
-                <td class="input-readonly campo-sienge" 
+                <!-- 10. SALDO LOCAL -->
+                <td class="input-readonly zona-exec" 
                     data-bs-toggle="tooltip" 
-                    title="{% if item.numero_sc %}Saldo Sienge: Quantidade solicitada − Quantidade já alocada (total){% else %}Saldo do LOCAL: Planejado − Alocado{% endif %}">
-                    {% if item.numero_sc %}
-                        {# Se tem SC, mostrar saldo do Sienge (solicitado - recebido) #}
-                        {# IMPORTANTE: Mostra o total mesmo quando ainda não recebeu nada #}
-                        <strong>{{ item.saldo_a_entregar_sienge|format_quantidade }}</strong> {{ item.insumo.unidade|format_unidade }}
+                    title="Saldo do local: planejado − alocado">
+                    {% if item.saldo_negativo %}
+                        <span class="badge bg-warning" data-bs-toggle="tooltip" 
+                              title="Atenção: alocado maior que o planejado para este local.">
+                            {{ item.saldo_local_diferenca|floatformat:2 }} {{ item.insumo.unidade|format_unidade }}
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </span>
                     {% else %}
-                        {# Senão, mostrar saldo local #}
-                        {% if item.saldo_negativo %}
-                            <span class="badge bg-warning" data-bs-toggle="tooltip" 
-                                  title="Atenção: alocado maior que o planejado para este local.">
-                                {{ item.saldo_local_diferenca|floatformat:2 }} {{ item.insumo.unidade|format_unidade }}
-                                <i class="bi bi-exclamation-triangle"></i>
-                            </span>
-                        {% else %}
-                            <strong>{{ item.saldo_a_alocar_local|floatformat:2 }}</strong> {{ item.insumo.unidade|format_unidade }}
-                        {% endif %}
+                        <strong>{{ item.saldo_a_alocar_local|floatformat:2 }}</strong> {{ item.insumo.unidade|format_unidade }}
                     {% endif %}
                 </td>
-                <!-- 16. STATUS (Cor de Fundo Automática - Sticky Right) -->
-                <td class="col-sticky-right status-cell {{ item.status_css }}">
+                <!-- 11. STATUS -->
+                <td class="col-sticky-right status-cell zona-status zona-sep-status {{ item.status_css }}">
                     <div class="status-content">
                         <span class="badge-status 
                             {% if item.status_css == 'status-branco' %}badge-branco
@@ -757,11 +551,13 @@
                                 <i class="bi bi-clock-history"></i>
                             {% elif 'ENTREGUE' in item.status_etapa %}
                                 <i class="bi bi-check-circle"></i>
-                            {% elif 'AGUARDANDO ENTREGA' in item.status_etapa %}
+                            {% elif 'PARCIAL' in item.status_etapa %}
                                 <i class="bi bi-hourglass-split"></i>
                             {% elif 'LEVANTAMENTO' in item.status_etapa %}
                                 <i class="bi bi-file-earmark-text"></i>
-                            {% elif 'SOLICITACAO' in item.status_etapa %}
+                            {% elif not mapa_suprimentos_manual and 'AGUARDANDO ENTREGA' in item.status_etapa %}
+                                <i class="bi bi-hourglass-split"></i>
+                            {% elif not mapa_suprimentos_manual and 'SOLICITACAO' in item.status_etapa %}
                                 <i class="bi bi-cart-plus"></i>
                             {% endif %}
                             {{ item.status_etapa }}
@@ -769,14 +565,14 @@
                         {% if item.is_atrasado %}
                                 <span class="badge bg-danger" 
                                   data-bs-toggle="tooltip" 
-                                  title="Atrasado desde {{ item.prazo_recebimento|date:'d/m/Y'|default:'prazo vencido' }}">
+                                  title="Atrasado — prazo {{ item.prazo_necessidade|date:'d/m/Y'|default:'vencido' }}">
                                 <i class="bi bi-exclamation-triangle"></i>
                             </span>
                         {% endif %}
                     </div>
                 </td>
                 <!-- 17. PRIORIDADE (cores AZUL/ROXO - diferente do STATUS) -->
-                <td class="td-prioridade">
+                <td class="td-prioridade zona-info zona-sep-info">
                     <select class="input-inline form-select form-select-sm select-prioridade prioridade-{{ item.prioridade|lower }}" 
                             data-item-id="{{ item.id }}" 
                             data-field="prioridade"
@@ -788,7 +584,7 @@
                     </select>
                 </td>
                 <!-- 18. OBSERVAÇÃO -->
-                <td>
+                <td class="col-opt col-obs zona-info col-text-left">
                     <input type="text" class="input-inline form-control form-control-sm" 
                            value="{{ item.observacao_eng|default:'' }}"
                            data-item-id="{{ item.id }}" 
@@ -796,13 +592,21 @@
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
                 <!-- Ações -->
-                <td>
-                    <div class="d-flex gap-1">
+                <td class="zona-acoes zona-sep-acoes">
+                    <div class="d-flex gap-1 justify-content-center">
                     <button class="btn btn-sm btn-info" 
                             data-modal-target="modalDetalhe"
                             data-item-id="{{ item.id }}">
                         Detalhes
                     </button>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                data-action="duplicate-item"
+                                data-item-id="{{ item.id }}"
+                                data-duplicate-url="{% url 'suprimentos:item_duplicar' item.id %}"
+                                title="Duplicar item">
+                            <i class="bi bi-copy"></i>
+                        </button>
                         <button type="button"
                                 class="btn btn-sm btn-outline-danger"
                                 data-action="delete-item"
@@ -818,7 +622,7 @@
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="19" class="text-center py-4 text-muted">
+                <td colspan="14" class="text-center py-4 text-muted">
                     <p class="mb-1">Nenhum item encontrado.</p>
                     <small>Selecione uma obra no filtro acima ou crie um novo levantamento para começar.</small>
                 </td>
@@ -828,7 +632,114 @@
     </table>
 </div>
 
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="mapa-paginacao d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2 mb-3" aria-label="Paginação do mapa">
+    <span class="small text-muted">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        ({{ page_obj.paginator.count }} itens)
+    </span>
+    <ul class="pagination pagination-sm mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+        </li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if num == page_obj.number %}
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+            {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
 </div><!-- Fim desktop-view -->
+
+<div class="mobile-card-view" id="mapa-mobile-cards">
+    <div class="supply-cards">
+        {% if itens %}
+        {% for item in itens %}
+        <article class="supply-card {{ item.status_css }}{% if item.is_atrasado %} supply-card-atrasado{% endif %}"
+                 data-item-id="{{ item.id }}"
+                 data-status-etapa="{{ item.status_etapa }}">
+            <div class="supply-card-header">
+                <div class="supply-card-title">{{ item.descricao_override|default:item.insumo.descricao }}</div>
+                <span class="supply-card-badge {% if item.status_css == 'status-verde' %}badge-verde{% elif item.status_css == 'status-laranja' %}badge-laranja{% elif item.status_css == 'status-atrasado' %}badge-atrasado{% elif item.status_css == 'status-branco' %}badge-branco{% else %}badge-branco{% endif %}">
+                    {{ item.status_etapa }}
+                </span>
+            </div>
+            <div class="supply-card-body">
+                <div class="supply-card-field">
+                    <span class="supply-card-label">Local</span>
+                    <span class="supply-card-value">{{ item.local_aplicacao.nome|default:"—" }}</span>
+                </div>
+                <div class="supply-card-field">
+                    <span class="supply-card-label">Prazo</span>
+                    <span class="supply-card-value">{{ item.prazo_necessidade|date:"d/m/Y"|default:"—" }}</span>
+                </div>
+                <div class="supply-card-field">
+                    <span class="supply-card-label">Planejado</span>
+                    <span class="supply-card-value">{{ item.quantidade_planejada|format_quantidade }} {{ item.insumo.unidade|format_unidade }}</span>
+                </div>
+                <div class="supply-card-field">
+                    <span class="supply-card-label">Saldo</span>
+                    <span class="supply-card-value">{{ item.saldo_a_alocar_local|floatformat:2 }} {{ item.insumo.unidade|format_unidade }}</span>
+                </div>
+                <div class="supply-card-progress">
+                    <div class="supply-card-progress-bar">
+                        <div class="supply-card-progress-fill" style="width: {{ item.percentual_alocado_porcentagem|floatformat:0 }}%;"></div>
+                    </div>
+                    <span class="supply-card-progress-text">{{ item.percentual_alocado_porcentagem|floatformat:0 }}%</span>
+                </div>
+            </div>
+            <div class="supply-card-footer">
+                {% if item.is_atrasado %}
+                <span class="atraso-tag"><i class="bi bi-exclamation-triangle"></i> Atrasado</span>
+                {% else %}
+                <span>{{ item.categoria|default:"—" }}</span>
+                {% endif %}
+                <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-alocar"
+                            data-item-id="{{ item.id }}"
+                            data-saldo="{{ item.saldo_a_alocar_local }}"
+                            data-planejado="{{ item.quantidade_planejada }}"
+                            data-unidade="{{ item.insumo.unidade }}"
+                            data-alocado="{{ item.quantidade_alocada_local }}">
+                        {% if item.saldo_a_alocar_local > 0 %}Alocar{% else %}Revisar{% endif %}
+                    </button>
+                    <button class="btn btn-sm btn-info" data-modal-target="modalDetalhe" data-item-id="{{ item.id }}">Detalhes</button>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+        {% else %}
+        <div class="mobile-empty text-center text-muted py-5">
+            <i class="bi bi-inbox"></i>
+            <p class="mb-0">Nenhum item nesta página.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="mapa-paginacao d-flex justify-content-center gap-2 mt-3 mb-4" aria-label="Paginação mobile">
+        {% if page_obj.has_previous %}
+        <a class="btn btn-sm btn-outline-secondary" href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+        {% endif %}
+        <span class="btn btn-sm btn-light disabled">{{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="btn btn-sm btn-outline-secondary" href="?{% if mapa_query %}{{ mapa_query.urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+</div>
 </div><!-- Fim container-fluid -->
 
 {# Categorias agora são uma lista fechada (select). Datalist removido. #}
@@ -881,7 +792,8 @@
     </div>
 </div>
 
-<!-- Modal Criar Item -->
+{% if not mapa_suprimentos_manual %}
+<!-- Modal Criar Item (legado Sienge) -->
 <div class="modal fade" id="modalCriarItem" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -1111,6 +1023,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Modal Detalhe -->
 <div class="modal fade" id="modalDetalhe" tabindex="-1">
@@ -1141,9 +1054,9 @@
                 <div class="modal-body">
                     <input type="hidden" id="alocar_item_id" name="item_id">
                     
-                    <div class="alert alert-info py-2 small">
+                    <div class="alert alert-info py-2 small mb-0">
                         <i class="bi bi-info-circle"></i>
-                        Material chegou na obra. Informe quanto será destinado a este local.
+                        Registre quanto foi aplicado/entregue <strong>neste local</strong> (até o planejado).
                     </div>
                     
                     <!-- Alocações Existentes -->
@@ -1185,11 +1098,16 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">
-                        <i class="bi bi-check-circle"></i> Confirmar Alocação
+                <div class="modal-footer py-2 d-flex flex-wrap gap-2 justify-content-between">
+                    <button type="button" class="btn btn-sm btn-outline-success" id="btnAlocarTotal" style="display:none;">
+                        <i class="bi bi-check2-all"></i> Alocar 100%
                     </button>
+                    <div class="d-flex gap-2 ms-auto">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-check-circle"></i> Confirmar
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1304,14 +1222,18 @@
                 }
             });
             document.querySelectorAll('.btn-alocar').forEach(function (btn) { btn.style.display = 'none'; });
-            document.querySelectorAll('[data-action="delete-item"]').forEach(function (btn) { btn.style.display = 'none'; });
+            document.querySelectorAll('[data-action="delete-item"], [data-action="duplicate-item"]').forEach(function (btn) { btn.style.display = 'none'; });
             var bLoc = document.getElementById('btnGerenciarLocais');
             if (bLoc) bLoc.style.display = 'none';
-            var nlc = document.querySelector('.novo-levantamento-card');
-            if (nlc) nlc.style.display = 'none';
+            var btnNv = document.getElementById('btnNovoLevantamento');
+            if (btnNv) btnNv.style.display = 'none';
+            var nld = document.getElementById('novoLevantamentoBody');
+            if (nld) nld.style.display = 'none';
         }
 
+        {% if not mapa_suprimentos_manual %}
         initCriarItem();
+        {% endif %}
         
         // Inicializar tooltips do Bootstrap
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -1319,28 +1241,28 @@
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
         
-        document.querySelectorAll('.parcela-popover-trigger').forEach(function(btn) {
-            var sid = btn.getAttribute('data-parcel-src');
-            var src = sid ? document.getElementById(sid) : null;
-            if (!src) return;
-            var pTitle = btn.getAttribute('data-popover-title') || 'Entrega parcelada';
-            new bootstrap.Popover(btn, {
-                html: true,
-                sanitize: false,
-                placement: 'left',
-                fallbackPlacements: ['right', 'bottom', 'top'],
-                trigger: 'hover focus',
-                container: 'body',
-                customClass: 'parcela-popover-wide',
-                title: pTitle,
-                content: src.innerHTML,
-            });
-        });
-        
-        // Destacar linhas atrasadas
-        document.querySelectorAll('[data-atrasado="true"]').forEach(function(row) {
-            row.style.animation = 'pulse-border 2s infinite';
-        });
+        // Scroll até item recém-criado/duplicado
+        (function scrollParaItem() {
+            var scrollId = new URLSearchParams(window.location.search).get('scroll_item') || '{{ filtros.scroll_item|default:"" }}';
+            if (!scrollId) return;
+            var alvo = document.querySelector('tr[data-item-id="' + scrollId + '"]')
+                || document.querySelector('.supply-card[data-item-id="' + scrollId + '"]');
+            if (alvo) {
+                setTimeout(function() {
+                    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    alvo.classList.add('scroll-highlight');
+                    setTimeout(function() { alvo.classList.remove('scroll-highlight'); }, 2800);
+                }, 200);
+            }
+            try {
+                var params = new URLSearchParams(window.location.search);
+                if (params.has('scroll_item')) {
+                    params.delete('scroll_item');
+                    var qs = params.toString();
+                    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+                }
+            } catch (e) {}
+        })();
         
         // Verificar estado inicial de todos os campos editáveis
         document.querySelectorAll('[data-field], [data-update-url]').forEach(function(campo) {
@@ -1358,73 +1280,83 @@
         
         // === MODAL DE ALOCAÇÃO ===
         const modalAlocar = new bootstrap.Modal(document.getElementById('modalAlocar'));
-        
-        // Botões de alocar
-        document.querySelectorAll('.btn-alocar').forEach(function(btn) {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const itemId = this.dataset.itemId;
-                const saldo = normalizarNumero(this.dataset.saldo);
-                const unidade = this.dataset.unidade;
-                const recebido = normalizarNumero(this.dataset.recebido);
-                const alocado = normalizarNumero(this.dataset.alocado);
-                
-                document.getElementById('alocar_item_id').value = itemId;
-                document.getElementById('alocar_quantidade').value = '';
-                document.getElementById('alocar_quantidade').max = saldo;
-                document.getElementById('alocar_unidade').textContent = unidade;
-                
-                // Mostrar informações de alocação (já formatadas)
+
+        function aplicarEstadoLinhaAposAlocacao(itemId, data) {
+            if (data.status_css && typeof updateRowStatus === 'function') {
+                updateRowStatus(itemId, data.status_css);
+            }
+            if (data.row_patch && typeof applyRowPatch === 'function') {
+                applyRowPatch(itemId, data.row_patch);
+            }
+        }
+
+        function abrirModalAlocar(btn) {
+            const itemId = btn.dataset.itemId;
+            const saldo = normalizarNumero(btn.dataset.saldo);
+            const unidade = btn.dataset.unidade || 'UND';
+            const btnTotal = document.getElementById('btnAlocarTotal');
+            const qtdInput = document.getElementById('alocar_quantidade');
+
+            document.getElementById('alocar_item_id').value = itemId;
+            qtdInput.value = '';
+            qtdInput.max = saldo > 0 ? saldo : '';
+            qtdInput.required = saldo > 0;
+            document.getElementById('alocar_unidade').textContent = unidade;
+
+            const saldoEl = document.getElementById('alocar_saldo');
+            if (saldo > 0) {
                 const saldoFormatado = saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                let saldoText = `<div class="alert alert-success py-2 mb-2">`;
-                saldoText += `<strong><i class="bi bi-check-circle"></i> Disponível para alocar: ${saldoFormatado} ${unidade}</strong>`;
-                saldoText += `</div>`;
-                
-                // Se há informação de recebido e alocado, mostrar também
-                if (recebido > 0) {
-                    const alocadoFormatado = alocado.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    const recebidoFormatado = recebido.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    const disponivelFormatado = (recebido - alocado).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    saldoText += `<div class="small text-muted">`;
-                    saldoText += `<strong>Resumo:</strong><br>`;
-                    saldoText += `• Recebido na obra: ${recebidoFormatado} ${unidade}<br>`;
-                    saldoText += `• Já alocado para este local: ${alocadoFormatado} ${unidade}<br>`;
-                    saldoText += `• Disponível para alocar: ${disponivelFormatado} ${unidade}`;
-                    saldoText += `</div>`;
+                saldoEl.innerHTML =
+                    '<div class="alert alert-success py-2 mb-2">' +
+                    '<strong><i class="bi bi-check-circle"></i> Disponível para alocar: ' + saldoFormatado + ' ' + unidade + '</strong>' +
+                    '</div>';
+            } else {
+                saldoEl.innerHTML =
+                    '<div class="alert alert-secondary py-2 mb-2">' +
+                    '<i class="bi bi-info-circle"></i> Saldo zerado — revise ou remova alocações existentes.' +
+                    '</div>';
+            }
+
+            if (btnTotal) {
+                if (saldo > 0) {
+                    btnTotal.style.display = '';
+                    btnTotal.onclick = function() {
+                        qtdInput.value = numeroParaString(saldo);
+                        qtdInput.classList.add('is-valid');
+                        qtdInput.classList.remove('is-invalid');
+                        qtdInput.focus();
+                    };
+                } else {
+                    btnTotal.style.display = 'none';
+                    btnTotal.onclick = null;
                 }
-                
-                document.getElementById('alocar_saldo').innerHTML = saldoText;
-                
-                // Carregar alocações existentes
-                carregarAlocacoesExistentes(itemId, unidade);
-                
-                // Focar no campo de quantidade e adicionar validação em tempo real
-                setTimeout(() => {
-                    const input = document.getElementById('alocar_quantidade');
-                    input.focus();
-                    // Sugerir o valor máximo disponível como placeholder
-                    if (saldo > 0) {
-                        input.placeholder = `Máximo: ${saldo.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-                    }
-                    
-                    // Adicionar feedback visual em tempo real
-                    input.addEventListener('input', function() {
-                        const valor = normalizarNumero(this.value);
-                        const maxValor = normalizarNumero(this.max) || 0;
-                        
-                        // Remover classes anteriores
-                        this.classList.remove('is-valid', 'is-invalid');
-                        
-                        if (valor > 0 && valor <= maxValor) {
-                            this.classList.add('is-valid');
-                        } else if (valor > maxValor) {
-                            this.classList.add('is-invalid');
-                        }
-                    });
-                }, 300);
-                
-                modalAlocar.show();
-            });
+            }
+
+            carregarAlocacoesExistentes(itemId, unidade);
+
+            setTimeout(function() {
+                const input = document.getElementById('alocar_quantidade');
+                input.focus();
+                if (saldo > 0) {
+                    input.placeholder = 'Máximo: ' + saldo.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                }
+                input.oninput = function() {
+                    const valor = normalizarNumero(this.value);
+                    const maxValor = normalizarNumero(this.max) || 0;
+                    this.classList.remove('is-valid', 'is-invalid');
+                    if (valor > 0 && valor <= maxValor) this.classList.add('is-valid');
+                    else if (valor > maxValor) this.classList.add('is-invalid');
+                };
+            }, 300);
+
+            modalAlocar.show();
+        }
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-alocar');
+            if (!btn) return;
+            e.preventDefault();
+            abrirModalAlocar(btn);
         });
         
         // Função para carregar alocações existentes
@@ -1518,8 +1450,8 @@
             .then(data => {
                 if (data.success) {
                     showToast('success', data.message);
-                    // Recarregar a página para atualizar os dados
-                    setTimeout(() => window.location.reload(), 500);
+                    aplicarEstadoLinhaAposAlocacao(itemId, data);
+                    modalAlocar.hide();
                 } else {
                     alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
                 }
@@ -1622,13 +1554,11 @@
             .then(data => {
                 if (data.success) {
                     modalAlocar.hide();
-                    // Mostrar mensagem de sucesso com detalhes
                     const qtdNum = normalizarNumero(quantidade);
                     const qtdFormatada = qtdNum.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                     const unidade = document.getElementById('alocar_unidade').textContent;
-                    showToast('success', `✅ Alocação confirmada: ${qtdFormatada} ${unidade}`);
-                    // Recarregar a página para atualizar os dados
-                    setTimeout(() => window.location.reload(), 500);
+                    showToast('success', '✅ Alocação confirmada: ' + qtdFormatada + ' ' + unidade);
+                    aplicarEstadoLinhaAposAlocacao(itemId, data);
                 } else {
                     alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
                     submitBtn.disabled = false;
@@ -1654,65 +1584,6 @@
         setTimeout(() => toast.remove(), 3000);
     }
     
-    // =============================================
-    // SC (Nº SOLICITAÇÃO) - sugestões para evitar erro
-    // Novo fluxo: usuário pode digitar a SC após criar no Sienge,
-    // e o vínculo acontece na próxima importação (obra + SC + insumo).
-    // =============================================
-    const obraAtualId = '{{ filtros.obra_id|default:"" }}';
-    let scCachePorObra = null; // lista retornada de /api/internal/scs/?obra=
-    let scCacheCarregando = false;
-
-    function carregarScsDaObra() {
-        if (!obraAtualId) return Promise.resolve([]);
-        if (scCachePorObra) return Promise.resolve(scCachePorObra);
-        if (scCacheCarregando) {
-            // espera simples (poll)
-            return new Promise(resolve => {
-                const t = setInterval(() => {
-                    if (scCachePorObra) { clearInterval(t); resolve(scCachePorObra); }
-                }, 120);
-                setTimeout(() => { clearInterval(t); resolve(scCachePorObra || []); }, 4000);
-            });
-        }
-
-        scCacheCarregando = true;
-        const scsUrl = `{% url 'suprimentos:listar_scs' %}?obra=${encodeURIComponent(obraAtualId)}`;
-        return fetch(scsUrl)
-            .then(r => r.json())
-            .then(data => {
-                scCachePorObra = (data.scs || []);
-                return scCachePorObra;
-            })
-            .catch(() => {
-                scCachePorObra = [];
-                return [];
-            })
-            .finally(() => {
-                scCacheCarregando = false;
-            });
-    }
-
-    // Preencher datalist por linha (filtra por insumo_id, para sugerir SC certa)
-    document.querySelectorAll('input[data-field="numero_sc"][list]').forEach(input => {
-        input.addEventListener('focus', async function() {
-            const listId = this.getAttribute('list');
-            const datalist = document.getElementById(listId);
-            if (!datalist) return;
-            if (datalist.childElementCount > 0) return; // já preenchido
-
-            const insumoId = this.getAttribute('data-insumo-id');
-            const scs = await carregarScsDaObra();
-            const filtradas = scs.filter(s => String(s.insumo_id) === String(insumoId));
-
-            // Se não houver SCs desse insumo, deixa vazio (usuário pode digitar mesmo assim)
-            datalist.innerHTML = filtradas.slice(0, 80).map(s => {
-                const val = String(s.numero_sc || '').trim();
-                if (!val) return '';
-                return `<option value="${val}"></option>`;
-            }).join('');
-        });
-    });
     
     // Apply Ghost Input styles to desktop inputs
     document.querySelectorAll('.input-inline').forEach(input => {
@@ -1722,65 +1593,82 @@
     // getCookie e getCsrfToken vêm de supplymap.js (e usam window.__LPLAN_CSRF_TOKEN__ do base_mapa)
     
     // Novo Levantamento - Toggle suave com Bootstrap Collapse
-    const novoLevantamentoToggle = document.getElementById('novoLevantamentoToggle');
-    const novoLevantamentoHeader = document.getElementById('novoLevantamentoHeader');
+    const btnNovoLevantamento = document.getElementById('btnNovoLevantamento');
     const novoLevantamentoBody = document.getElementById('novoLevantamentoBody');
     const formNovoLevantamento = document.getElementById('formNovoLevantamento');
     const btnCancelarLevantamento = document.getElementById('btnCancelarLevantamento');
     
-    if (novoLevantamentoToggle && novoLevantamentoBody) {
-        // Inicializar collapse do Bootstrap
-        const bsCollapse = new bootstrap.Collapse(novoLevantamentoBody, {
-            toggle: false
-        });
-        
-        // Atualizar aria-expanded quando collapse mudar
-        novoLevantamentoBody.addEventListener('shown.bs.collapse', function() {
-            novoLevantamentoToggle.setAttribute('aria-expanded', 'true');
-        });
-        
-        novoLevantamentoBody.addEventListener('hidden.bs.collapse', function() {
-            novoLevantamentoToggle.setAttribute('aria-expanded', 'false');
-        });
-        
-        // Toggle no botão
-        novoLevantamentoToggle.addEventListener('click', function(e) {
-            e.stopPropagation();
+    if (btnNovoLevantamento && novoLevantamentoBody) {
+        const bsCollapse = new bootstrap.Collapse(novoLevantamentoBody, { toggle: false });
+
+        function setLevantamentoAberto(aberto) {
+            btnNovoLevantamento.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+            btnNovoLevantamento.classList.toggle('is-open', aberto);
+        }
+
+        novoLevantamentoBody.addEventListener('shown.bs.collapse', function() { setLevantamentoAberto(true); });
+        novoLevantamentoBody.addEventListener('hidden.bs.collapse', function() { setLevantamentoAberto(false); });
+
+        btnNovoLevantamento.addEventListener('click', function(e) {
+            e.preventDefault();
             bsCollapse.toggle();
         });
-        
-        // Toggle no header inteiro
-        if (novoLevantamentoHeader) {
-            novoLevantamentoHeader.addEventListener('click', function(e) {
-                if (e.target !== novoLevantamentoToggle && !novoLevantamentoToggle.contains(e.target)) {
-                    bsCollapse.toggle();
-                }
-            });
-        }
-        
-        // Fechar ao cancelar
+
         if (btnCancelarLevantamento) {
             btnCancelarLevantamento.addEventListener('click', function() {
                 bsCollapse.hide();
-                if (formNovoLevantamento) {
-                    formNovoLevantamento.reset();
-                }
+                if (formNovoLevantamento) formNovoLevantamento.reset();
             });
         }
         
-        // Fechar após submit bem-sucedido (se houver sucesso)
+        // Novo levantamento via AJAX (redirect leve com scroll no item)
         if (formNovoLevantamento) {
-            formNovoLevantamento.addEventListener('submit', function() {
-                // O fechamento será feito após resposta do servidor
-                // Por enquanto, apenas resetar após delay
-                setTimeout(() => {
-                    if (bsCollapse._isShown()) {
-                        bsCollapse.hide();
+            formNovoLevantamento.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (typeof LPLAN_MAPA_SOMENTE_CONSULTA !== 'undefined' && LPLAN_MAPA_SOMENTE_CONSULTA) return;
+
+                var submitBtn = formNovoLevantamento.querySelector('button[type="submit"]');
+                var originalHtml = submitBtn ? submitBtn.innerHTML : '';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Salvando...';
+                }
+
+                var fd = new FormData(formNovoLevantamento);
+                fetch(formNovoLevantamento.action, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                })
+                .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+                .then(function(res) {
+                    if (res.ok && res.data.success) {
+                        if (typeof showMessage === 'function') {
+                            showMessage(res.data.message || 'Levantamento criado.', 'success');
+                        }
+                        if (res.data.redirect_url) {
+                            window.location.href = res.data.redirect_url;
+                            return;
+                        }
+                        window.location.reload();
+                    } else {
+                        var err = (res.data && res.data.error) ? res.data.error : 'Erro ao criar levantamento.';
+                        if (typeof showMessage === 'function') showMessage(err, 'error');
+                        else alert(err);
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalHtml;
+                        }
                     }
-                    if (formNovoLevantamento) {
-                        formNovoLevantamento.reset();
+                })
+                .catch(function() {
+                    if (typeof showMessage === 'function') showMessage('Erro de rede ao criar levantamento.', 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalHtml;
                     }
-                }, 1000);
+                });
             });
         }
     }

@@ -386,6 +386,13 @@ _email_aprovacao_fixos = os.environ.get(
 )
 EMAIL_APROVACAO_DESTINATARIOS_FIXOS = [e.strip() for e in _email_aprovacao_fixos.split(',') if e.strip()]
 
+# Mapa de Suprimentos (/engenharia/mapa/): modo manual sem vínculo Sienge/SC/PC.
+MAPA_SUPRIMENTOS_MANUAL = os.environ.get('MAPA_SUPRIMENTOS_MANUAL', 'True').lower() in (
+    'true',
+    '1',
+    'yes',
+)
+
 # Mapa/Suprimentos: API Sienge (webhook e integração). Definir no .env em produção.
 SIENGE_API_BASE_URL = os.environ.get('SIENGE_API_BASE_URL', 'https://api.sienge.com.br')
 SIENGE_API_CLIENT_ID = os.environ.get('SIENGE_API_CLIENT_ID', '')

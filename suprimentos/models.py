@@ -12,6 +12,11 @@ from django.db.models import Sum
 from .recebimento_match import descricao_item_compativel
 
 
+def mapa_suprimentos_manual():
+    """Mapa de suprimentos em modo manual (sem Sienge/SC/PC)."""
+    return getattr(settings, 'MAPA_SUPRIMENTOS_MANUAL', False)
+
+
 def _normalizar_numero_sc_model(valor):
     """Normaliza número da SC para comparação (85, 085, 85.0 -> 85). Usado em recebimento_vinculado."""
     if not valor:
@@ -578,6 +583,8 @@ class ItemMapa(models.Model):
         Quantidade SOLICITADA no Sienge (vem do RecebimentoObra).
         SIMPLES: Se tem SC, pega do RecebimentoObra vinculado.
         """
+        if mapa_suprimentos_manual():
+            return Decimal('0.00')
         if not self.numero_sc:
             return Decimal('0.00')
         
@@ -593,6 +600,8 @@ class ItemMapa(models.Model):
         Quantidade que chegou NA OBRA (não necessariamente para este local).
         SIMPLES: Se tem SC, pega do RecebimentoObra vinculado.
         """
+        if mapa_suprimentos_manual():
+            return Decimal('0.00')
         if not self.numero_sc:
             # Fallback para campo legado
             return self.quantidade_recebida or Decimal('0.00')
@@ -607,14 +616,14 @@ class ItemMapa(models.Model):
     @property
     def percentual_alocado(self):
         """Percentual alocado para este local (0 a 1)."""
+        if self.quantidade_planejada <= 0:
+            return Decimal('0.00')
+        if mapa_suprimentos_manual():
+            return min(self.quantidade_alocada_local / self.quantidade_planejada, Decimal('1.00'))
         # Se tem SC, comparar com quantidade solicitada do Sienge
         qtd_solicitada_sienge = self.quantidade_solicitada_sienge
         if qtd_solicitada_sienge > 0:
             return min(self.quantidade_alocada_local / qtd_solicitada_sienge, Decimal('1.00'))
-        
-        # Se não tem SC ou quantidade_solicitada_sienge = 0, usar quantidade_planejada
-        if self.quantidade_planejada <= 0:
-            return Decimal('0.00')
         return min(self.quantidade_alocada_local / self.quantidade_planejada, Decimal('1.00'))
     
     @property
@@ -638,6 +647,8 @@ class ItemMapa(models.Model):
         - As quantidades nos locais são preenchidas manualmente via AlocacaoRecebimento
         - A soma das alocações não pode ultrapassar o valor máximo recebido (validado no modelo)
         """
+        if mapa_suprimentos_manual():
+            return self.saldo_a_alocar_local
         if not self.numero_sc:
             return Decimal('0.00')
         
@@ -672,12 +683,8 @@ class ItemMapa(models.Model):
         - Diferente do saldo_a_entregar, que indica quanto ainda falta chegar.
         - Quando há material recebido mas não alocado, este valor mostra quanto está disponível.
         """
-        if not self.numero_sc:
-            # Fallback para saldo local (sem SC, usa lógica de planejado - alocado)
+        if mapa_suprimentos_manual() or not self.numero_sc:
             return self.saldo_a_alocar_local
-        
-        # Se tem SC, usar quantidade_disponivel_sienge (recebido - já alocado)
-        # Este é o saldo que já chegou na obra e está disponível para alocação manual
         return self.quantidade_disponivel_sienge
 
     @property
@@ -700,6 +707,8 @@ class ItemMapa(models.Model):
         IMPORTANTE: O recebido do Sienge é apenas informativo.
         O saldo deve mostrar quanto ainda falta ser ALOCADO, não quanto falta ser recebido.
         """
+        if mapa_suprimentos_manual():
+            return self.saldo_a_alocar_local
         if not self.numero_sc:
             # Sem SC: usar campo legado ou saldo local
             return max(self.saldo_a_entregar or Decimal('0.00'), Decimal('0.00'))
@@ -745,6 +754,8 @@ class ItemMapa(models.Model):
     @property
     def sienge_overdelivered(self):
         """Indica se o Sienge aponta entregue > solicitado (anomalia/ajuste)."""
+        if mapa_suprimentos_manual():
+            return False
         recebimento = self.recebimento_vinculado
         if not recebimento:
             return False
@@ -773,7 +784,14 @@ class ItemMapa(models.Model):
     def is_atrasado(self):
         """Verifica se está atrasado."""
         hoje = timezone.now().date()
-        
+        if mapa_suprimentos_manual():
+            if self.prazo_necessidade and hoje > self.prazo_necessidade:
+                if self.quantidade_planejada > 0 and self.quantidade_alocada_local < self.quantidade_planejada:
+                    return True
+                if self.quantidade_planejada <= 0 and self.quantidade_alocada_local == 0:
+                    return True
+            return False
+
         # Atraso por prazo de necessidade (se não tem SC ainda)
         if not self.numero_sc and self.prazo_necessidade and hoje > self.prazo_necessidade:
             return True
@@ -807,6 +825,19 @@ class ItemMapa(models.Model):
     @property
     def status_etapa(self):
         """Status textual da etapa."""
+        if mapa_suprimentos_manual():
+            qtd_alocada = self.quantidade_alocada_local
+            planejado = self.quantidade_planejada or Decimal('0.00')
+            if qtd_alocada == 0:
+                return 'LEVANTAMENTO'
+            if planejado > 0 and qtd_alocada < planejado:
+                return 'PARCIAL'
+            if planejado > 0 and qtd_alocada >= planejado:
+                return 'ENTREGUE'
+            if qtd_alocada > 0:
+                return 'PARCIAL'
+            return 'LEVANTAMENTO'
+
         if not self.numero_sc:
             return '1) LEVANTAMENTO'
         
@@ -866,6 +897,17 @@ class ItemMapa(models.Model):
         5. 🔴 VERMELHO (Solicitado): Tem SC, aguardando Compras gerar PC
         6. ⚪ BRANCO (Levantamento): Sem SC, pendente da Engenharia
         """
+        if mapa_suprimentos_manual():
+            if self.is_atrasado:
+                return 'status-vermelho'
+            planejado = self.quantidade_planejada or Decimal('0.00')
+            alocado = self.quantidade_alocada_local
+            if planejado > 0 and alocado >= planejado:
+                return 'status-verde'
+            if alocado > 0:
+                return 'status-laranja'
+            return 'status-branco'
+
         qtd_recebida_obra = self.quantidade_recebida_obra
         has_pc = self.numero_pc or (self.recebimento_vinculado and self.recebimento_vinculado.numero_pc)
         qtd_solicitada_sienge = self.quantidade_solicitada_sienge
@@ -910,6 +952,12 @@ class ItemMapa(models.Model):
     @property
     def quem_cobrar(self):
         """Retorna quem deve ser cobrado baseado no status."""
+        if mapa_suprimentos_manual():
+            planejado = self.quantidade_planejada or Decimal('0.00')
+            if planejado > 0 and self.quantidade_alocada_local >= planejado:
+                return None
+            return 'ENGENHARIA'
+
         if not self.numero_sc:
             return 'ENGENHARIA'
         
@@ -1050,6 +1098,21 @@ class AlocacaoRecebimento(models.Model):
 
     def clean(self):
         """Validação: não ultrapassar quantidade disponível."""
+        if mapa_suprimentos_manual() and self.item_mapa_id and not self.recebimento:
+            total_outras = AlocacaoRecebimento.objects.filter(
+                item_mapa=self.item_mapa,
+            ).exclude(pk=self.pk).aggregate(
+                total=Sum('quantidade_alocada')
+            )['total'] or Decimal('0.00')
+            planejado = self.item_mapa.quantidade_planejada or Decimal('0.00')
+            disponivel = max(planejado - total_outras, Decimal('0.00'))
+            if self.quantidade_alocada > disponivel:
+                raise ValidationError(
+                    f'Quantidade alocada ({self.quantidade_alocada}) excede o planejado '
+                    f'disponível para este local ({disponivel}).'
+                )
+            return
+
         if self.recebimento:
             # Validar contra o recebimento
             total_alocado = AlocacaoRecebimento.objects.filter(
