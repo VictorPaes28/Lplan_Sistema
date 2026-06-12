@@ -331,7 +331,7 @@ class WorkOrderForm(forms.ModelForm):
         front_field.required = False
         front_field.queryset = front_field.queryset.none()
         front_field.help_text = (
-            'Obrigatória para usuários não administradores quando a obra possuir frentes ativas.'
+            'Opcional: use «Sem frente (obra toda)» quando o pedido valer para a obra inteira.'
         )
 
         front_map = {}
@@ -366,22 +366,13 @@ class WorkOrderForm(forms.ModelForm):
                     front_qs | front_qs.model.objects.filter(pk=self.instance.front_id)
                 ).distinct()
             front_field.queryset = front_qs.order_by('name')
-            if (
-                not self._is_admin_user
-                and front_qs.count() == 1
-                and not (self.is_bound and (self.data.get('front') or '').strip())
-            ):
-                if not self.instance.pk or not getattr(self.instance, 'front_id', None):
-                    front_field.initial = front_qs.first().pk
         elif self.instance and getattr(self.instance, 'front_id', None):
             front_field.queryset = front_field.queryset.model.objects.filter(pk=self.instance.front_id)
 
         obra_attrs = self.fields['obra'].widget.attrs
         obra_attrs['data-front-map'] = json.dumps(front_map, ensure_ascii=False)
-        obra_attrs['data-front-admin-allow-empty'] = '1' if self._is_admin_user else '0'
-        obra_attrs['data-front-empty-label'] = (
-            'Sem frente (obra toda)' if self._is_admin_user else 'Selecione a frente'
-        )
+        obra_attrs['data-front-admin-allow-empty'] = '1'
+        obra_attrs['data-front-empty-label'] = 'Sem frente (obra toda)'
         front_field.widget.attrs['data-front-select'] = '1'
         front_field.widget.attrs['data-front-visible-initial'] = (
             '1' if front_field.queryset.exists() else '0'
@@ -450,16 +441,6 @@ class WorkOrderForm(forms.ModelForm):
                 project_id=obra.project_id,
                 is_active=True,
             ).exists()
-            if has_active_fronts and not front and not self._is_admin_user:
-                frentes_unicas = list(frentes_ativas_disponiveis_para_obra(obra, self._user))
-                if len(frentes_unicas) == 1:
-                    cleaned_data['front'] = frentes_unicas[0]
-                    front = frentes_unicas[0]
-            if has_active_fronts and not self._is_admin_user and not front:
-                self.add_error(
-                    'front',
-                    'Selecione a frente. Para esta obra, o pedido deve ser vinculado a uma frente.',
-                )
             if has_active_fronts and not self._is_admin_user and not frentes_ativas_disponiveis_para_obra(obra, self._user).exists():
                 self.add_error(
                     'obra',

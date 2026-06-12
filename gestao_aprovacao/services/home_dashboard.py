@@ -157,9 +157,7 @@ def _feed_front_fields(wo, *, admin_scope: bool, projects_with_fronts: set[int])
     if getattr(wo, 'front_id', None):
         front = getattr(wo, 'front', None)
         return True, (front.name if front else '').strip() or 'Frente'
-    if admin_scope:
-        return True, 'Sem frente (obra toda)'
-    return False, ''
+    return True, 'Sem frente (obra toda)'
 
 
 def _feed_row_base(wo, *, admin_scope: bool, projects_with_fronts: set[int]) -> dict[str, Any]:

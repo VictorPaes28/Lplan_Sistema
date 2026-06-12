@@ -1,5 +1,6 @@
 # ========== Segredos e ambiente ==========
 /settings.py
+lplan_central/settings_local.py
 .env
 .env.local
 .env.*.local

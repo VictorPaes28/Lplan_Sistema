@@ -25,6 +25,7 @@ from django.utils import timezone
 
 from core.models import ConstructionDiary, DiaryOccurrence, DiaryStatus, OccurrenceTag, Project
 from mapa_obras.models import Obra
+from suprimentos.models import mapa_suprimentos_manual
 from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
 from suprimentos.services.mapa_controle_viewmodel import (
     _append_pct_for_average,
@@ -1590,12 +1591,26 @@ class AnaliseObraService:
 
     def _build_suprimentos(self, *, include_extras: bool = False) -> dict[str, Any]:
         raw = self._get_mapa_summary()
+        kpis = dict(raw.get("kpis") or {})
+        manual = mapa_suprimentos_manual()
+        if manual:
+            kpis.update({
+                "sem_sc": 0,
+                "sem_pc": 0,
+                "sem_entrega": 0,
+                "manual_mode": True,
+            })
         result: dict[str, Any] = {
             "origem": "mapa_suprimentos",
-            "descricao_curta": "Pipeline de materiais: SC, PC, entrega, alocação e pendências.",
-            "kpis": raw.get("kpis"),
+            "descricao_curta": (
+                "Mapa manual: levantamento, alocação por local e pendências."
+                if manual
+                else "Pipeline de materiais: SC, PC, entrega, alocação e pendências."
+            ),
+            "kpis": kpis,
             "ranking": raw.get("ranking"),
             "obra": raw.get("obra"),
+            "manual_mode": manual,
         }
         if include_extras:
             result["distribuicao_status"] = raw.get("distribuicao_status")

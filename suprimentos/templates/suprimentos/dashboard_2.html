@@ -8,6 +8,11 @@
 {% endblock %}
 
 {% block content %}
+<div class="alert alert-info border mb-3 py-2" role="status">
+    <i class="bi bi-info-circle me-1"></i>
+    O mapa de suprimentos está em <strong>modo manual</strong> (sem vínculo Sienge/SC/PC). Use o
+    <a href="{% url 'engenharia:mapa' %}" class="alert-link">Mapa de Suprimentos</a> para levantamento e alocação por local.
+</div>
 {{ itens_pipeline_serializable|json_script:"dashboard-itens" }}
 <!-- Skip to main content (Acessibilidade) -->
 <a href="#main-content" class="skip-link">Pular para conteúdo principal</a>
@@ -19,7 +24,7 @@
 <header class="dashboard-header" role="banner">
     <h1 class="dashboard-title">
         <span class="dashboard-title-main">Dashboard de Rastreabilidade</span>
-        <span class="dashboard-title-sub">Engenharia vs Sienge vs Obra</span>
+        <span class="dashboard-title-sub">{% if mapa_suprimentos_manual %}Planejamento e alocação por local{% else %}Engenharia vs Sienge vs Obra{% endif %}</span>
     </h1>
     <div class="dashboard-controls">
         <button type="button" class="btn-header-action btn-refresh" 
@@ -67,8 +72,8 @@
             <input type="text" 
                    class="dashboard-busca-input" 
                    id="buscaInput"
-                   aria-label="Buscar por insumo, código, SC, categoria ou fornecedor"
-                   placeholder="Buscar insumo, código, SC, PC, fornecedor, local ou categoria..."
+                   aria-label="{% if mapa_suprimentos_manual %}Buscar por insumo, código, local ou categoria{% else %}Buscar por insumo, código, SC, categoria ou fornecedor{% endif %}"
+                   placeholder="{% if mapa_suprimentos_manual %}Buscar insumo, código, descrição, local ou categoria...{% else %}Buscar insumo, código, SC, PC, fornecedor, local ou categoria...{% endif %}"
                    value="{{ busca_query }}"
                    onkeypress="if(event.key==='Enter') buscar()"
                    oninput="debounceBusca(this.value)">
@@ -90,6 +95,20 @@
         <div class="dashboard-filtros-chips-wrapper">
             <span class="filtros-chips-label">Status:</span>
             <div class="dashboard-filtros-chips">
+                {% if mapa_suprimentos_manual %}
+                <button class="filtro-chip-home {% if filtro_status == 'levantamento' %}active{% endif %}" onclick="aplicarFiltro('status', 'levantamento')" title="Sem alocação neste local">
+                    <i class="bi bi-file-earmark-text"></i><span>Levantamento</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'parcial' %}active{% endif %}" onclick="aplicarFiltro('status', 'parcial')" title="Alocação parcial">
+                    <i class="bi bi-hourglass-split"></i><span>Parcial</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'entregue' %}active{% endif %}" onclick="aplicarFiltro('status', 'entregue')" title="Totalmente alocado">
+                    <i class="bi bi-check-circle"></i><span>Entregue</span>
+                </button>
+                <button class="filtro-chip-home {% if filtro_status == 'atrasados' %}active{% endif %}" onclick="aplicarFiltro('status', 'atrasados')" title="Prazo vencido">
+                    <i class="bi bi-clock-history"></i><span>Atrasados</span>
+                </button>
+                {% else %}
                 <button class="filtro-chip-home {% if filtro_status == 'falta_comprar' %}active{% endif %}" 
                         onclick="aplicarFiltro('status', 'falta_comprar')"
                         title="Itens com SC mas quantidade solicitada menor que planejada">
@@ -126,6 +145,7 @@
                     <i class="bi bi-clock-history"></i>
                     <span>Atrasados</span>
                 </button>
+                {% endif %}
                 {% if filtro_status or categoria_filtro or fornecedor_filtro or busca_query %}
                 <button class="filtro-chip-home btn-limpar-home" onclick="limparFiltros()" title="Limpar todos os filtros">
                     <i class="bi bi-x-lg"></i>
@@ -134,7 +154,7 @@
                 {% endif %}
             </div>
         </div>
-        {% if fornecedores_disponiveis %}
+        {% if fornecedores_disponiveis and not mapa_suprimentos_manual %}
         <div class="dashboard-filtro-fornecedor">
             <label for="filtroFornecedor" class="filtro-fornecedor-label">Fornecedor:</label>
             <select id="filtroFornecedor" class="dashboard-select-fornecedor" onchange="aplicarFiltro('fornecedor', this.value)" aria-label="Filtrar por fornecedor">
@@ -161,11 +181,18 @@
             <!-- Acesso rápido: atalhos para o que o engenheiro mais consulta -->
             <div class="dashboard-drill-atalhos" aria-label="Acesso rápido por status">
                 <span class="drill-atalhos-label">Acesso rápido:</span>
+                {% if mapa_suprimentos_manual %}
+                <a href="?obra={{ obra_id }}&modo=tabela&status=levantamento" class="drill-atalho drill-atalho-neutral" title="Itens em levantamento"><i class="bi bi-file-earmark-text"></i> Levantamento <strong>{{ kpi_levantamento }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=parcial" class="drill-atalho drill-atalho-warning" title="Alocação parcial"><i class="bi bi-hourglass-split"></i> Parciais <strong>{{ kpi_parciais }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=entregue" class="drill-atalho drill-atalho-ok" title="Totalmente alocados"><i class="bi bi-check-circle"></i> Entregues <strong>{{ kpi_entregues }}</strong></a>
+                <a href="?obra={{ obra_id }}&modo=tabela&status=atrasados" class="drill-atalho drill-atalho-danger" title="Itens atrasados"><i class="bi bi-clock-history"></i> Atrasados <strong>{{ kpi_atrasados }}</strong></a>
+                {% else %}
                 <a href="?obra={{ obra_id }}&modo=tabela&status=sem_sc" class="drill-atalho drill-atalho-danger" title="Itens sem Solicitação de Compra"><i class="bi bi-x-octagon"></i> Sem SC <strong>{{ kpi_sem_sc }}</strong></a>
                 <a href="?obra={{ obra_id }}&modo=tabela&status=atrasados" class="drill-atalho drill-atalho-warning" title="Itens atrasados"><i class="bi bi-clock-history"></i> Atrasados <strong>{{ kpi_atrasados }}</strong></a>
                 <a href="?obra={{ obra_id }}&modo=tabela&status=com_sc" class="drill-atalho drill-atalho-ok" title="Itens com SC"><i class="bi bi-check-circle"></i> Com SC <strong>{{ kpi_com_sc }}</strong></a>
                 <a href="?obra={{ obra_id }}&modo=tabela&status=recebido" class="drill-atalho drill-atalho-info" title="Recebidos na obra"><i class="bi bi-truck"></i> Recebidos <strong>{{ kpi_recebidos }}</strong></a>
                 <a href="?obra={{ obra_id }}&modo=tabela&status=nao_alocado" class="drill-atalho drill-atalho-neutral" title="Não alocados"><i class="bi bi-box-seam"></i> Não alocado</a>
+                {% endif %}
             </div>
             <p class="dashboard-drill-atualizado" aria-hidden="true">Atualizado em {% now "d/m/Y" %} às {% now "H:i" %}</p>
             <div class="dashboard-drill-boxes">
@@ -199,11 +226,18 @@
                     <table class="dashboard-drill-table" aria-label="Resumo por status">
                         <thead><tr><th>Status</th><th>Itens</th></tr></thead>
                         <tbody>
+                            {% if mapa_suprimentos_manual %}
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=levantamento" class="dashboard-drill-link">Levantamento</a></td><td class="mono">{{ kpi_levantamento }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=parcial" class="dashboard-drill-link">Parcial</a></td><td class="mono">{{ kpi_parciais }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=entregue" class="dashboard-drill-link">Entregue</a></td><td class="mono">{{ kpi_entregues }}</td></tr>
+                            <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=atrasados" class="dashboard-drill-link">Atrasados</a></td><td class="mono">{{ kpi_atrasados }}</td></tr>
+                            {% else %}
                             <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=sem_sc" class="dashboard-drill-link">Sem SC</a></td><td class="mono">{{ kpi_sem_sc }}</td></tr>
                             <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=com_sc" class="dashboard-drill-link">Com SC</a></td><td class="mono">{{ kpi_com_sc }}</td></tr>
                             <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=atrasados" class="dashboard-drill-link">Atrasados</a></td><td class="mono">{{ kpi_atrasados }}</td></tr>
                             <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=recebido" class="dashboard-drill-link">Recebidos</a></td><td class="mono">{{ kpi_recebidos }}</td></tr>
                             <tr><td><a href="?obra={{ obra_id }}&modo=tabela&status=nao_alocado" class="dashboard-drill-link">Não alocado</a></td><td class="mono">—</td></tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </section>
@@ -234,9 +268,14 @@
                                 <th>Cód.</th>
                                 <th>Local</th>
                                 <th class="mono">Planejado</th>
+                                {% if mapa_suprimentos_manual %}
+                                <th class="mono">Alocado</th>
+                                <th class="mono">Saldo</th>
+                                {% else %}
                                 <th class="mono">Comprado</th>
                                 <th class="mono">Recebido</th>
                                 <th class="mono">Saldo</th>
+                                {% endif %}
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -247,13 +286,18 @@
                                 <td class="mono">{{ item.insumo_codigo|default:"—" }}</td>
                                 <td>{{ item.local_nome }}</td>
                                 <td class="mono">{{ item.coluna_1_plano|floatformat:0 }}</td>
+                                {% if mapa_suprimentos_manual %}
+                                <td class="mono">{{ item.coluna_4_destino_qtd|floatformat:0 }}</td>
+                                <td class="mono">{{ item.gap_alocado|floatformat:0 }}</td>
+                                {% else %}
                                 <td class="mono">{% if item.coluna_2_pedido_sc %}{{ item.coluna_2_pedido_qtd|floatformat:0 }}{% else %}—{% endif %}</td>
                                 <td class="mono">{{ item.coluna_3_patio|floatformat:0 }}</td>
                                 <td class="mono">{{ item.coluna_4_destino_qtd|floatformat:0 }}</td>
+                                {% endif %}
                                 <td><span class="drill-status-badge {{ item.status_class }}">{{ item.status_label }}</span></td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="8" class="dashboard-drill-empty">Nenhum item.</td></tr>
+                            <tr><td colspan="{% if mapa_suprimentos_manual %}7{% else %}8{% endif %}" class="dashboard-drill-empty">Nenhum item.</td></tr>
                             {% endfor %}
                         </tbody>
                         {% if itens_pipeline %}
@@ -261,9 +305,14 @@
                             <tr>
                                 <th scope="row" colspan="3">Total</th>
                                 <td class="mono drill-total">{{ drill_totals.plano|floatformat:0 }}</td>
+                                {% if mapa_suprimentos_manual %}
+                                <td class="mono drill-total">{{ drill_totals.destino|floatformat:0 }}</td>
+                                <td class="mono drill-total">{{ drill_totals.saldo|floatformat:0 }}</td>
+                                {% else %}
                                 <td class="mono drill-total">{{ drill_totals.pedido|floatformat:0 }}</td>
                                 <td class="mono drill-total">{{ drill_totals.patio|floatformat:0 }}</td>
                                 <td class="mono drill-total">{{ drill_totals.destino|floatformat:0 }}</td>
+                                {% endif %}
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -276,9 +325,8 @@
 
     <!-- Conteúdo modo Pipeline (KPI + chips + lista) -->
     <div id="dashboard-conteudo-pipeline" class="dashboard-conteudo-pipeline">
-    <!-- KPI SUMMARY BAR - Modern Design with Progress -->
+    <!-- KPI SUMMARY BAR -->
     <div class="kpi-bar">
-        <!-- Total -->
         <div class="kpi-item{% if not filtro_status %} active{% endif %}" onclick="limparFiltros()" title="Total de itens ativos na obra">
             <div class="kpi-icon-mini"><i class="bi bi-layers"></i></div>
             <div class="kpi-data">
@@ -286,7 +334,24 @@
                 <span class="kpi-label">Total</span>
             </div>
         </div>
-        <!-- Pipeline: Solicitados -->
+        {% if mapa_suprimentos_manual %}
+        <div class="kpi-item{% if filtro_status == 'levantamento' %} active{% endif %}" onclick="aplicarFiltro('status','levantamento')" title="Sem alocação">
+            <div class="kpi-icon-mini"><i class="bi bi-file-earmark-text"></i></div>
+            <div class="kpi-data"><span class="kpi-value">{{ kpi_levantamento }}</span><span class="kpi-label">Levantamento</span></div>
+        </div>
+        <div class="kpi-item{% if filtro_status == 'parcial' %} active{% endif %}" onclick="aplicarFiltro('status','parcial')" title="Alocação parcial">
+            <div class="kpi-icon-mini kpi-icon-warning"><i class="bi bi-hourglass-split"></i></div>
+            <div class="kpi-data"><span class="kpi-value">{{ kpi_parciais }}</span><span class="kpi-label">Parciais</span></div>
+        </div>
+        <div class="kpi-item kpi-has-progress{% if filtro_status == 'entregue' %} active{% endif %}" onclick="aplicarFiltro('status','entregue')" title="Totalmente alocados">
+            <div class="kpi-icon-mini kpi-icon-success"><i class="bi bi-check-circle"></i></div>
+            <div class="kpi-data">
+                <span class="kpi-value">{{ kpi_entregues }}<span class="kpi-pct">{{ kpi_pct_alocados }}%</span></span>
+                <span class="kpi-label">Entregues</span>
+                <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-success" style="width: {{ kpi_pct_alocados }}%"></div></div>
+            </div>
+        </div>
+        {% else %}
         <div class="kpi-item kpi-has-progress{% if filtro_status == 'com_sc' %} active{% endif %}" onclick="aplicarFiltro('status','com_sc')" title="Itens com Solicitação de Compra">
             <div class="kpi-icon-mini kpi-icon-success"><i class="bi bi-check2-circle"></i></div>
             <div class="kpi-data">
@@ -295,7 +360,6 @@
                 <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-success" style="width: {{ kpi_pct_sc }}%"></div></div>
             </div>
         </div>
-        <!-- Pipeline: Recebidos -->
         <div class="kpi-item kpi-has-progress{% if filtro_status == 'recebido' %} active{% endif %}" onclick="aplicarFiltro('status','recebido')" title="Itens com material recebido na obra">
             <div class="kpi-icon-mini kpi-icon-info"><i class="bi bi-truck"></i></div>
             <div class="kpi-data">
@@ -304,7 +368,6 @@
                 <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-info" style="width: {{ kpi_pct_recebidos }}%"></div></div>
             </div>
         </div>
-        <!-- Pipeline: Alocados (número = já alocados; clique = ver NÃO alocados) -->
         <div class="kpi-item kpi-has-progress{% if filtro_status == 'nao_alocado' %} active{% endif %}" onclick="aplicarFiltro('status','nao_alocado')" title="Clique para ver itens não alocados (pendentes)">
             <div class="kpi-icon-mini kpi-icon-cyan"><i class="bi bi-geo-alt"></i></div>
             <div class="kpi-data">
@@ -313,36 +376,32 @@
                 <div class="kpi-progress"><div class="kpi-progress-fill kpi-fill-cyan" style="width: {{ kpi_pct_alocados }}%"></div></div>
             </div>
         </div>
-        <!-- Sem SC -->
         <div class="kpi-item kpi-danger{% if filtro_status == 'sem_sc' %} active{% endif %}" onclick="aplicarFiltro('status','sem_sc')" title="Itens sem Solicitação de Compra">
             <div class="kpi-icon-mini kpi-icon-danger"><i class="bi bi-x-octagon"></i></div>
-            <div class="kpi-data">
-                <span class="kpi-value">{{ kpi_sem_sc }}</span>
-                <span class="kpi-label">Sem SC</span>
-            </div>
+            <div class="kpi-data"><span class="kpi-value">{{ kpi_sem_sc }}</span><span class="kpi-label">Sem SC</span></div>
         </div>
-        <!-- Atrasados -->
+        {% endif %}
         <div class="kpi-item kpi-warning{% if filtro_status == 'atrasados' %} active{% endif %}" onclick="aplicarFiltro('status','atrasados')" title="Itens com prazo vencido">
             <div class="kpi-icon-mini kpi-icon-warning"><i class="bi bi-exclamation-triangle"></i></div>
-            <div class="kpi-data">
-                <span class="kpi-value" id="kpiAlertas">{{ kpi_atrasados }}</span>
-                <span class="kpi-label">Atrasados</span>
-            </div>
+            <div class="kpi-data"><span class="kpi-value" id="kpiAlertas">{{ kpi_atrasados }}</span><span class="kpi-label">Atrasados</span></div>
         </div>
     </div>
     <p class="kpi-hint">Toque em um número acima para filtrar.</p>
 
-    <!-- Atalhos de pendências (um toque – referência: dashboards mobile engenharia) -->
-    {% if kpi_sem_sc > 0 or kpi_atrasados > 0 %}
+    {% if mapa_suprimentos_manual and kpi_levantamento > 0 or not mapa_suprimentos_manual and kpi_sem_sc > 0 or kpi_atrasados > 0 %}
     <div class="dashboard-atalhos-pendencias">
         <span class="atalhos-label">Pendências:</span>
-        {% if kpi_sem_sc > 0 %}
-        <button type="button" class="atalho-btn atalho-danger {% if filtro_status == 'sem_sc' %}active{% endif %}" onclick="aplicarFiltro('status','sem_sc')" title="Ver itens sem Solicitação de Compra">
+        {% if mapa_suprimentos_manual and kpi_levantamento > 0 %}
+        <button type="button" class="atalho-btn atalho-danger {% if filtro_status == 'levantamento' %}active{% endif %}" onclick="aplicarFiltro('status','levantamento')">
+            <i class="bi bi-file-earmark-text"></i> Levantamento ({{ kpi_levantamento }})
+        </button>
+        {% elif not mapa_suprimentos_manual and kpi_sem_sc > 0 %}
+        <button type="button" class="atalho-btn atalho-danger {% if filtro_status == 'sem_sc' %}active{% endif %}" onclick="aplicarFiltro('status','sem_sc')">
             <i class="bi bi-x-octagon"></i> Sem SC ({{ kpi_sem_sc }})
         </button>
         {% endif %}
         {% if kpi_atrasados > 0 %}
-        <button type="button" class="atalho-btn atalho-warning {% if filtro_status == 'atrasados' %}active{% endif %}" onclick="aplicarFiltro('status','atrasados')" title="Ver itens atrasados">
+        <button type="button" class="atalho-btn atalho-warning {% if filtro_status == 'atrasados' %}active{% endif %}" onclick="aplicarFiltro('status','atrasados')">
             <i class="bi bi-clock-history"></i> Atrasados ({{ kpi_atrasados }})
         </button>
         {% endif %}
@@ -651,7 +710,7 @@
                 <span class="bottom-sheet-alerta-atraso" title="Prazo vencido"><i class="bi bi-clock-history"></i> Atrasado</span>
                 {% endif %}
             </div>
-            <div class="bottom-sheet-pipeline-bar" title="Pipeline: Planejado → Comprado → Recebido → Saldo">
+            <div class="bottom-sheet-pipeline-bar" title="{% if mapa_suprimentos_manual %}Progresso: planejado → alocado{% else %}Pipeline: Planejado → Comprado → Recebido → Saldo{% endif %}">
                 <div class="bottom-sheet-pipeline-fill" style="width: {{ item_detalhes.pipeline_pct|default:0 }}%;"></div>
             </div>
             <p class="bottom-sheet-proximo-passo"><i class="bi bi-arrow-right-circle"></i> {{ item_detalhes.proximo_passo|default:"" }}</p>
@@ -669,10 +728,12 @@
                     <div class="bottom-sheet-chave-label">Código</div>
                     <div class="bottom-sheet-chave-value mono">{{ item_detalhes.insumo_codigo|default:"—" }}</div>
                 </div>
+                {% if not mapa_suprimentos_manual %}
                 <div class="bottom-sheet-chave-item">
                     <div class="bottom-sheet-chave-label">Número SC</div>
                     <div class="bottom-sheet-chave-value mono">{{ item_detalhes.numero_sc|default:"—" }}</div>
                 </div>
+                {% endif %}
                 {% if item_detalhes.categoria %}
                 <div class="bottom-sheet-chave-item">
                     <div class="bottom-sheet-chave-label">Categoria</div>
@@ -710,8 +771,8 @@
                 </div>
             </div>
             {% if item_detalhes.quantidade_planejada and item_detalhes.quantidade_planejada > 0 %}
-            <p class="bottom-sheet-recebido-pct">Recebido: <strong>{{ item_detalhes.percentual_recebido|default:0 }}%</strong> do planejado</p>
-            <div class="bottom-sheet-bar-recebido" title="Recebido vs planejado"><div class="bottom-sheet-bar-recebido-fill" style="width: {{ item_detalhes.percentual_recebido|default:0 }}%;"></div></div>
+            <p class="bottom-sheet-recebido-pct">{% if mapa_suprimentos_manual %}Alocado{% else %}Recebido{% endif %}: <strong>{{ item_detalhes.percentual_recebido|default:0 }}%</strong> do planejado</p>
+            <div class="bottom-sheet-bar-recebido" title="{% if mapa_suprimentos_manual %}Alocado vs planejado{% else %}Recebido vs planejado{% endif %}"><div class="bottom-sheet-bar-recebido-fill" style="width: {{ item_detalhes.percentual_recebido|default:0 }}%;"></div></div>
             {% endif %}
         </div>
         

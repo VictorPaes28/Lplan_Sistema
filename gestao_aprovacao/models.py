@@ -209,7 +209,7 @@ class WorkOrder(models.Model):
         blank=True,
         related_name='work_orders_gestao',
         verbose_name='Frente',
-        help_text='Frente da obra para este pedido (opcional para admins).',
+        help_text='Frente da obra para este pedido. Deixe vazio para pedidos da obra inteira.',
     )
     
     # Campos principais

@@ -719,6 +719,19 @@ def home(request):
 def select_obra(request):
     projects = _get_projects_for_user(request.user)
 
+    pid_raw = (request.GET.get("project") or request.GET.get("obra") or "").strip()
+    if pid_raw.isdigit():
+        try:
+            project = Project.objects.get(pk=int(pid_raw))
+        except (Project.DoesNotExist, ValueError, TypeError):
+            project = None
+        if project and _user_can_access_project(request.user, project):
+            request.session["selected_project_id"] = project.id
+            request.session["selected_project_name"] = project.name
+            request.session["selected_project_code"] = project.code
+            request.session.modified = True
+            return redirect("impedimentos:list_impedimentos", obra_id=project.id)
+
     if request.method == "POST":
         project_id = request.POST.get("project_id")
         if project_id:

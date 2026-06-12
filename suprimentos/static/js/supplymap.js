@@ -1,6 +1,6 @@
 // SupplyMap - JavaScript principal
 // Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa
-var __LPLAN_JS_VER__ = '11';
+var __LPLAN_JS_VER__ = '13';
 
 var _csrfReadyPromise = null;
 
@@ -24,10 +24,15 @@ document.addEventListener('DOMContentLoaded', function() {
         { name: 'initInlineEdit', fn: initInlineEdit },
         { name: 'initModals', fn: initModals },
         { name: 'initFiltros', fn: initFiltros },
+        { name: 'initFiltroChips', fn: initFiltroChips },
+        { name: 'initKpiFilters', fn: initKpiFilters },
+        { name: 'initColumnToggle', fn: initColumnToggle },
+        { name: 'initGridKeyboardNav', fn: initGridKeyboardNav },
         { name: 'initTooltips', fn: initTooltips },
         { name: 'initCategoriaToggle', fn: initCategoriaToggle },
         { name: 'initCriarItem', fn: initCriarItem },
-        { name: 'initDeleteItem', fn: initDeleteItem }
+        { name: 'initDeleteItem', fn: initDeleteItem },
+        { name: 'initDuplicateItem', fn: initDuplicateItem }
     ];
     inits.forEach(function(init) {
         try {
@@ -40,39 +45,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Edição inline (HTMX ou fetch simples)
 function initInlineEdit() {
-    const inputs = document.querySelectorAll('.input-inline[data-update-url]');
-    
-    inputs.forEach(input => {
-        // Guardar valor inicial ao ganhar foco (para não enviar POST se não mudou)
-        input.addEventListener('focus', function() {
-            this.setAttribute('data-initial-value', this.value || '');
-        });
-        
-        const eventType = input.tagName === 'SELECT' ? 'change' : 'blur';
-        input.addEventListener(eventType, function() {
-            const url = this.getAttribute('data-update-url');
-            const field = this.getAttribute('data-field');
-            const value = this.value;
-            const itemId = this.getAttribute('data-item-id');
-            
-            if (!url || !field || !itemId) return;
-            
-            const initial = this.getAttribute('data-initial-value') || '';
-            if (String(value).trim() === String(initial).trim()) {
-                return; // Valor não mudou, não enviar requisição
-            }
-            
-            if (field === 'prioridade') {
-                updatePrioridadeClass(this, value);
-            }
-            
-            updateItemField(itemId, field, value, url, this);
-        });
-        
-        if (input.getAttribute('data-field') === 'prioridade') {
-            updatePrioridadeClass(input, input.value);
+    const table = document.querySelector('.tabela-mapa');
+    if (!table) return;
+
+    table.querySelectorAll('.input-inline[data-field="prioridade"]').forEach(function(input) {
+        updatePrioridadeClass(input, input.value);
+    });
+
+    table.addEventListener('focusin', function(e) {
+        const input = e.target.closest('.input-inline[data-update-url]');
+        if (input) {
+            input.setAttribute('data-initial-value', input.value || '');
         }
     });
+
+    table.addEventListener('change', function(e) {
+        const input = e.target.closest('.input-inline[data-update-url]');
+        if (input && input.tagName === 'SELECT') {
+            handleInlineFieldSave(input);
+        }
+    });
+
+    table.addEventListener('blur', function(e) {
+        const input = e.target.closest('.input-inline[data-update-url]');
+        if (input && input.tagName !== 'SELECT') {
+            handleInlineFieldSave(input);
+        }
+    }, true);
+}
+
+function handleInlineFieldSave(input) {
+    const url = input.getAttribute('data-update-url');
+    const field = input.getAttribute('data-field');
+    const value = input.value;
+    const itemId = input.getAttribute('data-item-id');
+
+    if (!url || !field || !itemId) return;
+
+    const initial = input.getAttribute('data-initial-value') || '';
+    if (String(value).trim() === String(initial).trim()) {
+        return;
+    }
+
+    if (field === 'prioridade') {
+        updatePrioridadeClass(input, value);
+    }
+
+    updateItemField(itemId, field, value, url, input);
 }
 
 // Atualizar classe visual do select de prioridade
@@ -137,32 +156,38 @@ function escapeHtml(text) {
         .replace(/"/g, '&quot;');
 }
 
-function buildSiengeQtdCellHtml(patch) {
-    var qtdRaw = parseFloat(String(patch.quantidade_solicitada_sienge || '0').replace(',', '.'));
-    var hasQtd = !isNaN(qtdRaw) && qtdRaw > 0;
-    var un = escapeHtml(patch.quantidade_solicitada_unidade || '');
-    var badge = escapeHtml(patch.sienge_diagnostico_badge || '');
-    var msg = escapeHtml(patch.sienge_diagnostico_mensagem || '');
-    var nivel = patch.sienge_diagnostico_nivel || '';
-    var html = '';
-    if (hasQtd) {
-        var qtd = escapeHtml(String(patch.quantidade_solicitada_sienge).replace('.', ','));
-        html += '<strong>' + qtd + '</strong>';
-        if (un) html += ' <span class="text-muted small">' + un + '</span>';
-        if (badge) {
-            html += ' <span class="badge rounded-pill text-bg-success badge-sienge-vinculo ms-1">' + badge + '</span>';
-        }
-    } else {
-        html += '<span class="text-muted">—</span>';
-        if (badge) {
-            var badgeCls = nivel === 'aviso' ? 'text-bg-warning' : 'text-bg-secondary';
-            html += '<span class="badge rounded-pill ' + badgeCls + ' badge-sienge-vinculo d-block mt-1">' + badge + '</span>';
-        }
+var MAPA_STATUS_ROW_CLASSES = [
+    'status-branco', 'status-vermelho', 'status-amarelo', 'status-laranja',
+    'status-verde', 'status-atrasado', 'status-azul'
+];
+var MAPA_BADGE_CLASSES = [
+    'badge-branco', 'badge-vermelho', 'badge-amarelo', 'badge-laranja',
+    'badge-verde', 'badge-atrasado', 'badge-azul'
+];
+
+function statusIconHtml(statusEtapa, isAtrasado) {
+    if (isAtrasado) return '<i class="bi bi-clock-history"></i>';
+    var s = String(statusEtapa || '');
+    if (s.indexOf('ENTREGUE') >= 0) return '<i class="bi bi-check-circle"></i>';
+    if (s.indexOf('PARCIAL') >= 0 || s.indexOf('AGUARDANDO ENTREGA') >= 0) {
+        return '<i class="bi bi-hourglass-split"></i>';
     }
-    if (msg) {
-        html += '<div class="mapa-sienge-diag mapa-sienge-diag--' + escapeHtml(nivel || 'info') + '">' + msg + '</div>';
-    }
-    return html;
+    if (s.indexOf('LEVANTAMENTO') >= 0) return '<i class="bi bi-file-earmark-text"></i>';
+    if (s.indexOf('SOLICITACAO') >= 0 || s.indexOf('COMPRA') >= 0) return '<i class="bi bi-cart-plus"></i>';
+    return '';
+}
+
+function badgeClassForStatus(statusCss) {
+    var map = {
+        'status-branco': 'badge-branco',
+        'status-vermelho': 'badge-vermelho',
+        'status-amarelo': 'badge-amarelo',
+        'status-laranja': 'badge-laranja',
+        'status-verde': 'badge-verde',
+        'status-atrasado': 'badge-atrasado',
+        'status-azul': 'badge-azul'
+    };
+    return map[statusCss] || 'badge-branco';
 }
 
 function applyRowPatch(itemId, patch) {
@@ -175,42 +200,93 @@ function applyRowPatch(itemId, patch) {
         codInp.value = patch.insumo_codigo;
         markInputSaved(codInp, patch.insumo_codigo);
     }
-    var empInp = row.querySelector('[data-field="empresa_fornecedora"]');
-    if (empInp && patch.empresa_fornecedora) {
-        empInp.value = patch.empresa_fornecedora;
-        markInputSaved(empInp, patch.empresa_fornecedora);
+
+    if (patch.quantidade_planejada !== undefined) {
+        var progressCell = row.querySelector('.celula-progresso');
+        var saldoCell = row.querySelector('td.input-readonly');
+        var unidade = patch.unidade || '';
+        if (progressCell) {
+            if (patch.progress_title) {
+                progressCell.setAttribute('title', patch.progress_title);
+                progressCell.setAttribute('data-bs-original-title', patch.progress_title);
+            }
+            var bg = progressCell.querySelector('.progresso-bg');
+            if (bg && patch.percentual_pct !== undefined) {
+                bg.style.width = patch.percentual_pct + '%';
+            }
+            if (bg && patch.progress_bg) {
+                bg.style.background = patch.progress_bg;
+            }
+            var texto = progressCell.querySelector('.progresso-texto');
+            if (texto) {
+                var saldoRaw = patch.saldo_raw || '0';
+                var alocadoRaw = patch.alocado_raw || '0';
+                var planejadoRaw = patch.planejado_raw || patch.quantidade_planejada_raw || '';
+                var saldoNum = parseFloat(String(saldoRaw).replace(',', '.')) || 0;
+                var btnIcon = saldoNum > 0 ? 'bi-plus-lg' : 'bi-sliders';
+                var btnTitle = saldoNum > 0
+                    ? ('Alocar até ' + escapeHtml(patch.saldo_a_alocar || saldoRaw) + ' ' + escapeHtml(unidade))
+                    : 'Ver ou ajustar alocações';
+                var btnHtml = '<button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" ' +
+                    'data-item-id="' + itemId + '" ' +
+                    'data-saldo="' + escapeHtml(saldoRaw) + '" ' +
+                    'data-planejado="' + escapeHtml(planejadoRaw) + '" ' +
+                    'data-unidade="' + escapeHtml(patch.unidade || '') + '" ' +
+                    'data-alocado="' + escapeHtml(alocadoRaw) + '" ' +
+                    'title="' + btnTitle + '">' +
+                    '<i class="bi ' + btnIcon + '"></i></button>';
+                texto.innerHTML =
+                    '<strong>' + escapeHtml(patch.quantidade_alocada || '0,00') + '</strong>/' +
+                    '<span class="text-muted">' + escapeHtml(patch.quantidade_planejada || '0,00') + '</span>' +
+                    '<span class="text-muted small ms-1">' + escapeHtml(unidade) + '</span>' +
+                    btnHtml;
+            }
+        }
+        if (saldoCell) {
+            if (patch.saldo_negativo) {
+                saldoCell.innerHTML =
+                    '<span class="badge bg-warning" title="Atenção: alocado maior que o planejado para este local.">' +
+                    escapeHtml(patch.saldo_local_diferenca || '0.00') + ' ' + escapeHtml(unidade) +
+                    ' <i class="bi bi-exclamation-triangle"></i></span>';
+            } else {
+                saldoCell.innerHTML =
+                    '<strong>' + escapeHtml(patch.saldo_a_alocar || '0,00') + '</strong> ' + escapeHtml(unidade);
+            }
+        }
     }
 
-    var pcCell = row.querySelector('[data-sienge-patch="numero_pc"]');
-    if (pcCell) {
-        if (patch.numero_pc) {
-            pcCell.innerHTML = '<span class="text-primary fw-bold" style="font-size: 0.95em;">' + escapeHtml(patch.numero_pc) + '</span>';
-        } else {
-            pcCell.innerHTML = '<span class="text-muted small">-</span>';
-        }
-    }
-    var prazoCell = row.querySelector('[data-sienge-patch="prazo_recebimento"]');
-    if (prazoCell) {
-        if (patch.prazo_recebimento) {
-            prazoCell.innerHTML = '<span style="font-size: 0.9em;">' + escapeHtml(patch.prazo_recebimento) + '</span>';
-        } else {
-            prazoCell.innerHTML = '<span class="text-muted small">-</span>';
-        }
-    }
-    var qtdCell = row.querySelector('[data-sienge-patch="quantidade_solicitada"]');
-    if (qtdCell && (patch.quantidade_solicitada_sienge !== undefined || patch.sienge_diagnostico_mensagem)) {
-        qtdCell.innerHTML = buildSiengeQtdCellHtml(patch);
-        if (patch.sienge_diagnostico_mensagem) {
-            qtdCell.setAttribute('title', patch.sienge_diagnostico_mensagem);
-        }
+    if (patch.status_css) {
+        updateRowStatus(itemId, patch.status_css);
     }
     if (patch.status_etapa) {
         row.setAttribute('data-status-etapa', patch.status_etapa);
         var badge = row.querySelector('.badge-status');
         if (badge) {
-            var icon = badge.querySelector('i');
-            var iconHtml = icon ? icon.outerHTML : '';
-            badge.innerHTML = iconHtml + ' ' + escapeHtml(patch.status_etapa);
+            MAPA_BADGE_CLASSES.forEach(function(c) { badge.classList.remove(c); });
+            badge.classList.add(badgeClassForStatus(patch.status_css || ''));
+            var iconHtml = statusIconHtml(patch.status_etapa, patch.is_atrasado);
+            badge.innerHTML = iconHtml + (iconHtml ? ' ' : '') + escapeHtml(patch.status_etapa);
+        }
+    }
+    if (patch.is_atrasado) {
+        row.setAttribute('data-atrasado', 'true');
+        row.classList.add('linha-atrasada');
+    } else {
+        row.removeAttribute('data-atrasado');
+        row.classList.remove('linha-atrasada');
+    }
+    var statusContent = row.querySelector('.status-content');
+    if (statusContent && patch.is_atrasado !== undefined) {
+        var atrasadoBadge = statusContent.querySelector('.badge.bg-danger');
+        if (patch.is_atrasado && !atrasadoBadge) {
+            var span = document.createElement('span');
+            span.className = 'badge bg-danger';
+            span.setAttribute('data-bs-toggle', 'tooltip');
+            span.setAttribute('title', 'Atrasado — prazo vencido');
+            span.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
+            statusContent.appendChild(span);
+        } else if (!patch.is_atrasado && atrasadoBadge) {
+            atrasadoBadge.remove();
         }
     }
 }
@@ -252,6 +328,7 @@ function updateItemField(itemId, field, value, url, inputEl) {
             if (data.success) {
                 markInputSaved(inputEl, value);
                 showSaveFeedback(itemId);
+                showQuietSaveToast();
                 if (data.status_css) {
                     updateRowStatus(itemId, data.status_css);
                 }
@@ -267,9 +344,6 @@ function updateItemField(itemId, field, value, url, inputEl) {
                     }
                 }
                 syncObraQueryParam(data.obra_id);
-                if (data.debug_no_recebimento) {
-                    showMessage('Nenhum recebimento do Sienge para esta obra + SC + insumo. Reimporte o MAPA_CONTROLE com a obra correta ou confira em Admin > Recebimentos na Obra.', 'error');
-                }
             } else {
                 showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
             }
@@ -286,11 +360,18 @@ function updateItemField(itemId, field, value, url, inputEl) {
 
 // Atualizar status visual da linha
 function updateRowStatus(itemId, statusCss) {
-    const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
-    if (row) {
-        const statusCell = row.querySelector('.status-cell');
-        if (statusCell) {
-            statusCell.className = 'status-cell ' + statusCss;
+    const row = document.querySelector('tr[data-item-id="' + itemId + '"]');
+    if (!row || !statusCss) return;
+    MAPA_STATUS_ROW_CLASSES.forEach(function(c) { row.classList.remove(c); });
+    row.classList.add(statusCss);
+    const statusCell = row.querySelector('.status-cell');
+    if (statusCell) {
+        MAPA_STATUS_ROW_CLASSES.forEach(function(c) { statusCell.classList.remove(c); });
+        statusCell.classList.add('status-cell', 'col-sticky-right', statusCss);
+        const badge = statusCell.querySelector('.badge-status');
+        if (badge) {
+            MAPA_BADGE_CLASSES.forEach(function(c) { badge.classList.remove(c); });
+            badge.classList.add(badgeClassForStatus(statusCss));
         }
     }
 }
@@ -400,8 +481,175 @@ function initAlocacaoForm(itemId) {
 
 // Filtros - função mantida para extensibilidade futura
 function initFiltros() {
-    // Auto-submit pode ser implementado aqui se necessário
-    // Por enquanto, o formulário usa submit manual via botão
+    var form = document.getElementById('filtro-form');
+    var search = document.getElementById('search');
+    if (!form || !search) return;
+
+    var debounceTimer = null;
+    search.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+            var pageInput = form.querySelector('[name="page"]');
+            if (pageInput) pageInput.remove();
+            form.submit();
+        }, 500);
+    });
+}
+
+function initFiltroChips() {
+    var bar = document.getElementById('mapa-filtros-ativos');
+    if (!bar) return;
+
+    bar.addEventListener('click', function(e) {
+        var chip = e.target.closest('.mapa-chip-filtro');
+        if (!chip) return;
+        e.preventDefault();
+        var param = chip.getAttribute('data-remove-param');
+        if (!param) return;
+        try {
+            var params = new URLSearchParams(window.location.search);
+            params.delete(param);
+            params.delete('page');
+            var qs = params.toString();
+            window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+        } catch (err) {
+            console.error('[LPLAN] Erro ao remover filtro:', err);
+        }
+    });
+}
+
+function initGridKeyboardNav() {
+    var table = document.querySelector('.tabela-mapa');
+    if (!table) return;
+
+    function editableInputs() {
+        return Array.prototype.slice.call(
+            table.querySelectorAll('.input-inline[data-update-url]:not([disabled])')
+        ).filter(function(el) {
+            return !el.readOnly;
+        });
+    }
+
+    table.addEventListener('keydown', function(e) {
+        var el = e.target;
+        if (!el || !el.matches('.input-inline[data-update-url]')) return;
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            el.blur();
+            var inputs = editableInputs();
+            var idx = inputs.indexOf(el);
+            if (idx >= 0 && idx < inputs.length - 1) {
+                setTimeout(function() { inputs[idx + 1].focus(); }, 50);
+            }
+        }
+    });
+}
+
+function initKpiFilters() {
+    var container = document.getElementById('kpi-container');
+    var form = document.getElementById('filtro-form');
+    if (!container || !form) return;
+
+    container.querySelectorAll('.kpi-clickable').forEach(function(card) {
+        card.addEventListener('click', function() {
+            var status = card.getAttribute('data-kpi-status') || '';
+            var statusInput = form.querySelector('[name="status"]');
+            if (statusInput) {
+                statusInput.value = status;
+            } else {
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'status';
+                hidden.value = status;
+                form.appendChild(hidden);
+            }
+            var pageInput = form.querySelector('[name="page"]');
+            if (pageInput) pageInput.remove();
+            form.submit();
+        });
+    });
+}
+
+var MAPA_COL_STORAGE_KEY = 'lplan_mapa_colunas';
+
+function initColumnToggle() {
+    var bar = document.getElementById('mapa-colunas-toggle');
+    if (!bar) return;
+
+    var saved = {};
+    try {
+        saved = JSON.parse(localStorage.getItem(MAPA_COL_STORAGE_KEY) || '{}') || {};
+    } catch (e) {
+        saved = {};
+    }
+
+    function applyCol(colKey, visible) {
+        document.querySelectorAll('.' + colKey).forEach(function(el) {
+            el.classList.toggle('col-hidden', !visible);
+        });
+    }
+
+    bar.querySelectorAll('input[data-col]').forEach(function(cb) {
+        var colKey = cb.getAttribute('data-col');
+        if (saved[colKey] === false) {
+            cb.checked = false;
+        }
+        applyCol(colKey, cb.checked);
+        cb.addEventListener('change', function() {
+            applyCol(colKey, cb.checked);
+            saved[colKey] = cb.checked;
+            try {
+                localStorage.setItem(MAPA_COL_STORAGE_KEY, JSON.stringify(saved));
+            } catch (e) {}
+        });
+    });
+}
+
+function initDuplicateItem() {
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="duplicate-item"]');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        var url = btn.getAttribute('data-duplicate-url');
+        if (!url) return;
+        if (!window.confirm('Duplicar este item?\n\nSerá criada uma cópia sem alocações.')) return;
+
+        getCsrfTokenAsync().then(function(csrftoken) {
+            if (!csrftoken) csrftoken = getCsrfToken();
+            if (!csrftoken) {
+                showMessage('Sessão inválida. Recarregue a página.', 'error');
+                return;
+            }
+            fetch(url, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: '{}'
+            })
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+                if (res.ok && res.data.success) {
+                    showMessage(res.data.message || 'Item duplicado.', 'success');
+                    if (res.data.redirect_url) {
+                        setTimeout(function() { window.location.href = res.data.redirect_url; }, 400);
+                    } else {
+                        setTimeout(function() { window.location.reload(); }, 600);
+                    }
+                } else {
+                    showMessage(res.data.error || 'Erro ao duplicar.', 'error');
+                }
+            })
+            .catch(function() {
+                showMessage('Erro ao duplicar item.', 'error');
+            });
+        });
+    });
 }
 
 // Utilitários
@@ -528,22 +776,41 @@ function getCsrfTokenAsync() {
         });
 }
 
-function showMessage(message, type) {
+var _quietSaveToastTimer = null;
+var _quietSaveCount = 0;
+
+function showQuietSaveToast() {
+    _quietSaveCount += 1;
+    clearTimeout(_quietSaveToastTimer);
+    _quietSaveToastTimer = setTimeout(function() {
+        var n = _quietSaveCount;
+        _quietSaveCount = 0;
+        var msg = n > 1 ? (n + ' alterações salvas') : 'Salvo';
+        showMessage(msg, 'success', { quiet: true });
+    }, 700);
+}
+
+function showMessage(message, type, options) {
+    options = options || {};
+    var existing = document.querySelector('.mapa-toast-fixo');
+    if (existing) existing.remove();
+
     const id = 'mapa-toast-' + Date.now();
     const alertDiv = document.createElement('div');
     alertDiv.id = id;
-    alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show mapa-toast-fixo`;
+    var alertType = type === 'success' ? 'success' : 'danger';
+    alertDiv.className = 'alert alert-' + alertType + ' alert-dismissible fade show mapa-toast-fixo'
+        + (options.quiet ? ' mapa-toast-quiet' : '');
     alertDiv.setAttribute('role', 'alert');
-    alertDiv.innerHTML = `
-        <i class="bi bi-${type === 'success' ? 'check-circle-fill' : 'exclamation-circle-fill'} me-2"></i>
-        <span>${message}</span>
-        <button type="button" class="btn-close ${type === 'success' ? '' : 'btn-close-white'}" data-bs-dismiss="alert" aria-label="Fechar"></button>
-    `;
+    alertDiv.innerHTML =
+        '<i class="bi bi-' + (type === 'success' ? 'check-circle-fill' : 'exclamation-circle-fill') + ' me-2"></i>' +
+        '<span>' + message + '</span>' +
+        '<button type="button" class="btn-close' + (type === 'success' ? '' : ' btn-close-white') + '" data-bs-dismiss="alert" aria-label="Fechar"></button>';
     document.body.appendChild(alertDiv);
-    setTimeout(() => {
+    setTimeout(function() {
         const el = document.getElementById(id);
         if (el) el.remove();
-    }, 4000);
+    }, options.quiet ? 2200 : 4000);
 }
 
 // Inicializar tooltips Bootstrap

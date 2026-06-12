@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'workflow_aprovacao',
     'painel_operacional',
     'whatsapp_ia',
+    'mapa_geo',
     # 'integrations',  # Pausado — retomar quando ativar Teams/Azure
 ]
 
@@ -390,6 +391,13 @@ _email_aprovacao_fixos = os.environ.get(
 )
 EMAIL_APROVACAO_DESTINATARIOS_FIXOS = [e.strip() for e in _email_aprovacao_fixos.split(',') if e.strip()]
 
+# Mapa de Suprimentos (/engenharia/mapa/): modo manual sem vínculo Sienge/SC/PC.
+MAPA_SUPRIMENTOS_MANUAL = os.environ.get('MAPA_SUPRIMENTOS_MANUAL', 'True').lower() in (
+    'true',
+    '1',
+    'yes',
+)
+
 # Mapa/Suprimentos: API Sienge (webhook e integração). Definir no .env em produção.
 SIENGE_API_BASE_URL = os.environ.get('SIENGE_API_BASE_URL', 'https://api.sienge.com.br')
 SIENGE_API_CLIENT_ID = os.environ.get('SIENGE_API_CLIENT_ID', '')
@@ -519,6 +527,8 @@ RH_WHATSAPP_NOTIFICACAO = os.environ.get('RH_WHATSAPP_NOTIFICACAO', '')
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+# Usa SITE_URL do .env por padrão — não edite este arquivo no servidor; use .env ou settings_local.py
+WHATSAPP_BASE_URL = (os.environ.get('WHATSAPP_BASE_URL', '') or SITE_URL).rstrip('/')
 
 # Logging: arquivo + console para quem for dar suporte conseguir diagnosticar sem o desenvolvedor
 LOG_DIR = BASE_DIR / 'logs'
@@ -605,3 +615,10 @@ if not LOG_DIR.exists():
         LOG_DIR.mkdir(parents=True, exist_ok=True)
     except OSError:
         pass  # em alguns ambientes read-only, logging em arquivo pode falhar
+
+# Overrides locais (servidor/dev): copie settings_local.py.example → settings_local.py (gitignored).
+# Nunca edite settings.py diretamente em produção — isso quebra git pull.
+try:
+    from .settings_local import *  # noqa: F403, F401
+except ImportError:
+    pass

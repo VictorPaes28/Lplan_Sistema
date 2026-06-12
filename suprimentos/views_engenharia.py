@@ -1,9 +1,12 @@
+from django.core.paginator import Paginator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q, F, Sum, Case, When, Value, IntegerField
+from django.db.models import Q, F, Sum, Case, When, Value, IntegerField, Count
+from django.db.models.fields import DecimalField
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_POST
@@ -21,6 +24,7 @@ from suprimentos.models import (
     ImportacaoSienge,
     _normalizar_codigo_insumo_model,
     _normalizar_numero_sc_model,
+    mapa_suprimentos_manual,
 )
 from suprimentos.forms import InsumoForm, ItemMapaForm, SiengeImportUploadForm
 from collections import defaultdict
@@ -38,9 +42,304 @@ from core.obras_readonly import (
 )
 from suprimentos.services.mapa_engenharia_diagnostico import (
     alertas_codigo_descricao_duplicada,
+    alertas_codigo_descricao_duplicada_obra,
     anexar_diagnostico_sienge_itens,
     build_ultima_importacao_info,
 )
+
+
+def _item_mapa_levantamento(item):
+    return (item.quantidade_alocada_local or Decimal('0')) == 0
+
+
+def _item_mapa_parcial(item):
+    al = item.quantidade_alocada_local or Decimal('0')
+    pl = item.quantidade_planejada or Decimal('0')
+    return al > 0 and pl > 0 and al < pl
+
+
+def _item_mapa_entregue(item):
+    al = item.quantidade_alocada_local or Decimal('0')
+    pl = item.quantidade_planejada or Decimal('0')
+    return pl > 0 and al >= pl
+
+
+MAPA_ITENS_POR_PAGINA = 80
+MAPA_ITENS_POR_PAGINA_OPCOES = (50, 80, 120, 200)
+
+PRIORIDADE_ORDEM_MAPA = {'URGENTE': 0, 'ALTA': 1, 'MEDIA': 2, 'BAIXA': 3}
+
+
+def _mapa_alocado_annotation():
+    return Coalesce(
+        Sum('alocacoes__quantidade_alocada'),
+        Value(Decimal('0.00')),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+
+
+def _mapa_itens_queryset(obra_id, *, prefetch_alocacoes=False):
+    from django.db.models import Prefetch
+
+    qs = ItemMapa.objects.filter(obra_id=obra_id).select_related(
+        'obra', 'insumo', 'local_aplicacao'
+    ).annotate(
+        quantidade_alocada_annotated=_mapa_alocado_annotation(),
+    )
+    if prefetch_alocacoes:
+        qs = qs.prefetch_related(
+            Prefetch(
+                'alocacoes',
+                queryset=AlocacaoRecebimento.objects.only('quantidade_alocada'),
+                to_attr='alocacoes_cache',
+            )
+        )
+    return qs
+
+
+def _mapa_q_atrasado_manual(hoje):
+    return Q(prazo_necessidade__lt=hoje) & (
+        Q(quantidade_planejada__gt=0, quantidade_alocada_annotated__lt=F('quantidade_planejada'))
+        | Q(quantidade_planejada__lte=0, quantidade_alocada_annotated=0)
+    )
+
+
+def _mapa_stats_agregados_manual(obra_id):
+    from django.utils import timezone
+
+    hoje = timezone.now().date()
+    qs = ItemMapa.objects.filter(obra_id=obra_id).annotate(
+        quantidade_alocada_annotated=_mapa_alocado_annotation(),
+    )
+    incompleto_q = (
+        Q(local_aplicacao__isnull=True)
+        | Q(prazo_necessidade__isnull=True)
+        | Q(insumo__codigo_sienge='')
+        | Q(insumo__codigo_sienge__startswith='SM-LEV-')
+        | Q(categoria='A CLASSIFICAR')
+    )
+    sem_codigo_q = Q(insumo__codigo_sienge='') | Q(insumo__codigo_sienge__startswith='SM-LEV-')
+    agg = qs.aggregate(
+        total=Count('pk'),
+        atrasados=Count('pk', filter=_mapa_q_atrasado_manual(hoje)),
+        levantamento=Count('pk', filter=Q(quantidade_alocada_annotated=0)),
+        parciais=Count(
+            'pk',
+            filter=Q(
+                quantidade_alocada_annotated__gt=0,
+                quantidade_planejada__gt=0,
+                quantidade_alocada_annotated__lt=F('quantidade_planejada'),
+            ),
+        ),
+        entregues=Count(
+            'pk',
+            filter=Q(quantidade_planejada__gt=0, quantidade_alocada_annotated__gte=F('quantidade_planejada')),
+        ),
+        sem_local=Count('pk', filter=Q(local_aplicacao__isnull=True)),
+        sem_prazo=Count('pk', filter=Q(prazo_necessidade__isnull=True)),
+        sem_codigo=Count('pk', filter=sem_codigo_q),
+        incompleto=Count('pk', filter=incompleto_q),
+    )
+    return {
+        'kpis': {
+            'total': agg['total'] or 0,
+            'atrasados': agg['atrasados'] or 0,
+            'levantamento': agg['levantamento'] or 0,
+            'parciais': agg['parciais'] or 0,
+            'entregues': agg['entregues'] or 0,
+        },
+        'pendencias': {
+            'sem_local': agg['sem_local'] or 0,
+            'sem_prazo': agg['sem_prazo'] or 0,
+            'sem_codigo': agg['sem_codigo'] or 0,
+            'incompleto': agg['incompleto'] or 0,
+        },
+    }
+
+
+def _mapa_filtrar_status_manual(qs, status_filtro):
+    from django.utils import timezone
+
+    hoje = timezone.now().date()
+    if status_filtro == 'LEVANTAMENTO':
+        return qs.filter(quantidade_alocada_annotated=0)
+    if status_filtro == 'PARCIAL':
+        return qs.filter(
+            quantidade_alocada_annotated__gt=0,
+            quantidade_planejada__gt=0,
+            quantidade_alocada_annotated__lt=F('quantidade_planejada'),
+        )
+    if status_filtro == 'ENTREGUE':
+        return qs.filter(
+            quantidade_planejada__gt=0,
+            quantidade_alocada_annotated__gte=F('quantidade_planejada'),
+        )
+    if status_filtro == 'ATRASADO':
+        return qs.filter(_mapa_q_atrasado_manual(hoje))
+    return qs
+
+
+def _mapa_order_by_queryset(qs, ordenar):
+    if ordenar == 'prazo':
+        return qs.order_by(
+            F('prazo_necessidade').asc(nulls_last=True),
+            'categoria',
+            'insumo__descricao',
+        )
+    if ordenar == 'prioridade':
+        return qs.annotate(
+            _ord_pri=Case(
+                When(prioridade='URGENTE', then=Value(0)),
+                When(prioridade='ALTA', then=Value(1)),
+                When(prioridade='MEDIA', then=Value(2)),
+                When(prioridade='BAIXA', then=Value(3)),
+                default=Value(9),
+                output_field=IntegerField(),
+            )
+        ).order_by('_ord_pri', 'categoria', 'insumo__descricao')
+    if ordenar == 'local':
+        return qs.order_by(
+            F('local_aplicacao__nome').asc(nulls_last=True),
+            'categoria',
+            'insumo__descricao',
+        )
+    if ordenar == 'status':
+        from django.utils import timezone
+
+        hoje = timezone.now().date()
+        return qs.annotate(
+            _ord_status=Case(
+                When(_mapa_q_atrasado_manual(hoje), then=Value(0)),
+                When(quantidade_alocada_annotated=0, then=Value(1)),
+                When(
+                    Q(
+                        quantidade_alocada_annotated__gt=0,
+                        quantidade_planejada__gt=0,
+                        quantidade_alocada_annotated__lt=F('quantidade_planejada'),
+                    ),
+                    then=Value(2),
+                ),
+                When(
+                    Q(
+                        quantidade_planejada__gt=0,
+                        quantidade_alocada_annotated__gte=F('quantidade_planejada'),
+                    ),
+                    then=Value(3),
+                ),
+                default=Value(4),
+                output_field=IntegerField(),
+            )
+        ).order_by('_ord_status', 'categoria', 'insumo__descricao')
+    return qs.annotate(
+        _ord_cat=Case(
+            When(categoria='A CLASSIFICAR', then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    ).order_by('_ord_cat', 'categoria', 'insumo__descricao')
+
+
+def _item_sem_local(item):
+    return not item.local_aplicacao_id
+
+
+def _item_sem_prazo(item):
+    return not item.prazo_necessidade
+
+
+def _item_sem_codigo_insumo(item):
+    cod = (item.insumo.codigo_sienge if item.insumo else '') or ''
+    cod = str(cod).strip()
+    return not cod or cod.startswith('SM-LEV-')
+
+
+def _item_incompleto(item):
+    return (
+        _item_sem_local(item)
+        or _item_sem_prazo(item)
+        or _item_sem_codigo_insumo(item)
+        or (item.categoria or '').strip() == 'A CLASSIFICAR'
+    )
+
+
+def _status_ordem_manual(item):
+    if item.is_atrasado:
+        return 0
+    if _item_mapa_levantamento(item):
+        return 1
+    if _item_mapa_parcial(item):
+        return 2
+    if _item_mapa_entregue(item):
+        return 3
+    return 4
+
+
+def _ordenar_itens_mapa(itens_lista, ordenar):
+    from datetime import date as date_cls
+
+    if ordenar == 'prazo':
+        return sorted(
+            itens_lista,
+            key=lambda i: (
+                i.prazo_necessidade or date_cls(9999, 12, 31),
+                (i.categoria or ''),
+                (i.insumo.descricao if i.insumo else ''),
+            ),
+        )
+    if ordenar == 'prioridade':
+        return sorted(
+            itens_lista,
+            key=lambda i: (
+                PRIORIDADE_ORDEM_MAPA.get(i.prioridade, 9),
+                (i.categoria or ''),
+                (i.insumo.descricao if i.insumo else ''),
+            ),
+        )
+    if ordenar == 'local':
+        return sorted(
+            itens_lista,
+            key=lambda i: (
+                (i.local_aplicacao.nome if i.local_aplicacao else 'ZZZ'),
+                (i.categoria or ''),
+                (i.insumo.descricao if i.insumo else ''),
+            ),
+        )
+    if ordenar == 'status':
+        return sorted(
+            itens_lista,
+            key=lambda i: (
+                _status_ordem_manual(i),
+                (i.categoria or ''),
+                (i.insumo.descricao if i.insumo else ''),
+            ),
+        )
+    # Padrão: A CLASSIFICAR primeiro, depois categoria e descrição
+    return sorted(
+        itens_lista,
+        key=lambda i: (
+            0 if (i.categoria or '') == 'A CLASSIFICAR' else 1,
+            (i.categoria or ''),
+            (i.insumo.descricao if i.insumo else ''),
+        ),
+    )
+
+
+def _mapa_kpis_e_pendencias(itens_lista):
+    return {
+        'kpis': {
+            'total': len(itens_lista),
+            'atrasados': sum(1 for item in itens_lista if item.is_atrasado),
+            'levantamento': sum(1 for item in itens_lista if _item_mapa_levantamento(item)),
+            'parciais': sum(1 for item in itens_lista if _item_mapa_parcial(item)),
+            'entregues': sum(1 for item in itens_lista if _item_mapa_entregue(item)),
+        },
+        'pendencias': {
+            'sem_local': sum(1 for item in itens_lista if _item_sem_local(item)),
+            'sem_prazo': sum(1 for item in itens_lista if _item_sem_prazo(item)),
+            'sem_codigo': sum(1 for item in itens_lista if _item_sem_codigo_insumo(item)),
+            'incompleto': sum(1 for item in itens_lista if _item_incompleto(item)),
+        },
+    }
 
 
 def _mapa_eng_readonly_guard(request, obra=None):
@@ -213,14 +512,23 @@ def _build_confiabilidade_suprimentos(itens_list):
         )
     )
 
-    penalidade = (
-        (sem_local / total) * 10
-        + (sem_responsavel / total) * 10
-        + (sem_prazo / total) * 10
-        + (sem_codigo_insumo / total) * 20
-        + (sem_sc / total) * 20
-        + (inconsistencia_alocacao / total) * 30
-    )
+    if mapa_suprimentos_manual():
+        penalidade = (
+            (sem_local / total) * 15
+            + (sem_responsavel / total) * 10
+            + (sem_prazo / total) * 10
+            + (sem_codigo_insumo / total) * 25
+            + (inconsistencia_alocacao / total) * 40
+        )
+    else:
+        penalidade = (
+            (sem_local / total) * 10
+            + (sem_responsavel / total) * 10
+            + (sem_prazo / total) * 10
+            + (sem_codigo_insumo / total) * 20
+            + (sem_sc / total) * 20
+            + (inconsistencia_alocacao / total) * 30
+        )
     score = max(0.0, round(100 - penalidade, 2))
     if score >= 95:
         nivel = 'excelente'
@@ -285,7 +593,6 @@ def mapa_engenharia(request):
             request.session.modified = True
             # Garantir que a URL tenha ?obra= para que ao recarregar a página a mesma obra seja exibida
             if not request.GET.get('obra'):
-                from django.urls import reverse
                 base = reverse('engenharia:mapa')
                 qs = request.GET.copy()
                 qs['obra'] = obra_id
@@ -295,32 +602,31 @@ def mapa_engenharia(request):
     local_id = request.GET.get('local', '')
     prioridade = request.GET.get('prioridade', '')
     status_filtro = request.GET.get('status', '')
+    pendencia_filtro = request.GET.get('pendencia', '')
+    ordenar = request.GET.get('ordenar', 'descricao')
     search = request.GET.get('search', '')
-    
-    # SEMPRE filtrar pela obra da sessão (segregação estrita)
-    # CORREÇÃO PRIORIDADE 1: Otimizar N+1 queries com prefetch_related e annotate
+    por_pagina_raw = request.GET.get('por_pagina', '')
+    page_size = MAPA_ITENS_POR_PAGINA
+    if por_pagina_raw.isdigit() and int(por_pagina_raw) in MAPA_ITENS_POR_PAGINA_OPCOES:
+        page_size = int(por_pagina_raw)
+
+    kpis = {'total': 0, 'atrasados': 0, 'levantamento': 0, 'parciais': 0, 'entregues': 0}
+    pendencias = {'sem_local': 0, 'sem_prazo': 0, 'sem_codigo': 0, 'incompleto': 0}
+
+    manual = mapa_suprimentos_manual()
     if not obra_id:
-        # Fallback seguro
         itens = ItemMapa.objects.none()
+    elif manual:
+        stats_obra = _mapa_stats_agregados_manual(obra_id)
+        kpis = stats_obra['kpis']
+        pendencias = stats_obra['pendencias']
+        itens = _mapa_itens_queryset(obra_id)
     else:
-        from django.db.models import Prefetch
-        from suprimentos.models import AlocacaoRecebimento
-        
-        # Otimização: usar annotate para calcular quantidade_alocada_local em uma query
-        # e prefetch_related para carregar relacionamentos
-        itens = ItemMapa.objects.filter(obra_id=obra_id).select_related(
-            'obra', 'insumo', 'local_aplicacao'
-        ).prefetch_related(
-            # Prefetch alocações para evitar N+1 queries ao acessar quantidade_alocada_local
-            Prefetch(
-                'alocacoes',
-                queryset=AlocacaoRecebimento.objects.only('quantidade_alocada'),
-                to_attr='alocacoes_cache'
-            )
-        ).annotate(
-            # Calcular quantidade_alocada_local diretamente no banco
-            quantidade_alocada_annotated=Sum('alocacoes__quantidade_alocada')
-        )
+        itens_obra_todos = list(_mapa_itens_queryset(obra_id, prefetch_alocacoes=True))
+        stats_obra = _mapa_kpis_e_pendencias(itens_obra_todos)
+        kpis = stats_obra['kpis']
+        pendencias = stats_obra['pendencias']
+        itens = _mapa_itens_queryset(obra_id, prefetch_alocacoes=True)
     
     if categoria:
         itens = itens.filter(categoria__icontains=categoria)
@@ -332,83 +638,102 @@ def mapa_engenharia(request):
         itens = itens.filter(prioridade=prioridade)
     
     if search:
-        # Busca expandida: nome, código, SC, PC, fornecedor, local, responsável
-        itens = itens.filter(
+        busca_q = (
             Q(insumo__descricao__icontains=search) |
             Q(insumo__codigo_sienge__icontains=search) |
             Q(descricao_override__icontains=search) |
-            Q(numero_sc__icontains=search) |
-            Q(numero_pc__icontains=search) |
-            Q(empresa_fornecedora__icontains=search) |
             Q(local_aplicacao__nome__icontains=search) |
             Q(responsavel__icontains=search)
         )
-    
-    # Filtro por status (deve ser aplicado por último, pois usa propriedades calculadas)
-    # IMPORTANTE: Alguns status dependem de propriedades calculadas, então precisamos converter para lista
-    if status_filtro:
-        # Converter para lista para poder usar propriedades calculadas
-        itens_lista = list(itens)
-        _oid_rec = int(obra_id) if obra_id else None
-        _attach_recebimentos_obra_cache(itens_lista, _oid_rec)
-
-        if status_filtro == 'LEVANTAMENTO':
-            # Sem SC
-            itens_lista = [item for item in itens_lista if not item.numero_sc or item.numero_sc.strip() == '']
-        elif status_filtro == 'AGUARDANDO_COMPRA':
-            # Tem SC mas não tem PC
-            itens_lista = [item for item in itens_lista 
-                          if item.numero_sc and item.numero_sc.strip() != '' 
-                          and (not item.numero_pc or item.numero_pc.strip() == '')]
-        elif status_filtro == 'AGUARDANDO_ENTREGA':
-            # Tem PC mas não recebeu nada ou recebeu parcialmente
-            itens_lista = [item for item in itens_lista 
-                          if item.numero_pc and item.numero_pc.strip() != ''
-                          and item.quantidade_recebida_obra < item.quantidade_solicitada_sienge]
-        elif status_filtro == 'AGUARDANDO_ALOCACAO':
-            # Recebeu mas não alocou nada para este local
-            itens_lista = [item for item in itens_lista 
-                          if item.quantidade_recebida_obra > 0 
-                          and item.quantidade_alocada_local == 0]
-        elif status_filtro == 'PARCIAL':
-            # Alocou parcialmente
-            itens_lista = [item for item in itens_lista 
-                          if item.quantidade_alocada_local > 0 
-                          and ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge) or
-                               (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada))]
-        elif status_filtro == 'ENTREGUE':
-            # Totalmente alocado
-            itens_lista = [item for item in itens_lista 
-                          if ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local >= item.quantidade_solicitada_sienge) or
-                              (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local >= item.quantidade_planejada))]
-        elif status_filtro == 'ATRASADO':
-            # Prazo vencido e não entregue
-            from django.utils import timezone
-            hoje = timezone.now().date()
-            itens_lista = [item for item in itens_lista 
-                          if item.prazo_necessidade 
-                          and item.prazo_necessidade < hoje 
-                          and ((item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge) or
-                               (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada))]
-        
-        # Converter lista filtrada de volta para queryset usando IDs
-        # IMPORTANTE: Reaplicar otimizações (annotate/prefetch_related) para manter performance
-        if itens_lista:
-            ids_filtrados = [item.id for item in itens_lista]
-            # Reaplicar otimizações que foram perdidas na conversão para lista
-            itens = ItemMapa.objects.filter(id__in=ids_filtrados).select_related(
-                'obra', 'insumo', 'local_aplicacao'
-            ).prefetch_related(
-                Prefetch(
-                    'alocacoes',
-                    queryset=AlocacaoRecebimento.objects.only('quantidade_alocada'),
-                    to_attr='alocacoes_cache'
-                )
-            ).annotate(
-                quantidade_alocada_annotated=Sum('alocacoes__quantidade_alocada')
+        if not mapa_suprimentos_manual():
+            busca_q |= (
+                Q(numero_sc__icontains=search) |
+                Q(numero_pc__icontains=search) |
+                Q(empresa_fornecedora__icontains=search)
             )
+        itens = itens.filter(busca_q)
+
+    if pendencia_filtro == 'SEM_LOCAL':
+        itens = itens.filter(local_aplicacao__isnull=True)
+    elif pendencia_filtro == 'SEM_PRAZO':
+        itens = itens.filter(prazo_necessidade__isnull=True)
+    elif pendencia_filtro == 'SEM_CODIGO':
+        itens = itens.filter(
+            Q(insumo__codigo_sienge='') | Q(insumo__codigo_sienge__startswith='SM-LEV-')
+        )
+    elif pendencia_filtro == 'INCOMPLETO':
+        itens = itens.filter(
+            Q(local_aplicacao__isnull=True)
+            | Q(prazo_necessidade__isnull=True)
+            | Q(insumo__codigo_sienge='')
+            | Q(insumo__codigo_sienge__startswith='SM-LEV-')
+            | Q(categoria='A CLASSIFICAR')
+        )
+    
+    # Filtro por status (modo manual: SQL; legado Sienge: propriedades em Python)
+    if status_filtro:
+        if manual:
+            itens = _mapa_filtrar_status_manual(itens, status_filtro)
         else:
-            itens = ItemMapa.objects.none()
+            itens_lista = list(itens)
+            _oid_rec = int(obra_id) if obra_id else None
+            _attach_recebimentos_obra_cache(itens_lista, _oid_rec)
+
+            if status_filtro == 'LEVANTAMENTO':
+                itens_lista = [item for item in itens_lista if not item.numero_sc or item.numero_sc.strip() == '']
+            elif status_filtro == 'AGUARDANDO_COMPRA':
+                itens_lista = [
+                    item for item in itens_lista
+                    if item.numero_sc and item.numero_sc.strip() != ''
+                    and (not item.numero_pc or item.numero_pc.strip() == '')
+                ]
+            elif status_filtro == 'AGUARDANDO_ENTREGA':
+                itens_lista = [
+                    item for item in itens_lista
+                    if item.numero_pc and item.numero_pc.strip() != ''
+                    and item.quantidade_recebida_obra < item.quantidade_solicitada_sienge
+                ]
+            elif status_filtro == 'AGUARDANDO_ALOCACAO':
+                itens_lista = [
+                    item for item in itens_lista
+                    if item.quantidade_recebida_obra > 0
+                    and item.quantidade_alocada_local == 0
+                ]
+            elif status_filtro == 'PARCIAL':
+                itens_lista = [
+                    item for item in itens_lista
+                    if item.quantidade_alocada_local > 0
+                    and (
+                        (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge)
+                        or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada)
+                    )
+                ]
+            elif status_filtro == 'ENTREGUE':
+                itens_lista = [
+                    item for item in itens_lista
+                    if (
+                        (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local >= item.quantidade_solicitada_sienge)
+                        or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local >= item.quantidade_planejada)
+                    )
+                ]
+            elif status_filtro == 'ATRASADO':
+                from django.utils import timezone
+                hoje = timezone.now().date()
+                itens_lista = [
+                    item for item in itens_lista
+                    if item.prazo_necessidade
+                    and item.prazo_necessidade < hoje
+                    and (
+                        (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge)
+                        or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada)
+                    )
+                ]
+
+            if itens_lista:
+                ids_filtrados = [item.id for item in itens_lista]
+                itens = _mapa_itens_queryset(obra_id, prefetch_alocacoes=True).filter(id__in=ids_filtrados)
+            else:
+                itens = ItemMapa.objects.none()
     
     obra_selecionada = None
     if obra_id:
@@ -424,72 +749,38 @@ def mapa_engenharia(request):
     else:
         categorias = []
     
-    # Insumos para o formulário de criação
-    insumos = Insumo.objects.filter(ativo=True).order_by('descricao')
+    insumos = (
+        Insumo.objects.filter(ativo=True).order_by('descricao')
+        if not mapa_suprimentos_manual()
+        else Insumo.objects.none()
+    )
+    form_insumo = InsumoForm() if not mapa_suprimentos_manual() else None
     
-    # Formulário para criar insumo (para o modal)
-    form_insumo = InsumoForm()
-    
-    itens_ordered_qs = itens.annotate(
-        ordem_categoria=Case(
-            When(categoria='A CLASSIFICAR', then=Value(0)),
-            default=Value(1),
-            output_field=IntegerField(),
+    if manual:
+        itens = _mapa_order_by_queryset(itens, ordenar)
+        paginator = Paginator(itens, page_size)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        itens_lista_render = page_obj.object_list
+        itens_lista_completa = None
+    else:
+        itens_lista_completa = _ordenar_itens_mapa(list(itens), ordenar)
+        _attach_recebimentos_obra_cache(itens_lista_completa, obra_id)
+        anexar_diagnostico_sienge_itens(itens_lista_completa)
+        paginator = Paginator(itens_lista_completa, page_size)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        itens_lista_render = page_obj.object_list
+    if not manual:
+        def _item_tem_sc(item):
+            return bool(item.numero_sc and str(item.numero_sc).strip())
+
+        def _item_tem_pc(item):
+            return bool(item.numero_pc and str(item.numero_pc).strip())
+
+        kpis['solicitados'] = sum(1 for item in itens_lista_render if _item_tem_sc(item))
+        kpis['em_compra'] = sum(
+            1 for item in itens_lista_render if _item_tem_sc(item) and not _item_tem_pc(item)
         )
-    ).order_by('ordem_categoria', 'categoria', 'insumo__descricao')
-
-    itens_lista_render = list(itens_ordered_qs)
-    _attach_recebimentos_obra_cache(itens_lista_render, obra_id)
-    anexar_diagnostico_sienge_itens(itens_lista_render)
-
-    def _item_tem_sc(item):
-        return bool(item.numero_sc and str(item.numero_sc).strip())
-
-    def _item_tem_pc(item):
-        return bool(item.numero_pc and str(item.numero_pc).strip())
-
-    kpis = {
-        'total': len(itens_lista_render),
-        'atrasados': sum(1 for item in itens_lista_render if item.is_atrasado),
-        'solicitados': sum(1 for item in itens_lista_render if _item_tem_sc(item)),
-        'em_compra': sum(
-            1
-            for item in itens_lista_render
-            if _item_tem_sc(item) and not _item_tem_pc(item)
-        ),
-        'parciais': sum(
-            1
-            for item in itens_lista_render
-            if item.quantidade_alocada_local > 0
-            and (
-                (
-                    item.quantidade_solicitada_sienge > 0
-                    and item.quantidade_alocada_local < item.quantidade_solicitada_sienge
-                )
-                or (
-                    item.quantidade_solicitada_sienge == 0
-                    and item.quantidade_planejada > 0
-                    and item.quantidade_alocada_local < item.quantidade_planejada
-                )
-            )
-        ),
-        'entregues': sum(
-            1
-            for item in itens_lista_render
-            if (
-                (
-                    item.quantidade_solicitada_sienge > 0
-                    and item.quantidade_alocada_local >= item.quantidade_solicitada_sienge
-                )
-                or (
-                    item.quantidade_solicitada_sienge == 0
-                    and item.quantidade_planejada > 0
-                    and item.quantidade_alocada_local >= item.quantidade_planejada
-                )
-            )
-        ),
-    }
-    confiabilidade = _build_confiabilidade_suprimentos(itens_lista_render)
+    confiabilidade = {}
     
     categorias_opcoes = ItemMapa.CATEGORIA_CHOICES
     categorias_opcoes_values = [v for v, _ in categorias_opcoes]
@@ -515,17 +806,30 @@ def mapa_engenharia(request):
             'local_id': local_id,
             'prioridade': prioridade,
             'status': status_filtro,
+            'pendencia': pendencia_filtro,
+            'ordenar': ordenar,
+            'por_pagina': str(page_size),
             'search': search,
-        }
-        ,
+            'scroll_item': request.GET.get('scroll_item', ''),
+        },
+        'pendencias': pendencias,
+        'mapa_itens_por_pagina_opcoes': MAPA_ITENS_POR_PAGINA_OPCOES,
         'categorias_opcoes': categorias_opcoes,
         'categorias_opcoes_values': categorias_opcoes_values,
         'mapa_obra_somente_consulta': bool(
             obra_selecionada and mapa_obra_requires_readonly(obra_selecionada)
         ),
-        'ultima_importacao': build_ultima_importacao_info(obra_id) if obra_id else None,
-        'alertas_mapa': alertas_codigo_descricao_duplicada(itens_lista_render) if obra_id else [],
+        'mapa_suprimentos_manual': mapa_suprimentos_manual(),
+        'ultima_importacao': None if mapa_suprimentos_manual() else (build_ultima_importacao_info(obra_id) if obra_id else None),
+        'alertas_mapa': (
+            alertas_codigo_descricao_duplicada_obra(obra_id)
+            if obra_id and manual
+            else (alertas_codigo_descricao_duplicada(itens_lista_completa) if obra_id else [])
+        ),
+        'page_obj': page_obj,
+        'mapa_query': request.GET.copy(),
     }
+    context['mapa_query'].pop('page', None)
 
     modulo_ctx = resolve_obra_context(request)
     context.update(modulo_ctx.to_template_context())
@@ -615,27 +919,41 @@ def exportar_mapa_excel(request):
             quantidade_itens = len(itens_por_categoria.get(categoria_nome, []))
             texto_categoria = f"{categoria_nome} ({quantidade_itens} itens)" if categoria_nome else ''
             
-            dados.append({
-                '1. CATEGORIA': texto_categoria,  # Formato: "CATEGORIA (X itens)"
+            header_row = {
+                '1. CATEGORIA': texto_categoria,
                 '2. CÓDIGO DO INSUMO': '',
                 '3. DESCRIÇÃO DO ITEM': '',
                 '4. LOCAL': '',
                 '5. RESPONSÁVEL': '',
                 '6. PRAZO': '',
-                '7. QUANTITATIVO': '',
-                '8. UND': '',
-                '9. Nº SOLICITAÇÃO': '',
-                '10. Nº PEDIDO DE COMPRA': '',
-                '11. EMPRESA RESPONSÁVEL': '',
-                '12. PRAZO RECEBIMENTO': '',
-                '13. QUANTIDADE RECEBIDA': '',
-                '14. SALDO A SER ENTREGUE': '',
-                '15. STATUS': '',
-                '16. PRIORIDADE': '',
-                '17. OBSERVAÇÃO': '',
                 '_is_categoria_header': True,
                 '_item': None,
-            })
+            }
+            if mapa_suprimentos_manual():
+                header_row.update({
+                    '7. QUANTIDADE PLANEJADA': '',
+                    '8. UND': '',
+                    '9. ALOCADO / PLANEJADO': '',
+                    '10. SALDO LOCAL': '',
+                    '11. STATUS': '',
+                    '12. PRIORIDADE': '',
+                    '13. OBSERVAÇÃO': '',
+                })
+            else:
+                header_row.update({
+                    '7. QUANTITATIVO': '',
+                    '8. UND': '',
+                    '9. Nº SOLICITAÇÃO': '',
+                    '10. Nº PEDIDO DE COMPRA': '',
+                    '11. EMPRESA RESPONSÁVEL': '',
+                    '12. PRAZO RECEBIMENTO': '',
+                    '13. QUANTIDADE RECEBIDA': '',
+                    '14. SALDO A SER ENTREGUE': '',
+                    '15. STATUS': '',
+                    '16. PRIORIDADE': '',
+                    '17. OBSERVAÇÃO': '',
+                })
+            dados.append(header_row)
             categoria_anterior = item.categoria
         
         # Função auxiliar para formatar números brasileiros (igual ao filtro format_quantidade)
@@ -681,52 +999,63 @@ def exportar_mapa_excel(request):
             except (ValueError, TypeError, AttributeError):
                 return '0,00'
         
-        # Formatar quantidade recebida como na tela (alocado/solicitado)
-        if item.numero_sc and item.quantidade_solicitada_sienge > 0:
-            alocado = formatar_numero_br(item.quantidade_alocada_local or 0)
-            solicitado = formatar_numero_br(item.quantidade_solicitada_sienge or 0)
-            qtd_recebida_str = f"{alocado}/{solicitado}"
+        alocado = formatar_numero_br(item.quantidade_alocada_local or 0)
+        planejado = formatar_numero_br(item.quantidade_planejada or 0)
+        qtd_alocado_planejado = f"{alocado}/{planejado}"
+        if item.saldo_negativo:
+            saldo_valor = item.saldo_local_diferenca or Decimal('0.00')
         else:
-            alocado = formatar_numero_br(item.quantidade_alocada_local or 0)
-            planejado = formatar_numero_br(item.quantidade_planejada or 0)
-            qtd_recebida_str = f"{alocado}/{planejado}"
-        
-        # Formatar saldo como na tela (manter como número para formatação do Excel)
-        if item.numero_sc:
-            saldo_valor = item.saldo_a_entregar_sienge or Decimal('0.00')
-        else:
-            if item.saldo_negativo:
-                saldo_valor = item.saldo_local_diferenca or Decimal('0.00')
-            else:
-                saldo_valor = item.saldo_a_alocar_local or Decimal('0.00')
-        
-        # Formatar quantitativo
-        quantitativo_valor = ''
-        if item.quantidade_solicitada_sienge > 0:
-            quantitativo_valor = formatar_numero_br(item.quantidade_solicitada_sienge)
-        
-        dados.append({
+            saldo_valor = item.saldo_a_alocar_local or Decimal('0.00')
+
+        row = {
             '1. CATEGORIA': str(item.categoria or ''),
             '2. CÓDIGO DO INSUMO': str(item.insumo.codigo_sienge or ''),
             '3. DESCRIÇÃO DO ITEM': str(item.descricao_override or item.insumo.descricao or ''),
             '4. LOCAL': str(item.local_aplicacao.nome if item.local_aplicacao else ''),
             '5. RESPONSÁVEL': str(item.responsavel or ''),
             '6. PRAZO': item.prazo_necessidade.strftime('%d/%m/%Y') if item.prazo_necessidade else '',
-            '7. QUANTITATIVO': quantitativo_valor,
-            '8. UND': str(item.insumo.unidade or 'UND'),
-            '9. Nº SOLICITAÇÃO': str(item.numero_sc or ''),
-            '10. Nº PEDIDO DE COMPRA': str(item.numero_pc or ''),
-            '11. EMPRESA RESPONSÁVEL': str(item.empresa_fornecedora or ''),
-            '12. PRAZO RECEBIMENTO': item.prazo_recebimento.strftime('%d/%m/%Y') if item.prazo_recebimento else '',
-            '13. ALOCADO / SOLICITADO': qtd_recebida_str,  # Formato: alocado/solicitado
-            '14. SALDO A SER ENTREGUE': formatar_numero_br(saldo_valor),
-            '15. STATUS': str(item.status_etapa or ''),
-            '16. PRIORIDADE': str(item.get_prioridade_display() if item.prioridade else ''),
-            '17. OBSERVAÇÃO': str(item.observacao_eng or ''),
             '_is_categoria_header': False,
-            '_item': item,  # Guardar item para formatação de cores
-            '_saldo_valor': saldo_valor,  # Guardar valor numérico para formatação
-        })
+            '_item': item,
+            '_saldo_valor': saldo_valor,
+        }
+        if mapa_suprimentos_manual():
+            row.update({
+                '7. QUANTIDADE PLANEJADA': planejado,
+                '8. UND': str(item.insumo.unidade or 'UND'),
+                '9. ALOCADO / PLANEJADO': qtd_alocado_planejado,
+                '10. SALDO LOCAL': formatar_numero_br(saldo_valor),
+                '11. STATUS': str(item.status_etapa or ''),
+                '12. PRIORIDADE': str(item.get_prioridade_display() if item.prioridade else ''),
+                '13. OBSERVAÇÃO': str(item.observacao_eng or ''),
+            })
+        else:
+            quantitativo_valor = ''
+            if item.quantidade_solicitada_sienge > 0:
+                quantitativo_valor = formatar_numero_br(item.quantidade_solicitada_sienge)
+            if item.numero_sc and item.quantidade_solicitada_sienge > 0:
+                solicitado = formatar_numero_br(item.quantidade_solicitada_sienge or 0)
+                qtd_recebida_str = f"{alocado}/{solicitado}"
+            else:
+                qtd_recebida_str = qtd_alocado_planejado
+            if item.numero_sc:
+                saldo_sienge = item.saldo_a_entregar_sienge or Decimal('0.00')
+            else:
+                saldo_sienge = saldo_valor
+            row.update({
+                '7. QUANTITATIVO': quantitativo_valor,
+                '8. UND': str(item.insumo.unidade or 'UND'),
+                '9. Nº SOLICITAÇÃO': str(item.numero_sc or ''),
+                '10. Nº PEDIDO DE COMPRA': str(item.numero_pc or ''),
+                '11. EMPRESA RESPONSÁVEL': str(item.empresa_fornecedora or ''),
+                '12. PRAZO RECEBIMENTO': item.prazo_recebimento.strftime('%d/%m/%Y') if item.prazo_recebimento else '',
+                '13. ALOCADO / SOLICITADO': qtd_recebida_str,
+                '14. SALDO A SER ENTREGUE': formatar_numero_br(saldo_sienge),
+                '15. STATUS': str(item.status_etapa or ''),
+                '16. PRIORIDADE': str(item.get_prioridade_display() if item.prioridade else ''),
+                '17. OBSERVAÇÃO': str(item.observacao_eng or ''),
+            })
+            row['_saldo_valor'] = saldo_sienge
+        dados.append(row)
     
     # Se não houver dados, criar DataFrame vazio com colunas
     if not dados:
@@ -740,13 +1069,21 @@ def exportar_mapa_excel(request):
         }]
     
     # Criar DataFrame (remover colunas auxiliares antes)
-    colunas_excel = [
-        '1. CATEGORIA', '2. CÓDIGO DO INSUMO', '3. DESCRIÇÃO DO ITEM', '4. LOCAL',
-        '5. RESPONSÁVEL', '6. PRAZO', '7. QUANTITATIVO', '8. UND',
-        '9. Nº SOLICITAÇÃO', '10. Nº PEDIDO DE COMPRA', '11. EMPRESA RESPONSÁVEL',
-        '12. PRAZO RECEBIMENTO', '13. QUANTIDADE RECEBIDA', '14. SALDO A SER ENTREGUE',
-        '15. STATUS', '16. PRIORIDADE', '17. OBSERVAÇÃO'
-    ]
+    if mapa_suprimentos_manual():
+        colunas_excel = [
+            '1. CATEGORIA', '2. CÓDIGO DO INSUMO', '3. DESCRIÇÃO DO ITEM', '4. LOCAL',
+            '5. RESPONSÁVEL', '6. PRAZO', '7. QUANTIDADE PLANEJADA', '8. UND',
+            '9. ALOCADO / PLANEJADO', '10. SALDO LOCAL', '11. STATUS', '12. PRIORIDADE',
+            '13. OBSERVAÇÃO',
+        ]
+    else:
+        colunas_excel = [
+            '1. CATEGORIA', '2. CÓDIGO DO INSUMO', '3. DESCRIÇÃO DO ITEM', '4. LOCAL',
+            '5. RESPONSÁVEL', '6. PRAZO', '7. QUANTITATIVO', '8. UND',
+            '9. Nº SOLICITAÇÃO', '10. Nº PEDIDO DE COMPRA', '11. EMPRESA RESPONSÁVEL',
+            '12. PRAZO RECEBIMENTO', '13. QUANTIDADE RECEBIDA', '14. SALDO A SER ENTREGUE',
+            '15. STATUS', '16. PRIORIDADE', '17. OBSERVAÇÃO',
+        ]
     
     # Criar DataFrame apenas com as colunas de dados
     dados_limpos = []
@@ -1161,8 +1498,17 @@ def criar_levantamento_rapido(request):
         campo_alterado='levantamento'
     )
 
-    messages.success(request, f'Levantamento criado: {insumo.descricao}')
-    return redirect(reverse('engenharia:mapa') + f'?obra={obra_id}')
+    msg = f'Levantamento criado: {insumo.descricao}'
+    redirect_url = reverse('engenharia:mapa') + f'?obra={obra_id}&scroll_item={item.id}'
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': True,
+            'message': msg,
+            'item_id': item.id,
+            'redirect_url': redirect_url,
+        })
+    messages.success(request, msg)
+    return redirect(redirect_url)
 
 
 @login_required
@@ -1172,6 +1518,17 @@ def importar_sienge_upload(request):
     Tela de upload do arquivo exportado do Sienge para importar RecebimentoObra.
     Usa o management command existente (importar_mapa_controle).
     """
+    if mapa_suprimentos_manual():
+        messages.info(
+            request,
+            'Importação Sienge desativada. Use o mapa manual: levantamento, quantidade planejada e alocação por local.',
+        )
+        obra = get_obra_da_sessao(request)
+        url = reverse('engenharia:mapa')
+        if obra:
+            url += f'?obra={obra.id}'
+        return redirect(url)
+
     from django.core.management import call_command
     from io import StringIO
     import tempfile
@@ -1580,6 +1937,10 @@ def importar_sienge_upload(request):
 @require_POST
 def excluir_importacao_sienge(request, pk):
     """Remove recebimentos vinculados a uma importação e apaga o registro da importação."""
+    if mapa_suprimentos_manual():
+        messages.info(request, 'Importação Sienge desativada no mapa manual.')
+        return redirect('engenharia:mapa')
+
     from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
 
     obras = _get_obras_for_user(request)
@@ -1730,7 +2091,16 @@ def dashboard_2(request):
             
             # Filtro de status
             if filtro_status:
-                if filtro_status == 'falta_comprar':
+                if mapa_suprimentos_manual():
+                    if filtro_status == 'levantamento' and not _item_mapa_levantamento(item):
+                        return False
+                    if filtro_status == 'parcial' and not _item_mapa_parcial(item):
+                        return False
+                    if filtro_status == 'entregue' and not _item_mapa_entregue(item):
+                        return False
+                    if filtro_status == 'atrasados' and not item.is_atrasado:
+                        return False
+                elif filtro_status == 'falta_comprar':
                     if not (item.numero_sc and item.quantidade_solicitada_sienge < item.quantidade_planejada):
                         return False
                 elif filtro_status == 'a_caminho':
@@ -1811,17 +2181,29 @@ def dashboard_2(request):
         # Calculados sempre sobre a lista completa (sem filtros), para que os
         # contadores do topo não sejam afetados pelo filtro ativo na lista.
         kpi_total_itens = len(itens_ativos_global)
-        kpi_com_sc = sum(1 for i in itens_ativos_global if i.numero_sc)
-        kpi_sem_sc = kpi_total_itens - kpi_com_sc
         kpi_atrasados = sum(1 for i in itens_ativos_global if i.is_atrasado)
         kpi_total_locais = len(locais_data)
-        kpi_recebidos = sum(1 for i in itens_ativos_global if (i.quantidade_recebida_obra or 0) > 0)
         kpi_alocados = sum(1 for i in itens_ativos_global if (i.quantidade_alocada_local or 0) > 0)
-        
-        # Percentuais para progress bars
-        kpi_pct_sc = round((kpi_com_sc / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
-        kpi_pct_recebidos = round((kpi_recebidos / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
-        kpi_pct_alocados = round((kpi_alocados / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
+        if mapa_suprimentos_manual():
+            kpi_levantamento = sum(1 for i in itens_ativos_global if _item_mapa_levantamento(i))
+            kpi_parciais = sum(1 for i in itens_ativos_global if _item_mapa_parcial(i))
+            kpi_entregues = sum(1 for i in itens_ativos_global if _item_mapa_entregue(i))
+            kpi_com_sc = 0
+            kpi_sem_sc = 0
+            kpi_recebidos = 0
+            kpi_pct_sc = 0
+            kpi_pct_recebidos = 0
+            kpi_pct_alocados = round((kpi_entregues / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
+        else:
+            kpi_levantamento = 0
+            kpi_parciais = 0
+            kpi_entregues = 0
+            kpi_com_sc = sum(1 for i in itens_ativos_global if i.numero_sc)
+            kpi_sem_sc = kpi_total_itens - kpi_com_sc
+            kpi_recebidos = sum(1 for i in itens_ativos_global if (i.quantidade_recebida_obra or 0) > 0)
+            kpi_pct_sc = round((kpi_com_sc / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
+            kpi_pct_recebidos = round((kpi_recebidos / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
+            kpi_pct_alocados = round((kpi_alocados / kpi_total_itens * 100) if kpi_total_itens > 0 else 0)
         
         # ====== NÍVEL 2: ITENS DO LOCAL SELECIONADO ======
         itens_local_selecionado = []
@@ -1847,34 +2229,67 @@ def dashboard_2(request):
             itens_local_selecionado = itens_ativos
             local_selecionado_obj = {'id': 'todos', 'nome': 'Todos os Locais'}
         
-        # Preparar dados dos itens com matriz de 4 colunas técnicas
-        # PRE-FETCH: Carregar TODAS as alocações da obra de uma vez (evita N+1 queries)
-        todas_alocacoes = AlocacaoRecebimento.objects.filter(
-            obra=obra_selecionada
-        ).values('insumo_id', 'item_mapa__numero_sc').annotate(
-            total=Sum('quantidade_alocada')
-        )
-        
-        # Indexar alocações por (insumo_id, numero_sc) e por insumo_id (sem SC)
-        alocacoes_por_insumo_sc = {}  # (insumo_id, sc) -> total
-        alocacoes_por_insumo = {}     # insumo_id -> total (para itens sem SC)
-        for aloc in todas_alocacoes:
-            insumo_id = aloc['insumo_id']
-            sc = aloc['item_mapa__numero_sc'] or ''
-            total = aloc['total'] or Decimal('0.00')
-            
-            # Acumular por insumo (para itens sem SC)
-            alocacoes_por_insumo[insumo_id] = alocacoes_por_insumo.get(insumo_id, Decimal('0.00')) + total
-            
-            # Acumular por (insumo, sc) para itens com SC
-            if sc:
-                key = (insumo_id, sc)
-                alocacoes_por_insumo_sc[key] = alocacoes_por_insumo_sc.get(key, Decimal('0.00')) + total
+        alocacoes_por_insumo_sc = {}
+        alocacoes_por_insumo = {}
+        if not mapa_suprimentos_manual():
+            todas_alocacoes = AlocacaoRecebimento.objects.filter(
+                obra=obra_selecionada
+            ).values('insumo_id', 'item_mapa__numero_sc').annotate(
+                total=Sum('quantidade_alocada')
+            )
+            for aloc in todas_alocacoes:
+                insumo_id = aloc['insumo_id']
+                sc = aloc['item_mapa__numero_sc'] or ''
+                total = aloc['total'] or Decimal('0.00')
+                alocacoes_por_insumo[insumo_id] = alocacoes_por_insumo.get(insumo_id, Decimal('0.00')) + total
+                if sc:
+                    key = (insumo_id, sc)
+                    alocacoes_por_insumo_sc[key] = alocacoes_por_insumo_sc.get(key, Decimal('0.00')) + total
         
         itens_pipeline = []
         for item in itens_local_selecionado:
-            # COLUNA 1: O Plano - Quantidade levantada inicialmente
             qtd_planejada = float(item.quantidade_planejada or Decimal('0.00'))
+
+            if mapa_suprimentos_manual():
+                qtd_alocada_item = float(item.quantidade_alocada_local or Decimal('0.00'))
+                if qtd_alocada_item <= 0:
+                    status_label, status_class, pipeline_pct = 'Levantamento', 'status-plan', 0
+                elif qtd_planejada > 0 and qtd_alocada_item < qtd_planejada:
+                    status_label, status_class = 'Parcial', 'status-received'
+                    pipeline_pct = round(qtd_alocada_item / qtd_planejada * 100)
+                else:
+                    status_label, status_class, pipeline_pct = 'Entregue', 'status-allocated', 100
+                itens_pipeline.append({
+                    'id': item.id,
+                    'insumo_id': item.insumo.id,
+                    'insumo_codigo': item.insumo.codigo_sienge or '',
+                    'insumo_descricao': item.insumo.descricao,
+                    'insumo_unidade': item.insumo.unidade,
+                    'categoria': item.categoria or 'A CLASSIFICAR',
+                    'local_nome': item.local_aplicacao.nome if item.local_aplicacao else 'Sem local',
+                    'fornecedor': '',
+                    'coluna_1_plano': qtd_planejada,
+                    'coluna_2_pedido_sc': '',
+                    'coluna_2_pedido_qtd': 0.0,
+                    'coluna_3_patio': 0.0,
+                    'coluna_4_destino_qtd': qtd_alocada_item,
+                    'coluna_4_destino_local': item.local_aplicacao.nome if item.local_aplicacao else 'Sem local',
+                    'coluna_4_destino_item_qtd': qtd_alocada_item,
+                    'gap_comprado': 0.0,
+                    'gap_recebido': 0.0,
+                    'gap_alocado': max(qtd_planejada - qtd_alocada_item, 0.0),
+                    'alerta_falta_comprar': False,
+                    'alerta_a_caminho': False,
+                    'alerta_nao_alocado': qtd_planejada > 0 and qtd_alocada_item <= 0,
+                    'is_atrasado': item.is_atrasado,
+                    'pipeline_pct': pipeline_pct,
+                    'pipeline_steps': 0,
+                    'status_label': status_label,
+                    'status_class': status_class,
+                })
+                continue
+
+            # COLUNA 1: O Plano - Quantidade levantada inicialmente (modo Sienge)
             
             # COLUNA 2: O Pedido - SC + Quantidade comprada
             numero_sc = item.numero_sc or ''
@@ -1984,29 +2399,54 @@ def dashboard_2(request):
         # Resumo por categoria sempre calculado sobre a lista global (sem filtros),
         # para que todos os chips de categoria permaneçam visíveis mesmo quando
         # uma categoria específica está selecionada.
-        _cat = defaultdict(lambda: {'total': 0, 'no_patio': 0, 'a_caminho': 0, 'sem_sc': 0})
-        for _item in itens_ativos_global:
-            c = (_item.categoria or 'A CLASSIFICAR').strip() or 'A CLASSIFICAR'
-            _cat[c]['total'] += 1
-            q_patio = float(_item.quantidade_recebida_obra or 0)
-            q_pedido = float(_item.quantidade_solicitada_sienge or 0)
-            tem_sc = bool(_item.numero_sc)
-            if q_patio > 0:
-                _cat[c]['no_patio'] += 1
-            elif tem_sc and q_patio < q_pedido:
-                _cat[c]['a_caminho'] += 1
-            elif not tem_sc:
-                _cat[c]['sem_sc'] += 1
-        categorias_com_contagem = [
-            {'nome': k, 'total': v['total'], 'no_patio': v['no_patio'], 'a_caminho': v['a_caminho'], 'sem_sc': v['sem_sc']}
-            for k, v in sorted(_cat.items())
-        ]
+        if mapa_suprimentos_manual():
+            _cat = defaultdict(lambda: {'total': 0, 'levantamento': 0, 'parciais': 0, 'entregues': 0})
+            for _item in itens_ativos_global:
+                c = (_item.categoria or 'A CLASSIFICAR').strip() or 'A CLASSIFICAR'
+                _cat[c]['total'] += 1
+                if _item_mapa_levantamento(_item):
+                    _cat[c]['levantamento'] += 1
+                elif _item_mapa_parcial(_item):
+                    _cat[c]['parciais'] += 1
+                elif _item_mapa_entregue(_item):
+                    _cat[c]['entregues'] += 1
+            categorias_com_contagem = [
+                {'nome': k, 'total': v['total'], 'levantamento': v['levantamento'], 'parciais': v['parciais'], 'entregues': v['entregues']}
+                for k, v in sorted(_cat.items())
+            ]
+        else:
+            _cat = defaultdict(lambda: {'total': 0, 'no_patio': 0, 'a_caminho': 0, 'sem_sc': 0})
+            for _item in itens_ativos_global:
+                c = (_item.categoria or 'A CLASSIFICAR').strip() or 'A CLASSIFICAR'
+                _cat[c]['total'] += 1
+                q_patio = float(_item.quantidade_recebida_obra or 0)
+                q_pedido = float(_item.quantidade_solicitada_sienge or 0)
+                tem_sc = bool(_item.numero_sc)
+                if q_patio > 0:
+                    _cat[c]['no_patio'] += 1
+                elif tem_sc and q_patio < q_pedido:
+                    _cat[c]['a_caminho'] += 1
+                elif not tem_sc:
+                    _cat[c]['sem_sc'] += 1
+            categorias_com_contagem = [
+                {'nome': k, 'total': v['total'], 'no_patio': v['no_patio'], 'a_caminho': v['a_caminho'], 'sem_sc': v['sem_sc']}
+                for k, v in sorted(_cat.items())
+            ]
         
         # Filtro por status/alertas nos itens do pipeline
         # (filtro_status e busca_query já foram lidos acima e usados para filtrar itens_ativos;
         #  aqui só aplicamos nos dados formatados do pipeline)
         if filtro_status:
-            if filtro_status == 'falta_comprar':
+            if mapa_suprimentos_manual():
+                if filtro_status == 'levantamento':
+                    itens_pipeline = [item for item in itens_pipeline if item.get('status_label') == 'Levantamento']
+                elif filtro_status == 'parcial':
+                    itens_pipeline = [item for item in itens_pipeline if item.get('status_label') == 'Parcial']
+                elif filtro_status == 'entregue':
+                    itens_pipeline = [item for item in itens_pipeline if item.get('status_label') == 'Entregue']
+                elif filtro_status == 'atrasados':
+                    itens_pipeline = [item for item in itens_pipeline if item.get('is_atrasado')]
+            elif filtro_status == 'falta_comprar':
                 itens_pipeline = [item for item in itens_pipeline if item.get('alerta_falta_comprar')]
             elif filtro_status == 'a_caminho':
                 itens_pipeline = [item for item in itens_pipeline if item.get('alerta_a_caminho')]
@@ -2035,136 +2475,193 @@ def dashboard_2(request):
             itens_pipeline = [item for item in itens_pipeline if item.get('fornecedor') == fornecedor_filtro]
         
         # Totalizadores para o Modo Tabela (rodapé da tabela Nível 2)
-        drill_totals = {'plano': 0.0, 'pedido': 0.0, 'patio': 0.0, 'destino': 0.0}
+        drill_totals = {'plano': 0.0, 'pedido': 0.0, 'patio': 0.0, 'destino': 0.0, 'saldo': 0.0}
         for _item in itens_pipeline:
             drill_totals['plano'] += float(_item.get('coluna_1_plano') or 0)
-            drill_totals['pedido'] += float(_item.get('coluna_2_pedido_qtd') or 0)
-            drill_totals['patio'] += float(_item.get('coluna_3_patio') or 0)
-            drill_totals['destino'] += float(_item.get('coluna_4_destino_qtd') or 0)
+            drill_totals['destino'] += float(_item.get('coluna_4_destino_item_qtd') or _item.get('coluna_4_destino_qtd') or 0)
+            if mapa_suprimentos_manual():
+                drill_totals['saldo'] += float(_item.get('gap_alocado') or 0)
+            else:
+                drill_totals['pedido'] += float(_item.get('coluna_2_pedido_qtd') or 0)
+                drill_totals['patio'] += float(_item.get('coluna_3_patio') or 0)
         
         # ====== NÍVEL 3: DETALHES DO ITEM PARA BOTTOM SHEET ======
         item_detalhes = None
         if item_selecionado_id:
             try:
                 item_obj = ItemMapa.objects.get(id=item_selecionado_id, obra=obra_selecionada)
-                
-                # Buscar saldo máximo do Sienge (regra do MAX)
-                saldo_maximo = Decimal('0.00')
-                if item_obj.numero_sc:
-                    recebimentos = RecebimentoObra.objects.filter(
-                        obra=obra_selecionada,
-                        numero_sc=item_obj.numero_sc,
-                        insumo=item_obj.insumo
-                    )
-                    if recebimentos.exists():
-                        saldo_maximo = max(
-                            (r.quantidade_recebida or Decimal('0.00')) for r in recebimentos
-                        )
-                
-                # Alocações existentes
-                alocacoes = AlocacaoRecebimento.objects.filter(
-                    item_mapa=item_obj
-                ).select_related('item_mapa__local_aplicacao')
-                
-                total_alocado = sum((a.quantidade_alocada or Decimal('0.00')) for a in alocacoes)
-                saldo_disponivel = saldo_maximo - total_alocado
-                qtd_planejada = float(item_obj.quantidade_planejada or Decimal('0.00'))
-                tem_sc = bool(item_obj.numero_sc)
-                # Status no pipeline (igual à lista)
-                pipeline_steps = 0
-                if qtd_planejada > 0:
-                    pipeline_steps = 1
-                    if tem_sc:
-                        pipeline_steps = 2
-                        if saldo_maximo > 0:
-                            pipeline_steps = 3
-                            if total_alocado > 0:
-                                pipeline_steps = 4
-                pipeline_pct = pipeline_steps * 25
-                if pipeline_steps == 0:
-                    status_label, status_class = 'Sem planejamento', 'status-empty'
-                elif pipeline_steps == 1:
-                    status_label, status_class = 'Levantamento', 'status-plan'
-                elif pipeline_steps == 2:
-                    status_label, status_class = 'Comprado', 'status-ordered'
-                elif pipeline_steps == 3:
-                    status_label, status_class = 'No Pátio', 'status-received'
-                else:
-                    status_label, status_class = 'Alocado', 'status-allocated'
-                percentual_recebido = round((float(saldo_maximo) / qtd_planejada * 100) if qtd_planejada > 0 else 0)
-                if pipeline_steps == 0:
-                    proximo_passo = 'Planejar necessidade'
-                elif not tem_sc:
-                    proximo_passo = 'Emitir Solicitação de Compra (SC)'
-                elif saldo_maximo <= 0:
-                    proximo_passo = 'Aguardar recebimento no pátio'
-                elif total_alocado <= 0:
-                    proximo_passo = 'Alocar ao local (em outra tela)'
-                else:
-                    proximo_passo = 'Concluído'
-                # Mesmo insumo em outros locais (visão consolidada)
-                outros_locais = list(
-                    ItemMapa.objects.filter(
-                        obra=obra_selecionada,
-                        insumo=item_obj.insumo
-                    ).exclude(id=item_obj.id).select_related('local_aplicacao').values(
-                        'id', 'local_aplicacao__nome', 'quantidade_planejada', 'numero_sc'
-                    )[:10]
-                )
-                outros_locais = [
-                    {
-                        'local_nome': (x['local_aplicacao__nome'] or 'Sem local'),
-                        'quantidade_planejada': float(x['quantidade_planejada'] or 0),
-                        'tem_sc': bool(x['numero_sc']),
-                        'item_id': x['id'],
-                    }
-                    for x in outros_locais
-                ]
-                # Outros itens no mesmo local (contexto do bloco)
-                outros_itens_mesmo_local = []
-                if item_obj.local_aplicacao_id:
-                    outros_itens_mesmo_local = list(
-                        ItemMapa.objects.filter(
-                            obra=obra_selecionada,
-                            local_aplicacao_id=item_obj.local_aplicacao_id
-                        ).exclude(id=item_obj.id).select_related('insumo')[:5]
-                    )
-                    outros_itens_mesmo_local = [
+
+                if mapa_suprimentos_manual():
+                    qtd_planejada = float(item_obj.quantidade_planejada or Decimal('0.00'))
+                    total_alocado = float(item_obj.quantidade_alocada_local or Decimal('0.00'))
+                    saldo_disponivel = max(qtd_planejada - total_alocado, 0.0)
+                    if total_alocado <= 0:
+                        status_label, status_class, pipeline_pct = 'Levantamento', 'status-plan', 0
+                        proximo_passo = 'Alocar material neste local'
+                    elif qtd_planejada > 0 and total_alocado < qtd_planejada:
+                        status_label, status_class = 'Parcial', 'status-received'
+                        pipeline_pct = round(total_alocado / qtd_planejada * 100)
+                        proximo_passo = f'Alocar mais {saldo_disponivel:.2f} {item_obj.insumo.unidade or ""}'.strip()
+                    else:
+                        status_label, status_class, pipeline_pct = 'Entregue', 'status-allocated', 100
+                        proximo_passo = 'Concluído'
+                    outros_locais = [
                         {
-                            'item_id': i.id,
-                            'descricao': (i.insumo.descricao or '')[:50],
-                            'codigo': (i.insumo.codigo_sienge or ''),
-                            'quantidade_planejada': float(i.quantidade_planejada or 0),
-                            'unidade': (i.insumo.unidade or ''),
+                            'local_nome': (x.local_aplicacao.nome if x.local_aplicacao else 'Sem local'),
+                            'quantidade_planejada': float(x.quantidade_planejada or 0),
+                            'tem_sc': False,
+                            'item_id': x.id,
                         }
-                        for i in outros_itens_mesmo_local
+                        for x in ItemMapa.objects.filter(
+                            obra=obra_selecionada, insumo=item_obj.insumo
+                        ).exclude(id=item_obj.id).select_related('local_aplicacao')[:10]
                     ]
-                item_detalhes = {
-                    'item_id': item_obj.id,
-                    'insumo_id': item_obj.insumo.id,
-                    'insumo_codigo': item_obj.insumo.codigo_sienge or '',
-                    'insumo_descricao': item_obj.insumo.descricao,
-                    'insumo_unidade': item_obj.insumo.unidade,
-                    'numero_sc': item_obj.numero_sc or '',
-                    'local_nome': item_obj.local_aplicacao.nome if item_obj.local_aplicacao else 'Sem local',
-                    'local_id': item_obj.local_aplicacao_id,
-                    'categoria': item_obj.categoria or '',
-                    'empresa_fornecedora': item_obj.empresa_fornecedora or '',
-                    'saldo_maximo': float(saldo_maximo),
-                    'total_alocado': float(total_alocado),
-                    'saldo_disponivel': float(saldo_disponivel),
-                    'quantidade_planejada': qtd_planejada,
-                    'quantidade_recebida': float(item_obj.quantidade_recebida_obra or Decimal('0.00')),
-                    'quantidade_solicitada': float(item_obj.quantidade_solicitada_sienge or Decimal('0.00')),
-                    'status_label': status_label,
-                    'status_class': status_class,
-                    'pipeline_pct': pipeline_pct,
-                    'percentual_recebido': percentual_recebido,
-                    'proximo_passo': proximo_passo,
-                    'is_atrasado': getattr(item_obj, 'is_atrasado', False),
-                    'outros_locais': outros_locais,
-                    'outros_itens_mesmo_local': outros_itens_mesmo_local,
-                }
+                    outros_itens_mesmo_local = []
+                    if item_obj.local_aplicacao_id:
+                        outros_itens_mesmo_local = [
+                            {
+                                'item_id': i.id,
+                                'descricao': (i.insumo.descricao or '')[:50],
+                                'codigo': (i.insumo.codigo_sienge or ''),
+                                'quantidade_planejada': float(i.quantidade_planejada or 0),
+                                'unidade': (i.insumo.unidade or ''),
+                            }
+                            for i in ItemMapa.objects.filter(
+                                obra=obra_selecionada,
+                                local_aplicacao_id=item_obj.local_aplicacao_id,
+                            ).exclude(id=item_obj.id).select_related('insumo')[:5]
+                        ]
+                    item_detalhes = {
+                        'item_id': item_obj.id,
+                        'insumo_id': item_obj.insumo.id,
+                        'insumo_codigo': item_obj.insumo.codigo_sienge or '',
+                        'insumo_descricao': item_obj.insumo.descricao,
+                        'insumo_unidade': item_obj.insumo.unidade,
+                        'numero_sc': '',
+                        'local_nome': item_obj.local_aplicacao.nome if item_obj.local_aplicacao else 'Sem local',
+                        'local_id': item_obj.local_aplicacao_id,
+                        'categoria': item_obj.categoria or '',
+                        'empresa_fornecedora': '',
+                        'saldo_maximo': qtd_planejada,
+                        'total_alocado': total_alocado,
+                        'saldo_disponivel': saldo_disponivel,
+                        'quantidade_planejada': qtd_planejada,
+                        'quantidade_recebida': 0.0,
+                        'quantidade_solicitada': 0.0,
+                        'status_label': status_label,
+                        'status_class': status_class,
+                        'pipeline_pct': pipeline_pct,
+                        'percentual_recebido': pipeline_pct,
+                        'proximo_passo': proximo_passo,
+                        'is_atrasado': getattr(item_obj, 'is_atrasado', False),
+                        'outros_locais': outros_locais,
+                        'outros_itens_mesmo_local': outros_itens_mesmo_local,
+                    }
+                else:
+                    saldo_maximo = Decimal('0.00')
+                    if item_obj.numero_sc:
+                        recebimentos = RecebimentoObra.objects.filter(
+                            obra=obra_selecionada,
+                            numero_sc=item_obj.numero_sc,
+                            insumo=item_obj.insumo
+                        )
+                        if recebimentos.exists():
+                            saldo_maximo = max(
+                                (r.quantidade_recebida or Decimal('0.00')) for r in recebimentos
+                            )
+                    alocacoes = AlocacaoRecebimento.objects.filter(
+                        item_mapa=item_obj
+                    ).select_related('item_mapa__local_aplicacao')
+                    total_alocado = sum((a.quantidade_alocada or Decimal('0.00')) for a in alocacoes)
+                    saldo_disponivel = saldo_maximo - total_alocado
+                    qtd_planejada = float(item_obj.quantidade_planejada or Decimal('0.00'))
+                    tem_sc = bool(item_obj.numero_sc)
+                    pipeline_steps = 0
+                    if qtd_planejada > 0:
+                        pipeline_steps = 1
+                        if tem_sc:
+                            pipeline_steps = 2
+                            if saldo_maximo > 0:
+                                pipeline_steps = 3
+                                if total_alocado > 0:
+                                    pipeline_steps = 4
+                    pipeline_pct = pipeline_steps * 25
+                    if pipeline_steps == 0:
+                        status_label, status_class = 'Sem planejamento', 'status-empty'
+                    elif pipeline_steps == 1:
+                        status_label, status_class = 'Levantamento', 'status-plan'
+                    elif pipeline_steps == 2:
+                        status_label, status_class = 'Comprado', 'status-ordered'
+                    elif pipeline_steps == 3:
+                        status_label, status_class = 'No Pátio', 'status-received'
+                    else:
+                        status_label, status_class = 'Alocado', 'status-allocated'
+                    percentual_recebido = round((float(saldo_maximo) / qtd_planejada * 100) if qtd_planejada > 0 else 0)
+                    if pipeline_steps == 0:
+                        proximo_passo = 'Planejar necessidade'
+                    elif not tem_sc:
+                        proximo_passo = 'Emitir Solicitação de Compra (SC)'
+                    elif saldo_maximo <= 0:
+                        proximo_passo = 'Aguardar recebimento no pátio'
+                    elif total_alocado <= 0:
+                        proximo_passo = 'Alocar ao local (em outra tela)'
+                    else:
+                        proximo_passo = 'Concluído'
+                    outros_locais = [
+                        {
+                            'local_nome': (x['local_aplicacao__nome'] or 'Sem local'),
+                            'quantidade_planejada': float(x['quantidade_planejada'] or 0),
+                            'tem_sc': bool(x['numero_sc']),
+                            'item_id': x['id'],
+                        }
+                        for x in ItemMapa.objects.filter(
+                            obra=obra_selecionada,
+                            insumo=item_obj.insumo
+                        ).exclude(id=item_obj.id).values(
+                            'id', 'local_aplicacao__nome', 'quantidade_planejada', 'numero_sc'
+                        )[:10]
+                    ]
+                    outros_itens_mesmo_local = []
+                    if item_obj.local_aplicacao_id:
+                        outros_itens_mesmo_local = [
+                            {
+                                'item_id': i.id,
+                                'descricao': (i.insumo.descricao or '')[:50],
+                                'codigo': (i.insumo.codigo_sienge or ''),
+                                'quantidade_planejada': float(i.quantidade_planejada or 0),
+                                'unidade': (i.insumo.unidade or ''),
+                            }
+                            for i in ItemMapa.objects.filter(
+                                obra=obra_selecionada,
+                                local_aplicacao_id=item_obj.local_aplicacao_id,
+                            ).exclude(id=item_obj.id).select_related('insumo')[:5]
+                        ]
+                    item_detalhes = {
+                        'item_id': item_obj.id,
+                        'insumo_id': item_obj.insumo.id,
+                        'insumo_codigo': item_obj.insumo.codigo_sienge or '',
+                        'insumo_descricao': item_obj.insumo.descricao,
+                        'insumo_unidade': item_obj.insumo.unidade,
+                        'numero_sc': item_obj.numero_sc or '',
+                        'local_nome': item_obj.local_aplicacao.nome if item_obj.local_aplicacao else 'Sem local',
+                        'local_id': item_obj.local_aplicacao_id,
+                        'categoria': item_obj.categoria or '',
+                        'empresa_fornecedora': item_obj.empresa_fornecedora or '',
+                        'saldo_maximo': float(saldo_maximo),
+                        'total_alocado': float(total_alocado),
+                        'saldo_disponivel': float(saldo_disponivel),
+                        'quantidade_planejada': qtd_planejada,
+                        'quantidade_recebida': float(item_obj.quantidade_recebida_obra or Decimal('0.00')),
+                        'quantidade_solicitada': float(item_obj.quantidade_solicitada_sienge or Decimal('0.00')),
+                        'status_label': status_label,
+                        'status_class': status_class,
+                        'pipeline_pct': pipeline_pct,
+                        'percentual_recebido': percentual_recebido,
+                        'proximo_passo': proximo_passo,
+                        'is_atrasado': getattr(item_obj, 'is_atrasado', False),
+                        'outros_locais': outros_locais,
+                        'outros_itens_mesmo_local': outros_itens_mesmo_local,
+                    }
             except ItemMapa.DoesNotExist:
                 pass
     
@@ -2191,6 +2688,9 @@ def dashboard_2(request):
         kpi_pct_sc = 0
         kpi_pct_recebidos = 0
         kpi_pct_alocados = 0
+        kpi_levantamento = 0
+        kpi_parciais = 0
+        kpi_entregues = 0
         drill_totals = {'plano': 0.0, 'pedido': 0.0, 'patio': 0.0, 'destino': 0.0}
     elif obra_selecionada and not categorias_disponiveis:
         # Garantir que sempre temos listas, mesmo vazias
@@ -2239,6 +2739,10 @@ def dashboard_2(request):
         'kpi_pct_recebidos': kpi_pct_recebidos if obra_id else 0,
         'kpi_pct_alocados': kpi_pct_alocados if obra_id else 0,
         'drill_totals': drill_totals if obra_id else {'plano': 0.0, 'pedido': 0.0, 'patio': 0.0, 'destino': 0.0},
+        'mapa_suprimentos_manual': mapa_suprimentos_manual(),
+        'kpi_levantamento': kpi_levantamento if obra_id else 0,
+        'kpi_parciais': kpi_parciais if obra_id else 0,
+        'kpi_entregues': kpi_entregues if obra_id else 0,
     }
     
     return render(request, 'suprimentos/dashboard_2.html', context)

@@ -126,13 +126,32 @@ class MapaControleService:
         return float(value)
 
     def build_summary_payload(self) -> dict[str, Any]:
+        from suprimentos.models import mapa_suprimentos_manual
+
         items = self._filtered_items()
         total = len(items)
-        sem_sc = sum(1 for i in items if not (i.numero_sc or "").strip())
-        sem_pc = sum(1 for i in items if (i.numero_sc or "").strip() and not (i.numero_pc or "").strip())
-        sem_entrega = sum(1 for i in items if (i.numero_pc or "").strip() and i.quantidade_recebida_obra <= 0)
-        sem_alocacao = sum(1 for i in items if i.quantidade_recebida_obra > 0 and i.quantidade_alocada_local <= 0)
         atrasados = sum(1 for i in items if i.is_atrasado)
+        if mapa_suprimentos_manual():
+            levantamento = sum(1 for i in items if i.quantidade_alocada_local <= 0)
+            parciais = sum(
+                1 for i in items
+                if i.quantidade_alocada_local > 0
+                and i.quantidade_planejada > 0
+                and i.quantidade_alocada_local < i.quantidade_planejada
+            )
+            entregues = sum(
+                1 for i in items
+                if i.quantidade_planejada > 0
+                and i.quantidade_alocada_local >= i.quantidade_planejada
+            )
+            sem_sc = sem_pc = sem_entrega = 0
+            sem_alocacao = levantamento
+        else:
+            sem_sc = sum(1 for i in items if not (i.numero_sc or "").strip())
+            sem_pc = sum(1 for i in items if (i.numero_sc or "").strip() and not (i.numero_pc or "").strip())
+            sem_entrega = sum(1 for i in items if (i.numero_pc or "").strip() and i.quantidade_recebida_obra <= 0)
+            sem_alocacao = sum(1 for i in items if i.quantidade_recebida_obra > 0 and i.quantidade_alocada_local <= 0)
+            levantamento = parciais = entregues = 0
         percentual_medio_alocacao = round(
             (sum(self._to_float(i.percentual_alocado_porcentagem) for i in items) / total) if total else 0.0, 2
         )
@@ -181,6 +200,10 @@ class MapaControleService:
                 "sem_alocacao": sem_alocacao,
                 "atrasados": atrasados,
                 "percentual_medio_alocacao": percentual_medio_alocacao,
+                "levantamento": levantamento,
+                "parciais": parciais,
+                "entregues": entregues,
+                "manual_mode": mapa_suprimentos_manual(),
             },
             "ranking": {
                 "locais": sorted(ranking_local.items(), key=lambda x: x[1], reverse=True)[:5],

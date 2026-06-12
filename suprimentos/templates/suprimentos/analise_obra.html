@@ -755,8 +755,8 @@ html, body {
                             Painel do sistema
                         {% elif '/gestao/' in request.path %}
                             GestControll
-                        {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
-                            Mapa de Suprimentos
+                        {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+                            Mapa e Suprimentos
                         {% elif request.session.selected_project_name %}
                             {{ request.session.selected_project_name|truncatechars:20 }}
                         {% else %}
@@ -775,7 +775,12 @@ html, body {
                 <span class="font-medium">Home</span>
             </a>
             {% endif %}
-            {% if request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/engenharia/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
+            {% if '/engenharia/' in request.path or request.resolver_match.url_name == 'analise_obra' %}
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i>
+                <span class="font-medium">Trocar Obra</span>
+            </a>
+            {% elif request.session.selected_project_id and '/gestao/' not in request.path and '/mapa/' not in request.path and '/mapa-geo/' not in request.path and '/engenharia/' not in request.path and '/rh/' not in request.path and '/trackhub/' not in request.path and '/aprovacoes/' not in request.path and '/impedimentos/' not in request.path and request.resolver_match.url_name != 'select-system' and request.resolver_match.url_name != 'select-project' %}
             <a href="{% url 'select-project' %}" class="sidebar-link flex items-center px-4 py-3 text-gray-300 hover:bg-slate-700 hover:text-white rounded-lg mb-2 transition-all duration-200">
                 <i class="fas fa-exchange-alt w-5 mr-3"></i>
                 <span class="font-medium">Trocar Obra</span>
@@ -839,18 +844,35 @@ html, body {
             </a>
             {% endif %}
 
-            {% elif '/mapa/' in request.path and request.resolver_match.url_name != 'analise_obra' or '/engenharia/' in request.path and request.resolver_match.url_name != 'analise_obra' %}
-            <!-- ═══════ MENU: Mapa de Suprimentos (engenheiros) ═══════ -->
+            {% elif '/mapa/' in request.path or '/engenharia/' in request.path %}
+            <!-- ═══════ MENU: Mapa e Suprimentos ═══════ -->
             <a href="{% url 'engenharia:dashboard_2' %}" 
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'dashboard_2' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
+            <a href="{% url 'engenharia:analise_obra' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analise_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-layer-group w-5 mr-3"></i>
+                <span class="font-medium">BI da Obra</span>
+            </a>
+            <a href="{% url 'engenharia:mapa' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'mapa' or request.resolver_match.url_name == 'mapa_controle' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-table w-5 mr-3"></i>
+                <span class="font-medium">Mapa</span>
+            </a>
+            <a href="{% url 'engenharia:ferramenta_shell' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'ferramenta_shell' or request.resolver_match.url_name == 'ferramenta_editor_ambiente' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-magic w-5 mr-3"></i>
+                <span class="font-medium">Ferramenta</span>
+            </a>
+            <a href="{% url 'mapa_obras:home' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 text-gray-300 hover:bg-slate-700 hover:text-white">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i>
+                <span class="font-medium">Trocar Obra</span>
+            </a>
             {% elif request.resolver_match.url_name == 'select-system' or request.resolver_match.url_name == 'select-project' %}
             <!-- Na Home (select-system) ou em Selecionar Obra (select-project) o menu de sistemas acima já cobre os links -->
-
-            {% elif request.resolver_match.url_name == 'analise_obra' %}
-            <!-- BI da Obra: sem menu do Diário; navegação principal em Módulos -->
 
             {% else %}
             <!-- ═══════ MENU: Diário de Obra ═══════ -->

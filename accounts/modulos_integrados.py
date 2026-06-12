@@ -39,6 +39,17 @@ MODULOS_INTEGRADOS: tuple[ModuloMeta, ...] = (
         (('Projetos ativos', 'projetos_ativos'), ('Diários registrados', 'diarios')),
     ),
     ModuloMeta(
+        'mapa_geo',
+        'Mapa Geográfico',
+        'Trechos e pontos no terreno: evolução por data, progresso na EAP e GPS dos RDOs',
+        'mapa-geo',
+        'fa-map-location-dot',
+        'icon-mapa-geo',
+        'mapa_geo:selecionar_obra',
+        'stats_mapa_geo',
+        (('Elementos no mapa', 'elementos'), ('Obras com mapa', 'obras')),
+    ),
+    ModuloMeta(
         'gestao',
         'GestControll',
         'Ordens de serviço e aprovações',
@@ -203,6 +214,7 @@ def resolve_modulo_from_path(path: str) -> str | None:
     path = path if path.startswith('/') else f'/{path}'
 
     prefix_map = (
+        ('/mapa-geo/', 'mapa_geo'),
         ('/gestao/', 'gestao'),
         ('/impedimentos/', 'impedimentos'),
         ('/trackhub/', 'trackhub'),

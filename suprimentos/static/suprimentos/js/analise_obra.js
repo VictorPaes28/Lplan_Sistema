@@ -433,14 +433,26 @@
     });
     if (!locHtml) locHtml = '<div class="big-sub" style="color:var(--bi-text3)">Sem dados de locais</div>';
 
+    var funnelHtml;
+    if (sk.manual_mode) {
+      funnelHtml =
+        funnel("f1", "Em levantamento", sk.levantamento || sk.sem_alocacao) +
+        funnel("f2", "Parcial", sk.parciais || 0) +
+        funnel("f3", "Entregue (local)", sk.entregues || 0) +
+        funnel("f4", "Sem alocação", sk.sem_alocacao);
+    } else {
+      funnelHtml =
+        funnel("f1", "Sem pedido (SC)", sk.sem_sc) +
+        funnel("f2", "SC sem compra (PC)", sk.sem_pc) +
+        funnel("f3", "PC sem entrega", sk.sem_entrega) +
+        funnel("f4", "Entregue s/ alocar", sk.sem_alocacao);
+    }
+
     return (
       '<div class="grid-2">' +
       '<div class="card"><div class="card-title">Funil de materiais <span class="card-tag tag-mat">SUPRIMENTOS</span></div>' +
       '<div class="funnel">' +
-      funnel("f1", "Sem pedido (SC)", sk.sem_sc) +
-      funnel("f2", "SC sem compra (PC)", sk.sem_pc) +
-      funnel("f3", "PC sem entrega", sk.sem_entrega) +
-      funnel("f4", "Entregue s/ alocar", sk.sem_alocacao) +
+      funnelHtml +
       "</div>" +
       '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bi-border);display:flex;align-items:center;justify-content:space-between">' +
       '<div style="font-size:11px;color:var(--bi-text2)">Itens atrasados</div>' +

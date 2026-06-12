@@ -319,6 +319,18 @@
                         <td class="diary-detail-data-table__value font-normal">{{ diary.production_responsible }}</td>
                     </tr>
                     {% endif %}
+                    {% if diary.geolocation_data.latitude %}
+                    <tr>
+                        <td class="diary-detail-data-table__label">Localização GPS</td>
+                        <td class="diary-detail-data-table__value font-normal">
+                            {{ diary.geolocation_data.latitude }}, {{ diary.geolocation_data.longitude }}
+                            {% if diary.geolocation_data.accuracy_m %}<span class="text-slate-500"> (±{{ diary.geolocation_data.accuracy_m }} m)</span>{% endif %}
+                            <a href="https://www.google.com/maps?q={{ diary.geolocation_data.latitude }},{{ diary.geolocation_data.longitude }}"
+                               target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline ml-2">Ver no mapa</a>
+                            <a href="{% url 'mapa_geo:mapa' %}?diary={{ diary.id }}" class="text-blue-600 hover:underline ml-2">Ver no mapa geográfico</a>
+                        </td>
+                    </tr>
+                    {% endif %}
                     </tbody>
                 </table>
             </div>

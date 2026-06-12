@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+
+{% load static %}
+
+
+
+{% block back_url %}{% url 'select-system' %}{% endblock %}
+
+{% block page_title %}Mapa Geográfico{% endblock %}
+
+{% block page_subtitle %}Selecionar obra{% endblock %}
+
+
+
+{% block extra_css %}
+
+<link rel="stylesheet" href="{% static 'core/css/select_project.css' %}?v=6">
+
+{% endblock %}
+
+
+
+{% block content %}
+
+<div class="select-project-page fade-in">
+
+    <div class="select-project-body max-w-6xl mx-auto">
+
+    {% if error %}
+
+    <div class="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg shadow-sm flex items-start" role="alert">
+
+        <i class="fas fa-exclamation-circle mr-2 mt-0.5"></i>
+
+        <div><p class="font-semibold text-sm">Erro</p><p class="text-sm mt-1">{{ error }}</p></div>
+
+    </div>
+
+    {% endif %}
+
+
+
+    <div class="select-project-toolbar-wrap">
+
+        <div class="select-project-toolbar">
+
+            <div class="select-project-toolbar-left">
+
+                <h2 class="select-project-title">Selecione uma Obra</h2>
+
+                <p class="select-project-subtitle">Escolha a obra para abrir o mapa geográfico — trechos, progresso e GPS dos RDOs.</p>
+
+            </div>
+
+            {% if projects %}
+
+            <div class="select-project-toolbar-actions">
+
+                <div class="select-project-toolbar-search-inner">
+
+                    <div class="search-input-wrapper">
+
+                        <i class="fas fa-search search-icon" aria-hidden="true"></i>
+
+                        <input type="text" id="projectSearch" class="search-input" placeholder="Buscar obra por nome ou código…" autocomplete="off">
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+
+
+    {% if projects %}
+
+    <p class="project-results-count project-search-meta"><span id="projectVisibleCount">{{ projects|length }}</span> obras encontradas</p>
+
+    <div class="no-results hidden" id="noResults">
+
+        <i class="fas fa-search"></i>
+
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">Nenhuma obra encontrada</h3>
+
+        <p class="text-sm">Tente buscar com outros termos.</p>
+
+    </div>
+
+    <div class="select-project-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="projectsGrid">
+
+        {% for project in projects %}
+
+        <form method="post" action="{% url 'mapa_geo:selecionar_obra' %}" class="project-card select-project-card" data-project-name="{{ project.name|lower }}" data-project-code="{{ project.code|lower }}">
+
+            {% csrf_token %}
+
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+
+            <button type="submit" class="select-project-card-btn {% if selected_project_id == project.id %}is-selected{% endif %}">
+
+                <div class="flex items-start justify-between mb-3">
+
+                    <div class="flex-1 min-w-0">
+
+                        <div class="flex items-center mb-1">
+
+                            <div class="select-project-card-icon-wrap" aria-hidden="true">
+
+                                <i class="fas fa-map-location-dot select-project-card-icon"></i>
+
+                            </div>
+
+                            <div class="min-w-0">
+
+                                <h3 class="select-project-card-title truncate">{{ project.name }}</h3>
+
+                                <p class="select-project-card-code">Código {{ project.code }}</p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <i class="fas fa-chevron-right select-project-card-arrow flex-shrink-0 ml-2"></i>
+
+                </div>
+
+                {% if project.address %}
+
+                <div class="select-project-card-meta-rows">
+
+                    <div class="select-project-card-meta-row">
+
+                        <i class="fas fa-map-marker-alt select-project-card-meta-icon" aria-hidden="true"></i>
+
+                        <span class="truncate">{{ project.address }}</span>
+
+                    </div>
+
+                </div>
+
+                {% endif %}
+
+            </button>
+
+        </form>
+
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <div class="empty-state">
+
+        <p class="text-gray-600 mb-4">Você não está vinculado a nenhuma obra.</p>
+
+        <p class="text-sm text-gray-500">Volte à <a href="{% url 'select-system' %}" class="text-blue-600 hover:underline">Home</a>.</p>
+
+    </div>
+
+    {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+
+{% block extra_js %}
+
+<script>
+
+(function() {
+
+    var searchInput = document.getElementById('projectSearch');
+
+    var projectsGrid = document.getElementById('projectsGrid');
+
+    var noResults = document.getElementById('noResults');
+
+    var projectVisibleCount = document.getElementById('projectVisibleCount');
+
+    if (!searchInput || !projectsGrid) return;
+
+    searchInput.addEventListener('input', function(e) {
+
+        var searchTerm = e.target.value.toLowerCase().trim();
+
+        var visibleCount = 0;
+
+        projectsGrid.querySelectorAll('.project-card').forEach(function(card) {
+
+            var name = card.getAttribute('data-project-name') || '';
+
+            var code = card.getAttribute('data-project-code') || '';
+
+            var show = !searchTerm || name.includes(searchTerm) || code.includes(searchTerm);
+
+            card.classList.toggle('hidden', !show);
+
+            if (show) visibleCount++;
+
+        });
+
+        if (noResults) noResults.classList.toggle('hidden', visibleCount > 0 || !searchTerm);
+
+        projectsGrid.classList.toggle('hidden', visibleCount === 0 && searchTerm);
+
+        if (projectVisibleCount) projectVisibleCount.textContent = visibleCount;
+
+    });
+
+})();
+
+</script>
+
+{% endblock %}
+

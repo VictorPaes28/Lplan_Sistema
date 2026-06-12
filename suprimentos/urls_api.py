@@ -13,6 +13,7 @@ urlpatterns = [
     path('item/<int:item_id>/alocar/', views_api.item_alocar, name='item_alocar'),
     path('item/<int:item_id>/remover-alocacao/', views_api.item_remover_alocacao, name='item_remover_alocacao'),
     path('item/<int:item_id>/excluir/', views_api.item_excluir, name='item_excluir'),
+    path('item/<int:item_id>/duplicar/', views_api.item_duplicar, name='item_duplicar'),
     path('insumos/', views_api.listar_insumos, name='listar_insumos'),
     path('locais/', views_api.listar_locais, name='listar_locais'),
     path('locais/criar/', views_api.criar_local_obra, name='criar_local_obra'),

@@ -126,6 +126,7 @@
         <!-- Seção: Fluxo de Aprovação -->
         <section class="desempenho-section desempenho-section-flow" aria-label="Fluxo de aprovação">
             <h2 class="desempenho-section-title">Fluxo de Aprovação</h2>
+            <p class="desempenho-section-desc">Tempo de resposta dos aprovadores. Cada tipo de pedido tem meta própria (contrato 72h, medição/OS 24h, mapa 48h).</p>
             <div id="tab-aprovadores" class="tab-content">
             <div class="performance-card performance-card-inner">
                 <div class="period-selector-container" style="margin-bottom: 1rem;">
@@ -140,6 +141,7 @@
                         </select>
                     </div>
                 </div>
+                <div id="aprovadores-resumo" class="desempenho-kpi-grid" style="display: none;"></div>
                 <div id="aprovadores-blocks" class="desempenho-blocks-wrap" style="display: none;"></div>
             </div>
             </div>
@@ -166,15 +168,113 @@ document.addEventListener('DOMContentLoaded', function() {
         return '0min';
     }
     
-    function criarBlocosAprovadores(dados, slaHoras, dias) {
+    function corTempoCategoria(cat) {
+        if (!cat || cat.tempo_medio_horas == null) return '#334155';
+        const ratio = cat.tempo_medio_horas / (cat.sla_horas || 24);
+        if (ratio > 1) return '#dc2626';
+        if (ratio > 0.75) return '#ca8a04';
+        return '#16a34a';
+    }
+
+    function corPctAtraso(pct) {
+        if (pct == null) return '#334155';
+        if (pct > 30) return '#dc2626';
+        if (pct > 20) return '#ca8a04';
+        return '#16a34a';
+    }
+
+    function badgeRisco(item) {
+        const map = {
+            alto: { bg: '#fef2f2', cor: '#b91c1c', label: 'Risco alto' },
+            moderado: { bg: '#fffbeb', cor: '#b45309', label: 'Atenção' },
+            baixo: { bg: '#f0fdf4', cor: '#15803d', label: 'Saudável' },
+        };
+        const cfg = map[item.classificacao_risco] || map.baixo;
+        return `<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;background:${cfg.bg};color:${cfg.cor};">${cfg.label}</span>`;
+    }
+
+    function renderTendencia(item) {
+        const v = item.variacao_tendencia;
+        if (v == null || Math.abs(v) < 15) return '';
+        const subiu = v > 0;
+        const cor = subiu ? '#b45309' : '#15803d';
+        const seta = subiu ? '↑' : '↓';
+        return `<div style="font-size:0.7rem;color:${cor};margin-top:0.25rem;">${seta} ${Math.abs(v)}% vs últimos 7 dias</div>`;
+    }
+
+    function renderPorCategoria(porCategoria) {
+        if (!porCategoria || porCategoria.length === 0) {
+            return '<div style="font-size: 0.75rem; color: #94a3b8;">Sem decisões por tipo no período.</div>';
+        }
+        return porCategoria.map(function(cat) {
+            const cor = corTempoCategoria(cat);
+            const status = cat.dentro_sla ? 'Dentro da meta' : 'Acima da meta';
+            const pctAtraso = cat.pct_fora_sla != null ? cat.pct_fora_sla + '% atrasadas' : '';
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9;">
+                    <div style="min-width: 0; flex: 1;">
+                        <div style="font-weight: 500; color: #334155; font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${cat.label}</div>
+                        <div style="font-size: 0.7rem; color: #94a3b8;">${cat.total_decisoes} decisão${cat.total_decisoes !== 1 ? 'ões' : ''} · meta ${cat.sla_horas}h${pctAtraso ? ' · ' + pctAtraso : ''}</div>
+                    </div>
+                    <div style="text-align: right; flex-shrink: 0;">
+                        <div style="font-weight: 600; color: ${cor}; font-size: 0.875rem;">${formatarTempo(cat.tempo_medio_horas)}</div>
+                        <div style="font-size: 0.65rem; color: ${cor};">${status}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function criarResumoAprovadores(data) {
+        const container = document.getElementById('aprovadores-resumo');
+        if (!container) return;
+        if (!data || !data.total_decisoes) {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = 'grid';
+        const corAtraso = corPctAtraso(data.pct_fora_sla_geral);
+        const metasTxt = (data.sla_por_tipo || [])
+            .map(function(m) { return m.label + ' ' + m.sla_horas + 'h'; })
+            .join(' · ');
+        container.innerHTML = `
+            <div class="desempenho-kpi-card">
+                <div class="desempenho-kpi-label">Decisões no período</div>
+                <div class="desempenho-kpi-value">${data.total_decisoes}</div>
+                <div class="desempenho-kpi-meta">${data.total_aprovados || 0} aprov. · ${data.total_reprovados || 0} reprov.</div>
+            </div>
+            <div class="desempenho-kpi-card">
+                <div class="desempenho-kpi-label">Demora média geral</div>
+                <div class="desempenho-kpi-value">${formatarTempo(data.tempo_medio_geral)}</div>
+                <div class="desempenho-kpi-meta">todos os tipos · ${data.periodo || ''}</div>
+            </div>
+            <div class="desempenho-kpi-card">
+                <div class="desempenho-kpi-label">Decisões atrasadas</div>
+                <div class="desempenho-kpi-value" style="color:${corAtraso}">${data.pct_fora_sla_geral != null ? data.pct_fora_sla_geral + '%' : '-'}</div>
+                <div class="desempenho-kpi-meta">prazo por categoria · ideal &lt; 20%</div>
+            </div>
+            <div class="desempenho-kpi-card">
+                <div class="desempenho-kpi-label">Taxa de aprovação</div>
+                <div class="desempenho-kpi-value">${data.taxa_aprovacao_geral != null ? data.taxa_aprovacao_geral + '%' : '-'}</div>
+                <div class="desempenho-kpi-meta">no período selecionado</div>
+            </div>
+            ${metasTxt ? `<div class="desempenho-kpi-card" style="grid-column: 1 / -1;">
+                <div class="desempenho-kpi-label">Metas de prazo por tipo</div>
+                <div class="desempenho-kpi-meta" style="margin-top:0;line-height:1.6;">${metasTxt}</div>
+            </div>` : ''}
+        `;
+    }
+
+    function criarBlocosAprovadores(dados, dias) {
         const container = document.getElementById('aprovadores-blocks');
         if (!container || !dados || dados.length === 0) {
             if (container) container.style.display = 'none';
             return;
         }
-        container.style.display = 'block';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '1.25rem';
         container.innerHTML = '';
-        const metaSla = slaHoras || 24;
         const numDias = dias > 0 ? dias : 30;
         
         dados.forEach((item) => {
@@ -183,26 +283,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const mediaPorDia = numDias > 0 ? (total / numDias) : 0;
             const mediaPorDiaStr = mediaPorDia % 1 === 0 ? mediaPorDia.toString() : mediaPorDia.toFixed(1).replace('.', ',');
             const card = document.createElement('div');
-            card.style.cssText = 'background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.75rem 2rem; max-width: 640px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);';
+            card.style.cssText = 'background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.75rem 2rem; max-width: 720px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);';
+            const corAtraso = corPctAtraso(item.pct_fora_sla);
+            const filaPendente = item.fila_pendente != null ? item.fila_pendente : 0;
+            const temAlerta = item.diagnostico && item.diagnostico !== 'Tudo dentro do esperado no período';
             card.innerHTML = `
-                <div style="margin-bottom: 1.25rem; padding-bottom: 0.875rem; border-bottom: 2px solid #e2e8f0;">
-                    <div style="font-size: 1.25rem; font-weight: 600; color: #1e293b;">${item.usuario}</div>
-                    <div style="font-size: 0.9rem; color: #64748b; margin-top: 0.25rem;">${total} decisões no período</div>
+                <div style="margin-bottom: 1.25rem; padding-bottom: 0.875rem; border-bottom: 2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;">
+                    <div>
+                        <div style="font-size: 1.25rem; font-weight: 600; color: #1e293b;">${item.usuario}</div>
+                        <div style="font-size: 0.9rem; color: #64748b; margin-top: 0.25rem;">${total} decisões no período</div>
+                    </div>
+                    ${badgeRisco(item)}
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem 1.5rem; font-size: 0.875rem;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem 1.5rem; font-size: 0.875rem;">
                     <div style="min-height: 3.5rem;">
                         <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Média de decisões por dia</div>
                         <div style="font-weight: 600; color: #334155; font-size: 1rem;">${mediaPorDiaStr}</div>
                     </div>
                     <div style="min-height: 3.5rem;">
-                        <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Demora média para decidir</div>
-                        <div style="font-weight: 600; color: #334155; font-size: 1rem;">${formatarTempo(item.tempo_medio_horas)}</div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem;">Meta: ${metaSla}h</div>
-                    </div>
-                    <div style="min-height: 3.5rem;">
                         <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Decisões atrasadas</div>
-                        <div style="font-weight: 600; color: #334155; font-size: 1rem;">${item.pct_fora_sla != null ? item.pct_fora_sla + '%' : '-'}</div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem;">ideal &lt; 20%</div>
+                        <div style="font-weight: 600; color: ${corAtraso}; font-size: 1rem;">${item.pct_fora_sla != null ? item.pct_fora_sla + '%' : '-'}</div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem;">prazo por categoria · ideal &lt; 20%</div>
                     </div>
                     <div style="min-height: 3.5rem;">
                         <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Aprovados / Reprovados</div>
@@ -210,13 +311,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem;">${taxaAprov}% aprov.</div>
                     </div>
                     <div style="min-height: 3.5rem;">
-                        <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Aguardando análise</div>
-                        <div style="font-weight: 600; color: #334155; font-size: 1rem;">${item.backlog || 0}</div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem;">pedidos não analisados</div>
+                        <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Fila agora</div>
+                        <div style="font-weight: 600; color: ${filaPendente >= 8 ? '#b45309' : '#334155'}; font-size: 1rem;">${filaPendente}</div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem;">pedidos pendentes na fila</div>
                     </div>
                 </div>
-                ${item.diagnostico ? `
-                <div style="margin-top: 1.25rem; padding: 0.875rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #475569; line-height: 1.5;">
+                <div style="margin-top: 1.25rem; padding: 1rem 1.125rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.25rem;">Demora média para decidir</div>
+                            <div style="font-weight: 700; color: #1e293b; font-size: 1.125rem;">${formatarTempo(item.tempo_medio_horas)}</div>
+                        ${renderTendencia(item)}
+                        </div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; text-align: right;">Média geral<br>todos os tipos</div>
+                    </div>
+                    <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.375rem;">Por tipo de solicitação</div>
+                    ${renderPorCategoria(item.por_categoria)}
+                </div>
+                ${temAlerta ? `
+                <div style="margin-top: 1.25rem; padding: 0.875rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.8125rem; color: #92400e; line-height: 1.5;">
                     ${item.diagnostico}
                 </div>
                 ` : ''}
@@ -250,7 +363,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
-            criarBlocosAprovadores(data.dados, data.sla_horas || 24, parseInt(document.getElementById('period-selector').value) || 30);
+            criarResumoAprovadores(data);
+            criarBlocosAprovadores(data.dados, parseInt(document.getElementById('period-selector').value) || 30);
         })
         .catch(function(err) {
             clearTimeout(timeoutId);

@@ -121,7 +121,7 @@ def usuario_tem_escopo_frente_no_pedido(user, workorder):
     - Admin/staff/superuser: sempre permitido.
     - Obra sem projeto ou sem frentes ativas: permitido (modelo legado sem frente).
     - Obra com frentes ativas:
-      - pedido sem frente: permitido apenas para admin;
+      - pedido sem frente (obra toda): permitido para quem acessa a obra no GestControll;
       - pedido com frente: segue frentes disponíveis ao usuário.
     """
     from core.models import ProjectFront
@@ -143,7 +143,7 @@ def usuario_tem_escopo_frente_no_pedido(user, workorder):
         return True
 
     if not getattr(workorder, 'front_id', None):
-        return False
+        return True
 
     return frentes_ativas_disponiveis_para_obra(obra, user).filter(
         pk=workorder.front_id

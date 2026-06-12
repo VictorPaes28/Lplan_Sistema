@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.http import Http404
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
@@ -9,7 +10,15 @@ from django.core.exceptions import ValidationError
 from accounts.decorators import require_group, login_required
 from accounts.groups import GRUPOS
 from mapa_obras.models import Obra, LocalObra
-from .models import ItemMapa, NotaFiscalEntrada, AlocacaoRecebimento, Insumo, RecebimentoObra, HistoricoAlteracao
+from .models import (
+    ItemMapa,
+    NotaFiscalEntrada,
+    AlocacaoRecebimento,
+    Insumo,
+    RecebimentoObra,
+    HistoricoAlteracao,
+    mapa_suprimentos_manual,
+)
 from django.db.models import Q, Sum
 from decimal import Decimal
 from uuid import uuid4
@@ -165,6 +174,65 @@ def _aplicar_dados_recebimento_obra(item):
     return True
 
 
+def _clear_item_computed_cache(item):
+    """Limpa cached_property após save (ex.: status_css)."""
+    item.__dict__.pop('status_css', None)
+
+
+def _item_ajax_state_payload(item, **extra):
+    """Estado da linha após alocação/remoção para atualizar o front sem reload."""
+    item.refresh_from_db()
+    _clear_item_computed_cache(item)
+    payload = {
+        'nova_quantidade_alocada': str(item.quantidade_alocada_local),
+        'saldo_restante': str(item.saldo_a_alocar_local),
+        'status_css': item.status_css,
+        **extra,
+    }
+    if mapa_suprimentos_manual():
+        payload['row_patch'] = _item_row_manual_patch(item)
+    return payload
+
+
+def _item_row_manual_patch(item):
+    """Campos calculados para atualizar a linha no mapa manual sem recarregar."""
+    from suprimentos.templatetags.suprimentos_filters import format_quantidade, format_unidade
+
+    _clear_item_computed_cache(item)
+    pct = float(item.percentual_alocado_porcentagem or 0)
+    pa = item.percentual_alocado
+    if pa >= 1:
+        progress_bg = 'rgba(34,197,94,0.2)'
+    elif pa > 0:
+        progress_bg = 'rgba(245,158,11,0.2)'
+    else:
+        progress_bg = 'rgba(156,163,175,0.1)'
+    unidade = format_unidade(item.insumo.unidade if item.insumo else '')
+    qtd_aloc = item.quantidade_alocada_local
+    qtd_plan = item.quantidade_planejada or Decimal('0')
+    saldo = item.saldo_a_alocar_local
+    return {
+        'quantidade_planejada': format_quantidade(qtd_plan),
+        'quantidade_alocada': format_quantidade(qtd_aloc),
+        'percentual_pct': round(pct),
+        'progress_bg': progress_bg,
+        'unidade': unidade,
+        'saldo_a_alocar': format_quantidade(saldo),
+        'saldo_negativo': bool(item.saldo_negativo),
+        'saldo_local_diferenca': f'{float(item.saldo_local_diferenca):.2f}',
+        'saldo_raw': str(saldo),
+        'alocado_raw': str(qtd_aloc),
+        'planejado_raw': str(qtd_plan),
+        'show_alocar_btn': True,
+        'status_etapa': item.status_etapa or '',
+        'status_css': item.status_css,
+        'is_atrasado': bool(item.is_atrasado),
+        'progress_title': (
+            f'Alocado: {float(qtd_aloc):.2f} | Planejado: {float(qtd_plan):.2f} {unidade} — use + para alocar'
+        ),
+    }
+
+
 def _item_row_sienge_patch(item):
     """Campos do Sienge para atualizar a linha no front sem recarregar a página."""
     qtd = item.quantidade_solicitada_sienge
@@ -215,11 +283,14 @@ def item_detalhe(request, item_id):
     ).select_related('local_aplicacao', 'criado_por').order_by('-data_alocacao')
     
     # Calcular quantidades
-    qtd_recebida_obra = item.quantidade_recebida_obra
     qtd_alocada_local = item.quantidade_alocada_local
     qtd_planejada = item.quantidade_planejada
-    # Falta Alocar: baseado no que foi recebido na obra, não no planejado
-    saldo_a_alocar = max(qtd_recebida_obra - qtd_alocada_local, Decimal('0.00'))
+    if mapa_suprimentos_manual():
+        qtd_recebida_obra = Decimal('0.00')
+        saldo_a_alocar = item.saldo_a_alocar_local
+    else:
+        qtd_recebida_obra = item.quantidade_recebida_obra
+        saldo_a_alocar = max(qtd_recebida_obra - qtd_alocada_local, Decimal('0.00'))
 
     def fmt_qtd(valor):
         """Formata quantidade com 2 casas para exibição no modal."""
@@ -275,7 +346,16 @@ def item_detalhe(request, item_id):
     </div>
         </div>
         <div class="col-md-6">
-            <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-truck"></i> Status de Entrega</h6>
+            <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-clipboard-check"></i> Status</h6>
+    <div class="detalhe-item">
+        <div class="detalhe-label">Etapa:</div>
+                <div class="detalhe-valor"><strong>{item.status_etapa}</strong></div>
+    </div>
+    <div class="detalhe-item">
+        <div class="detalhe-label">Prioridade:</div>
+                <div class="detalhe-valor">{item.prioridade}</div>
+    </div>
+            {'' if mapa_suprimentos_manual() else f'''
     <div class="detalhe-item">
         <div class="detalhe-label">Nº SC:</div>
                 <div class="detalhe-valor">{item.numero_sc or '<span class="text-muted">Não lançada</span>'}</div>
@@ -291,7 +371,7 @@ def item_detalhe(request, item_id):
     <div class="detalhe-item">
         <div class="detalhe-label">Prazo Recebimento:</div>
                 <div class="detalhe-valor">{item.prazo_recebimento or (recebimento.prazo_recebimento if recebimento else '-') or '-'}</div>
-            </div>
+            </div>'''}
         </div>
     </div>
     
@@ -305,11 +385,12 @@ def item_detalhe(request, item_id):
                 <div class="h5 mb-0">{fmt_qtd(qtd_planejada)} {item.insumo.unidade}</div>
                 <small class="text-muted">(Levantamento)</small>
             </div>
+            {'' if mapa_suprimentos_manual() else f'''
             <div class="col-3">
                 <div class="small text-muted">Recebido na Obra</div>
                 <div class="h5 mb-0">{fmt_qtd(qtd_recebida_obra)} {item.insumo.unidade}</div>
                 <small class="text-muted">(Sienge)</small>
-            </div>
+            </div>'''}
             <div class="col-3">
                 <div class="small text-muted">Alocado p/ este Local</div>
                 <div class="h5 mb-0 {'text-success' if qtd_alocada_local >= qtd_planejada else 'text-warning'}">{fmt_qtd(qtd_alocada_local)} {item.insumo.unidade}</div>
@@ -365,6 +446,38 @@ def item_detalhe(request, item_id):
         </table>
         """
     
+    historicos = HistoricoAlteracao.objects.filter(item_mapa=item).select_related('usuario')[:15]
+    if historicos.exists():
+        html += """
+        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-clock-history"></i> Histórico Recente</h6>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Tipo</th>
+                    <th>Descrição</th>
+                    <th>Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for h in historicos:
+            usuario_nome = '-'
+            if h.usuario:
+                usuario_nome = h.usuario.get_full_name() or h.usuario.username
+            html += f"""
+                <tr>
+                    <td>{h.data_hora.strftime('%d/%m/%Y %H:%M')}</td>
+                    <td>{h.get_tipo_display()}</td>
+                    <td>{h.descricao}</td>
+                    <td>{usuario_nome}</td>
+                </tr>
+            """
+        html += """
+            </tbody>
+        </table>
+        """
+
     # Notas Fiscais
     if nfs.exists():
         html += """
@@ -453,6 +566,69 @@ def item_excluir(request, item_id):
 
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
+@require_http_methods(["POST"])
+@ensure_csrf_cookie
+def item_duplicar(request, item_id):
+    """Duplica um item do mapa (sem alocações nem vínculos Sienge)."""
+    origem = get_object_or_404(ItemMapa.objects.select_related('obra', 'insumo'), id=item_id)
+
+    obra_sessao_id = request.session.get('obra_id')
+    if not request.user.is_superuser:
+        if not obra_sessao_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Selecione uma obra no mapa antes de duplicar.',
+            }, status=403)
+        try:
+            if int(obra_sessao_id) != origem.obra_id:
+                return JsonResponse({'success': False, 'error': 'Obra inválida para duplicação.'}, status=403)
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Obra da sessão inválida.'}, status=403)
+
+    ir = inactive_mapa_obra_write_json(origem.obra)
+    if ir:
+        return ir
+
+    desc = origem.descricao_override or (origem.insumo.descricao if origem.insumo else 'Item')
+    local = origem.local_aplicacao.nome if origem.local_aplicacao else '-'
+
+    with transaction.atomic():
+        novo = ItemMapa.objects.create(
+            obra=origem.obra,
+            insumo=origem.insumo,
+            categoria=origem.categoria,
+            prioridade=origem.prioridade,
+            responsavel=origem.responsavel,
+            observacao_eng=origem.observacao_eng,
+            descricao_override=origem.descricao_override,
+            local_aplicacao=origem.local_aplicacao,
+            prazo_necessidade=origem.prazo_necessidade,
+            quantidade_planejada=origem.quantidade_planejada,
+            criado_por=request.user,
+        )
+        HistoricoAlteracao.registrar(
+            obra=novo.obra,
+            usuario=request.user,
+            tipo='CRIACAO',
+            descricao=f'Item duplicado de #{origem.id}: "{desc}" — Local: {local}',
+            item_mapa=novo,
+            campo_alterado='duplicacao',
+            valor_anterior=str(origem.id),
+            valor_novo=str(novo.id),
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
+
+    redirect_url = reverse('engenharia:mapa') + f'?obra={novo.obra_id}&scroll_item={novo.id}'
+    return JsonResponse({
+        'success': True,
+        'message': 'Item duplicado com sucesso.',
+        'item_id': novo.id,
+        'redirect_url': redirect_url,
+    })
+
+
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
 def item_alocacoes_json(request, item_id):
     """Retorna alocações do item em formato JSON. Sempre retorna JSON."""
     try:
@@ -528,12 +704,20 @@ def item_atualizar_campo(request):
         if ir:
             return ir
         
+        if mapa_suprimentos_manual() and field == 'numero_sc':
+            return JsonResponse({
+                'success': False,
+                'error': 'Nº de solicitação de compra (SC) não é editável no mapa manual.',
+            }, status=403)
+
         # Campos permitidos para edição
         campos_permitidos = [
             'insumo', 'insumo_codigo', 'insumo_unidade', 'local_aplicacao', 'responsavel', 'prazo_necessidade',
             'quantidade_planejada', 'prioridade', 'observacao_eng', 'numero_sc',
             'categoria', 'descricao_override', 'empresa_fornecedora'  # Categoria de aplicação e descrição alternativa
         ]
+        if mapa_suprimentos_manual():
+            campos_permitidos = [c for c in campos_permitidos if c != 'numero_sc']
         
         if field not in campos_permitidos:
             return JsonResponse({'success': False, 'error': 'Campo não permitido'}, status=403)
@@ -667,8 +851,8 @@ def item_atualizar_campo(request):
                     insumo_atual.save(update_fields=['codigo_sienge', 'updated_at'])
                     valor_novo = codigo_novo
             _preservar_descricao_se_insumo_mudou(item, descricao_antes_vinculo, insumo_id_antes_vinculo)
-            # Vincular aos dados do Sienge: se já tiver numero_sc, preencher PC, datas, quantidades, etc.
-            filled_from_sienge = _aplicar_dados_recebimento_obra(item)
+            if not mapa_suprimentos_manual():
+                filled_from_sienge = _aplicar_dados_recebimento_obra(item)
             _preservar_descricao_se_insumo_mudou(item, descricao_antes_vinculo, insumo_id_antes_vinculo)
         elif field == 'insumo_unidade':
             # Editar unidade do insumo
@@ -744,6 +928,12 @@ def item_atualizar_campo(request):
                         'success': False,
                         'error': 'Quantidade não pode ser negativa'
                     }, status=400)
+                if mapa_suprimentos_manual() and qtd == 0:
+                    if AlocacaoRecebimento.objects.filter(item_mapa=item).exists():
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Não é possível zerar o planejado: há alocações neste item. Remova-as primeiro.',
+                        }, status=400)
                 item.quantidade_planejada = qtd
                 valor_novo = str(qtd)
             except (ValueError, TypeError):
@@ -921,6 +1111,7 @@ def item_atualizar_campo(request):
         
         # Confirmar que persistiu: reler do banco e logar (diagnóstico em produção)
         item.refresh_from_db()
+        _clear_item_computed_cache(item)
         import logging
         logger = logging.getLogger(__name__)
         logger.info(
@@ -955,15 +1146,19 @@ def item_atualizar_campo(request):
                 and not (item.insumo and (item.insumo.codigo_sienge or '').startswith('SM-LEV-'))
             ),
         }
-        if filled_from_sienge:
+        if mapa_suprimentos_manual():
+            payload['row_patch'] = _item_row_manual_patch(item)
+        elif filled_from_sienge:
             payload['row_patch'] = _item_row_sienge_patch(item)
-        if field in ('insumo_codigo', 'numero_sc'):
+        if field in ('insumo_codigo', 'numero_sc') and not mapa_suprimentos_manual():
             payload['descricao_exibida'] = _descricao_visivel_item(item)
             diag_patch = _item_row_sienge_patch(item)
             if payload.get('row_patch'):
                 payload['row_patch'].update(diag_patch)
             else:
                 payload['row_patch'] = diag_patch
+        elif field == 'insumo_codigo':
+            payload['descricao_exibida'] = _descricao_visivel_item(item)
         return JsonResponse(payload)
     
     except Exception as e:
@@ -1015,44 +1210,71 @@ def item_alocar(request, item_id):
         
         if quantidade <= 0:
             return json_error('Quantidade deve ser maior que zero')
+
+        if mapa_suprimentos_manual() and (item.quantidade_planejada or Decimal('0')) <= 0:
+            return json_error('Informe a quantidade planejada antes de alocar.')
         
         with transaction.atomic():
-            recebimento = item.recebimento_vinculado
-            if not recebimento:
-                return json_error(
-                    f'Não há material recebido na obra para o insumo "{item.insumo.descricao}". '
-                    'Aguarde a importação do Sienge ou cadastre um recebimento manualmente.'
+            if mapa_suprimentos_manual():
+                ItemMapa.objects.select_for_update().get(pk=item.pk)
+                disponivel = item.saldo_a_alocar_local
+                if disponivel <= 0:
+                    return json_error(
+                        'Não há saldo para alocar neste local. Ajuste a quantidade planejada ou remova alocações.'
+                    )
+                if quantidade > disponivel:
+                    return json_error(
+                        f'Quantidade ({quantidade}) excede o planejado disponível '
+                        f'({disponivel} {item.insumo.unidade}). Informe um valor menor.'
+                    )
+                alocacao = AlocacaoRecebimento(
+                    obra=item.obra,
+                    insumo=item.insumo,
+                    local_aplicacao=item.local_aplicacao,
+                    recebimento=None,
+                    item_mapa=item,
+                    quantidade_alocada=quantidade,
+                    observacao=observacao,
+                    criado_por=request.user,
                 )
-            
-            recebimento = RecebimentoObra.objects.select_for_update().get(id=recebimento.id)
-            
-            if recebimento.quantidade_recebida <= 0:
-                return json_error(f'Não há material recebido na obra para o insumo "{item.insumo.descricao}".')
-            
-            total_alocado = AlocacaoRecebimento.objects.filter(
-                recebimento=recebimento
-            ).aggregate(total=Sum('quantidade_alocada'))['total'] or Decimal('0.00')
-            
-            disponivel = recebimento.quantidade_recebida - total_alocado
-            
-            if disponivel <= 0:
-                return json_error('Não há material disponível para alocar. Todo o material recebido já foi alocado.')
-            
-            if quantidade > disponivel:
-                return json_error(
-                    f'Quantidade ({quantidade}) excede o disponível ({disponivel} {item.insumo.unidade}). Informe um valor menor.'
+                alocacao.save()
+            else:
+                recebimento = item.recebimento_vinculado
+                if not recebimento:
+                    return json_error(
+                        f'Não há material recebido na obra para o insumo "{item.insumo.descricao}". '
+                        'Aguarde a importação do Sienge ou cadastre um recebimento manualmente.'
+                    )
+                
+                recebimento = RecebimentoObra.objects.select_for_update().get(id=recebimento.id)
+                
+                if recebimento.quantidade_recebida <= 0:
+                    return json_error(f'Não há material recebido na obra para o insumo "{item.insumo.descricao}".')
+                
+                total_alocado = AlocacaoRecebimento.objects.filter(
+                    recebimento=recebimento
+                ).aggregate(total=Sum('quantidade_alocada'))['total'] or Decimal('0.00')
+                
+                disponivel = recebimento.quantidade_recebida - total_alocado
+                
+                if disponivel <= 0:
+                    return json_error('Não há material disponível para alocar. Todo o material recebido já foi alocado.')
+                
+                if quantidade > disponivel:
+                    return json_error(
+                        f'Quantidade ({quantidade}) excede o disponível ({disponivel} {item.insumo.unidade}). Informe um valor menor.'
+                    )
+                alocacao = AlocacaoRecebimento(
+                    obra=item.obra,
+                    insumo=item.insumo,
+                    local_aplicacao=item.local_aplicacao,
+                    recebimento=recebimento,
+                    item_mapa=item,
+                    quantidade_alocada=quantidade,
+                    observacao=observacao,
+                    criado_por=request.user
                 )
-            alocacao = AlocacaoRecebimento(
-                obra=item.obra,
-                insumo=item.insumo,
-                local_aplicacao=item.local_aplicacao,
-                recebimento=recebimento,
-                item_mapa=item,
-                quantidade_alocada=quantidade,
-                observacao=observacao,
-                criado_por=request.user
-            )
-            alocacao.save()
+                alocacao.save()
             
             local_nome = item.local_aplicacao.nome if item.local_aplicacao else 'este local'
             HistoricoAlteracao.registrar(
@@ -1067,14 +1289,13 @@ def item_alocar(request, item_id):
                 ip_address=request.META.get('REMOTE_ADDR')
             )
         
-        return JsonResponse({
-            'success': True,
-            'message': f'Alocado {quantidade} {item.insumo.unidade} para {item.local_aplicacao.nome}',
-            'nova_quantidade_alocada': str(item.quantidade_alocada_local),
-            'saldo_restante': str(item.saldo_a_alocar_local),
-            'saldo_a_ser_entregue': str(item.saldo_a_entregar_sienge),
-            'status_css': item.status_css
-        }, content_type='application/json')
+        resp = _item_ajax_state_payload(
+            item,
+            success=True,
+            message=f'Alocado {quantidade} {item.insumo.unidade} para {item.local_aplicacao.nome}',
+            saldo_a_ser_entregue=str(item.saldo_a_entregar_sienge),
+        )
+        return JsonResponse(resp, content_type='application/json')
         
     except (ValueError, TypeError) as e:
         return json_error(f'Valor inválido: {str(e)}')
@@ -1142,13 +1363,11 @@ def item_remover_alocacao(request, item_id):
                     ip_address=request.META.get('REMOTE_ADDR')
                 )
                 
-                return JsonResponse({
-                    'success': True,
-                    'message': f'Removidas {total_removido} alocação(ões) ({total_quantidade} {item.insumo.unidade})',
-                    'nova_quantidade_alocada': '0.00',
-                    'saldo_restante': str(item.saldo_a_alocar_local),
-                    'status_css': item.status_css
-                })
+                return JsonResponse(_item_ajax_state_payload(
+                    item,
+                    success=True,
+                    message=f'Removidas {total_removido} alocação(ões) ({total_quantidade} {item.insumo.unidade})',
+                ))
             elif alocacao_id:
                 # Remover alocação específica pelo ID
                 try:
@@ -1172,13 +1391,11 @@ def item_remover_alocacao(request, item_id):
                         ip_address=request.META.get('REMOTE_ADDR')
                     )
                     
-                    return JsonResponse({
-                        'success': True,
-                        'message': f'Removida alocação de {quantidade_removida} {item.insumo.unidade}',
-                        'nova_quantidade_alocada': str(item.quantidade_alocada_local),
-                        'saldo_restante': str(item.saldo_a_alocar_local),
-                        'status_css': item.status_css
-                    })
+                    return JsonResponse(_item_ajax_state_payload(
+                        item,
+                        success=True,
+                        message=f'Removida alocação de {quantidade_removida} {item.insumo.unidade}',
+                    ))
                 except AlocacaoRecebimento.DoesNotExist:
                     return JsonResponse({
                         'success': False,
@@ -1203,13 +1420,11 @@ def item_remover_alocacao(request, item_id):
                     ip_address=request.META.get('REMOTE_ADDR')
                 )
                 
-                return JsonResponse({
-                    'success': True,
-                    'message': f'Removida alocação de {quantidade_removida} {item.insumo.unidade}',
-                    'nova_quantidade_alocada': str(item.quantidade_alocada_local),
-                    'saldo_restante': str(item.saldo_a_alocar_local),
-                    'status_css': item.status_css
-                })
+                return JsonResponse(_item_ajax_state_payload(
+                    item,
+                    success=True,
+                    message=f'Removida alocação de {quantidade_removida} {item.insumo.unidade}',
+                ))
         
     except Exception as e:
         return JsonResponse({
@@ -1249,10 +1464,64 @@ def dashboard2_alocar(request):
                 'success': False,
                 'error': 'Quantidade deve ser maior que zero'
             }, status=400)
+
+        if not item.local_aplicacao_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Defina o local de aplicação antes de alocar.',
+            }, status=400)
         
         # CORREÇÃO PRIORIDADE 1: Validar DENTRO da transação com SELECT FOR UPDATE
         # Isso evita race conditions quando múltiplos usuários alocam simultaneamente
         with transaction.atomic():
+            if mapa_suprimentos_manual():
+                ItemMapa.objects.select_for_update().get(pk=item.pk)
+                saldo_disponivel = item.saldo_a_alocar_local
+                if saldo_disponivel <= 0:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Não há saldo planejado disponível para alocar neste local.',
+                    }, status=400)
+                if quantidade > saldo_disponivel:
+                    return JsonResponse({
+                        'success': False,
+                        'error': (
+                            f'Quantidade excede o planejado disponível. '
+                            f'Disponível: {saldo_disponivel} {item.insumo.unidade}'
+                        ),
+                    }, status=400)
+                alocacao = AlocacaoRecebimento(
+                    obra=item.obra,
+                    insumo=item.insumo,
+                    local_aplicacao=item.local_aplicacao,
+                    recebimento=None,
+                    item_mapa=item,
+                    quantidade_alocada=quantidade,
+                    observacao=observacao,
+                    criado_por=request.user,
+                )
+                alocacao.save()
+                local_nome = item.local_aplicacao.nome if item.local_aplicacao else 'local não definido'
+                HistoricoAlteracao.registrar(
+                    obra=item.obra,
+                    usuario=request.user,
+                    tipo='ALOCACAO',
+                    descricao=f'[Dashboard 2] Alocado {quantidade} {item.insumo.unidade} para {local_nome}',
+                    item_mapa=item,
+                    campo_alterado='alocacao',
+                    valor_anterior='',
+                    valor_novo=f'{quantidade} {item.insumo.unidade}',
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                )
+                novo_total_alocado = item.quantidade_alocada_local
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Alocado {quantidade} {item.insumo.unidade} para {local_nome}',
+                    'saldo_maximo': str(item.quantidade_planejada),
+                    'total_alocado': str(novo_total_alocado),
+                    'saldo_disponivel': str(item.saldo_a_alocar_local),
+                })
+
             # Buscar recebimentos com lock
             recebimentos = None
             saldo_maximo = Decimal('0.00')
@@ -1391,8 +1660,14 @@ def dashboard2_alocar(request):
 @require_http_methods(["GET"])
 def recebimentos_obra(request, obra_id):
     """Lista recebimentos de uma obra com saldo disponível para alocação."""
+    if mapa_suprimentos_manual():
+        return JsonResponse({'recebimentos': [], 'manual_mode': True})
     obra = get_object_or_404(Obra, id=obra_id)
-    
+    from mapa_obras.views import _user_can_access_obra
+
+    if not _user_can_access_obra(request, obra):
+        return JsonResponse({'error': 'Sem permissão para esta obra.'}, status=403)
+
     recebimentos = RecebimentoObra.objects.filter(
         obra=obra,
         quantidade_recebida__gt=0
@@ -1424,13 +1699,19 @@ def listar_scs_disponiveis(request):
     Lista SCs disponíveis (do RecebimentoObra) para vinculação no ItemMapa.
     Usado para o select de "Nº SOLICITAÇÃO" no formulário.
     """
+    if mapa_suprimentos_manual():
+        return JsonResponse({'scs': [], 'manual_mode': True})
     obra_id = request.GET.get('obra')
     if not obra_id:
         return JsonResponse({'scs': []})
     
     try:
         obra = get_object_or_404(Obra, id=obra_id)
-        
+        from mapa_obras.views import _user_can_access_obra
+
+        if not _user_can_access_obra(request, obra):
+            return JsonResponse({'error': 'Sem permissão para esta obra.'}, status=403)
+
         # Buscar todas as SCs da obra (RecebimentoObra)
         recebimentos = RecebimentoObra.objects.filter(
             obra=obra
@@ -1616,6 +1897,11 @@ def busca_rapida_mobile(request):
     
     try:
         obra = get_object_or_404(Obra, id=obra_id)
+        from mapa_obras.views import _user_can_access_obra
+
+        if not _user_can_access_obra(request, obra):
+            return JsonResponse({'error': 'Sem permissão para esta obra.'}, status=403)
+
         itens = ItemMapa.objects.filter(
             obra=obra
         ).select_related('insumo', 'local_aplicacao')

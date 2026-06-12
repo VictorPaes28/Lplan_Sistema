@@ -16,13 +16,14 @@ from .models import (
 def _get_system_access(user):
     """Flags usados no seletor de sistema e na sidebar (exceto granularidade engenharia via _engenharia_groups)."""
     if not user or not user.is_authenticated:
-        return False, False, False, False, False, False, False, False
+        return False, False, False, False, False, False, False, False, False
     from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
     user_groups = set(user.groups.values_list('name', flat=True))
     adminish = user.is_superuser or user.is_staff
     has_diario = adminish or GRUPOS.GERENTES in user_groups
+    has_mapa_geo = has_diario
     has_gestao = adminish or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
@@ -48,7 +49,7 @@ def _get_system_access(user):
         }
     )
     has_rh = adminish or plat_admin or (GRUPOS.RECURSOS_HUMANOS in user_groups)
-    return has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow, has_trackhub, has_rh
+    return has_diario, has_mapa_geo, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow, has_trackhub, has_rh
 
 
 def _engenharia_groups(user):
@@ -79,6 +80,7 @@ def sidebar_systems(request):
         z = False
         return {
             'has_diario': z,
+            'has_mapa_geo': z,
             'has_gestao': z,
             'has_impedimentos': z,
             'has_mapa': z,
@@ -96,7 +98,7 @@ def sidebar_systems(request):
             'can_manage_central_projects': False,
         }
 
-    has_diario, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow_cp, has_trackhub, has_rh = (
+    has_diario, has_mapa_geo, has_gestao, has_impedimentos, has_mapa_suprimentos, has_central, has_workflow_cp, has_trackhub, has_rh = (
         _get_system_access(request.user)
     )
     eng = _engenharia_groups(request.user)
@@ -112,6 +114,7 @@ def sidebar_systems(request):
 
     return {
         'has_diario': has_diario,
+        'has_mapa_geo': has_mapa_geo,
         'has_gestao': has_gestao,
         'has_impedimentos': has_impedimentos,
         'has_mapa': has_mapa_suprimentos,

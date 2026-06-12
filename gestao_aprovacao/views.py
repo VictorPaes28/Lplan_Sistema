@@ -48,6 +48,7 @@ from .utils import (
     criar_notificacao,
     admin_required,
     usuario_pode_marcar_pedido_analisado,
+    usuario_pode_aprovar_pedido,
     usuarios_escopo_pedido_para_notificar,
     projects_disponiveis_para_vinculo_usuario,
     obra_gestao_do_projeto,
@@ -71,6 +72,11 @@ from gestao_aprovacao.services.home_dashboard import (
     queryset_workorders_home_scope,
 )
 from gestao_aprovacao.services.fila_atraso_pdf import build_fila_atraso_pdf
+from gestao_aprovacao.sla import (
+    SLA_HORAS_PADRAO,
+    metricas_decisao_tempos,
+    sla_metas_resumo,
+)
 from gestao_aprovacao.signature_utils import validate_signature_data
 from gestao_aprovacao.services.consolidated_signature_pdf import (
     ConsolidationError,
@@ -550,7 +556,7 @@ def _apply_front_scope_to_workorders_queryset(user, workorders):
     - obra com frentes ativas:
       - se usuário não tem vínculos por frente no projeto: vê todas as frentes ativas;
       - se possui vínculos: vê apenas frentes permitidas;
-      - pedidos sem frente (consolidado) ficam restritos ao admin.
+      - pedidos sem frente (obra toda) ficam visíveis no escopo da obra.
     """
     if is_admin(user) or getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False):
         return workorders
@@ -600,6 +606,10 @@ def _apply_front_scope_to_workorders_queryset(user, workorders):
         )
     if allowed_front_ids:
         allowed_q |= Q(front_id__in=allowed_front_ids)
+    allowed_q |= Q(
+        obra__project_id__in=active_front_project_ids,
+        front__isnull=True,
+    )
     return workorders.filter(allowed_q).distinct()
 
 
@@ -5952,10 +5962,6 @@ def desempenho_equipe_api(request):
         agora = timezone.now()
         data_inicio_atual = agora - timedelta(days=dias_periodo)
         
-        # Período anterior equivalente (mesmo número de dias antes do período atual)
-        data_fim_anterior = data_inicio_atual
-        data_inicio_anterior = data_fim_anterior - timedelta(days=dias_periodo)
-        
         # Limitar número de aprovações para evitar timeout
         MAX_APPROVALS = 500  # Reduzido de 1000 para melhor performance
         
@@ -5988,9 +5994,22 @@ def desempenho_equipe_api(request):
         
         # Buscar aprovações do período atual
         approvals = buscar_aprovacoes(data_inicio_atual)
-        
-        # Buscar aprovações do período anterior para comparação
-        approvals_anterior = buscar_aprovacoes(data_inicio_anterior, data_fim_anterior)
+
+        def buscar_pedidos_pendentes():
+            qs = WorkOrder.objects.filter(
+                status__in=['pendente', 'reaprovacao'],
+                obra__ativo=True,
+            ).select_related('obra', 'obra__empresa', 'front')
+            if is_responsavel_empresa(request.user) and not is_admin(request.user):
+                empresas_ids = list(Empresa.objects.filter(
+                    responsavel=request.user
+                ).values_list('id', flat=True))
+                if not empresas_ids:
+                    return []
+                qs = qs.filter(obra__empresa_id__in=empresas_ids)
+            return list(qs[:500])
+
+        pedidos_pendentes = buscar_pedidos_pendentes()
         
         # Função auxiliar para processar aprovações e calcular estatísticas
         def processar_aprovacoes(approvals_list):
@@ -6008,6 +6027,7 @@ def desempenho_equipe_api(request):
                         desempenho_por_usuario[usuario_id] = {
                             'usuario': usuario_nome,
                             'tempos': [],
+                            'tempos_com_tipo': [],
                             'total_decisoes': 0,
                             'aprovados': 0,
                             'reprovados': 0
@@ -6030,38 +6050,30 @@ def desempenho_equipe_api(request):
                         
                         # Ignorar tempos negativos (erro de dados)
                         if tempo_resposta >= 0:
+                            tipo = approval.work_order.tipo_solicitacao or ''
                             desempenho_por_usuario[usuario_id]['tempos'].append(tempo_resposta)
+                            desempenho_por_usuario[usuario_id]['tempos_com_tipo'].append(
+                                (tempo_resposta, tipo)
+                            )
                 except Exception as e:
                     # Continuar processamento mesmo se houver erro em um registro
                     continue
             
             return desempenho_por_usuario
-        
-        # SLA padrão: 24 horas
-        SLA_HORAS = 24
-        LIMITE_CRITICO_HORAS = 24
-        
-        # Buscar pedidos recebidos (não apenas aprovados) para calcular capacidade
-        def buscar_pedidos_recebidos(data_inicio_periodo, data_fim_periodo=None):
-            if data_fim_periodo is None:
-                data_fim_periodo = agora
-            
-            if is_responsavel_empresa(request.user) and not is_admin(request.user):
-                empresas_ids = list(Empresa.objects.filter(
-                    responsavel=request.user
-                ).values_list('id', flat=True))
-                if not empresas_ids:
-                    return WorkOrder.objects.none()
-                return WorkOrder.objects.filter(
-                    data_envio__gte=data_inicio_periodo,
-                    data_envio__lte=data_fim_periodo,
-                    obra__empresa_id__in=empresas_ids
-                ).select_related('criado_por', 'obra')
-            else:
-                return WorkOrder.objects.filter(
-                    data_envio__gte=data_inicio_periodo,
-                    data_envio__lte=data_fim_periodo
-                ).select_related('criado_por', 'obra')
+
+        aprovadores_por_id = {
+            uid: User.objects.get(pk=uid)
+            for uid in {ap.aprovado_por_id for ap in approvals if ap.aprovado_por_id}
+        }
+
+        def contar_fila_pendente(usuario_id: int) -> int:
+            aprovador = aprovadores_por_id.get(usuario_id)
+            if not aprovador:
+                return 0
+            return sum(
+                1 for wo in pedidos_pendentes
+                if usuario_pode_aprovar_pedido(aprovador, wo)
+            )
         
         # Buscar StatusHistory para rastrear retrabalho
         def buscar_retrabalho(data_inicio_periodo, data_fim_periodo=None):
@@ -6091,45 +6103,32 @@ def desempenho_equipe_api(request):
         
         # Processar período atual
         desempenho_por_usuario = processar_aprovacoes(approvals)
-        pedidos_recebidos = buscar_pedidos_recebidos(data_inicio_atual)
         retrabalhos = buscar_retrabalho(data_inicio_atual)
+        todos_tempos_com_tipo: list[tuple[float, str]] = []
         
         # Processar período de 7 dias para tendência
         data_inicio_7d = agora - timedelta(days=7)
         desempenho_7d = processar_aprovacoes(buscar_aprovacoes(data_inicio_7d))
         
-        # Processar período anterior para comparação
-        desempenho_por_usuario_anterior = processar_aprovacoes(approvals_anterior)
-        
         # Calcular estatísticas acionáveis
         resultado = []
         for usuario_id, dados in desempenho_por_usuario.items():
-            if not dados['tempos']:
+            tempos_com_tipo = dados.get('tempos_com_tipo') or []
+            if not tempos_com_tipo:
                 continue
-                
-            tempos = dados['tempos']
-            n = len(tempos)
-            tempo_medio = sum(tempos) / n
+
+            metricas_tempo = metricas_decisao_tempos(tempos_com_tipo)
+            n = len(tempos_com_tipo)
+            tempo_medio = metricas_tempo['tempo_medio_horas']
+            pct_fora_sla = metricas_tempo['pct_fora_sla']
+            pct_acima_critico = metricas_tempo['pct_acima_critico']
+            por_categoria = metricas_tempo['por_categoria']
+            todos_tempos_com_tipo.extend(tempos_com_tipo)
             
-            # 1. MÉTRICAS DE SLA
-            fora_sla = sum(1 for t in tempos if t > SLA_HORAS)
-            acima_critico = sum(1 for t in tempos if t > LIMITE_CRITICO_HORAS)
-            pct_fora_sla = round((fora_sla / n * 100) if n > 0 else 0, 1)
-            pct_acima_critico = round((acima_critico / n * 100) if n > 0 else 0, 1)
-            
-            # 2. CAPACIDADE DO APROVADOR
-            # BMs aprovadas/dia no período
+            # Capacidade e fila atual
             dias_periodo_float = max(dias_periodo, 1)
-            bms_aprovadas_dia = round(dados['aprovados'] / dias_periodo_float, 2)
-            
-            # BMs recebidas/dia (pedidos que chegaram para este aprovador)
-            # Contar pedidos que foram aprovados/reprovados por este usuário
-            bms_recebidas = dados['total_decisoes']
-            bms_recebidas_dia = round(bms_recebidas / dias_periodo_float, 2)
-            
-            # Backlog implícito (diferença entre recebidas e processadas)
-            backlog = max(0, bms_recebidas - dados['aprovados'])
-            saldo_capacidade = round(bms_aprovadas_dia - bms_recebidas_dia, 2)
+            pedidos_decididos_dia = round(dados['total_decisoes'] / dias_periodo_float, 2)
+            fila_pendente = contar_fila_pendente(usuario_id)
             
             # 3. TAXA DE REPROVAÇÃO NORMALIZADA
             # Reprovações por BM aprovada
@@ -6158,8 +6157,8 @@ def desempenho_equipe_api(request):
             
             # 5. TENDÊNCIA TEMPORAL (7d vs 30d)
             dados_7d = desempenho_7d.get(usuario_id, {})
-            tempos_7d = dados_7d.get('tempos', [])
-            tempo_medio_7d = sum(tempos_7d) / len(tempos_7d) if tempos_7d and len(tempos_7d) > 0 else None
+            metricas_7d = metricas_decisao_tempos(dados_7d.get('tempos_com_tipo') or [])
+            tempo_medio_7d = metricas_7d.get('tempo_medio_horas')
             if tempo_medio_7d and tempo_medio_7d > 0:
                 variacao_tendencia = round(((tempo_medio - tempo_medio_7d) / tempo_medio_7d * 100), 1)
             else:
@@ -6168,7 +6167,7 @@ def desempenho_equipe_api(request):
             # 6. ÍNDICE SINTÉTICO DE RISCO OPERACIONAL
             # Combina: atraso (tempo médio vs SLA), reprovação e violação de SLA
             # Normalizar cada componente de 0 a 1
-            risco_atraso = min(1.0, tempo_medio / SLA_HORAS)  # 1.0 se tempo médio >= SLA
+            risco_atraso = min(1.0, metricas_tempo['risco_relativo'])
             risco_reprovacao = min(1.0, taxa_reprovacao_normalizada / 2.0)  # 1.0 se taxa >= 2.0
             risco_sla = pct_fora_sla / 100.0  # Já é 0-1
             
@@ -6196,12 +6195,24 @@ def desempenho_equipe_api(request):
             
             # 7. DIAGNÓSTICO (linguagem simples para quem olha rápido)
             diagnosticos = []
-            if tempo_medio > SLA_HORAS:
-                diagnosticos.append(f"Está demorando em média mais de {SLA_HORAS}h para decidir (meta é {SLA_HORAS}h)")
+            categorias_fora_meta = [
+                c for c in por_categoria
+                if c['total_decisoes'] >= 2
+                and c['tempo_medio_horas'] > c['sla_horas']
+            ]
+            for cat in categorias_fora_meta:
+                diagnosticos.append(
+                    f"{cat['label']}: média de {cat['tempo_medio_horas']:.1f}h "
+                    f"(meta {cat['sla_horas']}h)"
+                )
             if pct_fora_sla > 30:
-                diagnosticos.append(f"{pct_fora_sla}% das decisões atrasaram (passaram de 24h)")
-            if saldo_capacidade < 0:
-                diagnosticos.append("Está chegando mais pedido do que dá para analisar — a fila está crescendo")
+                diagnosticos.append(
+                    f"{pct_fora_sla}% das decisões passaram do prazo da categoria"
+                )
+            if fila_pendente >= 8:
+                diagnosticos.append(
+                    f"{fila_pendente} pedidos aguardando análise na fila agora"
+                )
             if variacao_tendencia and variacao_tendencia > 20:
                 diagnosticos.append("Nos últimos 7 dias está demorando mais que antes")
             if taxa_reprovacao_normalizada > 1.0:
@@ -6218,15 +6229,14 @@ def desempenho_equipe_api(request):
                 'usuario': dados['usuario'],
                 'usuario_id': usuario_id,
                 # Métricas principais
-                'tempo_medio_horas': round(tempo_medio, 2),
-                'sla_horas': SLA_HORAS,
+                'tempo_medio_horas': tempo_medio,
+                'sla_horas': SLA_HORAS_PADRAO,
                 'pct_fora_sla': pct_fora_sla,
                 'pct_acima_critico': pct_acima_critico,
+                'por_categoria': por_categoria,
                 # Capacidade
-                'bms_aprovadas_dia': bms_aprovadas_dia,
-                'bms_recebidas_dia': bms_recebidas_dia,
-                'saldo_capacidade': saldo_capacidade,
-                'backlog': backlog,
+                'pedidos_decididos_dia': pedidos_decididos_dia,
+                'fila_pendente': fila_pendente,
                 # Qualidade
                 'taxa_reprovacao_normalizada': taxa_reprovacao_normalizada,
                 'retrabalhos': retrabalhos_aprovador,
@@ -6271,6 +6281,7 @@ def desempenho_equipe_api(request):
         pct_fora_sla_geral = round((total_fora_sla / total_decisoes * 100) if total_decisoes > 0 else 0, 1)
         pct_acima_critico_geral = round((total_acima_critico / total_decisoes * 100) if total_decisoes > 0 else 0, 1)
         taxa_aprovacao_geral = round((total_aprovados / total_decisoes * 100) if total_decisoes > 0 else 0, 1)
+        metricas_gerais = metricas_decisao_tempos(todos_tempos_com_tipo)
         
         # Determinar período texto
         periodo_texto = f'Últimos {dias_periodo} dias'
@@ -6278,7 +6289,9 @@ def desempenho_equipe_api(request):
         return JsonResponse({
             'dados': resultado,
             'tempo_medio_geral': tempo_medio_geral,
-            'sla_horas': SLA_HORAS,
+            'sla_horas': SLA_HORAS_PADRAO,
+            'sla_por_tipo': sla_metas_resumo(),
+            'por_categoria_geral': metricas_gerais.get('por_categoria', []),
             'pct_fora_sla_geral': pct_fora_sla_geral,
             'pct_acima_critico_geral': pct_acima_critico_geral,
             'total_decisoes': total_decisoes,

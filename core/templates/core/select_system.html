@@ -408,6 +408,8 @@
     .system-card.gestao .card-inner::before { background: #f5576c; }
     .system-card.mapa:hover:not(.disabled) .card-inner { border-color: #4facfe; }
     .system-card.mapa .card-inner::before { background: #4facfe; }
+    .system-card.mapa-geo:hover:not(.disabled) .card-inner { border-color: #059669; }
+    .system-card.mapa-geo .card-inner::before { background: #059669; }
     .system-card.biobra:hover:not(.disabled) .card-inner { border-color: #0ea5e9; }
     .system-card.biobra .card-inner::before { background: #0ea5e9; }
     .system-card.central:hover:not(.disabled) .card-inner { border-color: #64748b; }
@@ -443,6 +445,7 @@
     .system-card.diario .system-icon { background: linear-gradient(135deg, #667eea, #764ba2); box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35); }
     .system-card.gestao .system-icon { background: linear-gradient(135deg, #f093fb, #f5576c); box-shadow: 0 4px 14px rgba(245, 87, 108, 0.35); }
     .system-card.mapa .system-icon  { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 4px 14px rgba(79, 172, 254, 0.35); }
+    .system-card.mapa-geo .system-icon { background: linear-gradient(135deg, #10b981, #0e6da8); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); }
     .system-card.biobra .system-icon { background: linear-gradient(135deg, #0ea5e9, #6366f1); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35); }
     .system-card.impedimentos .system-icon { background: #d24e1b; }
     .system-card.rh .system-icon { background: #7c3aed; }
@@ -901,6 +904,9 @@
                 {% if has_diario and sp %}
                 <a href="{% url 'dashboard' %}" class="select-system-quick-link"><i class="fas fa-book" aria-hidden="true"></i><span>Diário</span></a>
                 {% endif %}
+                {% if has_mapa_geo and sp %}
+                <a href="{% url 'mapa_geo:mapa' %}" class="select-system-quick-link"><i class="fas fa-map-location-dot" aria-hidden="true"></i><span>Mapa geográfico</span></a>
+                {% endif %}
                 {% if has_gestao %}
                 <a href="{% url 'gestao:list_workorders' %}" class="select-system-quick-link"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>Pedidos</span></a>
                 {% endif %}
@@ -927,7 +933,7 @@
     </div>
     <p id="select-system-module-filter-empty" class="select-system-module-filter-empty" hidden>Nenhum módulo encontrado.</p>
 
-    {% if not has_diario and not has_gestao and not has_impedimentos and not has_trackhub and not has_rh and not has_mapa and not has_ferramenta_ambientes and not has_bi_obra and not has_central and not has_workflow and not has_comunicados_painel %}
+    {% if not has_diario and not has_mapa_geo and not has_gestao and not has_impedimentos and not has_trackhub and not has_rh and not has_mapa and not has_ferramenta_ambientes and not has_bi_obra and not has_central and not has_workflow and not has_comunicados_painel %}
     <div class="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 mb-6" role="alert">
         <p class="text-amber-800 font-medium">Você não tem permissão para acessar nenhum módulo nesta página.</p>
         <p class="text-amber-700 text-sm mt-1">A central de <strong>Suporte</strong> permanece disponível abaixo. Para os demais módulos, contate o administrador (grupos e obras).</p>
@@ -957,6 +963,10 @@
         {% endif %}
         {% if has_diario %}
         {% include 'core/includes/select_system_modulo_card.html' with st=modulos_manutencao.diario codigo='diario' css_class='diario' icon_class='fa-book' title='Diário de Obra' description='Registro e acompanhamento dos relatórios diários da obra.' access_url=diario_access_url aria_label='Acessar Diário de Obra' only %}
+        {% endif %}
+
+        {% if has_mapa_geo %}
+        {% include 'core/includes/select_system_modulo_card.html' with st=modulos_manutencao.mapa_geo codigo='mapa_geo' css_class='mapa-geo' icon_class='fa-map-location-dot' title='Mapa Geográfico' description='Trechos e pontos no terreno: evolução por data, progresso na EAP e GPS dos RDOs.' access_url=mapa_geo_access_url aria_label='Acessar Mapa Geográfico' only %}
         {% endif %}
 
         {% if has_gestao %}
