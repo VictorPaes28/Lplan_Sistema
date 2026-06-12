@@ -81,6 +81,15 @@
     </button>
     {% endif %}
   </div>
+  {% elif not ctx.requisicao_aprovada and not ctx.requisicao_reprovada %}
+  <div class="rh-action-row">
+    <p class="rh-muted">
+      Aguardando aprovação de <strong>{{ ctx.gestor }}</strong>.
+      {% if ctx.gestor_user_id %}
+      <a href="{% url 'recursos_humanos:gestor_aprovar_requisicao' selecionado.pk %}" target="_blank" rel="noopener">Abrir tela de aprovação do gestor</a>
+      {% endif %}
+    </p>
+  </div>
   {% elif ctx.requisicao_reprovada %}
   <p class="rh-muted">Aguardando correção pelo responsável pela admissão.</p>
   {% elif ctx.requisicao_aprovada %}
@@ -428,7 +437,7 @@
       <h3 class="rh-etapa-title">Assinatura de contrato — <strong>{{ selecionado.nome }}</strong></h3>
     </div>
   </div>
-  <p class="rh-etapa-intro">Documentação aprovada. Contrato gerado e aguardando assinatura das partes.</p>
+  <p class="rh-etapa-intro">Documentação aprovada. Gere o PDF, assine no ZapSign e arquive o documento assinado aqui.</p>
   <div class="rh-info-grid">
     <div class="rh-info-box"><span class="rh-field-label">Tipo de contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Cargo</span><span class="rh-field-value">{{ ctx.cargo }}</span></div>
@@ -436,35 +445,57 @@
     <div class="rh-info-box"><span class="rh-field-label">Data de início</span><span class="rh-field-value">{% if ctx.data_inicio %}{{ ctx.data_inicio|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
   </div>
-  <div class="rh-action-row">
-    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
+
+  {% if ctx.contrato and ctx.contrato.status == 'concluido' %}
+    <div class="rh-banner rh-banner-success rh-banner-lg" style="margin-top:1rem;">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
+      <div>
+        <strong>Contrato assinado arquivado</strong>
+        <p class="rh-muted">Concluído em {% if ctx.contrato.concluido_em %}{{ ctx.contrato.concluido_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}.</p>
+      </div>
+      {% if ctx.contrato.pdf_contrato %}
+      <a href="{% url 'recursos_humanos:contrato_download' selecionado.pk %}" class="rh-btn rh-btn-outline"><i class="fas fa-file-pdf"></i> Baixar PDF assinado</a>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="rh-info-box" style="margin-top:1rem;">
+      <span class="rh-field-label">Fluxo ZapSign</span>
+      <ol class="rh-muted" style="margin:0.5rem 0 0 1.25rem;padding:0;font-size:0.9rem;line-height:1.6;">
+        <li>Gere e baixe o PDF do contrato pelo botão abaixo</li>
+        <li>Envie o PDF para o ZapSign e colete as assinaturas</li>
+        <li>Baixe o PDF assinado do ZapSign</li>
+        <li>Faça upload do PDF assinado nesta tela</li>
+      </ol>
+    </div>
+
+    <div class="rh-action-row" style="margin-top:1rem;">
+      <a href="{% url 'recursos_humanos:contrato_gerar' selecionado.pk %}" class="rh-btn rh-btn-primary"><i class="fas fa-file-pdf"></i> Gerar PDF para ZapSign</a>
+      {% if ctx.contrato and ctx.contrato.pdf_contrato %}
+      <a href="{% url 'recursos_humanos:contrato_download' selecionado.pk %}" class="rh-btn rh-btn-outline"><i class="fas fa-download"></i> Baixar rascunho</a>
+      {% endif %}
+    </div>
+
+    <form method="post" action="{% url 'recursos_humanos:contrato_upload' selecionado.pk %}" enctype="multipart/form-data" class="rh-form-block" style="margin-top:1.25rem;">
       {% csrf_token %}
-      <input type="hidden" name="acao" value="enviar_contrato">
-      <button type="submit" class="rh-btn rh-btn-primary"><i class="fas fa-pen"></i> Enviar contrato para assinatura</button>
+      <label class="rh-field-label" for="pdf_assinado">Upload do PDF assinado (ZapSign)</label>
+      <input type="file" name="pdf_assinado" id="pdf_assinado" accept="application/pdf,.pdf" required class="rh-input">
+      <div class="rh-action-row" style="margin-top:0.75rem;">
+        <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-upload"></i> Arquivar contrato assinado</button>
+      </div>
+      <p class="rh-muted" style="margin-top:0.5rem;font-size:0.85rem;">Ao arquivar, o colaborador será ativado automaticamente.</p>
     </form>
-    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
-      {% csrf_token %}
-      <input type="hidden" name="acao" value="concluir">
-      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-user-check"></i> Concluir admissão</button>
-    </form>
-  </div>
+  {% endif %}
   {% endwith %}
 
   {% elif etapa == 5 %}
   <div class="rh-etapa-head">
     <div>
       <span class="rh-etapa-kicker">ETAPA 5 › Ativo</span>
-      <h3 class="rh-etapa-title">Admissão concluída</h3>
-    </div>
-  </div>
-  <div class="rh-banner rh-banner-success rh-banner-lg">
-    <i class="fas fa-user-check" aria-hidden="true"></i>
-    <div>
-      <strong>Admissão concluída com sucesso</strong>
-      <p class="rh-muted">{{ selecionado.nome }} aparece como <strong>Ativo</strong> na lista de Colaboradores.</p>
+      <h3 class="rh-etapa-title">{{ selecionado.nome }}</h3>
     </div>
     <a href="{% url 'recursos_humanos:colaborador_detalhe' selecionado.pk %}" class="rh-btn rh-btn-outline">Ver perfil</a>
   </div>
+  <p class="rh-muted">Colaborador ativo na lista de Colaboradores.</p>
   {% else %}
   <p class="rh-muted">Etapa não reconhecida.</p>
   {% endif %}

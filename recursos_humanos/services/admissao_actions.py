@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,35 @@ def registrar_historico(colaborador, etapa: int, descricao: str, autor: str, *, 
         autor=autor,
         concluido=concluido,
     )
+
+
+def listar_historico_colaborador(
+    colaborador,
+    *,
+    limite: int = 100,
+    recente_primeiro: bool = True,
+):
+    """Histórico via query direta — evita inconsistência com prefetch_related."""
+    colaborador_id = colaborador.pk if isinstance(colaborador, Colaborador) else colaborador
+    qs = AdmissaoHistorico.objects.filter(colaborador_id=colaborador_id)
+    if recente_primeiro:
+        qs = qs.order_by('-data_hora', '-pk')
+    else:
+        qs = qs.order_by('data_hora', 'pk')
+    return list(qs[:limite])
+
+
+def serializar_historico_json(eventos) -> list[dict]:
+    return [
+        {
+            'descricao': ev.descricao,
+            'data_hora': ev.data_hora.strftime('%d/%m/%Y %H:%M'),
+            'autor': ev.autor or '—',
+            'concluido': ev.concluido,
+            'etapa': ev.etapa,
+        }
+        for ev in eventos
+    ]
 
 
 def _tentar_notificar_gestor_whatsapp(gestor_user, colaborador, user) -> None:
@@ -161,6 +191,39 @@ def _usuario_eh_rh(user) -> bool:
     from accounts.groups import GRUPOS
 
     return user.groups.filter(name=GRUPOS.RECURSOS_HUMANOS).exists()
+
+
+def queryset_fluxo_admissao(user=None):
+    """
+    Colaboradores visíveis no fluxo de admissão:
+    - em andamento (EM_ADMISSAO), ou
+    - concluídos (ATIVO na etapa 5+), para consulta histórica.
+    Gestores sem perfil RH veem só requisições pendentes da sua aprovação.
+    """
+    qs = Colaborador.objects.filter(
+        Q(status=Colaborador.Status.EM_ADMISSAO)
+        | Q(status=Colaborador.Status.ATIVO, etapa_admissao__gte=5),
+    )
+    if user is not None and not _usuario_eh_rh(user):
+        qs = qs.filter(
+            gestor_aprovador_user=user,
+            etapa_admissao=1,
+            requisicao_aprovada_gestor=False,
+            requisicao_reprovada=False,
+        )
+    doc_qs = DocumentoColaborador.objects.select_related('tipo').order_by('tipo__ordem', 'tipo__nome')
+    return qs.prefetch_related(
+        'historico_admissao',
+        'obras',
+        Prefetch('documentos', queryset=doc_qs),
+    ).order_by('-data_admissao', 'nome')
+
+
+def colaborador_admissao_concluida(colaborador: Colaborador) -> bool:
+    return (
+        colaborador.etapa_admissao >= 5
+        and colaborador.status == Colaborador.Status.ATIVO
+    )
 
 
 def _usuario_e_criador_requisicao(colaborador: Colaborador, user) -> bool:

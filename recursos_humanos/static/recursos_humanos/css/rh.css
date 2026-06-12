@@ -599,6 +599,20 @@
   gap: 0.5rem;
 }
 
+.rh-admission-card.is-concluida {
+  opacity: 0.92;
+}
+
+.rh-admission-card.is-concluida .rh-admission-card-stage {
+  color: #059669;
+  font-weight: 600;
+}
+
+.rh-page--gestor-aprovacao {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
 .rh-admission-card {
   display: flex;
   flex-direction: column;
@@ -3199,7 +3213,18 @@ body.rh-modal-open { overflow: hidden; }
 
 .modal-rh-body.modal-rh-body-perfil {
   padding: 0;
-  overflow: visible;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+}
+
+.modal-rh-atividades {
+  margin: 0;
+  padding: 0;
+}
+
+.modal-rh-atividades .rh-muted {
+  padding: 0.5rem 0;
+  font-size: 0.875rem;
 }
 
 .modal-rh-body-center {
@@ -3490,4 +3515,48 @@ body.rh-modal-open { overflow: hidden; }
 
 .rh-profile-tabs-card {
   margin-bottom: 1rem;
+}
+
+.rh-contrato-signatarios-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rh-contrato-signatario-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--rh-border, #e5e7eb);
+}
+
+.rh-contrato-sig-icon {
+  width: 1.5rem;
+  text-align: center;
+}
+
+.rh-contrato-sig-icon--ok { color: #059669; }
+.rh-contrato-sig-icon--pending { color: #d97706; }
+
+.rh-contrato-sig-tipo {
+  font-size: 0.8125rem;
+  margin-left: auto;
+}
+
+.rh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.rh-badge-success { background: #ecfdf5; color: #047857; }
+.rh-badge-warn { background: #fffbeb; color: #b45309; }
+
+.rh-btn-sm {
+  padding: 0.25rem 0.65rem;
+  font-size: 0.8125rem;
 }

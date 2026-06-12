@@ -22,14 +22,14 @@
 
   {% if adm_page_obj.paginator.count == 0 %}
   <div class="rh-card rh-pad rh-empty-state">
-    <p>Nenhuma admissão em andamento.</p>
+    <p>Nenhuma admissão registrada.</p>
     <button type="button" class="rh-btn rh-btn-primary js-rh-admissao-nova-open">Criar nova admissão</button>
   </div>
   {% else %}
   <div class="rh-admission-layout">
-    <aside class="rh-admission-sidebar" aria-label="Admissões em andamento">
+    <aside class="rh-admission-sidebar" aria-label="Admissões">
       {% for adm in admissoes %}
-      <a href="?id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado.pk == adm.pk %}is-active{% endif %}">
+      <a href="?id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado.pk == adm.pk %}is-active{% endif %}{% if adm.etapa_admissao >= 5 and adm.status == 'ativo' %} is-concluida{% endif %}">
         <strong class="rh-admission-card-name">{{ adm.nome }}</strong>
         <span class="rh-admission-card-meta">
           {{ adm.cargo }}{% if adm.obras.all %} · {% for obra in adm.obras.all %}{{ obra.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
@@ -41,7 +41,13 @@
             {% endfor %}
           </div>
           <span class="rh-admission-card-stage">
-            {% for num, label in etapas %}{% if num == adm.etapa_admissao %}{{ label }}{% endif %}{% endfor %}
+            {% if adm.etapa_admissao >= 5 and adm.status == 'ativo' %}
+              Concluída
+            {% elif adm.etapa_admissao == 1 and not adm.requisicao_aprovada_gestor and not adm.requisicao_reprovada %}
+              Aguard. gestor
+            {% else %}
+              {% for num, label in etapas %}{% if num == adm.etapa_admissao %}{{ label }}{% endif %}{% endfor %}
+            {% endif %}
           </span>
         </div>
       </a>
@@ -63,6 +69,39 @@
 
     {% if selecionado %}
     <div class="rh-admission-main">
+      {% if admissao_concluida %}
+      <div class="rh-banner rh-banner-success" style="margin-bottom:1rem;">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <div>
+          <strong>Admissão concluída</strong>
+          <p class="rh-muted">{{ selecionado.nome }} está ativo. Este registro permanece no fluxo para consulta do histórico.</p>
+        </div>
+      </div>
+      {% elif selecionado.etapa_admissao == 1 and not selecionado.requisicao_aprovada_gestor and not selecionado.requisicao_reprovada and admissao_ctx.etapa_1.pode_aprovar %}
+      <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
+        <i class="fas fa-user-check" aria-hidden="true"></i>
+        <div>
+          <strong>Aprovação pendente</strong>
+          <p class="rh-muted">Esta requisição aguarda sua aprovação como gestor ou RH.</p>
+        </div>
+        <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="aprovar_requisicao">
+          <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check"></i> Aprovar agora</button>
+        </form>
+      </div>
+      {% elif selecionado.etapa_admissao == 1 and not selecionado.requisicao_aprovada_gestor and not selecionado.requisicao_reprovada %}
+      <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
+        <i class="fas fa-clock" aria-hidden="true"></i>
+        <div>
+          <strong>Aguardando gestor {{ admissao_ctx.etapa_1.gestor }}</strong>
+          <p class="rh-muted">O gestor recebe notificação no sino com link para aprovar. RH também pode aprovar na etapa Requisição.</p>
+        </div>
+        {% if admissao_ctx.etapa_1.gestor_user_id %}
+        <a href="{% url 'recursos_humanos:gestor_aprovar_requisicao' selecionado.pk %}" class="rh-btn rh-btn-outline" target="_blank" rel="noopener">Abrir tela de aprovação</a>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="rh-stepper" aria-label="Etapas da admissão">
         {% for num, label in etapas %}
         {% if num <= selecionado.etapa_admissao %}

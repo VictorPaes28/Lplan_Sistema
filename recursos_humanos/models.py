@@ -344,3 +344,35 @@ class ConfiguracaoAlertasRH(models.Model):
     def get_solo(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class ContratoAdmissao(models.Model):
+    class Status(models.TextChoices):
+        PENDENTE = 'pendente', 'Pendente assinatura (ZapSign)'
+        CONCLUIDO = 'concluido', 'Contrato assinado arquivado'
+
+    colaborador = models.OneToOneField(
+        Colaborador,
+        on_delete=models.CASCADE,
+        related_name='contrato_admissao',
+    )
+    pdf_contrato = models.FileField(
+        'PDF do contrato',
+        upload_to='rh/contratos/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text='Rascunho gerado pelo sistema ou PDF assinado vindo do ZapSign',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDENTE,
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    concluido_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Contrato de admissão'
+
+    def __str__(self):
+        return f'Contrato — {self.colaborador.nome}'

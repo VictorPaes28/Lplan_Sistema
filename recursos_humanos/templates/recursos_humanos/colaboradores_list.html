@@ -303,6 +303,7 @@
       <button type="button" class="rh-colab-tab active" data-colab-tab="pessoal" role="tab" aria-selected="true">Dados Pessoais</button>
       <button type="button" class="rh-colab-tab" data-colab-tab="profissional" role="tab" aria-selected="false">Dados Profissionais</button>
       <button type="button" class="rh-colab-tab" data-colab-tab="documentos" role="tab" aria-selected="false">Documentos</button>
+      <button type="button" class="rh-colab-tab" data-colab-tab="atividades" role="tab" aria-selected="false">Atividades</button>
     </div>
     <div class="modal-rh-body modal-rh-body-perfil">
       <div class="rh-colab-tab-panel" data-colab-panel="pessoal" role="tabpanel">
@@ -314,6 +315,10 @@
       <div class="rh-colab-tab-panel" data-colab-panel="documentos" role="tabpanel" hidden>
         <div class="modal-rh-doc-progress" id="modal-perfil-doc-progress"></div>
         <div id="modal-perfil-documentos"></div>
+      </div>
+      <div class="rh-colab-tab-panel" data-colab-panel="atividades" role="tabpanel" hidden>
+        <p class="rh-muted" id="modal-perfil-atividades-count" style="margin:0 0 0.75rem;font-size:0.85rem;"></p>
+        <ul class="rh-timeline rh-timeline--admission modal-rh-atividades" id="modal-perfil-atividades"></ul>
       </div>
     </div>
     <footer class="modal-rh-footer">
@@ -653,6 +658,29 @@
       html += '</ul></div>';
     });
     document.getElementById('modal-perfil-documentos').innerHTML = html || '<p class="rh-muted">Nenhum documento.</p>';
+
+    var atividadesEl = document.getElementById('modal-perfil-atividades');
+    var atividadesCountEl = document.getElementById('modal-perfil-atividades-count');
+    var historico = data.historico || [];
+    if (atividadesCountEl) {
+      atividadesCountEl.textContent = historico.length
+        ? historico.length + ' registro(s) — mais recentes primeiro'
+        : '';
+    }
+    if (!historico.length) {
+      atividadesEl.innerHTML = '<li class="rh-muted">Nenhuma atividade registrada.</li>';
+    } else {
+      atividadesEl.innerHTML = historico.map(function (ev) {
+        var cls = ev.concluido ? 'done' : 'pending';
+        return '<li class="rh-timeline-item ' + cls + '">' +
+          '<span class="rh-timeline-dot"></span>' +
+          '<div class="rh-timeline-body">' +
+          '<strong>' + esc(ev.descricao) + '</strong>' +
+          '<span class="rh-timeline-meta">' + esc(ev.data_hora) + ' · ' + esc(ev.autor) + '</span>' +
+          '</div></li>';
+      }).join('');
+    }
+
     document.getElementById('modal-perfil-btn-editar').dataset.pk = data.id;
     atualizarAcoesPerfil(data);
   }

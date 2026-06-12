@@ -31,10 +31,10 @@ from .services.admissao_actions import (
     atualizar_requisicao,
     atualizar_status_documento,
     avancar_etapa_admissao,
+    colaborador_admissao_concluida,
     concluir_admissao,
     criar_requisicao,
     devolver_admissao,
-    enviar_contrato,
     registrar_historico,
     reprovar_requisicao_gestor,
     garantir_requisicao_criada_por,
@@ -49,6 +49,11 @@ from .services.admissao_actions import (
     rejeitar_documento_arquivo,
     remover_documento_arquivo,
     upload_documento_arquivo,
+    listar_historico_colaborador,
+    queryset_fluxo_admissao,
+    serializar_historico_json,
+    _usuario_eh_rh,
+    _usuario_pode_aprovar_requisicao,
 )
 from .services.alerts import contar_alertas, gerar_alertas, resumo_alertas
 from .services.notificacoes_sistema import sincronizar_alertas_sino
@@ -253,7 +258,7 @@ def colaborador_detalhe_view(request, pk):
                 messages.error(request, 'Informe o telefone do candidato.')
         return redirect('recursos_humanos:colaborador_detalhe', pk=pk)
 
-    historico = colaborador.historico_admissao.order_by('-data_hora')[:20]
+    historico = listar_historico_colaborador(colaborador, limite=50)
 
     portal_url = None
     if colaborador.status == Colaborador.Status.EM_ADMISSAO and colaborador.token_portal:
@@ -295,6 +300,8 @@ def colaborador_json_view(request, pk):
 
     obras = list(colaborador.obras.values_list('nome', flat=True))
 
+    historico = serializar_historico_json(listar_historico_colaborador(colaborador))
+
     return JsonResponse({
         'id': colaborador.pk,
         'nome': colaborador.nome,
@@ -325,6 +332,7 @@ def colaborador_json_view(request, pk):
         'docs_recebidos': colaborador.documentos_recebidos(),
         'docs_total': colaborador.documentos_total(),
         'documentos': docs_data,
+        'historico': historico,
         'url_detalhe': reverse('recursos_humanos:colaborador_detalhe', args=[colaborador.pk]),
         'url_editar': reverse('recursos_humanos:colaborador_detalhe', args=[colaborador.pk]),
         'url_excluir': reverse('recursos_humanos:colaborador_excluir', args=[colaborador.pk]),
@@ -351,16 +359,74 @@ def _requisicao_edicao_payload(colaborador: Colaborador) -> dict:
     }
 
 
-def _admissao_queryset():
-    doc_qs = DocumentoColaborador.objects.select_related('tipo').order_by('tipo__ordem', 'tipo__nome')
-    return (
-        Colaborador.objects.filter(status=Colaborador.Status.EM_ADMISSAO)
-        .prefetch_related(
-            'historico_admissao',
-            'obras',
-            Prefetch('documentos', queryset=doc_qs),
-        )
-        .order_by('-data_admissao', 'nome')
+def _admissao_queryset(user=None):
+    return queryset_fluxo_admissao(user)
+
+
+@login_required
+def gestor_aprovar_requisicao_view(request, pk):
+    """Aprovação de requisição pelo gestor (sem exigir perfil RH)."""
+    colaborador = get_object_or_404(
+        Colaborador.objects.select_related('gestor_aprovador_user').prefetch_related('obras'),
+        pk=pk,
+        status=Colaborador.Status.EM_ADMISSAO,
+        etapa_admissao=1,
+        requisicao_aprovada_gestor=False,
+        requisicao_reprovada=False,
+    )
+    if not _usuario_pode_aprovar_requisicao(colaborador, request.user):
+        messages.error(request, 'Você não tem permissão para aprovar esta requisição.')
+        return redirect('select-system')
+
+    historico = listar_historico_colaborador(colaborador, limite=10)
+    admissao_ctx = montar_contexto_admissao(colaborador, historico, user=request.user)
+    ctx_etapa1 = admissao_ctx['etapa_1']
+
+    if request.method == 'POST':
+        acao = request.POST.get('acao')
+        if acao == 'aprovar_requisicao':
+            ok, msg = aprovar_requisicao_gestor(colaborador, request.user)
+        elif acao == 'reprovar_requisicao':
+            form = ReprovarRequisicaoForm(request.POST)
+            if form.is_valid():
+                ok, msg = reprovar_requisicao_gestor(colaborador, form.cleaned_data['motivo'], request.user)
+            else:
+                ok, msg = False, 'Informe o motivo da reprovação.'
+        else:
+            ok, msg = False, 'Ação inválida.'
+
+        (messages.success if ok else messages.error)(request, msg)
+        if ok and acao == 'aprovar_requisicao':
+            if _usuario_eh_rh(request.user):
+                return redirect(f"{reverse('recursos_humanos:admissao')}?id={colaborador.pk}")
+            return render(
+                request,
+                'recursos_humanos/gestor_aprovar_requisicao.html',
+                {
+                    'colaborador': colaborador,
+                    'ctx': ctx_etapa1,
+                    'concluido': True,
+                },
+            )
+        if ok and acao == 'reprovar_requisicao':
+            return render(
+                request,
+                'recursos_humanos/gestor_aprovar_requisicao.html',
+                {
+                    'colaborador': colaborador,
+                    'ctx': ctx_etapa1,
+                    'reprovado': True,
+                },
+            )
+
+    return render(
+        request,
+        'recursos_humanos/gestor_aprovar_requisicao.html',
+        {
+            'colaborador': colaborador,
+            'ctx': ctx_etapa1,
+            'reprovar_form': ReprovarRequisicaoForm(),
+        },
     )
 
 
@@ -369,7 +435,7 @@ def _admissao_queryset():
 def admissao_view(request):
     _sincronizar_notificacoes_rh()
     sincronizar_obras_gestao()
-    admissoes_qs = _admissao_queryset()
+    admissoes_qs = _admissao_queryset(request.user)
     selecionado_id = request.GET.get('id')
     selecionado = admissoes_qs.filter(pk=selecionado_id).first() if selecionado_id else None
     if selecionado is None:
@@ -388,7 +454,7 @@ def admissao_view(request):
         garantir_requisicao_criada_por(selecionado)
     elif selecionado and selecionado.etapa_admissao >= 2:
         instanciar_documentos(selecionado)
-    historico = selecionado.historico_admissao.all() if selecionado else []
+    historico = listar_historico_colaborador(selecionado) if selecionado else []
     admissao_ctx = (
         montar_contexto_admissao(selecionado, historico, user=request.user)
         if selecionado else None
@@ -416,6 +482,8 @@ def admissao_view(request):
                 somente_leitura = ver_etapa < etapa_atual
         if etapa_exibida is None:
             etapa_exibida = etapa_atual
+        if colaborador_admissao_concluida(selecionado):
+            somente_leitura = etapa_exibida < etapa_atual
 
     ctx = {
         'admissoes': adm_page_obj,
@@ -434,6 +502,9 @@ def admissao_view(request):
             (4, 'Ass. Contrato'),
             (5, 'Ativo'),
         ],
+        'admissao_concluida': (
+            colaborador_admissao_concluida(selecionado) if selecionado else False
+        ),
         **_rh_nav_context(request),
     }
     return render(request, 'recursos_humanos/admissao.html', ctx)
@@ -505,7 +576,13 @@ def admissao_atualizar_requisicao_view(request, pk):
 def admissao_acao_view(request, pk):
     if request.method != 'POST':
         return redirect('recursos_humanos:admissao')
-    colaborador = get_object_or_404(Colaborador, pk=pk, status=Colaborador.Status.EM_ADMISSAO)
+    colaborador = get_object_or_404(_admissao_queryset(request.user), pk=pk)
+    if colaborador_admissao_concluida(colaborador):
+        messages.error(request, 'Admissão já concluída — somente consulta.')
+        return _redirect_admissao(colaborador.pk)
+    if colaborador.status != Colaborador.Status.EM_ADMISSAO:
+        messages.error(request, 'Colaborador não está em admissão.')
+        return _redirect_admissao(colaborador.pk)
     acao = request.POST.get('acao')
 
     if acao == 'aprovar_requisicao':
@@ -526,8 +603,6 @@ def admissao_acao_view(request, pk):
             ok, msg = devolver_admissao(colaborador, form.cleaned_data['motivo'], request.user)
         else:
             ok, msg = False, 'Informe o motivo da devolução.'
-    elif acao == 'enviar_contrato':
-        ok, msg = enviar_contrato(colaborador, request.user)
     elif acao == 'concluir':
         ok, msg = concluir_admissao(colaborador, request.user)
     else:
@@ -1045,3 +1120,78 @@ def portal_remover_view(request, token, doc_pk):
         messages.success(request, f'"{doc.tipo.nome}" removido. Você pode enviar outro arquivo.')
 
     return redirect('recursos_humanos:portal', token=token)
+
+
+@login_required
+@require_rh
+def contrato_gerar_view(request, pk):
+    """Gera PDF do contrato para download e envio manual ao ZapSign."""
+    from io import BytesIO
+
+    from django.http import FileResponse
+
+    from .services.contrato import obter_ou_criar_contrato, salvar_rascunho_contrato
+
+    colaborador = get_object_or_404(Colaborador, pk=pk, etapa_admissao=4)
+    contrato = obter_ou_criar_contrato(colaborador)
+    pdf_bytes = salvar_rascunho_contrato(contrato, colaborador)
+
+    registrar_historico(
+        colaborador,
+        4,
+        'PDF do contrato gerado para assinatura no ZapSign.',
+        request.user.get_full_name() or request.user.username,
+    )
+
+    cpf_limpo = (colaborador.cpf or '').replace('.', '').replace('-', '')
+    nome = f'contrato_rascunho_{cpf_limpo}.pdf'
+    return FileResponse(
+        BytesIO(pdf_bytes),
+        as_attachment=True,
+        filename=nome,
+        content_type='application/pdf',
+    )
+
+
+@login_required
+@require_rh
+def contrato_upload_view(request, pk):
+    """Upload do PDF assinado vindo do ZapSign."""
+    if request.method != 'POST':
+        return redirect('recursos_humanos:admissao')
+
+    colaborador = get_object_or_404(Colaborador, pk=pk, etapa_admissao=4)
+    arquivo = request.FILES.get('pdf_assinado')
+    if not arquivo:
+        messages.error(request, 'Selecione o PDF assinado.')
+        return _redirect_admissao(pk)
+    if not arquivo.name.lower().endswith('.pdf'):
+        messages.error(request, 'Envie um arquivo PDF.')
+        return _redirect_admissao(pk)
+
+    from .services.contrato import obter_ou_criar_contrato, salvar_contrato_assinado
+
+    contrato = obter_ou_criar_contrato(colaborador)
+    if salvar_contrato_assinado(contrato, arquivo, request.user):
+        messages.success(request, 'Contrato assinado arquivado. Colaborador ativado.')
+        return redirect('recursos_humanos:colaborador_detalhe', pk=colaborador.pk)
+
+    messages.error(request, 'Não foi possível salvar o contrato.')
+    return _redirect_admissao(pk)
+
+
+@login_required
+@require_rh
+def contrato_download_view(request, pk):
+    """Download do PDF do contrato gerado."""
+    from django.http import FileResponse, Http404
+
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    try:
+        contrato = colaborador.contrato_admissao
+    except Exception:
+        raise Http404('Contrato não encontrado.')
+    if not contrato or not contrato.pdf_contrato:
+        raise Http404('PDF do contrato indisponível.')
+    nome = contrato.pdf_contrato.name.rsplit('/', 1)[-1]
+    return FileResponse(contrato.pdf_contrato.open('rb'), as_attachment=True, filename=nome)

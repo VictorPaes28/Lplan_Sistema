@@ -523,3 +523,48 @@ class AdmissaoWriteTests(TestCase):
         colab.refresh_from_db()
         self.assertEqual(colab.documentos.filter(tipo__nome='CNH Sync').count(), 1)
         self.assertEqual(colab.documentos.filter(tipo__nome='Doc Obrig').count(), 1)
+
+    def test_gestor_sem_rh_aprova_pela_tela_dedicada(self):
+        gestor = User.objects.create_user('gestor_only', password='test')
+        self.client.force_login(self.user)
+        self.client.post(reverse('recursos_humanos:admissao_nova'), {
+            'nome': 'Aprova Gestor',
+            'cpf': '404.404.404-40',
+            'email': 'gestor.only@example.com',
+            'telefone': '81940404040',
+            'cargo': 'Eletricista',
+            'obra': self.obra.pk,
+            'tipo_contrato': 'CLT',
+            'salario': 'R$ 3.500',
+            'data_inicio': timezone.localdate().isoformat(),
+            'gestor_id': gestor.pk,
+            'motivo': 'Nova contratação',
+            'observacoes': '',
+        })
+        colab = Colaborador.objects.get(cpf='404.404.404-40')
+        self.client.logout()
+        self.client.force_login(gestor)
+        url = reverse('recursos_humanos:gestor_aprovar_requisicao', args=[colab.pk])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Aprovar requisição')
+        resp = self.client.post(url, {'acao': 'aprovar_requisicao'})
+        self.assertEqual(resp.status_code, 200)
+        colab.refresh_from_db()
+        self.assertTrue(colab.requisicao_aprovada_gestor)
+        self.assertEqual(colab.etapa_admissao, 2)
+
+    def test_admissao_concluida_permanece_no_fluxo(self):
+        colab = Colaborador.objects.create(
+            nome='Concluido Fluxo',
+            cpf='505.505.505-50',
+            cargo='Pedreiro',
+            status=Colaborador.Status.ATIVO,
+            etapa_admissao=5,
+            data_admissao=timezone.localdate(),
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse('recursos_humanos:admissao'), {'id': colab.pk})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Concluido Fluxo')
+        self.assertContains(resp, 'Admissão concluída')

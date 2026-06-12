@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import AdmissaoHistorico, CargoCatalogo, CargoRH, Colaborador, DocumentoColaborador, ObraLocal, TipoDocumento
+from .models import (
+    AdmissaoHistorico,
+    CargoCatalogo,
+    CargoRH,
+    Colaborador,
+    ContratoAdmissao,
+    DocumentoColaborador,
+    ObraLocal,
+    TipoDocumento,
+)
 
 
 @admin.register(ObraLocal)
@@ -43,3 +52,10 @@ class ColaboradorAdmin(admin.ModelAdmin):
     search_fields = ('nome', 'cpf', 'cargo')
     filter_horizontal = ('obras',)
     inlines = [DocumentoColaboradorInline, AdmissaoHistoricoInline]
+
+
+@admin.register(ContratoAdmissao)
+class ContratoAdmissaoAdmin(admin.ModelAdmin):
+    list_display = ['colaborador', 'status', 'criado_em', 'concluido_em']
+    list_filter = ['status']
+    readonly_fields = ['criado_em', 'concluido_em']

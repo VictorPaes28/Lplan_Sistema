@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
 
-from recursos_humanos.models import Colaborador, DocumentoColaborador
+from recursos_humanos.models import Colaborador, ContratoAdmissao, DocumentoColaborador
 
 
 @dataclass
@@ -317,12 +317,17 @@ def contexto_etapa_aprovacao(colaborador: Colaborador, resumo: dict) -> dict:
 def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
     obras = list(colaborador.obras.values_list('nome', flat=True))
     inicio = colaborador.data_admissao
+    try:
+        contrato = colaborador.contrato_admissao
+    except ContratoAdmissao.DoesNotExist:
+        contrato = None
     return {
         'tipo_contrato': colaborador.tipo_contrato or 'CLT',
         'cargo': colaborador.cargo,
         'obra': ', '.join(obras) if obras else '—',
         'data_inicio': inicio,
         'salario': formatar_salario_br(colaborador.salario),
+        'contrato': contrato,
     }
 
 

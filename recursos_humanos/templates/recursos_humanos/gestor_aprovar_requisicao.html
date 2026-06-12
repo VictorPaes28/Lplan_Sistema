@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Aprovar requisição — LPLAN{% endblock %}
+{% block page_title %}Aprovação de admissão{% endblock %}
+{% block page_subtitle %}Requisição de contratação aguardando sua decisão{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=34">
+{% endblock %}
+
+{% block content %}
+<div class="rh-page rh-page--gestor-aprovacao">
+  {% if concluido %}
+  <div class="rh-card rh-pad">
+    <div class="rh-banner rh-banner-success rh-banner-lg">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
+      <div>
+        <strong>Requisição aprovada</strong>
+        <p class="rh-muted">O RH iniciará a coleta de documentos com {{ colaborador.nome }}.</p>
+      </div>
+    </div>
+  </div>
+  {% elif reprovado %}
+  <div class="rh-card rh-pad">
+    <div class="rh-banner rh-banner-warning rh-banner-lg">
+      <i class="fas fa-info-circle" aria-hidden="true"></i>
+      <div>
+        <strong>Requisição reprovada</strong>
+        <p class="rh-muted">O RH foi notificado para corrigir e reenviar a requisição.</p>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="rh-card rh-pad">
+    <div class="rh-etapa-head">
+      <div>
+        <span class="rh-etapa-kicker">Requisição de admissão</span>
+        <h1 class="rh-etapa-title">{{ colaborador.nome }} — {{ colaborador.cargo }}</h1>
+      </div>
+    </div>
+    <p class="rh-etapa-intro">
+      Você foi indicado como gestor aprovador. Revise os dados e aprove ou reprove a contratação.
+    </p>
+
+    <div class="rh-info-grid">
+      <div class="rh-info-box"><span class="rh-field-label">Candidato</span><span class="rh-field-value">{{ colaborador.nome }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Cargo</span><span class="rh-field-value">{{ colaborador.cargo }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">E-mail</span><span class="rh-field-value">{{ ctx.email }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Telefone</span><span class="rh-field-value">{{ ctx.telefone }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Obras</span><span class="rh-field-value">{{ ctx.obras }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Início previsto</span><span class="rh-field-value">{% if ctx.data_requisicao %}{{ ctx.data_requisicao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Responsável RH</span><span class="rh-field-value">{{ ctx.solicitante }}</span></div>
+    </div>
+
+    {% if ctx.observacoes %}
+    <p class="rh-muted rh-etapa-obs">{{ ctx.observacoes }}</p>
+    {% endif %}
+
+    {% if ctx.pode_aprovar %}
+    <div class="rh-action-row" style="margin-top:1.25rem;">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="aprovar_requisicao">
+        <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check"></i> Aprovar requisição</button>
+      </form>
+      <button type="button" class="rh-btn rh-btn-danger-outline" id="gestor-reprovar-open">
+        <i class="fas fa-times"></i> Reprovar requisição
+      </button>
+    </div>
+
+    <div id="gestor-reprovar-panel" class="rh-card rh-pad" hidden style="margin-top:1rem;border:1px solid #fecaca;">
+      <h3 class="rh-card-title">Reprovar requisição</h3>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="reprovar_requisicao">
+        <label class="rh-form-field" for="gestor-reprovar-motivo">Motivo <span class="rh-required">*</span></label>
+        <textarea name="motivo" id="gestor-reprovar-motivo" class="rh-input rh-textarea" rows="4" required maxlength="500" placeholder="Descreva o que precisa ser corrigido..."></textarea>
+        <div class="rh-action-row" style="margin-top:0.75rem;">
+          <button type="button" class="rh-btn rh-btn-outline" id="gestor-reprovar-cancel">Cancelar</button>
+          <button type="submit" class="rh-btn rh-btn-danger">Confirmar reprovação</button>
+        </div>
+      </form>
+    </div>
+    <script>
+    (function () {
+      var openBtn = document.getElementById('gestor-reprovar-open');
+      var panel = document.getElementById('gestor-reprovar-panel');
+      var cancelBtn = document.getElementById('gestor-reprovar-cancel');
+      if (!openBtn || !panel) return;
+      openBtn.addEventListener('click', function () { panel.hidden = false; });
+      if (cancelBtn) cancelBtn.addEventListener('click', function () { panel.hidden = true; });
+    })();
+    </script>
+    {% else %}
+    <p class="rh-muted" style="margin-top:1rem;">Esta requisição não está mais pendente de aprovação.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -13,6 +13,10 @@ from recursos_humanos.services.alertas_config import obter_configuracao_alertas,
 logger = logging.getLogger(__name__)
 
 
+def _url_gestor_aprovar(colaborador_id: int) -> str:
+    return reverse('recursos_humanos:gestor_aprovar_requisicao', args=[colaborador_id])
+
+
 def _url_admissao(colaborador_id: int) -> str:
     return f"{reverse('recursos_humanos:admissao')}?id={colaborador_id}"
 
@@ -83,7 +87,7 @@ def notificar_gestor_requisicao_pendente(colaborador: Colaborador) -> None:
         'rh_requisicao_pendente',
         f'Aprovar admissão: {colaborador.nome}',
         f'Cargo {colaborador.cargo}. Requisição aguardando sua aprovação.',
-        url=_url_admissao(colaborador.pk),
+        url=_url_gestor_aprovar(colaborador.pk),
         event_key=_event_colab(colaborador.pk, 'requisicao'),
     )
 
